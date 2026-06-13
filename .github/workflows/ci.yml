@@ -21,21 +21,22 @@ jobs:
           # PIN to the runtime you deploy on (e.g. the Node version on your
           # Lambda/container) so a green CI run implies it works in prod.
           node-version: '22'
-          cache: 'npm'
+          # Add `cache: 'npm'` once you have a package-lock.json.
 
-      - name: Install (deterministic)
-        run: npm ci
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Type-check (HARD gate — no `|| true`)
-        run: npx tsc --noEmit
-
-      - name: Test
-        run: npm test
-        # Tier 1 — enforce a coverage floor once you have real users:
-        # run: npm run test:coverage -- --coverage.thresholds.lines=50
+      - name: Lint · Type-check · Test
+        # Skips cleanly while this is still a bare template (no package.json), so
+        # the template's own CI badge stays green. Lights up once you scaffold an app.
+        run: |
+          if [ ! -f package.json ]; then
+            echo "::notice::No package.json yet — scaffold your app to enable lint/type-check/test."
+            exit 0
+          fi
+          npm ci
+          npm run lint
+          npx tsc --noEmit          # HARD gate — no '|| true'
+          npm test
+          # Tier 1 — enforce a coverage floor once you have real users:
+          # npm run test:coverage -- --coverage.thresholds.lines=50
 
   secrets:
     name: Secret scan
