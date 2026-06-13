@@ -1,0 +1,59 @@
+name: ci
+
+# Tier 0: runs on every push + PR. Fast, no secrets required.
+# Tier 1+: uncomment the coverage threshold and the build job as the project matures.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: # manual re-run from the Actions tab
+
+jobs:
+  quality:
+    name: Lint · Type-check · Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # PIN to the runtime you deploy on (e.g. the Node version on your
+          # Lambda/container) so a green CI run implies it works in prod.
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install (deterministic)
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check (HARD gate — no `|| true`)
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm test
+        # Tier 1 — enforce a coverage floor once you have real users:
+        # run: npm run test:coverage -- --coverage.thresholds.lines=50
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so gitleaks can scan past commits too
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+
+  # Tier 1 — prove it builds (and, if containerised, that it starts):
+  # build:
+  #   name: Build
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with: { node-version: '22', cache: 'npm' }
+  #     - run: npm ci
+  #     - run: npm run build
