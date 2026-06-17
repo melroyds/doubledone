@@ -1,0 +1,95 @@
+// Bite the Elephant: the prompt plus the request/response shaping for Claude.
+// Pure and tested. The Worker handler (index.ts) does the actual fetch and CORS.
+
+export const DECOMPOSE_MODEL = 'claude-sonnet-4-6';
+
+// Calm, ADHD-aware. WORDING IS A PLACEHOLDER for Melroy to tune (see decision-log).
+export const SYSTEM_PROMPT = [
+  'You help someone with ADHD start a task they have been dreading.',
+  'Break the task into 3 to 6 atomic, concrete steps, in order.',
+  'The first step must be almost embarrassingly small, doable in about two minutes, to beat task-initiation paralysis.',
+  'Give each step an honest estimate in minutes.',
+  'Stay calm and plain. No pep talk, no shame, no exclamation marks.',
+  'Return the steps with the record_steps tool.',
+].join(' ');
+
+const STEPS_TOOL = {
+  name: 'record_steps',
+  description: 'Return the ordered, time-boxed steps for the dreaded task.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      steps: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            title: { type: 'string', description: 'One concrete action.' },
+            minutes: { type: 'integer', description: 'Estimated minutes for this step.' },
+          },
+          required: ['title', 'minutes'],
+        },
+      },
+    },
+    required: ['steps'],
+  },
+} as const;
+
+export type Step = { title: string; minutes: number };
+
+export type DecomposeRequest = {
+  url: string;
+  init: { method: string; headers: Record<string, string>; body: string };
+};
+
+/** Build the Anthropic Messages API request that decomposes a dreaded task. */
+export function buildDecomposeRequest(task: string, apiKey: string): DecomposeRequest {
+  const body = {
+    model: DECOMPOSE_MODEL,
+    max_tokens: 1024,
+    system: SYSTEM_PROMPT,
+    tools: [STEPS_TOOL],
+    tool_choice: { type: 'tool', name: 'record_steps' },
+    messages: [{ role: 'user', content: `The task I am dreading: ${task}` }],
+  };
+  return {
+    url: 'https://api.anthropic.com/v1/messages',
+    init: {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(body),
+    },
+  };
+}
+
+/** Pull the steps out of Claude's tool-use response, defensively (never throws). */
+export function parseDecomposeResponse(data: unknown): Step[] {
+  if (typeof data !== 'object' || data === null) return [];
+  const content = (data as { content?: unknown }).content;
+  if (!Array.isArray(content)) return [];
+  for (const block of content) {
+    if (
+      block != null &&
+      typeof block === 'object' &&
+      (block as { type?: unknown }).type === 'tool_use' &&
+      (block as { name?: unknown }).name === 'record_steps'
+    ) {
+      const steps = ((block as { input?: unknown }).input as { steps?: unknown })?.steps;
+      if (Array.isArray(steps)) {
+        return steps
+          .filter(
+            (s): s is Step =>
+              s != null &&
+              typeof (s as Step).title === 'string' &&
+              typeof (s as Step).minutes === 'number',
+          )
+          .map((s) => ({ title: s.title, minutes: s.minutes }));
+      }
+    }
+  }
+  return [];
+}

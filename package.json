@@ -14,7 +14,7 @@
     "android": "npm --workspace client run android",
     "lint": "npm --workspace client run lint",
     "typecheck": "npm --workspace client run typecheck && npm --workspace server run typecheck",
-    "test": "npm --workspace client run test",
+    "test": "npm --workspace client run test && npm --workspace server run test",
     "test:watch": "npm --workspace client run test:watch",
     "setup": "git config core.hooksPath .githooks"
   }

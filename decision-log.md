@@ -255,3 +255,16 @@ Verified the app renders after the row rewrite via DOM check; the long-press con
 This is the carry-forward half of day handling. The other half, clearing what you finished on previous days so Today stays fresh, belongs to the close-the-day wrap (Tier 2) and needs a completion timestamp on one-offs; deferred there. Assumption to challenge: done tasks currently persist on Today until that close-the-day feature exists.
 
 **In-app scheduling (A1-A4) is complete.** Next: Bite the Elephant.
+
+---
+
+## 2026-06-18 Bite the Elephant, part 1: the decompose endpoint
+
+`POST /decompose` on the doubledone-ai Worker turns a dreaded task into a few atomic, time-boxed steps. The prompt and request/response shaping live in `server/src/decompose.ts` (pure, tested): `buildDecomposeRequest` targets the Anthropic Messages API (claude-sonnet-4-6) with tool-use (a `record_steps` schema) so the output cannot be malformed, and `parseDecomposeResponse` pulls the steps out defensively. The Worker handler does the fetch and CORS. The contract test asserts the request shape and parses a sample tool_use response with no network, so CI never calls Claude. Server tests are now wired into the root test gate (54 tests total).
+
+Assumptions (Melroy to challenge):
+- The system prompt is a PLACEHOLDER (calm, ADHD-aware, tiny first step), isolated as `SYSTEM_PROMPT` in decompose.ts. Yours to tune.
+- Model claude-sonnet-4-6, max_tokens 1024, 3 to 6 steps.
+- No live Claude call yet; the single end-to-end validation is sub-step B3.
+
+**Flagged risk (must fix before any public launch):** the endpoint is unauthenticated and CORS-open, so anyone who finds the URL can spend your Anthropic budget (bounded only by the $25 cap). Fine for tonight's build, but before launch lock it to the app origin and/or add a shared token plus rate limiting. Added to the backlog.

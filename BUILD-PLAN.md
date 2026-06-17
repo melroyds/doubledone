@@ -98,6 +98,7 @@ The single home for everything we have consciously parked. Nothing here is dropp
 - Delete-a-task gesture (today you can complete but not remove). Trigger: soon, it is a basic gap, promote to the sequence when sync or close-the-day lands.
 - Investigate the expo-router "multiple renderers" dev warning. Trigger: before launch, or if it ever surfaces in production.
 - Tier-1 CI hardening: a coverage floor and a build job (PLAYBOOK). Trigger: real users, when silent regressions start costing people.
+- **Lock down the /decompose AI endpoint** (currently unauthenticated and CORS-open, so spammable up to the $25 cap). Trigger: before any public launch. Add an app-origin check and/or a shared token plus rate limiting.
 
 ---
 
