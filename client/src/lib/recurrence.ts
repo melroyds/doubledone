@@ -1,4 +1,4 @@
-import { toISODate } from './day';
+import { addDaysISO, toISODate } from './day';
 
 // A task is either one-off (no recurrence, optionally with a due date) or it
 // repeats. Kept deliberately small: daily and weekly cover almost everything an
@@ -44,5 +44,29 @@ export function describeRecurrence(r: Recurrence): string {
         .sort((a, b) => a - b)
         .map((d) => WEEKDAY_LABELS[d])
         .join(', ');
+  }
+}
+
+// What the capture UI offers: a deliberately tiny set, not a full date picker.
+export type CaptureSchedule =
+  | { mode: 'today' }
+  | { mode: 'tomorrow' }
+  | { mode: 'daily' }
+  | { mode: 'weekly'; weekdays: number[] };
+
+/** Map a capture choice to a task's scheduling fields, relative to `today`. */
+export function scheduleFields(
+  s: CaptureSchedule,
+  today: Date,
+): { due?: string | null; recurrence?: Recurrence } {
+  switch (s.mode) {
+    case 'today':
+      return {};
+    case 'tomorrow':
+      return { due: addDaysISO(today, 1) };
+    case 'daily':
+      return { recurrence: { kind: 'daily' } };
+    case 'weekly':
+      return { recurrence: { kind: 'weekly', weekdays: s.weekdays } };
   }
 }

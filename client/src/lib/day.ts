@@ -41,3 +41,10 @@ export function toISODate(d: Date): string {
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
+
+/** The local date `n` days from `d`, as `YYYY-MM-DD` (handles month/year rollover). */
+export function addDaysISO(d: Date, n: number): string {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return toISODate(x);
+}

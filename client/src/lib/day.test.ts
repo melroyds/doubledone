@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { daysBetween, formatTodayLabel, isSameDay, startOfDay, toISODate } from './day';
+import { addDaysISO, daysBetween, formatTodayLabel, isSameDay, startOfDay, toISODate } from './day';
 
 describe('startOfDay', () => {
   it('zeroes the time but keeps the calendar date', () => {
@@ -81,5 +81,21 @@ describe('toISODate', () => {
 
   it('uses the local calendar day, not the time of day', () => {
     expect(toISODate(new Date(2026, 5, 17, 23, 59))).toBe('2026-06-17');
+  });
+});
+
+describe('addDaysISO', () => {
+  it('adds days within a month', () => {
+    expect(addDaysISO(new Date(2026, 5, 17), 1)).toBe('2026-06-18');
+  });
+
+  it('rolls over month and year boundaries', () => {
+    expect(addDaysISO(new Date(2026, 5, 30), 2)).toBe('2026-07-02');
+    expect(addDaysISO(new Date(2026, 11, 31), 1)).toBe('2027-01-01');
+  });
+
+  it('handles zero and negative offsets', () => {
+    expect(addDaysISO(new Date(2026, 5, 17), 0)).toBe('2026-06-17');
+    expect(addDaysISO(new Date(2026, 5, 1), -1)).toBe('2026-05-31');
   });
 });

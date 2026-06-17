@@ -78,6 +78,7 @@ The single home for everything we have consciously parked. Nothing here is dropp
 **AI, beyond the core**
 - Energy-level matching (suggest tasks that fit your current energy). Trigger: Bite the Elephant and triage are solid and you want smarter sequencing.
 - Calendar read (see the day's meetings to size Today). Trigger: core loop sticky and time-blindness needs calendar context.
+- **External calendar two-way sync** (tasks <-> Google / phone calendar). Trigger: Melroy wants it (confirmed 2026-06-18, after in-app scheduling lands). Needs OAuth and a calendar API; the in-app scheduling model is the foundation it builds on.
 
 **Platform and distribution**
 - Play Store release, versus the current sideloaded APK. Trigger: polished enough to show publicly and you want auto-updates plus the store-listing portfolio signal (~$25 one-off plus review).
@@ -93,6 +94,7 @@ The single home for everything we have consciously parked. Nothing here is dropp
 
 **Polish and tech debt**
 - Custom DoubleDone app icon and splash (currently the generic Expo art). Trigger: visual identity decided.
+- Arbitrary-date one-off picker (capture offers Today / Tomorrow / Daily / Weekly for now). Trigger: you want to schedule for a specific far-off date; needs a cross-platform date-picker choice.
 - Delete-a-task gesture (today you can complete but not remove). Trigger: soon, it is a basic gap, promote to the sequence when sync or close-the-day lands.
 - Investigate the expo-router "multiple renderers" dev warning. Trigger: before launch, or if it ever surfaces in production.
 - Tier-1 CI hardening: a coverage floor and a build job (PLAYBOOK). Trigger: real users, when silent regressions start costing people.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { describeRecurrence, isDueOn, type Recurrence } from './recurrence';
+import { describeRecurrence, isDueOn, scheduleFields, type Recurrence } from './recurrence';
 
 const jun17 = new Date(2026, 5, 17); // a specific local day
 const jun18 = new Date(2026, 5, 18);
@@ -41,5 +41,22 @@ describe('describeRecurrence', () => {
   it('weekly lists its weekdays, and a full week reads as every day', () => {
     expect(describeRecurrence({ kind: 'weekly', weekdays: [1, 3] })).toBe('Mon, Wed');
     expect(describeRecurrence({ kind: 'weekly', weekdays: [0, 1, 2, 3, 4, 5, 6] })).toBe('Every day');
+  });
+});
+
+describe('scheduleFields', () => {
+  it('today is undated', () => {
+    expect(scheduleFields({ mode: 'today' }, jun17)).toEqual({});
+  });
+
+  it('tomorrow sets a one-off due date', () => {
+    expect(scheduleFields({ mode: 'tomorrow' }, jun17)).toEqual({ due: '2026-06-18' });
+  });
+
+  it('daily and weekly set recurrence', () => {
+    expect(scheduleFields({ mode: 'daily' }, jun17)).toEqual({ recurrence: { kind: 'daily' } });
+    expect(scheduleFields({ mode: 'weekly', weekdays: [1, 3] }, jun17)).toEqual({
+      recurrence: { kind: 'weekly', weekdays: [1, 3] },
+    });
   });
 });
