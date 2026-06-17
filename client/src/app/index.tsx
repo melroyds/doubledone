@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -6,48 +6,59 @@ import { AddTaskBar } from '@/components/AddTaskBar';
 import { TaskRow } from '@/components/TaskRow';
 import { colors, fonts, spacing } from '@/constants/theme';
 import { formatTodayLabel } from '@/lib/day';
+import { loadTasks, saveTasks } from '@/lib/storage';
+import { type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
 
-type Task = { id: string; title: string; done: boolean };
-
-// Seed tasks make the shell feel alive on first open. They live in memory only
-// (a real on-device store lands next, BUILD-PLAN steps 2-3), so a reload resets
-// them. The third one previews the Bite-the-Elephant ethos: shrink the dreaded
-// thing to a first step you can actually start.
-const SEED: Task[] = [
-  { id: 's1', title: 'Drink a glass of water', done: false },
-  { id: 's2', title: "Reply to Sam's message", done: false },
-  { id: 's3', title: 'Start the laundry, just sort the pile', done: false },
-];
-
-let nextId = 0;
+let addCounter = 0;
+function makeId(): string {
+  addCounter += 1;
+  return `t-${Date.now().toString(36)}-${addCounter.toString(36)}`;
+}
 
 export default function TodayScreen() {
   const insets = useSafeAreaInsets();
-  const [tasks, setTasks] = useState<Task[]>(SEED);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const today = useMemo(() => new Date(), []);
 
+  // Load the persisted list once. Until it arrives we hold off on the empty and
+  // all-done copy so neither flashes before the real tasks land.
+  useEffect(() => {
+    let active = true;
+    void loadTasks().then((stored) => {
+      if (!active) return;
+      setTasks(stored);
+      setLoaded(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const remaining = tasks.filter((t) => !t.done).length;
-  const allDone = tasks.length > 0 && remaining === 0;
+  const allDone = loaded && tasks.length > 0 && remaining === 0;
+
+  function commit(next: Task[]) {
+    setTasks(next);
+    void saveTasks(next);
+  }
 
   function toggle(id: string) {
-    setTasks((prev) => {
-      const next = prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t));
-      const justToggled = next.find((t) => t.id === id);
-      // The moat starts at the call site: log the outcome, not just "done".
-      track('task.toggled', { done: justToggled?.done ?? false });
-      if (next.length > 0 && next.every((t) => t.done)) {
-        track('day.cleared', { count: next.length });
-      }
-      return next;
-    });
+    const next = tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t));
+    const justToggled = next.find((t) => t.id === id);
+    // The moat starts at the call site: log the outcome, not just "done".
+    track('task.toggled', { done: justToggled?.done ?? false });
+    if (next.length > 0 && next.every((t) => t.done)) {
+      track('day.cleared', { count: next.length });
+    }
+    commit(next);
   }
 
   function add(title: string) {
     const trimmed = title.trim();
     if (!trimmed) return;
-    nextId += 1;
-    setTasks((prev) => [...prev, { id: `t${nextId}`, title: trimmed, done: false }]);
+    commit([...tasks, { id: makeId(), title: trimmed, done: false, createdAt: Date.now() }]);
     track('task.added');
   }
 
@@ -73,7 +84,7 @@ export default function TodayScreen() {
           ))}
         </View>
 
-        {tasks.length === 0 && (
+        {loaded && tasks.length === 0 && (
           <Text style={styles.calmNote}>Nothing here yet. Add one thing, or enjoy the quiet.</Text>
         )}
         {allDone && <Text style={styles.calmNote}>{"That's the list. Nicely done."}</Text>}

@@ -1,0 +1,66 @@
+// Pure task helpers: the data model plus serialize / deserialize / dump parsing.
+// No React Native or storage imports, so this is unit-testable in a node env
+// (see tasks.test.ts). The AsyncStorage wrapper lives in storage.ts and stays a
+// thin, untested SDK seam.
+
+export type Task = {
+  id: string;
+  title: string;
+  done: boolean;
+  createdAt: number; // epoch ms; lets the store sort and, later, roll the day
+};
+
+// Shown once on a brand-new install so the first open is not an empty void.
+// These are real, deletable tasks, persisted like any other. The third previews
+// the Bite-the-Elephant ethos: shrink the dreaded thing to a startable step.
+export const SEED: Task[] = [
+  { id: 'seed-water', title: 'Drink a glass of water', done: false, createdAt: 0 },
+  { id: 'seed-reply', title: "Reply to Sam's message", done: false, createdAt: 1 },
+  { id: 'seed-laundry', title: 'Start the laundry, just sort the pile', done: false, createdAt: 2 },
+];
+
+function isTask(value: unknown): value is Task {
+  if (typeof value !== 'object' || value === null) return false;
+  const t = value as Record<string, unknown>;
+  return (
+    typeof t.id === 'string' &&
+    typeof t.title === 'string' &&
+    typeof t.done === 'boolean' &&
+    typeof t.createdAt === 'number'
+  );
+}
+
+/** Serialize tasks for storage. */
+export function serialize(tasks: Task[]): string {
+  return JSON.stringify(tasks);
+}
+
+/**
+ * Parse stored tasks defensively. A corrupt or partial blob must never crash the
+ * app or throw away a load: anything unreadable yields an empty list, and any
+ * entry that is not a well-formed Task is dropped rather than trusted.
+ */
+export function deserialize(raw: string | null): Task[] {
+  if (!raw) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter(isTask);
+}
+
+/**
+ * Split a brain-dump blob into task titles: one per line, trimmed, blanks
+ * dropped. This is the friction-free capture, type freely and let the lines
+ * become tasks. Leading list markers (-, *, bullets, numbers) are stripped so
+ * pasting an existing list just works.
+ */
+export function parseDump(text: string): string[] {
+  return text
+    .split('\n')
+    .map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').trim())
+    .filter((line) => line.length > 0);
+}
