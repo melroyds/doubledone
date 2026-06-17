@@ -1,4 +1,4 @@
-# DoubleDone — Product Spec v1
+# DoubleDone, Product Spec v1
 
 *A calm, ADHD-friendly daily to-do app that makes today feel finite and achievable, and quietly remembers everything you actually got done.*
 
@@ -59,10 +59,10 @@ Two implied promises: lower the stakes of starting, and provide evidence against
 
 | Tier | Feature | Note |
 |---|---|---|
-| **1 — build first** | Today view, brain-dump capture, AI hydration, Bite the Elephant, recurring daily tracker | The whole core loop. Nothing ships without these. |
-| **2 — soon after** | Strategise reshuffle, finished-old-task celebration, close-the-day wrap, the Lookback, gentle nudges | What makes it sticky rather than merely functional. |
-| **3 — defer** | Cross-device sync, calendar read, energy-level matching, public API, MCP server | Real, not day-one. Each gets a build trigger. |
-| **4 — skip** | Teams, assignees, dependencies, Gantt, social feed | Wrong product. |
+| **1, build first** | Today view, brain-dump capture, AI hydration, Bite the Elephant, recurring daily tracker | The whole core loop. Nothing ships without these. |
+| **2, soon after** | Strategise reshuffle, finished-old-task celebration, close-the-day wrap, the Lookback, gentle nudges | What makes it sticky rather than merely functional. |
+| **3, defer** | Cross-device sync, calendar read, energy-level matching, public API, MCP server | Real, not day-one. Each gets a build trigger. |
+| **4, skip** | Teams, assignees, dependencies, Gantt, social feed | Wrong product. |
 
 ---
 

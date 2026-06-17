@@ -30,7 +30,7 @@ jobs:
           npm run lint
           npm run typecheck         # HARD gate, no '|| true'
           npm test
-          # Tier 1 — enforce a coverage floor once you have real users:
+          # Tier 1, enforce a coverage floor once you have real users:
           # npm run test:coverage -- --coverage.thresholds.lines=50
 
   secrets:
@@ -53,7 +53,7 @@ jobs:
         # tool the local pre-commit Inspector runs. Exits non-zero on a find.
         run: gitleaks detect --no-banner --redact
 
-  # Tier 1 — prove it builds (and, if containerised, that it starts):
+  # Tier 1, prove it builds (and, if containerised, that it starts):
   # build:
   #   name: Build
   #   runs-on: ubuntu-latest

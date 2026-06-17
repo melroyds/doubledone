@@ -1,7 +1,7 @@
 # Normalise line endings. The repo stores LF; checkout converts per the rules below.
 * text=auto eol=lf
 
-# Shell scripts and the git hook MUST stay LF — they run under bash/sh, and a CRLF
+# Shell scripts and the git hook MUST stay LF, they run under bash/sh, and a CRLF
 # line ending breaks the shebang ("bad interpreter") on Windows Git Bash.
 *.sh         text eol=lf
 .githooks/** text eol=lf
@@ -11,7 +11,7 @@
 *.cmd text eol=crlf
 *.bat text eol=crlf
 
-# Binaries — never touch.
+# Binaries, never touch.
 *.png  binary
 *.jpg  binary
 *.jpeg binary

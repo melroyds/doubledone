@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# golden-path — pre-commit Inspector
+# golden-path, pre-commit Inspector
 #
 # A self-contained, tracked quality gate. Activate ONCE per clone:
 #     git config core.hooksPath .githooks
@@ -10,8 +10,8 @@
 #   * Every variable is quoted. A path with a space ("D:\My Project") would
 #     otherwise word-split and the hook dies on `command not found`.
 #   * Tools run via `npx --no-install` so they come from THIS project's
-#     node_modules — deterministic, version-pinned, no global installs.
-#   * Each tool is "run if present, else skip with a hint" — so this hook sits
+#     node_modules, deterministic, version-pinned, no global installs.
+#   * Each tool is "run if present, else skip with a hint", so this hook sits
 #     happily on top of any project, half-scaffolded or complete.
 #   * Type errors are a HARD gate (no `|| true`). A type error that only
 #     "surfaces" is a type error that ships.
@@ -35,7 +35,7 @@ if has_staged '\.(jsx?|tsx?|mjs|cjs)$'; then
     npm run lint --silent || { echo "❌ Lint failed, try: npm run lint -- --fix"; FAIL=1; }
   elif npx_have eslint; then
     echo "  • lint"
-    npx --no-install eslint . || { echo "❌ ESLint failed — try: npx eslint --fix ."; FAIL=1; }
+    npx --no-install eslint . || { echo "❌ ESLint failed, try: npx eslint --fix ."; FAIL=1; }
   else
     echo "  • lint skipped (no lint script, eslint not installed yet)"
   fi
@@ -50,15 +50,15 @@ elif [ -f tsconfig.json ] && npx_have tsc; then
   npx --no-install tsc --noEmit || { echo "❌ Type-check failed, fix the type errors above."; FAIL=1; }
 fi
 
-# 3. Tests — the project's own (non-interactive) test script.
+# 3. Tests, the project's own (non-interactive) test script.
 if has_script test && [ -d node_modules ]; then
   echo "  • tests"
   npm test --silent || { echo "❌ Tests failed."; FAIL=1; }
 fi
 
-[ "$FAIL" -ne 0 ] && { echo "❌ Inspector blocked the commit — fix the above, then re-commit."; exit 1; }
+[ "$FAIL" -ne 0 ] && { echo "❌ Inspector blocked the commit, fix the above, then re-commit."; exit 1; }
 
-# 4. Secret scan — ALWAYS ON, BLOCKING. Built-in regex + gitleaks if present.
+# 4. Secret scan, ALWAYS ON, BLOCKING. Built-in regex + gitleaks if present.
 ADDED="$(git diff --cached --diff-filter=ACM -U0 | grep -E '^\+' | grep -vE '^\+\+\+' || true)"
 HIGH="$(printf '%s\n' "$ADDED" | grep -inE \
   'AIza[0-9A-Za-z_-]{20,}|sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|shp(at|ca|pa|ss)_[a-fA-F0-9]{32}' \
@@ -67,11 +67,11 @@ HEUR="$(printf '%s\n' "$ADDED" | grep -inE \
   "(password|passwd|secret|secret_key|api_key|apikey|access_token|auth_token|private_key|client_secret)[\"' ]*[:=][[:space:]]*[\"'][^\"' ]{8,}[\"']" \
   | grep -viE 'example|placeholder|change[_-]?me|your[_-]|dev-|test-|<[a-z_-]+>|process\.env|import\.meta\.env' || true)"
 if [ -n "${HIGH}${HEUR}" ]; then
-  echo "❌ Possible hardcoded secret — commit BLOCKED:"
+  echo "❌ Possible hardcoded secret, commit BLOCKED:"
   [ -n "$HIGH" ] && printf '%s\n' "$HIGH" | sed 's/^/    [key-format]    /'
   [ -n "$HEUR" ] && printf '%s\n' "$HEUR" | sed 's/^/    [sensitive-var] /'
   echo "   → Real secrets belong in a secret manager or a gitignored .env."
-  echo "   → Read them via process.env / import.meta.env — never as literals."
+  echo "   → Read them via process.env / import.meta.env, never as literals."
   exit 1
 fi
 if have gitleaks; then

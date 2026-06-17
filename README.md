@@ -17,9 +17,9 @@ Today is finite and achievable. The home screen is Today, sized to be doable, an
 
 Not another productivity optimiser. It is built for how ADHD and overwhelmed brains actually fail: task-initiation paralysis, time blindness, and the brain's habit of discounting everything you already did.
 
-- **Bite the Elephant** — hand it a task you have been dreading, get it back as atomic, time-boxed steps dropped into today.
-- **The Lookback** — see everything you actually finished, including the old dreaded things, as evidence against the "I did nothing" lie.
-- **Strategise** — when the day is over-full, it re-spreads the load with reasoning about priority, energy, and deadlines.
+- **Bite the Elephant**, hand it a task you have been dreading, get it back as atomic, time-boxed steps dropped into today.
+- **The Lookback**, see everything you actually finished, including the old dreaded things, as evidence against the "I did nothing" lie.
+- **Strategise**, when the day is over-full, it re-spreads the load with reasoning about priority, energy, and deadlines.
 - **Never shames the backlog.** It celebrates what you close, it never punishes a task for existing.
 
 ## Stack

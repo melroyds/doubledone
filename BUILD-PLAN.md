@@ -1,4 +1,4 @@
-# DoubleDone — Build Plan
+# DoubleDone, Build Plan
 
 *The operational doc. Where we are, what is next, in what order. If you are a fresh session, read this after CLAUDE.md and you know exactly where to start.*
 
@@ -46,21 +46,21 @@ Client scaffolded. The folder of docs is now a running app.
 Build in this order. Each step is shippable and demoable on its own.
 
 1. ✅ **Expo client scaffold** + Today view shell (web target first, the demoable surface). *Done 2026-06-17.*
-2. **Brain-dump capture** — the friction-free "get it out of your head" input
+2. **Brain-dump capture**, the friction-free "get it out of your head" input
 3. **Local store** (anonymous-first, on-device) for tasks + the Today view reading from it
 4. **AI backend** on Render holding the Anthropic key, with the request-contract test (mock SDK, assert shape) from the start
-5. **Bite the Elephant** — Sonnet decomposition of a stuck task into atomic time-boxed steps, dropped into Today. The killer acquisition moment. Instrument completion outcomes from this first AI feature (the moat starts here).
-6. **AI triage / hydration** — sort the brain-dump into today / later / decompose (Haiku, cheap)
-7. **Recurring daily tracker** — the repeating-tasks subsection
+5. **Bite the Elephant**, Sonnet decomposition of a stuck task into atomic time-boxed steps, dropped into Today. The killer acquisition moment. Instrument completion outcomes from this first AI feature (the moat starts here).
+6. **AI triage / hydration**, sort the brain-dump into today / later / decompose (Haiku, cheap)
+7. **Recurring daily tracker**, the repeating-tasks subsection
 
 ## Tier 2 (what makes it sticky)
 
-8. **The Lookback** — everything finished this week, including aged tasks. The emotional payoff.
-9. **Finished-old-task celebration** — reward closing the dreaded, never shame the backlog
-10. **Close-the-day wrap** — gentle, rolls forward, zero guilt
-11. **Strategise** — Sonnet re-spreads an over-full day
-12. **Supabase auth + sync** — opt-in cloud durability, RLS for privacy
-13. **Gentle nudges / notifications** — native, the retention lever
+8. **The Lookback**, everything finished this week, including aged tasks. The emotional payoff.
+9. **Finished-old-task celebration**, reward closing the dreaded, never shame the backlog
+10. **Close-the-day wrap**, gentle, rolls forward, zero guilt
+11. **Strategise**, Sonnet re-spreads an over-full day
+12. **Supabase auth + sync**, opt-in cloud durability, RLS for privacy
+13. **Gentle nudges / notifications**, native, the retention lever
 
 ## Deferred (Tier 3, with triggers)
 

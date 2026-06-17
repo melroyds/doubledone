@@ -1,10 +1,10 @@
-# DoubleDone — Decision Log
+# DoubleDone, Decision Log
 
 *The why-trail. Newest entries at the bottom of each section. Written contemporaneously so the dead ends stay honest.*
 
 ---
 
-## 2026-06-17 — Project founded
+## 2026-06-17, Project founded
 
 ### Why DoubleDone exists (the pivot from SubToll)
 

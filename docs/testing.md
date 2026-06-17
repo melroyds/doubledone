@@ -16,9 +16,9 @@ test is small; the cost of *not* having it is paid by a real user.
 | `<ai-prompt>` | a regression test per shipped prompt fix | a fixed bug silently returns |
 
 ## What we deliberately DON'T test
-- Component rendering details / snapshots — low signal, high churn.
-- Live API / model calls — flaky, slow, costly. Mock the SDK; assert the request *shape*.
-- Trivial getters — coverage-chasing is anti-portfolio.
+- Component rendering details / snapshots, low signal, high churn.
+- Live API / model calls, flaky, slow, costly. Mock the SDK; assert the request *shape*.
+- Trivial getters, coverage-chasing is anti-portfolio.
 
 ## Running
 ```bash

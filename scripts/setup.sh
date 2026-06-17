@@ -16,9 +16,9 @@ fi
 if command -v gitleaks >/dev/null 2>&1; then
   echo "✓ gitleaks present: $(gitleaks version)"
 else
-  echo "⚠ gitleaks not found — install it for the secret-scan backstop:"
+  echo "⚠ gitleaks not found, install it for the secret-scan backstop:"
   echo "    macOS:  brew install gitleaks"
   echo "    Linux:  https://github.com/gitleaks/gitleaks#installing"
 fi
 
-echo "✅ Setup complete — commits are now gated by .githooks/pre-commit."
+echo "✅ Setup complete, commits are now gated by .githooks/pre-commit."
