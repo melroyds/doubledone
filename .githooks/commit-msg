@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# ---------------------------------------------------------------------------
+# golden-path, commit-msg hook: decision-log reminder on MAJOR commits.
+#
+# Rule (see CLAUDE.md): every MAJOR commit updates decision-log.md with what
+# was decided AND what was decided against. "Major" = a Conventional Commit of
+# type feat, or any commit marked breaking (! or a BREAKING CHANGE footer).
+#
+# This is a non-blocking REMINDER, not a gate. The authoring discipline lives
+# in CLAUDE.md; a hook cannot write judgement, it can only nudge. Do not bypass
+# the hooks with --no-verify.
+# ---------------------------------------------------------------------------
+set -eu
+
+MSG_FILE="$1"
+SUBJECT="$(head -n1 "$MSG_FILE")"
+
+is_major=0
+if printf '%s' "$SUBJECT" | grep -qE '^feat(\([^)]+\))?!?:'; then is_major=1; fi   # feat / feat(scope) / feat!
+if printf '%s' "$SUBJECT" | grep -qE '^[a-z]+(\([^)]+\))?!:'; then is_major=1; fi   # any breaking type, e.g. fix!:
+if grep -qE '^BREAKING CHANGE:' "$MSG_FILE"; then is_major=1; fi                    # breaking footer
+
+# Minor commit: nothing to remind about.
+if [ "$is_major" -eq 0 ]; then exit 0; fi
+
+# Major commit that already touches the log: all good.
+if git diff --cached --name-only --diff-filter=ACM | grep -qE '(^|/)decision-log\.md$'; then
+  exit 0
+fi
+
+echo "⚠ decision-log reminder: this looks like a MAJOR commit, but decision-log.md is not part of it."
+echo "   The rule (CLAUDE.md): record what was decided AND what was decided against, with the why."
+echo "   If this commit genuinely settled nothing new, carry on. Otherwise add the entry and re-commit."
+exit 0
