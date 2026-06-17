@@ -9,7 +9,9 @@ export type Task = {
   id: string;
   title: string;
   done: boolean;
-  createdAt: number; // epoch ms; lets the store sort and, later, roll the day
+  createdAt: number; // epoch ms; stable identity + sort
+  updatedAt: number; // epoch ms; bumped on every change, drives last-write-wins sync
+  deletedAt?: number | null; // epoch ms tombstone; set = soft-deleted, hidden from views, synced as a delete
   due?: string | null; // 'YYYY-MM-DD' for a one-off; null/undefined = someday
   recurrence?: Recurrence; // absent = one-off (see lib/recurrence)
   completedDates?: string[]; // ISO dates a recurring task was ticked (per-day completion)
@@ -19,9 +21,9 @@ export type Task = {
 // These are real, deletable tasks, persisted like any other. The third previews
 // the Bite-the-Elephant ethos: shrink the dreaded thing to a startable step.
 export const SEED: Task[] = [
-  { id: 'seed-water', title: 'Drink a glass of water', done: false, createdAt: 0 },
-  { id: 'seed-reply', title: "Reply to Sam's message", done: false, createdAt: 1 },
-  { id: 'seed-laundry', title: 'Start the laundry, just sort the pile', done: false, createdAt: 2 },
+  { id: 'seed-water', title: 'Drink a glass of water', done: false, createdAt: 0, updatedAt: 0 },
+  { id: 'seed-reply', title: "Reply to Sam's message", done: false, createdAt: 1, updatedAt: 1 },
+  { id: 'seed-laundry', title: 'Start the laundry, just sort the pile', done: false, createdAt: 2, updatedAt: 2 },
 ];
 
 function isTask(value: unknown): value is Task {
@@ -54,7 +56,13 @@ export function deserialize(raw: string | null): Task[] {
     return [];
   }
   if (!Array.isArray(parsed)) return [];
-  return parsed.filter(isTask);
+  return parsed.filter(isTask).map(withDefaults);
+}
+
+// Older stored blobs predate updatedAt; backfill it from createdAt so last-write-wins
+// always has a value to compare, without dropping the task.
+function withDefaults(t: Task): Task {
+  return { ...t, updatedAt: typeof t.updatedAt === 'number' ? t.updatedAt : t.createdAt };
 }
 
 /**

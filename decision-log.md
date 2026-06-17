@@ -289,3 +289,16 @@ Assumptions (Melroy to challenge):
 Ran the single sanctioned live call against the deployed Worker: `POST /decompose {"task":"clean the garage"}` returned six well-formed steps, opening with a 2-minute "stand in the doorway and take a photo, do not touch anything yet" and escalating from there. This confirms the whole chain end to end: the Worker reads the `ANTHROPIC_API_KEY` secret, the Messages API tool-use call (`record_steps`) succeeds, and the response matches the client contract (`{steps:[{title,minutes}]}`, every step passing `parseSteps`). Cost was one Sonnet call (about a cent), negligible against the $25 cap.
 
 Note for Melroy: the placeholder system prompt already produces calm, atomic, tiny-first-step output. Wording is still yours to tune; this only proves the pipe works.
+
+## 2026-06-18 Cloud sync, part 1: sync-ready model (updatedAt + soft-delete tombstones)
+
+The foundation for sync, landed before any network code. Every task now carries `updatedAt` (epoch ms, bumped on create, toggle, edit and delete) to drive last-write-wins, and delete is now a soft-delete: it sets a `deletedAt` tombstone and bumps `updatedAt` rather than dropping the row. Tombstones are hidden from every view (Today and Later) but kept in the store, so a deletion propagates on the next sync instead of the task resurrecting on pull. Older stored blobs that predate `updatedAt` are backfilled from `createdAt` on load, so nothing is dropped. The pure pieces (backfill, tombstone exclusion) are unit-tested. The model now matches the remote `tasks` columns confirmed live tonight via PostgREST: id, user_id, title, done, due, recurrence, completed_dates, created_at, updated_at, deleted_at.
+
+Decided against:
+- A separate deletions/tombstone table. One nullable `deletedAt` on the row is simpler, syncs through the same path, and avoids a join; a tombstone table only earns its place if undelete history is ever needed.
+- Hard delete plus a "deleted on server" flag. Soft-delete in one column covers both the local hide and cross-device propagation with less machinery.
+- Garbage-collecting old tombstones now. They are tiny and harmless; a sweep can come later (trigger: the store actually grows enough to matter).
+
+Assumptions (Melroy to challenge):
+- Last-write-wins by `updatedAt` is the conflict policy (newest edit wins, a delete included). Fine for one user across devices; revisit only if shared lists ever land.
+- The remote `tasks` table set up earlier this session matches these columns. Tonight I confirmed the column names live via PostgREST, not every Postgres type; `supabase/schema.sql` (part 3) is the source of truth to diff the live table against.

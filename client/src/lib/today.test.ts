@@ -57,6 +57,15 @@ describe('tasksForToday', () => {
       'daily',
     ]);
   });
+
+  it('excludes soft-deleted (tombstoned) tasks, recurring or not', () => {
+    const tasks = [
+      { id: 'live', done: false },
+      { id: 'gone', done: false, deletedAt: 123 },
+      { id: 'gone-daily', done: false, recurrence: daily, deletedAt: 123 },
+    ];
+    expect(tasksForToday(tasks, today).map((t) => t.id)).toEqual(['live']);
+  });
 });
 
 describe('upcomingTasks', () => {
@@ -71,5 +80,13 @@ describe('upcomingTasks', () => {
       { id: 'undated', done: false },
     ];
     expect(upcomingTasks(tasks, today).map((t) => t.id)).toEqual(['soon', 'later']);
+  });
+
+  it('excludes soft-deleted future tasks', () => {
+    const tasks = [
+      { id: 'soon', done: false, due: '2026-06-19' },
+      { id: 'gone', done: false, due: '2026-06-20', deletedAt: 1 },
+    ];
+    expect(upcomingTasks(tasks, today).map((t) => t.id)).toEqual(['soon']);
   });
 });

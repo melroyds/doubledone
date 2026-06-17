@@ -19,6 +19,12 @@ function makeId(): string {
   return `t-${Date.now().toString(36)}-${addCounter.toString(36)}`;
 }
 
+// Clock read, kept at module scope so handlers stay pure for the render linter
+// (same reason makeId lives here). Bumps updatedAt / stamps tombstones.
+function nowMs(): number {
+  return Date.now();
+}
+
 export default function TodayScreen() {
   const insets = useSafeAreaInsets();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -49,14 +55,17 @@ export default function TodayScreen() {
     void saveTasks(next);
   }
 
+  // Soft-delete: tombstone the task (hidden from every view) rather than dropping
+  // it, so the deletion can sync to other devices instead of resurrecting on pull.
   function removeTask(id: string) {
-    commit(tasks.filter((t) => t.id !== id));
+    const now = nowMs();
+    commit(tasks.map((t) => (t.id === id ? { ...t, deletedAt: now, updatedAt: now } : t)));
     setConfirmingId(null);
     track('task.removed');
   }
 
   function toggle(id: string) {
-    const next = tasks.map((t) => (t.id === id ? toggleDoneOn(t, today) : t));
+    const next = tasks.map((t) => (t.id === id ? { ...toggleDoneOn(t, today), updatedAt: nowMs() } : t));
     const justToggled = next.find((t) => t.id === id);
     // The moat starts at the call site: log the outcome, not just "done".
     track('task.toggled', { done: justToggled ? isDoneOn(justToggled, today) : false });
@@ -70,13 +79,14 @@ export default function TodayScreen() {
   function capture(text: string, schedule: CaptureSchedule) {
     const titles = parseDump(text);
     if (titles.length === 0) return;
-    const now = Date.now();
+    const now = nowMs();
     const fields = scheduleFields(schedule, today); // due / recurrence for the chosen when
     const added: Task[] = titles.map((title, i) => ({
       id: makeId(),
       title,
       done: false,
       createdAt: now + i,
+      updatedAt: now + i,
       ...fields,
     }));
     commit([...tasks, ...added]);
@@ -92,12 +102,13 @@ export default function TodayScreen() {
   async function biteElephant(text: string) {
     const steps = await decompose(text);
     if (steps.length === 0) throw new Error('no steps');
-    const now = Date.now();
+    const now = nowMs();
     const added: Task[] = steps.map((s, i) => ({
       id: makeId(),
       title: `${s.title} (${s.minutes} min)`,
       done: false,
       createdAt: now + i,
+      updatedAt: now + i,
     }));
     commit([...tasks, ...added]);
     track('decomposition.offered', { steps: steps.length });

@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { deserialize, parseDump, serialize, type Task } from './tasks';
 
 const sample: Task[] = [
-  { id: 'a', title: 'Water the plants', done: false, createdAt: 10 },
-  { id: 'b', title: 'Pay the rent', done: true, createdAt: 20 },
+  { id: 'a', title: 'Water the plants', done: false, createdAt: 10, updatedAt: 10 },
+  { id: 'b', title: 'Pay the rent', done: true, createdAt: 20, updatedAt: 25 },
 ];
 
 describe('serialize / deserialize', () => {
@@ -37,9 +37,21 @@ describe('serialize / deserialize', () => {
       { id: 'c', title: 'Keep me too', done: true, createdAt: 3 },
     ]);
     expect(deserialize(raw)).toEqual([
-      { id: 'a', title: 'Keep me', done: false, createdAt: 1 },
-      { id: 'c', title: 'Keep me too', done: true, createdAt: 3 },
+      { id: 'a', title: 'Keep me', done: false, createdAt: 1, updatedAt: 1 },
+      { id: 'c', title: 'Keep me too', done: true, createdAt: 3, updatedAt: 3 },
     ]);
+  });
+
+  it('backfills updatedAt from createdAt for older blobs that predate it', () => {
+    const raw = JSON.stringify([{ id: 'a', title: 'Old task', done: false, createdAt: 7 }]);
+    expect(deserialize(raw)).toEqual([
+      { id: 'a', title: 'Old task', done: false, createdAt: 7, updatedAt: 7 },
+    ]);
+  });
+
+  it('keeps an explicit updatedAt when present', () => {
+    const raw = JSON.stringify([{ id: 'a', title: 'T', done: false, createdAt: 7, updatedAt: 99 }]);
+    expect(deserialize(raw)[0].updatedAt).toBe(99);
   });
 });
 

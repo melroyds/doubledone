@@ -9,6 +9,7 @@ export type Scheduled = {
   due?: string | null;
   recurrence?: Recurrence;
   completedDates?: string[]; // ISO dates a recurring task was completed
+  deletedAt?: number | null; // soft-delete tombstone; set = never shown
 };
 
 function isRecurring(t: Scheduled): boolean {
@@ -44,7 +45,7 @@ export function toggleDoneOn<T extends Scheduled>(task: T, date: Date): T {
 export function tasksForToday<T extends Scheduled>(tasks: T[], date: Date): T[] {
   const todayIso = toISODate(date);
   return tasks.filter((t) =>
-    isRecurring(t) ? isDueOn(t, date) : t.due == null || t.due <= todayIso,
+    t.deletedAt ? false : isRecurring(t) ? isDueOn(t, date) : t.due == null || t.due <= todayIso,
   );
 }
 
@@ -52,6 +53,6 @@ export function tasksForToday<T extends Scheduled>(tasks: T[], date: Date): T[] 
 export function upcomingTasks<T extends Scheduled>(tasks: T[], date: Date): T[] {
   const todayIso = toISODate(date);
   return tasks
-    .filter((t) => !isRecurring(t) && t.due != null && t.due > todayIso && !t.done)
+    .filter((t) => !t.deletedAt && !isRecurring(t) && t.due != null && t.due > todayIso && !t.done)
     .sort((a, b) => (a.due ?? '').localeCompare(b.due ?? ''));
 }
