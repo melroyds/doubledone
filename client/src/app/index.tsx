@@ -9,6 +9,7 @@ import { formatTodayLabel } from '@/lib/day';
 import { loadTasks, saveTasks } from '@/lib/storage';
 import { parseDump, type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
+import { isDoneOn, tasksForToday, toggleDoneOn } from '@/lib/today';
 
 let addCounter = 0;
 function makeId(): string {
@@ -36,8 +37,8 @@ export default function TodayScreen() {
     };
   }, []);
 
-  const remaining = tasks.filter((t) => !t.done).length;
-  const allDone = loaded && tasks.length > 0 && remaining === 0;
+  const visible = tasksForToday(tasks, today);
+  const allDone = loaded && visible.length > 0 && visible.every((t) => isDoneOn(t, today));
 
   function commit(next: Task[]) {
     setTasks(next);
@@ -45,12 +46,13 @@ export default function TodayScreen() {
   }
 
   function toggle(id: string) {
-    const next = tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t));
+    const next = tasks.map((t) => (t.id === id ? toggleDoneOn(t, today) : t));
     const justToggled = next.find((t) => t.id === id);
     // The moat starts at the call site: log the outcome, not just "done".
-    track('task.toggled', { done: justToggled?.done ?? false });
-    if (next.length > 0 && next.every((t) => t.done)) {
-      track('day.cleared', { count: next.length });
+    track('task.toggled', { done: justToggled ? isDoneOn(justToggled, today) : false });
+    const todays = tasksForToday(next, today);
+    if (todays.length > 0 && todays.every((t) => isDoneOn(t, today))) {
+      track('day.cleared', { count: todays.length });
     }
     commit(next);
   }
@@ -83,17 +85,17 @@ export default function TodayScreen() {
         <Text style={styles.spine}>Just today. The rest can wait.</Text>
 
         <View style={styles.list}>
-          {tasks.map((task) => (
+          {visible.map((task) => (
             <TaskRow
               key={task.id}
               title={task.title}
-              done={task.done}
+              done={isDoneOn(task, today)}
               onToggle={() => toggle(task.id)}
             />
           ))}
         </View>
 
-        {loaded && tasks.length === 0 && (
+        {loaded && visible.length === 0 && (
           <Text style={styles.calmNote}>Nothing here yet. Add one thing, or enjoy the quiet.</Text>
         )}
         {allDone && <Text style={styles.calmNote}>{"That's the list. Nicely done."}</Text>}

@@ -166,3 +166,11 @@ For Today to mean "what is due today," added two tested pure helpers in `lib/tod
 Decided: undated tasks stay on Today rather than vanishing. They are the default capture ("add one thing, do it now"), so the existing behaviour and the new scheduling coexist with no migration. A task only leaves Today when it is dated for another day or completed.
 
 Decided: per-day completion via a `completedDates` string array on the task, not a separate completions table. Simple, local-first, and the array stays tiny for a personal daily tool. Wiring this into the Today screen UI is the next step (the loop continues).
+
+---
+
+## 2026-06-18 Scheduling part 3: Today renders by schedule
+
+Wired the Today screen to the scheduling helpers: it now renders `tasksForToday` (due-today plus undated captures) and per-day done-state via `isDoneOn` / `toggleDoneOn`. Behaviour is unchanged for the current tasks because they are all undated, which is intended; scheduling only changes what shows once tasks get a date or recurrence (the picker is next).
+
+Gotcha recorded: a preview screenshot looked like the app was tiled six times across the screen. It was not duplicated. A DOM check showed a single root with the correct task count, but the preview browser viewport had collapsed to 6px wide, so the screenshot smeared one narrow column. Resizing to a normal viewport fixed it. This also settles the "multiple renderers" backlog worry for rendering: the DOM and production HTML are single-instance. The dev-only console warning remains, but it is not duplicating output.
