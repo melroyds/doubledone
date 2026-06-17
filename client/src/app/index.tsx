@@ -5,12 +5,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrainDump } from '@/components/BrainDump';
 import { TaskRow } from '@/components/TaskRow';
 import { colors, fonts, spacing } from '@/constants/theme';
-import { formatTodayLabel } from '@/lib/day';
+import { formatTodayLabel, friendlyDate } from '@/lib/day';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { loadTasks, saveTasks } from '@/lib/storage';
 import { parseDump, type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
-import { isDoneOn, tasksForToday, toggleDoneOn } from '@/lib/today';
+import { isDoneOn, tasksForToday, toggleDoneOn, upcomingTasks } from '@/lib/today';
 
 let addCounter = 0;
 function makeId(): string {
@@ -39,6 +39,7 @@ export default function TodayScreen() {
   }, []);
 
   const visible = tasksForToday(tasks, today);
+  const upcoming = upcomingTasks(tasks, today);
   const allDone = loaded && visible.length > 0 && visible.every((t) => isDoneOn(t, today));
 
   function commit(next: Task[]) {
@@ -105,6 +106,24 @@ export default function TodayScreen() {
           <Text style={styles.calmNote}>Nothing here yet. Add one thing, or enjoy the quiet.</Text>
         )}
         {allDone && <Text style={styles.calmNote}>{"That's the list. Nicely done."}</Text>}
+
+        {upcoming.length > 0 && (
+          <View style={styles.later}>
+            <Text style={styles.laterHeading}>Later</Text>
+            {upcoming.map((task, i) => (
+              <View key={task.id} style={styles.laterItem}>
+                {(i === 0 || upcoming[i - 1].due !== task.due) && task.due && (
+                  <Text style={styles.laterDate}>{friendlyDate(task.due, today)}</Text>
+                )}
+                <TaskRow
+                  title={task.title}
+                  done={isDoneOn(task, today)}
+                  onToggle={() => toggle(task.id)}
+                />
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.four }]}>
@@ -136,6 +155,17 @@ const styles = StyleSheet.create({
   spine: { color: colors.inkSoft, fontSize: 16, marginTop: spacing.two, marginBottom: spacing.six },
   list: { gap: spacing.two },
   calmNote: { color: colors.inkSoft, fontSize: 16, marginTop: spacing.five, lineHeight: 24 },
+  later: { marginTop: spacing.seven, gap: spacing.two },
+  laterHeading: {
+    color: colors.inkFaint,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    marginBottom: spacing.one,
+  },
+  laterItem: { gap: spacing.two },
+  laterDate: { color: colors.inkSoft, fontSize: 13, marginTop: spacing.two },
   footer: {
     paddingHorizontal: spacing.five,
     paddingTop: spacing.three,

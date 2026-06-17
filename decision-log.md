@@ -220,3 +220,16 @@ Assumptions made overnight (Melroy to challenge):
 - A future-dated one-off (Tomorrow) does not show on Today; it needs the Upcoming view, which is the very next step. Until that lands it is captured-but-not-visible, harmless overnight with nobody using it.
 
 Verified the chips render at mobile width via a DOM check. The preview screenshot tool keeps timing out in this environment while the renderer answers `eval` instantly, so it is a tooling flake, not the app.
+
+---
+
+## 2026-06-18 Scheduling part 6: the "Later" view
+
+Future-dated one-offs now appear in a quiet "Later" section under Today, grouped by date with a friendly label ("Tomorrow", else "Mon, 22 Jun"). `upcomingTasks` (lib/today) plus `fromISODate` / `friendlyDate` (lib/day) are pure and tested. This closes the A1 gap, where a task scheduled for a future day was captured but had nowhere to show.
+
+Assumptions (Melroy to challenge):
+- "Later" is a secondary section on the single Today screen, not a separate tab or route, keeping the calm single-surface spine.
+- Later lists only future one-off dates; recurring tasks show on their due days on Today, never in Later.
+- Completing a future task early just removes it from both lists; no "done early" affordance yet.
+
+Verified end to end in the preview: injected a future-dated task, the Later section rendered it under its date label, then cleaned it up. DOM check again, the screenshot tool is still timing out.

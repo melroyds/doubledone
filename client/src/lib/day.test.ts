@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { addDaysISO, daysBetween, formatTodayLabel, isSameDay, startOfDay, toISODate } from './day';
+import {
+  addDaysISO,
+  daysBetween,
+  formatTodayLabel,
+  friendlyDate,
+  fromISODate,
+  isSameDay,
+  startOfDay,
+  toISODate,
+} from './day';
 
 describe('startOfDay', () => {
   it('zeroes the time but keeps the calendar date', () => {
@@ -97,5 +106,26 @@ describe('addDaysISO', () => {
   it('handles zero and negative offsets', () => {
     expect(addDaysISO(new Date(2026, 5, 17), 0)).toBe('2026-06-17');
     expect(addDaysISO(new Date(2026, 5, 1), -1)).toBe('2026-05-31');
+  });
+});
+
+describe('fromISODate', () => {
+  it('parses a local date with no UTC shift', () => {
+    const d = fromISODate('2026-06-18');
+    expect(d.getFullYear()).toBe(2026);
+    expect(d.getMonth()).toBe(5);
+    expect(d.getDate()).toBe(18);
+  });
+});
+
+describe('friendlyDate', () => {
+  it('labels the next day as Tomorrow', () => {
+    expect(friendlyDate('2026-06-18', new Date(2026, 5, 17))).toBe('Tomorrow');
+  });
+
+  it('labels other days with weekday and date', () => {
+    const label = friendlyDate('2026-06-20', new Date(2026, 5, 17));
+    expect(label).toMatch(/20/);
+    expect(label).toMatch(/Jun/);
   });
 });

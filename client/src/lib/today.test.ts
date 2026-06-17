@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { type Recurrence } from './recurrence';
-import { isDoneOn, tasksForToday, toggleDoneOn } from './today';
+import { isDoneOn, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
 
 const today = new Date(2026, 5, 17);
 const iso = '2026-06-17';
@@ -45,5 +45,20 @@ describe('tasksForToday', () => {
     ];
     const ids = tasksForToday(tasks, today).map((t) => t.id);
     expect(ids).toEqual(['undated', 'due-today', 'daily']);
+  });
+});
+
+describe('upcomingTasks', () => {
+  it('returns future one-offs not done, soonest first', () => {
+    const tasks = [
+      { id: 'today', done: false, due: iso }, // due today, not upcoming
+      { id: 'later', done: false, due: '2026-06-25' },
+      { id: 'soon', done: false, due: '2026-06-19' },
+      { id: 'past', done: false, due: '2026-06-10' },
+      { id: 'done-future', done: true, due: '2026-06-20' },
+      { id: 'recurring', done: false, recurrence: daily },
+      { id: 'undated', done: false },
+    ];
+    expect(upcomingTasks(tasks, today).map((t) => t.id)).toEqual(['soon', 'later']);
   });
 });

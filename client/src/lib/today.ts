@@ -46,3 +46,11 @@ export function toggleDoneOn<T extends Scheduled>(task: T, date: Date): T {
 export function tasksForToday<T extends Scheduled>(tasks: T[], date: Date): T[] {
   return tasks.filter((t) => isUndated(t) || isDueOn(t, date));
 }
+
+/** Future-dated one-offs (due after today), not done, soonest first: the "Later" list. */
+export function upcomingTasks<T extends Scheduled>(tasks: T[], date: Date): T[] {
+  const todayIso = toISODate(date);
+  return tasks
+    .filter((t) => !isRecurring(t) && t.due != null && t.due > todayIso && !t.done)
+    .sort((a, b) => (a.due ?? '').localeCompare(b.due ?? ''));
+}

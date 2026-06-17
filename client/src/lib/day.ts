@@ -48,3 +48,19 @@ export function addDaysISO(d: Date, n: number): string {
   x.setDate(x.getDate() + n);
   return toISODate(x);
 }
+
+/** Local Date from a `YYYY-MM-DD` string (no UTC shift). */
+export function fromISODate(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1);
+}
+
+/** Friendly label for a due date relative to today: "Tomorrow", else "Sat 20 Jun". */
+export function friendlyDate(iso: string, today: Date, locale = 'en-AU'): string {
+  if (iso === addDaysISO(today, 1)) return 'Tomorrow';
+  return fromISODate(iso).toLocaleDateString(locale, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+}
