@@ -22,6 +22,7 @@ export default function TodayScreen() {
   const insets = useSafeAreaInsets();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const today = useMemo(() => new Date(), []);
 
   // Load the persisted list once. Until it arrives we hold off on the empty and
@@ -45,6 +46,12 @@ export default function TodayScreen() {
   function commit(next: Task[]) {
     setTasks(next);
     void saveTasks(next);
+  }
+
+  function removeTask(id: string) {
+    commit(tasks.filter((t) => t.id !== id));
+    setConfirmingId(null);
+    track('task.removed');
   }
 
   function toggle(id: string) {
@@ -98,6 +105,10 @@ export default function TodayScreen() {
               title={task.title}
               done={isDoneOn(task, today)}
               onToggle={() => toggle(task.id)}
+              onLongPress={() => setConfirmingId(task.id)}
+              confirming={confirmingId === task.id}
+              onRemove={() => removeTask(task.id)}
+              onKeep={() => setConfirmingId(null)}
             />
           ))}
         </View>
@@ -119,6 +130,10 @@ export default function TodayScreen() {
                   title={task.title}
                   done={isDoneOn(task, today)}
                   onToggle={() => toggle(task.id)}
+                  onLongPress={() => setConfirmingId(task.id)}
+                  confirming={confirmingId === task.id}
+                  onRemove={() => removeTask(task.id)}
+                  onKeep={() => setConfirmingId(null)}
                 />
               </View>
             ))}

@@ -233,3 +233,15 @@ Assumptions (Melroy to challenge):
 - Completing a future task early just removes it from both lists; no "done early" affordance yet.
 
 Verified end to end in the preview: injected a future-dated task, the Later section rendered it under its date label, then cleaned it up. DOM check again, the screenshot tool is still timing out.
+
+---
+
+## 2026-06-18 Scheduling part 7: delete a task (long-press, calm confirm)
+
+Long-pressing a row reveals a calm inline "Keep / Remove" confirm, no destructive swipe and no shame language. Works in both Today and Later. `removeTask` filters the task out and persists; telemetry logs `task.removed`.
+
+Assumptions (Melroy to challenge):
+- Delete is long-press then confirm, with no always-visible delete affordance, to keep rows calm and uncluttered. Discoverability on web is modest; a hover affordance or a hint could be added if it feels hidden.
+- Local delete hard-removes the task for now. When sync lands (step C), delete becomes a soft-delete tombstone (`deleted_at`) so a removal propagates across devices instead of resurrecting. Flagged for that step.
+
+Verified the app renders after the row rewrite via DOM check; the long-press confirm itself is simple typed JSX, not DOM-triggered in the check.

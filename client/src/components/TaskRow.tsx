@@ -6,14 +6,37 @@ type Props = {
   title: string;
   done: boolean;
   onToggle: () => void;
+  onLongPress?: () => void;
+  confirming?: boolean;
+  onRemove?: () => void;
+  onKeep?: () => void;
 };
 
-// A single Today row. Done is celebrated quietly: a soft sage check and a gentle
-// fade, never a strike that reads as "this was overdue". Never shame the task.
-export function TaskRow({ title, done, onToggle }: Props) {
+// A single row. Tap to complete (a soft sage check, gentle fade, never a shaming
+// strike). Long-press to remove, behind a calm Keep / Remove confirm so nothing
+// vanishes by accident. Removing is neutral, never punishing the task.
+export function TaskRow({ title, done, onToggle, onLongPress, confirming, onRemove, onKeep }: Props) {
+  if (confirming) {
+    return (
+      <View style={[styles.row, styles.confirmRow]}>
+        <Text style={styles.confirmText} numberOfLines={1}>
+          {`Remove ${title}?`}
+        </Text>
+        <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel="Keep">
+          <Text style={styles.keep}>Keep</Text>
+        </Pressable>
+        <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${title}`}>
+          <Text style={styles.remove}>Remove</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <Pressable
       onPress={onToggle}
+      onLongPress={onLongPress}
+      delayLongPress={400}
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: done }}
@@ -40,6 +63,10 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   pressed: { opacity: 0.7 },
+  confirmRow: { backgroundColor: colors.accentSoft, borderColor: colors.accentSoft },
+  confirmText: { flex: 1, color: colors.ink, fontSize: 15 },
+  keep: { color: colors.inkSoft, fontSize: 15, fontWeight: '600', paddingHorizontal: spacing.two },
+  remove: { color: colors.accent, fontSize: 15, fontWeight: '700', paddingHorizontal: spacing.two },
   check: {
     width: 26,
     height: 26,
