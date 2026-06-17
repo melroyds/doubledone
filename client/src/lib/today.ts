@@ -15,10 +15,6 @@ function isRecurring(t: Scheduled): boolean {
   return t.recurrence != null && t.recurrence.kind !== 'none';
 }
 
-function isUndated(t: Scheduled): boolean {
-  return t.due == null && (t.recurrence == null || t.recurrence.kind === 'none');
-}
-
 /** Done-state for a given day. Recurring tasks complete per-day; others use `done`. */
 export function isDoneOn(t: Scheduled, date: Date): boolean {
   if (isRecurring(t)) return (t.completedDates ?? []).includes(toISODate(date));
@@ -40,11 +36,16 @@ export function toggleDoneOn<T extends Scheduled>(task: T, date: Date): T {
 }
 
 /**
- * What lands on Today: anything due today, plus undated captures (no date and no
- * recurrence), which are the "do it now" brain-dump default and stay until done.
+ * What lands on Today. A recurring task shows when it is due today. A one-off
+ * shows when it is undated (the "do it now" capture default) or its due date is
+ * today or earlier, so an overdue one-off rolls forward calmly, with no shaming.
+ * Future-dated one-offs wait in the Later list.
  */
 export function tasksForToday<T extends Scheduled>(tasks: T[], date: Date): T[] {
-  return tasks.filter((t) => isUndated(t) || isDueOn(t, date));
+  const todayIso = toISODate(date);
+  return tasks.filter((t) =>
+    isRecurring(t) ? isDueOn(t, date) : t.due == null || t.due <= todayIso,
+  );
 }
 
 /** Future-dated one-offs (due after today), not done, soonest first: the "Later" list. */

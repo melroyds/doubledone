@@ -245,3 +245,13 @@ Assumptions (Melroy to challenge):
 - Local delete hard-removes the task for now. When sync lands (step C), delete becomes a soft-delete tombstone (`deleted_at`) so a removal propagates across devices instead of resurrecting. Flagged for that step.
 
 Verified the app renders after the row rewrite via DOM check; the long-press confirm itself is simple typed JSX, not DOM-triggered in the check.
+
+---
+
+## 2026-06-18 Scheduling part 8: day-roll (overdue rolls forward)
+
+`tasksForToday` now rolls overdue incomplete one-offs onto Today (a one-off shows if undated or due is today-or-earlier), so a task scheduled for a past day reappears calmly with no "overdue" badge instead of vanishing. Recurring tasks already reset per-day via `completedDates` (a daily task done yesterday reads not-done today), now covered by a test. Future-dated one-offs stay in Later. Pure logic, tested, verified in preview (an injected overdue task showed on Today).
+
+This is the carry-forward half of day handling. The other half, clearing what you finished on previous days so Today stays fresh, belongs to the close-the-day wrap (Tier 2) and needs a completion timestamp on one-offs; deferred there. Assumption to challenge: done tasks currently persist on Today until that close-the-day feature exists.
+
+**In-app scheduling (A1-A4) is complete.** Next: Bite the Elephant.

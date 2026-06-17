@@ -18,6 +18,12 @@ describe('isDoneOn', () => {
     expect(isDoneOn({ done: false, recurrence: daily, completedDates: [] }, today)).toBe(false);
     expect(isDoneOn({ done: true, recurrence: daily }, today)).toBe(false); // global done ignored
   });
+
+  it('a recurring task completed yesterday reads not done today (daily reset)', () => {
+    expect(isDoneOn({ done: false, recurrence: daily, completedDates: ['2026-06-16'] }, today)).toBe(
+      false,
+    );
+  });
 });
 
 describe('toggleDoneOn', () => {
@@ -36,15 +42,20 @@ describe('toggleDoneOn', () => {
 });
 
 describe('tasksForToday', () => {
-  it('keeps undated captures, due-today one-offs, and recurring due today', () => {
+  it('keeps undated, due-today, overdue (rolled forward), and recurring; not future', () => {
     const tasks = [
       { id: 'undated', done: false },
       { id: 'due-today', done: false, due: iso },
-      { id: 'due-other', done: false, due: '2026-06-20' },
+      { id: 'overdue', done: false, due: '2026-06-10' },
+      { id: 'future', done: false, due: '2026-06-20' },
       { id: 'daily', done: false, recurrence: daily },
     ];
-    const ids = tasksForToday(tasks, today).map((t) => t.id);
-    expect(ids).toEqual(['undated', 'due-today', 'daily']);
+    expect(tasksForToday(tasks, today).map((t) => t.id)).toEqual([
+      'undated',
+      'due-today',
+      'overdue',
+      'daily',
+    ]);
   });
 });
 
