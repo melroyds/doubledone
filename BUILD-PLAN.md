@@ -6,7 +6,7 @@
 
 ## Current state (as of 2026-06-17)
 
-Capture loop working. Today persists on-device, and brain-dump capture is live.
+Capture loop working and shipped to both surfaces: web live at doubledone.app, Android installable via EAS.
 
 - ✅ golden-path harness cloned, remote detached, Inspector activated (`core.hooksPath .githooks`)
 - ✅ Trimmed to solo Tier 0 (removed CONTRIBUTING, PR template, issue templates)
@@ -17,6 +17,7 @@ Capture loop working. Today persists on-device, and brain-dump capture is live.
 - ✅ Gates green locally: `typecheck` (tsc) · `lint` (expo lint) · `test` (vitest, 15 cases over `lib/day` + `lib/telemetry`) · secret-scan
 - ✅ Telemetry contract live: `[doubledone.*]` via `client/src/lib/telemetry.ts`, wired at the Today toggle (telemetry before traffic)
 - ✅ **Today persists** on-device (AsyncStorage) and **brain-dump capture** is live: type many lines, each becomes a task (steps 2-3 done; store parse/recovery tested in `lib/tasks`)
+- ✅ **Shipped to both surfaces:** web live at [doubledone.app](https://doubledone.app) (Cloudflare Pages), Android APK installable via EAS (sideload). One codebase, two targets.
 - ⬜ No `server/` or `supabase/` yet (steps 4 and 12 below)
 - ✅ GitHub remote live and **public**: github.com/melroyds/doubledone, `main` pushed, CI wired
 

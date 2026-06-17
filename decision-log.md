@@ -126,3 +126,21 @@ Enforced in two layers. The rule lives in CLAUDE.md, which every session reads a
 Decided against a hard block (a non-zero exit that aborts the commit). Not every feature settles something genuinely new, and forcing an entry on each one would breed filler that devalues the log. A reminder plus the CLAUDE.md discipline is the right balance, and we can tighten to a block later if entries start slipping.
 
 Decided against a Claude-Code settings.json hook in favour of a git commit-msg hook, because a git hook fires for any commit by anyone, not only inside an assistant session, and it matches the existing `.githooks` pattern.
+
+---
+
+## 2026-06-18 Shipped to both surfaces (web + Android)
+
+Both targets of the one codebase are now live.
+
+### Web: Cloudflare Pages via direct upload, not Cloudflare's CI build
+
+Built the static web bundle locally (`expo export -p web`, where it is proven to compile) and shipped `client/dist` with `wrangler pages deploy`, rather than connecting the repo for Cloudflare to build in their CI. Reason: a monorepo Expo web build inside someone else's CI is the fragile part, and building locally removes that whole class of failure. Cost: no auto-deploy yet, each web update is a manual deploy (a GitHub Action can add that later, it is in the backlog). The custom domain doubledone.app was attached from the Pages project, with DNS auto-configured because the zone already lives in the same Cloudflare account. www is not set up, apex only for now.
+
+### Android: EAS preview APK, sideloaded
+
+`eas build -p android --profile preview` produces an installable APK, distributed by sideload rather than the Play Store (Play Store is in the backlog with its trigger). The first build died on an intermittent EAS worker error (lost connection to the worker, their infrastructure), and the retry built clean. The keystore is cloud-managed, so signing is handled.
+
+### Consequence carried forward
+
+Data is local per device, so the web list and the phone list are separate until sync lands (sync is last in the build order). Accepted deliberately.

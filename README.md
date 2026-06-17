@@ -4,8 +4,8 @@
 
 > A calm, ADHD-friendly daily to-do app. It takes the things you have been avoiding, breaks them into pieces small enough to actually start, shows you only what today needs, and at the end shows you everything you finished, so your brain cannot tell you that you did nothing.
 
-**Status:** early build, solo. Calm Today shell runs on web; the core loop is next.
-**Live:** [doubledone.app](https://doubledone.app) *(registered, not yet deployed)*
+**Status:** early build, solo. Today and brain-dump are live on web and Android. AI features next.
+**Live:** [doubledone.app](https://doubledone.app) (web). Android installs via a sideloaded EAS build.
 
 ---
 
