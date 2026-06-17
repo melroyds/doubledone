@@ -4,9 +4,9 @@
 
 ---
 
-## Current state (as of 2026-06-17)
+## Current state (as of 2026-06-18)
 
-Capture loop working and shipped to both surfaces: web live at doubledone.app, Android installable via EAS.
+Full core loop working: capture, AI decomposition (Bite the Elephant), in-app scheduling, and opt-in cloud sync. Web live at doubledone.app, Android installable via EAS.
 
 - ✅ golden-path harness cloned, remote detached, Inspector activated (`core.hooksPath .githooks`)
 - ✅ Trimmed to solo Tier 0 (removed CONTRIBUTING, PR template, issue templates)
@@ -18,12 +18,19 @@ Capture loop working and shipped to both surfaces: web live at doubledone.app, A
 - ✅ Telemetry contract live: `[doubledone.*]` via `client/src/lib/telemetry.ts`, wired at the Today toggle (telemetry before traffic)
 - ✅ **Today persists** on-device (AsyncStorage) and **brain-dump capture** is live: type many lines, each becomes a task (steps 2-3 done; store parse/recovery tested in `lib/tasks`)
 - ✅ **Shipped to both surfaces:** web live at [doubledone.app](https://doubledone.app) (Cloudflare Pages), Android APK installable via EAS (sideload). One codebase, two targets.
-- ⬜ No `server/` or `supabase/` yet (steps 4 and 12 below)
-- ✅ GitHub remote live and **public**: github.com/melroyds/doubledone, `main` pushed, CI wired
+- ✅ **AI backend live** (step 4): Cloudflare Worker `doubledone-ai`, holds the Anthropic key as a Worker secret, `/decompose` contract-tested, validated with one live call. $25/mo cap set.
+- ✅ **Bite the Elephant live** (step 5): "Break it down" on the capture box calls the Worker, drops atomic steps into Today. Moat telemetry (`decomposition.offered`) instrumented.
+- ✅ **Cloud sync built** (step 12): Supabase client, last-write-wins merge engine, soft-delete tombstones, passwordless email-OTP sign-in, sync on sign-in/open, anonymous-to-account migration. Pure logic unit-tested. `supabase/schema.sql` is schema-as-code. *Live email round-trip is Melroy's to confirm.*
+- ✅ GitHub remote live and **public**: github.com/melroyds/doubledone, `main` pushed, CI + web deploy green
 
 ## The immediate next action
 
-**AI backend (step 4).** Stand up the small Render service that holds the Anthropic key (never called from the client), with the request-contract test (mock the SDK, assert the request shape) from the first commit. Set the Anthropic spend cap and a budget alert before any traffic. This unlocks Bite the Elephant (step 5), where the completion-outcome instrumentation for the moat begins in earnest.
+**Two things need Melroy, then pick the next build.**
+
+1. **Verify live sync end to end (5 min).** Open the app, tap "Sync across devices", sign in with your email (the 6-digit code lands in your inbox), and confirm a task made on web shows on Android after both sync. The whole flow is built and unit-tested; only the live email round-trip is unconfirmed. While there, sanity-check the live `tasks` table against `supabase/schema.sql`, especially that `id` is **TEXT** (device ids like `t-abc-1` are not UUIDs) and that there is **no `updated_at = now()` trigger** (either would break sync). To enable sync on the deployed web too, add `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` to the Cloudflare Pages project env.
+2. **Tune the Bite-the-Elephant prompt.** The system prompt in `server/src/decompose.ts` is a working placeholder; the wording is yours.
+
+Then the next build is **the Lookback (step 8)**, the emotional payoff and the visible start of the moat, or **AI triage (step 6)** if you want the capture box smarter first. My pick: the Lookback, because it is what makes someone come back.
 
 ---
 
@@ -37,7 +44,7 @@ Capture loop working and shipped to both surfaces: web live at doubledone.app, A
 [x] gitleaks installed locally (v8.30), secret-scan backstop active
 [x] Telemetry log prefix decided: [doubledone.*] via client/src/lib/telemetry.ts; first events task.added / task.toggled / day.cleared
 [~] Risk list growing: date math (lib/day), telemetry contract (lib/telemetry), store parse/recovery (lib/tasks) tested; AI request contract + decomposition parser still to add
-[ ] Cost alarm before any traffic (Anthropic spend cap + budget alert), due before the AI backend (step 4)
+[x] Cost alarm before any traffic: Anthropic spend cap set ($25/mo)
 [x] Decision-log started the same day
 ```
 
@@ -50,8 +57,8 @@ Build in this order. Each step is shippable and demoable on its own.
 1. ✅ **Expo client scaffold** + Today view shell (web target first, the demoable surface). *Done 2026-06-17.*
 2. ✅ **Brain-dump capture**, the friction-free "get it out of your head" input. *Done 2026-06-17.*
 3. ✅ **Local store** (anonymous-first, on-device) for tasks + the Today view reading from it. *Done 2026-06-17.*
-4. **AI backend** on Render holding the Anthropic key, with the request-contract test (mock SDK, assert shape) from the start
-5. **Bite the Elephant**, Sonnet decomposition of a stuck task into atomic time-boxed steps, dropped into Today. The killer acquisition moment. Instrument completion outcomes from this first AI feature (the moat starts here).
+4. ✅ **AI backend** (Cloudflare Worker, not Render) holding the Anthropic key, with the request-contract test (mock SDK, assert shape). *Done 2026-06-18.*
+5. ✅ **Bite the Elephant**, Sonnet decomposition of a stuck task into atomic time-boxed steps, dropped into Today. Completion outcomes instrumented (the moat starts here). *Done 2026-06-18.*
 6. **AI triage / hydration**, sort the brain-dump into today / later / decompose (Haiku, cheap)
 7. **Recurring daily tracker**, the repeating-tasks subsection
 
@@ -61,7 +68,7 @@ Build in this order. Each step is shippable and demoable on its own.
 9. **Finished-old-task celebration**, reward closing the dreaded, never shame the backlog
 10. **Close-the-day wrap**, gentle, rolls forward, zero guilt
 11. **Strategise**, Sonnet re-spreads an over-full day
-12. **Supabase auth + sync**, opt-in cloud durability, RLS for privacy
+12. ✅ **Supabase auth + sync**, opt-in cloud durability, RLS for privacy (built + unit-tested 2026-06-18; live email sign-in is Melroy's to confirm)
 13. **Gentle nudges / notifications**, native, the retention lever
 
 ## Backlog (deferred work, with triggers)
