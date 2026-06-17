@@ -1,54 +1,48 @@
-# golden-path
+# DoubleDone
 
-> A personal, reusable **starting point** for new projects — the paved road I take so I
-> don't re-litigate the basics every time. It merges two things that are usually separate:
-> **product judgment** (what's worth doing, how to test the risky bits, how to learn) and
-> **enforced quality gates** (so the right thing happens automatically, every commit, even
-> with collaborators).
+> A calm, ADHD-friendly daily to-do app. It takes the things you have been avoiding, breaks them into pieces small enough to actually start, shows you only what today needs, and at the end shows you everything you finished, so your brain cannot tell you that you did nothing.
 
-This is a *framework layer*, not an app. Drop your app into it (any stack — TypeScript is
-the worked example here) and the gates light up.
+**Status:** early build, solo. Foundation in place, app scaffold next.
+**Live:** [doubledone.app](https://doubledone.app) *(registered, not yet deployed)*
+
+---
 
 ## The idea in one line
 
-ParkProof taught me *what to build and how to learn from it*. A collaborator's setup taught
-me *how to make quality un-skippable*. This is both — distilled, and authored fresh.
+Today is finite and achievable. The home screen is Today, sized to be doable, and the app's whole job is to keep it that way when life pushes back.
 
-## Tiers — scale the process to the project
+## What makes it different
 
-| Tier | When | What's on |
-|---|---|---|
-| **0 — Solo MVP** | Weekend / portfolio build | single `main`, fast CI + badge, risk-targeted tests, **local Inspector + gitleaks**, telemetry + a cost alarm, journal from day 1 |
-| **1 — Real users** | It's live, people rely on it | + coverage gate, multi-stage CI, rollback playbook, feedback channel, friendly errors |
-| **2 — Collaborators** | More than one person commits | + `develop`/`feature` branches, CONTRIBUTING + PR template, CHANGELOG, mandated hooks, SECURITY.md |
+Not another productivity optimiser. It is built for how ADHD and overwhelmed brains actually fail: task-initiation paralysis, time blindness, and the brain's habit of discounting everything you already did.
 
-Start at Tier 0. Graduate a project *up* as it gets real. Same framework, different dials.
+- **Bite the Elephant** — hand it a task you have been dreading, get it back as atomic, time-boxed steps dropped into today.
+- **The Lookback** — see everything you actually finished, including the old dreaded things, as evidence against the "I did nothing" lie.
+- **Strategise** — when the day is over-full, it re-spreads the load with reasoning about priority, energy, and deadlines.
+- **Never shames the backlog.** It celebrates what you close, it never punishes a task for existing.
 
-## Use it
+## Stack
 
-1. **Copy this repo** as your new project's starting point (or make it a GitHub *template* repo).
-2. **Scaffold your app** into it — e.g. `npm create vite@latest .` for TS, or your stack of choice.
-3. **Activate the Inspector** (once): `git config core.hooksPath .githooks` — or run
-   `scripts/setup.ps1` (Windows) / `scripts/setup.sh` (mac/Linux), which does it for you.
-4. **Read [`PLAYBOOK.md`](PLAYBOOK.md)** on day 0. Come back on day 3 (first hard infra
-   question) and day 6 (something breaks in a familiar way).
+React Native + Expo (one codebase to native Android and web) · Supabase (Postgres + Auth + row-level security) · a small AI backend on Render holding the Anthropic key · Claude, tiered for cost (Haiku triage, Sonnet decomposition, Opus premium moments) · local-first, anonymous-first.
 
-## What's in here
+## Run it
 
-| File | What it is | Tier |
-|---|---|---|
-| [`PLAYBOOK.md`](PLAYBOOK.md) | The merged playbook — principles, patterns, day-0 checklist | all |
-| [`.githooks/pre-commit`](.githooks/pre-commit) | The **Inspector** — local gate (lint · type-check · tests · secret scan) | 0 |
-| [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | Tiered CI — the cloud backstop | 0→1 |
-| [`CLAUDE.md`](CLAUDE.md) | Engineering-notes template (incl. a rollback playbook) | all |
-| [`docs/testing.md`](docs/testing.md) | Risk-targeted testing strategy template | 0 |
-| [`docs/lessons-for-next-project.md`](docs/lessons-for-next-project.md) | Your running build journal + lessons | all |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Workflow + gates for when it's not just you | 2 |
-| `CHANGELOG.md` · `SECURITY.md` · `.env.example` · `.gitignore` | The usual hygiene | 1→2 |
+*Scaffold pending. Once the Expo client lands:*
+```bash
+cd client
+npm install
+npm run web        # local dev in the browser
+```
+
+## The docs
+
+| File | What it is |
+|---|---|
+| [`docs/product-spec.md`](docs/product-spec.md) | The full v1 spec: spine, core loop, tiered features, the moat, monetisation |
+| [`decision-log.md`](decision-log.md) | The why-trail, written contemporaneously |
+| [`BUILD-PLAN.md`](BUILD-PLAN.md) | Where we are, what is next, in what order |
+| [`CLAUDE.md`](CLAUDE.md) | Working notes for any session (human or AI) touching this |
+| [`PLAYBOOK.md`](PLAYBOOK.md) | The reusable build discipline (the golden-path harness) |
 
 ## Provenance
 
-Distilled from my own **ParkProof** build and from patterns I admired in a collaborator's
-project. **No code was copied** from anyone's repo — these are techniques (git hooks,
-gitleaks, Conventional Commits, risk-targeted testing, tiered CI) that belong to everyone.
-MIT licensed — make it yours.
+Built on the [golden-path](https://github.com/melroyds/golden-path) harness. Third portfolio piece, after [ParkProof](https://github.com/melroyds/parkproof) and the Chronoloria sibling. Solo, by Melroy D'Souza, Melbourne, 2026. MIT licensed.
