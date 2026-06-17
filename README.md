@@ -2,7 +2,7 @@
 
 > A calm, ADHD-friendly daily to-do app. It takes the things you have been avoiding, breaks them into pieces small enough to actually start, shows you only what today needs, and at the end shows you everything you finished, so your brain cannot tell you that you did nothing.
 
-**Status:** early build, solo. Foundation in place, app scaffold next.
+**Status:** early build, solo. Calm Today shell runs on web; the core loop is next.
 **Live:** [doubledone.app](https://doubledone.app) *(registered, not yet deployed)*
 
 ---
@@ -26,12 +26,11 @@ React Native + Expo (one codebase to native Android and web) · Supabase (Postgr
 
 ## Run it
 
-*Scaffold pending. Once the Expo client lands:*
 ```bash
-cd client
-npm install
-npm run web        # local dev in the browser
+npm install      # from the repo root — npm workspaces installs client/ too
+npm run dev      # Expo on web, opens at the printed localhost URL
 ```
+> Native Android: `npm run android` (needs Android Studio or a connected device).
 
 ## The docs
 

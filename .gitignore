@@ -4,7 +4,12 @@ node_modules/
 # Build output
 dist/
 build/
+web-build/
 *.tsbuildinfo
+
+# Expo
+.expo/
+expo-env.d.ts
 
 # Environment / secrets — never commit real values
 .env

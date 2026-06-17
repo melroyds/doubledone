@@ -1,0 +1,20 @@
+{
+  "name": "doubledone",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A calm, ADHD-friendly daily to-do app. Today is finite and achievable.",
+  "license": "MIT",
+  "workspaces": [
+    "client"
+  ],
+  "scripts": {
+    "dev": "npm --workspace client run web",
+    "web": "npm --workspace client run web",
+    "android": "npm --workspace client run android",
+    "lint": "npm --workspace client run lint",
+    "typecheck": "npm --workspace client run typecheck",
+    "test": "npm --workspace client run test",
+    "test:watch": "npm --workspace client run test:watch",
+    "setup": "git config core.hooksPath .githooks"
+  }
+}

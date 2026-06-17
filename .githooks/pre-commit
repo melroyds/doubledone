@@ -24,27 +24,34 @@ STAGED="$(git diff --cached --name-only --diff-filter=ACM)"
 has_staged() { printf '%s\n' "$STAGED" | grep -qE "$1"; }
 have()       { command -v "$1" >/dev/null 2>&1; }
 npx_have()   { [ -d node_modules ] && npx --no-install "$1" --version >/dev/null 2>&1; }
+has_script() { [ -f package.json ] && grep -qE "\"$1\"[[:space:]]*:" package.json; }
 
 FAIL=0
 
-# 1. Lint — if ESLint is installed and JS/TS is staged.
+# 1. Lint — prefer the repo's own script (delegates into workspaces), else a local eslint.
 if has_staged '\.(jsx?|tsx?|mjs|cjs)$'; then
-  if npx_have eslint; then
+  if has_script lint; then
+    echo "  • lint (npm run lint)"
+    npm run lint --silent || { echo "❌ Lint failed — try: npm run lint -- --fix"; FAIL=1; }
+  elif npx_have eslint; then
     echo "  • lint"
     npx --no-install eslint . || { echo "❌ ESLint failed — try: npx eslint --fix ."; FAIL=1; }
   else
-    echo "  • lint — skipped (eslint not installed yet)"
+    echo "  • lint — skipped (no lint script, eslint not installed yet)"
   fi
 fi
 
-# 2. Type-check — HARD gate when a tsconfig is present.
-if [ -f tsconfig.json ] && npx_have tsc; then
+# 2. Type-check — HARD gate. Prefer the repo's script (workspace-aware), else a root tsconfig.
+if has_script typecheck; then
+  echo "  • type-check (npm run typecheck)"
+  npm run typecheck --silent || { echo "❌ Type-check failed — fix the type errors above."; FAIL=1; }
+elif [ -f tsconfig.json ] && npx_have tsc; then
   echo "  • type-check"
   npx --no-install tsc --noEmit || { echo "❌ Type-check failed — fix the type errors above."; FAIL=1; }
 fi
 
 # 3. Tests — the project's own (non-interactive) test script.
-if [ -f package.json ] && grep -q '"test"' package.json && [ -d node_modules ]; then
+if has_script test && [ -d node_modules ]; then
   echo "  • tests"
   npm test --silent || { echo "❌ Tests failed."; FAIL=1; }
 fi

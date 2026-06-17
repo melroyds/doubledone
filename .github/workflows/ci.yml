@@ -18,22 +18,17 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          # PIN to the runtime you deploy on (e.g. the Node version on your
-          # Lambda/container) so a green CI run implies it works in prod.
+          # PIN to the runtime you deploy on so a green CI run implies prod works.
           node-version: '22'
-          # Add `cache: 'npm'` once you have a package-lock.json.
+          cache: 'npm'
 
       - name: Lint · Type-check · Test
-        # Skips cleanly while this is still a bare template (no package.json), so
-        # the template's own CI badge stays green. Lights up once you scaffold an app.
+        # Root is an npm-workspaces monorepo: `npm ci` installs client/ too, and
+        # each gate delegates into the workspace (see root package.json scripts).
         run: |
-          if [ ! -f package.json ]; then
-            echo "::notice::No package.json yet — scaffold your app to enable lint/type-check/test."
-            exit 0
-          fi
           npm ci
           npm run lint
-          npx tsc --noEmit          # HARD gate — no '|| true'
+          npm run typecheck         # HARD gate — no '|| true'
           npm test
           # Tier 1 — enforce a coverage floor once you have real users:
           # npm run test:coverage -- --coverage.thresholds.lines=50
