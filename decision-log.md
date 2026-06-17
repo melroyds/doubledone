@@ -310,3 +310,18 @@ Assumptions (Melroy to challenge):
 Decided against:
 - A three-way merge with a common ancestor. LWW is the right complexity for one user across their own devices; true three-way only earns its place with shared or collaborative lists, which the spec deliberately avoids.
 - Field-level merging (blending two edits of the same task). Whole-row LWW is predictable and matches how the app mutates (every change already bumps `updatedAt`); field merge is surprise-prone for no real gain here.
+
+## 2026-06-18 Cloud sync, part 3a: Supabase client + sync engine
+
+Added `@supabase/supabase-js` (plus `react-native-url-polyfill` for native) and the network seam. `client/src/lib/supabase.ts` builds the client only when both `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` are set; otherwise it exports null and the app stays exactly as it is, local-first and offline. `client/src/lib/sync.ts` maps Task to and from the remote row (camelCase to the snake_case columns; timestamps as ISO strings over the wire, epoch ms locally), and `syncOnce` pulls the account's rows, runs the part-2 merge, pushes whatever the server is missing, and returns the merged set to persist. The mapping is round-trip unit-tested and `syncOnce` is tested against a fake client (migration plus both last-write-wins directions); no live network in CI. `supabase/schema.sql` now records the table and RLS as code, including the deliberate no-`updated_at`-trigger rule that last-write-wins depends on.
+
+Decided against:
+- Generating typed DB types from the project. The hand-written `TaskRow` is enough for one table and avoids wiring a codegen step plus service-key access tonight; revisit if the schema grows.
+- A dedicated /sync server endpoint. supabase-js plus RLS lets the client talk to Postgres directly and safely; a server hop would add latency and another thing to run for no gain at this scale.
+- Realtime subscriptions. v1 syncs on sign-in and on open (a backlog item, deferred until v1 sync is stable), which is enough and far simpler.
+
+Assumptions (Melroy to challenge, verify against the live table):
+- `tasks.id` is TEXT (ids are device-generated like "t-abc-1", not UUIDs). If it is uuid, sync inserts fail. This is the first thing to check.
+- No `updated_at = now()` trigger exists on the live table. Such a trigger would break last-write-wins; `schema.sql` omits it on purpose.
+- Column types match `schema.sql` (due date; recurrence and completed_dates jsonb; timestamps timestamptz). Names were confirmed live; types were not.
+- The publishable key (`sb_publishable_...`) works as the supabase-js anon key. It already reaches the table over REST; auth sign-in is the piece still to confirm live (part 3b, left for Melroy).

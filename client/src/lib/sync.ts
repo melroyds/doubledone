@@ -1,0 +1,88 @@
+import { type SupabaseClient } from '@supabase/supabase-js';
+
+import { type Recurrence } from './recurrence';
+import { mergeTasks } from './sync-merge';
+import { type Task } from './tasks';
+
+// The Supabase seam for sync. The row <-> Task mapping is pure and unit-tested;
+// pull / push / syncOnce wrap the merge engine (sync-merge.ts) around the network.
+// Timestamps cross as ISO strings (timestamptz on the server) and live as epoch ms
+// locally. The server's updated_at must be the value we send, not a now() trigger,
+// or last-write-wins breaks: see the schema and the decision log.
+
+const TABLE = 'tasks';
+
+/** The remote row shape (snake_case), matching the Supabase `tasks` table. */
+export type TaskRow = {
+  id: string;
+  user_id?: string;
+  title: string;
+  done: boolean;
+  due: string | null;
+  recurrence: Recurrence | null;
+  completed_dates: string[] | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+/** Local Task -> remote row, stamped with the owner's id for RLS. */
+export function taskToRow(task: Task, userId: string): TaskRow {
+  return {
+    id: task.id,
+    user_id: userId,
+    title: task.title,
+    done: task.done,
+    due: task.due ?? null,
+    recurrence: task.recurrence ?? null,
+    completed_dates: task.completedDates ?? null,
+    created_at: new Date(task.createdAt).toISOString(),
+    updated_at: new Date(task.updatedAt).toISOString(),
+    deleted_at: task.deletedAt ? new Date(task.deletedAt).toISOString() : null,
+  };
+}
+
+/** Remote row -> local Task. Optional fields are only set when present, so a
+ *  round-trip with taskToRow is exact and nothing is polluted with undefined. */
+export function rowToTask(row: TaskRow): Task {
+  const task: Task = {
+    id: row.id,
+    title: row.title,
+    done: row.done,
+    createdAt: Date.parse(row.created_at),
+    updatedAt: Date.parse(row.updated_at),
+  };
+  if (row.due != null) task.due = row.due;
+  if (row.recurrence != null) task.recurrence = row.recurrence;
+  if (row.completed_dates != null) task.completedDates = row.completed_dates;
+  if (row.deleted_at != null) task.deletedAt = Date.parse(row.deleted_at);
+  return task;
+}
+
+/** Pull every row the signed-in user can see (RLS-scoped), tombstones included. */
+export async function pullRemote(client: SupabaseClient): Promise<Task[]> {
+  const { data, error } = await client.from(TABLE).select('*');
+  if (error) throw error;
+  return ((data ?? []) as TaskRow[]).map(rowToTask);
+}
+
+/** Upsert the given tasks (the merge engine's toPush) by primary key. */
+export async function pushTasks(client: SupabaseClient, tasks: Task[], userId: string): Promise<void> {
+  if (tasks.length === 0) return;
+  const rows = tasks.map((t) => taskToRow(t, userId));
+  const { error } = await client.from(TABLE).upsert(rows, { onConflict: 'id' });
+  if (error) throw error;
+}
+
+/**
+ * One sync pass: pull the account's rows, reconcile with local by last-write-wins,
+ * push back whatever the server is missing or has an older copy of, and return the
+ * merged set for the caller to persist locally. Local-first: on first sign-in the
+ * whole anonymous list is in toPush, so it migrates into the account automatically.
+ */
+export async function syncOnce(client: SupabaseClient, local: Task[], userId: string): Promise<Task[]> {
+  const remote = await pullRemote(client);
+  const { merged, toPush } = mergeTasks(local, remote);
+  await pushTasks(client, toPush, userId);
+  return merged;
+}
