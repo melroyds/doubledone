@@ -268,3 +268,18 @@ Assumptions (Melroy to challenge):
 - No live Claude call yet; the single end-to-end validation is sub-step B3.
 
 **Flagged risk (must fix before any public launch):** the endpoint is unauthenticated and CORS-open, so anyone who finds the URL can spend your Anthropic budget (bounded only by the $25 cap). Fine for tonight's build, but before launch lock it to the app origin and/or add a shared token plus rate limiting. Added to the backlog.
+
+## 2026-06-18 Bite the Elephant, part 2: the client UI
+
+The capture box now has a second action. "Break it down" hands the typed task to the AI backend (`client/src/lib/ai.ts` → `POST /decompose` at `EXPO_PUBLIC_AI_URL`), shows a calm "Breaking it down…" spinner, then drops the returned atomic steps into Today as ordinary tasks titled like "Sort the pile (5 min)". Failure shows one friendly line ("Could not break that down just now. Try again."), never a raw HTTP status. The moat instrumentation starts here: `decomposition.offered` logs the step count at the call site, and because the steps are ordinary tasks, their completions already flow through the existing toggle telemetry. `parseSteps` is defensive (never throws on a malformed response), and the contract test mocks `fetch` and asserts the POST shape so CI never calls Claude.
+
+Decided against:
+- A separate decompose screen or modal. The calm move is one more button on the box he already uses, not a new place to go.
+- A review-and-confirm step before the steps are added. For a stuck person the fastest relief is the steps simply appearing; Strategise (step 11) is the later relief valve if a day over-fills.
+- A parent/child task structure (the decomposition as a parent with child steps). v1 keeps them as flat Today tasks (less model, the spine is just "today is doable"); the structure waits until the Lookback wants to show "you finished every step."
+
+Assumptions (Melroy to challenge):
+- Button label "Break it down", placed left of "Add to today" as the secondary (outline) action against the filled primary. Wording and placement yours.
+- Each step's minutes ride inline in the title (e.g. "(5 min)") rather than adding a `minutes` field to the task model. Revisit when tasks need real durations.
+- `EXPO_PUBLIC_AI_URL` lives in `client/.env` (gitignored) and is documented in `.env.example`; the public Worker URL is also hardcoded as the in-code fallback so the deployed build works without env.
+- No live Claude call from this UI yet; the single end-to-end validation is sub-step B3.

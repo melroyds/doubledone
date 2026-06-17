@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { colors, radius, spacing } from '@/constants/theme';
 import { type CaptureSchedule } from '@/lib/recurrence';
 
 type Props = {
   onCapture: (text: string, schedule: CaptureSchedule) => void;
+  onBiteElephant: (text: string) => Promise<void>;
   today: Date;
 };
 
@@ -27,12 +28,15 @@ const ADD_LABEL: Record<Mode, string> = {
   weekly: 'Add weekly',
 };
 
-// The friction-free relief valve, now with a calm "when". Default is Today, so
-// the common case stays one gesture; the chips are there when you want them.
-export function BrainDump({ onCapture, today }: Props) {
+// Capture, with a calm "when" (the chips, for adding) and a "break it down" path
+// (hand a dreaded task to the AI and get small steps into Today). Default is one
+// gesture; everything else is there only when wanted.
+export function BrainDump({ onCapture, onBiteElephant, today }: Props) {
   const [value, setValue] = useState('');
   const [mode, setMode] = useState<Mode>('today');
   const [weekdays, setWeekdays] = useState<number[]>([today.getDay()]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   function buildSchedule(): CaptureSchedule {
     if (mode === 'weekly') {
@@ -41,12 +45,31 @@ export function BrainDump({ onCapture, today }: Props) {
     return { mode };
   }
 
-  function submit() {
-    if (!value.trim()) return;
-    onCapture(value, buildSchedule());
+  function reset() {
     setValue('');
     setMode('today');
     setWeekdays([today.getDay()]);
+  }
+
+  function add() {
+    if (!value.trim() || busy) return;
+    onCapture(value, buildSchedule());
+    reset();
+  }
+
+  async function biteElephant() {
+    const task = value.trim();
+    if (!task || busy) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await onBiteElephant(task);
+      reset();
+    } catch {
+      setError('Could not break that down just now. Try again.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   function toggleWeekday(d: number) {
@@ -58,6 +81,7 @@ export function BrainDump({ onCapture, today }: Props) {
       <TextInput
         value={value}
         onChangeText={setValue}
+        editable={!busy}
         placeholder="Empty your head. One line per thing."
         placeholderTextColor={colors.inkFaint}
         style={styles.input}
@@ -98,14 +122,36 @@ export function BrainDump({ onCapture, today }: Props) {
         </View>
       )}
 
-      <Pressable
-        onPress={submit}
-        style={({ pressed }) => [styles.add, pressed && styles.pressed]}
-        accessibilityRole="button"
-        accessibilityLabel={ADD_LABEL[mode]}
-      >
-        <Text style={styles.addText}>{ADD_LABEL[mode]}</Text>
-      </Pressable>
+      <View style={styles.actions}>
+        <Pressable
+          onPress={biteElephant}
+          disabled={busy}
+          style={({ pressed }) => [styles.bite, pressed && styles.pressed, busy && styles.disabled]}
+          accessibilityRole="button"
+          accessibilityLabel="Break it down with AI"
+        >
+          {busy ? (
+            <View style={styles.biteBusy}>
+              <ActivityIndicator size="small" color={colors.accent} />
+              <Text style={styles.biteText}>Breaking it down…</Text>
+            </View>
+          ) : (
+            <Text style={styles.biteText}>Break it down</Text>
+          )}
+        </Pressable>
+
+        <Pressable
+          onPress={add}
+          disabled={busy}
+          style={({ pressed }) => [styles.add, pressed && styles.pressed, busy && styles.disabled]}
+          accessibilityRole="button"
+          accessibilityLabel={ADD_LABEL[mode]}
+        >
+          <Text style={styles.addText}>{ADD_LABEL[mode]}</Text>
+        </Pressable>
+      </View>
+
+      {error && <Text style={styles.error}>{error}</Text>}
     </View>
   );
 }
@@ -151,13 +197,24 @@ const styles = StyleSheet.create({
   dayOn: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
   dayText: { color: colors.inkSoft, fontSize: 13 },
   dayTextOn: { color: colors.accent, fontWeight: '700' },
+  actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
+  bite: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    paddingHorizontal: spacing.four,
+    paddingVertical: spacing.three,
+  },
+  biteBusy: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
+  biteText: { color: colors.accent, fontSize: 16, fontWeight: '600' },
   add: {
-    alignSelf: 'flex-end',
     backgroundColor: colors.accent,
     borderRadius: radius.md,
     paddingHorizontal: spacing.five,
     paddingVertical: spacing.three,
   },
   pressed: { opacity: 0.8 },
+  disabled: { opacity: 0.5 },
   addText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  error: { color: colors.accent, fontSize: 14 },
 });

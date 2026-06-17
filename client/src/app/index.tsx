@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrainDump } from '@/components/BrainDump';
 import { TaskRow } from '@/components/TaskRow';
 import { colors, fonts, spacing } from '@/constants/theme';
+import { decompose } from '@/lib/ai';
 import { formatTodayLabel, friendlyDate } from '@/lib/day';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { loadTasks, saveTasks } from '@/lib/storage';
@@ -87,6 +88,21 @@ export default function TodayScreen() {
     });
   }
 
+  // Bite the Elephant: hand a dreaded task to the AI, drop the steps into Today.
+  async function biteElephant(text: string) {
+    const steps = await decompose(text);
+    if (steps.length === 0) throw new Error('no steps');
+    const now = Date.now();
+    const added: Task[] = steps.map((s, i) => ({
+      id: makeId(),
+      title: `${s.title} (${s.minutes} min)`,
+      done: false,
+      createdAt: now + i,
+    }));
+    commit([...tasks, ...added]);
+    track('decomposition.offered', { steps: steps.length });
+  }
+
   return (
     <View style={styles.screen}>
       <ScrollView
@@ -142,7 +158,7 @@ export default function TodayScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.four }]}>
-        <BrainDump onCapture={capture} today={today} />
+        <BrainDump onCapture={capture} onBiteElephant={biteElephant} today={today} />
         <Text style={styles.ethos}>today is finite and achievable</Text>
       </View>
     </View>
