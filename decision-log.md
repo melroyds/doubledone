@@ -206,3 +206,17 @@ Added a GitHub Action (`deploy-web`) that builds the web bundle and ships it to 
 Decided: deploy via `cloudflare/wrangler-action` with a Pages-scoped API token in a repo secret (`CLOUDFLARE_API_TOKEN`). The account ID sits in the workflow in the open, since account IDs are identifiers, not secrets. The token is the only secret and it never leaves GitHub.
 
 Decided against Cloudflare's own git integration (letting them build in their CI): building in GitHub Actions, where the monorepo Expo web build is already proven, keeps the build environment under our control instead of debugging in someone else's.
+
+---
+
+## 2026-06-18 Scheduling part 5: capture chips (when + repeat)
+
+The BrainDump capture now has a calm chip row, Today (default) / Tomorrow / Daily / Weekly (with weekday toggles), wired through `scheduleFields` so a captured task gets the right due/recurrence. The default stays Today, so the common case is still one gesture.
+
+Assumptions made overnight (Melroy to challenge):
+- Chip set is Today / Tomorrow / Daily / Weekly only; arbitrary future dates stay backlogged (needs a date-picker decision).
+- Weekly defaults to today's weekday selected; toggle others.
+- The add button label adapts to the mode ("Add to today" / "Add for tomorrow" / "Add daily" / "Add weekly").
+- A future-dated one-off (Tomorrow) does not show on Today; it needs the Upcoming view, which is the very next step. Until that lands it is captured-but-not-visible, harmless overnight with nobody using it.
+
+Verified the chips render at mobile width via a DOM check. The preview screenshot tool keeps timing out in this environment while the renderer answers `eval` instantly, so it is a tooling flake, not the app.

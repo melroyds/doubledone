@@ -6,6 +6,7 @@ import { BrainDump } from '@/components/BrainDump';
 import { TaskRow } from '@/components/TaskRow';
 import { colors, fonts, spacing } from '@/constants/theme';
 import { formatTodayLabel } from '@/lib/day';
+import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { loadTasks, saveTasks } from '@/lib/storage';
 import { parseDump, type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
@@ -57,20 +58,25 @@ export default function TodayScreen() {
     commit(next);
   }
 
-  function capture(text: string) {
+  function capture(text: string, schedule: CaptureSchedule) {
     const titles = parseDump(text);
     if (titles.length === 0) return;
     const now = Date.now();
+    const fields = scheduleFields(schedule, today); // due / recurrence for the chosen when
     const added: Task[] = titles.map((title, i) => ({
       id: makeId(),
       title,
       done: false,
       createdAt: now + i,
+      ...fields,
     }));
     commit([...tasks, ...added]);
-    // One line is a quick add; several is a genuine brain-dump. Log the shape so
-    // the moat can later learn what a real dump looks like for this audience.
-    track(titles.length > 1 ? 'brain_dump.captured' : 'task.added', { count: titles.length });
+    // One line is a quick add; several is a genuine brain-dump. Log the shape and
+    // the chosen schedule so the moat can learn how this audience really captures.
+    track(titles.length > 1 ? 'brain_dump.captured' : 'task.added', {
+      count: titles.length,
+      schedule: schedule.mode,
+    });
   }
 
   return (
@@ -102,7 +108,7 @@ export default function TodayScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.four }]}>
-        <BrainDump onCapture={capture} />
+        <BrainDump onCapture={capture} today={today} />
         <Text style={styles.ethos}>today is finite and achievable</Text>
       </View>
     </View>
