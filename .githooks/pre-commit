@@ -28,26 +28,26 @@ has_script() { [ -f package.json ] && grep -qE "\"$1\"[[:space:]]*:" package.jso
 
 FAIL=0
 
-# 1. Lint — prefer the repo's own script (delegates into workspaces), else a local eslint.
+# 1. Lint. Prefer the repo's own script (delegates into workspaces), else a local eslint.
 if has_staged '\.(jsx?|tsx?|mjs|cjs)$'; then
   if has_script lint; then
     echo "  • lint (npm run lint)"
-    npm run lint --silent || { echo "❌ Lint failed — try: npm run lint -- --fix"; FAIL=1; }
+    npm run lint --silent || { echo "❌ Lint failed, try: npm run lint -- --fix"; FAIL=1; }
   elif npx_have eslint; then
     echo "  • lint"
     npx --no-install eslint . || { echo "❌ ESLint failed — try: npx eslint --fix ."; FAIL=1; }
   else
-    echo "  • lint — skipped (no lint script, eslint not installed yet)"
+    echo "  • lint skipped (no lint script, eslint not installed yet)"
   fi
 fi
 
-# 2. Type-check — HARD gate. Prefer the repo's script (workspace-aware), else a root tsconfig.
+# 2. Type-check. HARD gate. Prefer the repo's script (workspace-aware), else a root tsconfig.
 if has_script typecheck; then
   echo "  • type-check (npm run typecheck)"
-  npm run typecheck --silent || { echo "❌ Type-check failed — fix the type errors above."; FAIL=1; }
+  npm run typecheck --silent || { echo "❌ Type-check failed, fix the type errors above."; FAIL=1; }
 elif [ -f tsconfig.json ] && npx_have tsc; then
   echo "  • type-check"
-  npx --no-install tsc --noEmit || { echo "❌ Type-check failed — fix the type errors above."; FAIL=1; }
+  npx --no-install tsc --noEmit || { echo "❌ Type-check failed, fix the type errors above."; FAIL=1; }
 fi
 
 # 3. Tests — the project's own (non-interactive) test script.

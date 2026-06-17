@@ -1,7 +1,7 @@
 // Lightweight client telemetry. Every event is prefixed so logs are greppable
 // and the completion-outcome flywheel (product-spec, "the moat") has a single
 // front door from day one. This is the contract, wired before the features it
-// measures — telemetry before traffic. No PII, no network yet.
+// measures, telemetry before traffic. No PII, no network yet.
 
 export const TELEMETRY_PREFIX = 'doubledone';
 

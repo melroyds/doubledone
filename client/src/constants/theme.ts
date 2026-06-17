@@ -2,7 +2,7 @@ import '@/global.css';
 
 import { Platform } from 'react-native';
 
-// DoubleDone's palette is deliberately calm and warm — the opposite of an
+// DoubleDone's palette is deliberately calm and warm, the opposite of an
 // "epic" productivity app (that is Chronoloria's job). Soft paper background,
 // warm ink, a single clay accent used sparingly, and a gentle sage for "done"
 // (never an alarming green). Light-first by design: near-zero maintenance and
@@ -15,9 +15,9 @@ const light = {
   inkSoft: '#7A7066', // secondary text
   inkFaint: '#A89E93', // tertiary / placeholder
   line: '#ECE4D8', // hairline borders
-  accent: '#C4715A', // clay — the single accent, used sparingly
+  accent: '#C4715A', // clay, the single accent, used sparingly
   accentSoft: '#F3E4DC', // clay tint
-  done: '#7E9B6B', // sage — completion, calm not alarming
+  done: '#7E9B6B', // sage, completion, calm not alarming
   doneSoft: '#E9EFE2',
 } as const;
 
@@ -36,7 +36,7 @@ const dark = {
 
 export const Colors = { light, dark } as const;
 
-// The active theme. Light for now — wiring a scheme switch is deferred until
+// The active theme. Light for now. Wiring a scheme switch is deferred until
 // there is a reason to (decision-log: remove friction, never add a setting).
 export const colors = light;
 

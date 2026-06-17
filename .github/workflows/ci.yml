@@ -28,7 +28,7 @@ jobs:
         run: |
           npm ci
           npm run lint
-          npm run typecheck         # HARD gate — no '|| true'
+          npm run typecheck         # HARD gate, no '|| true'
           npm test
           # Tier 1 — enforce a coverage floor once you have real users:
           # npm run test:coverage -- --coverage.thresholds.lines=50
@@ -39,9 +39,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # full history so gitleaks can scan past commits too
-      - name: gitleaks
-        uses: gitleaks/gitleaks-action@v2
+          fetch-depth: 0 # full history so gitleaks scans every commit
+      - name: Install gitleaks
+        run: |
+          version=8.24.3
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${version}/gitleaks_${version}_linux_x64.tar.gz" | tar -xz -C /tmp gitleaks
+          sudo install /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+      - name: Scan full history
+        # `gitleaks detect` scans the entire git log, not just the push range, so
+        # it is immune to the root-commit edge case in gitleaks-action@v2 (which
+        # fails on the first push because the initial commit has no parent). Same
+        # tool the local pre-commit Inspector runs. Exits non-zero on a find.
+        run: gitleaks detect --no-banner --redact
 
   # Tier 1 — prove it builds (and, if containerised, that it starts):
   # build:

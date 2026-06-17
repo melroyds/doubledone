@@ -1,5 +1,7 @@
 # DoubleDone
 
+[![CI](https://github.com/melroyds/doubledone/actions/workflows/ci.yml/badge.svg)](https://github.com/melroyds/doubledone/actions/workflows/ci.yml)
+
 > A calm, ADHD-friendly daily to-do app. It takes the things you have been avoiding, breaks them into pieces small enough to actually start, shows you only what today needs, and at the end shows you everything you finished, so your brain cannot tell you that you did nothing.
 
 **Status:** early build, solo. Calm Today shell runs on web; the core loop is next.
@@ -27,7 +29,7 @@ React Native + Expo (one codebase to native Android and web) · Supabase (Postgr
 ## Run it
 
 ```bash
-npm install      # from the repo root — npm workspaces installs client/ too
+npm install      # from the repo root, npm workspaces installs client/ too
 npm run dev      # Expo on web, opens at the printed localhost URL
 ```
 > Native Android: `npm run android` (needs Android Studio or a connected device).

@@ -11,13 +11,13 @@ import { track } from '@/lib/telemetry';
 type Task = { id: string; title: string; done: boolean };
 
 // Seed tasks make the shell feel alive on first open. They live in memory only
-// (a real on-device store lands next — BUILD-PLAN steps 2-3), so a reload resets
+// (a real on-device store lands next, BUILD-PLAN steps 2-3), so a reload resets
 // them. The third one previews the Bite-the-Elephant ethos: shrink the dreaded
 // thing to a first step you can actually start.
 const SEED: Task[] = [
   { id: 's1', title: 'Drink a glass of water', done: false },
   { id: 's2', title: "Reply to Sam's message", done: false },
-  { id: 's3', title: 'Start the laundry — just sort the pile', done: false },
+  { id: 's3', title: 'Start the laundry, just sort the pile', done: false },
 ];
 
 let nextId = 0;

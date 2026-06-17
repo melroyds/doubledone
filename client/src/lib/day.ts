@@ -21,8 +21,8 @@ export function isSameDay(a: Date, b: Date): boolean {
 
 /**
  * Whole calendar days from `a` to `b` (negative if `b` is before `a`).
- * Rounds across the local-midnight delta so a DST change — where the gap
- * between two midnights is 23h or 25h — still returns a clean integer.
+ * Rounds across the local-midnight delta so a DST change, where the gap
+ * between two midnights is 23h or 25h, still returns a clean integer.
  */
 export function daysBetween(a: Date, b: Date): number {
   const ms = startOfDay(b).getTime() - startOfDay(a).getTime();
