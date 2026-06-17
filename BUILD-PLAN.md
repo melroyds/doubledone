@@ -63,9 +63,38 @@ Build in this order. Each step is shippable and demoable on its own.
 12. **Supabase auth + sync**, opt-in cloud durability, RLS for privacy
 13. **Gentle nudges / notifications**, native, the retention lever
 
-## Deferred (Tier 3, with triggers)
+## Backlog (deferred work, with triggers)
 
-Public REST API + OpenAPI, MCP server, calendar read, energy-level matching, the paid tier (Stripe), native Android build + Play Store. Each waits for a real trigger, not day one.
+The single home for everything we have consciously parked. Nothing here is dropped. Each item has a trigger for when it earns a place in the sequence above. When we defer something in a session, it lands here.
+
+**Sync, beyond v1** (v1 is tasks-only, step 12)
+- Live / realtime updates (changes appear on the other device without a refresh). Trigger: v1 sync is stable and the refresh delay actually annoys you.
+- Google one-tap sign-in alongside the email code. Trigger: sign-in friction shows up, or real users ask.
+- Clickable email magic-link on web, in addition to the typed code. Trigger: you want one-tap web sign-in and the deep-linking is set up.
+- Sharing a list with another person. Trigger: a real second-user case (caution: this edges toward the team-tool trap the spec warns against, weigh hard).
+- Syncing the cross-user completion data (the moat flywheel) to its own anonymised store. Trigger: enough users that the aggregate is worth mining, pairs with the AI features.
+
+**AI, beyond the core**
+- Energy-level matching (suggest tasks that fit your current energy). Trigger: Bite the Elephant and triage are solid and you want smarter sequencing.
+- Calendar read (see the day's meetings to size Today). Trigger: core loop sticky and time-blindness needs calendar context.
+
+**Platform and distribution**
+- Play Store release, versus the current sideloaded APK. Trigger: polished enough to show publicly and you want auto-updates plus the store-listing portfolio signal (~$25 one-off plus review).
+- Over-the-air updates (refresh the installed app with no reinstall). Trigger: reinstalling for each change gets old.
+- A real transactional email provider for sign-in mail, versus Supabase's shared sender. Trigger: real users, or test mail landing in spam.
+
+**Developer surface (AX / DX)**
+- Public REST API plus OpenAPI spec. Trigger: a reason for outside integrations, or the portfolio wants the DX story.
+- MCP server (let AI agents drive DoubleDone). Trigger: same.
+
+**Monetisation**
+- Paid tier via Stripe, gating the genuinely expensive AI features. Trigger: the AI features prove their value and you are ready to charge.
+
+**Polish and tech debt**
+- Custom DoubleDone app icon and splash (currently the generic Expo art). Trigger: visual identity decided.
+- Delete-a-task gesture (today you can complete but not remove). Trigger: soon, it is a basic gap, promote to the sequence when sync or close-the-day lands.
+- Investigate the expo-router "multiple renderers" dev warning. Trigger: before launch, or if it ever surfaces in production.
+- Tier-1 CI hardening: a coverage floor and a build job (PLAYBOOK). Trigger: real users, when silent regressions start costing people.
 
 ---
 
