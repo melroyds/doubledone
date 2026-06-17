@@ -184,3 +184,15 @@ Added `scheduleFields`, mapping a `CaptureSchedule` (today / tomorrow / daily / 
 Melroy confirmed mid-build: "live calendar" means **in-app scheduling**, which is what this is. **External two-way calendar sync** (Google/phone) is wanted later and is now an explicit backlog item, not part of this in-app work.
 
 Decided to offer a deliberately tiny capture set, not a full date picker: Today (default, undated), Tomorrow (a one-off), Daily, and Weekly on chosen weekdays. It covers "repeatable" fully and gives a dependency-free one-off while staying calm and dodging the calendar-app trap. An arbitrary-date one-off picker is backlogged (it needs a cross-platform date-picker decision). The chip UI is the next step.
+
+---
+
+## 2026-06-18 AI backend: Cloudflare Worker, not Render
+
+The AI backend, which holds the Anthropic key and is the only thing that calls Claude, is a **Cloudflare Worker** (`doubledone-ai`), not the Render service the original stack named.
+
+Decided this with Melroy to cut setup: he is already on Cloudflare (the domain and the web host), so a Worker means no new account, the key lives as a Worker secret, and I deploy it with the existing Wrangler login. Render would have meant another signup and dashboard. The Anthropic SDK runs in the Workers runtime (`nodejs_compat`), and edge latency suits short request/response calls.
+
+The original Render plan is dropped, not deferred. Workers replaces it; revisit only if the backend ever needs long-running work or a full Node server.
+
+Validated end to end before any logic: the deployed Worker's `/health` returns `hasKey:true`, confirming the secret is wired without exposing it. Live at https://doubledone-ai.melroy-a02.workers.dev. No Claude traffic until the spend cap is confirmed.
