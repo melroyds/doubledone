@@ -26,6 +26,14 @@ jobs:
       - name: Build the web bundle
         run: npx expo export -p web
         working-directory: client
+        # EXPO_PUBLIC_* values are inlined into the bundle at export time, so they
+        # must exist on the runner here. They are public (the publishable key ships
+        # in the client anyway), so they live as repo Variables, not Secrets. If a
+        # var is unset it resolves to "", the Supabase client stays null, and sync
+        # simply stays off, the build still succeeds.
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
