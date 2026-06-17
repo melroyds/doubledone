@@ -302,3 +302,11 @@ Decided against:
 Assumptions (Melroy to challenge):
 - Last-write-wins by `updatedAt` is the conflict policy (newest edit wins, a delete included). Fine for one user across devices; revisit only if shared lists ever land.
 - The remote `tasks` table set up earlier this session matches these columns. Tonight I confirmed the column names live via PostgREST, not every Postgres type; `supabase/schema.sql` (part 3) is the source of truth to diff the live table against.
+
+## 2026-06-18 Cloud sync, part 2: the pure merge engine
+
+`mergeTasks(local, remote)` in `client/src/lib/sync-merge.ts` reconciles two task lists by last-write-wins on `updatedAt` and returns both the `merged` set (to persist locally) and `toPush` (the rows the server is missing or has an older copy of). A delete is just a tombstone with a newer `updatedAt`, so deletions win exactly like edits, in either direction. Local-only tasks always push, which is precisely the first-sign-in migration: the anonymous list seeds the new account with no special-casing. Remote-newer and ties never push. The function is pure, clock-free and network-free, and is unit-tested across migration, both LWW directions, ties, and tombstones winning each way. The integration seam that actually calls Supabase (part 3) wraps this.
+
+Decided against:
+- A three-way merge with a common ancestor. LWW is the right complexity for one user across their own devices; true three-way only earns its place with shared or collaborative lists, which the spec deliberately avoids.
+- Field-level merging (blending two edits of the same task). Whole-row LWW is predictable and matches how the app mutates (every change already bumps `updatedAt`); field merge is surprise-prone for no real gain here.
