@@ -156,3 +156,13 @@ Decided: keep recurrence small (none / daily / weekly), not a full rrule engine.
 Decided: optional fields on the existing Task, no storage migration. Old tasks without `due` / `recurrence` still parse (they default to one-off / no-date), so the store stays backward-compatible on the same v1 key.
 
 Decided against external calendar integration for now. "Live calendar" is built in-app (scheduled tasks flow onto Today on their day). Two-way sync with Google or the phone calendar is OAuth-gated and stays in the backlog ("calendar read"); this in-app scheduling is the foundation it would build on, so it is not wasted either way. Flagged for Melroy to confirm which he meant.
+
+---
+
+## 2026-06-18 Scheduling part 2: per-day completion and Today selection
+
+For Today to mean "what is due today," added two tested pure helpers in `lib/today.ts`. `tasksForToday` selects what belongs on Today: anything due today (`isDueOn`) plus undated captures (no date, no recurrence), which are the "do it now" brain-dump default. `isDoneOn` and `toggleDoneOn` give recurring tasks per-day completion: a daily task ticked today is done for today and returns tomorrow, tracked in `completedDates`, rather than the global `done` boolean a one-off uses.
+
+Decided: undated tasks stay on Today rather than vanishing. They are the default capture ("add one thing, do it now"), so the existing behaviour and the new scheduling coexist with no migration. A task only leaves Today when it is dated for another day or completed.
+
+Decided: per-day completion via a `completedDates` string array on the task, not a separate completions table. Simple, local-first, and the array stays tiny for a personal daily tool. Wiring this into the Today screen UI is the next step (the loop continues).

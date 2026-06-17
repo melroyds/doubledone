@@ -12,6 +12,7 @@ export type Task = {
   createdAt: number; // epoch ms; lets the store sort and, later, roll the day
   due?: string | null; // 'YYYY-MM-DD' for a one-off; null/undefined = someday
   recurrence?: Recurrence; // absent = one-off (see lib/recurrence)
+  completedDates?: string[]; // ISO dates a recurring task was ticked (per-day completion)
 };
 
 // Shown once on a brand-new install so the first open is not an empty void.
