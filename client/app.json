@@ -11,6 +11,7 @@
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "app.doubledone",
       "adaptiveIcon": {
         "backgroundColor": "#FBF7F1",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
