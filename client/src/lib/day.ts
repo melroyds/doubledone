@@ -33,3 +33,11 @@ export function daysBetween(a: Date, b: Date): number {
 export function formatTodayLabel(d: Date, locale = 'en-AU'): string {
   return d.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
 }
+
+/** Local calendar date as `YYYY-MM-DD` (the key a one-off task is scheduled by). */
+export function toISODate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}

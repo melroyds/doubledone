@@ -144,3 +144,15 @@ Built the static web bundle locally (`expo export -p web`, where it is proven to
 ### Consequence carried forward
 
 Data is local per device, so the web list and the phone list are separate until sync lands (sync is last in the build order). Accepted deliberately.
+
+---
+
+## 2026-06-18 Scheduling model: one-off + recurring, in-app (calendar feature, part 1)
+
+Melroy asked for tasks linked to a calendar, repeatable and one-off. Built the scheduling foundation: a task can carry a due date (one-off) or a recurrence (daily, or weekly on chosen weekdays), and `isDueOn` decides what lands on Today. The recurrence logic lives in `lib/recurrence.ts` with tests, since date math is a risk surface.
+
+Decided: keep recurrence small (none / daily / weekly), not a full rrule engine. Daily and weekly cover almost everything a daily ADHD tool needs, and every extra scheduling option is friction the spec warns against. Monthly or interval can be added if a real need appears.
+
+Decided: optional fields on the existing Task, no storage migration. Old tasks without `due` / `recurrence` still parse (they default to one-off / no-date), so the store stays backward-compatible on the same v1 key.
+
+Decided against external calendar integration for now. "Live calendar" is built in-app (scheduled tasks flow onto Today on their day). Two-way sync with Google or the phone calendar is OAuth-gated and stays in the backlog ("calendar read"); this in-app scheduling is the foundation it would build on, so it is not wasted either way. Flagged for Melroy to confirm which he meant.

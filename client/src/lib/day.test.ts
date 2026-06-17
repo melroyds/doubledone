@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { daysBetween, formatTodayLabel, isSameDay, startOfDay } from './day';
+import { daysBetween, formatTodayLabel, isSameDay, startOfDay, toISODate } from './day';
 
 describe('startOfDay', () => {
   it('zeroes the time but keeps the calendar date', () => {
@@ -70,5 +70,16 @@ describe('formatTodayLabel', () => {
     const c = formatTodayLabel(new Date(2026, 5, 18, 8));
     expect(a).toBe(b);
     expect(a).not.toBe(c);
+  });
+});
+
+describe('toISODate', () => {
+  it('formats a local date as YYYY-MM-DD, zero-padded', () => {
+    expect(toISODate(new Date(2026, 5, 7))).toBe('2026-06-07');
+    expect(toISODate(new Date(2026, 11, 25))).toBe('2026-12-25');
+  });
+
+  it('uses the local calendar day, not the time of day', () => {
+    expect(toISODate(new Date(2026, 5, 17, 23, 59))).toBe('2026-06-17');
   });
 });

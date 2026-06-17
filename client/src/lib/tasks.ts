@@ -3,11 +3,15 @@
 // (see tasks.test.ts). The AsyncStorage wrapper lives in storage.ts and stays a
 // thin, untested SDK seam.
 
+import { type Recurrence } from './recurrence';
+
 export type Task = {
   id: string;
   title: string;
   done: boolean;
   createdAt: number; // epoch ms; lets the store sort and, later, roll the day
+  due?: string | null; // 'YYYY-MM-DD' for a one-off; null/undefined = someday
+  recurrence?: Recurrence; // absent = one-off (see lib/recurrence)
 };
 
 // Shown once on a brand-new install so the first open is not an empty void.
