@@ -3,26 +3,25 @@
 -- Source of truth for the schema that cloud sync targets. The live table was
 -- created in the Supabase dashboard earlier in the build; this file is what to
 -- diff it against and what to recreate it from. Apply in the Supabase SQL editor.
--- Column NAMES here were confirmed against the live table via PostgREST; the
--- types/constraints below are the intended design, so verify them against live.
+-- VERIFIED against live via PostgREST type probes on 2026-06-18: id text, title text,
+-- done boolean, due text, recurrence json, completed_dates json, updated_at timestamptz,
+-- deleted_at timestamptz. id is text (device ids like "t-abc-1", not UUIDs), so inserts
+-- are safe. One drift: live created_at was bigint (epoch ms) while the sync mapping sends
+-- ISO strings, so run the one-time migration at the bottom to make it timestamptz.
 --
 -- IMPORTANT (last-write-wins): there is deliberately NO trigger that sets
 -- updated_at = now() on write. Sync resolves conflicts by comparing updated_at,
 -- and the client sends the authoritative value. A now() trigger would clobber it
 -- and silently break conflict resolution. created_at/updated_at are client-written.
---
--- IMPORTANT (id type): `id` is TEXT, because task ids are generated on-device
--- (e.g. "t-abc-1"), not UUIDs. If the live column is uuid, sync inserts will fail;
--- this is the first thing to verify.
 
 create table if not exists public.tasks (
   id text primary key,
   user_id uuid not null references auth.users (id) on delete cascade,
   title text not null,
   done boolean not null default false,
-  due date,                       -- 'YYYY-MM-DD' for a one-off; null = someday
-  recurrence jsonb,               -- the Recurrence object; null = one-off
-  completed_dates jsonb,          -- array of ISO dates a recurring task was ticked
+  due text,                       -- 'YYYY-MM-DD' for a one-off; null = someday (live is text)
+  recurrence jsonb,               -- the Recurrence object; null = one-off (live is json; both work)
+  completed_dates jsonb,          -- array of ISO dates a recurring task was ticked (live is json)
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz          -- soft-delete tombstone; null = live
@@ -42,3 +41,12 @@ create policy "tasks_delete_own" on public.tasks
 
 -- Fast "all my rows" pulls.
 create index if not exists tasks_user_id_idx on public.tasks (user_id);
+
+-- ---------------------------------------------------------------------------
+-- One-time migration. The live table predates this file and its created_at
+-- drifted to bigint (epoch ms), which the sync mapping (ISO strings) cannot
+-- write. Run this once in the Supabase SQL editor to align it. Safe on an
+-- empty table; converts any existing epoch-ms values correctly.
+-- ---------------------------------------------------------------------------
+-- alter table public.tasks
+--   alter column created_at type timestamptz using to_timestamp(created_at / 1000.0);

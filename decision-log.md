@@ -351,3 +351,15 @@ Replaced the placeholder decompose system prompt with a tuned version, after add
 Decided against:
 - Asking the model a clarifying question when a task is vague. A stuck person needs steps now, not an interview; a calm best-effort decomposition beats a prompt back.
 - Dropping to a fixed step count. 3 to 6 stays adaptive to task size while bounded; a fixed number would pad small tasks or truncate big ones.
+
+## 2026-06-18 Cloud sync: live schema verified, created_at drift found
+
+Probed the live `tasks` column types over PostgREST (no auth, no writes, no cost) by abusing type validation: filtering a column with an incompatible value returns the column's type in the error. Result: `id` is text (the headline risk, now cleared, since device ids are not UUIDs), `done` boolean, `due` text, `recurrence`/`completed_dates` json, `updated_at` and `deleted_at` timestamptz. One real drift: `created_at` is `bigint` (epoch ms) on live, while the sync mapping sends ISO strings and the sibling timestamp columns are timestamptz. A push would fail on created_at.
+
+Decided: align created_at to timestamptz (one ALTER, no app code change, since `sync.ts` already emits ISO for all three timestamps), rather than rewrite the mapping to send a number for created_at and strings for the others. timestamptz across the board is consistent and friendlier to the future moat analytics. `due` stays text (works as-is with the client's date strings); `recurrence`/`completed_dates` stay json on live (jsonb in schema.sql; both accept the same payloads). `supabase/schema.sql` updated to match live and carries the one-time migration.
+
+Decided against:
+- Recreating the table from schema.sql. An ALTER is non-destructive and the migration is trivial; a drop/recreate risks data if any rows exist and buys nothing.
+- Migrating everything to bigint epoch ms. It would touch two columns plus the mapping plus the tests, for a less query-friendly schema.
+
+Still unverified (needs Melroy): the live email sign-in round-trip, and that no `updated_at = now()` trigger exists (Supabase adds none by default, so almost certainly fine; confirm in the dashboard if paranoid).
