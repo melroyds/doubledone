@@ -18,6 +18,10 @@
 - **Dead ends:** none costly. Two small traps: (1) `create-expo-app --yes` still prompts to skip nested git init, fine under a closed stdin, it takes the default. (2) `tsc` failed on `import '@/global.css'` because the template leans on the gitignored `expo-env.d.ts`; fixed with a committed `declare module '*.css'`.
 - **Next:** local on-device store so Today survives a reload (with a quota/eviction risk test), then grow the one-line add into the friction-free brain-dump that feeds AI triage. Set the Anthropic cost alarm before the AI backend lands.
 
+### Day 1 (later): store + brain-dump
+- **Shipped:** on-device persistence (AsyncStorage) so Today survives a reload, seed-once on first install, defensive deserialize (corrupt blob and empty list both handled). Replaced the single-line add with a multi-line brain-dump (parseDump strips list markers and drops blanks). New risk-test file `lib/tasks` (12 cases), 27 tests green. Two commits: store, then brain-dump.
+- **Next:** AI backend on Render (step 4) with the request-contract test, and the Anthropic cost alarm before any traffic, then Bite the Elephant (step 5).
+
 <!-- one entry per working day -->
 
 ## Lessons (this project)

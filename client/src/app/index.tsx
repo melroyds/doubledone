@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AddTaskBar } from '@/components/AddTaskBar';
+import { BrainDump } from '@/components/BrainDump';
 import { TaskRow } from '@/components/TaskRow';
 import { colors, fonts, spacing } from '@/constants/theme';
 import { formatTodayLabel } from '@/lib/day';
 import { loadTasks, saveTasks } from '@/lib/storage';
-import { type Task } from '@/lib/tasks';
+import { parseDump, type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
 
 let addCounter = 0;
@@ -55,11 +55,20 @@ export default function TodayScreen() {
     commit(next);
   }
 
-  function add(title: string) {
-    const trimmed = title.trim();
-    if (!trimmed) return;
-    commit([...tasks, { id: makeId(), title: trimmed, done: false, createdAt: Date.now() }]);
-    track('task.added');
+  function capture(text: string) {
+    const titles = parseDump(text);
+    if (titles.length === 0) return;
+    const now = Date.now();
+    const added: Task[] = titles.map((title, i) => ({
+      id: makeId(),
+      title,
+      done: false,
+      createdAt: now + i,
+    }));
+    commit([...tasks, ...added]);
+    // One line is a quick add; several is a genuine brain-dump. Log the shape so
+    // the moat can later learn what a real dump looks like for this audience.
+    track(titles.length > 1 ? 'brain_dump.captured' : 'task.added', { count: titles.length });
   }
 
   return (
@@ -91,7 +100,7 @@ export default function TodayScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.four }]}>
-        <AddTaskBar onAdd={add} />
+        <BrainDump onCapture={capture} />
         <Text style={styles.ethos}>today is finite and achievable</Text>
       </View>
     </View>
