@@ -1,0 +1,36 @@
+name: deploy-web
+
+# Build the web bundle and ship it to Cloudflare Pages on every push to main,
+# so doubledone.app always matches main without a manual deploy. Needs the
+# CLOUDFLARE_API_TOKEN repo secret (scoped to Cloudflare Pages: Edit). The
+# account ID is not a secret, so it lives here in the open.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Build + deploy to Cloudflare Pages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Build the web bundle
+        run: npx expo export -p web
+        working-directory: client
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: a02cf1c14ba965dff2b2549e9dc7e1db
+          workingDirectory: client
+          command: pages deploy dist --project-name=doubledone --branch=main

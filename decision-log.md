@@ -196,3 +196,13 @@ Decided this with Melroy to cut setup: he is already on Cloudflare (the domain a
 The original Render plan is dropped, not deferred. Workers replaces it; revisit only if the backend ever needs long-running work or a full Node server.
 
 Validated end to end before any logic: the deployed Worker's `/health` returns `hasKey:true`, confirming the secret is wired without exposing it. Live at https://doubledone-ai.melroy-a02.workers.dev. No Claude traffic until the spend cap is confirmed.
+
+---
+
+## 2026-06-18 Web auto-deploys on every push
+
+Added a GitHub Action (`deploy-web`) that builds the web bundle and ships it to Cloudflare Pages on every push to main, so doubledone.app always matches main. Closes the gap noted earlier, where the first web deploy was a manual wrangler upload.
+
+Decided: deploy via `cloudflare/wrangler-action` with a Pages-scoped API token in a repo secret (`CLOUDFLARE_API_TOKEN`). The account ID sits in the workflow in the open, since account IDs are identifiers, not secrets. The token is the only secret and it never leaves GitHub.
+
+Decided against Cloudflare's own git integration (letting them build in their CI): building in GitHub Actions, where the monorepo Expo web build is already proven, keeps the build environment under our control instead of debugging in someone else's.
