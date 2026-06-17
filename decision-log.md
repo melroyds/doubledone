@@ -325,3 +325,21 @@ Assumptions (Melroy to challenge, verify against the live table):
 - No `updated_at = now()` trigger exists on the live table. Such a trigger would break last-write-wins; `schema.sql` omits it on purpose.
 - Column types match `schema.sql` (due date; recurrence and completed_dates jsonb; timestamps timestamptz). Names were confirmed live; types were not.
 - The publishable key (`sb_publishable_...`) works as the supabase-js anon key. It already reaches the table over REST; auth sign-in is the piece still to confirm live (part 3b, left for Melroy).
+
+## 2026-06-18 Cloud sync, part 3b: passwordless sign-in + sync wiring
+
+The sync UI and its wiring. A calm, skippable sign-in screen (`client/src/app/sign-in.tsx`) does passwordless email OTP: enter email, we send a 6-digit code, verify it. `useSession` (`client/src/lib/auth.ts`) tracks auth state. A single faint "Sync across devices" line in the Today footer is the only entry point, and only when sync is configured; signed in, it reads "Synced, sign out". When a session is present the Today screen runs `syncOnce` once (on sign-in and on open), persisting the merged result; failures are silent and logged, the app stays fully usable offline. The end-to-end email round-trip (which mails a real inbox) is left for Melroy; everything up to the send is built, typechecks, lints, and the screen plus navigation are preview-verified without sending.
+
+Two build-config fixes were needed to make supabase-js bundle for web:
+- Metro could not resolve `@supabase/realtime-js` (its legacy main/module fields point at files that do not exist). Fixed by `config.resolver.unstable_enablePackageExports = true` in `client/metro.config.js`, so Metro honours the `exports` map.
+- `web.output: "static"` server-prerenders each route in Node, where `window` is undefined; the module-scope Supabase client touches `window`/localStorage at build and crashed the export. Switched to `web.output: "single"` (SPA), which suits an authed, client-rendered app, and added `client/public/_redirects` (`/* /index.html 200`) so deep links resolve on Cloudflare Pages.
+
+Decided against:
+- A magic-link (clickable URL) sign-in. The typed 6-digit code works the same on web and native with no deep-link plumbing; the clickable link is already a backlog item.
+- Auto-push on every edit and realtime subscriptions. v1 syncs on sign-in and on open (backlog: realtime once v1 is stable); simpler and enough.
+- Guarding the Supabase client behind `typeof window` to keep static prerender. SPA output is the cleaner, more durable choice for an app with client-only browser APIs, and avoids hydration mismatches.
+
+Assumptions (Melroy to challenge):
+- Sync-on-open (not continuous) is the right cadence for v1.
+- The faint footer line is the right home for sign-in: out of the calm Today surface, shown only when configured.
+- The deployed web build has no Supabase env yet, so sync stays dormant there until you add `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` to the Cloudflare Pages project. Until then doubledone.app is unchanged. The web is now an SPA (output single); Cloudflare serves `_redirects` for route fallback.

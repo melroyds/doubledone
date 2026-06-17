@@ -1,14 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrainDump } from '@/components/BrainDump';
 import { TaskRow } from '@/components/TaskRow';
 import { colors, fonts, spacing } from '@/constants/theme';
 import { decompose } from '@/lib/ai';
+import { useSession } from '@/lib/auth';
 import { formatTodayLabel, friendlyDate } from '@/lib/day';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { loadTasks, saveTasks } from '@/lib/storage';
+import { isSyncConfigured, supabase } from '@/lib/supabase';
+import { syncOnce } from '@/lib/sync';
 import { parseDump, type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
 import { isDoneOn, tasksForToday, toggleDoneOn, upcomingTasks } from '@/lib/today';
@@ -31,6 +35,9 @@ export default function TodayScreen() {
   const [loaded, setLoaded] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const today = useMemo(() => new Date(), []);
+  const router = useRouter();
+  const session = useSession();
+  const tasksRef = useRef<Task[]>(tasks);
 
   // Load the persisted list once. Until it arrives we hold off on the empty and
   // all-done copy so neither flashes before the real tasks land.
@@ -45,6 +52,32 @@ export default function TodayScreen() {
       active = false;
     };
   }, []);
+
+  // Keep the latest tasks reachable from the sync effect without making it re-run
+  // on every edit (which would re-sync constantly).
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
+
+  // Opt-in cloud sync: when signed in (and configured), reconcile once with the
+  // account and persist the merged result. Runs on sign-in and on open. Realtime
+  // and push-on-change are deferred (see BUILD-PLAN backlog). Failures are silent
+  // and logged, the app stays usable offline regardless.
+  useEffect(() => {
+    if (!supabase || !session) return;
+    let active = true;
+    void syncOnce(supabase, tasksRef.current, session.user.id)
+      .then((merged) => {
+        if (!active) return;
+        setTasks(merged);
+        void saveTasks(merged);
+        track('sync.completed', { count: merged.length });
+      })
+      .catch(() => track('sync.failed'));
+    return () => {
+      active = false;
+    };
+  }, [session]);
 
   const visible = tasksForToday(tasks, today);
   const upcoming = upcomingTasks(tasks, today);
@@ -62,6 +95,11 @@ export default function TodayScreen() {
     commit(tasks.map((t) => (t.id === id ? { ...t, deletedAt: now, updatedAt: now } : t)));
     setConfirmingId(null);
     track('task.removed');
+  }
+
+  function signOut() {
+    if (supabase) void supabase.auth.signOut();
+    track('auth.signed_out');
   }
 
   function toggle(id: string) {
@@ -170,6 +208,20 @@ export default function TodayScreen() {
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.four }]}>
         <BrainDump onCapture={capture} onBiteElephant={biteElephant} today={today} />
+        {isSyncConfigured &&
+          (session ? (
+            <Pressable onPress={signOut} accessibilityRole="button" accessibilityLabel="Sign out of sync">
+              <Text style={styles.sync}>Synced · sign out</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => router.push('/sign-in')}
+              accessibilityRole="button"
+              accessibilityLabel="Sync across devices"
+            >
+              <Text style={styles.sync}>Sync across devices</Text>
+            </Pressable>
+          ))}
         <Text style={styles.ethos}>today is finite and achievable</Text>
       </View>
     </View>
@@ -217,6 +269,12 @@ const styles = StyleSheet.create({
     maxWidth: 560,
     width: '100%',
     alignSelf: 'center',
+  },
+  sync: {
+    color: colors.inkFaint,
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: spacing.three,
   },
   ethos: {
     color: colors.inkFaint,

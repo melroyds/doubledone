@@ -16,4 +16,10 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
+// Honour package.json "exports" maps. @supabase/supabase-js and its subpackages
+// (e.g. realtime-js) ship correct paths only via "exports"; their legacy main/
+// module fields point at files that do not exist, so without this Metro fails to
+// resolve them and the web bundle dies. See the DoubleDone gotchas note.
+config.resolver.unstable_enablePackageExports = true;
+
 module.exports = config;

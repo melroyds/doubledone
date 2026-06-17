@@ -1,0 +1,4 @@
+# SPA fallback for Cloudflare Pages. With web.output "single" the app is one
+# index.html hydrated client-side; serve it for any path so deep links and
+# refreshes on routes like /sign-in resolve instead of 404ing.
+/*    /index.html   200

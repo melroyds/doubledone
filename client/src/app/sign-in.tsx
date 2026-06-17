@@ -1,0 +1,203 @@
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { colors, fonts, radius, spacing } from '@/constants/theme';
+import { supabase } from '@/lib/supabase';
+import { track } from '@/lib/telemetry';
+
+type Phase = 'email' | 'code';
+
+// Optional cloud sync sign-in. Passwordless: we email a 6-digit code and verify
+// it. Calm and skippable, the app works fully without ever coming here. The live
+// send/verify (which emails a real inbox) is Melroy's to exercise end to end.
+export default function SignInScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const [phase, setPhase] = useState<Phase>('email');
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function done() {
+    router.back();
+  }
+
+  async function sendCode() {
+    const addr = email.trim();
+    if (!addr || busy) return;
+    if (!supabase) {
+      setError('Sync is not set up on this build.');
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      const { error: err } = await supabase.auth.signInWithOtp({
+        email: addr,
+        options: { shouldCreateUser: true },
+      });
+      if (err) throw err;
+      track('auth.code_sent');
+      setPhase('code');
+    } catch {
+      setError('Could not send the code. Check the address and try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verify() {
+    const token = code.trim();
+    if (!token || busy || !supabase) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const { error: err } = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token,
+        type: 'email',
+      });
+      if (err) throw err;
+      track('auth.signed_in');
+      done();
+    } catch {
+      setError('That code did not work. Check it, or send a new one.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <View style={[styles.screen, { paddingTop: insets.top + spacing.six }]}>
+      <Pressable onPress={done} accessibilityRole="button" accessibilityLabel="Not now" hitSlop={8}>
+        <Text style={styles.cancel}>Not now</Text>
+      </Pressable>
+
+      <Text style={styles.title}>Sync across devices</Text>
+      <Text style={styles.sub}>
+        Optional. Your tasks stay on this device until you sign in. We email a 6-digit code, no
+        password to remember.
+      </Text>
+
+      {phase === 'email' ? (
+        <View style={styles.form}>
+          <TextInput
+            value={email}
+            onChangeText={setEmail}
+            editable={!busy}
+            placeholder="you@example.com"
+            placeholderTextColor={colors.inkFaint}
+            style={styles.input}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+            inputMode="email"
+            accessibilityLabel="Email address"
+          />
+          <Pressable
+            onPress={sendCode}
+            disabled={busy}
+            style={({ pressed }) => [styles.primary, pressed && styles.pressed, busy && styles.disabled]}
+            accessibilityRole="button"
+            accessibilityLabel="Email me a code"
+          >
+            {busy ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.primaryText}>Email me a code</Text>
+            )}
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.form}>
+          <Text style={styles.sentTo}>We sent a code to {email.trim()}.</Text>
+          <TextInput
+            value={code}
+            onChangeText={setCode}
+            editable={!busy}
+            placeholder="6-digit code"
+            placeholderTextColor={colors.inkFaint}
+            style={styles.input}
+            keyboardType="number-pad"
+            inputMode="numeric"
+            maxLength={6}
+            accessibilityLabel="6-digit code"
+          />
+          <Pressable
+            onPress={verify}
+            disabled={busy}
+            style={({ pressed }) => [styles.primary, pressed && styles.pressed, busy && styles.disabled]}
+            accessibilityRole="button"
+            accessibilityLabel="Sign in"
+          >
+            {busy ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.primaryText}>Sign in</Text>
+            )}
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              setPhase('email');
+              setCode('');
+              setError(null);
+            }}
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityLabel="Use a different email"
+          >
+            <Text style={styles.link}>Use a different email</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {error && <Text style={styles.error}>{error}</Text>}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    paddingHorizontal: spacing.five,
+    maxWidth: 560,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  cancel: { color: colors.inkSoft, fontSize: 16, marginBottom: spacing.six },
+  title: {
+    color: colors.ink,
+    fontSize: 30,
+    fontWeight: '700',
+    fontFamily: fonts.sans,
+    letterSpacing: -0.5,
+  },
+  sub: { color: colors.inkSoft, fontSize: 16, lineHeight: 23, marginTop: spacing.three },
+  form: { gap: spacing.three, marginTop: spacing.six },
+  sentTo: { color: colors.inkSoft, fontSize: 15 },
+  input: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.four,
+    paddingVertical: spacing.three,
+    fontSize: 16,
+    color: colors.ink,
+  },
+  primary: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.md,
+    paddingVertical: spacing.four,
+    alignItems: 'center',
+  },
+  primaryText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  pressed: { opacity: 0.8 },
+  disabled: { opacity: 0.5 },
+  link: { color: colors.accent, fontSize: 15, textAlign: 'center', marginTop: spacing.two },
+  error: { color: colors.accent, fontSize: 14, marginTop: spacing.four },
+});
