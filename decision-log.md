@@ -343,3 +343,11 @@ Assumptions (Melroy to challenge):
 - Sync-on-open (not continuous) is the right cadence for v1.
 - The faint footer line is the right home for sign-in: out of the calm Today surface, shown only when configured.
 - The deployed web build has no Supabase env yet, so sync stays dormant there until you add `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` to the Cloudflare Pages project. Until then doubledone.app is unchanged. The web is now an SPA (output single); Cloudflare serves `_redirects` for route fallback.
+
+## 2026-06-18 Bite the Elephant: AuDHD-aware decompose prompt (v2)
+
+Replaced the placeholder decompose system prompt with a tuned version, after adding AuDHD to the audience. It now addresses ADHD and autism together, demands literal and concrete steps (no metaphors or idioms, no vague verbs like "organise" or "plan"), insists each step is one observable physical action with an obvious finish, keeps the two-minute physical first step, and forbids commenting on why the task went undone (demand-avoidance safe). The output contract is unchanged (still the `record_steps` tool, 3 to 6 steps with whole-minute estimates), so nothing downstream moves. Deployed to the Worker with `npx wrangler deploy` and validated with one live call ("do my tax return"): the first step was "get a box and put it on the table", and it produced the literal version of "organise your documents" rather than the vague verb. Note for the build env: the publishable Supabase key + URL are wired into the web build as GitHub Actions Variables (not Cloudflare Pages env, since the bundle is built on the runner), corrected from the earlier morning note.
+
+Decided against:
+- Asking the model a clarifying question when a task is vague. A stuck person needs steps now, not an interview; a calm best-effort decomposition beats a prompt back.
+- Dropping to a fixed step count. 3 to 6 stays adaptive to task size while bounded; a fixed number would pad small tasks or truncate big ones.
