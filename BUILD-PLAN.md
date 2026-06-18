@@ -25,7 +25,12 @@ Full core loop working: capture, AI decomposition (Bite the Elephant), in-app sc
 
 ## The immediate next action
 
-**H: gentle nudges / notifications / reminders (step 13).** A, B, C, D, E, F, G (triage) and the repeating drawer are all shipped and live. The last core piece is reminders: native notifications that gently offer "time for X" at the right moment, never a demand or a nag (demand-avoidance safe). Likely needs `expo-notifications` and a permission ask; works best on the installed Android build. After H the core loop is complete, leaving the deliberate design overhaul and the ParkProof-grade GitHub (both backlogged) as the post-core work.
+**The core loop is complete.** A through H are all shipped and live (capture, AI decompose, in-app scheduling, recurring + the repeating drawer, cloud sync, the calendar Lookback with weighted celebration, close-the-day, Strategise, AI triage, and the daily reminder). What is left is **post-core**:
+
+1. **Things to verify on device / in your own time** (built, need Melroy): the daily reminder firing on the Android build, and tuning any of the AI prompt placeholders (`decompose.ts` is tuned; `strategise.ts` and `triage.ts` are working placeholders).
+2. **The deliberate design overhaul** (backlogged): the dramatic look-and-flow pass, now with the full feature set to design against.
+3. **The ParkProof-grade GitHub** (backlogged): public-facing PM/architecture docs and a case study, mirroring ParkProof (needs ParkProof's repo as the reference).
+4. The rest of the backlog (custom lists, Plan my day, Prioritise, distribution, monetisation, the /decompose lockdown before any public launch).
 
 ---
 
@@ -64,7 +69,7 @@ Build in this order. Each step is shippable and demoable on its own.
 10. ✅ **Close-the-day wrap** ("E"), gentle, rolls forward, zero guilt, lives on Today as a calm wrap card. *Done 2026-06-18.*
 11. ✅ **Strategise** ("F"), Sonnet re-spreads an over-full day, propose-then-accept. *Done 2026-06-18.*
 12. ✅ **Supabase auth + sync**, opt-in cloud durability, RLS for privacy (verified live end-to-end 2026-06-18)
-13. **Gentle nudges / notifications / reminders**, native, the retention lever. A reminder is a gentle offer to do a specific thing at the right moment ("time for X"), never a demand or a nag, demand-avoidance safe for the AuDHD audience. Melroy flagged reminders as a key design consideration (2026-06-18).
+13. ✅ **Gentle nudges / notifications / reminders** ("H"), native, the retention lever. An opt-in daily reminder that offers the day, never demands it. Built; the notification firing is Melroy's to verify on the Android build. *Done 2026-06-18.*
 14. ✅ **Repeating-tasks panel** (a right-side slide-open drawer). Daily/recurring and one-off project tasks are different mental modes, each with its own home. A "Repeating" link in the Today header opens a drawer listing all recurring tasks with their cadence; today's due ones still also appear on Today (the recommended option, so habits stay visible). Calm list, no streaks. *Done 2026-06-18.*
 
 ## Backlog (deferred work, with triggers)

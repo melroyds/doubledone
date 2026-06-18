@@ -497,3 +497,14 @@ Capture now has an opt-in triage. When you dump 2+ lines, the left AI button bec
 Decided against:
 - A propose-then-accept card for triage (unlike Strategise). Triage runs on the capture path, where the goal is friction-free "dump and it sorts itself"; a review step fights that. It is opt-in via the button, the result is visible, and tasks are editable, so a direct apply is calm here.
 - Auto-decomposing the "decompose" bucket. That would fire a Bite-the-Elephant call per big item (token-heavy). For v1 those land on Today and the bucket is recorded; auto-offer-decompose is a future enhancement.
+
+## 2026-06-18 H (final core piece): gentle daily reminder
+
+The retention lever, kept calm. An opt-in "Daily reminder, On/Off" toggle in the Today footer schedules one daily local notification ("Your today is here when you are ready.") via expo-notifications. A reminder is an offer, never a demand or a nag (demand-avoidance safe). `lib/reminders.ts` is a thin, fully guarded seam (every call try/caught) so the web build degrades quietly; the toggle is hidden on web (`Platform.OS`), since scheduled local notifications are a native (Android) capability. State persists via storage.ts. Bundles cleanly on web; the notification firing is device-verified by Melroy, like the sign-in email.
+
+Decided against:
+- Per-task time reminders for v1. A single daily nudge is the retention lever with far less UI; per-task reminders (a time picker plus per-task scheduling) are a future enhancement.
+- A task-count in the reminder copy ("you have N tasks"). That reads as pressure; the copy offers the day, it never tallies it.
+- expo-notifications handlers / channels for v1. Defaults are fine for a backgrounded daily reminder; less API surface, less risk.
+
+This completes the core loop (A through H plus the repeating drawer). The post-core work is the design overhaul and the ParkProof-grade GitHub, both backlogged.

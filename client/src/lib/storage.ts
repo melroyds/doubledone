@@ -5,6 +5,7 @@ import { track } from './telemetry';
 
 // Versioned so a future shape change can migrate rather than silently drop data.
 const STORAGE_KEY = 'doubledone.tasks.v1';
+const REMINDER_KEY = 'doubledone.reminder.v1';
 
 /**
  * Load Today's tasks. On a brand-new install (nothing ever stored) seed once so
@@ -32,5 +33,23 @@ export async function saveTasks(tasks: Task[]): Promise<void> {
     await AsyncStorage.setItem(STORAGE_KEY, serialize(tasks));
   } catch {
     track('store.save_failed', { count: tasks.length });
+  }
+}
+
+/** Whether the daily reminder is on (persisted toggle). */
+export async function loadReminderOn(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(REMINDER_KEY)) === 'on';
+  } catch {
+    return false;
+  }
+}
+
+/** Persist the daily-reminder toggle. */
+export async function saveReminderOn(on: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(REMINDER_KEY, on ? 'on' : 'off');
+  } catch {
+    // best effort
   }
 }

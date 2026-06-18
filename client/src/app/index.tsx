@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrainDump } from '@/components/BrainDump';
@@ -12,7 +12,8 @@ import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
 import { addDaysISO, formatTodayLabel, friendlyDate, toISODate } from '@/lib/day';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
-import { loadTasks, saveTasks } from '@/lib/storage';
+import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
+import { loadReminderOn, loadTasks, saveReminderOn, saveTasks } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { syncOnce } from '@/lib/sync';
 import { parseDump, type Task } from '@/lib/tasks';
@@ -41,6 +42,7 @@ export default function TodayScreen() {
   const [strategising, setStrategising] = useState(false);
   const [plan, setPlan] = useState<PlanItem[] | null>(null);
   const [strategiseError, setStrategiseError] = useState<string | null>(null);
+  const [reminderOn, setReminderOn] = useState(false);
   const today = useMemo(() => new Date(), []);
   const router = useRouter();
   const session = useSession();
@@ -65,6 +67,17 @@ export default function TodayScreen() {
   useEffect(() => {
     tasksRef.current = tasks;
   }, [tasks]);
+
+  // Reflect the persisted daily-reminder toggle (the schedule itself survives restarts).
+  useEffect(() => {
+    let active = true;
+    void loadReminderOn().then((on) => {
+      if (active) setReminderOn(on);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Opt-in cloud sync: when signed in (and configured), reconcile once with the
   // account and persist the merged result. Runs on sign-in and on open. Realtime
@@ -122,6 +135,21 @@ export default function TodayScreen() {
   function openDrawer() {
     setDrawerOpen(true);
     track('repeating.opened');
+  }
+
+  // A calm daily reminder, opt-in. Native only (web cannot schedule local ones).
+  async function toggleReminder() {
+    if (reminderOn) {
+      await disableDailyReminder();
+      setReminderOn(false);
+      void saveReminderOn(false);
+      track('reminder.disabled');
+    } else {
+      const ok = await enableDailyReminder();
+      setReminderOn(ok);
+      void saveReminderOn(ok);
+      track('reminder.enabled', { granted: ok });
+    }
   }
 
   // Strategise: hand today's one-offs to the AI, get a calm re-spread, then PROPOSE
@@ -360,6 +388,16 @@ export default function TodayScreen() {
               <Text style={styles.sync}>Sync across devices</Text>
             </Pressable>
           ))}
+        {Platform.OS !== 'web' && (
+          <Pressable
+            onPress={toggleReminder}
+            accessibilityRole="button"
+            accessibilityLabel="Toggle daily reminder"
+            hitSlop={6}
+          >
+            <Text style={styles.sync}>Daily reminder · {reminderOn ? 'On' : 'Off'}</Text>
+          </Pressable>
+        )}
         <Text style={styles.ethos}>today is finite and achievable</Text>
       </View>
 
