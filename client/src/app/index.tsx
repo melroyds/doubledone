@@ -73,7 +73,7 @@ export default function TodayScreen() {
         void saveTasks(merged);
         track('sync.completed', { count: merged.length });
       })
-      .catch(() => track('sync.failed'));
+      .catch((e) => track('sync.failed', { error: e instanceof Error ? e.message : e }));
     return () => {
       active = false;
     };
