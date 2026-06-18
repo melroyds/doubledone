@@ -19,6 +19,20 @@ describe('buildDecomposeRequest', () => {
     expect(body.tools[0].name).toBe('record_steps');
     expect(body.messages[0].content).toContain('clean the garage');
   });
+
+  it('folds the qualifying answers into the user message', () => {
+    const { init } = buildDecomposeRequest('clean the garage', 'sk-test-key', {
+      dueDate: '2026-06-25',
+      spread: 'gradual',
+      question: 'How full is it?',
+      answer: 'Packed to the ceiling.',
+    });
+    const content = JSON.parse(init.body).messages[0].content as string;
+    expect(content).toContain('clean the garage');
+    expect(content).toContain('2026-06-25');
+    expect(content).toContain('gradually');
+    expect(content).toContain('Packed to the ceiling.');
+  });
 });
 
 describe('parseDecomposeResponse', () => {

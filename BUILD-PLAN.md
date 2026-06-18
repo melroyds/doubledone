@@ -58,7 +58,7 @@ Build in this order. Each step is shippable and demoable on its own.
 2. ✅ **Brain-dump capture**, the friction-free "get it out of your head" input. *Done 2026-06-17.*
 3. ✅ **Local store** (anonymous-first, on-device) for tasks + the Today view reading from it. *Done 2026-06-17.*
 4. ✅ **AI backend** (Cloudflare Worker, not Render) holding the Anthropic key, with the request-contract test (mock SDK, assert shape). *Done 2026-06-18.*
-5. ✅ **Bite the Elephant**, Sonnet decomposition of a stuck task into atomic time-boxed steps, dropped into Today. Completion outcomes instrumented (the moat starts here). *Done 2026-06-18.*
+5. ✅ **Bite the Elephant → Break it down**, Sonnet decomposition of a stuck task into atomic time-boxed steps. **Refactored 2026-06-18 into a two-call qualify→review flow:** call 1 (`/clarify`, Haiku) asks three qualifying questions (due date, gradual/same-day spread, one task-specific clarifier); call 2 (`/decompose`, with the answers) returns steps, the client spreads their dates (`lib/spread`), and an accept pop-up lets the user select/deselect before adding. Completion + offered-vs-kept outcomes instrumented (the moat). *Done 2026-06-18.* Needs a Worker redeploy for the live AI questions (degrades to default questions until then).
 6. ✅ **AI triage / hydration** ("G"), "Sort for me" sorts a brain-dump into today / later / decompose (Haiku, cheap). *Done 2026-06-18.*
 7. **Recurring daily tracker**, the repeating-tasks subsection
 

@@ -21,12 +21,56 @@ export function parseSteps(data: unknown): DecomposedStep[] {
     .map((s) => ({ title: s.title, minutes: s.minutes }));
 }
 
-/** Break a dreaded task into steps via the AI backend. Throws on a failed call. */
-export async function decompose(task: string): Promise<DecomposedStep[]> {
-  const res = await fetch(`${AI_URL}/decompose`, {
+// Break it down, call 1: the three qualifying questions the AI phrases for the
+// task. The client renders the right control for each (date / spread / text).
+export type Questions = { dueDate: string; spread: string; custom: string };
+
+// Shown if the clarify call fails or returns nothing, so the questions flow never
+// blocks on the AI. Plain, calm fallbacks.
+export const DEFAULT_QUESTIONS: Questions = {
+  dueDate: 'By when do you want this done?',
+  spread: 'Spread the steps over a few days, or do them all in one go?',
+  custom: 'Anything about this that would change how to break it down?',
+};
+
+/** Pull the questions out of the backend response, or null (never throws). */
+export function parseQuestions(data: unknown): Questions | null {
+  const q = (data as { questions?: unknown } | null)?.questions;
+  if (q == null || typeof q !== 'object') return null;
+  const o = q as Record<string, unknown>;
+  if (typeof o.dueDate === 'string' && typeof o.spread === 'string' && typeof o.custom === 'string') {
+    return { dueDate: o.dueDate, spread: o.spread, custom: o.custom };
+  }
+  return null;
+}
+
+/** Ask the AI for the qualifying questions. Throws on a failed call; the caller
+ *  falls back to DEFAULT_QUESTIONS so the flow always continues. */
+export async function clarify(task: string): Promise<Questions> {
+  const res = await fetch(`${AI_URL}/clarify`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ task }),
+  });
+  if (!res.ok) throw new Error(`clarify failed (${res.status})`);
+  return parseQuestions(await res.json()) ?? DEFAULT_QUESTIONS;
+}
+
+// The answers from the questions, passed back so the AI tailors the breakdown.
+export type DecomposeContext = {
+  dueDate: string | null; // ISO 'YYYY-MM-DD' or null = no deadline
+  spread: 'gradual' | 'sameday';
+  question: string; // the custom question that was asked
+  answer: string; // the user's answer to it
+};
+
+/** Break a dreaded task into steps via the AI backend, optionally with the
+ *  qualifying answers as context. Throws on a failed call. */
+export async function decompose(task: string, context?: DecomposeContext): Promise<DecomposedStep[]> {
+  const res = await fetch(`${AI_URL}/decompose`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ task, context }),
   });
   if (!res.ok) throw new Error(`decompose failed (${res.status})`);
   return parseSteps(await res.json());

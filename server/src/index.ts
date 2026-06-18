@@ -2,7 +2,8 @@
 // Holds the Anthropic key as a Worker secret and is the only thing that calls
 // Claude. The app talks to this, never to Anthropic directly.
 
-import { buildDecomposeRequest, DECOMPOSE_MODEL, parseDecomposeResponse } from './decompose';
+import { buildClarifyRequest, CLARIFY_MODEL, parseClarifyResponse } from './clarify';
+import { buildDecomposeRequest, DECOMPOSE_MODEL, type DecomposeContext, parseDecomposeResponse } from './decompose';
 import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
 import { extractUsage, logAiCall } from './telemetry';
 import { buildTriageRequest, parseTriageResponse, TRIAGE_MODEL } from './triage';
@@ -22,6 +23,19 @@ const CORS: Record<string, string> = {
   'Access-Control-Allow-Headers': 'content-type',
 };
 
+/** Sanitise the optional decompose context (the qualifying answers) from a body. */
+function parseContext(raw: unknown): DecomposeContext | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const c = raw as Record<string, unknown>;
+  const out: DecomposeContext = {};
+  if (typeof c.dueDate === 'string') out.dueDate = c.dueDate;
+  else if (c.dueDate === null) out.dueDate = null;
+  if (c.spread === 'gradual' || c.spread === 'sameday') out.spread = c.spread;
+  if (typeof c.question === 'string') out.question = c.question;
+  if (typeof c.answer === 'string') out.answer = c.answer;
+  return out;
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const { pathname } = new URL(request.url);
@@ -35,8 +49,8 @@ export default {
       return Response.json({ ok: true, hasKey: Boolean(env.ANTHROPIC_API_KEY) }, { headers: CORS });
     }
 
-    // Bite the Elephant: a dreaded task in, atomic time-boxed steps out.
-    if (pathname === '/decompose' && request.method === 'POST') {
+    // Break it down, call 1: a dreaded task in, three qualifying questions out.
+    if (pathname === '/clarify' && request.method === 'POST') {
       let task = '';
       try {
         const body = (await request.json()) as { task?: unknown };
@@ -51,7 +65,51 @@ export default {
         return Response.json({ error: 'server not configured' }, { status: 500, headers: CORS });
       }
 
-      const { url, init } = buildDecomposeRequest(task, env.ANTHROPIC_API_KEY);
+      const { url, init } = buildClarifyRequest(task, env.ANTHROPIC_API_KEY);
+      const started = Date.now();
+      const upstream = await fetch(url, init as RequestInit);
+      if (!upstream.ok) {
+        ctx.waitUntil(
+          logAiCall(env, {
+            endpoint: 'clarify', model: CLARIFY_MODEL, input: { task }, output: null,
+            inputTokens: null, outputTokens: null, latencyMs: Date.now() - started,
+            ok: false, error: `upstream ${upstream.status}`,
+          }),
+        );
+        return Response.json({ error: 'upstream error' }, { status: 502, headers: CORS });
+      }
+      const raw = await upstream.json();
+      const questions = parseClarifyResponse(raw);
+      const usage = extractUsage(raw);
+      ctx.waitUntil(
+        logAiCall(env, {
+          endpoint: 'clarify', model: CLARIFY_MODEL, input: { task }, output: { questions },
+          inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true,
+        }),
+      );
+      return Response.json({ questions }, { headers: CORS });
+    }
+
+    // Break it down, call 2: a dreaded task (+ the qualifying answers) in, atomic
+    // time-boxed steps out.
+    if (pathname === '/decompose' && request.method === 'POST') {
+      let task = '';
+      let context: DecomposeContext | undefined;
+      try {
+        const body = (await request.json()) as { task?: unknown; context?: unknown };
+        task = typeof body.task === 'string' ? body.task.trim() : '';
+        context = parseContext(body.context);
+      } catch {
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: CORS });
+      }
+      if (!task) {
+        return Response.json({ error: 'task is required' }, { status: 400, headers: CORS });
+      }
+      if (!env.ANTHROPIC_API_KEY) {
+        return Response.json({ error: 'server not configured' }, { status: 500, headers: CORS });
+      }
+
+      const { url, init } = buildDecomposeRequest(task, env.ANTHROPIC_API_KEY, context);
       const started = Date.now();
       const upstream = await fetch(url, init as RequestInit);
       if (!upstream.ok) {

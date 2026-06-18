@@ -41,20 +41,44 @@ const STEPS_TOOL = {
 
 export type Step = { title: string; minutes: number };
 
+// The answers from the qualifying questions (clarify.ts), used to shape the
+// breakdown. All optional: the endpoint still works with just a task.
+export type DecomposeContext = {
+  dueDate?: string | null; // ISO 'YYYY-MM-DD' or null = no deadline
+  spread?: 'gradual' | 'sameday';
+  question?: string; // the task-specific question that was asked
+  answer?: string; // the user's answer to it
+};
+
 export type DecomposeRequest = {
   url: string;
   init: { method: string; headers: Record<string, string>; body: string };
 };
 
+// Fold the qualifying answers into the user message so the model tailors the
+// steps (granularity, what the answer reveals). Dates themselves are computed
+// client-side (lib/spread); this is only to improve the breakdown.
+function buildUserMessage(task: string, context?: DecomposeContext): string {
+  const lines = [`The task I am dreading: ${task}`];
+  if (context) {
+    if (context.dueDate) lines.push(`I want it done by ${context.dueDate}.`);
+    else lines.push('There is no hard deadline.');
+    if (context.spread === 'gradual') lines.push('Pace the steps gradually across the days available.');
+    else if (context.spread === 'sameday') lines.push('I plan to do all the steps in one sitting.');
+    if (context.question && context.answer) lines.push(`${context.question} ${context.answer}`);
+  }
+  return lines.join('\n');
+}
+
 /** Build the Anthropic Messages API request that decomposes a dreaded task. */
-export function buildDecomposeRequest(task: string, apiKey: string): DecomposeRequest {
+export function buildDecomposeRequest(task: string, apiKey: string, context?: DecomposeContext): DecomposeRequest {
   const body = {
     model: DECOMPOSE_MODEL,
     max_tokens: 1024,
     system: SYSTEM_PROMPT,
     tools: [STEPS_TOOL],
     tool_choice: { type: 'tool', name: 'record_steps' },
-    messages: [{ role: 'user', content: `The task I am dreading: ${task}` }],
+    messages: [{ role: 'user', content: buildUserMessage(task, context) }],
   };
   return {
     url: 'https://api.anthropic.com/v1/messages',

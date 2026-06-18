@@ -4,16 +4,19 @@ import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from '
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrainDump } from '@/components/BrainDump';
+import { type BreakdownAnswers, BreakdownQuestions } from '@/components/BreakdownQuestions';
+import { BreakdownReview, type ReviewStep } from '@/components/BreakdownReview';
 import { RepeatingDrawer } from '@/components/RepeatingDrawer';
 import { TaskRow } from '@/components/TaskRow';
 import { colors, fonts, radius, spacing } from '@/constants/theme';
-import { decompose, strategise, triage, type PlanItem } from '@/lib/ai';
+import { clarify, decompose, DEFAULT_QUESTIONS, strategise, triage, type PlanItem, type Questions } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
 import { addDaysISO, formatTodayLabel, friendlyDate, toISODate } from '@/lib/day';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { applySliceDelta } from '@/lib/slices';
+import { spreadDueDates } from '@/lib/spread';
 import { loadReminderOn, loadTasks, saveReminderOn, saveTasks } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { syncOnce } from '@/lib/sync';
@@ -44,6 +47,13 @@ export default function TodayScreen() {
   const [plan, setPlan] = useState<PlanItem[] | null>(null);
   const [strategiseError, setStrategiseError] = useState<string | null>(null);
   const [reminderOn, setReminderOn] = useState(false);
+  // Break it down, the two-call flow: qualify (questions) -> decompose (review).
+  const [bdPhase, setBdPhase] = useState<'off' | 'questions' | 'review'>('off');
+  const [bdTask, setBdTask] = useState('');
+  const [bdQuestions, setBdQuestions] = useState<Questions | null>(null);
+  const [bdSteps, setBdSteps] = useState<ReviewStep[] | null>(null);
+  const [bdAnswers, setBdAnswers] = useState<BreakdownAnswers | null>(null);
+  const [bdBusy, setBdBusy] = useState(false);
   const today = useMemo(() => new Date(), []);
   const router = useRouter();
   const session = useSession();
@@ -263,21 +273,83 @@ export default function TodayScreen() {
     commit(next);
   }
 
-  // Bite the Elephant: hand a dreaded task to the AI, drop the steps into Today.
+  // Break it down, call 1: ask the AI for the qualifying questions, then show
+  // them. Clarify is best-effort, so a failure falls back to default questions
+  // and the flow never blocks.
   async function biteElephant(text: string) {
-    const steps = await decompose(text);
-    if (steps.length === 0) throw new Error('no steps');
+    const task = text.trim();
+    if (!task) return;
+    setBdTask(task);
+    setBdBusy(true);
+    try {
+      setBdQuestions(await clarify(task));
+    } catch {
+      setBdQuestions(DEFAULT_QUESTIONS);
+    } finally {
+      setBdBusy(false);
+      setBdPhase('questions');
+    }
+    track('breakdown.started');
+  }
+
+  // Break it down, call 2: decompose with the answers, compute each step's date
+  // from the chosen spread, and show the steps for review (accept / deselect).
+  async function bdSubmitQuestions(answers: BreakdownAnswers) {
+    if (bdBusy) return;
+    setBdAnswers(answers);
+    setBdBusy(true);
+    try {
+      const steps = await decompose(bdTask, {
+        dueDate: answers.dueDate,
+        spread: answers.spread,
+        question: bdQuestions?.custom ?? '',
+        answer: answers.customAnswer,
+      });
+      if (steps.length === 0) throw new Error('no steps');
+      const dates = spreadDueDates(steps.length, today, answers.dueDate, answers.spread);
+      setBdSteps(steps.map((s, i) => ({ title: s.title, minutes: s.minutes, date: dates[i] ?? null })));
+      setBdPhase('review');
+      track('decomposition.offered', {
+        steps: steps.length,
+        spread: answers.spread,
+        hasDueDate: answers.dueDate != null,
+      });
+    } catch {
+      setBdPhase('questions'); // stay put; the user can retry or dismiss
+    } finally {
+      setBdBusy(false);
+    }
+  }
+
+  // Accept the chosen steps onto Today, each with its computed due date.
+  function bdAccept(selected: ReviewStep[]) {
     const now = nowMs();
-    const added: Task[] = steps.map((s, i) => ({
+    const added: Task[] = selected.map((s, i) => ({
       id: makeId(),
       title: `${s.title} (${s.minutes} min)`,
       done: false,
       createdAt: now + i,
       updatedAt: now + i,
       complexity: s.minutes, // the step's effort, used to weight its completion
+      ...(s.date ? { due: s.date } : {}),
     }));
     commit([...tasks, ...added]);
-    track('decomposition.offered', { steps: steps.length });
+    // The moat: how many of the offered steps the user actually kept.
+    track('breakdown.added', {
+      added: selected.length,
+      offered: bdSteps?.length ?? selected.length,
+      spread: bdAnswers?.spread ?? 'gradual',
+    });
+    resetBreakdown();
+  }
+
+  function resetBreakdown() {
+    setBdPhase('off');
+    setBdTask('');
+    setBdQuestions(null);
+    setBdSteps(null);
+    setBdAnswers(null);
+    setBdBusy(false);
   }
 
   // AI triage: sort a brain-dump into buckets, then apply (later -> tomorrow; today
@@ -522,6 +594,29 @@ export default function TodayScreen() {
         today={today}
         onToggle={toggle}
       />
+
+      {bdPhase === 'questions' && bdQuestions && (
+        <BreakdownQuestions
+          key={bdTask}
+          task={bdTask}
+          questions={bdQuestions}
+          busy={bdBusy}
+          onSubmit={bdSubmitQuestions}
+          onCancel={resetBreakdown}
+          today={today}
+        />
+      )}
+      {bdPhase === 'review' && bdSteps && (
+        <BreakdownReview
+          key={bdTask}
+          task={bdTask}
+          steps={bdSteps}
+          busy={bdBusy}
+          onAdd={bdAccept}
+          onCancel={resetBreakdown}
+          today={today}
+        />
+      )}
     </View>
   );
 }

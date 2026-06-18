@@ -576,3 +576,26 @@ Privacy posture change, called out:
 Linkage to completion outcomes (the "X days" payoff) is deliberately NOT in this step: tying a decomposition to whether its steps got finished, still without a user_id, needs its own pseudonymous-id design and real volume. This step is just the capture.
 
 Three manual steps to go live (left to Melroy, like the slices migration and Worker deploys): run the `ai_calls` migration in the Supabase SQL editor; set `SUPABASE_URL` + `SUPABASE_ANON_KEY` as Worker secrets; redeploy the Worker. Until then the Worker skips logging and everything else works unchanged.
+
+**Done live 2026-06-18:** Melroy ran the migration, the secrets were set (`wrangler secret put`), and the Worker was redeployed (version 720d82be). Telemetry is capturing.
+
+## 2026-06-18 Break it down, refactored into a two-call qualify -> review flow
+
+Melroy's call: the one-tap Break it down was too blunt. It now runs as two AI calls with the user in control at each stop.
+
+- **Call 1 (`/clarify`, Haiku):** the AI phrases three qualifying questions for the specific task. Two are required by product (the due date, and gradual-vs-same-day spread); the third is the model's own best task-specific clarifier. The client renders the right control for each: date chips, a Gradual/Same-day toggle, a short text box. All pre-filled (default "This week" + Gradual), so the fast path is still quick.
+- **Call 2 (`/decompose`, Sonnet, now with context):** the answers are folded into the prompt so the steps fit. The AI returns ordered steps + minutes; **the client computes each step's date** (lib/spread) from the spread choice, so no date maths lives in the model.
+- **Accept/review pop-up:** the steps as a checklist, all ticked, with their dates. Untick any, then "Add N tasks". Nothing lands on Today until accepted.
+
+Decisions:
+- **Spread semantics:** gradual spreads steps evenly from Today (first step) to the due date (last step); same-day puts them all on the due date (Today if no deadline). Unit-tested in `lib/spread.test.ts`.
+- **Dates client-side, not AI:** deterministic and cheap; the model only orders the steps.
+- **Clarify is best-effort:** if `/clarify` fails (or the Worker isn't redeployed yet), the client falls back to `DEFAULT_QUESTIONS` and the flow continues, so a degraded path still works.
+- **Moat:** both calls log to `ai_calls` (`clarify` + `decompose`), and the client logs `breakdown.started` and `breakdown.added` with offered-vs-kept counts. **Which steps people deselect is gold for the moat** (it shows where the decompositions miss), captured from day one.
+
+Decided against:
+- **Hard-coding the due-date/spread questions** (AI only asks the clarifier). The AI phrasing all three reads as a coherent interview and is what Melroy asked for; the forced-tool schema keeps it reliable.
+- **Letting the AI assign dates.** More tokens, less reliable, and the spread is pure arithmetic.
+- **A skip-the-questions fast lane.** The defaults already make the fast path two taps; a skip toggle is a setting, which the spine resists. Revisit if testers find the questions heavy.
+
+The friction tension (one tap became two stops) is real but bought genuinely better, user-controlled breakdowns. Verified end to end in preview (with stubbed AI to avoid spend): clarify -> questions with the three controls -> decompose -> review with the gradual dates (Today, +2, +5, +7) -> deselect -> add only the kept steps. Replaces the old one-shot flow. Needs a Worker redeploy for the live AI questions; degrades gracefully until then.

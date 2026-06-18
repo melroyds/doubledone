@@ -1,6 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { decompose, parsePlan, parseSteps, parseTriage, strategise, triage } from './ai';
+import {
+  clarify,
+  decompose,
+  DEFAULT_QUESTIONS,
+  parsePlan,
+  parseQuestions,
+  parseSteps,
+  parseTriage,
+  strategise,
+  triage,
+} from './ai';
 
 describe('parseSteps', () => {
   it('keeps well-formed steps', () => {
@@ -42,9 +52,80 @@ describe('decompose', () => {
     expect(JSON.parse(init.body).task).toBe('clean the garage');
   });
 
+  it('sends the qualifying answers as context', async () => {
+    const fetchMock = vi.fn(
+      async (_url: string, _init: { method: string; body: string }) =>
+        ({ ok: true, json: async () => ({ steps: [] }) }) as unknown as Response,
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await decompose('clean the garage', {
+      dueDate: '2026-06-25',
+      spread: 'gradual',
+      question: 'How full is it?',
+      answer: 'Very.',
+    });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.context).toEqual({
+      dueDate: '2026-06-25',
+      spread: 'gradual',
+      question: 'How full is it?',
+      answer: 'Very.',
+    });
+  });
+
   it('throws on a non-ok response', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502 }) as unknown as Response));
     await expect(decompose('x')).rejects.toThrow();
+  });
+});
+
+describe('parseQuestions', () => {
+  it('keeps a well-formed question set', () => {
+    expect(parseQuestions({ questions: { dueDate: 'when?', spread: 'how?', custom: 'what?' } })).toEqual({
+      dueDate: 'when?',
+      spread: 'how?',
+      custom: 'what?',
+    });
+  });
+
+  it('returns null for malformed or missing questions', () => {
+    expect(parseQuestions(null)).toBeNull();
+    expect(parseQuestions({})).toBeNull();
+    expect(parseQuestions({ questions: null })).toBeNull();
+    expect(parseQuestions({ questions: { dueDate: 'only one' } })).toBeNull();
+  });
+});
+
+describe('clarify', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('POSTs the task to /clarify and returns the parsed questions (mocked, no live call)', async () => {
+    const fetchMock = vi.fn(
+      async (_url: string, _init: { method: string; body: string }) =>
+        ({
+          ok: true,
+          json: async () => ({ questions: { dueDate: 'when?', spread: 'how?', custom: 'what?' } }),
+        }) as unknown as Response,
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const q = await clarify('clean the garage');
+    expect(q).toEqual({ dueDate: 'when?', spread: 'how?', custom: 'what?' });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).task).toBe('clean the garage');
+  });
+
+  it('falls back to default questions when the backend returns none', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, json: async () => ({ questions: null }) }) as unknown as Response),
+    );
+    expect(await clarify('x')).toEqual(DEFAULT_QUESTIONS);
+  });
+
+  it('throws on a non-ok response', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502 }) as unknown as Response));
+    await expect(clarify('x')).rejects.toThrow();
   });
 });
 

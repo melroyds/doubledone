@@ -16,7 +16,7 @@
 export type TelemetryEnv = { SUPABASE_URL?: string; SUPABASE_ANON_KEY?: string };
 
 export type AiCallLog = {
-  endpoint: 'decompose' | 'strategise' | 'triage';
+  endpoint: 'decompose' | 'strategise' | 'triage' | 'clarify';
   model: string;
   input: unknown;
   output: unknown;
