@@ -166,7 +166,17 @@ export default function TodayScreen() {
         contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.seven }]}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.date}>{formatTodayLabel(today)}</Text>
+        <View style={styles.topBar}>
+          <Text style={styles.date}>{formatTodayLabel(today)}</Text>
+          <Pressable
+            onPress={() => router.push('/lookback')}
+            accessibilityRole="button"
+            accessibilityLabel="Open the Lookback calendar"
+            hitSlop={8}
+          >
+            <Text style={styles.lookbackLink}>Lookback ›</Text>
+          </Pressable>
+        </View>
         <Text style={styles.title}>Today</Text>
         <Text style={styles.spine}>Just today. The rest can wait.</Text>
 
@@ -250,7 +260,9 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
   },
-  date: { color: colors.inkSoft, fontSize: 15, marginBottom: spacing.one },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.one },
+  date: { color: colors.inkSoft, fontSize: 15 },
+  lookbackLink: { color: colors.accent, fontSize: 15, fontWeight: '600' },
   title: {
     color: colors.ink,
     fontSize: 34,
