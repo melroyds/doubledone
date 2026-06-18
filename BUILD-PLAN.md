@@ -104,6 +104,10 @@ The single home for everything we have consciously parked. Nothing here is dropp
 - Investigate the expo-router "multiple renderers" dev warning. Trigger: before launch, or if it ever surfaces in production.
 - Tier-1 CI hardening: a coverage floor and a build job (PLAYBOOK). Trigger: real users, when silent regressions start costing people.
 - **Lock down the /decompose AI endpoint** (currently unauthenticated and CORS-open, so spammable up to the $25 cap). Trigger: before any public launch. Add an app-origin check and/or a shared token plus rate limiting.
+- **Design overhaul** (Melroy, 2026-06-18). A deliberate visual and UX pass once the core loop is feature-complete: the calm look-and-flow Melroy has flagged as wanting to change, designed against the full feature set rather than piecemeal. Trigger: after the core build (F, G, H).
+
+**Portfolio and public documentation**
+- **Portfolio-grade GitHub, modelled on ParkProof** (Melroy, 2026-06-18). Make the public repo read like ParkProof's: public-facing docs of the PM thinking, key decisions, and architecture, a strong README, an architecture overview, the decision-log surfaced as a narrative, and a case-study writeup of the spine, the moat, and the never-shame calls. Needs ParkProof's repo as the exact reference to mirror. Trigger: after the core build.
 
 ---
 
