@@ -12,7 +12,7 @@ export type Scheduled = {
   deletedAt?: number | null; // soft-delete tombstone; set = never shown
 };
 
-function isRecurring(t: Scheduled): boolean {
+export function isRecurring(t: Scheduled): boolean {
   return t.recurrence != null && t.recurrence.kind !== 'none';
 }
 

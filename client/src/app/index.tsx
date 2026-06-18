@@ -15,7 +15,7 @@ import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { syncOnce } from '@/lib/sync';
 import { parseDump, type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
-import { isDoneOn, tasksForToday, toggleDoneOn, upcomingTasks } from '@/lib/today';
+import { isDoneOn, isRecurring, tasksForToday, toggleDoneOn, upcomingTasks } from '@/lib/today';
 
 let addCounter = 0;
 function makeId(): string {
@@ -103,7 +103,14 @@ export default function TodayScreen() {
   }
 
   function toggle(id: string) {
-    const next = tasks.map((t) => (t.id === id ? { ...toggleDoneOn(t, today), updatedAt: nowMs() } : t));
+    const next = tasks.map((t) => {
+      if (t.id !== id) return t;
+      const toggled = { ...toggleDoneOn(t, today), updatedAt: nowMs() };
+      // Stamp the completion time for one-offs so the calendar can place them on the
+      // right day. Recurring tasks carry their own dated completedDates instead.
+      if (!isRecurring(toggled)) toggled.completedAt = toggled.done ? nowMs() : null;
+      return toggled;
+    });
     const justToggled = next.find((t) => t.id === id);
     // The moat starts at the call site: log the outcome, not just "done".
     track('task.toggled', { done: justToggled ? isDoneOn(justToggled, today) : false });

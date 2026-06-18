@@ -377,3 +377,18 @@ Decided against:
 Live sign-in and sync now work: a typed OTP signs in, the local list migrates into the account, and tasks land in the Supabase `tasks` table (confirmed in the dashboard). Getting here surfaced and fixed real setup gaps, all recorded in `supabase/auth-setup.md` and `supabase/schema.sql`: (1) editing email templates requires custom SMTP, so Resend is wired with the doubledone.app domain verified for any-recipient sending; (2) templates must send `{{ .Token }}`, not a magic link; (3) the OTP length and the app's input cap had to agree (the input now accepts up to 10); (4) two drifts in the hand-created table, `created_at` was bigint (altered to timestamptz) and the primary key was on the wrong column (dropped and re-added on `id`). The app also now surfaces the real sign-in and sync errors instead of generic messages.
 
 Sync is genuinely done: C1 model, C2 merge, C3 client/engine/UI, all verified against the live database. Next build is D, the Lookback.
+
+## 2026-06-18 D: calendar-backed Lookback, complexity-weighted (not gamified) reward
+
+Reshaped D from a flat weekly list into an interactive Gregorian calendar over an accurate completion record, with a complexity score that amplifies the celebration. Melroy's call, greenlit 2026-06-18.
+
+The guardrail (the spec's never-gamify line, sharpened by the AuDHD audience): complexity weights the WARMTH of a calm acknowledgment, never points, streaks, levels, or leaderboards. A hard or long-dreaded task finished earns a warmer, more prominent "you did that"; a trivial tick stays quiet. No running totals, no streak-break shame. "Celebrate the dreaded lavishly" is on-brand; a score machine is off-brand and repels the autistic half of AuDHD.
+
+Data model (reverses the earlier "use updatedAt, no new column" call): a real calendar needs real completion data, so one-off tasks get `completedAt` (epoch ms, set on done, cleared on undo); recurring tasks stay dated via `completedDates`. A `complexity` score field comes with D2. Both become Supabase columns in D2's single migration; D1 keeps `completedAt` local-only (the calendar falls back to `updatedAt` when it is absent), so D1 ships without touching sync.
+
+Cost: AI-scoring every task on capture would burn the $25 cap and add latency, so complexity derives from signals we already have, chiefly a Bite-the-Elephant decomposition (steps x minutes). A dedicated AI scorer and the premium "chart a course of action" planner are token-heavy and live in the backlog (the planner is paid by design).
+
+Decided against:
+- A third-party calendar library. Hand-built keeps it calm, controllable, dependency-free (no repeat of the supabase bundle pain), and the date math is testable lib logic.
+- A separate completions table (the normalised moat store). Per-task fields are enough for the calendar now; the anonymised cross-user flywheel stays a backlog item.
+- Points / streaks / levels. See the guardrail.

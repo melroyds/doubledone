@@ -12,6 +12,7 @@ export type Task = {
   createdAt: number; // epoch ms; stable identity + sort
   updatedAt: number; // epoch ms; bumped on every change, drives last-write-wins sync
   deletedAt?: number | null; // epoch ms tombstone; set = soft-deleted, hidden from views, synced as a delete
+  completedAt?: number | null; // epoch ms a one-off was finished (the calendar/Lookback record); recurring uses completedDates
   due?: string | null; // 'YYYY-MM-DD' for a one-off; null/undefined = someday
   recurrence?: Recurrence; // absent = one-off (see lib/recurrence)
   completedDates?: string[]; // ISO dates a recurring task was ticked (per-day completion)
