@@ -4,6 +4,7 @@
 
 import { buildClarifyRequest, CLARIFY_MODEL, parseClarifyResponse } from './clarify';
 import { buildDecomposeRequest, DECOMPOSE_MODEL, type DecomposeContext, parseDecomposeResponse } from './decompose';
+import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
 import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
 import { extractUsage, logAiCall } from './telemetry';
 import { buildTriageRequest, parseTriageResponse, TRIAGE_MODEL } from './triage';
@@ -132,6 +133,50 @@ export default {
         }),
       );
       return Response.json({ steps }, { headers: CORS });
+    }
+
+    // Break it down (phased): a dreaded task (+ answers) in, a roadmap of phases
+    // plus phase-one's concrete steps out.
+    if (pathname === '/plan' && request.method === 'POST') {
+      let task = '';
+      let context: DecomposeContext | undefined;
+      try {
+        const body = (await request.json()) as { task?: unknown; context?: unknown };
+        task = typeof body.task === 'string' ? body.task.trim() : '';
+        context = parseContext(body.context);
+      } catch {
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: CORS });
+      }
+      if (!task) {
+        return Response.json({ error: 'task is required' }, { status: 400, headers: CORS });
+      }
+      if (!env.ANTHROPIC_API_KEY) {
+        return Response.json({ error: 'server not configured' }, { status: 500, headers: CORS });
+      }
+
+      const { url, init } = buildPlanRequest(task, env.ANTHROPIC_API_KEY, context);
+      const started = Date.now();
+      const upstream = await fetch(url, init as RequestInit);
+      if (!upstream.ok) {
+        ctx.waitUntil(
+          logAiCall(env, {
+            endpoint: 'plan', model: PLAN_MODEL, input: { task }, output: null,
+            inputTokens: null, outputTokens: null, latencyMs: Date.now() - started,
+            ok: false, error: `upstream ${upstream.status}`,
+          }),
+        );
+        return Response.json({ error: 'upstream error' }, { status: 502, headers: CORS });
+      }
+      const raw = await upstream.json();
+      const plan = parsePlanResponse(raw);
+      const usage = extractUsage(raw);
+      ctx.waitUntil(
+        logAiCall(env, {
+          endpoint: 'plan', model: PLAN_MODEL, input: { task }, output: plan,
+          inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true,
+        }),
+      );
+      return Response.json({ plan }, { headers: CORS });
     }
 
     // Strategise: an over-full day in, a calm re-spread plan out.

@@ -83,6 +83,45 @@ export async function decompose(task: string, context?: DecomposeContext): Promi
   return parseSteps(await res.json());
 }
 
+// Break it down, phased: a roadmap of phases (milestones) plus the actionable
+// steps for phase one only. A small task comes back as a single phase (so the
+// flow behaves like a flat decompose); a big one comes back as several.
+export type Phase = { title: string; focus: string };
+export type PlanResult = { phases: Phase[]; firstSteps: DecomposedStep[] };
+
+/** Pull the plan out of the backend response, defensively (never throws). */
+export function parsePlanResult(data: unknown): PlanResult {
+  const plan = (data as { plan?: unknown } | null)?.plan as { phases?: unknown; firstSteps?: unknown } | undefined;
+  const phases = Array.isArray(plan?.phases)
+    ? plan.phases
+        .filter(
+          (p): p is Phase =>
+            p != null && typeof (p as Phase).title === 'string' && typeof (p as Phase).focus === 'string',
+        )
+        .map((p) => ({ title: p.title, focus: p.focus }))
+    : [];
+  const firstSteps = Array.isArray(plan?.firstSteps)
+    ? plan.firstSteps
+        .filter(
+          (s): s is DecomposedStep =>
+            s != null && typeof (s as DecomposedStep).title === 'string' && typeof (s as DecomposedStep).minutes === 'number',
+        )
+        .map((s) => ({ title: s.title, minutes: s.minutes }))
+    : [];
+  return { phases, firstSteps };
+}
+
+/** Plan a breakdown into phases plus phase-one steps. Throws on a failed call. */
+export async function plan(task: string, context?: DecomposeContext): Promise<PlanResult> {
+  const res = await fetch(`${AI_URL}/plan`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ task, context }),
+  });
+  if (!res.ok) throw new Error(`plan failed (${res.status})`);
+  return parsePlanResult(await res.json());
+}
+
 export type PlanItem = { id: string; dayOffset: number; reason: string };
 
 /** Pull the re-spread plan out of the backend response, defensively (never throws). */

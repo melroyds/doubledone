@@ -5,11 +5,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrainDump } from '@/components/BrainDump';
 import { type BreakdownAnswers, BreakdownQuestions } from '@/components/BreakdownQuestions';
-import { BreakdownReview, type ReviewStep } from '@/components/BreakdownReview';
+import { BreakdownReview, type ReviewPhase, type ReviewStep } from '@/components/BreakdownReview';
 import { RepeatingDrawer } from '@/components/RepeatingDrawer';
 import { TaskRow } from '@/components/TaskRow';
 import { colors, fonts, radius, spacing } from '@/constants/theme';
-import { clarify, decompose, DEFAULT_QUESTIONS, strategise, triage, type PlanItem, type Questions } from '@/lib/ai';
+import {
+  clarify,
+  DEFAULT_QUESTIONS,
+  plan as planBreakdown,
+  strategise,
+  triage,
+  type PlanItem,
+  type Questions,
+} from '@/lib/ai';
 import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
 import { addDaysISO, formatTodayLabel, friendlyDate, toISODate } from '@/lib/day';
@@ -52,6 +60,7 @@ export default function TodayScreen() {
   const [bdTask, setBdTask] = useState('');
   const [bdQuestions, setBdQuestions] = useState<Questions | null>(null);
   const [bdSteps, setBdSteps] = useState<ReviewStep[] | null>(null);
+  const [bdPhases, setBdPhases] = useState<ReviewPhase[] | null>(null);
   const [bdAnswers, setBdAnswers] = useState<BreakdownAnswers | null>(null);
   const [bdBusy, setBdBusy] = useState(false);
   const today = useMemo(() => new Date(), []);
@@ -292,25 +301,33 @@ export default function TodayScreen() {
     track('breakdown.started');
   }
 
-  // Break it down, call 2: decompose with the answers, compute each step's date
-  // from the chosen spread, and show the steps for review (accept / deselect).
+  // Break it down, call 2: plan the phases + phase-one steps, work out each
+  // date from the chosen spread, and show it for review (accept / deselect).
+  // A small task comes back as one phase (so this behaves like a flat decompose);
+  // a big one comes back as several, only the first of which is broken into steps.
   async function bdSubmitQuestions(answers: BreakdownAnswers) {
     if (bdBusy) return;
     setBdAnswers(answers);
     setBdBusy(true);
     try {
-      const steps = await decompose(bdTask, {
+      const { phases, firstSteps } = await planBreakdown(bdTask, {
         dueDate: answers.dueDate,
         spread: answers.spread,
         question: bdQuestions?.custom ?? '',
         answer: answers.customAnswer,
       });
-      if (steps.length === 0) throw new Error('no steps');
-      const dates = spreadDueDates(steps.length, today, answers.dueDate, answers.spread);
-      setBdSteps(steps.map((s, i) => ({ title: s.title, minutes: s.minutes, date: dates[i] ?? null })));
+      if (firstSteps.length === 0) throw new Error('no steps');
+      // Distribute the phase starts across the runway (phase 1 starts Today).
+      const phaseStarts = spreadDueDates(Math.max(1, phases.length), today, answers.dueDate, 'gradual');
+      const phase1End = phases.length > 1 ? (phaseStarts[1] ?? answers.dueDate) : answers.dueDate;
+      // Phase one's steps spread within phase one's window.
+      const stepDates = spreadDueDates(firstSteps.length, today, phase1End, answers.spread);
+      setBdSteps(firstSteps.map((s, i) => ({ title: s.title, minutes: s.minutes, date: stepDates[i] ?? null })));
+      setBdPhases(phases.slice(1).map((p, i) => ({ title: p.title, date: phaseStarts[i + 1] ?? null })));
       setBdPhase('review');
       track('decomposition.offered', {
-        steps: steps.length,
+        steps: firstSteps.length,
+        phases: phases.length,
         spread: answers.spread,
         hasDueDate: answers.dueDate != null,
       });
@@ -321,10 +338,11 @@ export default function TodayScreen() {
     }
   }
 
-  // Accept the chosen steps onto Today, each with its computed due date.
+  // Accept the chosen phase-one steps onto Today, plus a dated milestone task for
+  // each later phase (each broken down later, when you reach it).
   function bdAccept(selected: ReviewStep[]) {
     const now = nowMs();
-    const added: Task[] = selected.map((s, i) => ({
+    const stepTasks: Task[] = selected.map((s, i) => ({
       id: makeId(),
       title: `${s.title} (${s.minutes} min)`,
       done: false,
@@ -333,14 +351,31 @@ export default function TodayScreen() {
       complexity: s.minutes, // the step's effort, used to weight its completion
       ...(s.date ? { due: s.date } : {}),
     }));
-    commit([...tasks, ...added]);
-    // The moat: how many of the offered steps the user actually kept.
+    const phaseTasks: Task[] = (bdPhases ?? []).map((p, i) => ({
+      id: makeId(),
+      title: p.title,
+      done: false,
+      createdAt: now + selected.length + i,
+      updatedAt: now + selected.length + i,
+      ...(p.date ? { due: p.date } : {}),
+    }));
+    commit([...tasks, ...stepTasks, ...phaseTasks]);
+    // The moat: how many of the offered steps the user kept, and how many phases.
     track('breakdown.added', {
       added: selected.length,
       offered: bdSteps?.length ?? selected.length,
+      phases: phaseTasks.length,
       spread: bdAnswers?.spread ?? 'gradual',
     });
     resetBreakdown();
+  }
+
+  // Break down an existing task (e.g. a later-phase milestone when you reach it):
+  // feed its title into the same flow. The task itself stays; the user can tick or
+  // remove it once its steps are on the board.
+  function breakdownExisting(title: string) {
+    setConfirmingId(null);
+    void biteElephant(title);
   }
 
   function resetBreakdown() {
@@ -348,6 +383,7 @@ export default function TodayScreen() {
     setBdTask('');
     setBdQuestions(null);
     setBdSteps(null);
+    setBdPhases(null);
     setBdAnswers(null);
     setBdBusy(false);
   }
@@ -420,6 +456,7 @@ export default function TodayScreen() {
               slices={task.slices ?? undefined}
               onAdvance={() => step(task.id, 1)}
               onRetreat={() => step(task.id, -1)}
+              onBreakdown={() => breakdownExisting(task.title)}
             />
           ))}
         </View>
@@ -449,6 +486,7 @@ export default function TodayScreen() {
                   slices={task.slices ?? undefined}
                   onAdvance={() => step(task.id, 1)}
                   onRetreat={() => step(task.id, -1)}
+                  onBreakdown={() => breakdownExisting(task.title)}
                 />
               </View>
             ))}
@@ -611,6 +649,7 @@ export default function TodayScreen() {
           key={bdTask}
           task={bdTask}
           steps={bdSteps}
+          laterPhases={bdPhases ?? undefined}
           busy={bdBusy}
           onAdd={bdAccept}
           onCancel={resetBreakdown}

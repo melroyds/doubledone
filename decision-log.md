@@ -614,3 +614,26 @@ Acknowledged, not built now:
 - **Phased breakdown** (Melroy: "I love this"): for a big, long-horizon task, decompose into phases, surface only the first phase's steps now, and break later phases down as they approach. This keeps Today small while honouring a distant deadline. The next dedicated build for Break it down; needs its own design pass.
 
 Needs a Worker redeploy for the live AI date-extraction + tightened steps.
+
+## 2026-06-18 Phased breakdown (the depth fix for big, long-horizon tasks)
+
+Melroy: "do phased breakdown." Built the approach he'd approved: break a big task into phases, surface only phase one now, break later phases down as they approach. This keeps Today small while honouring a distant deadline.
+
+How it works:
+- **New `/plan` endpoint (Sonnet)** replaces the flat decompose inside the flow. It returns a roadmap of **phases** (each a milestone title + one-line focus) PLUS the concrete **steps for phase one only**. The model decides the count: ONE phase for a small task (so the flow behaves exactly like the old flat decompose, single-phase review), two to five for a big multi-stage one.
+- **Dates:** the client distributes the phase starts across the runway (today → due date) and spreads phase one's steps within phase one's window (reusing `lib/spread`, no new date code).
+- **Accept:** phase one's chosen steps land now (Today + the next days); each later phase becomes a **dated milestone task in Later**. No new data model, no migration: a milestone is just a normal task.
+- **Recursion via "Break it down" on an existing task:** long-press any one-off task now offers "Break down" (alongside Keep / Remove), which runs the same flow on that task's title. So you break a later phase down when you reach it. This also makes Break it down work on tasks you typed days ago, not just at capture.
+
+Verified end to end in preview (stubbed AI, no spend) on "sell the house" with a July 15 deadline: the plan came back as three phases; the review showed phase one's four steps (spread Today → 2 Jul) plus a "Then, as you get there" roadmap (List and market · 2 Jul, Handle offers and close · 15 Jul); accepting created six tasks (one on Today, the rest dated into Later); and long-pressing the "List and market it" milestone → Break down reopened the flow on it. Gates green (133 client + 24 server tests).
+
+Decisions:
+- **Roadmap titles only for later phases; re-decompose when reached** (rather than pre-generating and storing every phase's steps). Keeps the data model untouched, avoids storing steps that may be stale by the time you get there, and reuses the whole flow for the recursion.
+- **One `/plan` call generalises decompose** (1 phase = flat). `/decompose` stays deployed and tested but is no longer used by the flow; left in place to avoid churn.
+- **The milestone task is kept after you break it down** (not auto-removed): the user ticks or removes it themselves once its steps are on the board. Auto-removing on accept is a possible refinement.
+
+Decided against:
+- **Storing each phase's pre-generated steps on the task** (a `phaseSteps` field + sync migration). More model surface and staler steps for no real gain over re-decomposing on arrival.
+- **Auto-detecting "big" on the client.** The model decides phase count from the task and answers, which is where the judgement belongs.
+
+Needs a Worker redeploy for the live `/plan`. Until then the flow calls `/plan` on the old Worker (404) → the catch falls back to the questions step; for the live path the redeploy is required.

@@ -5,22 +5,26 @@ import { colors, fonts, radius, spacing } from '@/constants/theme';
 import { friendlyDate } from '@/lib/day';
 
 export type ReviewStep = { title: string; minutes: number; date: string | null };
+export type ReviewPhase = { title: string; date: string | null };
 
 type Props = {
   task: string;
   steps: ReviewStep[];
+  laterPhases?: ReviewPhase[];
   busy: boolean;
   onAdd: (selected: ReviewStep[]) => void;
   onCancel: () => void;
   today: Date;
 };
 
-// Break it down, step 2: the steps the AI proposed, as a checklist. All ticked by
-// default; untick the ones you do not want, then add the rest. Nothing lands on
-// your day until you accept, and the dates were worked out from your answers.
-export function BreakdownReview({ task, steps, busy, onAdd, onCancel, today }: Props) {
+// Break it down, step 2: the steps the AI proposed for the first phase, as a
+// checklist (untick any, then add the rest). For a big task it also shows the
+// later phases that will wait in Later, each broken down when you reach it.
+// Nothing lands on your day until you accept; the dates came from your answers.
+export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCancel, today }: Props) {
   const [selected, setSelected] = useState<boolean[]>(() => steps.map(() => true));
-  const count = selected.filter(Boolean).length;
+  const phaseCount = laterPhases?.length ?? 0;
+  const count = selected.filter(Boolean).length + phaseCount;
 
   function toggle(i: number) {
     setSelected((prev) => prev.map((v, idx) => (idx === i ? !v : v)));
@@ -65,6 +69,21 @@ export function BreakdownReview({ task, steps, busy, onAdd, onCancel, today }: P
                 );
               })}
             </View>
+
+            {phaseCount > 0 && (
+              <View style={styles.phases}>
+                <Text style={styles.phasesHead}>Then, as you get there</Text>
+                {laterPhases!.map((p, i) => (
+                  <View key={`${p.title}-${i}`} style={styles.phaseRow}>
+                    <Text style={styles.phaseTitle} numberOfLines={2}>
+                      {p.title}
+                    </Text>
+                    <Text style={styles.phaseDate}>{p.date == null ? 'Today' : friendlyDate(p.date, today)}</Text>
+                  </View>
+                ))}
+                <Text style={styles.phasesNote}>These wait in Later. Break each one down when you reach it.</Text>
+              </View>
+            )}
 
             <Pressable
               onPress={add}
@@ -131,6 +150,29 @@ const styles = StyleSheet.create({
   stepTitle: { color: colors.ink, fontSize: 16, lineHeight: 21 },
   stepOff: { color: colors.inkFaint, textDecorationLine: 'line-through' },
   meta: { color: colors.inkSoft, fontSize: 13, marginTop: 2 },
+  phases: { gap: spacing.two, marginTop: spacing.three },
+  phasesHead: {
+    color: colors.inkFaint,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  phaseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.three,
+    paddingVertical: spacing.three,
+    paddingHorizontal: spacing.four,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderStyle: 'dashed',
+  },
+  phaseTitle: { color: colors.inkSoft, fontSize: 15, flex: 1 },
+  phaseDate: { color: colors.repeat, fontSize: 13, fontWeight: '600' },
+  phasesNote: { color: colors.inkFaint, fontSize: 12, lineHeight: 17 },
   btn: {
     backgroundColor: colors.accent,
     borderRadius: radius.md,

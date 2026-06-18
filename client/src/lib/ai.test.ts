@@ -5,9 +5,11 @@ import {
   decompose,
   DEFAULT_QUESTIONS,
   parsePlan,
+  parsePlanResult,
   parseQuestions,
   parseSteps,
   parseTriage,
+  plan,
   strategise,
   triage,
 } from './ai';
@@ -77,6 +79,64 @@ describe('decompose', () => {
   it('throws on a non-ok response', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502 }) as unknown as Response));
     await expect(decompose('x')).rejects.toThrow();
+  });
+});
+
+describe('parsePlanResult', () => {
+  it('keeps well-formed phases and first steps', () => {
+    expect(
+      parsePlanResult({
+        plan: {
+          phases: [{ title: 'Prep', focus: 'ready it' }],
+          firstSteps: [{ title: 'Photograph rooms', minutes: 15 }],
+        },
+      }),
+    ).toEqual({
+      phases: [{ title: 'Prep', focus: 'ready it' }],
+      firstSteps: [{ title: 'Photograph rooms', minutes: 15 }],
+    });
+  });
+
+  it('returns empty arrays for malformed data', () => {
+    expect(parsePlanResult(null)).toEqual({ phases: [], firstSteps: [] });
+    expect(parsePlanResult({})).toEqual({ phases: [], firstSteps: [] });
+    expect(parsePlanResult({ plan: { phases: [{ title: 'no focus' }], firstSteps: [{ title: 'no minutes' }] } })).toEqual(
+      { phases: [], firstSteps: [] },
+    );
+  });
+});
+
+describe('plan', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('POSTs the task + context to /plan and returns the parsed plan (mocked, no live call)', async () => {
+    const fetchMock = vi.fn(
+      async (_url: string, _init: { method: string; body: string }) =>
+        ({
+          ok: true,
+          json: async () => ({
+            plan: { phases: [{ title: 'Prep', focus: 'x' }], firstSteps: [{ title: 'Start', minutes: 2 }] },
+          }),
+        }) as unknown as Response,
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await plan('sell the house', {
+      dueDate: '2026-07-15',
+      spread: 'gradual',
+      question: 'q',
+      answer: 'a',
+    });
+    expect(result.phases).toEqual([{ title: 'Prep', focus: 'x' }]);
+    expect(result.firstSteps).toEqual([{ title: 'Start', minutes: 2 }]);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.task).toBe('sell the house');
+    expect(body.context.dueDate).toBe('2026-07-15');
+  });
+
+  it('throws on a non-ok response', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502 }) as unknown as Response));
+    await expect(plan('x')).rejects.toThrow();
   });
 });
 

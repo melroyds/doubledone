@@ -17,6 +17,7 @@ type Props = {
   slices?: Slices | null;
   onAdvance?: () => void;
   onRetreat?: () => void;
+  onBreakdown?: () => void;
 };
 
 // A single row. Tap to complete (a soft sage check, gentle fade, never a shaming
@@ -40,6 +41,7 @@ export function TaskRow({
   slices,
   onAdvance,
   onRetreat,
+  onBreakdown,
 }: Props) {
   if (confirming) {
     // A sliced task's hold reveals its quiet controls: step a slice back (the only
@@ -70,8 +72,13 @@ export function TaskRow({
     return (
       <View style={[styles.row, styles.confirmRow]}>
         <Text style={styles.confirmText} numberOfLines={1}>
-          {`Remove ${title}?`}
+          {title}
         </Text>
+        {onBreakdown && !recurring && (
+          <Pressable onPress={onBreakdown} accessibilityRole="button" accessibilityLabel={`Break down ${title}`}>
+            <Text style={styles.keep}>Break down</Text>
+          </Pressable>
+        )}
         <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel="Keep">
           <Text style={styles.keep}>Keep</Text>
         </Pressable>
