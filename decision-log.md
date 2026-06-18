@@ -469,3 +469,7 @@ The bold gradient (take 2) overshot. Settled on the middle: recurring rows get a
 Decided against:
 - Keeping the gradient for recurring. Too loud for an everyday row, and reusing the same gradient for both recurring and "priority" would blur their meanings.
 - Uninstalling expo-linear-gradient. It is reserved for the imminent Prioritise feature; leaving it installed avoids churn, and it is not bundled while unimported.
+
+## 2026-06-18 Recurring treatment, take 4 (final): reversed
+
+Reversed take 3 at Melroy's call: the solid denim border now marks ONE-OFF (unique) tasks; repeating tasks drop the border but keep the ↻ mark. Same denim colour. Verified in preview: the one-off row border is denim, the recurring row is the plain line plus ↻.

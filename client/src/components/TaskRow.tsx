@@ -14,9 +14,9 @@ type Props = {
 };
 
 // A single row. Tap to complete (a soft sage check, gentle fade, never a shaming
-// strike). Long-press to remove, behind a calm Keep / Remove confirm. Recurring
-// tasks, the operational backbone, get a solid coloured border and a repeat mark
-// so they stand out among one-offs without shouting.
+// strike). Long-press to remove, behind a calm Keep / Remove confirm. One-off
+// (unique) tasks get a solid coloured border; repeating tasks stay plain but carry
+// the repeat mark. Same denim colour either way.
 export function TaskRow({ title, done, onToggle, onLongPress, confirming, onRemove, onKeep, recurring }: Props) {
   if (confirming) {
     return (
@@ -39,7 +39,7 @@ export function TaskRow({ title, done, onToggle, onLongPress, confirming, onRemo
       onPress={onToggle}
       onLongPress={onLongPress}
       delayLongPress={400}
-      style={({ pressed }) => [styles.row, recurring && styles.rowRecurring, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.row, !recurring && styles.rowUnique, pressed && styles.pressed]}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: done }}
       accessibilityLabel={title}
@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
   },
-  rowRecurring: { borderColor: colors.repeat, borderWidth: 2 },
+  rowUnique: { borderColor: colors.repeat, borderWidth: 2 },
   pressed: { opacity: 0.7 },
   confirmRow: { backgroundColor: colors.accentSoft, borderColor: colors.accentSoft },
   confirmText: { flex: 1, color: colors.ink, fontSize: 15 },
