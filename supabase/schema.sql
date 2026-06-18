@@ -22,6 +22,8 @@ create table if not exists public.tasks (
   due text,                       -- 'YYYY-MM-DD' for a one-off; null = someday (live is text)
   recurrence jsonb,               -- the Recurrence object; null = one-off (live is json; both work)
   completed_dates jsonb,          -- array of ISO dates a recurring task was ticked (live is json)
+  completed_at timestamptz,       -- when a one-off was finished (the calendar/Lookback record)
+  complexity integer,             -- effort signal (decomposition minutes); weights the celebration
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz          -- soft-delete tombstone; null = live
@@ -62,3 +64,8 @@ create index if not exists tasks_user_id_idx on public.tasks (user_id);
 --   if pk is not null then execute format('alter table public.tasks drop constraint %I', pk); end if;
 --   alter table public.tasks add primary key (id);
 -- end $$;
+--
+-- D2 added the completion-record columns (run once; idempotent):
+-- alter table public.tasks
+--   add column if not exists completed_at timestamptz,
+--   add column if not exists complexity integer;

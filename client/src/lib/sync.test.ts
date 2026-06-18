@@ -21,6 +21,8 @@ describe('taskToRow / rowToTask', () => {
       due: '2026-06-20',
       recurrence: { kind: 'daily' } as Recurrence,
       completedDates: ['2026-06-18', '2026-06-19'],
+      completedAt: 1718000007000,
+      complexity: 30,
       deletedAt: 1718000009000,
     };
     expect(rowToTask(taskToRow(t, 'user-1'))).toEqual(t);
@@ -32,6 +34,8 @@ describe('taskToRow / rowToTask', () => {
     expect(row.due).toBeNull();
     expect(row.recurrence).toBeNull();
     expect(row.completed_dates).toBeNull();
+    expect(row.completed_at).toBeNull();
+    expect(row.complexity).toBeNull();
     expect(row.deleted_at).toBeNull();
   });
 

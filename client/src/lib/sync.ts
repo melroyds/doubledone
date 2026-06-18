@@ -21,6 +21,8 @@ export type TaskRow = {
   due: string | null;
   recurrence: Recurrence | null;
   completed_dates: string[] | null;
+  completed_at: string | null;
+  complexity: number | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -36,6 +38,8 @@ export function taskToRow(task: Task, userId: string): TaskRow {
     due: task.due ?? null,
     recurrence: task.recurrence ?? null,
     completed_dates: task.completedDates ?? null,
+    completed_at: task.completedAt ? new Date(task.completedAt).toISOString() : null,
+    complexity: task.complexity ?? null,
     created_at: new Date(task.createdAt).toISOString(),
     updated_at: new Date(task.updatedAt).toISOString(),
     deleted_at: task.deletedAt ? new Date(task.deletedAt).toISOString() : null,
@@ -55,6 +59,8 @@ export function rowToTask(row: TaskRow): Task {
   if (row.due != null) task.due = row.due;
   if (row.recurrence != null) task.recurrence = row.recurrence;
   if (row.completed_dates != null) task.completedDates = row.completed_dates;
+  if (row.completed_at != null) task.completedAt = Date.parse(row.completed_at);
+  if (row.complexity != null) task.complexity = row.complexity;
   if (row.deleted_at != null) task.deletedAt = Date.parse(row.deleted_at);
   return task;
 }
