@@ -125,8 +125,8 @@ export default function SignInScreen() {
             style={styles.input}
             keyboardType="number-pad"
             inputMode="numeric"
-            maxLength={6}
-            accessibilityLabel="6-digit code"
+            maxLength={10}
+            accessibilityLabel="Code from your email"
           />
           <Pressable
             onPress={verify}

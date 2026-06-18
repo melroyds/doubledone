@@ -49,6 +49,11 @@ Minimal body for each:
 After saving, request a NEW code (old emails do not update). Type it into the app and
 ignore any link.
 
+## OTP length should be 6
+Authentication -> Providers -> Email -> "Email OTP Length" -> set to 6, to match the
+app's "6-digit code" copy. The code input accepts up to 10 chars defensively, so a
+longer setting still works, but 6 is the intended UX.
+
 ## URL configuration (only matters if you ever switch to magic links)
 Authentication -> URL Configuration -> set Site URL to https://doubledone.app and add
 it to Redirect URLs. Not needed for the typed-code flow, which is what we use.
