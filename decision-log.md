@@ -403,3 +403,11 @@ Decided against:
 - A combined numeric weight the user sees. A simple big/normal tier keeps it calm and legible; a visible score is the gamification we are avoiding.
 - Per-day count badges or totals. The dot, small or bigger, carries the day's emphasis without numbers.
 - AI-set thresholds now. The 7-day / 25-minute cutoffs are simple and tunable; the dedicated AI scorer stays the paid backlog item.
+
+## 2026-06-18 Privacy and security posture formalised
+
+Wrote a Privacy and Security section into BUILD-PLAN. The stance: privacy by architecture, local-first and anonymous-first, the only PII ever held is an email and only if you opt into sync. No analytics identity, no third-party trackers, no ad SDKs, no selling. RLS isolates each user's rows; secrets stay server-side; telemetry is non-identifying. The one honest caveat recorded: Bite the Elephant sends the typed task text to Anthropic to decompose it (not stored), to be disclosed in-product. Deferred with triggers: account/data deletion, a written privacy policy, the `/decompose` lockdown, in-product AI-egress disclosure, telemetry anonymisation at the sink.
+
+Decided against:
+- Any third-party analytics or crash SDK (Google Analytics, Sentry, and the like). They import an identity/tracking surface that contradicts the posture; the local `[doubledone.*]` telemetry stays first-party and non-identifying.
+- Capturing anything beyond an email for accounts. No name, phone, device fingerprint, contacts, or location.

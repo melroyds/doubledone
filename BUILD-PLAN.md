@@ -106,6 +106,28 @@ The single home for everything we have consciously parked. Nothing here is dropp
 
 ---
 
+## Privacy and Security
+
+Privacy by architecture, not by policy promises. DoubleDone runs fully without an account, and the only piece of personally identifying information it ever holds is an email address, and only if you choose to sync.
+
+**The posture (true today)**
+- **Local-first, anonymous-first.** Every feature works on-device with no account. Nothing leaves the device unless you opt into sync or use an AI feature.
+- **The only PII is an email**, captured solely to sync your tasks across devices (passwordless one-time code, no password stored). No name, phone, location, device fingerprint, contacts, or analytics identity. No ads, no third-party trackers, no selling data, ever.
+- **Your data is yours, and isolated.** Supabase row-level security scopes every row to its owner (`auth.uid() = user_id`), so no user can read another's tasks. Task content is user-authored, stored on-device, and in your own RLS-protected rows only if you sync.
+- **Secrets stay server-side.** The Anthropic key lives only in the Cloudflare Worker; the client ships only the public Supabase publishable key; the Supabase `service_role` key is never used or exposed.
+- **Telemetry is non-identifying.** The `[doubledone.*]` events record shapes and outcomes (counts, schedule type, step counts, done/cleared), never task content or identity. It is local-only console output today; before it ever reaches a network sink it must be aggregated and anonymised (the moat rule: aggregate, anonymise, never sell).
+- **AI egress, disclosed.** Bite the Elephant sends the task text you typed to the Worker and on to Anthropic to decompose it; the Worker does not store it. This is the one case where task content leaves the device, and it is to be stated plainly in the privacy copy.
+
+**To do (triggers)**
+- **Account and data deletion.** A signed-in user must be able to delete their account and all cloud rows (a hard delete, not just a tombstone). Trigger: before any public launch (Australian Privacy Principles, GDPR-style right to erasure).
+- **A written privacy policy** matching the posture above. Trigger: before public launch or a Play Store listing.
+- **Lock down `/decompose`** (cross-ref Backlog): unauthenticated and CORS-open today. Trigger: before public launch; app-origin check and/or shared token plus rate limiting.
+- **Disclose AI egress in-product**, a calm one-liner near Bite the Elephant. Trigger: before public launch.
+- **Telemetry anonymisation at the sink.** When `[doubledone.*]` graduates from console to a real store, enforce aggregation, no task content, no identity. Trigger: when the moat store is built.
+- **Document Anthropic data handling** (API inputs are not used for training by default). Trigger: before public launch.
+
+---
+
 ## The non-negotiables (carry into every session)
 
 - **Today is finite and achievable** is the spine. The home is Today, sized to be doable.
