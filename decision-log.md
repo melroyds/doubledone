@@ -420,3 +420,13 @@ Decided against:
 - An automatic midnight close. Manual keeps it in the user's control (calmer, and AuDHD-friendlier); you close the day when you are done, not when a clock says so.
 - Mechanically clearing or archiving the list on close. Never destructive; the roll-forward already handles continuity and the record stays intact.
 - Listing the unfinished tasks in the wrap. Showing what is left at the close reads as a scorecard of failure; the wrap celebrates what got done and quietly reassures about the rest.
+
+## 2026-06-18 F (Strategise) part 1: the /strategise endpoint
+
+A second Worker route on doubledone-ai. `POST /strategise` takes the over-full set of today's tasks (`{id, title}`) and returns a calm re-spread plan via Sonnet tool-use. `record_plan` returns, per task, a `dayOffset` (0 = today, 1 = tomorrow, ...) and a short plain reason; the client (part 2) maps `dayOffset` to a due date and applies it only on the user's accept (propose-then-accept, agreed with Melroy). Prompt and request/response shaping live in `server/src/strategise.ts` (pure, contract-tested: request shape asserted, a sample tool_use parsed, no network in CI). Deployed.
+
+Decided / assumptions (Melroy to challenge):
+- Output is a `dayOffset` per task (not fixed today/tomorrow/week buckets), so the client can place precisely with `addDaysISO`.
+- The system prompt is a calm PLACEHOLDER (re-spread, never cram, keep a handful today), yours to tune like decompose's.
+- Strategise surfaces when Today is heavy (6+ due) and is tappable any time; it proposes, never auto-applies (agreed). Both are part 2.
+- Shares the decompose endpoint's open-CORS posture; covered by the same pre-launch lockdown backlog item.

@@ -3,6 +3,7 @@
 // Claude. The app talks to this, never to Anthropic directly.
 
 import { buildDecomposeRequest, parseDecomposeResponse } from './decompose';
+import { buildStrategiseRequest, parseStrategiseResponse } from './strategise';
 
 export interface Env {
   ANTHROPIC_API_KEY: string;
@@ -50,6 +51,40 @@ export default {
       }
       const steps = parseDecomposeResponse(await upstream.json());
       return Response.json({ steps }, { headers: CORS });
+    }
+
+    // Strategise: an over-full day in, a calm re-spread plan out.
+    if (pathname === '/strategise' && request.method === 'POST') {
+      let tasks: { id: string; title: string }[] = [];
+      try {
+        const body = (await request.json()) as { tasks?: unknown };
+        if (Array.isArray(body.tasks)) {
+          tasks = body.tasks
+            .filter(
+              (t): t is { id: string; title: string } =>
+                t != null &&
+                typeof (t as { id?: unknown }).id === 'string' &&
+                typeof (t as { title?: unknown }).title === 'string',
+            )
+            .map((t) => ({ id: t.id, title: t.title }));
+        }
+      } catch {
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: CORS });
+      }
+      if (tasks.length === 0) {
+        return Response.json({ error: 'tasks are required' }, { status: 400, headers: CORS });
+      }
+      if (!env.ANTHROPIC_API_KEY) {
+        return Response.json({ error: 'server not configured' }, { status: 500, headers: CORS });
+      }
+
+      const { url, init } = buildStrategiseRequest(tasks, env.ANTHROPIC_API_KEY);
+      const upstream = await fetch(url, init as RequestInit);
+      if (!upstream.ok) {
+        return Response.json({ error: 'upstream error' }, { status: 502, headers: CORS });
+      }
+      const plan = parseStrategiseResponse(await upstream.json());
+      return Response.json({ plan }, { headers: CORS });
     }
 
     return new Response('doubledone-ai', { status: 200, headers: CORS });
