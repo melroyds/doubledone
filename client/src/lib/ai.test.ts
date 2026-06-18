@@ -121,17 +121,17 @@ describe('plan', () => {
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    const result = await plan('sell the house', {
-      dueDate: '2026-07-15',
-      spread: 'gradual',
-      question: 'q',
-      answer: 'a',
-    });
+    const result = await plan(
+      'sell the house',
+      { dueDate: '2026-07-15', spread: 'gradual', question: 'q', answer: 'a' },
+      'French',
+    );
     expect(result.phases).toEqual([{ title: 'Prep', focus: 'x' }]);
     expect(result.firstSteps).toEqual([{ title: 'Start', minutes: 2 }]);
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.task).toBe('sell the house');
     expect(body.context.dueDate).toBe('2026-07-15');
+    expect(body.language).toBe('French');
   });
 
   it('throws on a non-ok response', async () => {
@@ -182,9 +182,11 @@ describe('clarify', () => {
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    const q = await clarify('clean the garage');
+    const q = await clarify('clean the garage', 'Italian');
     expect(q).toEqual({ dueDate: 'when?', spread: 'how?', custom: 'what?', suggestedDueDate: null });
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body).task).toBe('clean the garage');
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.task).toBe('clean the garage');
+    expect(body.language).toBe('Italian');
   });
 
   it('falls back to default questions when the backend returns none', async () => {
@@ -233,12 +235,13 @@ describe('strategise', () => {
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    const plan = await strategise([{ id: 't1', title: 'A' }]);
-    expect(plan).toEqual([{ id: 't1', dayOffset: 1, reason: 'tomorrow' }]);
+    const result = await strategise([{ id: 't1', title: 'A' }], 'Spanish');
+    expect(result).toEqual([{ id: 't1', dayOffset: 1, reason: 'tomorrow' }]);
 
     const init = fetchMock.mock.calls[0][1];
     expect(init.method).toBe('POST');
     expect(JSON.parse(init.body).tasks[0].id).toBe('t1');
+    expect(JSON.parse(init.body).language).toBe('Spanish');
   });
 
   it('throws on a non-ok response', async () => {

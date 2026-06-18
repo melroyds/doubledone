@@ -2,6 +2,8 @@
 // Pure prompt + request/response shaping; the Worker handler does the fetch + CORS.
 // Sibling of decompose.ts.
 
+import { withLanguage } from './lang';
+
 export const STRATEGISE_MODEL = 'claude-sonnet-4-6';
 
 // Calm, never-cram. WORDING IS A PLACEHOLDER for Melroy to tune (like decompose's).
@@ -46,12 +48,16 @@ export type StrategiseRequest = {
 };
 
 /** Build the Anthropic Messages API request that re-spreads an over-full day. */
-export function buildStrategiseRequest(tasks: StrategiseTask[], apiKey: string): StrategiseRequest {
+export function buildStrategiseRequest(
+  tasks: StrategiseTask[],
+  apiKey: string,
+  language?: string,
+): StrategiseRequest {
   const list = tasks.map((t) => `- [${t.id}] ${t.title}`).join('\n');
   const body = {
     model: STRATEGISE_MODEL,
     max_tokens: 1024,
-    system: SYSTEM_PROMPT,
+    system: withLanguage(SYSTEM_PROMPT, language),
     tools: [PLAN_TOOL],
     tool_choice: { type: 'tool', name: 'record_plan' },
     messages: [{ role: 'user', content: `Today is over-full. Re-spread these tasks:\n${list}` }],

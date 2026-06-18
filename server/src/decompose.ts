@@ -1,6 +1,8 @@
 // Bite the Elephant: the prompt plus the request/response shaping for Claude.
 // Pure and tested. The Worker handler (index.ts) does the actual fetch and CORS.
 
+import { withLanguage } from './lang';
+
 export const DECOMPOSE_MODEL = 'claude-sonnet-4-6';
 
 // Calm, AuDHD-aware (ADHD + autism, often both): literal, concrete, no shame.
@@ -73,11 +75,16 @@ function buildUserMessage(task: string, context?: DecomposeContext): string {
 }
 
 /** Build the Anthropic Messages API request that decomposes a dreaded task. */
-export function buildDecomposeRequest(task: string, apiKey: string, context?: DecomposeContext): DecomposeRequest {
+export function buildDecomposeRequest(
+  task: string,
+  apiKey: string,
+  context?: DecomposeContext,
+  language?: string,
+): DecomposeRequest {
   const body = {
     model: DECOMPOSE_MODEL,
     max_tokens: 1024,
-    system: SYSTEM_PROMPT,
+    system: withLanguage(SYSTEM_PROMPT, language),
     tools: [STEPS_TOOL],
     tool_choice: { type: 'tool', name: 'record_steps' },
     messages: [{ role: 'user', content: buildUserMessage(task, context) }],

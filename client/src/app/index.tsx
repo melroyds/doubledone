@@ -21,6 +21,7 @@ import {
 import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
 import { addDaysISO, formatTodayLabel, friendlyDate, toISODate } from '@/lib/day';
+import { aiLanguage } from '@/lib/locale';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { applySliceDelta } from '@/lib/slices';
@@ -179,7 +180,7 @@ export default function TodayScreen() {
     setStrategiseError(null);
     setStrategising(true);
     try {
-      const result = await strategise(spreadable.map((t) => ({ id: t.id, title: t.title })));
+      const result = await strategise(spreadable.map((t) => ({ id: t.id, title: t.title })), aiLanguage);
       track('strategise.requested', { count: spreadable.length });
       setPlan(result);
     } catch {
@@ -291,7 +292,7 @@ export default function TodayScreen() {
     setBdTask(task);
     setBdBusy(true);
     try {
-      setBdQuestions(await clarify(task));
+      setBdQuestions(await clarify(task, aiLanguage));
     } catch {
       setBdQuestions(DEFAULT_QUESTIONS);
     } finally {
@@ -310,12 +311,16 @@ export default function TodayScreen() {
     setBdAnswers(answers);
     setBdBusy(true);
     try {
-      const { phases, firstSteps } = await planBreakdown(bdTask, {
-        dueDate: answers.dueDate,
-        spread: answers.spread,
-        question: bdQuestions?.custom ?? '',
-        answer: answers.customAnswer,
-      });
+      const { phases, firstSteps } = await planBreakdown(
+        bdTask,
+        {
+          dueDate: answers.dueDate,
+          spread: answers.spread,
+          question: bdQuestions?.custom ?? '',
+          answer: answers.customAnswer,
+        },
+        aiLanguage,
+      );
       if (firstSteps.length === 0) throw new Error('no steps');
       // Distribute the phase starts across the runway (phase 1 starts Today).
       const phaseStarts = spreadDueDates(Math.max(1, phases.length), today, answers.dueDate, 'gradual');

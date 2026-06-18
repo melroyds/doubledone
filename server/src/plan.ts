@@ -5,6 +5,8 @@
 // honoured; later phases are broken down as they approach. Sonnet (it reasons
 // about staging). Pure prompt + shaping; the Worker handler does fetch + CORS.
 
+import { withLanguage } from './lang';
+
 export const PLAN_MODEL = 'claude-sonnet-4-6';
 
 // Calm, AuDHD-aware. WORDING IS A PLACEHOLDER for Melroy to tune (like the others).
@@ -87,11 +89,16 @@ function buildUserMessage(task: string, context?: PlanContext): string {
 }
 
 /** Build the Anthropic Messages API request that plans the phases + phase-one steps. */
-export function buildPlanRequest(task: string, apiKey: string, context?: PlanContext): PlanRequest {
+export function buildPlanRequest(
+  task: string,
+  apiKey: string,
+  context?: PlanContext,
+  language?: string,
+): PlanRequest {
   const body = {
     model: PLAN_MODEL,
     max_tokens: 1024,
-    system: SYSTEM_PROMPT,
+    system: withLanguage(SYSTEM_PROMPT, language),
     tools: [PLAN_TOOL],
     tool_choice: { type: 'tool', name: 'record_plan' },
     messages: [{ role: 'user', content: buildUserMessage(task, context) }],

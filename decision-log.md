@@ -637,3 +637,19 @@ Decided against:
 - **Auto-detecting "big" on the client.** The model decides phase count from the task and answers, which is where the judgement belongs.
 
 Needs a Worker redeploy for the live `/plan`. Until then the flow calls `/plan` on the old Worker (404) → the catch falls back to the questions step; for the live path the redeploy is required.
+
+## 2026-06-19 Multi-language, Pass 1: the locale rails + the AI in your language
+
+Melroy: make it accessible beyond English, starting Italian / Spanish / French. Pass 1 builds the rails and the highest-value piece, the AI answering in the user's language. (Pass 2, the UI-string sweep + the actual translations, comes after the design overhaul finalises copy, so we translate once.)
+
+- **Locale detection:** `expo-localization` reads the device locale once at startup. The pure logic (`lib/i18n`: `resolveLocale`, `languageName`, `aiLanguageFor`) is unit-tested; the device read lives in the `lib/locale` seam (untested, like storage / reminders / supabase), so a failure degrades to English instead of throwing. Maps any code ("it", "it-IT", "fr-CA") to a supported locale, English fallback.
+- **The AI in your language:** the client passes the locale's language name to the Worker, and the generative endpoints (clarify / plan / decompose / strategise) append "Write every word you return to the user in {language}." to their system prompt. So an Italian user gets Italian questions, steps, and plans. English is the default and adds no instruction.
+- **Triage is deliberately excluded.** It echoes the user's own line text back and the client matches items by exact text; translating that text would break the match and dump everything onto Today. Triage stays text-preserving.
+- **Prompt-injection guard:** the `language` field goes into the prompt, so the Worker allowlists it (`parseLanguage`: Italian / Spanish / French only); anything else is ignored. Contract-tested both sides; no live AI call in CI.
+
+Verified the web bundle builds and runs with the new native module (en-GB device → resolves to English → unchanged path, no console errors). Live verification of a non-English breakdown is Melroy's (switch device language + run Break-it-down); needs the Worker redeploy.
+
+Decided against:
+- **A heavy i18n library (i18next) up front.** The string count is modest and Pass 1's value is the AI-in-language, not the UI strings yet; a small typed layer will do, swappable later if plurals get hairy.
+- **Translating the UI now.** Sequenced after the design overhaul so the final copy is translated once, not twice.
+- **Sending the language to triage.** Would corrupt the exact-text echo it relies on.

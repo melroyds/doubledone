@@ -19,6 +19,13 @@ describe('buildClarifyRequest', () => {
     ]);
     expect(body.messages[0].content).toContain('clean the garage');
   });
+
+  it('adds a respond-in-language instruction when a language is given', () => {
+    const plain = JSON.parse(buildClarifyRequest('x', 'k').init.body).system as string;
+    const italian = JSON.parse(buildClarifyRequest('x', 'k', 'Italian').init.body).system as string;
+    expect(plain).not.toContain('Italian');
+    expect(italian).toContain('in Italian');
+  });
 });
 
 describe('parseClarifyResponse', () => {

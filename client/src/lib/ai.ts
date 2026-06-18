@@ -53,11 +53,11 @@ export function parseQuestions(data: unknown): Questions | null {
 
 /** Ask the AI for the qualifying questions. Throws on a failed call; the caller
  *  falls back to DEFAULT_QUESTIONS so the flow always continues. */
-export async function clarify(task: string): Promise<Questions> {
+export async function clarify(task: string, language?: string): Promise<Questions> {
   const res = await fetch(`${AI_URL}/clarify`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ task }),
+    body: JSON.stringify({ task, language }),
   });
   if (!res.ok) throw new Error(`clarify failed (${res.status})`);
   return parseQuestions(await res.json()) ?? DEFAULT_QUESTIONS;
@@ -73,11 +73,11 @@ export type DecomposeContext = {
 
 /** Break a dreaded task into steps via the AI backend, optionally with the
  *  qualifying answers as context. Throws on a failed call. */
-export async function decompose(task: string, context?: DecomposeContext): Promise<DecomposedStep[]> {
+export async function decompose(task: string, context?: DecomposeContext, language?: string): Promise<DecomposedStep[]> {
   const res = await fetch(`${AI_URL}/decompose`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ task, context }),
+    body: JSON.stringify({ task, context, language }),
   });
   if (!res.ok) throw new Error(`decompose failed (${res.status})`);
   return parseSteps(await res.json());
@@ -112,11 +112,11 @@ export function parsePlanResult(data: unknown): PlanResult {
 }
 
 /** Plan a breakdown into phases plus phase-one steps. Throws on a failed call. */
-export async function plan(task: string, context?: DecomposeContext): Promise<PlanResult> {
+export async function plan(task: string, context?: DecomposeContext, language?: string): Promise<PlanResult> {
   const res = await fetch(`${AI_URL}/plan`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ task, context }),
+    body: JSON.stringify({ task, context, language }),
   });
   if (!res.ok) throw new Error(`plan failed (${res.status})`);
   return parsePlanResult(await res.json());
@@ -140,11 +140,11 @@ export function parsePlan(data: unknown): PlanItem[] {
 }
 
 /** Ask the AI to re-spread an over-full day across the next few days. Throws on failure. */
-export async function strategise(tasks: { id: string; title: string }[]): Promise<PlanItem[]> {
+export async function strategise(tasks: { id: string; title: string }[], language?: string): Promise<PlanItem[]> {
   const res = await fetch(`${AI_URL}/strategise`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ tasks }),
+    body: JSON.stringify({ tasks, language }),
   });
   if (!res.ok) throw new Error(`strategise failed (${res.status})`);
   return parsePlan(await res.json());

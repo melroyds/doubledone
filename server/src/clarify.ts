@@ -3,6 +3,8 @@
 // prompt + request/response shaping; the Worker handler does the fetch + CORS.
 // Sibling of decompose.ts. (Call 2 is decompose.ts, given these answers.)
 
+import { withLanguage } from './lang';
+
 export const CLARIFY_MODEL = 'claude-haiku-4-5-20251001';
 
 // Calm, ADHD/autism-aware. WORDING IS A PLACEHOLDER for Melroy to tune (like the
@@ -48,11 +50,11 @@ export type ClarifyRequest = {
 };
 
 /** Build the Anthropic Messages API request that asks the qualifying questions. */
-export function buildClarifyRequest(task: string, apiKey: string): ClarifyRequest {
+export function buildClarifyRequest(task: string, apiKey: string, language?: string): ClarifyRequest {
   const body = {
     model: CLARIFY_MODEL,
     max_tokens: 512,
-    system: SYSTEM_PROMPT,
+    system: withLanguage(SYSTEM_PROMPT, language),
     tools: [QUESTIONS_TOOL],
     tool_choice: { type: 'tool', name: 'record_questions' },
     messages: [{ role: 'user', content: `The task I want to break down: ${task}` }],

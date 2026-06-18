@@ -4,6 +4,7 @@
 
 import { buildClarifyRequest, CLARIFY_MODEL, parseClarifyResponse } from './clarify';
 import { buildDecomposeRequest, DECOMPOSE_MODEL, type DecomposeContext, parseDecomposeResponse } from './decompose';
+import { parseLanguage } from './lang';
 import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
 import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
 import { extractUsage, logAiCall } from './telemetry';
@@ -53,9 +54,11 @@ export default {
     // Break it down, call 1: a dreaded task in, three qualifying questions out.
     if (pathname === '/clarify' && request.method === 'POST') {
       let task = '';
+      let language: string | undefined;
       try {
-        const body = (await request.json()) as { task?: unknown };
+        const body = (await request.json()) as { task?: unknown; language?: unknown };
         task = typeof body.task === 'string' ? body.task.trim() : '';
+        language = parseLanguage(body.language);
       } catch {
         return Response.json({ error: 'invalid body' }, { status: 400, headers: CORS });
       }
@@ -66,7 +69,7 @@ export default {
         return Response.json({ error: 'server not configured' }, { status: 500, headers: CORS });
       }
 
-      const { url, init } = buildClarifyRequest(task, env.ANTHROPIC_API_KEY);
+      const { url, init } = buildClarifyRequest(task, env.ANTHROPIC_API_KEY, language);
       const started = Date.now();
       const upstream = await fetch(url, init as RequestInit);
       if (!upstream.ok) {
@@ -96,10 +99,12 @@ export default {
     if (pathname === '/decompose' && request.method === 'POST') {
       let task = '';
       let context: DecomposeContext | undefined;
+      let language: string | undefined;
       try {
-        const body = (await request.json()) as { task?: unknown; context?: unknown };
+        const body = (await request.json()) as { task?: unknown; context?: unknown; language?: unknown };
         task = typeof body.task === 'string' ? body.task.trim() : '';
         context = parseContext(body.context);
+        language = parseLanguage(body.language);
       } catch {
         return Response.json({ error: 'invalid body' }, { status: 400, headers: CORS });
       }
@@ -110,7 +115,7 @@ export default {
         return Response.json({ error: 'server not configured' }, { status: 500, headers: CORS });
       }
 
-      const { url, init } = buildDecomposeRequest(task, env.ANTHROPIC_API_KEY, context);
+      const { url, init } = buildDecomposeRequest(task, env.ANTHROPIC_API_KEY, context, language);
       const started = Date.now();
       const upstream = await fetch(url, init as RequestInit);
       if (!upstream.ok) {
@@ -140,10 +145,12 @@ export default {
     if (pathname === '/plan' && request.method === 'POST') {
       let task = '';
       let context: DecomposeContext | undefined;
+      let language: string | undefined;
       try {
-        const body = (await request.json()) as { task?: unknown; context?: unknown };
+        const body = (await request.json()) as { task?: unknown; context?: unknown; language?: unknown };
         task = typeof body.task === 'string' ? body.task.trim() : '';
         context = parseContext(body.context);
+        language = parseLanguage(body.language);
       } catch {
         return Response.json({ error: 'invalid body' }, { status: 400, headers: CORS });
       }
@@ -154,7 +161,7 @@ export default {
         return Response.json({ error: 'server not configured' }, { status: 500, headers: CORS });
       }
 
-      const { url, init } = buildPlanRequest(task, env.ANTHROPIC_API_KEY, context);
+      const { url, init } = buildPlanRequest(task, env.ANTHROPIC_API_KEY, context, language);
       const started = Date.now();
       const upstream = await fetch(url, init as RequestInit);
       if (!upstream.ok) {
@@ -182,8 +189,10 @@ export default {
     // Strategise: an over-full day in, a calm re-spread plan out.
     if (pathname === '/strategise' && request.method === 'POST') {
       let tasks: { id: string; title: string }[] = [];
+      let language: string | undefined;
       try {
-        const body = (await request.json()) as { tasks?: unknown };
+        const body = (await request.json()) as { tasks?: unknown; language?: unknown };
+        language = parseLanguage(body.language);
         if (Array.isArray(body.tasks)) {
           tasks = body.tasks
             .filter(
@@ -204,7 +213,7 @@ export default {
         return Response.json({ error: 'server not configured' }, { status: 500, headers: CORS });
       }
 
-      const { url, init } = buildStrategiseRequest(tasks, env.ANTHROPIC_API_KEY);
+      const { url, init } = buildStrategiseRequest(tasks, env.ANTHROPIC_API_KEY, language);
       const started = Date.now();
       const upstream = await fetch(url, init as RequestInit);
       if (!upstream.ok) {
