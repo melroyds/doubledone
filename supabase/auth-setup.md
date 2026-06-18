@@ -1,16 +1,41 @@
 # Supabase auth setup (manual dashboard config)
 
-The repo can't hold Supabase project settings, so the auth config that DoubleDone's
+The repo can't hold Supabase project settings, so the auth config DoubleDone's
 sign-in depends on is recorded here. Do this once per project.
+
+## You must set up custom SMTP (two reasons)
+
+1. Supabase no longer lets you edit email templates on the built-in email service.
+   The dashboard shows "Set up custom SMTP to edit templates". DoubleDone needs to
+   edit the template (to send a 6-digit code, see below), so custom SMTP is required.
+2. The built-in sender is test-only: a few emails per hour, no deliverability
+   guarantees, often spam. Real sign-ins need a real sender regardless.
+
+### Recommended provider: Resend
+Free tier covers this easily (3,000/month). Steps:
+1. Create a resend.com account.
+2. Create an API key (starts with `re_`).
+3. Supabase -> Authentication -> Emails -> SMTP Settings -> enable custom SMTP:
+   - Host: `smtp.resend.com`
+   - Port: `465`
+   - Username: `resend`
+   - Password: the Resend API key
+   - Sender email: `onboarding@resend.dev` to start (see note), later `noreply@doubledone.app`
+   - Sender name: `DoubleDone`
+4. Save. The "set up SMTP to edit templates" banner disappears; templates become editable.
+
+Note on sender: without a verified domain, Resend only sends FROM `onboarding@resend.dev`
+and only TO your own account email. That is enough to test your own sign-in now. For
+real users, verify doubledone.app in Resend (add its SPF/DKIM DNS records in Cloudflare),
+then send from `noreply@doubledone.app`.
 
 ## Email templates must send the code, not a link
 
 DoubleDone uses typed 6-digit OTP codes (`verifyOtp({ type: 'email' })`), not magic
-links. Supabase's DEFAULT templates email a confirmation URL instead, which our app
-cannot use (and the link's redirect is unconfigured, so it goes nowhere).
-
-Fix: Authentication -> Emails. In BOTH the **Confirm signup** and **Magic Link**
-templates, send `{{ .Token }}` (the 6-digit code) instead of `{{ .ConfirmationURL }}`.
+links. Once custom SMTP is on, edit these templates under Authentication -> Emails and
+put `{{ .Token }}` (the code) in the body instead of `{{ .ConfirmationURL }}` (the link):
+- **Magic link or OTP** (fires on sign-in)
+- **Confirm sign up** (fires for a brand-new user)
 
 Minimal body for each:
 
@@ -23,11 +48,6 @@ Minimal body for each:
 
 After saving, request a NEW code (old emails do not update). Type it into the app and
 ignore any link.
-
-## Which template fires
-- New user (first sign-in, `shouldCreateUser: true`) -> "Confirm signup".
-- Returning user -> "Magic Link".
-Both need `{{ .Token }}`.
 
 ## URL configuration (only matters if you ever switch to magic links)
 Authentication -> URL Configuration -> set Site URL to https://doubledone.app and add
