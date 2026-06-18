@@ -3,6 +3,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, spacing } from '@/constants/theme';
 import { type Slices } from '@/lib/tasks';
 
+import { MarqueeText } from './MarqueeText';
+
 type Props = {
   title: string;
   done: boolean;
@@ -99,7 +101,7 @@ export function TaskRow({
           <View style={[styles.check, complete && styles.checkDone]}>
             {complete && <Text style={styles.tick}>✓</Text>}
           </View>
-          <Text style={[styles.text, complete && styles.textDone]}>{title}</Text>
+          <MarqueeText text={title} style={[styles.text, complete && styles.textDone]} />
           <Text style={styles.sliceCount}>
             {slices.done} / {slices.total}
           </Text>
@@ -125,7 +127,7 @@ export function TaskRow({
       <View style={[styles.check, done && styles.checkDone]}>
         {done && <Text style={styles.tick}>✓</Text>}
       </View>
-      <Text style={[styles.text, done && styles.textDone]}>{title}</Text>
+      <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
       {recurring && <Text style={styles.repeatMark}>↻</Text>}
     </Pressable>
   );
@@ -161,7 +163,7 @@ const styles = StyleSheet.create({
   },
   checkDone: { backgroundColor: colors.done, borderColor: colors.done },
   tick: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', lineHeight: 17 },
-  text: { flex: 1, color: colors.ink, fontSize: 17, lineHeight: 23 },
+  text: { color: colors.ink, fontSize: 17, lineHeight: 23 },
   textDone: { color: colors.inkFaint, textDecorationLine: 'line-through' },
   repeatMark: { color: colors.repeat, fontSize: 18, fontWeight: '700' },
   sliceColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },

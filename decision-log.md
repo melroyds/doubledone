@@ -537,3 +537,22 @@ Melroy's call right after slices shipped: the always-visible "−" on the right 
 Decided against:
 - **Long-press = step back directly (no menu).** Simplest, but it would have stolen the remove gesture from sliced tasks. The revealed control row keeps both step-back and remove behind the one deliberate gesture.
 - **Keeping the minus but making it fainter.** Melroy wanted it gone from the row entirely, not just quieter. Don't fight the signal.
+
+## 2026-06-18 Long titles: a calm scrolling marquee
+
+Melroy's ask: a title too long for its row should scroll as a marquee rather than truncate or wrap. New `MarqueeText` component, used for every task title (normal and sliced rows):
+- It measures the title's natural width against the row width and **only scrolls when it actually overflows**. Short titles render as a plain single line, untouched.
+- The scroll is deliberately calm: ~35 px/s with a 1.2s pause at the start of each loop so the beginning reads first. Two copies make the loop reset seamless.
+- **Reduced motion is respected** (web `prefers-reduced-motion`, native `AccessibilityInfo`). Motion-sensitive and autistic users get a gentle wrapped line instead of forced movement, in keeping with the calm/never-overwhelm spine. Native uses the UI-thread driver; web drives from JS.
+- Measurement reads the nodes' widths in an effect (refs are compiler-safe there), not via `onLayout`.
+
+Decided against:
+- **Truncating with an ellipsis.** Loses information; the whole point was to let the full title be readable.
+- **`onLayout` for measurement.** Switched to ref + effect after `onLayout` measurement proved fiddly to verify; reading `getBoundingClientRect`/`measure()` post-layout is deterministic.
+- **Marquee on every row at once as a worry.** It only animates overflowing titles, and the calm fallback covers reduced motion. If a screenful of scrolling ever feels busy, the noted next step is to animate only the pressed/hovered row.
+
+Debugging lesson banked (now a CLAUDE.md gotcha): most of this build's time went to the **preview viewport collapsing to width 0** after a dev-server restart (every container measures 0, so overflow can never be detected and nothing scrolls). Always re-apply `preview_resize` after a restart and sanity-check `window.innerWidth` before trusting a layout result. Also, the headless preview throttles `requestAnimationFrame`, so a JS-driven web animation can sit frozen at frame 0 even when correct.
+
+## 2026-06-18 Settings page added to the backlog
+
+Melroy wants a full Settings page (theme / colour options, maybe borrowing Chronoloria's palette). Parked in BUILD-PLAN under a new "Settings and personalisation" group rather than built now. The note flags the tension with the spine ("remove friction, never add a setting") and resolves it: theme / contrast / reduced-motion / reminder-time / text-size are accessibility-and-comfort affordances this audience genuinely benefits from, not open-ended config. The theming tokens already exist (`theme.ts` light/dark), so a picker is mostly swapping token sets. Pairs with the design overhaul; build the tokens first.
