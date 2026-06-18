@@ -210,9 +210,14 @@ export default function TodayScreen() {
         <BrainDump onCapture={capture} onBiteElephant={biteElephant} today={today} />
         {isSyncConfigured &&
           (session ? (
-            <Pressable onPress={signOut} accessibilityRole="button" accessibilityLabel="Sign out of sync">
-              <Text style={styles.sync}>Synced · sign out</Text>
-            </Pressable>
+            <View style={styles.syncRow}>
+              <Text style={styles.syncText} numberOfLines={1}>
+                Synced to {session.user.email ?? 'your account'}
+              </Text>
+              <Pressable onPress={signOut} accessibilityRole="button" accessibilityLabel="Sign out" hitSlop={8}>
+                <Text style={styles.syncAction}>Sign out</Text>
+              </Pressable>
+            </View>
           ) : (
             <Pressable
               onPress={() => router.push('/sign-in')}
@@ -276,6 +281,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing.three,
   },
+  syncRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.three,
+    marginTop: spacing.three,
+  },
+  syncText: { color: colors.inkFaint, fontSize: 13, flexShrink: 1 },
+  syncAction: { color: colors.accent, fontSize: 13, fontWeight: '600' },
   ethos: {
     color: colors.inkFaint,
     fontSize: 12,

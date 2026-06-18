@@ -363,3 +363,11 @@ Decided against:
 - Migrating everything to bigint epoch ms. It would touch two columns plus the mapping plus the tests, for a less query-friendly schema.
 
 Still unverified (needs Melroy): the live email sign-in round-trip, and that no `updated_at = now()` trigger exists (Supabase adds none by default, so almost certainly fine; confirm in the dashboard if paranoid).
+
+## 2026-06-18 Sign-in: confirmation beat + synced identity on Today
+
+Two small auth-UX gaps closed after the live sign-in worked. (1) Verifying the code now shows a brief "Signed in" success state (sage, calm) and returns to Today on its own after about 1.6s, with a "Back to today" button for anyone who would rather not wait, instead of silently bouncing back with no acknowledgement. (2) The Today footer now reads "Synced to <email>" with a distinct "Sign out", instead of a generic "Synced". The sign-in render was split from a two-branch ternary into three phase blocks (email / code / done) to fit the success state. Also along the way: the code input cap was lifted to 10 (an 8-digit OTP was being truncated) and the sign-in catch now surfaces the real Supabase/SMTP error instead of a generic line.
+
+Decided against:
+- A persistent in-app banner or toast for sign-in success. A short success screen is calmer and needs no new toast system.
+- Showing the email prominently on Today. It stays a faint footer line; sync is a background comfort, not part of the calm Today surface.

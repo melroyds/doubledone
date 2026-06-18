@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -7,7 +7,7 @@ import { colors, fonts, radius, spacing } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
 
-type Phase = 'email' | 'code';
+type Phase = 'email' | 'code' | 'done';
 
 // Optional cloud sync sign-in. Passwordless: we email a 6-digit code and verify
 // it. Calm and skippable, the app works fully without ever coming here. The live
@@ -21,9 +21,17 @@ export default function SignInScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function done() {
+  function goBack() {
     router.back();
   }
+
+  // After a successful sign-in, hold the "Signed in" beat briefly, then return to
+  // Today on its own. The button is there for anyone who would rather not wait.
+  useEffect(() => {
+    if (phase !== 'done') return;
+    const timer = setTimeout(() => router.back(), 1600);
+    return () => clearTimeout(timer);
+  }, [phase, router]);
 
   async function sendCode() {
     const addr = email.trim();
@@ -63,7 +71,7 @@ export default function SignInScreen() {
       });
       if (err) throw err;
       track('auth.signed_in');
-      done();
+      setPhase('done');
     } catch (err) {
       const detail = err instanceof Error ? err.message : '';
       setError(detail ? `That code did not work: ${detail}` : 'That code did not work. Check it, or send a new one.');
@@ -74,7 +82,7 @@ export default function SignInScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + spacing.six }]}>
-      <Pressable onPress={done} accessibilityRole="button" accessibilityLabel="Not now" hitSlop={8}>
+      <Pressable onPress={goBack} accessibilityRole="button" accessibilityLabel="Not now" hitSlop={8}>
         <Text style={styles.cancel}>Not now</Text>
       </Pressable>
 
@@ -84,7 +92,7 @@ export default function SignInScreen() {
         password to remember.
       </Text>
 
-      {phase === 'email' ? (
+      {phase === 'email' && (
         <View style={styles.form}>
           <TextInput
             value={email}
@@ -113,7 +121,9 @@ export default function SignInScreen() {
             )}
           </Pressable>
         </View>
-      ) : (
+      )}
+
+      {phase === 'code' && (
         <View style={styles.form}>
           <Text style={styles.sentTo}>We sent a code to {email.trim()}.</Text>
           <TextInput
@@ -156,7 +166,22 @@ export default function SignInScreen() {
         </View>
       )}
 
-      {error && <Text style={styles.error}>{error}</Text>}
+      {phase === 'done' && (
+        <View style={styles.form}>
+          <Text style={styles.success}>Signed in</Text>
+          <Text style={styles.sub}>You&apos;re synced as {email.trim()}. Taking you back to today.</Text>
+          <Pressable
+            onPress={goBack}
+            style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Back to today"
+          >
+            <Text style={styles.primaryText}>Back to today</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {error && phase !== 'done' && <Text style={styles.error}>{error}</Text>}
     </View>
   );
 }
@@ -181,6 +206,7 @@ const styles = StyleSheet.create({
   sub: { color: colors.inkSoft, fontSize: 16, lineHeight: 23, marginTop: spacing.three },
   form: { gap: spacing.three, marginTop: spacing.six },
   sentTo: { color: colors.inkSoft, fontSize: 15 },
+  success: { color: colors.done, fontSize: 26, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3 },
   input: {
     backgroundColor: colors.surface,
     borderWidth: 1,
