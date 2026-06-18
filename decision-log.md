@@ -461,3 +461,11 @@ The denim ring + ↻ was too quiet; recurring tasks are the operational backbone
 Decided against:
 - A louder treatment (full-saturation / neon). Bold but still a smooth two-stop gradient, to stay short of sensory-jarring for the autistic side of the audience; the stops are tunable.
 - A separate "essentials" section. The gradient marks them in place on Today, so the single Today surface stays intact (the drawer remains the manage-all home).
+
+## 2026-06-18 Recurring treatment, take 3: a solid border (the gradient was too bold)
+
+The bold gradient (take 2) overshot. Settled on the middle: recurring rows get a solid 2px coloured border (the denim `repeat` token) plus the existing ↻ mark, more than the original subtle ring, less than the gradient. The bold blue->violet palette is saved as `theme.priorityGradient` and reserved for a premium "Prioritise a task" feature (loud on purpose), now in the backlog. `expo-linear-gradient` stays installed for it.
+
+Decided against:
+- Keeping the gradient for recurring. Too loud for an everyday row, and reusing the same gradient for both recurring and "priority" would blur their meanings.
+- Uninstalling expo-linear-gradient. It is reserved for the imminent Prioritise feature; leaving it installed avoids churn, and it is not bundled while unimported.

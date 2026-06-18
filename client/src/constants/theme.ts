@@ -19,8 +19,8 @@ const light = {
   accentSoft: '#F3E4DC', // clay tint
   done: '#7E9B6B', // sage, completion, calm not alarming
   doneSoft: '#E9EFE2',
-  repeat: '#5F7E9B', // cool denim, marks repeating tasks as distinct from one-offs
-  repeatGradient: ['#3B82F6', '#8B5CF6'], // bold blue->violet fill for recurring rows on Today
+  repeat: '#5F7E9B', // cool denim, marks repeating tasks (a solid border + the repeat mark)
+  priorityGradient: ['#3B82F6', '#8B5CF6'], // saved loud blue->violet, for the premium "Prioritise a task" feature
 } as const;
 
 const dark = {
@@ -35,7 +35,7 @@ const dark = {
   done: '#9DB98A',
   doneSoft: '#2A3024',
   repeat: '#8AA6C2',
-  repeatGradient: ['#5B8DEF', '#9B6CF0'],
+  priorityGradient: ['#5B8DEF', '#9B6CF0'],
 } as const;
 
 export const Colors = { light, dark } as const;

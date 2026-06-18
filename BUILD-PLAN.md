@@ -100,6 +100,7 @@ The single home for everything we have consciously parked. Nothing here is dropp
 **Monetisation**
 - Paid tier via Stripe, gating the genuinely expensive AI features. Trigger: the AI features prove their value and you are ready to charge.
 - **Premium: AI "chart a course of action".** Give the AI your goal and requirements and it returns a weighted plan of action (scored, ordered steps toward the goal), beyond decomposing a single task. Genuinely token-heavy, so it is a paid feature by design (Melroy, 2026-06-18). Trigger: core AI features proven and the Stripe paid tier exists.
+- **Premium: Prioritise a task** (Melroy, 2026-06-18). A loud, in-your-face treatment to flag a task as a priority, using the bold blue->violet gradient saved in `theme.priorityGradient` (the one that proved too bold for everyday recurring rows). Uses `expo-linear-gradient` (already installed). A premium add-on. Trigger: paid tier exists.
 
 **Polish and tech debt**
 - Custom DoubleDone app icon and splash (currently the generic Expo art). Trigger: visual identity decided.

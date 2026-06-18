@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius, spacing } from '@/constants/theme';
@@ -16,8 +15,8 @@ type Props = {
 
 // A single row. Tap to complete (a soft sage check, gentle fade, never a shaming
 // strike). Long-press to remove, behind a calm Keep / Remove confirm. Recurring
-// tasks, the operational backbone, get a bold gradient fill so they are
-// unmistakable among one-offs on Today.
+// tasks, the operational backbone, get a solid coloured border and a repeat mark
+// so they stand out among one-offs without shouting.
 export function TaskRow({ title, done, onToggle, onLongPress, confirming, onRemove, onKeep, recurring }: Props) {
   if (confirming) {
     return (
@@ -40,38 +39,15 @@ export function TaskRow({ title, done, onToggle, onLongPress, confirming, onRemo
       onPress={onToggle}
       onLongPress={onLongPress}
       delayLongPress={400}
-      style={({ pressed }) => [
-        styles.row,
-        recurring && styles.rowRecurring,
-        pressed && styles.pressed,
-        recurring && done && styles.rowDimmed,
-      ]}
+      style={({ pressed }) => [styles.row, recurring && styles.rowRecurring, pressed && styles.pressed]}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: done }}
       accessibilityLabel={title}
     >
-      {recurring && (
-        <LinearGradient
-          colors={colors.repeatGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.gradientFill}
-        />
-      )}
-      <View
-        style={[styles.check, recurring ? styles.checkOnGradient : done && styles.checkDone]}
-      >
-        {done && <Text style={[styles.tick, recurring && styles.tickOnGradient]}>✓</Text>}
+      <View style={[styles.check, done && styles.checkDone]}>
+        {done && <Text style={styles.tick}>✓</Text>}
       </View>
-      <Text
-        style={[
-          styles.text,
-          recurring && styles.textOnGradient,
-          done && (recurring ? styles.textDoneOnGradient : styles.textDone),
-        ]}
-      >
-        {title}
-      </Text>
+      <Text style={[styles.text, done && styles.textDone]}>{title}</Text>
       {recurring && <Text style={styles.repeatMark}>↻</Text>}
     </Pressable>
   );
@@ -89,9 +65,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
   },
-  rowRecurring: { backgroundColor: 'transparent', borderColor: 'transparent', overflow: 'hidden' },
-  rowDimmed: { opacity: 0.55 },
-  gradientFill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: radius.md },
+  rowRecurring: { borderColor: colors.repeat, borderWidth: 2 },
   pressed: { opacity: 0.7 },
   confirmRow: { backgroundColor: colors.accentSoft, borderColor: colors.accentSoft },
   confirmText: { flex: 1, color: colors.ink, fontSize: 15 },
@@ -107,12 +81,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkDone: { backgroundColor: colors.done, borderColor: colors.done },
-  checkOnGradient: { borderColor: '#FFFFFF' },
   tick: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', lineHeight: 17 },
-  tickOnGradient: { color: '#FFFFFF' },
   text: { flex: 1, color: colors.ink, fontSize: 17, lineHeight: 23 },
   textDone: { color: colors.inkFaint, textDecorationLine: 'line-through' },
-  textOnGradient: { color: '#FFFFFF', fontWeight: '600' },
-  textDoneOnGradient: { color: '#FFFFFF', textDecorationLine: 'line-through' },
-  repeatMark: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
+  repeatMark: { color: colors.repeat, fontSize: 18, fontWeight: '700' },
 });
