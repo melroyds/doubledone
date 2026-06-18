@@ -50,3 +50,8 @@ create index if not exists tasks_user_id_idx on public.tasks (user_id);
 -- ---------------------------------------------------------------------------
 -- alter table public.tasks
 --   alter column created_at type timestamptz using to_timestamp(created_at / 1000.0);
+--
+-- The live table also lacked a PRIMARY KEY on id, so upserts (on_conflict=id) failed
+-- with 42P10 "no unique or exclusion constraint matching the ON CONFLICT specification".
+-- Add it (safe on the empty table; id is the client-generated identity):
+-- alter table public.tasks add primary key (id);
