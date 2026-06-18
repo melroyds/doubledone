@@ -1,9 +1,24 @@
+/* Dusk typography (web): Newsreader (serif) for display/headings, and Atkinson
+   Hyperlegible (the Braille Institute's legibility face) for body. Headings read
+   the --font-display var via theme.fonts; body is set on the root below. Native
+   loads the same families via expo-google-fonts. */
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Atkinson+Hyperlegible:wght@400;700&display=swap');
+
 :root {
-  --font-display:
-    Spline Sans, Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,
-    Segoe UI Symbol, Noto Color Emoji;
+  --font-display: 'Newsreader', Georgia, 'Times New Roman', serif;
+  --font-body: 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif;
   --font-mono:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
   --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
-  --font-serif: Georgia, 'Times New Roman', serif;
+  --font-serif: 'Newsreader', Georgia, 'Times New Roman', serif;
+}
+
+/* Atkinson Hyperlegible as the app-wide body font, set on the root so text
+   inherits it. Headings still win with their own --font-display (Newsreader) via
+   theme.fonts, so we must NOT target the text elements directly (e.g. [dir]),
+   which would clobber the headings. */
+html,
+body,
+#root {
+  font-family: var(--font-body);
 }
