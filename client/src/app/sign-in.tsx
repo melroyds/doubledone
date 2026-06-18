@@ -42,8 +42,9 @@ export default function SignInScreen() {
       if (err) throw err;
       track('auth.code_sent');
       setPhase('code');
-    } catch {
-      setError('Could not send the code. Check the address and try again.');
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : '';
+      setError(detail ? `Could not send the code: ${detail}` : 'Could not send the code. Check the address and try again.');
     } finally {
       setBusy(false);
     }
@@ -63,8 +64,9 @@ export default function SignInScreen() {
       if (err) throw err;
       track('auth.signed_in');
       done();
-    } catch {
-      setError('That code did not work. Check it, or send a new one.');
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : '';
+      setError(detail ? `That code did not work: ${detail}` : 'That code did not work. Check it, or send a new one.');
     } finally {
       setBusy(false);
     }
