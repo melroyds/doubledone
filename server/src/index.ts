@@ -4,6 +4,7 @@
 
 import { buildDecomposeRequest, parseDecomposeResponse } from './decompose';
 import { buildStrategiseRequest, parseStrategiseResponse } from './strategise';
+import { buildTriageRequest, parseTriageResponse } from './triage';
 
 export interface Env {
   ANTHROPIC_API_KEY: string;
@@ -85,6 +86,33 @@ export default {
       }
       const plan = parseStrategiseResponse(await upstream.json());
       return Response.json({ plan }, { headers: CORS });
+    }
+
+    // AI triage: a brain-dump of lines in, each sorted into today / later / decompose.
+    if (pathname === '/triage' && request.method === 'POST') {
+      let lines: string[] = [];
+      try {
+        const body = (await request.json()) as { lines?: unknown };
+        if (Array.isArray(body.lines)) {
+          lines = body.lines.filter((l): l is string => typeof l === 'string' && l.trim().length > 0);
+        }
+      } catch {
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: CORS });
+      }
+      if (lines.length === 0) {
+        return Response.json({ error: 'lines are required' }, { status: 400, headers: CORS });
+      }
+      if (!env.ANTHROPIC_API_KEY) {
+        return Response.json({ error: 'server not configured' }, { status: 500, headers: CORS });
+      }
+
+      const { url, init } = buildTriageRequest(lines, env.ANTHROPIC_API_KEY);
+      const upstream = await fetch(url, init as RequestInit);
+      if (!upstream.ok) {
+        return Response.json({ error: 'upstream error' }, { status: 502, headers: CORS });
+      }
+      const items = parseTriageResponse(await upstream.json());
+      return Response.json({ items }, { headers: CORS });
     }
 
     return new Response('doubledone-ai', { status: 200, headers: CORS });

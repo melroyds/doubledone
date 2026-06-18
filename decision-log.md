@@ -483,3 +483,9 @@ Tooling note: `preview_click` did not fire onPress for these particular Pressabl
 ## 2026-06-18 Recurring treatment, take 4 (final): reversed
 
 Reversed take 3 at Melroy's call: the solid denim border now marks ONE-OFF (unique) tasks; repeating tasks drop the border but keep the ↻ mark. Same denim colour. Verified in preview: the one-off row border is denim, the recurring row is the plain line plus ↻.
+
+## 2026-06-18 G (AI triage) part 1: the /triage endpoint
+
+Third Worker route: `POST /triage` takes a brain-dump (lines) and returns each line sorted into today / later / decompose via Haiku tool-use (`record_triage`, an enum-constrained bucket). The cheap model (`claude-haiku-4-5`) is deliberate because triage runs on the friction-free capture path. Pure prompt/shaping in `server/src/triage.ts`, contract-tested (request shape, sample parse, bad-bucket filtering), no live call in CI. Deployed.
+
+Assumptions (Melroy to challenge): the system prompt is a calm PLACEHOLDER; three buckets (today/later/decompose), Haiku for cost. Shares the open-CORS posture (pre-launch lockdown backlog item).
