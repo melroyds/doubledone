@@ -371,3 +371,9 @@ Two small auth-UX gaps closed after the live sign-in worked. (1) Verifying the c
 Decided against:
 - A persistent in-app banner or toast for sign-in success. A short success screen is calmer and needs no new toast system.
 - Showing the email prominently on Today. It stays a faint footer line; sync is a background comfort, not part of the calm Today surface.
+
+## 2026-06-18 Cloud sync verified end to end
+
+Live sign-in and sync now work: a typed OTP signs in, the local list migrates into the account, and tasks land in the Supabase `tasks` table (confirmed in the dashboard). Getting here surfaced and fixed real setup gaps, all recorded in `supabase/auth-setup.md` and `supabase/schema.sql`: (1) editing email templates requires custom SMTP, so Resend is wired with the doubledone.app domain verified for any-recipient sending; (2) templates must send `{{ .Token }}`, not a magic link; (3) the OTP length and the app's input cap had to agree (the input now accepts up to 10); (4) two drifts in the hand-created table, `created_at` was bigint (altered to timestamptz) and the primary key was on the wrong column (dropped and re-added on `id`). The app also now surfaces the real sign-in and sync errors instead of generic messages.
+
+Sync is genuinely done: C1 model, C2 merge, C3 client/engine/UI, all verified against the live database. Next build is D, the Lookback.

@@ -20,17 +20,12 @@ Full core loop working: capture, AI decomposition (Bite the Elephant), in-app sc
 - ✅ **Shipped to both surfaces:** web live at [doubledone.app](https://doubledone.app) (Cloudflare Pages), Android APK installable via EAS (sideload). One codebase, two targets.
 - ✅ **AI backend live** (step 4): Cloudflare Worker `doubledone-ai`, holds the Anthropic key as a Worker secret, `/decompose` contract-tested, validated with one live call. $25/mo cap set.
 - ✅ **Bite the Elephant live** (step 5): "Break it down" on the capture box calls the Worker, drops atomic steps into Today. Moat telemetry (`decomposition.offered`) instrumented.
-- ✅ **Cloud sync built** (step 12): Supabase client, last-write-wins merge engine, soft-delete tombstones, passwordless email-OTP sign-in, sync on sign-in/open, anonymous-to-account migration. Pure logic unit-tested. `supabase/schema.sql` is schema-as-code. *Live email round-trip is Melroy's to confirm.*
+- ✅ **Cloud sync LIVE, verified end-to-end** (step 12): Supabase client, last-write-wins merge engine, soft-delete tombstones, passwordless email-OTP sign-in (Resend SMTP, doubledone.app verified for any recipient), sync on sign-in/open, anonymous-to-account migration. Confirmed live: sign-in works and tasks land in the `tasks` table. Setup + the two live-table fixes (created_at type, id PK) recorded in `supabase/auth-setup.md` and `supabase/schema.sql`.
 - ✅ GitHub remote live and **public**: github.com/melroyds/doubledone, `main` pushed, CI + web deploy green
 
 ## The immediate next action
 
-**Two things need Melroy, then pick the next build.**
-
-1. **Verify live sync end to end (5 min).** Open the app, tap "Sync across devices", sign in with your email (the 6-digit code lands in your inbox), and confirm a task made on web shows on Android after both sync. The whole flow is built and unit-tested; only the live email round-trip is unconfirmed. While there, sanity-check the live `tasks` table against `supabase/schema.sql`, especially that `id` is **TEXT** (device ids like `t-abc-1` are not UUIDs) and that there is **no `updated_at = now()` trigger** (either would break sync). To enable sync on the deployed web too, add `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` to the Cloudflare Pages project env.
-2. **Tune the Bite-the-Elephant prompt.** The system prompt in `server/src/decompose.ts` is a working placeholder; the wording is yours.
-
-Then the next build is **the Lookback (step 8)**, the emotional payoff and the visible start of the moat, or **AI triage (step 6)** if you want the capture box smarter first. My pick: the Lookback, because it is what makes someone come back.
+**D: the Lookback (step 8).** Sync is verified live and the Bite-the-Elephant prompt is tuned (v2 shipped), so the prerequisites are done. Build the Lookback: a calm screen that shows everything finished recently, including dreaded old tasks finally closed, with a finished-old-task celebration (step 9 folded in). The completion telemetry already flows. This is the emotional payoff and the visible start of the moat, and the build order agreed with Melroy is D (Lookback) -> E (close-the-day) -> F (Strategise) -> G (AI triage) -> H (notifications). CX/UX is changing look-and-flow only, so this logic is safe to build now.
 
 ---
 
