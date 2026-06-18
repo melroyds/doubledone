@@ -4,6 +4,7 @@
 // by construction. Week starts on Sunday, matching the capture weekday chips.
 
 import { toISODate } from './day';
+import { isBigWin } from './reward';
 import { isRecurring, type Scheduled } from './today';
 
 export const MONTH_NAMES = [
@@ -41,12 +42,14 @@ export function addMonths(year: number, month: number, delta: number): YearMonth
   return { year: base.getFullYear(), month: base.getMonth() };
 }
 
-export type Completion = { id: string; title: string; recurring: boolean };
+export type Completion = { id: string; title: string; recurring: boolean; big: boolean };
 
 type Completable = Scheduled & {
   id: string;
   title: string;
+  createdAt: number;
   completedAt?: number | null;
+  complexity?: number | null;
   updatedAt?: number;
 };
 
@@ -65,11 +68,12 @@ export function completionsByDay<T extends Completable>(tasks: T[]): Map<string,
   };
   for (const t of tasks) {
     if (t.deletedAt) continue;
+    const big = isBigWin(t);
     if (isRecurring(t)) {
-      for (const iso of t.completedDates ?? []) add(iso, { id: t.id, title: t.title, recurring: true });
+      for (const iso of t.completedDates ?? []) add(iso, { id: t.id, title: t.title, recurring: true, big });
     } else if (t.done) {
       const when = t.completedAt ?? t.updatedAt;
-      if (when != null) add(toISODate(new Date(when)), { id: t.id, title: t.title, recurring: false });
+      if (when != null) add(toISODate(new Date(when)), { id: t.id, title: t.title, recurring: false, big });
     }
   }
   return byDay;

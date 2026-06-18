@@ -40,30 +40,36 @@ describe('monthLabel', () => {
 
 describe('completionsByDay', () => {
   const daily = { kind: 'daily' } as Recurrence;
+  const at = (y: number, m: number, d: number) => new Date(y, m, d).getTime();
 
   it('places a one-off on its completedAt day', () => {
-    const tasks = [{ id: 'a', title: 'A', done: true, completedAt: new Date(2026, 5, 15, 10).getTime() }];
-    expect(completionsByDay(tasks).get('2026-06-15')).toEqual([{ id: 'a', title: 'A', recurring: false }]);
+    const tasks = [{ id: 'a', title: 'A', done: true, createdAt: at(2026, 5, 15), completedAt: new Date(2026, 5, 15, 10).getTime() }];
+    expect(completionsByDay(tasks).get('2026-06-15')).toEqual([{ id: 'a', title: 'A', recurring: false, big: false }]);
   });
 
   it('falls back to updatedAt when completedAt is missing', () => {
-    const tasks = [{ id: 'b', title: 'B', done: true, updatedAt: new Date(2026, 5, 16, 9).getTime() }];
-    expect(completionsByDay(tasks).get('2026-06-16')).toEqual([{ id: 'b', title: 'B', recurring: false }]);
+    const tasks = [{ id: 'b', title: 'B', done: true, createdAt: at(2026, 5, 16), updatedAt: new Date(2026, 5, 16, 9).getTime() }];
+    expect(completionsByDay(tasks).get('2026-06-16')).toEqual([{ id: 'b', title: 'B', recurring: false, big: false }]);
   });
 
   it('adds one entry per recurring completion date', () => {
     const tasks = [
-      { id: 'c', title: 'C', done: false, recurrence: daily, completedDates: ['2026-06-14', '2026-06-15'] },
+      { id: 'c', title: 'C', done: false, createdAt: at(2026, 5, 1), recurrence: daily, completedDates: ['2026-06-14', '2026-06-15'] },
     ];
     const byDay = completionsByDay(tasks);
-    expect(byDay.get('2026-06-14')).toEqual([{ id: 'c', title: 'C', recurring: true }]);
-    expect(byDay.get('2026-06-15')).toEqual([{ id: 'c', title: 'C', recurring: true }]);
+    expect(byDay.get('2026-06-14')).toEqual([{ id: 'c', title: 'C', recurring: true, big: false }]);
+    expect(byDay.get('2026-06-15')).toEqual([{ id: 'c', title: 'C', recurring: true, big: false }]);
+  });
+
+  it('flags a long-lingering completion as a big win', () => {
+    const tasks = [{ id: 'old', title: 'Old', done: true, createdAt: at(2026, 5, 1), completedAt: at(2026, 5, 15) }];
+    expect(completionsByDay(tasks).get('2026-06-15')).toEqual([{ id: 'old', title: 'Old', recurring: false, big: true }]);
   });
 
   it('excludes tombstoned tasks and not-done one-offs', () => {
     const tasks = [
-      { id: 'd', title: 'D', done: true, completedAt: new Date(2026, 5, 15).getTime(), deletedAt: 1 },
-      { id: 'e', title: 'E', done: false },
+      { id: 'd', title: 'D', done: true, createdAt: at(2026, 5, 15), completedAt: at(2026, 5, 15), deletedAt: 1 },
+      { id: 'e', title: 'E', done: false, createdAt: at(2026, 5, 18) },
     ];
     expect(completionsByDay(tasks).size).toBe(0);
   });

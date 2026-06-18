@@ -392,3 +392,14 @@ Decided against:
 - A third-party calendar library. Hand-built keeps it calm, controllable, dependency-free (no repeat of the supabase bundle pain), and the date math is testable lib logic.
 - A separate completions table (the normalised moat store). Per-task fields are enough for the calendar now; the anonymised cross-user flywheel stays a backlog item.
 - Points / streaks / levels. See the guardrail.
+
+## 2026-06-18 D2: complexity-weighted celebration (warmth, not points)
+
+Finishing a task now carries a weight from two cheap signals, no per-task AI call: how long it lingered (`completedAt - createdAt`, the dread proxy, universal) and its complexity if known (`complexity`, set from a Bite-the-Elephant step's minutes). `isBigWin` in `lib/reward.ts` flags a "big win" when a task sat a week or more (`BIG_WIN_AGE_DAYS = 7`) or was a chunky 25+ minute step (`BIG_WIN_COMPLEXITY = 25`). On the calendar a big-win day gets a bigger dot; in the day detail the big-win item gets a warm "a big one". Per the guardrail, this weights the warmth of a calm acknowledgment, never points, streaks, or a visible score.
+
+`complexity` and `completedAt` stay local-only for now (not in the sync mapping), so sync is untouched; a one-step migration (add `complexity` and `completed_at` columns) will sync them for cross-device fidelity, until then synced tasks weight by age via the `updatedAt` fallback.
+
+Decided against:
+- A combined numeric weight the user sees. A simple big/normal tier keeps it calm and legible; a visible score is the gamification we are avoiding.
+- Per-day count badges or totals. The dot, small or bigger, carries the day's emphasis without numbers.
+- AI-set thresholds now. The 7-day / 25-minute cutoffs are simple and tunable; the dedicated AI scorer stays the paid backlog item.

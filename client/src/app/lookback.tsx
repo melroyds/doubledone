@@ -80,7 +80,9 @@ export default function LookbackScreen() {
         <View key={wi} style={styles.weekRow}>
           {week.map((iso, di) => {
             if (iso == null) return <View key={di} style={styles.cell} />;
-            const count = byDay.get(iso)?.length ?? 0;
+            const items = byDay.get(iso);
+            const count = items?.length ?? 0;
+            const bigDay = items?.some((c) => c.big) ?? false;
             const isToday = iso === todayIso;
             const isSelected = iso === selected;
             return (
@@ -89,14 +91,14 @@ export default function LookbackScreen() {
                 onPress={() => openDay(iso)}
                 style={styles.cell}
                 accessibilityRole="button"
-                accessibilityLabel={`${iso}, ${count} finished`}
+                accessibilityLabel={`${iso}, ${count} finished${bigDay ? ', a big one' : ''}`}
               >
                 <View style={[styles.dayBlob, isToday && styles.dayToday, isSelected && styles.daySelected]}>
                   <Text style={[styles.dayNum, isSelected && styles.dayNumSelected]}>
                     {fromISODate(iso).getDate()}
                   </Text>
                 </View>
-                {count > 0 ? <View style={styles.dot} /> : <View style={styles.dotSpacer} />}
+                {count > 0 ? <View style={bigDay ? styles.dotBig : styles.dot} /> : <View style={styles.dotSpacer} />}
               </Pressable>
             );
           })}
@@ -110,6 +112,7 @@ export default function LookbackScreen() {
             <View key={c.id} style={styles.item}>
               <Text style={styles.itemMark}>✓</Text>
               <Text style={styles.itemTitle}>{c.title}</Text>
+              {c.big && <Text style={styles.itemBig}>a big one</Text>}
             </View>
           ))
         ) : (
@@ -150,6 +153,7 @@ const styles = StyleSheet.create({
   dayNum: { color: colors.ink, fontSize: 15 },
   dayNumSelected: { color: '#FFFFFF', fontWeight: '700' },
   dot: { width: 5, height: 5, borderRadius: radius.pill, backgroundColor: colors.done, marginTop: 3 },
+  dotBig: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: colors.done, marginTop: 1 },
   dotSpacer: { width: 5, height: 5, marginTop: 3 },
   detail: { marginTop: spacing.six, gap: spacing.two },
   detailDate: { color: colors.ink, fontSize: 16, fontWeight: '600', marginBottom: spacing.one },
@@ -157,4 +161,5 @@ const styles = StyleSheet.create({
   item: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
   itemMark: { color: colors.done, fontSize: 16, fontWeight: '700' },
   itemTitle: { color: colors.inkSoft, fontSize: 16, flexShrink: 1 },
+  itemBig: { color: colors.done, fontSize: 13, fontWeight: '600' },
 });

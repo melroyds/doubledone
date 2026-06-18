@@ -154,6 +154,7 @@ export default function TodayScreen() {
       done: false,
       createdAt: now + i,
       updatedAt: now + i,
+      complexity: s.minutes, // the step's effort, used to weight its completion
     }));
     commit([...tasks, ...added]);
     track('decomposition.offered', { steps: steps.length });
