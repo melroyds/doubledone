@@ -4,6 +4,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrainDump } from '@/components/BrainDump';
+import { RepeatingDrawer } from '@/components/RepeatingDrawer';
 import { TaskRow } from '@/components/TaskRow';
 import { colors, fonts, radius, spacing } from '@/constants/theme';
 import { decompose } from '@/lib/ai';
@@ -36,6 +37,7 @@ export default function TodayScreen() {
   const [loaded, setLoaded] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const today = useMemo(() => new Date(), []);
   const router = useRouter();
   const session = useSession();
@@ -112,6 +114,11 @@ export default function TodayScreen() {
     track('day.closed', { finished: todayDone.length });
   }
 
+  function openDrawer() {
+    setDrawerOpen(true);
+    track('repeating.opened');
+  }
+
   function toggle(id: string) {
     const next = tasks.map((t) => {
       if (t.id !== id) return t;
@@ -179,14 +186,24 @@ export default function TodayScreen() {
       >
         <View style={styles.topBar}>
           <Text style={styles.date}>{formatTodayLabel(today)}</Text>
-          <Pressable
-            onPress={() => router.push('/lookback')}
-            accessibilityRole="button"
-            accessibilityLabel="Open the Lookback calendar"
-            hitSlop={8}
-          >
-            <Text style={styles.lookbackLink}>Lookback ›</Text>
-          </Pressable>
+          <View style={styles.topLinks}>
+            <Pressable
+              onPress={openDrawer}
+              accessibilityRole="button"
+              accessibilityLabel="Open repeating tasks"
+              hitSlop={8}
+            >
+              <Text style={styles.lookbackLink}>Repeating</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => router.push('/lookback')}
+              accessibilityRole="button"
+              accessibilityLabel="Open the Lookback calendar"
+              hitSlop={8}
+            >
+              <Text style={styles.lookbackLink}>Lookback ›</Text>
+            </Pressable>
+          </View>
         </View>
         <Text style={styles.title}>Today</Text>
         <Text style={styles.spine}>Just today. The rest can wait.</Text>
@@ -302,6 +319,14 @@ export default function TodayScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <RepeatingDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        tasks={tasks}
+        today={today}
+        onToggle={toggle}
+      />
     </View>
   );
 }
@@ -319,6 +344,7 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.one },
   date: { color: colors.inkSoft, fontSize: 15 },
   lookbackLink: { color: colors.accent, fontSize: 15, fontWeight: '600' },
+  topLinks: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
   title: {
     color: colors.ink,
     fontSize: 34,

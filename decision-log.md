@@ -430,3 +430,14 @@ Decided / assumptions (Melroy to challenge):
 - The system prompt is a calm PLACEHOLDER (re-spread, never cram, keep a handful today), yours to tune like decompose's.
 - Strategise surfaces when Today is heavy (6+ due) and is tappable any time; it proposes, never auto-applies (agreed). Both are part 2.
 - Shares the decompose endpoint's open-CORS posture; covered by the same pre-launch lockdown backlog item.
+
+## 2026-06-18 Repeating-tasks drawer (a separate, respected home)
+
+Daily/recurring tasks now have their own home: a panel that slides in from the right, opened by a "Repeating" link in the Today header. It lists all recurring tasks with their cadence (`describeRecurrence`) and lets you tick today's completion; toggling there is the same action as on Today, so state stays consistent. Per the agreed model, today's due recurring tasks STILL appear on Today (habits stay visible), and the drawer is the manage/overview home for all of them. Calm: a list with cadence labels, no streaks or grids (the guardrail).
+
+Implementation note: the drawer is always mounted and slides off-screen when closed (pointerEvents toggles), rather than mounting/unmounting on open. The React Compiler render rules forbid reading a ref during render and synchronous setState in an effect, which the usual `useRef(new Animated.Value())` + mount-on-open pattern trips; holding the Animated.Value in lazy `useState` and keeping the panel mounted satisfies them.
+
+Decided against:
+- Moving recurring tasks out of Today entirely. Out of sight is undone for this audience; today's due ones stay on Today, the drawer is the overview.
+- A streak grid or habit-tracker view in the drawer. That is the gamification the spec rules out; the drawer stays a calm list.
+- A third-party drawer/navigation library. Hand-built keeps it dependency-free and calm, consistent with the calendar call.

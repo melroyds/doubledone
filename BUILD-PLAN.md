@@ -65,7 +65,7 @@ Build in this order. Each step is shippable and demoable on its own.
 11. **Strategise** ("F", next), Sonnet re-spreads an over-full day
 12. ✅ **Supabase auth + sync**, opt-in cloud durability, RLS for privacy (verified live end-to-end 2026-06-18)
 13. **Gentle nudges / notifications**, native, the retention lever
-14. **Repeating-tasks panel** (a right-side slide-open drawer). Daily/recurring tasks ("daily tasks") and one-off project tasks ("TASK tasks") are different mental modes and each deserves its own respected home (Melroy, 2026-06-18). Today stays the home for one-offs; a drawer sliding in from the right (opened by a button, and a swipe, for discoverability) becomes the home for recurring tasks: see and manage all of them and their cadence, not just today's due ones. Open question before building: keep recurring tasks also surfacing on Today when due (recommended, so daily habits do not fall out of sight) with the drawer as the manage/overview home, versus moving them out of Today entirely. Trigger: Melroy's call on sequence; pairs naturally after the core AI loop (F, G), sooner if the mixed list bugs you.
+14. ✅ **Repeating-tasks panel** (a right-side slide-open drawer). Daily/recurring and one-off project tasks are different mental modes, each with its own home. A "Repeating" link in the Today header opens a drawer listing all recurring tasks with their cadence; today's due ones still also appear on Today (the recommended option, so habits stay visible). Calm list, no streaks. *Done 2026-06-18.*
 
 ## Backlog (deferred work, with triggers)
 
