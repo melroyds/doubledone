@@ -64,7 +64,7 @@ Build in this order. Each step is shippable and demoable on its own.
 10. ✅ **Close-the-day wrap** ("E"), gentle, rolls forward, zero guilt, lives on Today as a calm wrap card. *Done 2026-06-18.*
 11. **Strategise** ("F", next), Sonnet re-spreads an over-full day
 12. ✅ **Supabase auth + sync**, opt-in cloud durability, RLS for privacy (verified live end-to-end 2026-06-18)
-13. **Gentle nudges / notifications**, native, the retention lever
+13. **Gentle nudges / notifications / reminders**, native, the retention lever. A reminder is a gentle offer to do a specific thing at the right moment ("time for X"), never a demand or a nag, demand-avoidance safe for the AuDHD audience. Melroy flagged reminders as a key design consideration (2026-06-18).
 14. ✅ **Repeating-tasks panel** (a right-side slide-open drawer). Daily/recurring and one-off project tasks are different mental modes, each with its own home. A "Repeating" link in the Today header opens a drawer listing all recurring tasks with their cadence; today's due ones still also appear on Today (the recommended option, so habits stay visible). Calm list, no streaks. *Done 2026-06-18.*
 
 ## Backlog (deferred work, with triggers)
@@ -83,6 +83,10 @@ The single home for everything we have consciously parked. Nothing here is dropp
 - Calendar read (see the day's meetings to size Today). Trigger: core loop sticky and time-blindness needs calendar context.
 - **External calendar two-way sync** (tasks <-> Google / phone calendar). Trigger: Melroy wants it (confirmed 2026-06-18, after in-app scheduling lands). Needs OAuth and a calendar API; the in-app scheduling model is the foundation it builds on.
 - **AI complexity scoring / weightage.** Have the AI score how hard a task is, so the completion celebration is proportionate (the dreaded, complex thing earns the warmer acknowledgment). Cheapest source is deriving the score from a Bite-the-Elephant decomposition (steps x minutes), effectively free; a dedicated per-task AI score on every capture is token-heavy and adds latency. Trigger: the calendar / completion record exists (D) and you want the reward weighted.
+- **"Plan my day" (AI)** (Melroy, 2026-06-18). On request, arrange today's tasks into a calm suggested order and rough timing (what to do, in what sequence), distinct from Strategise (which re-spreads an over-full day across days) and Bite the Elephant (which breaks one task into steps). Propose-then-accept like Strategise; token-cost like the other AI features. Trigger: after the core AI loop; pairs with energy-matching.
+
+**Lists and collections**
+- **Custom lists** (Melroy, 2026-06-18), e.g. a long-running "TV shows to watch". Named collections that live OUTSIDE Today, so the daily list stays finite and achievable (the spine). You browse a list on its own surface (like the Repeating drawer) and pull an item into Today only when you actually want to act on it. Reference / someday lists, not daily pressure. Trigger: after the core loop; design it so it never turns Today into an everything-bucket.
 
 **Platform and distribution**
 - Play Store release, versus the current sideloaded APK. Trigger: polished enough to show publicly and you want auto-updates plus the store-listing portfolio signal (~$25 one-off plus review).
