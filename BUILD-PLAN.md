@@ -25,7 +25,7 @@ Full core loop working: capture, AI decomposition (Bite the Elephant), in-app sc
 
 ## The immediate next action
 
-**F: Strategise (step 11).** D (calendar-backed Lookback + weighted celebration) and E (close-the-day wrap) are shipped and live. Next in the agreed order D -> E -> F -> G -> H is Strategise: when Today is over-full, Sonnet re-spreads it calmly across the coming days, never all-at-once pressure. It is the "drowning" relief valve and the second live AI feature after Bite the Elephant, so it carries the same $25-cap cost discipline (one Worker route, contract-tested, minimal live calls). CX/UX is changing look-and-flow only, so this logic is safe to build now.
+**G: AI triage / hydration (step 6).** D (calendar + celebration), E (close-the-day), F (Strategise), and the repeating-tasks drawer are all shipped and live. Last in the agreed core order is triage: a cheap Haiku pass that sorts a brain-dump into today / later / decompose, so capture stays friction-free and the day self-organises. Then H (notifications / reminders) closes the core, after which the deliberate design overhaul and the ParkProof-grade GitHub (both backlogged) are the post-core work. CX/UX is changing look-and-flow only, so this logic is safe to build now.
 
 ---
 
@@ -62,7 +62,7 @@ Build in this order. Each step is shippable and demoable on its own.
 8. ✅ **The Lookback, backed by an interactive calendar** ("D1"). A true Gregorian calendar you open any time and browse by day, showing what you completed and when. *Done 2026-06-18.*
 9. ✅ **Complexity-weighted celebration** ("D2"). Closing a long-dreaded or chunky task gets a bigger calendar dot and a warm "a big one", weighting the *warmth* of the acknowledgment, never points / streaks. Score derived cheaply from a Bite-the-Elephant decomposition. *Done 2026-06-18.*
 10. ✅ **Close-the-day wrap** ("E"), gentle, rolls forward, zero guilt, lives on Today as a calm wrap card. *Done 2026-06-18.*
-11. **Strategise** ("F", next), Sonnet re-spreads an over-full day
+11. ✅ **Strategise** ("F"), Sonnet re-spreads an over-full day, propose-then-accept. *Done 2026-06-18.*
 12. ✅ **Supabase auth + sync**, opt-in cloud durability, RLS for privacy (verified live end-to-end 2026-06-18)
 13. **Gentle nudges / notifications / reminders**, native, the retention lever. A reminder is a gentle offer to do a specific thing at the right moment ("time for X"), never a demand or a nag, demand-avoidance safe for the AuDHD audience. Melroy flagged reminders as a key design consideration (2026-06-18).
 14. ✅ **Repeating-tasks panel** (a right-side slide-open drawer). Daily/recurring and one-off project tasks are different mental modes, each with its own home. A "Repeating" link in the Today header opens a drawer listing all recurring tasks with their cadence; today's due ones still also appear on Today (the recommended option, so habits stay visible). Calm list, no streaks. *Done 2026-06-18.*

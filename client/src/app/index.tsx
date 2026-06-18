@@ -7,10 +7,10 @@ import { BrainDump } from '@/components/BrainDump';
 import { RepeatingDrawer } from '@/components/RepeatingDrawer';
 import { TaskRow } from '@/components/TaskRow';
 import { colors, fonts, radius, spacing } from '@/constants/theme';
-import { decompose } from '@/lib/ai';
+import { decompose, strategise, type PlanItem } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
-import { formatTodayLabel, friendlyDate, toISODate } from '@/lib/day';
+import { addDaysISO, formatTodayLabel, friendlyDate, toISODate } from '@/lib/day';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { loadTasks, saveTasks } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
@@ -38,6 +38,9 @@ export default function TodayScreen() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [strategising, setStrategising] = useState(false);
+  const [plan, setPlan] = useState<PlanItem[] | null>(null);
+  const [strategiseError, setStrategiseError] = useState<string | null>(null);
   const today = useMemo(() => new Date(), []);
   const router = useRouter();
   const session = useSession();
@@ -87,6 +90,8 @@ export default function TodayScreen() {
   const upcoming = upcomingTasks(tasks, today);
   const allDone = loaded && visible.length > 0 && visible.every((t) => isDoneOn(t, today));
   const todayDone = useMemo(() => completionsByDay(tasks).get(toISODate(today)) ?? [], [tasks, today]);
+  // One-off, undone tasks on Today: the ones Strategise can re-spread (recurring stay by cadence).
+  const spreadable = visible.filter((t) => !isRecurring(t) && !isDoneOn(t, today));
 
   function commit(next: Task[]) {
     setTasks(next);
@@ -117,6 +122,38 @@ export default function TodayScreen() {
   function openDrawer() {
     setDrawerOpen(true);
     track('repeating.opened');
+  }
+
+  // Strategise: hand today's one-offs to the AI, get a calm re-spread, then PROPOSE
+  // it (the user accepts). Never rearranges the day on its own.
+  async function runStrategise() {
+    if (strategising) return;
+    setStrategiseError(null);
+    setStrategising(true);
+    try {
+      const result = await strategise(spreadable.map((t) => ({ id: t.id, title: t.title })));
+      track('strategise.requested', { count: spreadable.length });
+      setPlan(result);
+    } catch {
+      setStrategiseError('Could not strategise just now. Try again.');
+    } finally {
+      setStrategising(false);
+    }
+  }
+
+  function acceptPlan() {
+    if (!plan) return;
+    const byId = new Map(plan.map((p) => [p.id, p.dayOffset]));
+    const now = nowMs();
+    const next = tasks.map((t) => {
+      const off = byId.get(t.id);
+      if (off == null) return t;
+      // dayOffset 0 keeps it on Today (undated); >0 sets a future due date.
+      return { ...t, due: off <= 0 ? null : addDaysISO(today, off), updatedAt: now };
+    });
+    commit(next);
+    track('strategise.accepted', { moved: plan.filter((p) => p.dayOffset > 0).length });
+    setPlan(null);
   }
 
   function toggle(id: string) {
@@ -252,14 +289,31 @@ export default function TodayScreen() {
           </View>
         )}
         {loaded && (
-          <Pressable
-            onPress={openClose}
-            style={({ pressed }) => [styles.closeDay, pressed && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel="Close the day"
-          >
-            <Text style={styles.closeDayText}>Close the day</Text>
-          </Pressable>
+          <View style={styles.dayActions}>
+            {spreadable.length >= 2 && (
+              <>
+                {spreadable.length >= 6 && <Text style={styles.strategiseNudge}>{"Today's looking full."}</Text>}
+                <Pressable
+                  onPress={runStrategise}
+                  disabled={strategising}
+                  style={({ pressed }) => [styles.strategiseBtn, pressed && styles.pressed, strategising && styles.disabledBtn]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Strategise the day"
+                >
+                  <Text style={styles.strategiseBtnText}>{strategising ? 'Strategising…' : 'Strategise'}</Text>
+                </Pressable>
+                {strategiseError && <Text style={styles.strategiseErr}>{strategiseError}</Text>}
+              </>
+            )}
+            <Pressable
+              onPress={openClose}
+              style={({ pressed }) => [styles.closeDay, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Close the day"
+            >
+              <Text style={styles.closeDayText}>Close the day</Text>
+            </Pressable>
+          </View>
         )}
       </ScrollView>
 
@@ -317,6 +371,41 @@ export default function TodayScreen() {
               accessibilityLabel="Goodnight"
             >
               <Text style={styles.wrapBtnText}>Goodnight</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={plan != null} transparent animationType="fade" onRequestClose={() => setPlan(null)}>
+        <Pressable style={styles.backdrop} onPress={() => setPlan(null)} accessibilityLabel="Dismiss">
+          <Pressable style={styles.wrapCard} onPress={() => {}}>
+            <Text style={styles.wrapTitle}>A calmer spread</Text>
+            <Text style={styles.wrapLine}>{"Keep today lighter. Here's where the rest could go."}</Text>
+            <View style={styles.wrapList}>
+              {(plan ?? []).map((p) => {
+                const t = tasks.find((x) => x.id === p.id);
+                if (!t) return null;
+                const when = p.dayOffset <= 0 ? 'Today' : p.dayOffset === 1 ? 'Tomorrow' : `In ${p.dayOffset} days`;
+                return (
+                  <View key={p.id} style={styles.planItem}>
+                    <Text style={styles.planTitle} numberOfLines={1}>
+                      {t.title}
+                    </Text>
+                    <Text style={styles.planWhen}>{when}</Text>
+                  </View>
+                );
+              })}
+            </View>
+            <Pressable
+              onPress={acceptPlan}
+              style={({ pressed }) => [styles.wrapBtn, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Use this spread"
+            >
+              <Text style={styles.wrapBtnText}>Use this spread</Text>
+            </Pressable>
+            <Pressable onPress={() => setPlan(null)} accessibilityRole="button" accessibilityLabel="Not now">
+              <Text style={styles.planDismiss}>Not now</Text>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -400,9 +489,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.three,
     letterSpacing: 0.3,
   },
+  dayActions: { marginTop: spacing.seven, alignItems: 'center', gap: spacing.three },
   closeDay: {
-    alignSelf: 'center',
-    marginTop: spacing.seven,
     paddingVertical: spacing.three,
     paddingHorizontal: spacing.five,
     borderRadius: radius.md,
@@ -410,6 +498,21 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   closeDayText: { color: colors.inkSoft, fontSize: 15, fontWeight: '600' },
+  strategiseNudge: { color: colors.inkSoft, fontSize: 14 },
+  strategiseBtn: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    paddingVertical: spacing.three,
+    paddingHorizontal: spacing.five,
+  },
+  strategiseBtnText: { color: colors.accent, fontSize: 16, fontWeight: '600' },
+  strategiseErr: { color: colors.accent, fontSize: 13 },
+  disabledBtn: { opacity: 0.5 },
+  planItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
+  planTitle: { color: colors.ink, fontSize: 16, flexShrink: 1 },
+  planWhen: { color: colors.accent, fontSize: 14, fontWeight: '600' },
+  planDismiss: { color: colors.inkSoft, fontSize: 15, textAlign: 'center', marginTop: spacing.two },
   pressed: { opacity: 0.85 },
   backdrop: {
     flex: 1,

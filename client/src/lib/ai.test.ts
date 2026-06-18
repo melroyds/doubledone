@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { decompose, parseSteps } from './ai';
+import { decompose, parsePlan, parseSteps, strategise } from './ai';
 
 describe('parseSteps', () => {
   it('keeps well-formed steps', () => {
@@ -45,5 +45,51 @@ describe('decompose', () => {
   it('throws on a non-ok response', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502 }) as unknown as Response));
     await expect(decompose('x')).rejects.toThrow();
+  });
+});
+
+describe('parsePlan', () => {
+  it('keeps well-formed plan items', () => {
+    expect(
+      parsePlan({
+        plan: [
+          { id: 'a', dayOffset: 0, reason: 'keep today' },
+          { id: 'b', dayOffset: 2, reason: 'can wait' },
+        ],
+      }),
+    ).toEqual([
+      { id: 'a', dayOffset: 0, reason: 'keep today' },
+      { id: 'b', dayOffset: 2, reason: 'can wait' },
+    ]);
+  });
+
+  it('returns [] for malformed data', () => {
+    expect(parsePlan(null)).toEqual([]);
+    expect(parsePlan({})).toEqual([]);
+    expect(parsePlan({ plan: [{ id: 'a' }] })).toEqual([]);
+  });
+});
+
+describe('strategise', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('POSTs the tasks to /strategise and returns the parsed plan (mocked, no live call)', async () => {
+    const fetchMock = vi.fn(
+      async (_url: string, _init: { method: string; body: string }) =>
+        ({ ok: true, json: async () => ({ plan: [{ id: 't1', dayOffset: 1, reason: 'tomorrow' }] }) }) as unknown as Response,
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const plan = await strategise([{ id: 't1', title: 'A' }]);
+    expect(plan).toEqual([{ id: 't1', dayOffset: 1, reason: 'tomorrow' }]);
+
+    const init = fetchMock.mock.calls[0][1];
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body).tasks[0].id).toBe('t1');
+  });
+
+  it('throws on a non-ok response', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502 }) as unknown as Response));
+    await expect(strategise([{ id: 'x', title: 'X' }])).rejects.toThrow();
   });
 });

@@ -31,3 +31,31 @@ export async function decompose(task: string): Promise<DecomposedStep[]> {
   if (!res.ok) throw new Error(`decompose failed (${res.status})`);
   return parseSteps(await res.json());
 }
+
+export type PlanItem = { id: string; dayOffset: number; reason: string };
+
+/** Pull the re-spread plan out of the backend response, defensively (never throws). */
+export function parsePlan(data: unknown): PlanItem[] {
+  const plan = (data as { plan?: unknown } | null)?.plan;
+  if (!Array.isArray(plan)) return [];
+  return plan
+    .filter(
+      (p): p is PlanItem =>
+        p != null &&
+        typeof (p as PlanItem).id === 'string' &&
+        typeof (p as PlanItem).dayOffset === 'number' &&
+        typeof (p as PlanItem).reason === 'string',
+    )
+    .map((p) => ({ id: p.id, dayOffset: p.dayOffset, reason: p.reason }));
+}
+
+/** Ask the AI to re-spread an over-full day across the next few days. Throws on failure. */
+export async function strategise(tasks: { id: string; title: string }[]): Promise<PlanItem[]> {
+  const res = await fetch(`${AI_URL}/strategise`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ tasks }),
+  });
+  if (!res.ok) throw new Error(`strategise failed (${res.status})`);
+  return parsePlan(await res.json());
+}

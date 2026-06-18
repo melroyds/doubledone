@@ -470,6 +470,16 @@ Decided against:
 - Keeping the gradient for recurring. Too loud for an everyday row, and reusing the same gradient for both recurring and "priority" would blur their meanings.
 - Uninstalling expo-linear-gradient. It is reserved for the imminent Prioritise feature; leaving it installed avoids churn, and it is not bundled while unimported.
 
+## 2026-06-18 F (Strategise) part 2: the client UI (propose-then-accept)
+
+Strategise is live end to end. When Today has 2+ one-off tasks (a gentle "Today's looking full" nudge appears at 6+), a calm Strategise button hands them to `/strategise` and shows the AI's re-spread as a PROPOSAL: each task with where it would go (Today / Tomorrow / In N days). The user taps "Use this spread" to apply (each task's due set to `addDaysISO(today, dayOffset)`; offset 0 keeps it on Today) or "Not now" to dismiss. Recurring tasks are never re-spread (they are due by cadence). `strategise()`/`parsePlan` in ai.ts are contract-tested; one live validation call confirmed the chain (a 6-task day came back keep-3-today, dentist tomorrow, bike +2, garage +3, with calm reasons) and accept correctly re-dated the tasks.
+
+Decided against:
+- Auto-applying the spread. Propose-then-accept keeps the user in control (agreed with Melroy); the AI never silently rearranges the day.
+- Re-spreading recurring tasks. They recur by cadence; only one-offs get moved.
+
+Tooling note: `preview_click` did not fire onPress for these particular Pressables; verified the handler via a direct DOM `.click()` in eval and the end state via reload. A preview limitation, not an app bug.
+
 ## 2026-06-18 Recurring treatment, take 4 (final): reversed
 
 Reversed take 3 at Melroy's call: the solid denim border now marks ONE-OFF (unique) tasks; repeating tasks drop the border but keep the ↻ mark. Same denim colour. Verified in preview: the one-off row border is denim, the recurring row is the plain line plus ↻.
