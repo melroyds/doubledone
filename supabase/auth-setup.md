@@ -25,9 +25,22 @@ Free tier covers this easily (3,000/month). Steps:
 4. Save. The "set up SMTP to edit templates" banner disappears; templates become editable.
 
 Note on sender: without a verified domain, Resend only sends FROM `onboarding@resend.dev`
-and only TO your own account email. That is enough to test your own sign-in now. For
-real users, verify doubledone.app in Resend (add its SPF/DKIM DNS records in Cloudflare),
-then send from `noreply@doubledone.app`.
+and only TO your own account email. That is enough to test your own sign-in. To email
+anyone, verify the domain (below).
+
+### To send to ANY email address (verify the domain)
+1. Resend -> Domains -> Add Domain -> `doubledone.app`.
+2. Resend shows DNS records (a DKIM TXT, an SPF TXT, an MX, maybe a return-path). Copy them.
+3. Cloudflare -> doubledone.app -> DNS -> add each record exactly as shown. Set any CNAME
+   to "DNS only" (grey cloud), NOT proxied (orange cloud), or the email DNS breaks.
+4. Resend -> Verify (Cloudflare usually propagates within a few minutes).
+5. Supabase -> Authentication -> Emails -> SMTP Settings -> change Sender email to
+   `noreply@doubledone.app` (must be on the verified domain) -> Save.
+6. Send a code to a different address to confirm.
+
+You do not need a real mailbox for `noreply@`; Resend only sends. Optionally add a DMARC
+TXT record (`_dmarc` -> `v=DMARC1; p=none;`) for better inbox placement. The free tier
+then covers any recipient (3,000/month, 100/day).
 
 ## Email templates must send the code, not a link
 
