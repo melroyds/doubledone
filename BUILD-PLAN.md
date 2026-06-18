@@ -25,7 +25,7 @@ Full core loop working: capture, AI decomposition (Bite the Elephant), in-app sc
 
 ## The immediate next action
 
-**G: AI triage / hydration (step 6).** D (calendar + celebration), E (close-the-day), F (Strategise), and the repeating-tasks drawer are all shipped and live. Last in the agreed core order is triage: a cheap Haiku pass that sorts a brain-dump into today / later / decompose, so capture stays friction-free and the day self-organises. Then H (notifications / reminders) closes the core, after which the deliberate design overhaul and the ParkProof-grade GitHub (both backlogged) are the post-core work. CX/UX is changing look-and-flow only, so this logic is safe to build now.
+**H: gentle nudges / notifications / reminders (step 13).** A, B, C, D, E, F, G (triage) and the repeating drawer are all shipped and live. The last core piece is reminders: native notifications that gently offer "time for X" at the right moment, never a demand or a nag (demand-avoidance safe). Likely needs `expo-notifications` and a permission ask; works best on the installed Android build. After H the core loop is complete, leaving the deliberate design overhaul and the ParkProof-grade GitHub (both backlogged) as the post-core work.
 
 ---
 
@@ -54,7 +54,7 @@ Build in this order. Each step is shippable and demoable on its own.
 3. ✅ **Local store** (anonymous-first, on-device) for tasks + the Today view reading from it. *Done 2026-06-17.*
 4. ✅ **AI backend** (Cloudflare Worker, not Render) holding the Anthropic key, with the request-contract test (mock SDK, assert shape). *Done 2026-06-18.*
 5. ✅ **Bite the Elephant**, Sonnet decomposition of a stuck task into atomic time-boxed steps, dropped into Today. Completion outcomes instrumented (the moat starts here). *Done 2026-06-18.*
-6. **AI triage / hydration**, sort the brain-dump into today / later / decompose (Haiku, cheap)
+6. ✅ **AI triage / hydration** ("G"), "Sort for me" sorts a brain-dump into today / later / decompose (Haiku, cheap). *Done 2026-06-18.*
 7. **Recurring daily tracker**, the repeating-tasks subsection
 
 ## Tier 2 (what makes it sticky)

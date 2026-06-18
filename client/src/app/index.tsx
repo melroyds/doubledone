@@ -7,7 +7,7 @@ import { BrainDump } from '@/components/BrainDump';
 import { RepeatingDrawer } from '@/components/RepeatingDrawer';
 import { TaskRow } from '@/components/TaskRow';
 import { colors, fonts, radius, spacing } from '@/constants/theme';
-import { decompose, strategise, type PlanItem } from '@/lib/ai';
+import { decompose, strategise, triage, type PlanItem } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
 import { addDaysISO, formatTodayLabel, friendlyDate, toISODate } from '@/lib/day';
@@ -214,6 +214,28 @@ export default function TodayScreen() {
     track('decomposition.offered', { steps: steps.length });
   }
 
+  // AI triage: sort a brain-dump into buckets, then apply (later -> tomorrow; today
+  // and decompose stay on Today). Opt-in via "Sort for me", so a direct apply is calm.
+  // Lines the AI drops fall back to Today.
+  async function sortDump(text: string) {
+    const lines = parseDump(text);
+    if (lines.length === 0) return;
+    const items = await triage(lines);
+    const bucketOf = new Map(items.map((it) => [it.text, it.bucket]));
+    const now = nowMs();
+    const added: Task[] = lines.map((title, i) => {
+      const base = { id: makeId(), title, done: false, createdAt: now + i, updatedAt: now + i };
+      return bucketOf.get(title) === 'later' ? { ...base, due: addDaysISO(today, 1) } : base;
+    });
+    commit([...tasks, ...added]);
+    track('triage.applied', {
+      total: lines.length,
+      today: items.filter((it) => it.bucket === 'today').length,
+      later: items.filter((it) => it.bucket === 'later').length,
+      decompose: items.filter((it) => it.bucket === 'decompose').length,
+    });
+  }
+
   return (
     <View style={styles.screen}>
       <ScrollView
@@ -318,7 +340,7 @@ export default function TodayScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.four }]}>
-        <BrainDump onCapture={capture} onBiteElephant={biteElephant} today={today} />
+        <BrainDump onCapture={capture} onBiteElephant={biteElephant} onSort={sortDump} today={today} />
         {isSyncConfigured &&
           (session ? (
             <View style={styles.syncRow}>

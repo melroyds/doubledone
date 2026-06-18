@@ -59,3 +59,33 @@ export async function strategise(tasks: { id: string; title: string }[]): Promis
   if (!res.ok) throw new Error(`strategise failed (${res.status})`);
   return parsePlan(await res.json());
 }
+
+export type Bucket = 'today' | 'later' | 'decompose';
+export type TriagedItem = { text: string; bucket: Bucket };
+
+const BUCKETS: Bucket[] = ['today', 'later', 'decompose'];
+
+/** Pull the triaged items out of the backend response, defensively (never throws). */
+export function parseTriage(data: unknown): TriagedItem[] {
+  const items = (data as { items?: unknown } | null)?.items;
+  if (!Array.isArray(items)) return [];
+  return items
+    .filter(
+      (it): it is TriagedItem =>
+        it != null &&
+        typeof (it as TriagedItem).text === 'string' &&
+        BUCKETS.includes((it as TriagedItem).bucket),
+    )
+    .map((it) => ({ text: it.text, bucket: it.bucket }));
+}
+
+/** Sort a brain-dump into today / later / decompose via the AI backend. Throws on failure. */
+export async function triage(lines: string[]): Promise<TriagedItem[]> {
+  const res = await fetch(`${AI_URL}/triage`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ lines }),
+  });
+  if (!res.ok) throw new Error(`triage failed (${res.status})`);
+  return parseTriage(await res.json());
+}

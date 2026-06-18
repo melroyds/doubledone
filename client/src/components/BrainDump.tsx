@@ -7,6 +7,7 @@ import { type CaptureSchedule } from '@/lib/recurrence';
 type Props = {
   onCapture: (text: string, schedule: CaptureSchedule) => void;
   onBiteElephant: (text: string) => Promise<void>;
+  onSort: (text: string) => Promise<void>;
   today: Date;
 };
 
@@ -33,13 +34,15 @@ const ADD_LABEL: Record<Mode, string> = {
 // Capture, with a calm "when" (the chips, for adding) and a "break it down" path
 // (hand a dreaded task to the AI and get small steps into Today). Default is one
 // gesture; everything else is there only when wanted.
-export function BrainDump({ onCapture, onBiteElephant, today }: Props) {
+export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
   const [value, setValue] = useState('');
   const [mode, setMode] = useState<Mode>('today');
   const [weekdays, setWeekdays] = useState<number[]>([today.getDay()]);
   const [everyNDays, setEveryNDays] = useState(2);
-  const [busy, setBusy] = useState(false);
+  const [busyKind, setBusyKind] = useState<'bite' | 'sort' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const busy = busyKind !== null;
+  const lineCount = value.split('\n').filter((l) => l.trim().length > 0).length;
 
   function buildSchedule(): CaptureSchedule {
     if (mode === 'weekly') {
@@ -67,14 +70,29 @@ export function BrainDump({ onCapture, onBiteElephant, today }: Props) {
     const task = value.trim();
     if (!task || busy) return;
     setError(null);
-    setBusy(true);
+    setBusyKind('bite');
     try {
       await onBiteElephant(task);
       reset();
     } catch {
       setError('Could not break that down just now. Try again.');
     } finally {
-      setBusy(false);
+      setBusyKind(null);
+    }
+  }
+
+  async function sortDump() {
+    const text = value;
+    if (!text.trim() || busy) return;
+    setError(null);
+    setBusyKind('sort');
+    try {
+      await onSort(text);
+      reset();
+    } catch {
+      setError('Could not sort just now. Try again.');
+    } finally {
+      setBusyKind(null);
     }
   }
 
@@ -151,22 +169,41 @@ export function BrainDump({ onCapture, onBiteElephant, today }: Props) {
       )}
 
       <View style={styles.actions}>
-        <Pressable
-          onPress={biteElephant}
-          disabled={busy}
-          style={({ pressed }) => [styles.bite, pressed && styles.pressed, busy && styles.disabled]}
-          accessibilityRole="button"
-          accessibilityLabel="Break it down with AI"
-        >
-          {busy ? (
-            <View style={styles.biteBusy}>
-              <ActivityIndicator size="small" color={colors.accent} />
-              <Text style={styles.biteText}>Breaking it down…</Text>
-            </View>
-          ) : (
-            <Text style={styles.biteText}>Break it down</Text>
-          )}
-        </Pressable>
+        {lineCount >= 2 ? (
+          <Pressable
+            onPress={sortDump}
+            disabled={busy}
+            style={({ pressed }) => [styles.bite, pressed && styles.pressed, busy && styles.disabled]}
+            accessibilityRole="button"
+            accessibilityLabel="Sort with AI"
+          >
+            {busyKind === 'sort' ? (
+              <View style={styles.biteBusy}>
+                <ActivityIndicator size="small" color={colors.accent} />
+                <Text style={styles.biteText}>Sorting…</Text>
+              </View>
+            ) : (
+              <Text style={styles.biteText}>Sort for me</Text>
+            )}
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={biteElephant}
+            disabled={busy}
+            style={({ pressed }) => [styles.bite, pressed && styles.pressed, busy && styles.disabled]}
+            accessibilityRole="button"
+            accessibilityLabel="Break it down with AI"
+          >
+            {busyKind === 'bite' ? (
+              <View style={styles.biteBusy}>
+                <ActivityIndicator size="small" color={colors.accent} />
+                <Text style={styles.biteText}>Breaking it down…</Text>
+              </View>
+            ) : (
+              <Text style={styles.biteText}>Break it down</Text>
+            )}
+          </Pressable>
+        )}
 
         <Pressable
           onPress={add}

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { decompose, parsePlan, parseSteps, strategise } from './ai';
+import { decompose, parsePlan, parseSteps, parseTriage, strategise, triage } from './ai';
 
 describe('parseSteps', () => {
   it('keeps well-formed steps', () => {
@@ -91,5 +91,54 @@ describe('strategise', () => {
   it('throws on a non-ok response', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502 }) as unknown as Response));
     await expect(strategise([{ id: 'x', title: 'X' }])).rejects.toThrow();
+  });
+});
+
+describe('parseTriage', () => {
+  it('keeps items with a valid bucket, drops the rest', () => {
+    expect(
+      parseTriage({
+        items: [
+          { text: 'A', bucket: 'today' },
+          { text: 'B', bucket: 'later' },
+          { text: 'C', bucket: 'decompose' },
+          { text: 'D', bucket: 'someday' },
+          { bucket: 'today' },
+        ],
+      }),
+    ).toEqual([
+      { text: 'A', bucket: 'today' },
+      { text: 'B', bucket: 'later' },
+      { text: 'C', bucket: 'decompose' },
+    ]);
+  });
+
+  it('returns [] for malformed data', () => {
+    expect(parseTriage(null)).toEqual([]);
+    expect(parseTriage({})).toEqual([]);
+  });
+});
+
+describe('triage', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('POSTs the lines to /triage and returns the parsed items (mocked, no live call)', async () => {
+    const fetchMock = vi.fn(
+      async (_url: string, _init: { method: string; body: string }) =>
+        ({ ok: true, json: async () => ({ items: [{ text: 'Call mum', bucket: 'today' }] }) }) as unknown as Response,
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const items = await triage(['Call mum']);
+    expect(items).toEqual([{ text: 'Call mum', bucket: 'today' }]);
+
+    const init = fetchMock.mock.calls[0][1];
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body).lines[0]).toBe('Call mum');
+  });
+
+  it('throws on a non-ok response', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502 }) as unknown as Response));
+    await expect(triage(['x'])).rejects.toThrow();
   });
 });

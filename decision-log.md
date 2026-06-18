@@ -489,3 +489,11 @@ Reversed take 3 at Melroy's call: the solid denim border now marks ONE-OFF (uniq
 Third Worker route: `POST /triage` takes a brain-dump (lines) and returns each line sorted into today / later / decompose via Haiku tool-use (`record_triage`, an enum-constrained bucket). The cheap model (`claude-haiku-4-5`) is deliberate because triage runs on the friction-free capture path. Pure prompt/shaping in `server/src/triage.ts`, contract-tested (request shape, sample parse, bad-bucket filtering), no live call in CI. Deployed.
 
 Assumptions (Melroy to challenge): the system prompt is a calm PLACEHOLDER; three buckets (today/later/decompose), Haiku for cost. Shares the open-CORS posture (pre-launch lockdown backlog item).
+
+## 2026-06-18 G (AI triage) part 2: "Sort for me" on the brain-dump
+
+Capture now has an opt-in triage. When you dump 2+ lines, the left AI button becomes "Sort for me" (it stays "Break it down" for a single line). It hands the lines to `/triage` (Haiku) and applies the result directly: "later" items get tomorrow's due date (so they leave Today), "today" and "decompose" items stay on Today; lines the AI drops fall back to Today. Bucket counts go to telemetry (`triage.applied`) for the moat. client `triage()`/`parseTriage` are contract-tested; one live call validated the buckets (wedding + tax return -> decompose, quick things -> today).
+
+Decided against:
+- A propose-then-accept card for triage (unlike Strategise). Triage runs on the capture path, where the goal is friction-free "dump and it sorts itself"; a review step fights that. It is opt-in via the button, the result is visible, and tasks are editable, so a direct apply is calm here.
+- Auto-decomposing the "decompose" bucket. That would fire a Bite-the-Elephant call per big item (token-heavy). For v1 those land on Today and the bucket is recorded; auto-offer-decompose is a future enhancement.
