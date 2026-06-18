@@ -653,3 +653,19 @@ Decided against:
 - **A heavy i18n library (i18next) up front.** The string count is modest and Pass 1's value is the AI-in-language, not the UI strings yet; a small typed layer will do, swappable later if plurals get hairy.
 - **Translating the UI now.** Sequenced after the design overhaul so the final copy is translated once, not twice.
 - **Sending the language to triage.** Would corrupt the exact-text echo it relies on.
+
+## 2026-06-19 Design overhaul: the "Dusk" system
+
+Melroy ran the A0 master prompt through his design tooling and brought back a system he loved: **Dusk**. Mockups and the philosophy are saved in `docs/design/`. Implementing it. This entry covers the palette + system-following dark (this commit); the typography lands next.
+
+The Dusk system:
+- **Palette:** the warm-paper, calm-and-quiet direction kept, with the accent moving from clay to a **dusky mauve** (`#9B6A7D` light / `#C68BA0` dark) and repeating tasks from denim to **periwinkle** (`#6E72A0` / `#8E97C8`). Sage "done" unchanged. A small calm accent palette (mauve / teal / gold / periwinkle / rose, desaturated) is captured as tokens for per-task dots.
+- **Dark mode is a warm charcoal-brown** (`#1B1917`), not terminal black: "lights dimmed, not a different room." Every hue lifts in lightness to clear WCAG AA on the dark surface, and nothing gains saturation or urgency, which fits the never-alarming spine.
+- **System-following, not a setting.** The active palette is resolved once at launch from the device colour scheme (`Appearance.getColorScheme()`, which reads `prefers-color-scheme` on web). Light is the default; a dark-mode device gets Dusk dark automatically. Resolved at module load so component StyleSheets stay static, no per-component theme hook or refactor, and no in-app toggle to manage (honours "remove friction, never add a setting").
+- **Typography (next commit): Newsreader** (serif) for display/headings and **Atkinson Hyperlegible** for body, the Braille Institute's legibility typeface, a deliberately accessibility-first pairing for this audience.
+
+Decided:
+- **Dusk over the clay baseline.** The zip also held the current clay palette (the base "Design System" doc); the mockups Melroy made and praised are all Dusk, so Dusk is the pick. Clay is a one-line revert if he disagrees.
+- **Resolve the scheme at launch, not reactively.** Runtime scheme-switching would force every component's `StyleSheet.create` (which reads `colors` at module load) into a theme hook, a large refactor for little gain. Launch-time resolution is "system-following" enough and keeps the change contained. A live toggle can come with the Settings page if ever wanted.
+
+Verified both modes in preview (light default + dark via `prefers-color-scheme`): mauve accent, periwinkle unique-borders, sage progress, recurring rows with ↻, warm-charcoal dark, no console errors.
