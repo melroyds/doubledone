@@ -51,7 +51,14 @@ create index if not exists tasks_user_id_idx on public.tasks (user_id);
 -- alter table public.tasks
 --   alter column created_at type timestamptz using to_timestamp(created_at / 1000.0);
 --
--- The live table also lacked a PRIMARY KEY on id, so upserts (on_conflict=id) failed
--- with 42P10 "no unique or exclusion constraint matching the ON CONFLICT specification".
--- Add it (safe on the empty table; id is the client-generated identity):
--- alter table public.tasks add primary key (id);
+-- The live table had its PRIMARY KEY on the wrong column (not id), so upserts
+-- (on_conflict=id) failed with 42P10, and a plain "add primary key (id)" failed with
+-- 42P16 (a table can have only one PK). Drop whatever PK exists and make id the PK
+-- (safe on the empty table; id is the client-generated identity):
+-- do $$ declare pk text;
+-- begin
+--   select conname into pk from pg_constraint
+--   where conrelid = 'public.tasks'::regclass and contype = 'p';
+--   if pk is not null then execute format('alter table public.tasks drop constraint %I', pk); end if;
+--   alter table public.tasks add primary key (id);
+-- end $$;
