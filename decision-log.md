@@ -453,3 +453,11 @@ Recognisable on Today: recurring tasks now read as a distinct category. A new co
 Decided against:
 - A free-text number field for the interval. A stepper is calmer and avoids a keyboard; min 2 because 1 is just Daily.
 - A whole new colour system. One added token (`repeat`) carries the distinction; warm vs cool is the recognisable cue without a redesign (the real design overhaul is the backlog item).
+
+## 2026-06-18 Recurring tasks: bold gradient on Today (the denim was too subtle)
+
+The denim ring + ↻ was too quiet; recurring tasks are the operational backbone and should be unmistakable. Recurring rows on Today now have a bold blue->violet gradient fill (`expo-linear-gradient`) with white text and a white ↻; one-offs stay plain white. Done recurring rows dim to 0.55. The gradient stops live in the theme (`repeatGradient`) so they are a one-line change. Added dependency: `expo-linear-gradient` (~56.0.4, via `expo install`, cross-platform web + native).
+
+Decided against:
+- A louder treatment (full-saturation / neon). Bold but still a smooth two-stop gradient, to stay short of sensory-jarring for the autistic side of the audience; the stops are tunable.
+- A separate "essentials" section. The gradient marks them in place on Today, so the single Today surface stays intact (the drawer remains the manage-all home).
