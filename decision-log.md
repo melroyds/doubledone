@@ -441,3 +441,15 @@ Decided against:
 - Moving recurring tasks out of Today entirely. Out of sight is undone for this audience; today's due ones stay on Today, the drawer is the overview.
 - A streak grid or habit-tracker view in the drawer. That is the gamification the spec rules out; the drawer stays a calm list.
 - A third-party drawer/navigation library. Hand-built keeps it dependency-free and calm, consistent with the calendar call.
+
+## 2026-06-18 Repeating tasks: every-N-days + recognisable on Today
+
+Two fixes Melroy asked for.
+
+Every N days: the recurrence model gains an interval kind (`{ kind: 'interval'; days; anchor }`), due when (date minus anchor) is a non-negative multiple of `days`. Capture offers an "Every N" chip with a +/- stepper (min 2, max 30), anchored to the day you add it. Covers "change the cat's water every 2 days". `isDueOn`, `describeRecurrence` ("Every 2 days"), and `scheduleFields` are unit-tested.
+
+Recognisable on Today: recurring tasks now read as a distinct category. A new cool "repeat" palette colour (denim, against the warm paper/clay/sage) tints the checkbox ring, and a ↻ marker sits on the row. One-offs are unchanged. Verified: an interval task shows on Today with the marker and in the Repeating drawer as "Every 2 days".
+
+Decided against:
+- A free-text number field for the interval. A stepper is calmer and avoids a keyboard; min 2 because 1 is just Daily.
+- A whole new colour system. One added token (`repeat`) carries the distinction; warm vs cool is the recognisable cue without a redesign (the real design overhaul is the backlog item).

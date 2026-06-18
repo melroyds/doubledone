@@ -19,6 +19,7 @@ const light = {
   accentSoft: '#F3E4DC', // clay tint
   done: '#7E9B6B', // sage, completion, calm not alarming
   doneSoft: '#E9EFE2',
+  repeat: '#5F7E9B', // cool denim, marks repeating tasks as distinct from one-offs
 } as const;
 
 const dark = {
@@ -32,6 +33,7 @@ const dark = {
   accentSoft: '#3A2C26',
   done: '#9DB98A',
   doneSoft: '#2A3024',
+  repeat: '#8AA6C2',
 } as const;
 
 export const Colors = { light, dark } as const;

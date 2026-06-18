@@ -1,13 +1,13 @@
-import { addDaysISO, toISODate } from './day';
+import { addDaysISO, daysBetween, fromISODate, toISODate } from './day';
 
 // A task is either one-off (no recurrence, optionally with a due date) or it
-// repeats. Kept deliberately small: daily and weekly cover almost everything an
-// ADHD daily tool needs, and every extra scheduling option is friction the spec
-// warns against. Monthly / interval can join later if a real need shows up.
+// repeats: daily, on chosen weekdays, or every N days from a start date (e.g.
+// the cat's water every 2 days). Kept deliberately small; monthly can join later.
 export type Recurrence =
   | { kind: 'none' }
   | { kind: 'daily' }
-  | { kind: 'weekly'; weekdays: number[] }; // 0=Sun .. 6=Sat
+  | { kind: 'weekly'; weekdays: number[] } // 0=Sun .. 6=Sat
+  | { kind: 'interval'; days: number; anchor: string }; // every `days` days from `anchor` (ISO date)
 
 export type Schedulable = {
   due?: string | null; // 'YYYY-MM-DD' for a one-off; null/undefined = someday
@@ -24,6 +24,10 @@ export function isDueOn(task: Schedulable, date: Date): boolean {
       return true;
     case 'weekly':
       return r.weekdays.includes(date.getDay());
+    case 'interval': {
+      const diff = daysBetween(fromISODate(r.anchor), date);
+      return diff >= 0 && diff % r.days === 0;
+    }
     case 'none':
       return task.due != null && task.due === toISODate(date);
   }
@@ -36,6 +40,8 @@ export function describeRecurrence(r: Recurrence): string {
       return 'One-off';
     case 'daily':
       return 'Every day';
+    case 'interval':
+      return r.days === 1 ? 'Every day' : `Every ${r.days} days`;
     case 'weekly':
       if (r.weekdays.length === 7) return 'Every day';
       if (r.weekdays.length === 0) return 'Weekly';
@@ -52,7 +58,8 @@ export type CaptureSchedule =
   | { mode: 'today' }
   | { mode: 'tomorrow' }
   | { mode: 'daily' }
-  | { mode: 'weekly'; weekdays: number[] };
+  | { mode: 'weekly'; weekdays: number[] }
+  | { mode: 'everyN'; days: number };
 
 /** Map a capture choice to a task's scheduling fields, relative to `today`. */
 export function scheduleFields(
@@ -68,5 +75,7 @@ export function scheduleFields(
       return { recurrence: { kind: 'daily' } };
     case 'weekly':
       return { recurrence: { kind: 'weekly', weekdays: s.weekdays } };
+    case 'everyN':
+      return { recurrence: { kind: 'interval', days: s.days, anchor: toISODate(today) } };
   }
 }

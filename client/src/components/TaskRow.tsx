@@ -10,12 +10,13 @@ type Props = {
   confirming?: boolean;
   onRemove?: () => void;
   onKeep?: () => void;
+  recurring?: boolean;
 };
 
 // A single row. Tap to complete (a soft sage check, gentle fade, never a shaming
 // strike). Long-press to remove, behind a calm Keep / Remove confirm so nothing
 // vanishes by accident. Removing is neutral, never punishing the task.
-export function TaskRow({ title, done, onToggle, onLongPress, confirming, onRemove, onKeep }: Props) {
+export function TaskRow({ title, done, onToggle, onLongPress, confirming, onRemove, onKeep, recurring }: Props) {
   if (confirming) {
     return (
       <View style={[styles.row, styles.confirmRow]}>
@@ -42,10 +43,11 @@ export function TaskRow({ title, done, onToggle, onLongPress, confirming, onRemo
       accessibilityState={{ checked: done }}
       accessibilityLabel={title}
     >
-      <View style={[styles.check, done && styles.checkDone]}>
+      <View style={[styles.check, recurring && !done && styles.checkRepeat, done && styles.checkDone]}>
         {done && <Text style={styles.tick}>✓</Text>}
       </View>
       <Text style={[styles.text, done && styles.textDone]}>{title}</Text>
+      {recurring && <Text style={styles.repeatMark}>↻</Text>}
     </Pressable>
   );
 }
@@ -77,7 +79,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkDone: { backgroundColor: colors.done, borderColor: colors.done },
+  checkRepeat: { borderColor: colors.repeat },
   tick: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', lineHeight: 17 },
   text: { flex: 1, color: colors.ink, fontSize: 17, lineHeight: 23 },
   textDone: { color: colors.inkFaint, textDecorationLine: 'line-through' },
+  repeatMark: { color: colors.repeat, fontSize: 17, fontWeight: '700' },
 });

@@ -219,6 +219,7 @@ export default function TodayScreen() {
               confirming={confirmingId === task.id}
               onRemove={() => removeTask(task.id)}
               onKeep={() => setConfirmingId(null)}
+              recurring={isRecurring(task)}
             />
           ))}
         </View>
@@ -244,6 +245,7 @@ export default function TodayScreen() {
                   confirming={confirmingId === task.id}
                   onRemove={() => removeTask(task.id)}
                   onKeep={() => setConfirmingId(null)}
+                  recurring={isRecurring(task)}
                 />
               </View>
             ))}

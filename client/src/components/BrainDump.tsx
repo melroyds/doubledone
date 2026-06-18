@@ -10,13 +10,14 @@ type Props = {
   today: Date;
 };
 
-type Mode = 'today' | 'tomorrow' | 'daily' | 'weekly';
+type Mode = 'today' | 'tomorrow' | 'daily' | 'weekly' | 'everyN';
 
 const MODES: { mode: Mode; label: string }[] = [
   { mode: 'today', label: 'Today' },
   { mode: 'tomorrow', label: 'Tomorrow' },
   { mode: 'daily', label: 'Daily' },
   { mode: 'weekly', label: 'Weekly' },
+  { mode: 'everyN', label: 'Every N' },
 ];
 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']; // index 0=Sun .. 6=Sat
@@ -26,6 +27,7 @@ const ADD_LABEL: Record<Mode, string> = {
   tomorrow: 'Add for tomorrow',
   daily: 'Add daily',
   weekly: 'Add weekly',
+  everyN: 'Add repeating',
 };
 
 // Capture, with a calm "when" (the chips, for adding) and a "break it down" path
@@ -35,12 +37,16 @@ export function BrainDump({ onCapture, onBiteElephant, today }: Props) {
   const [value, setValue] = useState('');
   const [mode, setMode] = useState<Mode>('today');
   const [weekdays, setWeekdays] = useState<number[]>([today.getDay()]);
+  const [everyNDays, setEveryNDays] = useState(2);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function buildSchedule(): CaptureSchedule {
     if (mode === 'weekly') {
       return { mode: 'weekly', weekdays: weekdays.length > 0 ? weekdays : [today.getDay()] };
+    }
+    if (mode === 'everyN') {
+      return { mode: 'everyN', days: everyNDays };
     }
     return { mode };
   }
@@ -122,6 +128,28 @@ export function BrainDump({ onCapture, onBiteElephant, today }: Props) {
         </View>
       )}
 
+      {mode === 'everyN' && (
+        <View style={styles.stepperRow}>
+          <Pressable
+            onPress={() => setEveryNDays((n) => Math.max(2, n - 1))}
+            style={styles.stepBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Fewer days"
+          >
+            <Text style={styles.stepBtnText}>−</Text>
+          </Pressable>
+          <Text style={styles.stepLabel}>Every {everyNDays} days</Text>
+          <Pressable
+            onPress={() => setEveryNDays((n) => Math.min(30, n + 1))}
+            style={styles.stepBtn}
+            accessibilityRole="button"
+            accessibilityLabel="More days"
+          >
+            <Text style={styles.stepBtnText}>+</Text>
+          </Pressable>
+        </View>
+      )}
+
       <View style={styles.actions}>
         <Pressable
           onPress={biteElephant}
@@ -197,6 +225,19 @@ const styles = StyleSheet.create({
   dayOn: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
   dayText: { color: colors.inkSoft, fontSize: 13 },
   dayTextOn: { color: colors.accent, fontWeight: '700' },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
+  stepBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepBtnText: { color: colors.accent, fontSize: 20, fontWeight: '600' },
+  stepLabel: { color: colors.ink, fontSize: 15, fontWeight: '500', minWidth: 110, textAlign: 'center' },
   actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
   bite: {
     borderRadius: radius.md,
