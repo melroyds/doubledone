@@ -599,3 +599,18 @@ Decided against:
 - **A skip-the-questions fast lane.** The defaults already make the fast path two taps; a skip toggle is a setting, which the spine resists. Revisit if testers find the questions heavy.
 
 The friction tension (one tap became two stops) is real but bought genuinely better, user-controlled breakdowns. Verified end to end in preview (with stubbed AI to avoid spend): clarify -> questions with the three controls -> decompose -> review with the gradual dates (Today, +2, +5, +7) -> deselect -> add only the kept steps. Replaces the old one-shot flow. Needs a Worker redeploy for the live AI questions; degrades gracefully until then.
+
+## 2026-06-18 Break it down, three refinements from Melroy's first live run
+
+He ran it on "sell a house by July 15 2026" and surfaced real gaps. The data confirmed the diagnosis: the AI even phrased a due-date question mentioning July 15, but the chips only went to Two weeks, so the date in the task text never became the actual deadline; the 6 steps were the prompt cap, clustered on today/tomorrow because the chip (not the text) drove the dates.
+
+Fixed:
+- **Step titles were verbose sentences.** Tightened the decompose prompt to demand short commands (start with a verb, under ~eight words, one concrete action) with an explicit good/bad example. The review rows also now wrap the title fully (no 2-line truncation) and sit taller, so a step is always readable when deciding. Prompt wording is still Melroy's to tune further.
+- **No way to set a far deadline.** Added a real date picker: a month-grid `DatePicker` built on the Lookback's `monthMatrix`, so it works on web and Android with no native module (the community date picker is weak on web). The due-date question keeps the quick chips and adds "Pick a date" plus a "Selected: ..." line.
+- **The deadline the user typed was ignored.** `/clarify` now also returns `suggestedDueDate`: the AI extracts an explicit date from the task text (validated to YYYY-MM-DD) and the picker pre-fills it. Typing "by July 15 2026" now pre-selects 15 July 2026. Verified in preview (stubbed): the picker opened to July 2026 with the date pre-selected, and the long step rendered in full.
+
+Acknowledged, not built now:
+- **Step count for big tasks** ("I hear you"): 6 steps is thin for a months-long task. A real far date plus the gradual spread now at least uses the runway; true depth is the phased approach below.
+- **Phased breakdown** (Melroy: "I love this"): for a big, long-horizon task, decompose into phases, surface only the first phase's steps now, and break later phases down as they approach. This keeps Today small while honouring a distant deadline. The next dedicated build for Break it down; needs its own design pass.
+
+Needs a Worker redeploy for the live AI date-extraction + tightened steps.

@@ -81,12 +81,24 @@ describe('decompose', () => {
 });
 
 describe('parseQuestions', () => {
-  it('keeps a well-formed question set', () => {
+  it('keeps a well-formed question set (no suggested date)', () => {
     expect(parseQuestions({ questions: { dueDate: 'when?', spread: 'how?', custom: 'what?' } })).toEqual({
       dueDate: 'when?',
       spread: 'how?',
       custom: 'what?',
+      suggestedDueDate: null,
     });
+  });
+
+  it('keeps a valid suggested due date, ignores a malformed one', () => {
+    expect(
+      parseQuestions({ questions: { dueDate: 'a', spread: 'b', custom: 'c', suggestedDueDate: '2026-07-15' } })
+        ?.suggestedDueDate,
+    ).toBe('2026-07-15');
+    expect(
+      parseQuestions({ questions: { dueDate: 'a', spread: 'b', custom: 'c', suggestedDueDate: 'July 15' } })
+        ?.suggestedDueDate,
+    ).toBeNull();
   });
 
   it('returns null for malformed or missing questions', () => {
@@ -111,7 +123,7 @@ describe('clarify', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const q = await clarify('clean the garage');
-    expect(q).toEqual({ dueDate: 'when?', spread: 'how?', custom: 'what?' });
+    expect(q).toEqual({ dueDate: 'when?', spread: 'how?', custom: 'what?', suggestedDueDate: null });
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).task).toBe('clean the garage');
   });
 

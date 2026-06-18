@@ -16,24 +16,31 @@ export const SYSTEM_PROMPT = [
   'Question two asks whether to spread the steps gradually across several days or do them all in one sitting.',
   'Question three is the single most useful question about THIS specific task, the one whose answer most changes how you would break it down.',
   'Keep every question short, plain and literal: no pep talk, no shame, no exclamation marks.',
-  'Return all three with the record_questions tool.',
+  'Also, if the task text names an explicit calendar date (for example "by July 15 2026"), return it as suggestedDueDate in YYYY-MM-DD form; otherwise return an empty string.',
+  'Return everything with the record_questions tool.',
 ].join(' ');
 
 const QUESTIONS_TOOL = {
   name: 'record_questions',
-  description: 'Return the three qualifying questions for the task.',
+  description: 'Return the three qualifying questions for the task, plus any explicit due date found in it.',
   input_schema: {
     type: 'object',
     properties: {
       dueDateQuestion: { type: 'string', description: 'Asks by when they want it done.' },
       spreadQuestion: { type: 'string', description: 'Asks gradual across days vs all in one sitting.' },
       customQuestion: { type: 'string', description: 'The most useful task-specific clarifier.' },
+      suggestedDueDate: {
+        type: 'string',
+        description: 'An explicit calendar date named in the task as YYYY-MM-DD, or an empty string if none.',
+      },
     },
-    required: ['dueDateQuestion', 'spreadQuestion', 'customQuestion'],
+    required: ['dueDateQuestion', 'spreadQuestion', 'customQuestion', 'suggestedDueDate'],
   },
 } as const;
 
-export type Questions = { dueDate: string; spread: string; custom: string };
+export type Questions = { dueDate: string; spread: string; custom: string; suggestedDueDate: string | null };
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export type ClarifyRequest = {
   url: string;
@@ -83,7 +90,15 @@ export function parseClarifyResponse(data: unknown): Questions | null {
         typeof input.spreadQuestion === 'string' &&
         typeof input.customQuestion === 'string'
       ) {
-        return { dueDate: input.dueDateQuestion, spread: input.spreadQuestion, custom: input.customQuestion };
+        const suggested = typeof input.suggestedDueDate === 'string' && ISO_DATE.test(input.suggestedDueDate)
+          ? input.suggestedDueDate
+          : null;
+        return {
+          dueDate: input.dueDateQuestion,
+          spread: input.spreadQuestion,
+          custom: input.customQuestion,
+          suggestedDueDate: suggested,
+        };
       }
     }
   }

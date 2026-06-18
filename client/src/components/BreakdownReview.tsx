@@ -56,9 +56,7 @@ export function BreakdownReview({ task, steps, busy, onAdd, onCancel, today }: P
                   >
                     <View style={[styles.check, on && styles.checkOn]}>{on && <Text style={styles.tick}>✓</Text>}</View>
                     <View style={styles.rowText}>
-                      <Text style={[styles.stepTitle, !on && styles.stepOff]} numberOfLines={2}>
-                        {s.title}
-                      </Text>
+                      <Text style={[styles.stepTitle, !on && styles.stepOff]}>{s.title}</Text>
                       <Text style={styles.meta}>
                         {s.minutes} min · {s.date == null ? 'Today' : friendlyDate(s.date, today)}
                       </Text>
@@ -109,10 +107,10 @@ const styles = StyleSheet.create({
   list: { gap: spacing.two, marginTop: spacing.one },
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start', // titles can wrap to several lines; keep the tick at the top
     gap: spacing.three,
-    paddingVertical: spacing.three,
-    paddingHorizontal: spacing.three,
+    paddingVertical: spacing.four,
+    paddingHorizontal: spacing.four,
     backgroundColor: colors.surface,
     borderRadius: radius.md,
     borderWidth: 1,

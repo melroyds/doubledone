@@ -22,8 +22,11 @@ export function parseSteps(data: unknown): DecomposedStep[] {
 }
 
 // Break it down, call 1: the three qualifying questions the AI phrases for the
-// task. The client renders the right control for each (date / spread / text).
-export type Questions = { dueDate: string; spread: string; custom: string };
+// task, plus any explicit due date it spotted in the task text (pre-fills the
+// date picker). The client renders the right control for each (date / spread / text).
+export type Questions = { dueDate: string; spread: string; custom: string; suggestedDueDate: string | null };
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 // Shown if the clarify call fails or returns nothing, so the questions flow never
 // blocks on the AI. Plain, calm fallbacks.
@@ -31,6 +34,7 @@ export const DEFAULT_QUESTIONS: Questions = {
   dueDate: 'By when do you want this done?',
   spread: 'Spread the steps over a few days, or do them all in one go?',
   custom: 'Anything about this that would change how to break it down?',
+  suggestedDueDate: null,
 };
 
 /** Pull the questions out of the backend response, or null (never throws). */
@@ -39,7 +43,10 @@ export function parseQuestions(data: unknown): Questions | null {
   if (q == null || typeof q !== 'object') return null;
   const o = q as Record<string, unknown>;
   if (typeof o.dueDate === 'string' && typeof o.spread === 'string' && typeof o.custom === 'string') {
-    return { dueDate: o.dueDate, spread: o.spread, custom: o.custom };
+    const suggested = typeof o.suggestedDueDate === 'string' && ISO_DATE.test(o.suggestedDueDate)
+      ? o.suggestedDueDate
+      : null;
+    return { dueDate: o.dueDate, spread: o.spread, custom: o.custom, suggestedDueDate: suggested };
   }
   return null;
 }

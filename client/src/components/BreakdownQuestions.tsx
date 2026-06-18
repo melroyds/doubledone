@@ -3,7 +3,9 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, Text
 
 import { colors, fonts, radius, spacing } from '@/constants/theme';
 import { type Questions } from '@/lib/ai';
-import { addDaysISO } from '@/lib/day';
+import { addDaysISO, fromISODate } from '@/lib/day';
+
+import { DatePicker } from './DatePicker';
 
 export type BreakdownAnswers = {
   dueDate: string | null; // ISO or null = no deadline
@@ -20,30 +22,29 @@ type Props = {
   today: Date;
 };
 
-// Day offsets the due-date question offers. null = no deadline.
-const DUE_OPTIONS: { label: string; off: number | null }[] = [
-  { label: 'No deadline', off: null },
-  { label: 'Today', off: 0 },
-  { label: 'Tomorrow', off: 1 },
-  { label: 'This week', off: 7 },
-  { label: 'Two weeks', off: 14 },
-];
-
 // Break it down, step 1: the AI's three qualifying questions, with the right
-// control for each (date chips, a gradual/same-day toggle, a short text box).
-// Everything is pre-filled, so the fast path is just "Break it down".
+// control for each. The due date offers quick chips plus a full date picker (so a
+// far deadline like "by July 15" works), pre-filled with any date the AI spotted
+// in the task. Everything is pre-set, so the fast path is just "Break it down".
 export function BreakdownQuestions({ task, questions, busy, onSubmit, onCancel, today }: Props) {
-  const [dueOff, setDueOff] = useState<number | null>(7); // default "This week"
+  const presets: { label: string; iso: string | null }[] = [
+    { label: 'No deadline', iso: null },
+    { label: 'Today', iso: addDaysISO(today, 0) },
+    { label: 'Tomorrow', iso: addDaysISO(today, 1) },
+    { label: 'This week', iso: addDaysISO(today, 7) },
+    { label: 'Two weeks', iso: addDaysISO(today, 14) },
+  ];
+  // Default to the date the AI found in the task, else a week out.
+  const [dueISO, setDueISO] = useState<string | null>(() => questions.suggestedDueDate ?? addDaysISO(today, 7));
+  const [calOpen, setCalOpen] = useState(false);
   const [spread, setSpread] = useState<'gradual' | 'sameday'>('gradual');
   const [answer, setAnswer] = useState('');
 
+  const isCustom = dueISO != null && !presets.some((p) => p.iso === dueISO);
+
   function submit() {
     if (busy) return;
-    onSubmit({
-      dueDate: dueOff == null ? null : addDaysISO(today, dueOff),
-      spread,
-      customAnswer: answer.trim(),
-    });
+    onSubmit({ dueDate: dueISO, spread, customAnswer: answer.trim() });
   }
 
   return (
@@ -58,12 +59,15 @@ export function BreakdownQuestions({ task, questions, busy, onSubmit, onCancel, 
 
             <Text style={styles.q}>{questions.dueDate}</Text>
             <View style={styles.chips}>
-              {DUE_OPTIONS.map((o) => {
-                const on = o.off === dueOff;
+              {presets.map((o) => {
+                const on = !calOpen && o.iso === dueISO;
                 return (
                   <Pressable
                     key={o.label}
-                    onPress={() => setDueOff(o.off)}
+                    onPress={() => {
+                      setDueISO(o.iso);
+                      setCalOpen(false);
+                    }}
                     style={[styles.chip, on && styles.chipOn]}
                     accessibilityRole="button"
                     accessibilityState={{ selected: on }}
@@ -73,7 +77,36 @@ export function BreakdownQuestions({ task, questions, busy, onSubmit, onCancel, 
                   </Pressable>
                 );
               })}
+              <Pressable
+                onPress={() => setCalOpen((v) => !v)}
+                style={[styles.chip, (calOpen || isCustom) && styles.chipOn]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: calOpen || isCustom }}
+                accessibilityLabel="Pick a date"
+              >
+                <Text style={[styles.chipText, (calOpen || isCustom) && styles.chipTextOn]}>Pick a date</Text>
+              </Pressable>
             </View>
+            <Text style={styles.selected}>
+              {dueISO == null
+                ? 'No deadline'
+                : fromISODate(dueISO).toLocaleDateString('en-AU', {
+                    weekday: 'short',
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
+            </Text>
+            {calOpen && (
+              <DatePicker
+                value={dueISO}
+                today={today}
+                onChange={(iso) => {
+                  setDueISO(iso);
+                  setCalOpen(false);
+                }}
+              />
+            )}
 
             <Text style={styles.q}>{questions.spread}</Text>
             <View style={styles.toggle}>
@@ -159,6 +192,7 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
   chipText: { color: colors.inkSoft, fontSize: 14, fontWeight: '500' },
   chipTextOn: { color: '#FFFFFF' },
+  selected: { color: colors.inkSoft, fontSize: 13 },
   toggle: { flexDirection: 'row', gap: spacing.two },
   seg: {
     flex: 1,
