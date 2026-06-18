@@ -74,3 +74,43 @@ create index if not exists tasks_user_id_idx on public.tasks (user_id);
 -- Slices (task progress across parts) added the slices column (run once; idempotent):
 -- alter table public.tasks
 --   add column if not exists slices jsonb;
+
+-- ---------------------------------------------------------------------------
+-- ai_calls: pseudonymous AI-call telemetry (the moat). The Worker writes one
+-- row per Claude call (decompose / strategise / triage) with its input, the
+-- returned JSON, model, token usage and latency. DELIBERATELY no user_id, no IP:
+-- this data is never tied to an account. Insert-only RLS, so the public anon key
+-- the Worker writes with can add rows but nothing can read them back through the
+-- API (analysis happens server-side / in the dashboard).
+--
+-- Privacy note: unlike the tasks table, this retains the task TEXT the user
+-- typed. It is pseudonymous, but it is task content, so it must be disclosed
+-- in-product before any public launch (see BUILD-PLAN Privacy and Security).
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.ai_calls (
+  id uuid primary key default gen_random_uuid(),
+  endpoint text not null,           -- 'decompose' | 'strategise' | 'triage'
+  model text not null,              -- the Claude model id used
+  input jsonb,                      -- the request input sent to Claude (task text / tasks / lines)
+  output jsonb,                     -- the parsed returned JSON (steps / plan / items)
+  input_tokens integer,
+  output_tokens integer,
+  latency_ms integer,
+  ok boolean not null default true,
+  error text,
+  created_at timestamptz not null default now()
+  -- NB: no user_id, on purpose.
+);
+
+alter table public.ai_calls enable row level security;
+
+-- Insert-only for anyone (the Worker writes with the anon key). No select/update/
+-- delete policy exists, so rows can never be read back through PostgREST.
+create policy "ai_calls_insert_any" on public.ai_calls
+  for insert with check (true);
+
+-- Run once in the Supabase SQL editor to create the table above. The Worker also
+-- needs SUPABASE_URL and SUPABASE_ANON_KEY set as secrets (see CLAUDE.md), then a
+-- redeploy (`npx wrangler deploy` from server/). Until then the Worker just skips
+-- logging (telemetry is optional, never blocks a user request).

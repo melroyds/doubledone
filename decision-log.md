@@ -556,3 +556,23 @@ Debugging lesson banked (now a CLAUDE.md gotcha): most of this build's time went
 ## 2026-06-18 Settings page added to the backlog
 
 Melroy wants a full Settings page (theme / colour options, maybe borrowing Chronoloria's palette). Parked in BUILD-PLAN under a new "Settings and personalisation" group rather than built now. The note flags the tension with the spine ("remove friction, never add a setting") and resolves it: theme / contrast / reduced-motion / reminder-time / text-size are accessibility-and-comfort affordances this audience genuinely benefits from, not open-ended config. The theming tokens already exist (`theme.ts` light/dark), so a picker is mostly swapping token sets. Pairs with the design overhaul; build the tokens first.
+
+## 2026-06-18 AI-call telemetry (the moat's front door)
+
+Melroy chose the build order 1 → 3 → 2 (telemetry, then the ParkProof-grade GitHub/case study, then the design overhaul, with the design overhaul deliberately held for him to lead). Built #1.
+
+The Worker now logs every Claude call (decompose / strategise / triage) to a Supabase `ai_calls` table: endpoint, model, the input it was given, the returned JSON, token usage, latency, and ok/error. `server/src/telemetry.ts` is a thin, fully-guarded seam; the route handlers call it fire-and-forget via `ctx.waitUntil`, so logging never delays or breaks a user's response, and if the Supabase env is unset the Worker just skips it. Contract-tested (`telemetry.test.ts`), no live call in CI.
+
+Decided:
+- **Store = Supabase `ai_calls`, insert-only RLS, NO user_id**, over Cloudflare D1. Reason: it reuses the Supabase project we already have rather than provisioning a new cloud resource on Melroy's account, and it was the queued recommendation. The table has only an insert policy, so the public anon key the Worker writes with can add rows but nothing can read them back through PostgREST. Pseudonymous by design (no user_id, no IP).
+- **D1 is the recorded alternative** and the likely hardening path: it is Worker-bound (no public write path) and keeps the moat data physically separate from identity. Logged as the fix for the one real weakness below.
+
+Weakness, named and parked (not silently shipped):
+- **The anon key can insert from anywhere.** Insert-only RLS means no data can leak, but someone with the public key could spam junk rows. Acceptable pre-launch; hardening (a Worker shared secret / rate limit, or the D1 move) is triggered before any public launch. In BUILD-PLAN Privacy "to do".
+
+Privacy posture change, called out:
+- This **retains the task text** the user typed plus the returned JSON. That is the point of the moat (and exactly what Melroy asked for: "telemetry of all AI calls made and the returned JSON"), but it reverses the earlier "the Worker does not store it" line. It stays pseudonymous (no identity), but it is task content being kept, so the privacy section now says so and in-product AI egress+retention disclosure is a harder pre-launch requirement.
+
+Linkage to completion outcomes (the "X days" payoff) is deliberately NOT in this step: tying a decomposition to whether its steps got finished, still without a user_id, needs its own pseudonymous-id design and real volume. This step is just the capture.
+
+Three manual steps to go live (left to Melroy, like the slices migration and Worker deploys): run the `ai_calls` migration in the Supabase SQL editor; set `SUPABASE_URL` + `SUPABASE_ANON_KEY` as Worker secrets; redeploy the Worker. Until then the Worker skips logging and everything else works unchanged.

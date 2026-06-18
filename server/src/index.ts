@@ -2,12 +2,18 @@
 // Holds the Anthropic key as a Worker secret and is the only thing that calls
 // Claude. The app talks to this, never to Anthropic directly.
 
-import { buildDecomposeRequest, parseDecomposeResponse } from './decompose';
-import { buildStrategiseRequest, parseStrategiseResponse } from './strategise';
-import { buildTriageRequest, parseTriageResponse } from './triage';
+import { buildDecomposeRequest, DECOMPOSE_MODEL, parseDecomposeResponse } from './decompose';
+import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
+import { extractUsage, logAiCall } from './telemetry';
+import { buildTriageRequest, parseTriageResponse, TRIAGE_MODEL } from './triage';
 
 export interface Env {
   ANTHROPIC_API_KEY: string;
+  // Pseudonymous AI-call telemetry (the moat). Optional: if unset, the Worker
+  // simply skips logging. The anon key is public/safe; both are set as Worker
+  // secrets (see CLAUDE.md), never committed.
+  SUPABASE_URL?: string;
+  SUPABASE_ANON_KEY?: string;
 }
 
 const CORS: Record<string, string> = {
@@ -17,7 +23,7 @@ const CORS: Record<string, string> = {
 };
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const { pathname } = new URL(request.url);
 
     if (request.method === 'OPTIONS') {
@@ -46,11 +52,27 @@ export default {
       }
 
       const { url, init } = buildDecomposeRequest(task, env.ANTHROPIC_API_KEY);
+      const started = Date.now();
       const upstream = await fetch(url, init as RequestInit);
       if (!upstream.ok) {
+        ctx.waitUntil(
+          logAiCall(env, {
+            endpoint: 'decompose', model: DECOMPOSE_MODEL, input: { task }, output: null,
+            inputTokens: null, outputTokens: null, latencyMs: Date.now() - started,
+            ok: false, error: `upstream ${upstream.status}`,
+          }),
+        );
         return Response.json({ error: 'upstream error' }, { status: 502, headers: CORS });
       }
-      const steps = parseDecomposeResponse(await upstream.json());
+      const raw = await upstream.json();
+      const steps = parseDecomposeResponse(raw);
+      const usage = extractUsage(raw);
+      ctx.waitUntil(
+        logAiCall(env, {
+          endpoint: 'decompose', model: DECOMPOSE_MODEL, input: { task }, output: { steps },
+          inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true,
+        }),
+      );
       return Response.json({ steps }, { headers: CORS });
     }
 
@@ -80,11 +102,27 @@ export default {
       }
 
       const { url, init } = buildStrategiseRequest(tasks, env.ANTHROPIC_API_KEY);
+      const started = Date.now();
       const upstream = await fetch(url, init as RequestInit);
       if (!upstream.ok) {
+        ctx.waitUntil(
+          logAiCall(env, {
+            endpoint: 'strategise', model: STRATEGISE_MODEL, input: { tasks }, output: null,
+            inputTokens: null, outputTokens: null, latencyMs: Date.now() - started,
+            ok: false, error: `upstream ${upstream.status}`,
+          }),
+        );
         return Response.json({ error: 'upstream error' }, { status: 502, headers: CORS });
       }
-      const plan = parseStrategiseResponse(await upstream.json());
+      const raw = await upstream.json();
+      const plan = parseStrategiseResponse(raw);
+      const usage = extractUsage(raw);
+      ctx.waitUntil(
+        logAiCall(env, {
+          endpoint: 'strategise', model: STRATEGISE_MODEL, input: { tasks }, output: { plan },
+          inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true,
+        }),
+      );
       return Response.json({ plan }, { headers: CORS });
     }
 
@@ -107,11 +145,27 @@ export default {
       }
 
       const { url, init } = buildTriageRequest(lines, env.ANTHROPIC_API_KEY);
+      const started = Date.now();
       const upstream = await fetch(url, init as RequestInit);
       if (!upstream.ok) {
+        ctx.waitUntil(
+          logAiCall(env, {
+            endpoint: 'triage', model: TRIAGE_MODEL, input: { lines }, output: null,
+            inputTokens: null, outputTokens: null, latencyMs: Date.now() - started,
+            ok: false, error: `upstream ${upstream.status}`,
+          }),
+        );
         return Response.json({ error: 'upstream error' }, { status: 502, headers: CORS });
       }
-      const items = parseTriageResponse(await upstream.json());
+      const raw = await upstream.json();
+      const items = parseTriageResponse(raw);
+      const usage = extractUsage(raw);
+      ctx.waitUntil(
+        logAiCall(env, {
+          endpoint: 'triage', model: TRIAGE_MODEL, input: { lines }, output: { items },
+          inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true,
+        }),
+      );
       return Response.json({ items }, { headers: CORS });
     }
 
