@@ -59,11 +59,11 @@ Build in this order. Each step is shippable and demoable on its own.
 
 ## Tier 2 (what makes it sticky)
 
-8. **The Lookback**, everything finished this week, including aged tasks. The emotional payoff.
-9. **Finished-old-task celebration**, reward closing the dreaded, never shame the backlog
+8. **The Lookback, backed by an interactive calendar** (the active build, "D"). A true Gregorian calendar you can open any time and browse by day, showing what you actually completed and when. The week view is the emotional payoff; the calendar is the accurate record under it. Requires a real completion record (a `completedAt` for one-offs; recurring tasks are already dated via `completedDates`).
+9. **Complexity-weighted celebration**, reward closing the dreaded in proportion to how hard it was, never shame the backlog. A task's complexity score amplifies the *warmth* of the calm acknowledgment, NOT points / streaks / leaderboards (those betray the spec and repel the AuDHD audience). Score derived cheaply where possible (from a Bite-the-Elephant decomposition); a dedicated AI score is the backlog item below.
 10. **Close-the-day wrap**, gentle, rolls forward, zero guilt
 11. **Strategise**, Sonnet re-spreads an over-full day
-12. ✅ **Supabase auth + sync**, opt-in cloud durability, RLS for privacy (built + unit-tested 2026-06-18; live email sign-in is Melroy's to confirm)
+12. ✅ **Supabase auth + sync**, opt-in cloud durability, RLS for privacy (verified live end-to-end 2026-06-18)
 13. **Gentle nudges / notifications**, native, the retention lever
 
 ## Backlog (deferred work, with triggers)
@@ -81,6 +81,7 @@ The single home for everything we have consciously parked. Nothing here is dropp
 - Energy-level matching (suggest tasks that fit your current energy). Trigger: Bite the Elephant and triage are solid and you want smarter sequencing.
 - Calendar read (see the day's meetings to size Today). Trigger: core loop sticky and time-blindness needs calendar context.
 - **External calendar two-way sync** (tasks <-> Google / phone calendar). Trigger: Melroy wants it (confirmed 2026-06-18, after in-app scheduling lands). Needs OAuth and a calendar API; the in-app scheduling model is the foundation it builds on.
+- **AI complexity scoring / weightage.** Have the AI score how hard a task is, so the completion celebration is proportionate (the dreaded, complex thing earns the warmer acknowledgment). Cheapest source is deriving the score from a Bite-the-Elephant decomposition (steps x minutes), effectively free; a dedicated per-task AI score on every capture is token-heavy and adds latency. Trigger: the calendar / completion record exists (D) and you want the reward weighted.
 
 **Platform and distribution**
 - Play Store release, versus the current sideloaded APK. Trigger: polished enough to show publicly and you want auto-updates plus the store-listing portfolio signal (~$25 one-off plus review).
@@ -93,6 +94,7 @@ The single home for everything we have consciously parked. Nothing here is dropp
 
 **Monetisation**
 - Paid tier via Stripe, gating the genuinely expensive AI features. Trigger: the AI features prove their value and you are ready to charge.
+- **Premium: AI "chart a course of action".** Give the AI your goal and requirements and it returns a weighted plan of action (scored, ordered steps toward the goal), beyond decomposing a single task. Genuinely token-heavy, so it is a paid feature by design (Melroy, 2026-06-18). Trigger: core AI features proven and the Stripe paid tier exists.
 
 **Polish and tech debt**
 - Custom DoubleDone app icon and splash (currently the generic Expo art). Trigger: visual identity decided.
