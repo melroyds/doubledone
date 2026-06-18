@@ -529,3 +529,11 @@ Decided against:
 - **A percentage label ("30%").** Melroy's framing was "percentage slices," but for "10 episodes" a "3 / 10" count reads clearer than "30%"; the bar already carries the percentage visually. Easy to switch to % if he prefers.
 - **Slices as the sole completion source of truth (no `done` boolean).** Keeping `done`/`completedAt` reconciled means the rest of the app needs no changes; a separate slice-completion path everywhere would have been more surface for the same result.
 - **A slices control on every row.** Defining slices lives in capture, not on each task face, so rows stay calm.
+
+## 2026-06-18 Slices UX, take 2: step-back behind the hold
+
+Melroy's call right after slices shipped: the always-visible "−" on the right of a sliced row was clutter. Removed it. The default sliced row is now just tap-to-advance, the bar, and the count. **Tap-and-hold (long-press) reveals the controls**: a "Step back" (the only home for the minus now), "Close", and "Remove", with the count shown live so you watch it decrement as you step. Step back keeps the controls open so repeated undo works; Close dismisses; Remove deletes. This reuses the existing long-press-to-confirm gesture and the confirm-row styling, so it adds no new interaction vocabulary. Verified in preview: clean default (no minus), hold reveals the row, step-back decrements live and holds open, Close returns to the calm row, tap still advances.
+
+Decided against:
+- **Long-press = step back directly (no menu).** Simplest, but it would have stolen the remove gesture from sliced tasks. The revealed control row keeps both step-back and remove behind the one deliberate gesture.
+- **Keeping the minus but making it fainter.** Melroy wanted it gone from the row entirely, not just quieter. Don't fight the signal.
