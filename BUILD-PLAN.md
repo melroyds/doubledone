@@ -71,6 +71,7 @@ Build in this order. Each step is shippable and demoable on its own.
 12. ✅ **Supabase auth + sync**, opt-in cloud durability, RLS for privacy (verified live end-to-end 2026-06-18)
 13. ✅ **Gentle nudges / notifications / reminders** ("H"), native, the retention lever. An opt-in daily reminder that offers the day, never demands it. Built; the notification firing is Melroy's to verify on the Android build. *Done 2026-06-18.*
 14. ✅ **Repeating-tasks panel** (a right-side slide-open drawer). Daily/recurring and one-off project tasks are different mental modes, each with its own home. A "Repeating" link in the Today header opens a drawer listing all recurring tasks with their cadence; today's due ones still also appear on Today (the recommended option, so habits stay visible). Calm list, no streaks. *Done 2026-06-18.*
+15. ✅ **Task slices (progress across parts)** (Melroy, 2026-06-18). A task can carry a user-defined slice count (10 TV episodes, a 3-step chore) and be advanced one part at a time on Today: slim sage progress bar, quiet "n / N", tap-to-advance, "−" to undo. Finishing the last slice completes it through the normal path (celebration unchanged); reconciled onto `done`/`completedAt` so nothing downstream special-cases it. Defined at capture (single one-off lines only), synced via a `slices` jsonb column, moat-instrumented (`slices.defined` / `slices.progressed`). *Done 2026-06-18.*
 
 ## Backlog (deferred work, with triggers)
 
@@ -95,6 +96,7 @@ The single home for everything we have consciously parked. Nothing here is dropp
 - **"Other users took about X days" estimates** (Melroy, 2026-06-18). The moat's user-facing payoff: when someone Breaks Down a task, surface a calm crowd estimate from anonymised cross-user completion data ("people usually finish this in about 3 days"). Depends on the AI-call telemetry above, completion outcomes linked anonymously, task-similarity matching, and enough cross-user volume to be honest. A later build, and the genuine differentiator.
 
 **Lists and collections**
+- **Add slices to an existing task** (deferred 2026-06-18, when slices shipped). Slices are set at capture today; there is no affordance to add/edit a slice count on a task that already exists. The discovered-later case is partly served by Break-it-down. Trigger: if Melroy or a tester reaches for it, add a calm edit path (likely via long-press) without cluttering the row face.
 - **Custom lists** (Melroy, 2026-06-18), e.g. a long-running "TV shows to watch". Named collections that live OUTSIDE Today, so the daily list stays finite and achievable (the spine). You browse a list on its own surface (like the Repeating drawer) and pull an item into Today only when you actually want to act on it. Reference / someday lists, not daily pressure. Trigger: after the core loop; design it so it never turns Today into an everything-bucket.
 
 **Platform and distribution**

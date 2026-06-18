@@ -2,7 +2,7 @@ import { type SupabaseClient } from '@supabase/supabase-js';
 
 import { type Recurrence } from './recurrence';
 import { mergeTasks } from './sync-merge';
-import { type Task } from './tasks';
+import { type Slices, type Task } from './tasks';
 
 // The Supabase seam for sync. The row <-> Task mapping is pure and unit-tested;
 // pull / push / syncOnce wrap the merge engine (sync-merge.ts) around the network.
@@ -23,6 +23,7 @@ export type TaskRow = {
   completed_dates: string[] | null;
   completed_at: string | null;
   complexity: number | null;
+  slices: Slices | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -40,6 +41,7 @@ export function taskToRow(task: Task, userId: string): TaskRow {
     completed_dates: task.completedDates ?? null,
     completed_at: task.completedAt ? new Date(task.completedAt).toISOString() : null,
     complexity: task.complexity ?? null,
+    slices: task.slices ?? null,
     created_at: new Date(task.createdAt).toISOString(),
     updated_at: new Date(task.updatedAt).toISOString(),
     deleted_at: task.deletedAt ? new Date(task.deletedAt).toISOString() : null,
@@ -61,6 +63,7 @@ export function rowToTask(row: TaskRow): Task {
   if (row.completed_dates != null) task.completedDates = row.completed_dates;
   if (row.completed_at != null) task.completedAt = Date.parse(row.completed_at);
   if (row.complexity != null) task.complexity = row.complexity;
+  if (row.slices != null) task.slices = row.slices;
   if (row.deleted_at != null) task.deletedAt = Date.parse(row.deleted_at);
   return task;
 }

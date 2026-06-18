@@ -28,6 +28,18 @@ describe('taskToRow / rowToTask', () => {
     expect(rowToTask(taskToRow(t, 'user-1'))).toEqual(t);
   });
 
+  it('round-trips a sliced task', () => {
+    const t: Task = {
+      id: 's',
+      title: 'Watch the series',
+      done: false,
+      createdAt: 1718000000000,
+      updatedAt: 1718000005000,
+      slices: { total: 10, done: 3 },
+    };
+    expect(rowToTask(taskToRow(t, 'user-1'))).toEqual(t);
+  });
+
   it('stamps user_id and nulls absent optionals on the row', () => {
     const row = taskToRow({ id: 'a', title: 'x', done: false, createdAt: 0, updatedAt: 0 }, 'u');
     expect(row.user_id).toBe('u');
@@ -36,6 +48,7 @@ describe('taskToRow / rowToTask', () => {
     expect(row.completed_dates).toBeNull();
     expect(row.completed_at).toBeNull();
     expect(row.complexity).toBeNull();
+    expect(row.slices).toBeNull();
     expect(row.deleted_at).toBeNull();
   });
 

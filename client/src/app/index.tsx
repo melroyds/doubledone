@@ -13,6 +13,7 @@ import { completionsByDay } from '@/lib/calendar';
 import { addDaysISO, formatTodayLabel, friendlyDate, toISODate } from '@/lib/day';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
+import { applySliceDelta } from '@/lib/slices';
 import { loadReminderOn, loadTasks, saveReminderOn, saveTasks } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { syncOnce } from '@/lib/sync';
@@ -203,11 +204,14 @@ export default function TodayScreen() {
     commit(next);
   }
 
-  function capture(text: string, schedule: CaptureSchedule) {
+  function capture(text: string, schedule: CaptureSchedule, sliceCount?: number) {
     const titles = parseDump(text);
     if (titles.length === 0) return;
     const now = nowMs();
     const fields = scheduleFields(schedule, today); // due / recurrence for the chosen when
+    // Slices are a single one-off concept; BrainDump only offers them for a lone
+    // line, but guard here too so a multi-line dump never inherits a slice count.
+    const useSlices = sliceCount != null && sliceCount >= 2 && titles.length === 1;
     const added: Task[] = titles.map((title, i) => ({
       id: makeId(),
       title,
@@ -215,6 +219,7 @@ export default function TodayScreen() {
       createdAt: now + i,
       updatedAt: now + i,
       ...fields,
+      ...(useSlices && i === 0 ? { slices: { total: sliceCount, done: 0 } } : {}),
     }));
     commit([...tasks, ...added]);
     // One line is a quick add; several is a genuine brain-dump. Log the shape and
@@ -223,6 +228,39 @@ export default function TodayScreen() {
       count: titles.length,
       schedule: schedule.mode,
     });
+    if (useSlices) track('slices.defined', { total: sliceCount });
+  }
+
+  // Advance (or step back) one slice of a sliced task. Crossing to all-slices-done
+  // completes it through the same path as a tap-to-complete (done + completedAt),
+  // so the calendar, Close-the-day and the celebration treat it like any finish.
+  function step(id: string, delta: number) {
+    const before = tasks.find((t) => t.id === id);
+    const next = tasks.map((t) => {
+      if (t.id !== id) return t;
+      const moved = applySliceDelta(t, delta);
+      if (moved === t) return t; // clamped at a bound: nothing changed, no resync
+      const now = nowMs();
+      const stamped: Task = { ...moved, updatedAt: now };
+      if (moved.done && !t.done) stamped.completedAt = now;
+      else if (!moved.done && t.done) stamped.completedAt = null;
+      return stamped;
+    });
+    const after = next.find((t) => t.id === id);
+    if (after === before) return; // no-op
+    // The moat: how people slice and pace multi-part work, not just "done".
+    track('slices.progressed', {
+      done: after?.slices?.done ?? 0,
+      total: after?.slices?.total ?? 0,
+      complete: after?.done ?? false,
+    });
+    if (after?.done && !before?.done) {
+      const todays = tasksForToday(next, today);
+      if (todays.length > 0 && todays.every((t) => isDoneOn(t, today))) {
+        track('day.cleared', { count: todays.length });
+      }
+    }
+    commit(next);
   }
 
   // Bite the Elephant: hand a dreaded task to the AI, drop the steps into Today.
@@ -307,6 +345,9 @@ export default function TodayScreen() {
               onRemove={() => removeTask(task.id)}
               onKeep={() => setConfirmingId(null)}
               recurring={isRecurring(task)}
+              slices={task.slices ?? undefined}
+              onAdvance={() => step(task.id, 1)}
+              onRetreat={() => step(task.id, -1)}
             />
           ))}
         </View>
@@ -333,6 +374,9 @@ export default function TodayScreen() {
                   onRemove={() => removeTask(task.id)}
                   onKeep={() => setConfirmingId(null)}
                   recurring={isRecurring(task)}
+                  slices={task.slices ?? undefined}
+                  onAdvance={() => step(task.id, 1)}
+                  onRetreat={() => step(task.id, -1)}
                 />
               </View>
             ))}

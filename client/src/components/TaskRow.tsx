@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius, spacing } from '@/constants/theme';
+import { type Slices } from '@/lib/tasks';
 
 type Props = {
   title: string;
@@ -11,13 +12,33 @@ type Props = {
   onRemove?: () => void;
   onKeep?: () => void;
   recurring?: boolean;
+  slices?: Slices | null;
+  onAdvance?: () => void;
+  onRetreat?: () => void;
 };
 
 // A single row. Tap to complete (a soft sage check, gentle fade, never a shaming
 // strike). Long-press to remove, behind a calm Keep / Remove confirm. One-off
 // (unique) tasks get a solid coloured border; repeating tasks stay plain but carry
 // the repeat mark. Same denim colour either way.
-export function TaskRow({ title, done, onToggle, onLongPress, confirming, onRemove, onKeep, recurring }: Props) {
+//
+// A sliced task (a thing done in parts) renders its own way: tap to advance one
+// slice, a slim sage bar fills toward done, a quiet "n / N" count, and a small −
+// to step back a mistaken tap. Finishing the last slice completes it exactly like
+// any task (the caller stamps it), so the celebration is unchanged.
+export function TaskRow({
+  title,
+  done,
+  onToggle,
+  onLongPress,
+  confirming,
+  onRemove,
+  onKeep,
+  recurring,
+  slices,
+  onAdvance,
+  onRetreat,
+}: Props) {
   if (confirming) {
     return (
       <View style={[styles.row, styles.confirmRow]}>
@@ -30,6 +51,49 @@ export function TaskRow({ title, done, onToggle, onLongPress, confirming, onRemo
         <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${title}`}>
           <Text style={styles.remove}>Remove</Text>
         </Pressable>
+      </View>
+    );
+  }
+
+  if (slices) {
+    const complete = slices.total > 0 && slices.done >= slices.total;
+    const rest = Math.max(0, slices.total - slices.done);
+    return (
+      <View style={[styles.row, styles.rowUnique]}>
+        <Pressable
+          onPress={onAdvance}
+          onLongPress={onLongPress}
+          delayLongPress={400}
+          style={({ pressed }) => [styles.sliceMain, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityState={{ checked: complete }}
+          accessibilityLabel={`${title}, ${slices.done} of ${slices.total} done${complete ? ', complete' : ', tap to advance'}`}
+        >
+          <View style={styles.sliceTop}>
+            <View style={[styles.check, complete && styles.checkDone]}>
+              {complete && <Text style={styles.tick}>✓</Text>}
+            </View>
+            <Text style={[styles.text, complete && styles.textDone]}>{title}</Text>
+            <Text style={styles.sliceCount}>
+              {slices.done} / {slices.total}
+            </Text>
+          </View>
+          <View style={styles.track}>
+            <View style={{ flex: slices.done, backgroundColor: colors.done }} />
+            <View style={{ flex: rest }} />
+          </View>
+        </Pressable>
+        {slices.done > 0 && (
+          <Pressable
+            onPress={onRetreat}
+            style={({ pressed }) => [styles.minusBtn, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel={`Step ${title} back one`}
+            hitSlop={6}
+          >
+            <Text style={styles.minusText}>−</Text>
+          </Pressable>
+        )}
       </View>
     );
   }
@@ -85,4 +149,24 @@ const styles = StyleSheet.create({
   text: { flex: 1, color: colors.ink, fontSize: 17, lineHeight: 23 },
   textDone: { color: colors.inkFaint, textDecorationLine: 'line-through' },
   repeatMark: { color: colors.repeat, fontSize: 18, fontWeight: '700' },
+  sliceMain: { flex: 1, gap: spacing.two },
+  sliceTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
+  sliceCount: { color: colors.repeat, fontSize: 14, fontWeight: '700' },
+  track: {
+    flexDirection: 'row',
+    height: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.doneSoft,
+    overflow: 'hidden',
+  },
+  minusBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  minusText: { color: colors.inkSoft, fontSize: 20, fontWeight: '600', lineHeight: 22 },
 });

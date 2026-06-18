@@ -5,6 +5,11 @@
 
 import { type Recurrence } from './recurrence';
 
+// A task with parts: a thing done in N steps (10 TV episodes, a 3-step chore).
+// `done` is the slices completed (0..total); the task is finished exactly when
+// done >= total. See lib/slices for the (pure) progress arithmetic.
+export type Slices = { total: number; done: number };
+
 export type Task = {
   id: string;
   title: string;
@@ -17,6 +22,7 @@ export type Task = {
   due?: string | null; // 'YYYY-MM-DD' for a one-off; null/undefined = someday
   recurrence?: Recurrence; // absent = one-off (see lib/recurrence)
   completedDates?: string[]; // ISO dates a recurring task was ticked (per-day completion)
+  slices?: Slices | null; // absent = whole task; present = track progress across parts (see lib/slices)
 };
 
 // Shown once on a brand-new install so the first open is not an empty void.
@@ -62,9 +68,25 @@ export function deserialize(raw: string | null): Task[] {
 }
 
 // Older stored blobs predate updatedAt; backfill it from createdAt so last-write-wins
-// always has a value to compare, without dropping the task.
+// always has a value to compare, without dropping the task. A malformed `slices`
+// (hand-edited storage, a future shape) is dropped rather than trusted, never crashing.
 function withDefaults(t: Task): Task {
-  return { ...t, updatedAt: typeof t.updatedAt === 'number' ? t.updatedAt : t.createdAt };
+  const out: Task = { ...t, updatedAt: typeof t.updatedAt === 'number' ? t.updatedAt : t.createdAt };
+  const slices = cleanSlices((t as Record<string, unknown>).slices);
+  if (slices) out.slices = slices;
+  else delete out.slices;
+  return out;
+}
+
+/** Coerce an unknown into a well-formed Slices, or undefined. Clamps done to 0..total. */
+function cleanSlices(value: unknown): Slices | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const s = value as Record<string, unknown>;
+  if (typeof s.total !== 'number' || typeof s.done !== 'number') return undefined;
+  const total = Math.max(0, Math.floor(s.total));
+  if (total < 1) return undefined;
+  const done = Math.min(total, Math.max(0, Math.floor(s.done)));
+  return { total, done };
 }
 
 /**

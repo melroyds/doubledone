@@ -24,6 +24,7 @@ create table if not exists public.tasks (
   completed_dates jsonb,          -- array of ISO dates a recurring task was ticked (live is json)
   completed_at timestamptz,       -- when a one-off was finished (the calendar/Lookback record)
   complexity integer,             -- effort signal (decomposition minutes); weights the celebration
+  slices jsonb,                   -- { total, done } for a task tracked across parts; null = whole task
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz          -- soft-delete tombstone; null = live
@@ -69,3 +70,7 @@ create index if not exists tasks_user_id_idx on public.tasks (user_id);
 -- alter table public.tasks
 --   add column if not exists completed_at timestamptz,
 --   add column if not exists complexity integer;
+--
+-- Slices (task progress across parts) added the slices column (run once; idempotent):
+-- alter table public.tasks
+--   add column if not exists slices jsonb;

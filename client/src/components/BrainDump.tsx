@@ -3,9 +3,10 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 
 import { colors, radius, spacing } from '@/constants/theme';
 import { type CaptureSchedule } from '@/lib/recurrence';
+import { MAX_SLICES, MIN_SLICES } from '@/lib/slices';
 
 type Props = {
-  onCapture: (text: string, schedule: CaptureSchedule) => void;
+  onCapture: (text: string, schedule: CaptureSchedule, slices?: number) => void;
   onBiteElephant: (text: string) => Promise<void>;
   onSort: (text: string) => Promise<void>;
   today: Date;
@@ -39,10 +40,14 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
   const [mode, setMode] = useState<Mode>('today');
   const [weekdays, setWeekdays] = useState<number[]>([today.getDay()]);
   const [everyNDays, setEveryNDays] = useState(2);
+  const [sliceCount, setSliceCount] = useState(0); // 0 = whole task; >=MIN_SLICES = tracked in steps
   const [busyKind, setBusyKind] = useState<'bite' | 'sort' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const busy = busyKind !== null;
   const lineCount = value.split('\n').filter((l) => l.trim().length > 0).length;
+  // Steps only make sense for a single, one-off task (a thing with parts). Hidden
+  // for a multi-line dump or a repeating task, so it never clutters those.
+  const canSlice = lineCount <= 1 && (mode === 'today' || mode === 'tomorrow');
 
   function buildSchedule(): CaptureSchedule {
     if (mode === 'weekly') {
@@ -58,11 +63,12 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
     setValue('');
     setMode('today');
     setWeekdays([today.getDay()]);
+    setSliceCount(0);
   }
 
   function add() {
     if (!value.trim() || busy) return;
-    onCapture(value, buildSchedule());
+    onCapture(value, buildSchedule(), canSlice && sliceCount >= MIN_SLICES ? sliceCount : undefined);
     reset();
   }
 
@@ -165,6 +171,33 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
           >
             <Text style={styles.stepBtnText}>+</Text>
           </Pressable>
+        </View>
+      )}
+
+      {canSlice && (
+        <View style={styles.sliceField}>
+          <Text style={styles.sliceHint}>
+            {sliceCount === 0 ? 'Has parts? Track it in steps.' : 'Tap it on Today to advance a step.'}
+          </Text>
+          <View style={styles.stepperRow}>
+            <Pressable
+              onPress={() => setSliceCount((n) => (n <= MIN_SLICES ? 0 : n - 1))}
+              style={styles.stepBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Fewer steps"
+            >
+              <Text style={styles.stepBtnText}>−</Text>
+            </Pressable>
+            <Text style={styles.stepLabel}>{sliceCount === 0 ? 'No steps' : `${sliceCount} steps`}</Text>
+            <Pressable
+              onPress={() => setSliceCount((n) => (n === 0 ? MIN_SLICES : Math.min(MAX_SLICES, n + 1)))}
+              style={styles.stepBtn}
+              accessibilityRole="button"
+              accessibilityLabel="More steps"
+            >
+              <Text style={styles.stepBtnText}>+</Text>
+            </Pressable>
+          </View>
         </View>
       )}
 
@@ -275,6 +308,8 @@ const styles = StyleSheet.create({
   },
   stepBtnText: { color: colors.accent, fontSize: 20, fontWeight: '600' },
   stepLabel: { color: colors.ink, fontSize: 15, fontWeight: '500', minWidth: 110, textAlign: 'center' },
+  sliceField: { gap: spacing.two },
+  sliceHint: { color: colors.inkFaint, fontSize: 13 },
   actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
   bite: {
     borderRadius: radius.md,

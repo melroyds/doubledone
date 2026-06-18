@@ -508,3 +508,24 @@ Decided against:
 - expo-notifications handlers / channels for v1. Defaults are fine for a backgrounded daily reminder; less API surface, less risk.
 
 This completes the core loop (A through H plus the repeating drawer). The post-core work is the design overhaul and the ParkProof-grade GitHub, both backlogged.
+
+## 2026-06-18 Task slices (progress across parts)
+
+Melroy's ask: let a task have user-defined "slices" (a thing in N parts: 10 TV episodes, a 3-step chore) and track progress against it. Built it, with the calm assumptions below recorded for him to challenge (per the autonomous-build protocol, no blocking question).
+
+How it works:
+- **Model.** A new optional `slices: { total, done }` on Task (`lib/slices.ts` holds the pure arithmetic). `done` counts completed parts; the task is finished exactly when `done >= total`. The completion is reconciled onto the existing `done` boolean + `completedAt` stamp, so the calendar, Close-the-day, the Lookback and the big-win reward treat a finished sliced task like any other finish, with zero special-casing downstream. This mirrors how recurring tasks derive completion from `completedDates`.
+- **Define at capture.** BrainDump gains an optional "Steps" stepper ("Has parts? Track it in steps.", No steps / N steps, 2–50), shown only for a single, one-off line (`today`/`tomorrow`). It never appears for a multi-line dump or a repeating task, so it adds zero friction to those paths. The everyday capture is unchanged.
+- **Track on Today.** A sliced row shows a slim sage progress bar, a quiet denim "n / N", tap-to-advance, and a small "−" to undo a mistaken tap (shown only when `done > 0`). Reaching full completes it and fires the normal celebration; stepping back below full reopens it and clears `completedAt`.
+- **Sync + moat.** A `slices` jsonb column (mirroring `recurrence`), round-trip tested; idempotent migration noted in schema.sql. Telemetry logs `slices.defined` (total) and `slices.progressed` (done/total/complete), feeding the moat with how this audience chunks and paces multi-part work. Verified end to end in the web preview (define → advance → complete → step-back).
+
+Assumptions (Melroy to challenge):
+- **Capture-time only.** You set the slice count when you create the task; there is no "add steps to an existing task" affordance yet. The discovered-later case is already served by Break-it-down (decompose). Adding slices to an existing task is a backlog candidate if it is missed.
+- **One-offs only.** Slices are disallowed on recurring tasks (what would progress mean across daily resets?). A sliced task is a one-off with parts.
+- **Bounds 2–50.** One slice is not a slice; 50 is already a lot of taps. Tunable.
+- **Bar colour is sage (done-warmth), count is denim.** Calm, not gamified, no percentage shouting and no shame.
+
+Decided against:
+- **A percentage label ("30%").** Melroy's framing was "percentage slices," but for "10 episodes" a "3 / 10" count reads clearer than "30%"; the bar already carries the percentage visually. Easy to switch to % if he prefers.
+- **Slices as the sole completion source of truth (no `done` boolean).** Keeping `done`/`completedAt` reconciled means the rest of the app needs no changes; a separate slice-completion path everywhere would have been more surface for the same result.
+- **A slices control on every row.** Defining slices lives in capture, not on each task face, so rows stay calm.
