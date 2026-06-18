@@ -1,14 +1,15 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrainDump } from '@/components/BrainDump';
 import { TaskRow } from '@/components/TaskRow';
-import { colors, fonts, spacing } from '@/constants/theme';
+import { colors, fonts, radius, spacing } from '@/constants/theme';
 import { decompose } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
-import { formatTodayLabel, friendlyDate } from '@/lib/day';
+import { completionsByDay } from '@/lib/calendar';
+import { formatTodayLabel, friendlyDate, toISODate } from '@/lib/day';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { loadTasks, saveTasks } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
@@ -34,6 +35,7 @@ export default function TodayScreen() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
   const today = useMemo(() => new Date(), []);
   const router = useRouter();
   const session = useSession();
@@ -82,6 +84,7 @@ export default function TodayScreen() {
   const visible = tasksForToday(tasks, today);
   const upcoming = upcomingTasks(tasks, today);
   const allDone = loaded && visible.length > 0 && visible.every((t) => isDoneOn(t, today));
+  const todayDone = useMemo(() => completionsByDay(tasks).get(toISODate(today)) ?? [], [tasks, today]);
 
   function commit(next: Task[]) {
     setTasks(next);
@@ -100,6 +103,13 @@ export default function TodayScreen() {
   function signOut() {
     if (supabase) void supabase.auth.signOut();
     track('auth.signed_out');
+  }
+
+  // Close the day: a calm wrap, not a mechanical reset. Undone tasks already roll
+  // forward on their own, so this is purely the closing ritual.
+  function openClose() {
+    setClosing(true);
+    track('day.closed', { finished: todayDone.length });
   }
 
   function toggle(id: string) {
@@ -222,6 +232,16 @@ export default function TodayScreen() {
             ))}
           </View>
         )}
+        {loaded && (
+          <Pressable
+            onPress={openClose}
+            style={({ pressed }) => [styles.closeDay, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Close the day"
+          >
+            <Text style={styles.closeDayText}>Close the day</Text>
+          </Pressable>
+        )}
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.four }]}>
@@ -247,6 +267,41 @@ export default function TodayScreen() {
           ))}
         <Text style={styles.ethos}>today is finite and achievable</Text>
       </View>
+
+      <Modal visible={closing} transparent animationType="fade" onRequestClose={() => setClosing(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setClosing(false)} accessibilityLabel="Dismiss">
+          <Pressable style={styles.wrapCard} onPress={() => {}}>
+            <Text style={styles.wrapTitle}>{"That's the day"}</Text>
+            {todayDone.length > 0 ? (
+              <>
+                <Text style={styles.wrapLine}>
+                  You finished {todayDone.length} {todayDone.length === 1 ? 'thing' : 'things'} today
+                  {todayDone.some((c) => c.big) ? ', one a big one' : ''}.
+                </Text>
+                <View style={styles.wrapList}>
+                  {todayDone.map((c) => (
+                    <View key={c.id} style={styles.wrapItem}>
+                      <Text style={styles.wrapCheck}>✓</Text>
+                      <Text style={styles.wrapItemText}>{c.title}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            ) : (
+              <Text style={styles.wrapLine}>A quiet day. That is allowed.</Text>
+            )}
+            <Text style={styles.wrapRoll}>Anything left rolls to tomorrow. Nothing is lost.</Text>
+            <Pressable
+              onPress={() => setClosing(false)}
+              style={({ pressed }) => [styles.wrapBtn, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Goodnight"
+            >
+              <Text style={styles.wrapBtnText}>Goodnight</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -317,4 +372,39 @@ const styles = StyleSheet.create({
     marginTop: spacing.three,
     letterSpacing: 0.3,
   },
+  closeDay: {
+    alignSelf: 'center',
+    marginTop: spacing.seven,
+    paddingVertical: spacing.three,
+    paddingHorizontal: spacing.five,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  closeDayText: { color: colors.inkSoft, fontSize: 15, fontWeight: '600' },
+  pressed: { opacity: 0.85 },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(43,39,34,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.five,
+  },
+  wrapCard: {
+    backgroundColor: colors.bg,
+    borderRadius: radius.lg,
+    padding: spacing.six,
+    width: '100%',
+    maxWidth: 420,
+    gap: spacing.three,
+  },
+  wrapTitle: { color: colors.ink, fontSize: 26, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3 },
+  wrapLine: { color: colors.ink, fontSize: 17, lineHeight: 24 },
+  wrapList: { gap: spacing.two, marginTop: spacing.one },
+  wrapItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
+  wrapCheck: { color: colors.done, fontSize: 16, fontWeight: '700' },
+  wrapItemText: { color: colors.inkSoft, fontSize: 16, flexShrink: 1 },
+  wrapRoll: { color: colors.inkFaint, fontSize: 14, lineHeight: 20, marginTop: spacing.two },
+  wrapBtn: { backgroundColor: colors.accent, borderRadius: radius.md, paddingVertical: spacing.four, alignItems: 'center', marginTop: spacing.three },
+  wrapBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
 });

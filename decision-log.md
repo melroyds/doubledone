@@ -411,3 +411,12 @@ Wrote a Privacy and Security section into BUILD-PLAN. The stance: privacy by arc
 Decided against:
 - Any third-party analytics or crash SDK (Google Analytics, Sentry, and the like). They import an identity/tracking surface that contradicts the posture; the local `[doubledone.*]` telemetry stays first-party and non-identifying.
 - Capturing anything beyond an email for accounts. No name, phone, device fingerprint, contacts, or location.
+
+## 2026-06-18 E: close-the-day wrap (a ritual, not a reset)
+
+A calm "Close the day" on Today opens a wrap card: it names what you finished today (reusing the calendar's completion data, with the big-win warmth), reassures that anything left rolls to tomorrow, and signs off with "Goodnight". It changes no state, undone tasks already roll forward via the overdue logic, so this is purely the closing ritual. A quiet day reads "A quiet day. That is allowed", never shame. Lives on Today as a modal card (Melroy's call), not its own screen.
+
+Decided against:
+- An automatic midnight close. Manual keeps it in the user's control (calmer, and AuDHD-friendlier); you close the day when you are done, not when a clock says so.
+- Mechanically clearing or archiving the list on close. Never destructive; the roll-forward already handles continuity and the record stays intact.
+- Listing the unfinished tasks in the wrap. Showing what is left at the close reads as a scorecard of failure; the wrap celebrates what got done and quietly reassures about the rest.
