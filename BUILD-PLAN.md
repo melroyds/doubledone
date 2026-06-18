@@ -25,7 +25,7 @@ Full core loop working: capture, AI decomposition (Bite the Elephant), in-app sc
 
 ## The immediate next action
 
-**D: the Lookback (step 8).** Sync is verified live and the Bite-the-Elephant prompt is tuned (v2 shipped), so the prerequisites are done. Build the Lookback: a calm screen that shows everything finished recently, including dreaded old tasks finally closed, with a finished-old-task celebration (step 9 folded in). The completion telemetry already flows. This is the emotional payoff and the visible start of the moat, and the build order agreed with Melroy is D (Lookback) -> E (close-the-day) -> F (Strategise) -> G (AI triage) -> H (notifications). CX/UX is changing look-and-flow only, so this logic is safe to build now.
+**F: Strategise (step 11).** D (calendar-backed Lookback + weighted celebration) and E (close-the-day wrap) are shipped and live. Next in the agreed order D -> E -> F -> G -> H is Strategise: when Today is over-full, Sonnet re-spreads it calmly across the coming days, never all-at-once pressure. It is the "drowning" relief valve and the second live AI feature after Bite the Elephant, so it carries the same $25-cap cost discipline (one Worker route, contract-tested, minimal live calls). CX/UX is changing look-and-flow only, so this logic is safe to build now.
 
 ---
 
@@ -59,10 +59,10 @@ Build in this order. Each step is shippable and demoable on its own.
 
 ## Tier 2 (what makes it sticky)
 
-8. **The Lookback, backed by an interactive calendar** (the active build, "D"). A true Gregorian calendar you can open any time and browse by day, showing what you actually completed and when. The week view is the emotional payoff; the calendar is the accurate record under it. Requires a real completion record (a `completedAt` for one-offs; recurring tasks are already dated via `completedDates`).
-9. **Complexity-weighted celebration**, reward closing the dreaded in proportion to how hard it was, never shame the backlog. A task's complexity score amplifies the *warmth* of the calm acknowledgment, NOT points / streaks / leaderboards (those betray the spec and repel the AuDHD audience). Score derived cheaply where possible (from a Bite-the-Elephant decomposition); a dedicated AI score is the backlog item below.
-10. **Close-the-day wrap**, gentle, rolls forward, zero guilt
-11. **Strategise**, Sonnet re-spreads an over-full day
+8. ✅ **The Lookback, backed by an interactive calendar** ("D1"). A true Gregorian calendar you open any time and browse by day, showing what you completed and when. *Done 2026-06-18.*
+9. ✅ **Complexity-weighted celebration** ("D2"). Closing a long-dreaded or chunky task gets a bigger calendar dot and a warm "a big one", weighting the *warmth* of the acknowledgment, never points / streaks. Score derived cheaply from a Bite-the-Elephant decomposition. *Done 2026-06-18.*
+10. ✅ **Close-the-day wrap** ("E"), gentle, rolls forward, zero guilt, lives on Today as a calm wrap card. *Done 2026-06-18.*
+11. **Strategise** ("F", next), Sonnet re-spreads an over-full day
 12. ✅ **Supabase auth + sync**, opt-in cloud durability, RLS for privacy (verified live end-to-end 2026-06-18)
 13. **Gentle nudges / notifications**, native, the retention lever
 
