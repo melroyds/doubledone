@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { friendlyDate } from '@/lib/day';
+import { describePace, paceDays } from '@/lib/estimate';
+import { track } from '@/lib/telemetry';
 import { useThemedStyles } from '@/lib/theme-provider';
 
 export type ReviewStep = { title: string; minutes: number; date: string | null };
@@ -27,6 +29,14 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
   const [selected, setSelected] = useState<boolean[]>(() => steps.map(() => true));
   const phaseCount = laterPhases?.length ?? 0;
   const count = selected.filter(Boolean).length + phaseCount;
+  const days = paceDays(steps, phaseCount);
+
+  // Moat surface: log that a pace estimate was shown, with its day count (pairs
+  // with the decomposition.offered + step-completion telemetry that will, at
+  // scale, turn this into a real anonymised cross-user estimate).
+  useEffect(() => {
+    track('estimate.shown', { days });
+  }, [days]);
 
   function toggle(i: number) {
     setSelected((prev) => prev.map((v, idx) => (idx === i ? !v : v)));
@@ -86,6 +96,10 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
                 <Text style={styles.phasesNote}>These wait in Later. Break each one down when you reach it.</Text>
               </View>
             )}
+
+            <Text style={styles.pace} accessibilityRole="text">
+              {describePace(days)}
+            </Text>
 
             <Pressable
               onPress={add}
@@ -176,6 +190,18 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   phaseTitle: { color: t.colors.inkSoft, fontSize: 15 * t.scale, flex: 1, fontFamily: fonts.body },
   phaseDate: { color: t.colors.repeat, fontSize: 13 * t.scale, fontWeight: '600', fontFamily: fonts.body },
   phasesNote: { color: t.colors.inkFaint, fontSize: 12 * t.scale, lineHeight: 17, fontFamily: fonts.body },
+  pace: {
+    color: t.colors.inkSoft,
+    fontSize: 14 * t.scale,
+    fontFamily: fonts.body,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginTop: spacing.three,
+    backgroundColor: t.colors.accentSoft,
+    paddingVertical: spacing.three,
+    paddingHorizontal: spacing.four,
+    borderRadius: radius.md,
+  },
   btn: {
     backgroundColor: t.colors.accent,
     borderRadius: radius.md,

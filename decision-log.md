@@ -844,3 +844,16 @@ The Dusk type pairing (Newsreader headings + Atkinson Hyperlegible body, the Bra
 **v1 limitation, recorded honestly:** one weight per face is loaded, so native renders heavier / italic variants synthetically (Newsreader's package tops out at 600 anyway, which reads as a calm editorial heading; bold body labels get synthetic bold; the italic foot-phrase gets synthetic italic). Loading the explicit bold / italic variants plus a weight-token sweep is a small follow-on, backlogged. Confirming the families actually render is Melroy's on-device check (native cannot be exercised from the web preview).
 
 **Decided against** a custom `<Text>` wrapper or per-style weight tokens for v1: the single-weight mapping delivers the visible win (real faces, not System) with web untouched and no large sweep. The nuance can come later if it earns it.
+
+## 2026-06-19 The moat, made visible: a calm pace estimate
+
+The completion-data flywheel finally has a user-facing surface. When a task is broken down, the review now closes with a calm line: "Usually about N days, at a gentle pace. No rush." Its real value for this audience is normalisation, a dreaded task taking several days is normal, not a personal failing, which lifts the pressure to finish in one sitting and protects the never-shame spine.
+
+**The honest call on framing.** The ask was the moat's headline payoff, "other people took about X days." With essentially no users yet, an in-product line claiming real per-user crowd timings would be a fabricated statistic, and a hiring PM who clocks that the app has no users would read it as fake, which corrodes trust far more than its absence would. So v1 ships the SURFACE with copy that is honest now:
+- `lib/estimate.ts` derives the day count transparently from the decomposition (about 25 min of real effort per day on a dreaded task, or roughly two steps a day, whichever is greater, plus a day per later phase; clamped to 1..14). Pure and unit-tested (12 cases).
+- The copy is the app's own gentle pacing guidance ("usually about N days"), never a claim about other named users.
+- The architecture IS the real moat: the instrumentation that will feed a true aggregate (`decomposition.offered` + step completions, already live) plus a new `estimate.shown` event. When anonymised cross-user volume exists, the same surface swaps to real crowd timings with no UI change.
+
+Verified live end-to-end: a real "Break it down" of "Sort out my tax return" returned a six-step first phase plus three later phases, and the review showed "Usually about 6 days, at a gentle pace. No rush." in a calm accent-tinted note (inkSoft Atkinson). Deployed decompose confirmed working; gates green (167 client + 38 server tests).
+
+**Decided against:** faking live crowd numbers (the trust risk above); a separate stats screen (off-brand, the estimate belongs at the moment of overwhelm, inside the breakdown). The literal "people like you usually take X days" is a one-line copy swap once the data is real.
