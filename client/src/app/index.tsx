@@ -33,7 +33,7 @@ import { syncOnce } from '@/lib/sync';
 import { parseDump, type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
 import { useReducedMotion, useThemedStyles } from '@/lib/theme-provider';
-import { isDoneOn, isRecurring, tasksForToday, toggleDoneOn, upcomingTasks } from '@/lib/today';
+import { deferToTomorrow, isDoneOn, isRecurring, tasksForToday, toggleDoneOn, upcomingTasks } from '@/lib/today';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
@@ -175,6 +175,16 @@ export default function TodayScreen() {
     commit(tasks.map((t) => (t.id === id ? { ...t, deletedAt: now, updatedAt: now } : t)));
     setConfirmingId(null);
     track('task.removed');
+  }
+
+  // Push a one-off to tomorrow: a calm "not today" that moves a single task
+  // forward a day (it returns tomorrow), the single-task sibling of close-the-day's
+  // roll forward. Never-shame: no counter, no penalty, just a date move.
+  function deferTask(id: string) {
+    const now = nowMs();
+    commit(tasks.map((t) => (t.id === id ? { ...deferToTomorrow(t, today), updatedAt: now } : t)));
+    setConfirmingId(null);
+    track('task.deferred');
   }
 
   function signOut() {
@@ -506,6 +516,7 @@ export default function TodayScreen() {
               onAdvance={() => step(task.id, 1)}
               onRetreat={() => step(task.id, -1)}
               onBreakdown={() => breakdownExisting(task.title)}
+              onDefer={() => deferTask(task.id)}
             />
           ))}
         </View>

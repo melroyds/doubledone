@@ -19,6 +19,7 @@ type Props = {
   onAdvance?: () => void;
   onRetreat?: () => void;
   onBreakdown?: () => void;
+  onDefer?: () => void;
 };
 
 // A single row. Tap to complete (a soft sage check, gentle fade, never a shaming
@@ -43,6 +44,7 @@ export function TaskRow({
   onAdvance,
   onRetreat,
   onBreakdown,
+  onDefer,
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
@@ -72,22 +74,31 @@ export function TaskRow({
         </View>
       );
     }
+    // Title over a row of actions, so the one-off case (Tomorrow / Break down /
+    // Keep / Remove) fits without crushing the title on a narrow phone.
     return (
-      <View style={[styles.row, styles.confirmRow]}>
-        <Text style={styles.confirmText} numberOfLines={1}>
+      <View style={[styles.row, styles.confirmRow, styles.confirmColumn]}>
+        <Text style={styles.confirmTitle} numberOfLines={1}>
           {title}
         </Text>
-        {onBreakdown && !recurring && (
-          <Pressable onPress={onBreakdown} accessibilityRole="button" accessibilityLabel={`Break down ${title}`}>
-            <Text style={styles.keep}>Break down</Text>
+        <View style={styles.confirmActions}>
+          {onDefer && !recurring && (
+            <Pressable onPress={onDefer} accessibilityRole="button" accessibilityLabel={`Move ${title} to tomorrow`}>
+              <Text style={styles.keep}>Tomorrow</Text>
+            </Pressable>
+          )}
+          {onBreakdown && !recurring && (
+            <Pressable onPress={onBreakdown} accessibilityRole="button" accessibilityLabel={`Break down ${title}`}>
+              <Text style={styles.keep}>Break down</Text>
+            </Pressable>
+          )}
+          <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel="Keep">
+            <Text style={styles.keep}>Keep</Text>
           </Pressable>
-        )}
-        <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel="Keep">
-          <Text style={styles.keep}>Keep</Text>
-        </Pressable>
-        <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${title}`}>
-          <Text style={styles.remove}>Remove</Text>
-        </Pressable>
+          <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${title}`}>
+            <Text style={styles.remove}>Remove</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -159,6 +170,9 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   pressed: { opacity: 0.7 },
   confirmRow: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accentSoft },
   confirmText: { flex: 1, color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body },
+  confirmColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.three },
+  confirmTitle: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body },
+  confirmActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.three },
   keep: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, fontWeight: '600', paddingHorizontal: spacing.two },
   controlOff: { color: t.colors.inkFaint },
   remove: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, fontWeight: '700', paddingHorizontal: spacing.two },

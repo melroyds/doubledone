@@ -857,3 +857,15 @@ The completion-data flywheel finally has a user-facing surface. When a task is b
 Verified live end-to-end: a real "Break it down" of "Sort out my tax return" returned a six-step first phase plus three later phases, and the review showed "Usually about 6 days, at a gentle pace. No rush." in a calm accent-tinted note (inkSoft Atkinson). Deployed decompose confirmed working; gates green (167 client + 38 server tests).
 
 **Decided against:** faking live crowd numbers (the trust risk above); a separate stats screen (off-brand, the estimate belongs at the moment of overwhelm, inside the breakdown). The literal "people like you usually take X days" is a one-line copy swap once the data is real.
+
+## 2026-06-20 Push a task to tomorrow (finishing the daily loop)
+
+The daily loop could add, complete, break down, strategise, and close the day, but not gently defer a single task. Added "Tomorrow": a calm per-task "not today" that moves one one-off forward a day.
+
+- `deferToTomorrow` (pure, in `lib/today`, unit-tested) sets a one-off's `due` to tomorrow, so it drops off Today via `tasksForToday` and reappears in the Later list (and on Today tomorrow). Recurring tasks are returned unchanged, they move by cadence not deferral, so "Tomorrow" is offered only on one-offs.
+- It lives in the existing long-press confirm menu, beside Break down / Keep / Remove. Four actions did not fit one row on a 390px phone, so that menu is now **title-over-actions** (a wrapping action row). Verified at 375px: no horizontal overflow, the defer moves the task into Later under the "Tomorrow" label, no console errors.
+- **Never-shame by design:** the label is plain "Tomorrow" (not "Snooze" or "Postpone"), and there is no counter of how many times a task has been pushed. `task.deferred` is instrumented.
+
+The single-task sibling of close-the-day's roll-forward. Clears the backlog item of the same name.
+
+**Decided against:** a swipe gesture (fiddly and inconsistent on web); offering it on Later rows (already future-dated, so "tomorrow" would move them earlier, which is incoherent), Today rows only.

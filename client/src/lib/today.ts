@@ -1,4 +1,4 @@
-import { toISODate } from './day';
+import { addDaysISO, toISODate } from './day';
 import { isDueOn, type Recurrence } from './recurrence';
 
 // What belongs on Today, and what "done" means once tasks can repeat.
@@ -47,6 +47,18 @@ export function tasksForToday<T extends Scheduled>(tasks: T[], date: Date): T[] 
   return tasks.filter((t) =>
     t.deletedAt ? false : isRecurring(t) ? isDueOn(t, date) : t.due == null || t.due <= todayIso,
   );
+}
+
+/**
+ * Defer a one-off to tomorrow: set its due to the day after `date`, so it drops
+ * off Today and returns tomorrow. A calm "not today", the single-task sibling of
+ * close-the-day's roll forward, with no counter and no penalty (the never-shame
+ * spine). Recurring tasks are returned unchanged, they move by cadence, not by
+ * deferral.
+ */
+export function deferToTomorrow<T extends Scheduled>(task: T, date: Date): T {
+  if (isRecurring(task)) return task;
+  return { ...task, due: addDaysISO(date, 1) };
 }
 
 /** Future-dated one-offs (due after today), not done, soonest first: the "Later" list. */

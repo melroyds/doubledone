@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { type Recurrence } from './recurrence';
-import { isDoneOn, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
+import { deferToTomorrow, isDoneOn, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
 
 const today = new Date(2026, 5, 17);
 const iso = '2026-06-17';
@@ -38,6 +38,28 @@ describe('toggleDoneOn', () => {
     expect(onceDone.completedDates).toEqual(['2026-06-16', iso]);
     const undone = toggleDoneOn(onceDone, today);
     expect(undone.completedDates).toEqual(['2026-06-16']);
+  });
+});
+
+describe('deferToTomorrow', () => {
+  it('sets an undated one-off to due tomorrow', () => {
+    const undated: Scheduled = { done: false };
+    expect(deferToTomorrow(undated, today).due).toBe('2026-06-18');
+  });
+
+  it('moves an overdue one-off forward to tomorrow (not just to today)', () => {
+    expect(deferToTomorrow({ done: false, due: '2026-06-10' }, today).due).toBe('2026-06-18');
+  });
+
+  it('leaves a recurring task unchanged (it moves by cadence, not deferral)', () => {
+    const task = { done: false, recurrence: daily, completedDates: [iso] };
+    expect(deferToTomorrow(task, today)).toBe(task);
+  });
+
+  it('a deferred task leaves Today and lands in the Later list', () => {
+    const deferred = deferToTomorrow({ id: 'x', done: false }, today);
+    expect(tasksForToday([deferred], today)).toEqual([]);
+    expect(upcomingTasks([deferred], today).map((t) => t.id)).toEqual(['x']);
   });
 });
 
