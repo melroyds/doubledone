@@ -891,3 +891,15 @@ An audit of the interactive surfaces. The app was already strong on screen-reade
 Verified in preview: controls still fire (a proper pointer tap on a chip reveals its options) and render unchanged, no console errors.
 
 **Noted, not changed:** the faint tertiary ink (`inkFaint`) for hints / placeholders is low-contrast against the paper background, a deliberate calm trade-off. Raising it would alter the Dusk palette app-wide (a design decision), and the proper home is the **high-contrast mode already backlogged** in Settings Tier 2, not an overnight palette change. The long-press confirm-menu text actions are a minor remaining touch-target item (lower frequency, deliberate reveal).
+
+## 2026-06-20 One-off future date at capture
+
+Capture could schedule Today, Tomorrow, and the recurring modes, but not a single one-off on a specific far-off day, the last gap in the scheduling story (recurring "Starting from" shipped earlier). Added a "Date…" chip.
+
+- `CaptureSchedule` gains `{ mode: 'date'; date }`; `scheduleFields` maps it to `{ due: date }`, so it flows through the existing one-off path (waits in Later, surfaces on Today on the day). Pure, unit-tested.
+- The "Date…" chip opens the month-grid picker straight away; the chosen day shows in an "On {date}" row and on the add button ("Add for Sat, 27 June").
+- The picker modal is now **shared** between the one-off due date and the recurring start, via a single `pickerFor: 'start' | 'due' | null`. The title and the "Start today" reset (start-only) adapt. One modal, two uses, no duplication.
+
+Verified in preview: "Date…" → pick 27 June → a task persists as `{ due: '2026-06-27' }` and lands under Later; the recurring "Starting from" still opens with its "Start today" reset; no console errors. (The HMR state-confusion seen mid-build went away on a clean reload, not a bug.)
+
+**Remaining (backlogged):** setting / clearing a date on an *existing* task (e.g. via long-press); this did the at-capture half.

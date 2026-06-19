@@ -86,6 +86,10 @@ describe('scheduleFields', () => {
     expect(scheduleFields({ mode: 'tomorrow' }, jun17)).toEqual({ due: '2026-06-18' });
   });
 
+  it('date sets a one-off due on the chosen day', () => {
+    expect(scheduleFields({ mode: 'date', date: '2026-07-01' }, jun17)).toEqual({ due: '2026-07-01' });
+  });
+
   it('daily and weekly set recurrence with a start (today by default)', () => {
     expect(scheduleFields({ mode: 'daily' }, jun17)).toEqual({ recurrence: { kind: 'daily', start: '2026-06-17' } });
     expect(scheduleFields({ mode: 'weekly', weekdays: [1, 3] }, jun17)).toEqual({

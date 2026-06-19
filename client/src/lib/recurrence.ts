@@ -72,10 +72,13 @@ function cadenceLabel(r: Recurrence): string {
   }
 }
 
-// What the capture UI offers: a deliberately tiny set, not a full date picker.
+// What the capture UI offers: a deliberately small set. `date` is a single
+// one-off on a specific day (the month-grid picker); the recurring modes carry
+// their own start.
 export type CaptureSchedule =
   | { mode: 'today' }
   | { mode: 'tomorrow' }
+  | { mode: 'date'; date: string }
   | { mode: 'daily'; start?: string }
   | { mode: 'weekly'; weekdays: number[]; start?: string }
   | { mode: 'everyN'; days: number; start?: string };
@@ -90,6 +93,8 @@ export function scheduleFields(
       return {};
     case 'tomorrow':
       return { due: addDaysISO(today, 1) };
+    case 'date':
+      return { due: s.date };
     case 'daily':
       return { recurrence: { kind: 'daily', start: s.start ?? toISODate(today) } };
     case 'weekly':

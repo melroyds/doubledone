@@ -16,11 +16,12 @@ type Props = {
   today: Date;
 };
 
-type Mode = 'today' | 'tomorrow' | 'daily' | 'weekly' | 'everyN';
+type Mode = 'today' | 'tomorrow' | 'date' | 'daily' | 'weekly' | 'everyN';
 
 const MODES: { mode: Mode; label: string }[] = [
   { mode: 'today', label: 'Today' },
   { mode: 'tomorrow', label: 'Tomorrow' },
+  { mode: 'date', label: 'Date…' },
   { mode: 'daily', label: 'Daily' },
   { mode: 'weekly', label: 'Weekly' },
   { mode: 'everyN', label: 'Custom' },
@@ -31,6 +32,7 @@ const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']; // index 0=Sun .. 6
 const ADD_LABEL: Record<Mode, string> = {
   today: 'Add to today',
   tomorrow: 'Add for tomorrow',
+  date: 'Add for that day',
   daily: 'Add daily',
   weekly: 'Add weekly',
   everyN: 'Add repeating',
@@ -45,7 +47,8 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
   const [weekdays, setWeekdays] = useState<number[]>([today.getDay()]);
   const [everyNDays, setEveryNDays] = useState(2);
   const [start, setStart] = useState(() => toISODate(today)); // ISO start for a recurring task
-  const [startPickerOpen, setStartPickerOpen] = useState(false);
+  const [dueDate, setDueDate] = useState(() => toISODate(today)); // ISO due for a one-off "Date…" task
+  const [pickerFor, setPickerFor] = useState<'start' | 'due' | null>(null); // which date the modal edits
   const [sliceCount, setSliceCount] = useState(0); // 0 = whole task; >=MIN_SLICES = tracked in steps
   const [busyKind, setBusyKind] = useState<'bite' | 'sort' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,9 +58,10 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
   const lineCount = value.split('\n').filter((l) => l.trim().length > 0).length;
   // Steps only make sense for a single, one-off task (a thing with parts). Hidden
   // for a multi-line dump or a repeating task, so it never clutters those.
-  const canSlice = lineCount <= 1 && (mode === 'today' || mode === 'tomorrow');
+  const canSlice = lineCount <= 1 && (mode === 'today' || mode === 'tomorrow' || mode === 'date');
   const isRecurringMode = mode === 'daily' || mode === 'weekly' || mode === 'everyN';
   const todayIso = toISODate(today);
+  const addLabel = mode === 'date' ? `Add for ${friendlyDate(dueDate, today)}` : ADD_LABEL[mode];
 
   function buildSchedule(): CaptureSchedule {
     if (mode === 'daily') {
@@ -69,6 +73,9 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
     if (mode === 'everyN') {
       return { mode: 'everyN', days: everyNDays, start };
     }
+    if (mode === 'date') {
+      return { mode: 'date', date: dueDate };
+    }
     return { mode };
   }
 
@@ -77,7 +84,8 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
     setMode('today');
     setWeekdays([today.getDay()]);
     setStart(todayIso);
-    setStartPickerOpen(false);
+    setDueDate(todayIso);
+    setPickerFor(null);
     setSliceCount(0);
   }
 
@@ -139,7 +147,10 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
         {MODES.map(({ mode: m, label }) => (
           <Pressable
             key={m}
-            onPress={() => setMode(m)}
+            onPress={() => {
+              setMode(m);
+              if (m === 'date') setPickerFor('due');
+            }}
             style={[styles.chip, mode === m && styles.chipOn]}
             hitSlop={{ top: 8, bottom: 8 }}
             accessibilityRole="button"
@@ -193,11 +204,26 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
         </View>
       )}
 
+      {mode === 'date' && (
+        <View style={styles.startRow}>
+          <Text style={styles.startLabel}>On</Text>
+          <Pressable
+            onPress={() => setPickerFor('due')}
+            style={styles.startBtn}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`On ${friendlyDate(dueDate, today)}`}
+          >
+            <Text style={styles.startBtnText}>{friendlyDate(dueDate, today)}</Text>
+          </Pressable>
+        </View>
+      )}
+
       {isRecurringMode && (
         <View style={styles.startRow}>
           <Text style={styles.startLabel}>Starting from</Text>
           <Pressable
-            onPress={() => setStartPickerOpen(true)}
+            onPress={() => setPickerFor('start')}
             style={styles.startBtn}
             hitSlop={8}
             accessibilityRole="button"
@@ -277,36 +303,39 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
           disabled={busy}
           style={({ pressed }) => [styles.add, pressed && styles.pressed, busy && styles.disabled]}
           accessibilityRole="button"
-          accessibilityLabel={ADD_LABEL[mode]}
+          accessibilityLabel={addLabel}
         >
-          <Text style={styles.addText}>{ADD_LABEL[mode]}</Text>
+          <Text style={styles.addText}>{addLabel}</Text>
         </Pressable>
       </View>
 
       {error && <Text style={styles.error}>{error}</Text>}
 
-      <Modal visible={startPickerOpen} transparent animationType="fade" onRequestClose={() => setStartPickerOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setStartPickerOpen(false)} accessibilityLabel="Dismiss">
+      <Modal visible={pickerFor !== null} transparent animationType="fade" onRequestClose={() => setPickerFor(null)}>
+        <Pressable style={styles.backdrop} onPress={() => setPickerFor(null)} accessibilityLabel="Dismiss">
           <Pressable style={styles.pickerCard} onPress={() => {}}>
-            <Text style={styles.pickerTitle}>Starting from</Text>
+            <Text style={styles.pickerTitle}>{pickerFor === 'due' ? 'On which day' : 'Starting from'}</Text>
             <DatePicker
-              value={start}
+              value={pickerFor === 'due' ? dueDate : start}
               today={today}
               onChange={(iso) => {
-                setStart(iso);
-                setStartPickerOpen(false);
+                if (pickerFor === 'due') setDueDate(iso);
+                else setStart(iso);
+                setPickerFor(null);
               }}
             />
-            <Pressable
-              onPress={() => {
-                setStart(todayIso);
-                setStartPickerOpen(false);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Start today"
-            >
-              <Text style={styles.pickerToday}>Start today</Text>
-            </Pressable>
+            {pickerFor === 'start' && (
+              <Pressable
+                onPress={() => {
+                  setStart(todayIso);
+                  setPickerFor(null);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Start today"
+              >
+                <Text style={styles.pickerToday}>Start today</Text>
+              </Pressable>
+            )}
           </Pressable>
         </Pressable>
       </Modal>
