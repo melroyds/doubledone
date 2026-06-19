@@ -669,3 +669,19 @@ Decided:
 - **Resolve the scheme at launch, not reactively.** Runtime scheme-switching would force every component's `StyleSheet.create` (which reads `colors` at module load) into a theme hook, a large refactor for little gain. Launch-time resolution is "system-following" enough and keeps the change contained. A live toggle can come with the Settings page if ever wanted.
 
 Verified both modes in preview (light default + dark via `prefers-color-scheme`): mauve accent, periwinkle unique-borders, sage progress, recurring rows with ↻, warm-charcoal dark, no console errors.
+
+## 2026-06-19 Dusk art: the icon, the moments, and native dark
+
+Melroy generated the illustration suite from the Dusk system (the "nano-banana" set): a sage-and-mauve double-check app mark, two "moment" scenes (an empty-desk morning, a dusk-sunset close), and a list hero. Wiring them in.
+
+- **One icon source, every slot.** The mark renders as a warm cream rounded tile on white. Cropped past the white corners (they sat in the outer ~50px) and upscaled to a full-bleed cream tile, then used for `icon.png`, `splash-icon.png`, the Android adaptive `foregroundImage`, and a 196px `favicon.png`. Full-bleed cream means no launcher mask (circle / squircle / rounded-square) ever clips a white corner sliver. Splash + adaptive `backgroundColor` set to the sampled tile cream (`#F6F2E9`) so the centred mark dissolves into warm paper with no seam.
+- **In-app illustrations as 16:9 banners.** B3 (empty Today) and B4 (close-the-day) sit in `client/assets/images/`, resized to 960px wide (17KB / 30KB) for a lean web bundle. RN-web ignores `aspectRatio` on `<Image>` (the source's natural height wins, giving a portrait box), so the banner shape comes from a wrapper `View` with the aspect ratio + `overflow: hidden` and the image absolutely filling it. The hero (B5, 1200px) goes in `docs/design/` and tops the README.
+- **Animate only the one moment.** The close-the-day card gets a soft fade-and-rise (opacity + 16px translateY, 320ms ease-out), gated on reduced motion via a `useReducedMotion` hook extracted from `MarqueeText` into `lib/useReducedMotion` so both surfaces share it. Everything else is still: calm, not decorated.
+- **Native dark mode switched on.** `userInterfaceStyle` was `"light"`, which pins the OS appearance to light and so suppressed the Dusk dark palette on device (the theme already resolves `Appearance.getColorScheme()`; web read `prefers-color-scheme` fine, native could never go dark). Changed to `"automatic"` so the documented system-following behaviour actually fires on Android. **Needs native verification** (the web preview can't exercise it).
+
+Decided against:
+- **A full-bleed or animated native splash (B2).** Disproportionate effort for a surface only reached via the sideloaded APK, and full-bleed splash images are device-ratio-fragile. Kept the standard centred-mark splash; parked the richer splash in the Backlog.
+- **The paper-texture asset (B6).** A subtle background texture risks visual noise against the never-overwhelm spine, and earns nothing on the calm surfaces. Parked.
+- **Animating the empty state.** Movement on the first thing you see every morning is the opposite of calm. It stays a still banner.
+
+Removed the now-orphaned adaptive `backgroundImage` / `monochromeImage` layers (the old gradient mark would have shown as a wrong themed icon). Committed `*.jpg` / `*.png` module type decls (same CI-`tsc` reason as the existing `*.css` one). Verified in preview: both banners render at the correct 1.78 ratio, the close card centres with the dusk banner and the serif heading, the fade-and-rise settles, no console errors. The favicon applies at build (the Metro dev server does not inject it).

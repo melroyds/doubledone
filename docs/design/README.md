@@ -9,5 +9,8 @@ The DoubleDone visual system, **Dusk**: calm and warm, low-arousal, never gamifi
 | [`lookback.html`](lookback.html) | The Lookback calendar (A4): completion dots, big-win marks, the day detail. |
 | [`today-dusk-light-dark.png`](today-dusk-light-dark.png) | The Today screen, light and dark. |
 | [`dusk-light-and-dark.png`](dusk-light-and-dark.png) | The Dusk light/dark philosophy. |
+| [`hero.jpg`](hero.jpg) | The README hero illustration: a short, calm list in the Dusk palette. |
+
+**In-app illustrations** (the calm "moments"): the empty-Today scene and the close-the-day card art live in [`client/assets/images/`](../../client/assets/images/) as `empty.jpg` and `closeday.jpg`; the app icon, splash, and favicon are the sage-and-mauve double-check. All generated to the Dusk palette.
 
 **Where it's implemented:** the palette and dark mode live in [`client/src/constants/theme.ts`](../../client/src/constants/theme.ts); the typography is wired in [`client/src/global.css`](../../client/src/global.css). See the "Design overhaul (Dusk)" entry in [`decision-log.md`](../../decision-log.md) for the why.

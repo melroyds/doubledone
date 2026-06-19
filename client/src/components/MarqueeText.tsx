@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  AccessibilityInfo,
   Animated,
   Easing,
   Platform,
@@ -10,6 +9,8 @@ import {
   type StyleProp,
   type TextStyle,
 } from 'react-native';
+
+import { useReducedMotion } from '@/lib/useReducedMotion';
 
 // A calm marquee for a task title that does not fit its row. It scrolls ONLY when
 // the text actually overflows, and ONLY when the user has not asked for reduced
@@ -144,47 +145,6 @@ function measureWidth(node: unknown, set: (w: number) => void): void {
   native.measure?.((_x, _y, w) => {
     if (w) set(w);
   });
-}
-
-/** True when the user prefers reduced motion (web media query or native a11y flag). */
-function useReducedMotion(): boolean {
-  // Lazy initial read (web can answer synchronously); the effect then only
-  // subscribes to changes, so no setState fires synchronously inside it.
-  const [reduced, setReduced] = useState(getReducedMotionInitial);
-  useEffect(() => {
-    let mounted = true;
-    if (Platform.OS === 'web') {
-      const mq = typeof window !== 'undefined' ? window.matchMedia?.('(prefers-reduced-motion: reduce)') : null;
-      if (!mq) return;
-      const handler = (e: MediaQueryListEvent) => {
-        if (mounted) setReduced(e.matches);
-      };
-      mq.addEventListener?.('change', handler);
-      return () => {
-        mounted = false;
-        mq.removeEventListener?.('change', handler);
-      };
-    }
-    // Native has no synchronous getter, so read it once (async) then subscribe.
-    void AccessibilityInfo.isReduceMotionEnabled().then((v) => {
-      if (mounted) setReduced(v);
-    });
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (v) => {
-      if (mounted) setReduced(v);
-    });
-    return () => {
-      mounted = false;
-      sub.remove();
-    };
-  }, []);
-  return reduced;
-}
-
-function getReducedMotionInitial(): boolean {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    return window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
-  }
-  return false;
 }
 
 const styles = StyleSheet.create({

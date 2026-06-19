@@ -7,6 +7,10 @@
 **Status:** core loop live, solo build. Capture, AI triage, phased Break-it-down, recurring tasks, slices, Strategise, the Lookback, close-the-day, daily reminders, and opt-in cloud sync are all shipped on web and Android.
 **Live:** [doubledone.app](https://doubledone.app) (web). Android installs via a sideloaded EAS build.
 
+<p align="center">
+  <img src="docs/design/hero.jpg" alt="DoubleDone: a short, calm list with two tasks softly checked off in sage and one still to do, in the warm Dusk palette" width="640">
+</p>
+
 ---
 
 ## The idea in one line

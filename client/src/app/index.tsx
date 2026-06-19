@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrainDump } from '@/components/BrainDump';
@@ -32,6 +32,10 @@ import { syncOnce } from '@/lib/sync';
 import { parseDump, type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
 import { isDoneOn, isRecurring, tasksForToday, toggleDoneOn, upcomingTasks } from '@/lib/today';
+import { useReducedMotion } from '@/lib/useReducedMotion';
+
+import closeDayArt from '../../assets/images/closeday.jpg';
+import emptyArt from '../../assets/images/empty.jpg';
 
 let addCounter = 0;
 function makeId(): string {
@@ -68,6 +72,10 @@ export default function TodayScreen() {
   const router = useRouter();
   const session = useSession();
   const tasksRef = useRef<Task[]>(tasks);
+  const reduced = useReducedMotion();
+  // The close-the-day card's gentle entrance (0 = below + transparent, 1 = settled).
+  // useState, not useRef: reading a ref in render trips the React Compiler lint.
+  const [closeRise] = useState(() => new Animated.Value(0));
 
   // Load the persisted list once. Until it arrives we hold off on the empty and
   // all-done copy so neither flashes before the real tasks land.
@@ -119,6 +127,27 @@ export default function TodayScreen() {
       active = false;
     };
   }, [session]);
+
+  // Drive the close-the-day card's soft fade-and-rise on open. Reduced motion
+  // shows it settled instantly, never moving for users who opt out of motion.
+  useEffect(() => {
+    if (!closing) {
+      closeRise.setValue(0);
+      return;
+    }
+    if (reduced) {
+      closeRise.setValue(1);
+      return;
+    }
+    const anim = Animated.timing(closeRise, {
+      toValue: 1,
+      duration: 320,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: Platform.OS !== 'web',
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [closing, reduced, closeRise]);
 
   const visible = tasksForToday(tasks, today);
   const upcoming = upcomingTasks(tasks, today);
@@ -467,7 +496,19 @@ export default function TodayScreen() {
         </View>
 
         {loaded && visible.length === 0 && (
-          <Text style={styles.calmNote}>Nothing here yet. Add one thing, or enjoy the quiet.</Text>
+          <View style={styles.emptyState}>
+            <View style={styles.emptyArt}>
+              <Image
+                source={emptyArt}
+                style={styles.artFill}
+                resizeMode="cover"
+                accessibilityIgnoresInvertColors
+                accessible
+                accessibilityLabel="A warm coffee beside an open notebook in morning light"
+              />
+            </View>
+            <Text style={[styles.calmNote, styles.emptyNote]}>Nothing here yet. Add one thing, or enjoy the quiet.</Text>
+          </View>
         )}
         {allDone && <Text style={styles.calmNote}>{"That's the list. Nicely done."}</Text>}
 
@@ -562,36 +603,56 @@ export default function TodayScreen() {
 
       <Modal visible={closing} transparent animationType="fade" onRequestClose={() => setClosing(false)}>
         <Pressable style={styles.backdrop} onPress={() => setClosing(false)} accessibilityLabel="Dismiss">
-          <Pressable style={styles.wrapCard} onPress={() => {}}>
-            <Text style={styles.wrapTitle}>{"That's the day"}</Text>
-            {todayDone.length > 0 ? (
-              <>
-                <Text style={styles.wrapLine}>
-                  You finished {todayDone.length} {todayDone.length === 1 ? 'thing' : 'things'} today
-                  {todayDone.some((c) => c.big) ? ', one a big one' : ''}.
-                </Text>
-                <View style={styles.wrapList}>
-                  {todayDone.map((c) => (
-                    <View key={c.id} style={styles.wrapItem}>
-                      <Text style={styles.wrapCheck}>✓</Text>
-                      <Text style={styles.wrapItemText}>{c.title}</Text>
-                    </View>
-                  ))}
-                </View>
-              </>
-            ) : (
-              <Text style={styles.wrapLine}>A quiet day. That is allowed.</Text>
-            )}
-            <Text style={styles.wrapRoll}>Anything left rolls to tomorrow. Nothing is lost.</Text>
-            <Pressable
-              onPress={() => setClosing(false)}
-              style={({ pressed }) => [styles.wrapBtn, pressed && styles.pressed]}
-              accessibilityRole="button"
-              accessibilityLabel="Goodnight"
-            >
-              <Text style={styles.wrapBtnText}>Goodnight</Text>
+          <Animated.View
+            style={[
+              styles.wrapAnim,
+              {
+                opacity: closeRise,
+                transform: [{ translateY: closeRise.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+              },
+            ]}
+          >
+            <Pressable style={styles.wrapCard} onPress={() => {}}>
+              <View style={styles.wrapArt}>
+                <Image
+                  source={closeDayArt}
+                  style={styles.artFill}
+                  resizeMode="cover"
+                  accessibilityIgnoresInvertColors
+                  accessible
+                  accessibilityLabel="A calm dusk sky settling over a closed notebook"
+                />
+              </View>
+              <Text style={styles.wrapTitle}>{"That's the day"}</Text>
+              {todayDone.length > 0 ? (
+                <>
+                  <Text style={styles.wrapLine}>
+                    You finished {todayDone.length} {todayDone.length === 1 ? 'thing' : 'things'} today
+                    {todayDone.some((c) => c.big) ? ', one a big one' : ''}.
+                  </Text>
+                  <View style={styles.wrapList}>
+                    {todayDone.map((c) => (
+                      <View key={c.id} style={styles.wrapItem}>
+                        <Text style={styles.wrapCheck}>✓</Text>
+                        <Text style={styles.wrapItemText}>{c.title}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.wrapLine}>A quiet day. That is allowed.</Text>
+              )}
+              <Text style={styles.wrapRoll}>Anything left rolls to tomorrow. Nothing is lost.</Text>
+              <Pressable
+                onPress={() => setClosing(false)}
+                style={({ pressed }) => [styles.wrapBtn, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Goodnight"
+              >
+                <Text style={styles.wrapBtnText}>Goodnight</Text>
+              </Pressable>
             </Pressable>
-          </Pressable>
+          </Animated.View>
         </Pressable>
       </Modal>
 
@@ -689,6 +750,10 @@ const styles = StyleSheet.create({
   spine: { color: colors.inkSoft, fontSize: 16, marginTop: spacing.two, marginBottom: spacing.six },
   list: { gap: spacing.two },
   calmNote: { color: colors.inkSoft, fontSize: 16, marginTop: spacing.five, lineHeight: 24 },
+  emptyState: { alignItems: 'center' },
+  emptyArt: { width: '100%', maxWidth: 420, aspectRatio: 16 / 9, borderRadius: radius.lg, marginTop: spacing.five, overflow: 'hidden' },
+  emptyNote: { textAlign: 'center' },
+  artFill: { position: 'absolute', width: '100%', height: '100%' },
   later: { marginTop: spacing.seven, gap: spacing.two },
   laterHeading: {
     color: colors.inkFaint,
@@ -764,6 +829,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: spacing.five,
   },
+  wrapAnim: { width: '100%', maxWidth: 420 },
   wrapCard: {
     backgroundColor: colors.bg,
     borderRadius: radius.lg,
@@ -772,6 +838,7 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     gap: spacing.three,
   },
+  wrapArt: { width: '100%', aspectRatio: 16 / 9, borderRadius: radius.md, marginBottom: spacing.one, overflow: 'hidden' },
   wrapTitle: { color: colors.ink, fontSize: 26, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3 },
   wrapLine: { color: colors.ink, fontSize: 17, lineHeight: 24 },
   wrapList: { gap: spacing.two, marginTop: spacing.one },
