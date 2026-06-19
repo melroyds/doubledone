@@ -770,3 +770,17 @@ In Settings (signed-in only) an "Account" section offers "Delete account and dat
 Why this shape: `auth.uid()` scoping + the FK cascade means the whole deletion is one safe RPC the client can call with the public anon key, no elevated client privileges, no service_role. `deleteAccount`'s contract (calls the right RPC, signs out only on success) is unit-tested with a mock client; the signed-in Settings UI + the confirm flow were verified in a real 390px browser (a fake session injected purely to render the section).
 
 Left for Melroy (his domain, like the email sign-in): run the `delete_account` function once in the Supabase SQL editor (it lives in `supabase/schema.sql`), then test it live on his own account. Migrations cannot be rolled back, so applying it is his to do. Known minor: on native an already-mounted Today shows stale tasks until the app restarts (web reloads clean); not worth a global reset for v1.
+
+> 2026-06-20 update: Melroy ran the migration and tested user-delete live, functionality confirmed working (he didn't inspect the DB rows, but the flow deletes + signs out as designed).
+
+## 2026-06-19 Future scheduling: "Starting from" for recurring tasks
+
+Capture covered today and tomorrow (one-offs) and Daily / Weekly / Custom (recurring, but always tracked from creation), so there was no way to schedule a habit to begin later. Added a "Starting from" date to recurring capture:
+
+- **Model:** daily/weekly recurrence gain an optional `start` (ISO); interval already had `anchor`, which is its start. `isDueOn` returns false before the start, so a future-start habit simply does not land on Today until its day. `start` is optional, so every task made before this is unchanged.
+- **Capture:** when Daily / Weekly / Custom is selected, a "Starting from [Today]" control appears; tapping it opens the existing month-grid `DatePicker` (past days disabled), with a "Start today" reset. Default is today, identical to before.
+- **Drawer:** the Repeating drawer shows "· from {date}" for a not-yet-started habit (via `describeRecurrence(r, today)`), so it stays legible while it waits, otherwise it would be invisible until it begins.
+
+Decided against a **future one-off date** (a single task on a specific future day) for now: it was not the ask (the explicit request was the recurring "starting from"), and it is a separate capture chip. The arbitrary-date one-off at capture stays in the Backlog (and is now a smaller job, since the DatePicker is wired into the capture box).
+
+Pure logic unit-tested (start gates daily/weekly, interval anchor, scheduleFields, the drawer hint). The capture flow verified in a real 390px browser: Daily shows the control, the picker opens with past days disabled. typecheck + lint + 155 client / 38 server tests green.

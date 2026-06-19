@@ -72,7 +72,7 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle }: Props
                   </View>
                   <View style={styles.rowText}>
                     <Text style={[styles.rowTitle, done && styles.rowTitleDone]}>{t.title}</Text>
-                    <Text style={styles.cadence}>{t.recurrence ? describeRecurrence(t.recurrence) : ''}</Text>
+                    <Text style={styles.cadence}>{t.recurrence ? describeRecurrence(t.recurrence, today) : ''}</Text>
                   </View>
                 </Pressable>
               );

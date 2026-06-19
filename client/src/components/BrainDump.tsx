@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { friendlyDate, toISODate } from '@/lib/day';
 import { type CaptureSchedule } from '@/lib/recurrence';
 import { MAX_SLICES, MIN_SLICES } from '@/lib/slices';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
+
+import { DatePicker } from './DatePicker';
 
 type Props = {
   onCapture: (text: string, schedule: CaptureSchedule, slices?: number) => void;
@@ -41,6 +44,8 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
   const [mode, setMode] = useState<Mode>('today');
   const [weekdays, setWeekdays] = useState<number[]>([today.getDay()]);
   const [everyNDays, setEveryNDays] = useState(2);
+  const [start, setStart] = useState(() => toISODate(today)); // ISO start for a recurring task
+  const [startPickerOpen, setStartPickerOpen] = useState(false);
   const [sliceCount, setSliceCount] = useState(0); // 0 = whole task; >=MIN_SLICES = tracked in steps
   const [busyKind, setBusyKind] = useState<'bite' | 'sort' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,13 +56,18 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
   // Steps only make sense for a single, one-off task (a thing with parts). Hidden
   // for a multi-line dump or a repeating task, so it never clutters those.
   const canSlice = lineCount <= 1 && (mode === 'today' || mode === 'tomorrow');
+  const isRecurringMode = mode === 'daily' || mode === 'weekly' || mode === 'everyN';
+  const todayIso = toISODate(today);
 
   function buildSchedule(): CaptureSchedule {
+    if (mode === 'daily') {
+      return { mode: 'daily', start };
+    }
     if (mode === 'weekly') {
-      return { mode: 'weekly', weekdays: weekdays.length > 0 ? weekdays : [today.getDay()] };
+      return { mode: 'weekly', weekdays: weekdays.length > 0 ? weekdays : [today.getDay()], start };
     }
     if (mode === 'everyN') {
-      return { mode: 'everyN', days: everyNDays };
+      return { mode: 'everyN', days: everyNDays, start };
     }
     return { mode };
   }
@@ -66,6 +76,8 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
     setValue('');
     setMode('today');
     setWeekdays([today.getDay()]);
+    setStart(todayIso);
+    setStartPickerOpen(false);
     setSliceCount(0);
   }
 
@@ -177,6 +189,20 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
         </View>
       )}
 
+      {isRecurringMode && (
+        <View style={styles.startRow}>
+          <Text style={styles.startLabel}>Starting from</Text>
+          <Pressable
+            onPress={() => setStartPickerOpen(true)}
+            style={styles.startBtn}
+            accessibilityRole="button"
+            accessibilityLabel={`Starting from ${start === todayIso ? 'today' : start}`}
+          >
+            <Text style={styles.startBtnText}>{start === todayIso ? 'Today' : friendlyDate(start, today)}</Text>
+          </Pressable>
+        </View>
+      )}
+
       {canSlice && (
         <View style={styles.sliceField}>
           <Text style={styles.sliceHint}>
@@ -253,6 +279,32 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
       </View>
 
       {error && <Text style={styles.error}>{error}</Text>}
+
+      <Modal visible={startPickerOpen} transparent animationType="fade" onRequestClose={() => setStartPickerOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setStartPickerOpen(false)} accessibilityLabel="Dismiss">
+          <Pressable style={styles.pickerCard} onPress={() => {}}>
+            <Text style={styles.pickerTitle}>Starting from</Text>
+            <DatePicker
+              value={start}
+              today={today}
+              onChange={(iso) => {
+                setStart(iso);
+                setStartPickerOpen(false);
+              }}
+            />
+            <Pressable
+              onPress={() => {
+                setStart(todayIso);
+                setStartPickerOpen(false);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Start today"
+            >
+              <Text style={styles.pickerToday}>Start today</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -314,6 +366,34 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   stepLabel: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body, fontWeight: '500', minWidth: 110, textAlign: 'center' },
   sliceField: { gap: spacing.two },
   sliceHint: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body },
+  startRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
+  startLabel: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+  startBtn: {
+    paddingHorizontal: spacing.three,
+    paddingVertical: spacing.one,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: t.colors.accent,
+    backgroundColor: t.colors.accentSoft,
+  },
+  startBtnText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, fontWeight: '600' },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(43,39,34,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.five,
+  },
+  pickerCard: {
+    backgroundColor: t.colors.bg,
+    borderRadius: radius.lg,
+    padding: spacing.five,
+    width: '100%',
+    maxWidth: 360,
+    gap: spacing.three,
+  },
+  pickerTitle: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, fontWeight: '700' },
+  pickerToday: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, fontWeight: '600', textAlign: 'center' },
   actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
   bite: {
     borderRadius: radius.md,
