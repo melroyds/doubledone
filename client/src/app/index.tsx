@@ -8,7 +8,7 @@ import { type BreakdownAnswers, BreakdownQuestions } from '@/components/Breakdow
 import { BreakdownReview, type ReviewPhase, type ReviewStep } from '@/components/BreakdownReview';
 import { RepeatingDrawer } from '@/components/RepeatingDrawer';
 import { TaskRow } from '@/components/TaskRow';
-import { colors, fonts, radius, spacing } from '@/constants/theme';
+import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import {
   clarify,
   DEFAULT_QUESTIONS,
@@ -31,7 +31,7 @@ import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { syncOnce } from '@/lib/sync';
 import { parseDump, type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
-import { useReducedMotion } from '@/lib/theme-provider';
+import { useReducedMotion, useThemedStyles } from '@/lib/theme-provider';
 import { isDoneOn, isRecurring, tasksForToday, toggleDoneOn, upcomingTasks } from '@/lib/today';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
@@ -76,6 +76,7 @@ export default function TodayScreen() {
   // The close-the-day card's gentle entrance (0 = below + transparent, 1 = settled).
   // useState, not useRef: reading a ref in render trips the React Compiler lint.
   const [closeRise] = useState(() => new Animated.Value(0));
+  const styles = useThemedStyles(makeStyles);
 
   // Load the persisted list once. Until it arrives we hold off on the empty and
   // all-done copy so neither flashes before the real tasks land.
@@ -470,6 +471,14 @@ export default function TodayScreen() {
             >
               <Text style={styles.lookbackLink}>Lookback ›</Text>
             </Pressable>
+            <Pressable
+              onPress={() => router.push('/settings')}
+              accessibilityRole="button"
+              accessibilityLabel="Open Settings"
+              hitSlop={8}
+            >
+              <Text style={styles.gear}>⚙</Text>
+            </Pressable>
           </View>
         </View>
         <Text style={styles.title}>Today</Text>
@@ -726,126 +735,128 @@ export default function TodayScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  scroll: { flex: 1 },
-  content: {
-    paddingHorizontal: spacing.five,
-    paddingBottom: spacing.six,
-    maxWidth: 560,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.one },
-  date: { color: colors.inkSoft, fontSize: 15 },
-  lookbackLink: { color: colors.accent, fontSize: 15, fontWeight: '600' },
-  topLinks: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
-  title: {
-    color: colors.ink,
-    fontSize: 34,
-    fontWeight: '700',
-    fontFamily: fonts.sans,
-    letterSpacing: -0.5,
-  },
-  spine: { color: colors.inkSoft, fontSize: 16, marginTop: spacing.two, marginBottom: spacing.six },
-  list: { gap: spacing.two },
-  calmNote: { color: colors.inkSoft, fontSize: 16, marginTop: spacing.five, lineHeight: 24 },
-  emptyState: { alignItems: 'center' },
-  emptyArt: { width: '100%', maxWidth: 420, aspectRatio: 16 / 9, borderRadius: radius.lg, marginTop: spacing.five, overflow: 'hidden' },
-  emptyNote: { textAlign: 'center' },
-  artFill: { position: 'absolute', width: '100%', height: '100%' },
-  later: { marginTop: spacing.seven, gap: spacing.two },
-  laterHeading: {
-    color: colors.inkFaint,
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-    marginBottom: spacing.one,
-  },
-  laterItem: { gap: spacing.two },
-  laterDate: { color: colors.inkSoft, fontSize: 13, marginTop: spacing.two },
-  footer: {
-    paddingHorizontal: spacing.five,
-    paddingTop: spacing.three,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.line,
-    backgroundColor: colors.bg,
-    maxWidth: 560,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  sync: {
-    color: colors.inkFaint,
-    fontSize: 13,
-    textAlign: 'center',
-    marginTop: spacing.three,
-  },
-  syncRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: spacing.three,
-    marginTop: spacing.three,
-  },
-  syncText: { color: colors.inkFaint, fontSize: 13, flexShrink: 1 },
-  syncAction: { color: colors.accent, fontSize: 13, fontWeight: '600' },
-  ethos: {
-    color: colors.inkFaint,
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: spacing.three,
-    letterSpacing: 0.3,
-  },
-  dayActions: { marginTop: spacing.seven, alignItems: 'center', gap: spacing.three },
-  closeDay: {
-    paddingVertical: spacing.three,
-    paddingHorizontal: spacing.five,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-  },
-  closeDayText: { color: colors.inkSoft, fontSize: 15, fontWeight: '600' },
-  strategiseNudge: { color: colors.inkSoft, fontSize: 14 },
-  strategiseBtn: {
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    paddingVertical: spacing.three,
-    paddingHorizontal: spacing.five,
-  },
-  strategiseBtnText: { color: colors.accent, fontSize: 16, fontWeight: '600' },
-  strategiseErr: { color: colors.accent, fontSize: 13 },
-  disabledBtn: { opacity: 0.5 },
-  planItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
-  planTitle: { color: colors.ink, fontSize: 16, flexShrink: 1 },
-  planWhen: { color: colors.accent, fontSize: 14, fontWeight: '600' },
-  planDismiss: { color: colors.inkSoft, fontSize: 15, textAlign: 'center', marginTop: spacing.two },
-  pressed: { opacity: 0.85 },
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(43,39,34,0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.five,
-  },
-  wrapAnim: { width: '100%', maxWidth: 420 },
-  wrapCard: {
-    backgroundColor: colors.bg,
-    borderRadius: radius.lg,
-    padding: spacing.six,
-    width: '100%',
-    maxWidth: 420,
-    gap: spacing.three,
-  },
-  wrapArt: { width: '100%', aspectRatio: 16 / 9, borderRadius: radius.md, marginBottom: spacing.one, overflow: 'hidden' },
-  wrapTitle: { color: colors.ink, fontSize: 26, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3 },
-  wrapLine: { color: colors.ink, fontSize: 17, lineHeight: 24 },
-  wrapList: { gap: spacing.two, marginTop: spacing.one },
-  wrapItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-  wrapCheck: { color: colors.done, fontSize: 16, fontWeight: '700' },
-  wrapItemText: { color: colors.inkSoft, fontSize: 16, flexShrink: 1 },
-  wrapRoll: { color: colors.inkFaint, fontSize: 14, lineHeight: 20, marginTop: spacing.two },
-  wrapBtn: { backgroundColor: colors.accent, borderRadius: radius.md, paddingVertical: spacing.four, alignItems: 'center', marginTop: spacing.three },
-  wrapBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
-});
+const makeStyles = (t: Theme) =>
+  StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.colors.bg },
+    scroll: { flex: 1 },
+    content: {
+      paddingHorizontal: spacing.five,
+      paddingBottom: spacing.six,
+      maxWidth: 560,
+      width: '100%',
+      alignSelf: 'center',
+    },
+    topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.one },
+    date: { color: t.colors.inkSoft, fontSize: 15 * t.scale },
+    lookbackLink: { color: t.colors.accent, fontSize: 15 * t.scale, fontWeight: '600' },
+    gear: { color: t.colors.accent, fontSize: 19 * t.scale },
+    topLinks: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
+    title: {
+      color: t.colors.ink,
+      fontSize: 34 * t.scale,
+      fontWeight: '700',
+      fontFamily: fonts.sans,
+      letterSpacing: -0.5,
+    },
+    spine: { color: t.colors.inkSoft, fontSize: 16 * t.scale, marginTop: spacing.two, marginBottom: spacing.six },
+    list: { gap: spacing.two },
+    calmNote: { color: t.colors.inkSoft, fontSize: 16 * t.scale, marginTop: spacing.five, lineHeight: 24 },
+    emptyState: { alignItems: 'center' },
+    emptyArt: { width: '100%', maxWidth: 420, aspectRatio: 16 / 9, borderRadius: radius.lg, marginTop: spacing.five, overflow: 'hidden' },
+    emptyNote: { textAlign: 'center' },
+    artFill: { position: 'absolute', width: '100%', height: '100%' },
+    later: { marginTop: spacing.seven, gap: spacing.two },
+    laterHeading: {
+      color: t.colors.inkFaint,
+      fontSize: 13 * t.scale,
+      fontWeight: '600',
+      letterSpacing: 0.4,
+      textTransform: 'uppercase',
+      marginBottom: spacing.one,
+    },
+    laterItem: { gap: spacing.two },
+    laterDate: { color: t.colors.inkSoft, fontSize: 13 * t.scale, marginTop: spacing.two },
+    footer: {
+      paddingHorizontal: spacing.five,
+      paddingTop: spacing.three,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: t.colors.line,
+      backgroundColor: t.colors.bg,
+      maxWidth: 560,
+      width: '100%',
+      alignSelf: 'center',
+    },
+    sync: {
+      color: t.colors.inkFaint,
+      fontSize: 13 * t.scale,
+      textAlign: 'center',
+      marginTop: spacing.three,
+    },
+    syncRow: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: spacing.three,
+      marginTop: spacing.three,
+    },
+    syncText: { color: t.colors.inkFaint, fontSize: 13 * t.scale, flexShrink: 1 },
+    syncAction: { color: t.colors.accent, fontSize: 13 * t.scale, fontWeight: '600' },
+    ethos: {
+      color: t.colors.inkFaint,
+      fontSize: 12 * t.scale,
+      textAlign: 'center',
+      marginTop: spacing.three,
+      letterSpacing: 0.3,
+    },
+    dayActions: { marginTop: spacing.seven, alignItems: 'center', gap: spacing.three },
+    closeDay: {
+      paddingVertical: spacing.three,
+      paddingHorizontal: spacing.five,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: t.colors.line,
+    },
+    closeDayText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontWeight: '600' },
+    strategiseNudge: { color: t.colors.inkSoft, fontSize: 14 * t.scale },
+    strategiseBtn: {
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: t.colors.accent,
+      paddingVertical: spacing.three,
+      paddingHorizontal: spacing.five,
+    },
+    strategiseBtnText: { color: t.colors.accent, fontSize: 16 * t.scale, fontWeight: '600' },
+    strategiseErr: { color: t.colors.accent, fontSize: 13 * t.scale },
+    disabledBtn: { opacity: 0.5 },
+    planItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
+    planTitle: { color: t.colors.ink, fontSize: 16 * t.scale, flexShrink: 1 },
+    planWhen: { color: t.colors.accent, fontSize: 14 * t.scale, fontWeight: '600' },
+    planDismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two },
+    pressed: { opacity: 0.85 },
+    backdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(43,39,34,0.45)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.five,
+    },
+    wrapAnim: { width: '100%', maxWidth: 420 },
+    wrapCard: {
+      backgroundColor: t.colors.bg,
+      borderRadius: radius.lg,
+      padding: spacing.six,
+      width: '100%',
+      maxWidth: 420,
+      gap: spacing.three,
+    },
+    wrapArt: { width: '100%', aspectRatio: 16 / 9, borderRadius: radius.md, marginBottom: spacing.one, overflow: 'hidden' },
+    wrapTitle: { color: t.colors.ink, fontSize: 26 * t.scale, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3 },
+    wrapLine: { color: t.colors.ink, fontSize: 17 * t.scale, lineHeight: 24 },
+    wrapList: { gap: spacing.two, marginTop: spacing.one },
+    wrapItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
+    wrapCheck: { color: t.colors.done, fontSize: 16 * t.scale, fontWeight: '700' },
+    wrapItemText: { color: t.colors.inkSoft, fontSize: 16 * t.scale, flexShrink: 1 },
+    wrapRoll: { color: t.colors.inkFaint, fontSize: 14 * t.scale, lineHeight: 20, marginTop: spacing.two },
+    wrapBtn: { backgroundColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.four, alignItems: 'center', marginTop: spacing.three },
+    wrapBtnText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontWeight: '600' },
+  });

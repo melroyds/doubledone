@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { colors, fonts, radius, spacing } from '@/constants/theme';
+import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { type Questions } from '@/lib/ai';
 import { addDaysISO, fromISODate } from '@/lib/day';
+import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 import { DatePicker } from './DatePicker';
 
@@ -27,6 +28,8 @@ type Props = {
 // far deadline like "by July 15" works), pre-filled with any date the AI spotted
 // in the task. Everything is pre-set, so the fast path is just "Break it down".
 export function BreakdownQuestions({ task, questions, busy, onSubmit, onCancel, today }: Props) {
+  const styles = useThemedStyles(makeStyles);
+  const theme = useTheme();
   const presets: { label: string; iso: string | null }[] = [
     { label: 'No deadline', iso: null },
     { label: 'Today', iso: addDaysISO(today, 0) },
@@ -135,7 +138,7 @@ export function BreakdownQuestions({ task, questions, busy, onSubmit, onCancel, 
               onChangeText={setAnswer}
               editable={!busy}
               placeholder="Optional"
-              placeholderTextColor={colors.inkFaint}
+              placeholderTextColor={theme.colors.inkFaint}
               style={styles.input}
               multiline
               accessibilityLabel="Answer to the question"
@@ -167,7 +170,7 @@ export function BreakdownQuestions({ task, questions, busy, onSubmit, onCancel, 
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: Theme) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(43,39,34,0.45)',
@@ -175,59 +178,59 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: spacing.five,
   },
-  card: { backgroundColor: colors.bg, borderRadius: radius.lg, width: '100%', maxWidth: 440, maxHeight: '88%' },
+  card: { backgroundColor: t.colors.bg, borderRadius: radius.lg, width: '100%', maxWidth: 440, maxHeight: '88%' },
   scroll: { padding: spacing.six, gap: spacing.three },
-  title: { color: colors.ink, fontSize: 24, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3 },
-  task: { color: colors.inkSoft, fontSize: 15, marginBottom: spacing.two },
-  q: { color: colors.ink, fontSize: 16, fontWeight: '600', marginTop: spacing.two },
+  title: { color: t.colors.ink, fontSize: 24 * t.scale, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3 },
+  task: { color: t.colors.inkSoft, fontSize: 15 * t.scale, marginBottom: spacing.two },
+  q: { color: t.colors.ink, fontSize: 16 * t.scale, fontWeight: '600', marginTop: spacing.two },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },
   chip: {
     paddingHorizontal: spacing.four,
     paddingVertical: spacing.two,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
+    borderColor: t.colors.line,
+    backgroundColor: t.colors.surface,
   },
-  chipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
-  chipText: { color: colors.inkSoft, fontSize: 14, fontWeight: '500' },
+  chipOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
+  chipText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontWeight: '500' },
   chipTextOn: { color: '#FFFFFF' },
-  selected: { color: colors.inkSoft, fontSize: 13 },
+  selected: { color: t.colors.inkSoft, fontSize: 13 * t.scale },
   toggle: { flexDirection: 'row', gap: spacing.two },
   seg: {
     flex: 1,
     paddingVertical: spacing.three,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
+    borderColor: t.colors.line,
+    backgroundColor: t.colors.surface,
     alignItems: 'center',
   },
-  segOn: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
-  segText: { color: colors.inkSoft, fontSize: 15, fontWeight: '600' },
-  segTextOn: { color: colors.accent },
+  segOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
+  segText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontWeight: '600' },
+  segTextOn: { color: t.colors.accent },
   input: {
     minHeight: 44,
     maxHeight: 120,
-    backgroundColor: colors.surface,
+    backgroundColor: t.colors.surface,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: t.colors.line,
     borderRadius: radius.md,
     paddingHorizontal: spacing.four,
     paddingVertical: spacing.three,
-    fontSize: 16,
-    color: colors.ink,
+    fontSize: 16 * t.scale,
+    color: t.colors.ink,
   },
   btn: {
-    backgroundColor: colors.accent,
+    backgroundColor: t.colors.accent,
     borderRadius: radius.md,
     paddingVertical: spacing.four,
     alignItems: 'center',
     marginTop: spacing.three,
   },
   btnBusy: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-  btnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  btnText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontWeight: '600' },
   pressed: { opacity: 0.85 },
   disabled: { opacity: 0.6 },
-  dismiss: { color: colors.inkSoft, fontSize: 15, textAlign: 'center', marginTop: spacing.two },
+  dismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two },
 });

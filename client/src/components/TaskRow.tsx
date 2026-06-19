@@ -1,7 +1,8 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, spacing } from '@/constants/theme';
+import { radius, spacing, type Theme } from '@/constants/theme';
 import { type Slices } from '@/lib/tasks';
+import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 import { MarqueeText } from './MarqueeText';
 
@@ -43,6 +44,8 @@ export function TaskRow({
   onRetreat,
   onBreakdown,
 }: Props) {
+  const styles = useThemedStyles(makeStyles);
+  const theme = useTheme();
   if (confirming) {
     // A sliced task's hold reveals its quiet controls: step a slice back (the only
     // place the "minus" lives now), or remove. The count updates live as you step.
@@ -114,7 +117,7 @@ export function TaskRow({
           </Text>
         </View>
         <View style={styles.track}>
-          <View style={{ flex: slices.done, backgroundColor: colors.done }} />
+          <View style={{ flex: slices.done, backgroundColor: theme.colors.done }} />
           <View style={{ flex: rest }} />
         </View>
       </Pressable>
@@ -140,47 +143,47 @@ export function TaskRow({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: Theme) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.four,
     paddingVertical: spacing.four,
     paddingHorizontal: spacing.four,
-    backgroundColor: colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: t.colors.line,
   },
-  rowUnique: { borderColor: colors.repeat, borderWidth: 2 },
+  rowUnique: { borderColor: t.colors.repeat, borderWidth: 2 },
   pressed: { opacity: 0.7 },
-  confirmRow: { backgroundColor: colors.accentSoft, borderColor: colors.accentSoft },
-  confirmText: { flex: 1, color: colors.ink, fontSize: 15 },
-  keep: { color: colors.inkSoft, fontSize: 15, fontWeight: '600', paddingHorizontal: spacing.two },
-  controlOff: { color: colors.inkFaint },
-  remove: { color: colors.accent, fontSize: 15, fontWeight: '700', paddingHorizontal: spacing.two },
+  confirmRow: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accentSoft },
+  confirmText: { flex: 1, color: t.colors.ink, fontSize: 15 * t.scale },
+  keep: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontWeight: '600', paddingHorizontal: spacing.two },
+  controlOff: { color: t.colors.inkFaint },
+  remove: { color: t.colors.accent, fontSize: 15 * t.scale, fontWeight: '700', paddingHorizontal: spacing.two },
   check: {
     width: 26,
     height: 26,
     borderRadius: radius.pill,
     borderWidth: 2,
-    borderColor: colors.inkFaint,
+    borderColor: t.colors.inkFaint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkDone: { backgroundColor: colors.done, borderColor: colors.done },
-  tick: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', lineHeight: 17 },
-  text: { color: colors.ink, fontSize: 17, lineHeight: 23 },
-  textDone: { color: colors.inkFaint, textDecorationLine: 'line-through' },
-  repeatMark: { color: colors.repeat, fontSize: 18, fontWeight: '700' },
+  checkDone: { backgroundColor: t.colors.done, borderColor: t.colors.done },
+  tick: { color: '#FFFFFF', fontSize: 15 * t.scale, fontWeight: '700', lineHeight: 17 },
+  text: { color: t.colors.ink, fontSize: 17 * t.scale, lineHeight: 23 },
+  textDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
+  repeatMark: { color: t.colors.repeat, fontSize: 18 * t.scale, fontWeight: '700' },
   sliceColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
   sliceTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
-  sliceCount: { color: colors.repeat, fontSize: 14, fontWeight: '700' },
+  sliceCount: { color: t.colors.repeat, fontSize: 14 * t.scale, fontWeight: '700' },
   track: {
     flexDirection: 'row',
     height: 4,
     borderRadius: radius.pill,
-    backgroundColor: colors.doneSoft,
+    backgroundColor: t.colors.doneSoft,
     overflow: 'hidden',
   },
 });

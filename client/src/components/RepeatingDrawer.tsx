@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { colors, fonts, radius, spacing } from '@/constants/theme';
+import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { describeRecurrence } from '@/lib/recurrence';
 import { type Task } from '@/lib/tasks';
+import { useThemedStyles } from '@/lib/theme-provider';
 import { isDoneOn, isRecurring } from '@/lib/today';
 
 type Props = {
@@ -20,6 +21,7 @@ type Props = {
 // Always mounted (off-screen when closed) so the slide animates both ways without
 // a ref or a mount-time setState, both of which the render rules forbid.
 export function RepeatingDrawer({ open, onClose, tasks, today, onToggle }: Props) {
+  const styles = useThemedStyles(makeStyles);
   const [anim] = useState(() => new Animated.Value(open ? 1 : 0));
   const { width } = useWindowDimensions();
   const panelWidth = Math.min(360, width * 0.86);
@@ -82,14 +84,14 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle }: Props
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: Theme) => StyleSheet.create({
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(43,39,34,0.45)' },
   panel: {
     position: 'absolute',
     top: 0,
     bottom: 0,
     right: 0,
-    backgroundColor: colors.bg,
+    backgroundColor: t.colors.bg,
     paddingHorizontal: spacing.five,
     paddingTop: spacing.seven,
     borderTopLeftRadius: radius.lg,
@@ -97,26 +99,26 @@ const styles = StyleSheet.create({
     gap: spacing.three,
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { color: colors.ink, fontSize: 26, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3 },
-  done: { color: colors.accent, fontSize: 16, fontWeight: '600' },
-  sub: { color: colors.inkSoft, fontSize: 14, lineHeight: 20 },
+  title: { color: t.colors.ink, fontSize: 26 * t.scale, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3 },
+  done: { color: t.colors.accent, fontSize: 16 * t.scale, fontWeight: '600' },
+  sub: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 },
   list: { marginTop: spacing.two },
   listContent: { gap: spacing.three, paddingBottom: spacing.six },
-  empty: { color: colors.inkFaint, fontSize: 15, lineHeight: 22, marginTop: spacing.three },
+  empty: { color: t.colors.inkFaint, fontSize: 15 * t.scale, lineHeight: 22, marginTop: spacing.three },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
   box: {
     width: 24,
     height: 24,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: t.colors.line,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  boxDone: { backgroundColor: colors.doneSoft, borderColor: colors.done },
-  tick: { color: colors.done, fontSize: 14, fontWeight: '700' },
+  boxDone: { backgroundColor: t.colors.doneSoft, borderColor: t.colors.done },
+  tick: { color: t.colors.done, fontSize: 14 * t.scale, fontWeight: '700' },
   rowText: { flexShrink: 1 },
-  rowTitle: { color: colors.ink, fontSize: 16 },
-  rowTitleDone: { color: colors.inkFaint, textDecorationLine: 'line-through' },
-  cadence: { color: colors.inkSoft, fontSize: 13, marginTop: 1 },
+  rowTitle: { color: t.colors.ink, fontSize: 16 * t.scale },
+  rowTitleDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
+  cadence: { color: t.colors.inkSoft, fontSize: 13 * t.scale, marginTop: 1 },
 });

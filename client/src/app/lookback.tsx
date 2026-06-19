@@ -3,12 +3,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, fonts, radius, spacing } from '@/constants/theme';
+import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { addMonths, completionsByDay, monthLabel, monthMatrix, WEEKDAY_LABELS } from '@/lib/calendar';
 import { formatTodayLabel, fromISODate, toISODate } from '@/lib/day';
 import { loadTasks } from '@/lib/storage';
 import { type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
+import { useThemedStyles } from '@/lib/theme-provider';
 
 // The Lookback: an interactive Gregorian calendar of what you actually finished,
 // browsable by day. The emotional payoff, never a stats page, never a streak.
@@ -20,6 +21,7 @@ export default function LookbackScreen() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [view, setView] = useState({ year: today.getFullYear(), month: today.getMonth() });
   const [selected, setSelected] = useState(toISODate(today));
+  const styles = useThemedStyles(makeStyles);
 
   useEffect(() => {
     let active = true;
@@ -123,43 +125,43 @@ export default function LookbackScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
+const makeStyles = (t: Theme) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: t.colors.bg },
   content: { paddingHorizontal: spacing.five, maxWidth: 560, width: '100%', alignSelf: 'center' },
-  back: { color: colors.inkSoft, fontSize: 16, marginBottom: spacing.five },
-  title: { color: colors.ink, fontSize: 34, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.5 },
-  sub: { color: colors.inkSoft, fontSize: 16, marginTop: spacing.two, marginBottom: spacing.six },
+  back: { color: t.colors.inkSoft, fontSize: 16 * t.scale, marginBottom: spacing.five },
+  title: { color: t.colors.ink, fontSize: 34 * t.scale, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.5 },
+  sub: { color: t.colors.inkSoft, fontSize: 16 * t.scale, marginTop: spacing.two, marginBottom: spacing.six },
   monthBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: spacing.four,
   },
-  monthLabel: { color: colors.ink, fontSize: 18, fontWeight: '600', fontFamily: fonts.sans },
-  arrow: { color: colors.accent, fontSize: 28, paddingHorizontal: spacing.three },
+  monthLabel: { color: t.colors.ink, fontSize: 18 * t.scale, fontWeight: '600', fontFamily: fonts.sans },
+  arrow: { color: t.colors.accent, fontSize: 28 * t.scale, paddingHorizontal: spacing.three },
   weekRow: { flexDirection: 'row' },
   weekdayLabel: {
     flex: 1,
     textAlign: 'center',
-    color: colors.inkFaint,
-    fontSize: 12,
+    color: t.colors.inkFaint,
+    fontSize: 12 * t.scale,
     fontWeight: '600',
     marginBottom: spacing.two,
   },
   cell: { flex: 1, alignItems: 'center', paddingVertical: spacing.one },
   dayBlob: { width: 34, height: 34, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
-  dayToday: { borderWidth: 1, borderColor: colors.line },
-  daySelected: { backgroundColor: colors.accent },
-  dayNum: { color: colors.ink, fontSize: 15 },
+  dayToday: { borderWidth: 1, borderColor: t.colors.line },
+  daySelected: { backgroundColor: t.colors.accent },
+  dayNum: { color: t.colors.ink, fontSize: 15 * t.scale },
   dayNumSelected: { color: '#FFFFFF', fontWeight: '700' },
-  dot: { width: 5, height: 5, borderRadius: radius.pill, backgroundColor: colors.done, marginTop: 3 },
-  dotBig: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: colors.done, marginTop: 1 },
+  dot: { width: 5, height: 5, borderRadius: radius.pill, backgroundColor: t.colors.done, marginTop: 3 },
+  dotBig: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: t.colors.done, marginTop: 1 },
   dotSpacer: { width: 5, height: 5, marginTop: 3 },
   detail: { marginTop: spacing.six, gap: spacing.two },
-  detailDate: { color: colors.ink, fontSize: 16, fontWeight: '600', marginBottom: spacing.one },
-  detailEmpty: { color: colors.inkFaint, fontSize: 15 },
+  detailDate: { color: t.colors.ink, fontSize: 16 * t.scale, fontWeight: '600', marginBottom: spacing.one },
+  detailEmpty: { color: t.colors.inkFaint, fontSize: 15 * t.scale },
   item: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-  itemMark: { color: colors.done, fontSize: 16, fontWeight: '700' },
-  itemTitle: { color: colors.inkSoft, fontSize: 16, flexShrink: 1 },
-  itemBig: { color: colors.done, fontSize: 13, fontWeight: '600' },
+  itemMark: { color: t.colors.done, fontSize: 16 * t.scale, fontWeight: '700' },
+  itemTitle: { color: t.colors.inkSoft, fontSize: 16 * t.scale, flexShrink: 1 },
+  itemBig: { color: t.colors.done, fontSize: 13 * t.scale, fontWeight: '600' },
 });

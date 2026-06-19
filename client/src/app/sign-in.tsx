@@ -3,9 +3,10 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, fonts, radius, spacing } from '@/constants/theme';
+import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
+import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 type Phase = 'email' | 'code' | 'done';
 
@@ -15,6 +16,8 @@ type Phase = 'email' | 'code' | 'done';
 export default function SignInScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const styles = useThemedStyles(makeStyles);
+  const theme = useTheme();
   const [phase, setPhase] = useState<Phase>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -99,7 +102,7 @@ export default function SignInScreen() {
             onChangeText={setEmail}
             editable={!busy}
             placeholder="you@example.com"
-            placeholderTextColor={colors.inkFaint}
+            placeholderTextColor={theme.colors.inkFaint}
             style={styles.input}
             keyboardType="email-address"
             autoCapitalize="none"
@@ -131,7 +134,7 @@ export default function SignInScreen() {
             onChangeText={setCode}
             editable={!busy}
             placeholder="6-digit code"
-            placeholderTextColor={colors.inkFaint}
+            placeholderTextColor={theme.colors.inkFaint}
             style={styles.input}
             keyboardType="number-pad"
             inputMode="numeric"
@@ -186,46 +189,46 @@ export default function SignInScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: Theme) => StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: t.colors.bg,
     paddingHorizontal: spacing.five,
     maxWidth: 560,
     width: '100%',
     alignSelf: 'center',
   },
-  cancel: { color: colors.inkSoft, fontSize: 16, marginBottom: spacing.six },
+  cancel: { color: t.colors.inkSoft, fontSize: 16 * t.scale, marginBottom: spacing.six },
   title: {
-    color: colors.ink,
-    fontSize: 30,
+    color: t.colors.ink,
+    fontSize: 30 * t.scale,
     fontWeight: '700',
     fontFamily: fonts.sans,
     letterSpacing: -0.5,
   },
-  sub: { color: colors.inkSoft, fontSize: 16, lineHeight: 23, marginTop: spacing.three },
+  sub: { color: t.colors.inkSoft, fontSize: 16 * t.scale, lineHeight: 23, marginTop: spacing.three },
   form: { gap: spacing.three, marginTop: spacing.six },
-  sentTo: { color: colors.inkSoft, fontSize: 15 },
-  success: { color: colors.done, fontSize: 26, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3 },
+  sentTo: { color: t.colors.inkSoft, fontSize: 15 * t.scale },
+  success: { color: t.colors.done, fontSize: 26 * t.scale, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3 },
   input: {
-    backgroundColor: colors.surface,
+    backgroundColor: t.colors.surface,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: t.colors.line,
     borderRadius: radius.md,
     paddingHorizontal: spacing.four,
     paddingVertical: spacing.three,
-    fontSize: 16,
-    color: colors.ink,
+    fontSize: 16 * t.scale,
+    color: t.colors.ink,
   },
   primary: {
-    backgroundColor: colors.accent,
+    backgroundColor: t.colors.accent,
     borderRadius: radius.md,
     paddingVertical: spacing.four,
     alignItems: 'center',
   },
-  primaryText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  primaryText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontWeight: '600' },
   pressed: { opacity: 0.8 },
   disabled: { opacity: 0.5 },
-  link: { color: colors.accent, fontSize: 15, textAlign: 'center', marginTop: spacing.two },
-  error: { color: colors.accent, fontSize: 14, marginTop: spacing.four },
+  link: { color: t.colors.accent, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two },
+  error: { color: t.colors.accent, fontSize: 14 * t.scale, marginTop: spacing.four },
 });

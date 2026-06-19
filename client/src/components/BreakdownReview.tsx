@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { colors, fonts, radius, spacing } from '@/constants/theme';
+import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { friendlyDate } from '@/lib/day';
+import { useThemedStyles } from '@/lib/theme-provider';
 
 export type ReviewStep = { title: string; minutes: number; date: string | null };
 export type ReviewPhase = { title: string; date: string | null };
@@ -22,6 +23,7 @@ type Props = {
 // later phases that will wait in Later, each broken down when you reach it.
 // Nothing lands on your day until you accept; the dates came from your answers.
 export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCancel, today }: Props) {
+  const styles = useThemedStyles(makeStyles);
   const [selected, setSelected] = useState<boolean[]>(() => steps.map(() => true));
   const phaseCount = laterPhases?.length ?? 0;
   const count = selected.filter(Boolean).length + phaseCount;
@@ -110,7 +112,7 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: Theme) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(43,39,34,0.45)',
@@ -118,11 +120,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: spacing.five,
   },
-  card: { backgroundColor: colors.bg, borderRadius: radius.lg, width: '100%', maxWidth: 440, maxHeight: '88%' },
+  card: { backgroundColor: t.colors.bg, borderRadius: radius.lg, width: '100%', maxWidth: 440, maxHeight: '88%' },
   scroll: { padding: spacing.six, gap: spacing.three },
-  title: { color: colors.ink, fontSize: 24, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3 },
-  sub: { color: colors.inkSoft, fontSize: 15 },
-  hint: { color: colors.inkFaint, fontSize: 13 },
+  title: { color: t.colors.ink, fontSize: 24 * t.scale, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3 },
+  sub: { color: t.colors.inkSoft, fontSize: 15 * t.scale },
+  hint: { color: t.colors.inkFaint, fontSize: 13 * t.scale },
   list: { gap: spacing.two, marginTop: spacing.one },
   row: {
     flexDirection: 'row',
@@ -130,30 +132,30 @@ const styles = StyleSheet.create({
     gap: spacing.three,
     paddingVertical: spacing.four,
     paddingHorizontal: spacing.four,
-    backgroundColor: colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: t.colors.line,
   },
   check: {
     width: 24,
     height: 24,
     borderRadius: radius.pill,
     borderWidth: 2,
-    borderColor: colors.inkFaint,
+    borderColor: t.colors.inkFaint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkOn: { backgroundColor: colors.done, borderColor: colors.done },
-  tick: { color: '#FFFFFF', fontSize: 14, fontWeight: '700', lineHeight: 16 },
+  checkOn: { backgroundColor: t.colors.done, borderColor: t.colors.done },
+  tick: { color: '#FFFFFF', fontSize: 14 * t.scale, fontWeight: '700', lineHeight: 16 },
   rowText: { flex: 1 },
-  stepTitle: { color: colors.ink, fontSize: 16, lineHeight: 21 },
-  stepOff: { color: colors.inkFaint, textDecorationLine: 'line-through' },
-  meta: { color: colors.inkSoft, fontSize: 13, marginTop: 2 },
+  stepTitle: { color: t.colors.ink, fontSize: 16 * t.scale, lineHeight: 21 },
+  stepOff: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
+  meta: { color: t.colors.inkSoft, fontSize: 13 * t.scale, marginTop: 2 },
   phases: { gap: spacing.two, marginTop: spacing.three },
   phasesHead: {
-    color: colors.inkFaint,
-    fontSize: 13,
+    color: t.colors.inkFaint,
+    fontSize: 13 * t.scale,
     fontWeight: '600',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
@@ -167,21 +169,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.four,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: t.colors.line,
     borderStyle: 'dashed',
   },
-  phaseTitle: { color: colors.inkSoft, fontSize: 15, flex: 1 },
-  phaseDate: { color: colors.repeat, fontSize: 13, fontWeight: '600' },
-  phasesNote: { color: colors.inkFaint, fontSize: 12, lineHeight: 17 },
+  phaseTitle: { color: t.colors.inkSoft, fontSize: 15 * t.scale, flex: 1 },
+  phaseDate: { color: t.colors.repeat, fontSize: 13 * t.scale, fontWeight: '600' },
+  phasesNote: { color: t.colors.inkFaint, fontSize: 12 * t.scale, lineHeight: 17 },
   btn: {
-    backgroundColor: colors.accent,
+    backgroundColor: t.colors.accent,
     borderRadius: radius.md,
     paddingVertical: spacing.four,
     alignItems: 'center',
     marginTop: spacing.three,
   },
-  btnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  btnText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontWeight: '600' },
   pressed: { opacity: 0.85 },
   disabled: { opacity: 0.6 },
-  dismiss: { color: colors.inkSoft, fontSize: 15, textAlign: 'center', marginTop: spacing.two },
+  dismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two },
 });

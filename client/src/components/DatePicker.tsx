@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, spacing } from '@/constants/theme';
+import { radius, spacing, type Theme } from '@/constants/theme';
 import { addMonths, monthLabel, monthMatrix, WEEKDAY_LABELS } from '@/lib/calendar';
 import { fromISODate, toISODate } from '@/lib/day';
+import { useThemedStyles } from '@/lib/theme-provider';
 
 type Props = {
   value: string | null; // selected ISO date, or null
@@ -15,6 +16,7 @@ type Props = {
 // monthMatrix), so it works identically on web and Android with no native module.
 // Past days are disabled, since a due date is always today or later.
 export function DatePicker({ value, onChange, today }: Props) {
+  const styles = useThemedStyles(makeStyles);
   const [ym, setYm] = useState(() => {
     const base = value ? fromISODate(value) : today;
     return { year: base.getFullYear(), month: base.getMonth() };
@@ -80,24 +82,24 @@ export function DatePicker({ value, onChange, today }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: Theme) => StyleSheet.create({
   wrap: {
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: t.colors.line,
     borderRadius: radius.md,
     padding: spacing.three,
     gap: spacing.one,
-    backgroundColor: colors.surface,
+    backgroundColor: t.colors.surface,
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   nav: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill },
-  navText: { color: colors.accent, fontSize: 22, fontWeight: '700', lineHeight: 24 },
-  label: { color: colors.ink, fontSize: 15, fontWeight: '600' },
+  navText: { color: t.colors.accent, fontSize: 22 * t.scale, fontWeight: '700', lineHeight: 24 },
+  label: { color: t.colors.ink, fontSize: 15 * t.scale, fontWeight: '600' },
   week: { flexDirection: 'row' },
-  weekday: { flex: 1, textAlign: 'center', color: colors.inkFaint, fontSize: 12, paddingVertical: spacing.one },
+  weekday: { flex: 1, textAlign: 'center', color: t.colors.inkFaint, fontSize: 12 * t.scale, paddingVertical: spacing.one },
   cell: { flex: 1, aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
-  cellOn: { backgroundColor: colors.accent },
-  day: { color: colors.ink, fontSize: 14 },
-  dayPast: { color: colors.inkFaint, opacity: 0.5 },
+  cellOn: { backgroundColor: t.colors.accent },
+  day: { color: t.colors.ink, fontSize: 14 * t.scale },
+  dayPast: { color: t.colors.inkFaint, opacity: 0.5 },
   dayOn: { color: '#FFFFFF', fontWeight: '700' },
 });

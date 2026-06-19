@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { colors, radius, spacing } from '@/constants/theme';
+import { radius, spacing, type Theme } from '@/constants/theme';
 import { type CaptureSchedule } from '@/lib/recurrence';
 import { MAX_SLICES, MIN_SLICES } from '@/lib/slices';
+import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 type Props = {
   onCapture: (text: string, schedule: CaptureSchedule, slices?: number) => void;
@@ -43,6 +44,8 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
   const [sliceCount, setSliceCount] = useState(0); // 0 = whole task; >=MIN_SLICES = tracked in steps
   const [busyKind, setBusyKind] = useState<'bite' | 'sort' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const styles = useThemedStyles(makeStyles);
+  const theme = useTheme();
   const busy = busyKind !== null;
   const lineCount = value.split('\n').filter((l) => l.trim().length > 0).length;
   // Steps only make sense for a single, one-off task (a thing with parts). Hidden
@@ -113,7 +116,7 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
         onChangeText={setValue}
         editable={!busy}
         placeholder="Empty your head. One line per thing."
-        placeholderTextColor={colors.inkFaint}
+        placeholderTextColor={theme.colors.inkFaint}
         style={styles.input}
         multiline
         textAlignVertical="top"
@@ -212,7 +215,7 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
           >
             {busyKind === 'sort' ? (
               <View style={styles.biteBusy}>
-                <ActivityIndicator size="small" color={colors.accent} />
+                <ActivityIndicator size="small" color={theme.colors.accent} />
                 <Text style={styles.biteText}>Sorting…</Text>
               </View>
             ) : (
@@ -229,7 +232,7 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
           >
             {busyKind === 'bite' ? (
               <View style={styles.biteBusy}>
-                <ActivityIndicator size="small" color={colors.accent} />
+                <ActivityIndicator size="small" color={theme.colors.accent} />
                 <Text style={styles.biteText}>Breaking it down…</Text>
               </View>
             ) : (
@@ -254,20 +257,20 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: Theme) => StyleSheet.create({
   wrap: { gap: spacing.three },
   input: {
     minHeight: 64,
     maxHeight: 160,
-    backgroundColor: colors.surface,
+    backgroundColor: t.colors.surface,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: t.colors.line,
     borderRadius: radius.md,
     paddingHorizontal: spacing.four,
     paddingVertical: spacing.three,
-    fontSize: 16,
+    fontSize: 16 * t.scale,
     lineHeight: 22,
-    color: colors.ink,
+    color: t.colors.ink,
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },
   chip: {
@@ -275,11 +278,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.two,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
+    borderColor: t.colors.line,
+    backgroundColor: t.colors.surface,
   },
-  chipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
-  chipText: { color: colors.inkSoft, fontSize: 14, fontWeight: '500' },
+  chipOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
+  chipText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontWeight: '500' },
   chipTextOn: { color: '#FFFFFF' },
   weekdays: { flexDirection: 'row', gap: spacing.two },
   day: {
@@ -287,47 +290,47 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
+    borderColor: t.colors.line,
+    backgroundColor: t.colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dayOn: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
-  dayText: { color: colors.inkSoft, fontSize: 13 },
-  dayTextOn: { color: colors.accent, fontWeight: '700' },
+  dayOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
+  dayText: { color: t.colors.inkSoft, fontSize: 13 * t.scale },
+  dayTextOn: { color: t.colors.accent, fontWeight: '700' },
   stepperRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
   stepBtn: {
     width: 34,
     height: 34,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
+    borderColor: t.colors.line,
+    backgroundColor: t.colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepBtnText: { color: colors.accent, fontSize: 20, fontWeight: '600' },
-  stepLabel: { color: colors.ink, fontSize: 15, fontWeight: '500', minWidth: 110, textAlign: 'center' },
+  stepBtnText: { color: t.colors.accent, fontSize: 20 * t.scale, fontWeight: '600' },
+  stepLabel: { color: t.colors.ink, fontSize: 15 * t.scale, fontWeight: '500', minWidth: 110, textAlign: 'center' },
   sliceField: { gap: spacing.two },
-  sliceHint: { color: colors.inkFaint, fontSize: 13 },
+  sliceHint: { color: t.colors.inkFaint, fontSize: 13 * t.scale },
   actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
   bite: {
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.accent,
+    borderColor: t.colors.accent,
     paddingHorizontal: spacing.four,
     paddingVertical: spacing.three,
   },
   biteBusy: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-  biteText: { color: colors.accent, fontSize: 16, fontWeight: '600' },
+  biteText: { color: t.colors.accent, fontSize: 16 * t.scale, fontWeight: '600' },
   add: {
-    backgroundColor: colors.accent,
+    backgroundColor: t.colors.accent,
     borderRadius: radius.md,
     paddingHorizontal: spacing.five,
     paddingVertical: spacing.three,
   },
   pressed: { opacity: 0.8 },
   disabled: { opacity: 0.5 },
-  addText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
-  error: { color: colors.accent, fontSize: 14 },
+  addText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontWeight: '600' },
+  error: { color: t.colors.accent, fontSize: 14 * t.scale },
 });

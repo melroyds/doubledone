@@ -703,3 +703,17 @@ Decided against:
 - **Staying system-only** (the prior state). Correct behaviour, but dark mode is then invisible in a demo unless the viewer's OS happens to be dark, and it denies users who want to override their system. For a portfolio piece an invisible feature earns no credit; a single theme control is the one setting the spine explicitly tolerates.
 
 Stage 2 (next): the `/settings` screen + a gear entry point on Today, and the **component sweep** converting every static `StyleSheet.create` to `useThemedStyles` (colours → `theme.colors`, font sizes → `× theme.scale`) so the controls actually take effect live. Verified Stage 1 in preview: app mounts and renders identically (Today + tasks, no console errors); 149 client tests green (+11 for settings).
+
+## 2026-06-19 Settings page + the live theme sweep (Stage 2)
+
+The visible half. The `/settings` screen carries three controls as calm segmented pills (the active one filled mauve): **Theme** (System / Light / Dark), **Text size** (Small / Default / Large), **Motion** (Follow system / Reduce). A small gear in the Today header opens it; the copy stays comfort-framed ("Make it comfortable. These follow you across the app."). The three are the whole of v1, on purpose, scoped to access/comfort.
+
+The sweep: every screen and component moved from a module-level `const styles = StyleSheet.create(...)` to `const makeStyles = (t: Theme) => StyleSheet.create(...)` read via `useThemedStyles(makeStyles)`, with `colors.X` → `t.colors.X` and every literal `fontSize: N` → `N * t.scale`. `spacing` / `radius` / `fonts` stay static module imports (they do not change with theme). The 8 leaf files were parallelised across subagents; `index` and the new `settings` were done by hand. Two nets caught completeness: with `colors` removed from each import, **every missed colour is a compile error** (typecheck was clean), and a negative-lookahead grep confirmed **no `fontSize` was left unscaled**.
+
+Verified live in preview: choosing **Dark** re-paints the entire app instantly, no reload, the Today rows / brain-dump / chips / buttons all following; the title grows **34 → 40px** on **Large** (×1.18); no console errors. Motion resolves through the same provider (`resolveReduceMotion`, unit-tested), so **Reduce** stops the marquee and the close-the-day fade.
+
+Decided against (for v1):
+- **High-contrast, reminder-time, and a serif-vs-plain font choice.** All defensible for this audience, but each adds surface; they stay Tier 2 so the first Settings ship is small and obviously-calm.
+- **A live preview of the text size on the page itself.** The whole app is the preview (the change is instant everywhere), so a sample row would be redundant chrome.
+
+149 client + 29 server tests green; lint + typecheck clean.
