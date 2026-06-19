@@ -148,7 +148,11 @@ function measureWidth(node: unknown, set: (w: number) => void): void {
 }
 
 const styles = StyleSheet.create({
-  clip: { flex: 1, overflow: 'hidden', position: 'relative' },
+  // minWidth:0 lets this flex item shrink below the title's natural single-line
+  // width; without it a long title forces the whole row (and the page) wider than
+  // a narrow viewport, clipping the right edge. With it, the row fits and the
+  // overflow is handled by the marquee / wrap instead.
+  clip: { flex: 1, minWidth: 0, overflow: 'hidden', position: 'relative' },
   // Out-of-flow and very wide so the measured text never wraps or gets capped;
   // clipped by `clip`'s overflow so it adds no page width.
   measureWrap: { position: 'absolute', left: 0, top: 0, opacity: 0, flexDirection: 'row', width: 4000, pointerEvents: 'none' },

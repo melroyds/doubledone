@@ -38,7 +38,7 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle }: Props
   const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [panelWidth, 0] });
 
   return (
-    <View style={[StyleSheet.absoluteFill, { pointerEvents: open ? 'auto' : 'none' }]}>
+    <View style={[StyleSheet.absoluteFill, { overflow: 'hidden', pointerEvents: open ? 'auto' : 'none' }]}>
       <Animated.View style={[styles.backdrop, { opacity: anim }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close repeating tasks" />
       </Animated.View>
