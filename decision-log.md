@@ -823,3 +823,13 @@ The two AI prompts still carrying "PLACEHOLDER" comments (Strategise, Triage) br
 - **Strategise must not build a new wall.** Re-spreading an over-full day has an obvious failure mode: dumping everything onto tomorrow. The prompt now says keep a small handful today AND spread the rest so no single later day becomes the new wall, and every input task must appear exactly once (never silently drop one).
 
 Both keep the calm / never-shame voice (no pep talk, no exclamation marks, no commentary on why a task went undone). Contract tests unchanged and green (they assert request shape, not model reasoning). **Not yet live:** needs a Worker redeploy (`npm run deploy --workspace server`), a production deploy and Melroy's to authorise. The voice remains his to refine.
+
+## 2026-06-19 Verification pass + the Android notification channel
+
+The item-1 check from the post-fix ranking. Two things confirmed, one latent gap closed:
+
+- **Dusk dark palette: verified** rendering under a system-dark web preview. The dark bg (`#1B1917`) paints, body text is the light ink (`#F2EBE0`) and reads cleanly on it, controls carry the lifted mauve accent (`#C68BA0`). On-device dark on an Android phone is still worth a glance, but the palette itself is correct.
+- **Daily-reminder logic: sound.** One `DAILY` trigger at 09:00, cancel-all before scheduling so it never duplicates, permission-gated, fully try/caught so web degrades quietly. The copy offers the day ("Your today is here when you are ready."), never demands it.
+- **Gap closed: the Android notification channel.** Android 8+ needs a channel or a scheduled notification can silently never appear, the single likeliest reason an on-device reminder would no-show. Added `ensureAndroidChannel()` (idempotent, Android-only, importance DEFAULT for a calm tray entry rather than a heads-up pop) before scheduling, with the trigger referencing it. Web is unaffected (no-op off Android).
+
+Still **Melroy's to confirm on the Android build** (a real device notification cannot be fired from here): that the reminder actually arrives at 9am. The channel makes that far likelier to pass.
