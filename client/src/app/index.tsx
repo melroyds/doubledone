@@ -749,7 +749,7 @@ const makeStyles = (t: Theme) =>
     topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.one },
     date: { color: t.colors.inkSoft, fontSize: 15 * t.scale },
     lookbackLink: { color: t.colors.accent, fontSize: 15 * t.scale, fontWeight: '600' },
-    gear: { color: t.colors.accent, fontSize: 19 * t.scale },
+    gear: { color: t.colors.accent, fontSize: 22 * t.scale },
     topLinks: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
     title: {
       color: t.colors.ink,

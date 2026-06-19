@@ -19,7 +19,12 @@ export default function SettingsScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.seven }]}>
-        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back to Today" hitSlop={8}>
+        <Pressable
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+          accessibilityRole="button"
+          accessibilityLabel="Back to Today"
+          hitSlop={8}
+        >
           <Text style={styles.back}>‹ Today</Text>
         </Pressable>
 
