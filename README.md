@@ -8,8 +8,15 @@
 **Live:** [doubledone.app](https://doubledone.app) (web). Android installs via a sideloaded EAS build.
 
 <p align="center">
-  <img src="docs/design/hero.jpg" alt="DoubleDone: a short, calm list with two tasks softly checked off in sage and one still to do, in the warm Dusk palette" width="640">
+  <img src="docs/screenshots/today-light.png" alt="DoubleDone Today screen in the warm light theme" width="300" />
+  &nbsp;
+  <img src="docs/screenshots/today-dark.png" alt="DoubleDone Today screen in the warm-charcoal dark theme" width="300" />
+  <br /><br />
+  <img src="docs/screenshots/settings-light.png" alt="DoubleDone Settings in light" width="300" />
+  &nbsp;
+  <img src="docs/screenshots/settings-dark.png" alt="DoubleDone Settings in dark" width="300" />
 </p>
+<p align="center"><em>Today and Settings, light and dark. The home screen is one doable day; dark follows your device, or your choice.</em></p>
 
 ---
 
