@@ -67,6 +67,15 @@ export default function SettingsScreen() {
           />
         </View>
 
+        <Pressable
+          onPress={() => router.push('/privacy')}
+          accessibilityRole="button"
+          accessibilityLabel="Privacy and data"
+          style={styles.privacyLink}
+        >
+          <Text style={styles.privacyLinkText}>Privacy & data ›</Text>
+        </Pressable>
+
         <Text style={styles.footnote}>Saved to this device. Nothing here leaves it.</Text>
       </ScrollView>
     </View>
@@ -144,6 +153,8 @@ const makeStyles = (t: Theme) =>
     segText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, fontWeight: '700' },
     segTextOn: { color: t.colors.accent },
     pressed: { opacity: 0.7 },
+    privacyLink: { marginTop: spacing.six },
+    privacyLinkText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.body, fontWeight: '600' },
     footnote: {
       color: t.colors.inkFaint,
       fontSize: 13 * t.scale,
