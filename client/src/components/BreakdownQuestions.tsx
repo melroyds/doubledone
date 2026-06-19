@@ -163,6 +163,10 @@ export function BreakdownQuestions({ task, questions, busy, onSubmit, onCancel, 
             <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel="Not now">
               <Text style={styles.dismiss}>Not now</Text>
             </Pressable>
+
+            <Text style={styles.disclosure} accessibilityRole="text">
+              Your task is sent to an AI to suggest the steps, and kept anonymously (no name, no account) to improve them.
+            </Text>
           </ScrollView>
         </Pressable>
       </Pressable>
@@ -234,4 +238,12 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   pressed: { opacity: 0.85 },
   disabled: { opacity: 0.6 },
   dismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.two },
+  disclosure: {
+    color: t.colors.inkFaint,
+    fontSize: 12 * t.scale,
+    fontFamily: fonts.body,
+    textAlign: 'center',
+    lineHeight: 17,
+    marginTop: spacing.two,
+  },
 });

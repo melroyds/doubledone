@@ -903,3 +903,11 @@ Capture could schedule Today, Tomorrow, and the recurring modes, but not a singl
 Verified in preview: "Date…" → pick 27 June → a task persists as `{ due: '2026-06-27' }` and lands under Later; the recurring "Starting from" still opens with its "Start today" reset; no console errors. (The HMR state-confusion seen mid-build went away on a clean reload, not a bug.)
 
 **Remaining (backlogged):** setting / clearing a date on an *existing* task (e.g. via long-press); this did the at-capture half.
+
+## 2026-06-20 AI egress disclosure at the point of use
+
+The privacy policy already disclosed AI egress + retention (two taps from Settings); this surfaces it where it matters most. The Break-it-down questions modal, the moment you hand a personal task to the AI, now carries a calm one-line note: "Your task is sent to an AI to suggest the steps, and kept anonymously (no name, no account) to improve them."
+
+Placed in that modal, **not** on the capture surface, on purpose: Break-it-down is the heaviest egress (a whole dreaded task), the modal has room for a calm note, and the always-visible capture surface stays uncluttered (the never-overwhelm spine). Sort-for-me and Strategise remain covered by the policy, lighter egress, and a persistent line on capture would be visual noise.
+
+Verified in preview: the line shows in the questions modal, no console errors. Closes the "disclose AI egress in-product" item.
