@@ -8,7 +8,23 @@ import { Appearance, Platform } from 'react-native';
 // repeating tasks. Dark mode is a warm charcoal-brown, never a terminal black,
 // the lights dimmed not a different room; every hue lifts in lightness so it
 // still clears WCAG AA, and nothing gains saturation or urgency. Light stays the
-// default; dark is an optional, system-following loadout, not a setting to manage.
+// default; dark follows the system, or the user's choice on the Settings page.
+
+export type Palette = {
+  bg: string;
+  surface: string;
+  ink: string;
+  inkSoft: string;
+  inkFaint: string;
+  line: string;
+  accent: string;
+  accentSoft: string;
+  done: string;
+  doneSoft: string;
+  repeat: string;
+  priorityGradient: readonly string[];
+  accents: readonly string[];
+};
 
 const light = {
   bg: '#FAF6F1', // warm paper
@@ -25,7 +41,7 @@ const light = {
   priorityGradient: ['#3B82F6', '#8B5CF6'], // saved loud blue->violet, for the premium "Prioritise a task" feature
   // A small, calm set of accent hues (e.g. for per-task dots). Desaturated by design.
   accents: ['#9B6A7D', '#4E8C86', '#C19A4F', '#6E72A0', '#BE7F84'], // mauve, teal, gold, periwinkle, rose
-} as const;
+} satisfies Palette;
 
 const dark = {
   bg: '#1B1917', // warm charcoal-brown, not terminal black
@@ -41,15 +57,15 @@ const dark = {
   repeat: '#8E97C8', // lifted periwinkle
   priorityGradient: ['#5B8DEF', '#9B6CF0'],
   accents: ['#C68BA0', '#6FB0A8', '#D6B36A', '#8E97C8', '#D6979C'],
-} as const;
+} satisfies Palette;
 
 export const Colors = { light, dark } as const;
 
-// The active theme, resolved once at launch from the device colour scheme (web:
-// prefers-color-scheme). Light-first; dark follows the system automatically, with
-// no in-app setting to manage. Resolved at module load so component StyleSheets
-// stay static (no per-component theme hook needed).
-export const colors = Appearance.getColorScheme() === 'dark' ? dark : light;
+// The launch-resolved palette (system-following), kept as the default and as the
+// ThemeProvider's fallback. Live switching (theme + text size) flows through the
+// provider via useTheme / useThemedStyles; this static export stays for any
+// module-scope use and so a component rendered outside the provider still works.
+export const colors: Palette = Appearance.getColorScheme() === 'dark' ? dark : light;
 
 export const spacing = {
   half: 2,
@@ -69,8 +85,33 @@ export const radius = {
   pill: 999,
 } as const;
 
-// System font everywhere; on web we lean on the display var from global.css.
-// (Typography overhaul to Newsreader + Atkinson Hyperlegible follows.)
+// System font everywhere; on web we lean on the display var from global.css
+// (Newsreader for headings). Body Atkinson Hyperlegible is applied per text style.
 export const fonts = {
   sans: Platform.OS === 'web' ? 'var(--font-display), system-ui, sans-serif' : 'System',
 } as const;
+
+// The resolved, swappable theme the app renders against. The colours come from
+// the active scheme; `scale` multiplies every font size (the text-size setting);
+// `reduceMotion` is the resolved motion preference. Built by the ThemeProvider.
+export type Theme = {
+  scheme: 'light' | 'dark';
+  colors: Palette;
+  fonts: typeof fonts;
+  spacing: typeof spacing;
+  radius: typeof radius;
+  scale: number;
+  reduceMotion: boolean;
+};
+
+export function buildTheme(scheme: 'light' | 'dark', scale: number, reduceMotion: boolean): Theme {
+  return {
+    scheme,
+    colors: scheme === 'dark' ? dark : light,
+    fonts,
+    spacing,
+    radius,
+    scale,
+    reduceMotion,
+  };
+}

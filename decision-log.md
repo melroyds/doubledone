@@ -685,3 +685,21 @@ Decided against:
 - **Animating the empty state.** Movement on the first thing you see every morning is the opposite of calm. It stays a still banner.
 
 Removed the now-orphaned adaptive `backgroundImage` / `monochromeImage` layers (the old gradient mark would have shown as a wrong themed icon). Committed `*.jpg` / `*.png` module type decls (same CI-`tsc` reason as the existing `*.css` one). Verified in preview: both banners render at the correct 1.78 ratio, the close card centres with the dusk banner and the serif heading, the fade-and-rise settles, no console errors. The favicon applies at build (the Metro dev server does not inject it).
+
+## 2026-06-19 A Settings page, and the reactive theme it needs (Stage 1)
+
+Melroy wants users to be able to customise (his words: theme, font size, "all this kinda crap"). That deliberately bends the "remove friction, never add a setting" rule, and it is the right bend: for an ADHD / autistic / AuDHD audience, theme, text size and reduced motion are **access needs**, not config. The discipline is keeping the page to comfort/accessibility and never letting it become an everything-dashboard (the spine still holds for everything *outside* this one page).
+
+The blocker was architectural. The palette resolved **once at module load** (`colors = Appearance.getColorScheme() ...`) and every component baked it into a static `StyleSheet.create`. A live in-app theme or text-size switch is impossible against frozen styles, you cannot mutate a created StyleSheet and have it re-paint. So a reactive layer is unavoidable, and it is the same foundation the (long-backlogged) Settings page always needed. Building it in two stages so nothing breaks.
+
+**Stage 1 (this commit), behaviour-neutral foundation:**
+- **Pure settings model** (`lib/settings`, unit-tested): `theme` (system / light / dark), `textSize` (small / default / large → a capped 0.92–1.18 font multiplier), `motion` (system / reduce). Per-field safe parse so a corrupt blob degrades to defaults, never throws. Persisted via `lib/storage` (`doubledone.settings.v1`), the same seam as tasks / reminder.
+- **`ThemeProvider`** (`lib/theme-provider`) resolves `{ colors, scale, reduceMotion, scheme }` from the stored prefs **plus** the live system (it still follows `Appearance` and `prefers-reduced-motion` when set to "system"), and re-paints on any change. `useTheme()` / `useThemedStyles(make)` are how components will read it; a module-load fallback theme keeps anything rendered outside the provider working.
+- **`useReducedMotion` moved into the provider** (deleting `lib/useReducedMotion`), so the new "Reduce motion" preference and the system flag resolve in one place. `MarqueeText` and the close-the-day animation now read the resolved value.
+- `_layout` wraps the router in the provider and its own background / status-bar follow the theme.
+
+Decided against:
+- **A reload-to-apply toggle** (store a pref, read it at next launch). Cheap, but a theme flip that blanks and reloads the app is the opposite of calm. Worth the reactive refactor to get an instant, gentle switch.
+- **Staying system-only** (the prior state). Correct behaviour, but dark mode is then invisible in a demo unless the viewer's OS happens to be dark, and it denies users who want to override their system. For a portfolio piece an invisible feature earns no credit; a single theme control is the one setting the spine explicitly tolerates.
+
+Stage 2 (next): the `/settings` screen + a gear entry point on Today, and the **component sweep** converting every static `StyleSheet.create` to `useThemedStyles` (colours → `theme.colors`, font sizes → `× theme.scale`) so the controls actually take effect live. Verified Stage 1 in preview: app mounts and renders identically (Today + tasks, no console errors); 149 client tests green (+11 for settings).

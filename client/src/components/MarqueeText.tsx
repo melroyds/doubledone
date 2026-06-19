@@ -10,7 +10,7 @@ import {
   type TextStyle,
 } from 'react-native';
 
-import { useReducedMotion } from '@/lib/useReducedMotion';
+import { useReducedMotion } from '@/lib/theme-provider';
 
 // A calm marquee for a task title that does not fit its row. It scrolls ONLY when
 // the text actually overflows, and ONLY when the user has not asked for reduced

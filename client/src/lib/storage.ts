@@ -1,11 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { DEFAULT_SETTINGS, parseSettings, serializeSettings, type Settings } from './settings';
 import { deserialize, SEED, serialize, type Task } from './tasks';
 import { track } from './telemetry';
 
 // Versioned so a future shape change can migrate rather than silently drop data.
 const STORAGE_KEY = 'doubledone.tasks.v1';
 const REMINDER_KEY = 'doubledone.reminder.v1';
+const SETTINGS_KEY = 'doubledone.settings.v1';
 
 /**
  * Load Today's tasks. On a brand-new install (nothing ever stored) seed once so
@@ -49,6 +51,24 @@ export async function loadReminderOn(): Promise<boolean> {
 export async function saveReminderOn(on: boolean): Promise<void> {
   try {
     await AsyncStorage.setItem(REMINDER_KEY, on ? 'on' : 'off');
+  } catch {
+    // best effort
+  }
+}
+
+/** Load the user's settings (theme / text size / motion). Defaults on any failure. */
+export async function loadSettings(): Promise<Settings> {
+  try {
+    return parseSettings(await AsyncStorage.getItem(SETTINGS_KEY));
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+/** Persist the user's settings. Best effort, never thrown at the UI. */
+export async function saveSettings(settings: Settings): Promise<void> {
+  try {
+    await AsyncStorage.setItem(SETTINGS_KEY, serializeSettings(settings));
   } catch {
     // best effort
   }

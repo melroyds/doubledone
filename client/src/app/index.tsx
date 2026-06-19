@@ -31,8 +31,8 @@ import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { syncOnce } from '@/lib/sync';
 import { parseDump, type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
+import { useReducedMotion } from '@/lib/theme-provider';
 import { isDoneOn, isRecurring, tasksForToday, toggleDoneOn, upcomingTasks } from '@/lib/today';
-import { useReducedMotion } from '@/lib/useReducedMotion';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
