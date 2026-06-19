@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -23,16 +23,23 @@ export default function LookbackScreen() {
   const [selected, setSelected] = useState(toISODate(today));
   const styles = useThemedStyles(makeStyles);
 
-  useEffect(() => {
-    let active = true;
-    void loadTasks().then((stored) => {
-      if (active) setTasks(stored);
-    });
-    track('lookback.viewed');
-    return () => {
-      active = false;
-    };
-  }, []);
+  // Re-read the local store every time the screen regains focus, not only on first
+  // mount, so the calendar always reflects the current data, including after an
+  // account deletion clears it on this device. A remount is not guaranteed on
+  // native (router.replace keeps a mounted screen alive); web reloads. This is what
+  // stops a stale Lookback from lingering after a delete.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      void loadTasks().then((stored) => {
+        if (active) setTasks(stored);
+      });
+      track('lookback.viewed');
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
 
   const byDay = useMemo(() => completionsByDay(tasks), [tasks]);
   const weeks = useMemo(() => monthMatrix(view.year, view.month), [view]);

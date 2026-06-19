@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -79,19 +79,24 @@ export default function TodayScreen() {
   const [closeRise] = useState(() => new Animated.Value(0));
   const styles = useThemedStyles(makeStyles);
 
-  // Load the persisted list once. Until it arrives we hold off on the empty and
-  // all-done copy so neither flashes before the real tasks land.
-  useEffect(() => {
-    let active = true;
-    void loadTasks().then((stored) => {
-      if (!active) return;
-      setTasks(stored);
-      setLoaded(true);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+  // Re-read the persisted list on every focus, not only first mount, so returning
+  // to Today always reflects the current store, including after an account deletion
+  // wipes it (native keeps a mounted screen alive on router.replace; web reloads).
+  // The `loaded` gate still holds the empty / all-done copy until the first load
+  // lands so neither flashes.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      void loadTasks().then((stored) => {
+        if (!active) return;
+        setTasks(stored);
+        setLoaded(true);
+      });
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
 
   // Keep the latest tasks reachable from the sync effect without making it re-run
   // on every edit (which would re-sync constantly).
