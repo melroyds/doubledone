@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { radius, spacing, type Theme } from '@/constants/theme';
+import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { type Slices } from '@/lib/tasks';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
@@ -158,10 +158,10 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   rowUnique: { borderColor: t.colors.repeat, borderWidth: 2 },
   pressed: { opacity: 0.7 },
   confirmRow: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accentSoft },
-  confirmText: { flex: 1, color: t.colors.ink, fontSize: 15 * t.scale },
-  keep: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontWeight: '600', paddingHorizontal: spacing.two },
+  confirmText: { flex: 1, color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body },
+  keep: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, fontWeight: '600', paddingHorizontal: spacing.two },
   controlOff: { color: t.colors.inkFaint },
-  remove: { color: t.colors.accent, fontSize: 15 * t.scale, fontWeight: '700', paddingHorizontal: spacing.two },
+  remove: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, fontWeight: '700', paddingHorizontal: spacing.two },
   check: {
     width: 26,
     height: 26,
@@ -172,13 +172,13 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     justifyContent: 'center',
   },
   checkDone: { backgroundColor: t.colors.done, borderColor: t.colors.done },
-  tick: { color: '#FFFFFF', fontSize: 15 * t.scale, fontWeight: '700', lineHeight: 17 },
-  text: { color: t.colors.ink, fontSize: 17 * t.scale, lineHeight: 23 },
+  tick: { color: '#FFFFFF', fontSize: 15 * t.scale, fontFamily: fonts.body, fontWeight: '700', lineHeight: 17 },
+  text: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 23 },
   textDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
-  repeatMark: { color: t.colors.repeat, fontSize: 18 * t.scale, fontWeight: '700' },
+  repeatMark: { color: t.colors.repeat, fontSize: 18 * t.scale, fontFamily: fonts.body, fontWeight: '700' },
   sliceColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
   sliceTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
-  sliceCount: { color: t.colors.repeat, fontSize: 14 * t.scale, fontWeight: '700' },
+  sliceCount: { color: t.colors.repeat, fontSize: 14 * t.scale, fontFamily: fonts.body, fontWeight: '700' },
   track: {
     flexDirection: 'row',
     height: 4,

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { radius, spacing, type Theme } from '@/constants/theme';
+import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { type CaptureSchedule } from '@/lib/recurrence';
 import { MAX_SLICES, MIN_SLICES } from '@/lib/slices';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -269,6 +269,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingHorizontal: spacing.four,
     paddingVertical: spacing.three,
     fontSize: 16 * t.scale,
+    fontFamily: fonts.body,
     lineHeight: 22,
     color: t.colors.ink,
   },
@@ -282,7 +283,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     backgroundColor: t.colors.surface,
   },
   chipOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
-  chipText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontWeight: '500' },
+  chipText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, fontWeight: '500' },
   chipTextOn: { color: '#FFFFFF' },
   weekdays: { flexDirection: 'row', gap: spacing.two },
   day: {
@@ -296,7 +297,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     justifyContent: 'center',
   },
   dayOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
-  dayText: { color: t.colors.inkSoft, fontSize: 13 * t.scale },
+  dayText: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
   dayTextOn: { color: t.colors.accent, fontWeight: '700' },
   stepperRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
   stepBtn: {
@@ -309,10 +310,10 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepBtnText: { color: t.colors.accent, fontSize: 20 * t.scale, fontWeight: '600' },
-  stepLabel: { color: t.colors.ink, fontSize: 15 * t.scale, fontWeight: '500', minWidth: 110, textAlign: 'center' },
+  stepBtnText: { color: t.colors.accent, fontSize: 20 * t.scale, fontFamily: fonts.body, fontWeight: '600' },
+  stepLabel: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body, fontWeight: '500', minWidth: 110, textAlign: 'center' },
   sliceField: { gap: spacing.two },
-  sliceHint: { color: t.colors.inkFaint, fontSize: 13 * t.scale },
+  sliceHint: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body },
   actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
   bite: {
     borderRadius: radius.md,
@@ -322,7 +323,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingVertical: spacing.three,
   },
   biteBusy: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-  biteText: { color: t.colors.accent, fontSize: 16 * t.scale, fontWeight: '600' },
+  biteText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.body, fontWeight: '600' },
   add: {
     backgroundColor: t.colors.accent,
     borderRadius: radius.md,
@@ -331,6 +332,6 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   pressed: { opacity: 0.8 },
   disabled: { opacity: 0.5 },
-  addText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontWeight: '600' },
-  error: { color: t.colors.accent, fontSize: 14 * t.scale },
+  addText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.body, fontWeight: '600' },
+  error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body },
 });

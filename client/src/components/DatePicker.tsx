@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { radius, spacing, type Theme } from '@/constants/theme';
+import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { addMonths, monthLabel, monthMatrix, WEEKDAY_LABELS } from '@/lib/calendar';
 import { fromISODate, toISODate } from '@/lib/day';
 import { useThemedStyles } from '@/lib/theme-provider';
@@ -93,13 +93,13 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   nav: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill },
-  navText: { color: t.colors.accent, fontSize: 22 * t.scale, fontWeight: '700', lineHeight: 24 },
-  label: { color: t.colors.ink, fontSize: 15 * t.scale, fontWeight: '600' },
+  navText: { color: t.colors.accent, fontFamily: fonts.body, fontSize: 22 * t.scale, fontWeight: '700', lineHeight: 24 },
+  label: { color: t.colors.ink, fontFamily: fonts.body, fontSize: 15 * t.scale, fontWeight: '600' },
   week: { flexDirection: 'row' },
-  weekday: { flex: 1, textAlign: 'center', color: t.colors.inkFaint, fontSize: 12 * t.scale, paddingVertical: spacing.one },
+  weekday: { flex: 1, textAlign: 'center', color: t.colors.inkFaint, fontFamily: fonts.body, fontSize: 12 * t.scale, paddingVertical: spacing.one },
   cell: { flex: 1, aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
   cellOn: { backgroundColor: t.colors.accent },
-  day: { color: t.colors.ink, fontSize: 14 * t.scale },
+  day: { color: t.colors.ink, fontFamily: fonts.body, fontSize: 14 * t.scale },
   dayPast: { color: t.colors.inkFaint, opacity: 0.5 },
   dayOn: { color: '#FFFFFF', fontWeight: '700' },
 });

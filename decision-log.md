@@ -726,3 +726,15 @@ Melroy ran the Settings design prompt through his design tooling and brought bac
 - The **"Saved to this device" reassurance sits at the foot of the screen** (`marginTop: auto` in a `flexGrow` scroll body), not crowded under the last control.
 
 Verified light and dark in preview via DOM checks (the screenshot tool was timing out this session): title Newsreader 42/400, active pill = mauve tint + accent border (light `#F1E7EC`/`#9B6A7D`, dark `#352C32`/`#C68BA0`), footnote pinned to the bottom, no console errors. typecheck + lint clean.
+
+## 2026-06-19 Atkinson Hyperlegible body font (the legibility face, applied for real)
+
+The Dusk type pairing is Newsreader (headings) + Atkinson Hyperlegible (body, the Braille Institute legibility face). But only the headings were actually rendering their face: **RN-web gives every `<Text>` its own default font**, so the Atkinson set on `html`/`body` in `global.css` never reached body text, which fell back to the system stack. Confirmed in the live DOM (a body element computed `font-family: -apple-system, ...`). So the accessibility win the pairing exists for was not happening on web.
+
+Fixed by being explicit: a new **`fonts.body`** token (web: `var(--font-body)` → Atkinson; native: `System` until `expo-google-fonts` loads the real family, see Backlog) applied to **every body text style** across the app, alongside the existing `fonts.sans` (Newsreader) on headings. The sweep added `fontFamily: fonts.body` to each style that carries a `fontSize` and did not already set a family (those are the `fonts.sans` headings, left untouched). Parallelised across subagents; typecheck is the net (a missed/typo'd token is a compile error).
+
+Decided against:
+- **A single global CSS override** (e.g. `[dir]:not([data-heading]) { font-family: var(--font-body) }`). Smaller, but **web-only**: on native, font resolution goes through the style object, not CSS, so the body face would silently not apply there. It also leans on RN-web's hashed text class / `[dir]` internals. The explicit per-style token is verbose but **native-ready and version-independent**, and consistent with how headings already declare `fonts.sans`.
+- **A custom `Text` wrapper component.** Would mean changing every `<Text>` import app-wide, a larger and more invasive churn than tokenising the styles.
+
+This closes the Dusk design pass (palette + dark, serif headings, illustration suite, Settings page, and now the legibility body face). Verified body text computes to Atkinson and headings stay Newsreader, light + dark, no console errors; gates green.

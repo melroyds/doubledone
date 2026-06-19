@@ -122,13 +122,13 @@ const makeStyles = (t: Theme) =>
       alignSelf: 'center',
       flexGrow: 1, // fills the height so the footnote can sit at the bottom
     },
-    back: { color: t.colors.accent, fontSize: 15 * t.scale, fontWeight: '700' },
+    back: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, fontWeight: '700' },
     // Editorial serif header at weight 400, the calm counterpoint to bold "Today".
     title: { color: t.colors.ink, fontSize: 42 * t.scale, fontWeight: '400', fontFamily: fonts.sans, marginTop: spacing.three },
-    subtitle: { color: t.colors.inkSoft, fontSize: 15 * t.scale, lineHeight: 22, marginTop: spacing.two },
+    subtitle: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22, marginTop: spacing.two },
     rows: { marginTop: spacing.six, gap: spacing.six },
-    rowLabel: { color: t.colors.ink, fontSize: 17 * t.scale, fontWeight: '700' },
-    rowHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20, marginTop: spacing.one },
+    rowLabel: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, fontWeight: '700' },
+    rowHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20, marginTop: spacing.one },
     segment: { flexDirection: 'row', gap: spacing.two, marginTop: spacing.three },
     seg: {
       flex: 1,
@@ -141,12 +141,13 @@ const makeStyles = (t: Theme) =>
       alignItems: 'center',
     },
     segOn: { borderWidth: 1.5, borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
-    segText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontWeight: '700' },
+    segText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, fontWeight: '700' },
     segTextOn: { color: t.colors.accent },
     pressed: { opacity: 0.7 },
     footnote: {
       color: t.colors.inkFaint,
       fontSize: 13 * t.scale,
+      fontFamily: fonts.body,
       lineHeight: 20,
       textAlign: 'center',
       marginTop: 'auto',

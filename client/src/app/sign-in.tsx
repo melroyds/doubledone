@@ -198,7 +198,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
   },
-  cancel: { color: t.colors.inkSoft, fontSize: 16 * t.scale, marginBottom: spacing.six },
+  cancel: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, marginBottom: spacing.six },
   title: {
     color: t.colors.ink,
     fontSize: 30 * t.scale,
@@ -206,9 +206,9 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     fontFamily: fonts.sans,
     letterSpacing: -0.5,
   },
-  sub: { color: t.colors.inkSoft, fontSize: 16 * t.scale, lineHeight: 23, marginTop: spacing.three },
+  sub: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 23, marginTop: spacing.three },
   form: { gap: spacing.three, marginTop: spacing.six },
-  sentTo: { color: t.colors.inkSoft, fontSize: 15 * t.scale },
+  sentTo: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
   success: { color: t.colors.done, fontSize: 26 * t.scale, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3 },
   input: {
     backgroundColor: t.colors.surface,
@@ -218,6 +218,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingHorizontal: spacing.four,
     paddingVertical: spacing.three,
     fontSize: 16 * t.scale,
+    fontFamily: fonts.body,
     color: t.colors.ink,
   },
   primary: {
@@ -226,9 +227,9 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingVertical: spacing.four,
     alignItems: 'center',
   },
-  primaryText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontWeight: '600' },
+  primaryText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.body, fontWeight: '600' },
   pressed: { opacity: 0.8 },
   disabled: { opacity: 0.5 },
-  link: { color: t.colors.accent, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two },
-  error: { color: t.colors.accent, fontSize: 14 * t.scale, marginTop: spacing.four },
+  link: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.two },
+  error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.four },
 });

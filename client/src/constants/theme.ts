@@ -85,10 +85,14 @@ export const radius = {
   pill: 999,
 } as const;
 
-// System font everywhere; on web we lean on the display var from global.css
-// (Newsreader for headings). Body Atkinson Hyperlegible is applied per text style.
+// Two faces, applied per text style (RN-web gives every Text its own default
+// font, so neither inherits from the page): `sans` is Newsreader for headings
+// (the display var from global.css), `body` is Atkinson Hyperlegible, the Braille
+// Institute legibility face, for everything else. Native falls back to System
+// until expo-google-fonts loads the real families (see BUILD-PLAN).
 export const fonts = {
   sans: Platform.OS === 'web' ? 'var(--font-display), system-ui, sans-serif' : 'System',
+  body: Platform.OS === 'web' ? 'var(--font-body), ui-sans-serif, system-ui, sans-serif' : 'System',
 } as const;
 
 // The resolved, swappable theme the app renders against. The colours come from
