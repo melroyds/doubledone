@@ -4,7 +4,9 @@ The DoubleDone visual system, **Dusk**: calm and warm, low-arousal, never gamifi
 
 | File | What it is |
 |---|---|
-| [`design-system.html`](design-system.html) | The full design-system reference (tokens, type, components) generated from the A0 brief. Open in a browser. |
+| [`design-system.html`](design-system.html) | The full design-system reference (A0): tokens, type, components. Open in a browser. |
+| [`components.html`](components.html) | Component states (A6): rows, buttons, chips, the capture send button, per-task dots, the date picker. |
+| [`lookback.html`](lookback.html) | The Lookback calendar (A4): completion dots, big-win marks, the day detail. |
 | [`today-dusk-light-dark.png`](today-dusk-light-dark.png) | The Today screen, light and dark. |
 | [`dusk-light-and-dark.png`](dusk-light-and-dark.png) | The Dusk light/dark philosophy. |
 
