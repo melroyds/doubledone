@@ -25,12 +25,14 @@ Full core loop working: capture, AI decomposition (Bite the Elephant), in-app sc
 
 ## The immediate next action
 
-**The core loop is complete.** A through H are all shipped and live (capture, AI decompose, in-app scheduling, recurring + the repeating drawer, cloud sync, the calendar Lookback with weighted celebration, close-the-day, Strategise, AI triage, and the daily reminder). What is left is **post-core**:
+**The build is functionally complete.** The full daily loop is shipped and live: capture, AI triage, AI decompose (with a calm pace estimate, the visible moat), in-app scheduling (today / tomorrow / recurring / "starting from"), **push a task to tomorrow**, slices, the repeating drawer, cloud sync, the calendar Lookback with weighted celebration, close-the-day, Strategise, and the daily reminder. The Dusk design pass (palette + dark, serif + Atkinson, native fonts, illustrations, Settings) is done, screenshots are current, and the AI prompts (decompose / strategise / triage) are tuned and deployed.
 
-1. **Things to verify on device / in your own time** (built, need Melroy): the daily reminder firing on the Android build, the **Dusk dark palette on a dark-mode Android device** (now that `userInterfaceStyle` is `automatic`; the web preview can't exercise native dark), and tuning any of the AI prompt placeholders (`decompose.ts` is tuned; `strategise.ts` and `triage.ts` are working placeholders).
-2. **The deliberate design overhaul** (backlogged): the dramatic look-and-flow pass, now with the full feature set to design against.
-3. **The ParkProof-grade GitHub** (backlogged): public-facing PM/architecture docs and a case study, mirroring ParkProof (needs ParkProof's repo as the reference).
-4. The rest of the backlog (custom lists, Plan my day, Prioritise, distribution, monetisation, the /decompose lockdown before any public launch).
+What remains is **not build work**, it is deferred-with-triggers or your-decision:
+
+1. **On device / in your own time** (built, need Melroy): the daily reminder firing on the Android build, and the Dusk dark palette + native fonts rendering on a real Android device (the web preview can't exercise native).
+2. **Before any public launch:** harden the `ai_calls` writes (the anon key can insert from anywhere), then the rest of the privacy/launch triggers in the Privacy section.
+3. **Your-decision projects:** monetisation (Stripe paid tier), and the real anonymised crowd-data swap for the moat estimate (needs cross-user volume).
+4. The rest of the Backlog (one-off far-future date, custom lists, Plan my day, Prioritise, calendar sync, i18n translations, distribution), each parked with a trigger.
 
 ---
 
