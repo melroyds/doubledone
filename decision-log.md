@@ -880,3 +880,14 @@ Activated the two Tier-1 CI items the workflow had stubbed.
 The local pre-commit gate stays fast (`npm test`, no coverage); the floor runs in CI only.
 
 **Decided against** a global coverage threshold (theatre, and it fights the risk-targeted philosophy) and against unit-testing the Worker's network glue or the SDK seams (all I/O, no logic).
+
+## 2026-06-20 Accessibility pass: touch targets + readable dates
+
+An audit of the interactive surfaces. The app was already strong on screen-reader labelling (every control carries a role + label + state) and reduced-motion. Two real gaps fixed:
+
+- **Touch targets.** The compact controls (the capture "when" chips, the weekday and stepper buttons at 34px, the date-picker month nav at 36px, the recurring "Starting from" button) sat below the ~44px motor-accessibility minimum (WCAG 2.5.5). Added `hitSlop` to expand the tap area with no visual change, keeping the calm, compact look. Horizontally-packed rows (chips, weekdays) use a **vertical-only** hitSlop, so a taller tap area cannot cause a mis-tap onto the neighbour.
+- **Readable dates.** The date-picker cells announced the raw ISO ("2026-06-21") to a screen reader; they now announce a natural date ("Saturday 21 June").
+
+Verified in preview: controls still fire (a proper pointer tap on a chip reveals its options) and render unchanged, no console errors.
+
+**Noted, not changed:** the faint tertiary ink (`inkFaint`) for hints / placeholders is low-contrast against the paper background, a deliberate calm trade-off. Raising it would alter the Dusk palette app-wide (a design decision), and the proper home is the **high-contrast mode already backlogged** in Settings Tier 2, not an overnight palette change. The long-press confirm-menu text actions are a minor remaining touch-target item (lower frequency, deliberate reveal).

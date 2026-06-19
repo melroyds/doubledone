@@ -30,6 +30,7 @@ export function DatePicker({ value, onChange, today }: Props) {
         <Pressable
           onPress={() => setYm((p) => addMonths(p.year, p.month, -1))}
           style={styles.nav}
+          hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel="Previous month"
         >
@@ -39,6 +40,7 @@ export function DatePicker({ value, onChange, today }: Props) {
         <Pressable
           onPress={() => setYm((p) => addMonths(p.year, p.month, 1))}
           style={styles.nav}
+          hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel="Next month"
         >
@@ -68,7 +70,7 @@ export function DatePicker({ value, onChange, today }: Props) {
                 style={[styles.cell, selected && styles.cellOn]}
                 accessibilityRole="button"
                 accessibilityState={{ selected, disabled: past }}
-                accessibilityLabel={iso}
+                accessibilityLabel={fromISODate(iso).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
               >
                 <Text style={[styles.day, past && styles.dayPast, selected && styles.dayOn]}>
                   {Number(iso.slice(8, 10))}

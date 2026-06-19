@@ -141,6 +141,7 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
             key={m}
             onPress={() => setMode(m)}
             style={[styles.chip, mode === m && styles.chipOn]}
+            hitSlop={{ top: 8, bottom: 8 }}
             accessibilityRole="button"
             accessibilityState={{ selected: mode === m }}
             accessibilityLabel={label}
@@ -157,6 +158,7 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
               key={d}
               onPress={() => toggleWeekday(d)}
               style={[styles.day, weekdays.includes(d) && styles.dayOn]}
+              hitSlop={{ top: 8, bottom: 8 }}
               accessibilityRole="button"
               accessibilityState={{ selected: weekdays.includes(d) }}
               accessibilityLabel={`Repeat on ${label}`}
@@ -172,6 +174,7 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
           <Pressable
             onPress={() => setEveryNDays((n) => Math.max(2, n - 1))}
             style={styles.stepBtn}
+            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Fewer days"
           >
@@ -181,6 +184,7 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
           <Pressable
             onPress={() => setEveryNDays((n) => Math.min(30, n + 1))}
             style={styles.stepBtn}
+            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="More days"
           >
@@ -195,6 +199,7 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
           <Pressable
             onPress={() => setStartPickerOpen(true)}
             style={styles.startBtn}
+            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel={`Starting from ${start === todayIso ? 'today' : start}`}
           >
