@@ -2,7 +2,7 @@
    Hyperlegible (the Braille Institute's legibility face) for body. Headings read
    the --font-display var via theme.fonts; body is set on the root below. Native
    loads the same families via expo-google-fonts. */
-@import url('https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Atkinson+Hyperlegible:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Atkinson+Hyperlegible:wght@400;700&display=swap');
 
 :root {
   --font-display: 'Newsreader', Georgia, 'Times New Roman', serif;

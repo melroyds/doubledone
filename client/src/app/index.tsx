@@ -7,6 +7,7 @@ import { BrainDump } from '@/components/BrainDump';
 import { type BreakdownAnswers, BreakdownQuestions } from '@/components/BreakdownQuestions';
 import { BreakdownReview, type ReviewPhase, type ReviewStep } from '@/components/BreakdownReview';
 import { RepeatingDrawer } from '@/components/RepeatingDrawer';
+import { RotatingPhrase } from '@/components/RotatingPhrase';
 import { TaskRow } from '@/components/TaskRow';
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import {
@@ -607,7 +608,9 @@ export default function TodayScreen() {
             <Text style={styles.sync}>Daily reminder · {reminderOn ? 'On' : 'Off'}</Text>
           </Pressable>
         )}
-        <Text style={styles.ethos}>today is finite and achievable</Text>
+        <View style={styles.ethos}>
+          <RotatingPhrase />
+        </View>
       </View>
 
       <Modal visible={closing} transparent animationType="fade" onRequestClose={() => setClosing(false)}>
@@ -803,14 +806,7 @@ const makeStyles = (t: Theme) =>
     },
     syncText: { color: t.colors.inkFaint, fontSize: 13 * t.scale, flexShrink: 1, fontFamily: fonts.body },
     syncAction: { color: t.colors.accent, fontSize: 13 * t.scale, fontWeight: '600', fontFamily: fonts.body },
-    ethos: {
-      color: t.colors.inkFaint,
-      fontSize: 12 * t.scale,
-      textAlign: 'center',
-      marginTop: spacing.three,
-      letterSpacing: 0.3,
-      fontFamily: fonts.body,
-    },
+    ethos: { marginTop: spacing.three, alignItems: 'center' },
     dayActions: { marginTop: spacing.seven, alignItems: 'center', gap: spacing.three },
     closeDay: {
       paddingVertical: spacing.three,
