@@ -717,3 +717,12 @@ Decided against (for v1):
 - **A live preview of the text size on the page itself.** The whole app is the preview (the change is instant everywhere), so a sample row would be redundant chrome.
 
 149 client + 29 server tests green; lint + typecheck clean.
+
+## 2026-06-19 Settings page, final design (to Melroy's mockup)
+
+Melroy ran the Settings design prompt through his design tooling and brought back a mockup (saved in `docs/design`). Aligned the built screen to it. The palette already matched Dusk exactly; the changes were typographic and spatial:
+- The **"Settings" header is Newsreader at weight 400, 42px**, editorial and quiet, deliberately lighter than the bold weight-700 "Today" header. A settings screen should feel like a calm aside, not a command centre. (Recorded so it is not "corrected" later as an inconsistency.)
+- More **generous row spacing** (~32 between controls), **hints in secondary ink** (not faint), pills at weight 700 with a slightly bolder mauve border on the active one.
+- The **"Saved to this device" reassurance sits at the foot of the screen** (`marginTop: auto` in a `flexGrow` scroll body), not crowded under the last control.
+
+Verified light and dark in preview via DOM checks (the screenshot tool was timing out this session): title Newsreader 42/400, active pill = mauve tint + accent border (light `#F1E7EC`/`#9B6A7D`, dark `#352C32`/`#C68BA0`), footnote pinned to the bottom, no console errors. typecheck + lint clean.

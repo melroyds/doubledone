@@ -8,8 +8,10 @@ import { useSettings, useThemedStyles } from '@/lib/theme-provider';
 
 // The one deliberate Settings surface. Scoped to comfort and access (theme, text
 // size, motion), never open-ended config: that is the line that keeps "remove
-// friction, never add a setting" intact everywhere else. Calm by design: each
-// control is a small set of clear options, the active one filled, nothing to hunt.
+// friction, never add a setting" intact everywhere else. Calm by design: an
+// editorial serif header, each control a small set of clear pills (the active one
+// filled mauve), and the reassurance resting at the foot of the page. Matches the
+// Dusk Settings mockup in docs/design.
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -18,7 +20,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.seven }]}>
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.six }]}>
         <Pressable
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
           accessibilityRole="button"
@@ -28,44 +30,42 @@ export default function SettingsScreen() {
           <Text style={styles.back}>‹ Today</Text>
         </Pressable>
 
-        <View style={styles.header}>
-          <Text style={styles.title}>Settings</Text>
-          <Text style={styles.subtitle}>Make it comfortable. These follow you across the app.</Text>
+        <Text style={styles.title}>Settings</Text>
+        <Text style={styles.subtitle}>Make it comfortable. These follow you across the app.</Text>
+
+        <View style={styles.rows}>
+          <Choice<ThemePref>
+            label="Theme"
+            hint="Dark follows your device unless you choose."
+            value={settings.theme}
+            options={[
+              { value: 'system', label: 'System' },
+              { value: 'light', label: 'Light' },
+              { value: 'dark', label: 'Dark' },
+            ]}
+            onChange={(theme) => setSettings({ theme })}
+          />
+          <Choice<TextSize>
+            label="Text size"
+            value={settings.textSize}
+            options={[
+              { value: 'small', label: 'Small' },
+              { value: 'default', label: 'Default' },
+              { value: 'large', label: 'Large' },
+            ]}
+            onChange={(textSize) => setSettings({ textSize })}
+          />
+          <Choice<MotionPref>
+            label="Motion"
+            hint="Reduce stops the gentle fades and the scrolling titles."
+            value={settings.motion}
+            options={[
+              { value: 'system', label: 'Follow system' },
+              { value: 'reduce', label: 'Reduce' },
+            ]}
+            onChange={(motion) => setSettings({ motion })}
+          />
         </View>
-
-        <Choice<ThemePref>
-          label="Theme"
-          hint="Dark follows your device unless you choose."
-          value={settings.theme}
-          options={[
-            { value: 'system', label: 'System' },
-            { value: 'light', label: 'Light' },
-            { value: 'dark', label: 'Dark' },
-          ]}
-          onChange={(theme) => setSettings({ theme })}
-        />
-
-        <Choice<TextSize>
-          label="Text size"
-          value={settings.textSize}
-          options={[
-            { value: 'small', label: 'Small' },
-            { value: 'default', label: 'Default' },
-            { value: 'large', label: 'Large' },
-          ]}
-          onChange={(textSize) => setSettings({ textSize })}
-        />
-
-        <Choice<MotionPref>
-          label="Motion"
-          hint="Reduce stops the gentle fades and the scrolling titles."
-          value={settings.motion}
-          options={[
-            { value: 'system', label: 'Follow system' },
-            { value: 'reduce', label: 'Reduce' },
-          ]}
-          onChange={(motion) => setSettings({ motion })}
-        />
 
         <Text style={styles.footnote}>Saved to this device. Nothing here leaves it.</Text>
       </ScrollView>
@@ -81,12 +81,12 @@ type ChoiceProps<T extends string> = {
   onChange: (v: T) => void;
 };
 
-// A calm segmented control: the options laid out as equal pills, the active one
-// filled with the mauve tint. No switch to find, no hidden state.
+// A calm segmented control: the options as equal pills, the active one filled with
+// the mauve tint and a slightly bolder mauve border. No switch to find.
 function Choice<T extends string>({ label, hint, value, options, onChange }: ChoiceProps<T>) {
   const styles = useThemedStyles(makeStyles);
   return (
-    <View style={styles.row}>
+    <View>
       <Text style={styles.rowLabel}>{label}</Text>
       {hint ? <Text style={styles.rowHint}>{hint}</Text> : null}
       <View style={styles.segment}>
@@ -116,20 +116,20 @@ const makeStyles = (t: Theme) =>
     scroll: { flex: 1 },
     content: {
       paddingHorizontal: spacing.five,
-      paddingBottom: spacing.seven,
+      paddingBottom: spacing.six,
       maxWidth: 560,
       width: '100%',
       alignSelf: 'center',
-      gap: spacing.five,
+      flexGrow: 1, // fills the height so the footnote can sit at the bottom
     },
-    back: { color: t.colors.accent, fontSize: 16 * t.scale, fontWeight: '600' },
-    header: { gap: spacing.two },
-    title: { color: t.colors.ink, fontSize: 34 * t.scale, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.5 },
-    subtitle: { color: t.colors.inkSoft, fontSize: 16 * t.scale, lineHeight: 24 },
-    row: { gap: spacing.two },
-    rowLabel: { color: t.colors.ink, fontSize: 18 * t.scale, fontWeight: '600' },
-    rowHint: { color: t.colors.inkFaint, fontSize: 14 * t.scale, lineHeight: 19 },
-    segment: { flexDirection: 'row', gap: spacing.two, marginTop: spacing.one },
+    back: { color: t.colors.accent, fontSize: 15 * t.scale, fontWeight: '700' },
+    // Editorial serif header at weight 400, the calm counterpoint to bold "Today".
+    title: { color: t.colors.ink, fontSize: 42 * t.scale, fontWeight: '400', fontFamily: fonts.sans, marginTop: spacing.three },
+    subtitle: { color: t.colors.inkSoft, fontSize: 15 * t.scale, lineHeight: 22, marginTop: spacing.two },
+    rows: { marginTop: spacing.six, gap: spacing.six },
+    rowLabel: { color: t.colors.ink, fontSize: 17 * t.scale, fontWeight: '700' },
+    rowHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20, marginTop: spacing.one },
+    segment: { flexDirection: 'row', gap: spacing.two, marginTop: spacing.three },
     seg: {
       flex: 1,
       paddingVertical: spacing.three,
@@ -140,9 +140,16 @@ const makeStyles = (t: Theme) =>
       backgroundColor: t.colors.surface,
       alignItems: 'center',
     },
-    segOn: { borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
-    segText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontWeight: '600' },
+    segOn: { borderWidth: 1.5, borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
+    segText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontWeight: '700' },
     segTextOn: { color: t.colors.accent },
     pressed: { opacity: 0.7 },
-    footnote: { color: t.colors.inkFaint, fontSize: 13 * t.scale, textAlign: 'center', marginTop: spacing.three },
+    footnote: {
+      color: t.colors.inkFaint,
+      fontSize: 13 * t.scale,
+      lineHeight: 20,
+      textAlign: 'center',
+      marginTop: 'auto',
+      paddingTop: spacing.six,
+    },
   });
