@@ -15,6 +15,7 @@
     "lint": "npm --workspace client run lint",
     "typecheck": "npm --workspace client run typecheck && npm --workspace server run typecheck",
     "test": "npm --workspace client run test && npm --workspace server run test",
+    "test:coverage": "npm --workspace client run test:coverage && npm --workspace server run test:coverage",
     "test:watch": "npm --workspace client run test:watch",
     "setup": "git config core.hooksPath .githooks"
   }

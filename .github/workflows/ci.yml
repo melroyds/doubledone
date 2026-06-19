@@ -1,7 +1,8 @@
 name: ci
 
-# Tier 0: runs on every push + PR. Fast, no secrets required.
-# Tier 1+: uncomment the coverage threshold and the build job as the project matures.
+# Runs on every push + PR: quality (lint · type-check · test with a coverage
+# floor), a web build (expo export), and a full-history secret scan. No repo
+# secrets are required for the gates themselves.
 on:
   push:
     branches: [main]
@@ -28,10 +29,8 @@ jobs:
         run: |
           npm ci
           npm run lint
-          npm run typecheck         # HARD gate, no '|| true'
-          npm test
-          # Tier 1, enforce a coverage floor once you have real users:
-          # npm run test:coverage -- --coverage.thresholds.lines=50
+          npm run typecheck            # HARD gate, no '|| true'
+          npm run test:coverage        # runs the tests AND enforces the coverage floor (see vitest.config.ts)
 
   secrets:
     name: Secret scan
@@ -53,13 +52,24 @@ jobs:
         # tool the local pre-commit Inspector runs. Exits non-zero on a find.
         run: gitleaks detect --no-banner --redact
 
-  # Tier 1, prove it builds (and, if containerised, that it starts):
-  # build:
-  #   name: Build
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-node@v4
-  #       with: { node-version: '22', cache: 'npm' }
-  #     - run: npm ci
-  #     - run: npm run build
+  build:
+    name: Build (web export)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Export the web bundle
+        # Proves the app actually builds (catches what typecheck can't, e.g. the
+        # SPA/`window`-at-build-time class of error). deploy-web ships the same
+        # export on push; this also gates pull requests, and keeps "it builds" a
+        # first-class CI status. EXPO_PUBLIC_* are inlined at export; they are
+        # public and a missing one resolves to "" without failing the build.
+        run: npx expo export -p web
+        working-directory: client
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}

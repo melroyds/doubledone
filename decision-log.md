@@ -869,3 +869,14 @@ The daily loop could add, complete, break down, strategise, and close the day, b
 The single-task sibling of close-the-day's roll-forward. Clears the backlog item of the same name.
 
 **Decided against:** a swipe gesture (fiddly and inconsistent on web); offering it on Later rows (already future-dated, so "tomorrow" would move them earlier, which is incoherent), Today rows only.
+
+## 2026-06-20 CI hardening: a build gate and a scoped coverage floor
+
+Activated the two Tier-1 CI items the workflow had stubbed.
+
+- **Build gate.** `ci.yml` now runs `expo export -p web` on every push and PR, so "it builds" is a first-class status, catching the SPA / `window`-at-build-time class of error that typecheck cannot. `deploy-web` already exports on push; this also gates PRs and decouples "builds" from "deploys".
+- **Coverage floor, scoped to logic.** Added `@vitest/coverage-v8` and a floor enforced in CI via `test:coverage`. The floor is scoped to the pure logic we actually test (client `src/lib/**`, server `src/**`), excluding the thin I/O seams (AsyncStorage, Supabase, expo device APIs, and the Worker's fetch / CORS glue) that `docs/testing.md` says we deliberately do not unit-test. A whole-repo number would be coverage-theatre dragged down by untested-by-design screens and components; this floor measures the logic. Measured client ~98% lines, server ~71% (the Worker glue lives in `index.ts`); floors set below each with headroom (client 90, server 65) so a genuinely untested new function trips CI without the floor being brittle.
+
+The local pre-commit gate stays fast (`npm test`, no coverage); the floor runs in CI only.
+
+**Decided against** a global coverage threshold (theatre, and it fights the risk-targeted philosophy) and against unit-testing the Worker's network glue or the SDK seams (all I/O, no logic).
