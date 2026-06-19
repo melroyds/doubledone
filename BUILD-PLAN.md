@@ -121,8 +121,8 @@ The single home for everything we have consciously parked. Nothing here is dropp
 - Public REST API plus OpenAPI spec. Trigger: a reason for outside integrations, or the portfolio wants the DX story.
 - MCP server (let AI agents drive DoubleDone). Trigger: same.
 
-**Monetisation**
-- Paid tier via Stripe, gating the genuinely expensive AI features. Trigger: the AI features prove their value and you are ready to charge.
+**Monetisation** (Melroy, 2026-06-20; design direction + open calls in decision-log 2026-06-20)
+- ◑ **Flagship: the AI "scrapbook" (premium).** An AI-generated image decorating a completed week in the Lookback, the on-brand delight (the Lookback is the emotional payoff). **Free** = full calm core + an occasional taste (~1/month); **premium ($5/month subscription)** = more scrapbooks, scaling 1 → 2 → 4 per week by **tenure / cumulative use, never a streak** (a streak breaks the never-shame spine). **No ads** (they break the calm + privacy thesis; free stays fully usable, premium adds delight). Subscription not one-time (ongoing per-image AI cost). Build: Stripe + an image-gen API + the Lookback scrapbook UI + tenure / entitlement logic; sequence after the current polish. Open: free-taste rate, tenure thresholds, any currency feel, real-vs-demonstrated Stripe. Trigger: ready to invest in the monetisation build.
 - **Premium: AI "chart a course of action".** Give the AI your goal and requirements and it returns a weighted plan of action (scored, ordered steps toward the goal), beyond decomposing a single task. Genuinely token-heavy, so it is a paid feature by design (Melroy, 2026-06-18). Trigger: core AI features proven and the Stripe paid tier exists.
 - **Premium: Prioritise a task** (Melroy, 2026-06-18). A loud, in-your-face treatment to flag a task as a priority, using the bold blue->violet gradient saved in `theme.priorityGradient` (the one that proved too bold for everyday recurring rows). Uses `expo-linear-gradient` (already installed). A premium add-on. Trigger: paid tier exists.
 
