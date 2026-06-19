@@ -911,3 +911,11 @@ The privacy policy already disclosed AI egress + retention (two taps from Settin
 Placed in that modal, **not** on the capture surface, on purpose: Break-it-down is the heaviest egress (a whole dreaded task), the modal has room for a calm note, and the always-visible capture surface stays uncluttered (the never-overwhelm spine). Sort-for-me and Strategise remain covered by the policy, lighter egress, and a persistent line on capture would be visual noise.
 
 Verified in preview: the line shows in the questions modal, no console errors. Closes the "disclose AI egress in-product" item.
+
+## 2026-06-20 Native fonts: real bold on Android (bodyBold)
+
+Follow-on to the native font load. Android does **not** synthesise bold for a custom-loaded font, so a bold body label set with `fontWeight` alone was rendering at regular weight on device (v1 loaded only Atkinson 400). Added a `bodyBold` token: the real Atkinson 700 Bold family on native, the SAME `--font-body` CSS var on web (so the web build is byte-identical, verified). Loaded the 700 variant in the root layout, and swept the **44 bold body styles** (those with `fontFamily: fonts.body` + `fontWeight` 600/700) across 11 files to use it.
+
+Headings stay Newsreader 600 (600-vs-700 is imperceptible at heading size, and Newsreader 600 reads as a strong editorial heading), so no separate bold-heading token. Italic (the foot phrase) stays synthesised for now: a real italic family risks a double-slant with the existing `fontStyle`, and it is one element. Noted as a minor follow-on.
+
+Verified: web unchanged (bold body still computes to Atkinson, headings to Newsreader, no console errors); typecheck + 172 client / 38 server tests green. **Native rendering is Melroy's to confirm on device.** Minor known follow-on: a few selected / pressed states (e.g. the date picker's selected day, a selected toggle) set `fontWeight` but inherit their family via a style array, so they render at base weight on native; not worth chasing unless it shows.

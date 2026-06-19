@@ -396,7 +396,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepBtnText: { color: t.colors.accent, fontSize: 20 * t.scale, fontFamily: fonts.body, fontWeight: '600' },
+  stepBtnText: { color: t.colors.accent, fontSize: 20 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   stepLabel: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body, fontWeight: '500', minWidth: 110, textAlign: 'center' },
   sliceField: { gap: spacing.two },
   sliceHint: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body },
@@ -410,7 +410,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     borderColor: t.colors.accent,
     backgroundColor: t.colors.accentSoft,
   },
-  startBtnText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, fontWeight: '600' },
+  startBtnText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(43,39,34,0.45)',
@@ -427,7 +427,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     gap: spacing.three,
   },
   pickerTitle: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, fontWeight: '700' },
-  pickerToday: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, fontWeight: '600', textAlign: 'center' },
+  pickerToday: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center' },
   actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
   bite: {
     borderRadius: radius.md,
@@ -437,7 +437,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingVertical: spacing.three,
   },
   biteBusy: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-  biteText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.body, fontWeight: '600' },
+  biteText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   add: {
     backgroundColor: t.colors.accent,
     borderRadius: radius.md,
@@ -446,6 +446,6 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   pressed: { opacity: 0.8 },
   disabled: { opacity: 0.5 },
-  addText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.body, fontWeight: '600' },
+  addText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body },
 });

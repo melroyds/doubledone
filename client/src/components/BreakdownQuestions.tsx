@@ -186,7 +186,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   scroll: { padding: spacing.six, gap: spacing.three },
   title: { color: t.colors.ink, fontSize: 24 * t.scale, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3 },
   task: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two },
-  q: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.body, fontWeight: '600', marginTop: spacing.two },
+  q: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.two },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },
   chip: {
     paddingHorizontal: spacing.four,
@@ -211,7 +211,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     alignItems: 'center',
   },
   segOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
-  segText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, fontWeight: '600' },
+  segText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   segTextOn: { color: t.colors.accent },
   input: {
     minHeight: 44,
@@ -234,7 +234,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     marginTop: spacing.three,
   },
   btnBusy: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-  btnText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.body, fontWeight: '600' },
+  btnText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   pressed: { opacity: 0.85 },
   disabled: { opacity: 0.6 },
   dismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.two },

@@ -227,7 +227,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingVertical: spacing.four,
     alignItems: 'center',
   },
-  primaryText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.body, fontWeight: '600' },
+  primaryText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   pressed: { opacity: 0.8 },
   disabled: { opacity: 0.5 },
   link: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.two },

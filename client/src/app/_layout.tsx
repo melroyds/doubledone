@@ -1,4 +1,7 @@
-import { AtkinsonHyperlegible_400Regular } from '@expo-google-fonts/atkinson-hyperlegible';
+import {
+  AtkinsonHyperlegible_400Regular,
+  AtkinsonHyperlegible_700Bold,
+} from '@expo-google-fonts/atkinson-hyperlegible';
 import { Newsreader_600SemiBold } from '@expo-google-fonts/newsreader';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
@@ -23,7 +26,9 @@ export default function RootLayout() {
   // of System. On web they are already provided by CSS, so pass nothing and never
   // block (useFonts({}) resolves immediately).
   const [fontsLoaded] = useFonts(
-    Platform.OS === 'web' ? {} : { Newsreader_600SemiBold, AtkinsonHyperlegible_400Regular },
+    Platform.OS === 'web'
+      ? {}
+      : { Newsreader_600SemiBold, AtkinsonHyperlegible_400Regular, AtkinsonHyperlegible_700Bold },
   );
 
   useEffect(() => {

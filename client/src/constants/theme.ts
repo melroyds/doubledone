@@ -93,9 +93,17 @@ export const radius = {
 // (Newsreader 600 is the heaviest weight that package ships, and reads as a calm
 // editorial heading). Native weight/italic beyond these is synthesised, which is
 // fine for v1; loading more variants is a small follow-on (see BUILD-PLAN).
+// `bodyBold` exists because Android does not synthesise bold for a custom-loaded
+// font: a bold body label set with `fontWeight` alone renders at regular weight
+// on device. So bold body text points at the real Atkinson 700 family on native.
+// On web every token is the SAME CSS var (fontWeight on the style drives the
+// weight), so `body` and `bodyBold` are byte-identical there, the web build never
+// changes. Headings stay Newsreader 600 (600-vs-700 is imperceptible at heading
+// size, so no separate bold heading token).
 export const fonts = {
   sans: Platform.OS === 'web' ? 'var(--font-display), system-ui, sans-serif' : 'Newsreader_600SemiBold',
   body: Platform.OS === 'web' ? 'var(--font-body), ui-sans-serif, system-ui, sans-serif' : 'AtkinsonHyperlegible_400Regular',
+  bodyBold: Platform.OS === 'web' ? 'var(--font-body), ui-sans-serif, system-ui, sans-serif' : 'AtkinsonHyperlegible_700Bold',
 } as const;
 
 // The resolved, swappable theme the app renders against. The colours come from
