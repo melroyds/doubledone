@@ -86,13 +86,16 @@ export const radius = {
 } as const;
 
 // Two faces, applied per text style (RN-web gives every Text its own default
-// font, so neither inherits from the page): `sans` is Newsreader for headings
-// (the display var from global.css), `body` is Atkinson Hyperlegible, the Braille
-// Institute legibility face, for everything else. Native falls back to System
-// until expo-google-fonts loads the real families (see BUILD-PLAN).
+// font, so neither inherits from the page): `sans` is Newsreader for headings,
+// `body` is Atkinson Hyperlegible, the Braille Institute legibility face, for
+// everything else. On web they come from CSS vars (global.css @import); on native
+// they are the real families loaded by expo-google-fonts in the root layout
+// (Newsreader 600 is the heaviest weight that package ships, and reads as a calm
+// editorial heading). Native weight/italic beyond these is synthesised, which is
+// fine for v1; loading more variants is a small follow-on (see BUILD-PLAN).
 export const fonts = {
-  sans: Platform.OS === 'web' ? 'var(--font-display), system-ui, sans-serif' : 'System',
-  body: Platform.OS === 'web' ? 'var(--font-body), ui-sans-serif, system-ui, sans-serif' : 'System',
+  sans: Platform.OS === 'web' ? 'var(--font-display), system-ui, sans-serif' : 'Newsreader_600SemiBold',
+  body: Platform.OS === 'web' ? 'var(--font-body), ui-sans-serif, system-ui, sans-serif' : 'AtkinsonHyperlegible_400Regular',
 } as const;
 
 // The resolved, swappable theme the app renders against. The colours come from

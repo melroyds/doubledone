@@ -833,3 +833,14 @@ The item-1 check from the post-fix ranking. Two things confirmed, one latent gap
 - **Gap closed: the Android notification channel.** Android 8+ needs a channel or a scheduled notification can silently never appear, the single likeliest reason an on-device reminder would no-show. Added `ensureAndroidChannel()` (idempotent, Android-only, importance DEFAULT for a calm tray entry rather than a heads-up pop) before scheduling, with the trigger referencing it. Web is unaffected (no-op off Android).
 
 Still **Melroy's to confirm on the Android build** (a real device notification cannot be fired from here): that the reminder actually arrives at 9am. The channel makes that far likelier to pass.
+
+## 2026-06-19 Native fonts: Newsreader + Atkinson on Android
+
+The Dusk type pairing (Newsreader headings + Atkinson Hyperlegible body, the Braille Institute legibility face) only rendered on web, where `global.css` @imports them; native fell back to System, so the deliberate and talkable type choice was invisible on the Android build. Fixed by loading the real families via expo-google-fonts.
+
+- Added `@expo-google-fonts/newsreader` + `@expo-google-fonts/atkinson-hyperlegible`, loaded with expo-font's `useFonts` in the root layout. The native splash is held (expo-splash-screen) until they load; web passes `useFonts({})` so it never blocks the first paint (the CSS @import already has the fonts there).
+- `fonts.sans` / `fonts.body` now point at the real families on native (`Newsreader_600SemiBold` for headings, `AtkinsonHyperlegible_400Regular` for body) and stay the CSS vars on web. Web rendering is unchanged, verified in preview: headings still resolve to Newsreader, body to Atkinson, no console errors.
+
+**v1 limitation, recorded honestly:** one weight per face is loaded, so native renders heavier / italic variants synthetically (Newsreader's package tops out at 600 anyway, which reads as a calm editorial heading; bold body labels get synthetic bold; the italic foot-phrase gets synthetic italic). Loading the explicit bold / italic variants plus a weight-token sweep is a small follow-on, backlogged. Confirming the families actually render is Melroy's on-device check (native cannot be exercised from the web preview).
+
+**Decided against** a custom `<Text>` wrapper or per-style weight tokens for v1: the single-weight mapping delivers the visible win (real faces, not System) with web untouched and no large sweep. The nuance can come later if it earns it.
