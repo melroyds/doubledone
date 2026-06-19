@@ -114,3 +114,32 @@ create policy "ai_calls_insert_any" on public.ai_calls
 -- needs SUPABASE_URL and SUPABASE_ANON_KEY set as secrets (see CLAUDE.md), then a
 -- redeploy (`npx wrangler deploy` from server/). Until then the Worker just skips
 -- logging (telemetry is optional, never blocks a user request).
+
+-- ---------------------------------------------------------------------------
+-- delete_account(): the right to erasure (Australian Privacy Principles /
+-- GDPR-style). A signed-in user calls this from the client
+-- (`supabase.rpc('delete_account')`) to hard-delete their account and all of
+-- their data. SECURITY DEFINER so it can remove the auth.users row; scoped to
+-- auth.uid() so a caller can only ever delete themselves. Their tasks rows are
+-- removed automatically by the FK (tasks.user_id references auth.users(id) on
+-- delete cascade). No service_role key is involved (that key is never used in
+-- this project). `set search_path = ''` + fully-qualified names is the Supabase
+-- security-definer hardening recommendation.
+--
+-- Idempotent (create or replace); run once in the Supabase SQL editor. EXECUTE
+-- is granted only to authenticated, never to anon.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.delete_account()
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from auth.users where id = auth.uid();
+end;
+$$;
+
+revoke all on function public.delete_account() from public, anon;
+grant execute on function public.delete_account() to authenticated;
