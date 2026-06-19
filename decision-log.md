@@ -738,3 +738,19 @@ Decided against:
 - **A custom `Text` wrapper component.** Would mean changing every `<Text>` import app-wide, a larger and more invasive churn than tokenising the styles.
 
 This closes the Dusk design pass (palette + dark, serif headings, illustration suite, Settings page, and now the legibility body face). Verified body text computes to Atkinson and headings stay Newsreader, light + dark, no console errors; gates green.
+
+## 2026-06-19 Narrow-viewport overflow fix (drawer + marquee)
+
+A README screenshot surfaced a real bug: on a narrow web viewport (a phone browser, ~390px) the page scrolled horizontally and content clipped on the right. Driving a real 390px headless viewport over the DevTools protocol (the dev preview hides it, laying out at ~698 and scaling down) pinned two causes: the always-mounted RepeatingDrawer, parked off-screen right when closed, widened the page (scrollWidth 725); and the marquee title container, a flex item without `min-width: 0`, refused to shrink so a long title pushed its row past the edge. Fixed: `overflow: hidden` on the drawer's absolute-fill root (clips the off-screen panel, scrollWidth back to 390) and `min-width: 0` on the marquee clip. Desktop web and native Android were unaffected; narrow-web only. The four README screenshots (Today + Settings, light + dark) were then captured clean at a true 390px viewport.
+
+## 2026-06-19 Hardening: lock down the AI endpoints
+
+Before doubledone.app can be handed to a hiring PM as a live link, the five AI routes (`/clarify` `/decompose` `/plan` `/strategise` `/triage`) needed protecting: they were unauthenticated and `Access-Control-Allow-Origin: *`, so a script could burn the $25/mo Anthropic budget and break the live demo. Server-only fix, so nothing changes for existing web or native users (no client rebuild):
+
+- **CORS allowlist.** `Access-Control-Allow-Origin` now echoes only the app's own origins (`doubledone.app`, `*.doubledone.pages.dev`, `localhost` dev) instead of `*`; other origins cannot read responses.
+- **Origin gate.** A browser POST to a paid route from a disallowed origin is refused with 403 before any Claude call. The browser sends `Origin` automatically, so this needs no client change.
+- **Per-IP rate limit.** A Cloudflare Rate Limiting binding (`AI_LIMITER`, 30 req / 60s, keyed on `CF-Connecting-IP`) caps abuse. Generous for a real user; a hard ceiling on a script. Native apps send no `Origin` (they pass the origin gate, indistinguishable from a script there), so the rate limit is their guard. The $25 cap is the final backstop.
+
+Decided against: a **shared client token** (public in the bundle anyway, and rolling it out would break the current native build until rebuilt); **CORS-only** (protects response reads, not the request that spends money). Rate limiting is the real cost guard.
+
+Contract-tested (9 cases: allowed / blocked / preview origins, 403, 429 via a mock limiter, native no-Origin, `/health`), no live AI call. Config validated with `wrangler deploy --dry-run` (binding reports `AI_LIMITER 30 requests/60s`). **The production deploy is pending Melroy's authorization** (an outward-facing prod change); live verification (no spend: `/health`, an allowed-origin empty-body 400, a disallowed-origin 403) follows the deploy.

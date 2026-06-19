@@ -10,6 +10,12 @@ import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } fro
 import { extractUsage, logAiCall } from './telemetry';
 import { buildTriageRequest, parseTriageResponse, TRIAGE_MODEL } from './triage';
 
+// Cloudflare per-IP rate limiter binding (see wrangler.jsonc). Typed locally so we
+// do not depend on a specific @cloudflare/workers-types version.
+interface RateLimitBinding {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
 export interface Env {
   ANTHROPIC_API_KEY: string;
   // Pseudonymous AI-call telemetry (the moat). Optional: if unset, the Worker
@@ -17,13 +23,38 @@ export interface Env {
   // secrets (see CLAUDE.md), never committed.
   SUPABASE_URL?: string;
   SUPABASE_ANON_KEY?: string;
+  // Per-IP rate limiter guarding the paid AI routes. Optional so tests / local
+  // dev (no binding) simply skip the check.
+  AI_LIMITER?: RateLimitBinding;
 }
 
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'content-type',
-};
+// The app's own origins. A browser request from anywhere else is refused before
+// any paid Claude call, and cross-origin reads are blocked by omitting the
+// Allow-Origin header. Native apps send no Origin and pass the origin check; the
+// rate limiter is what caps them (and any script).
+const ALLOWED_ORIGINS = [
+  'https://doubledone.app',
+  'https://www.doubledone.app',
+  'https://doubledone.pages.dev',
+  'http://localhost:8081',
+  'http://localhost:19006',
+];
+const AI_ROUTES = new Set(['/clarify', '/decompose', '/plan', '/strategise', '/triage']);
+
+function isAllowedOrigin(origin: string | null): boolean {
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.includes(origin) || origin.endsWith('.doubledone.pages.dev');
+}
+
+function corsFor(origin: string | null): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'content-type',
+    Vary: 'Origin',
+  };
+  if (isAllowedOrigin(origin)) headers['Access-Control-Allow-Origin'] = origin as string;
+  return headers;
+}
 
 /** Sanitise the optional decompose context (the qualifying answers) from a body. */
 function parseContext(raw: unknown): DecomposeContext | undefined {
@@ -41,14 +72,33 @@ function parseContext(raw: unknown): DecomposeContext | undefined {
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const { pathname } = new URL(request.url);
+    const origin = request.headers.get('Origin');
+    const cors = corsFor(origin);
 
     if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: CORS });
+      return new Response(null, { status: 204, headers: cors });
     }
 
     if (pathname === '/health') {
       // Reports whether the key is wired, never the key itself.
-      return Response.json({ ok: true, hasKey: Boolean(env.ANTHROPIC_API_KEY) }, { headers: CORS });
+      return Response.json({ ok: true, hasKey: Boolean(env.ANTHROPIC_API_KEY) }, { headers: cors });
+    }
+
+    // Guard the paid AI routes before any upstream call. A browser request from a
+    // disallowed origin is refused (cross-site abuse); native apps send no Origin
+    // and pass here. A per-IP rate limit then caps scripted abuse against the
+    // $25/mo Anthropic budget. Both run before the body is even read.
+    if (request.method === 'POST' && AI_ROUTES.has(pathname)) {
+      if (origin !== null && !isAllowedOrigin(origin)) {
+        return Response.json({ error: 'forbidden origin' }, { status: 403, headers: cors });
+      }
+      if (env.AI_LIMITER) {
+        const ip = request.headers.get('CF-Connecting-IP') ?? 'anon';
+        const { success } = await env.AI_LIMITER.limit({ key: ip });
+        if (!success) {
+          return Response.json({ error: 'rate limited, try again shortly' }, { status: 429, headers: cors });
+        }
+      }
     }
 
     // Break it down, call 1: a dreaded task in, three qualifying questions out.
@@ -60,13 +110,13 @@ export default {
         task = typeof body.task === 'string' ? body.task.trim() : '';
         language = parseLanguage(body.language);
       } catch {
-        return Response.json({ error: 'invalid body' }, { status: 400, headers: CORS });
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
       }
       if (!task) {
-        return Response.json({ error: 'task is required' }, { status: 400, headers: CORS });
+        return Response.json({ error: 'task is required' }, { status: 400, headers: cors });
       }
       if (!env.ANTHROPIC_API_KEY) {
-        return Response.json({ error: 'server not configured' }, { status: 500, headers: CORS });
+        return Response.json({ error: 'server not configured' }, { status: 500, headers: cors });
       }
 
       const { url, init } = buildClarifyRequest(task, env.ANTHROPIC_API_KEY, language);
@@ -80,7 +130,7 @@ export default {
             ok: false, error: `upstream ${upstream.status}`,
           }),
         );
-        return Response.json({ error: 'upstream error' }, { status: 502, headers: CORS });
+        return Response.json({ error: 'upstream error' }, { status: 502, headers: cors });
       }
       const raw = await upstream.json();
       const questions = parseClarifyResponse(raw);
@@ -91,7 +141,7 @@ export default {
           inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true,
         }),
       );
-      return Response.json({ questions }, { headers: CORS });
+      return Response.json({ questions }, { headers: cors });
     }
 
     // Break it down, call 2: a dreaded task (+ the qualifying answers) in, atomic
@@ -106,13 +156,13 @@ export default {
         context = parseContext(body.context);
         language = parseLanguage(body.language);
       } catch {
-        return Response.json({ error: 'invalid body' }, { status: 400, headers: CORS });
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
       }
       if (!task) {
-        return Response.json({ error: 'task is required' }, { status: 400, headers: CORS });
+        return Response.json({ error: 'task is required' }, { status: 400, headers: cors });
       }
       if (!env.ANTHROPIC_API_KEY) {
-        return Response.json({ error: 'server not configured' }, { status: 500, headers: CORS });
+        return Response.json({ error: 'server not configured' }, { status: 500, headers: cors });
       }
 
       const { url, init } = buildDecomposeRequest(task, env.ANTHROPIC_API_KEY, context, language);
@@ -126,7 +176,7 @@ export default {
             ok: false, error: `upstream ${upstream.status}`,
           }),
         );
-        return Response.json({ error: 'upstream error' }, { status: 502, headers: CORS });
+        return Response.json({ error: 'upstream error' }, { status: 502, headers: cors });
       }
       const raw = await upstream.json();
       const steps = parseDecomposeResponse(raw);
@@ -137,7 +187,7 @@ export default {
           inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true,
         }),
       );
-      return Response.json({ steps }, { headers: CORS });
+      return Response.json({ steps }, { headers: cors });
     }
 
     // Break it down (phased): a dreaded task (+ answers) in, a roadmap of phases
@@ -152,13 +202,13 @@ export default {
         context = parseContext(body.context);
         language = parseLanguage(body.language);
       } catch {
-        return Response.json({ error: 'invalid body' }, { status: 400, headers: CORS });
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
       }
       if (!task) {
-        return Response.json({ error: 'task is required' }, { status: 400, headers: CORS });
+        return Response.json({ error: 'task is required' }, { status: 400, headers: cors });
       }
       if (!env.ANTHROPIC_API_KEY) {
-        return Response.json({ error: 'server not configured' }, { status: 500, headers: CORS });
+        return Response.json({ error: 'server not configured' }, { status: 500, headers: cors });
       }
 
       const { url, init } = buildPlanRequest(task, env.ANTHROPIC_API_KEY, context, language);
@@ -172,7 +222,7 @@ export default {
             ok: false, error: `upstream ${upstream.status}`,
           }),
         );
-        return Response.json({ error: 'upstream error' }, { status: 502, headers: CORS });
+        return Response.json({ error: 'upstream error' }, { status: 502, headers: cors });
       }
       const raw = await upstream.json();
       const plan = parsePlanResponse(raw);
@@ -183,7 +233,7 @@ export default {
           inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true,
         }),
       );
-      return Response.json({ plan }, { headers: CORS });
+      return Response.json({ plan }, { headers: cors });
     }
 
     // Strategise: an over-full day in, a calm re-spread plan out.
@@ -204,13 +254,13 @@ export default {
             .map((t) => ({ id: t.id, title: t.title }));
         }
       } catch {
-        return Response.json({ error: 'invalid body' }, { status: 400, headers: CORS });
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
       }
       if (tasks.length === 0) {
-        return Response.json({ error: 'tasks are required' }, { status: 400, headers: CORS });
+        return Response.json({ error: 'tasks are required' }, { status: 400, headers: cors });
       }
       if (!env.ANTHROPIC_API_KEY) {
-        return Response.json({ error: 'server not configured' }, { status: 500, headers: CORS });
+        return Response.json({ error: 'server not configured' }, { status: 500, headers: cors });
       }
 
       const { url, init } = buildStrategiseRequest(tasks, env.ANTHROPIC_API_KEY, language);
@@ -224,7 +274,7 @@ export default {
             ok: false, error: `upstream ${upstream.status}`,
           }),
         );
-        return Response.json({ error: 'upstream error' }, { status: 502, headers: CORS });
+        return Response.json({ error: 'upstream error' }, { status: 502, headers: cors });
       }
       const raw = await upstream.json();
       const plan = parseStrategiseResponse(raw);
@@ -235,7 +285,7 @@ export default {
           inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true,
         }),
       );
-      return Response.json({ plan }, { headers: CORS });
+      return Response.json({ plan }, { headers: cors });
     }
 
     // AI triage: a brain-dump of lines in, each sorted into today / later / decompose.
@@ -247,13 +297,13 @@ export default {
           lines = body.lines.filter((l): l is string => typeof l === 'string' && l.trim().length > 0);
         }
       } catch {
-        return Response.json({ error: 'invalid body' }, { status: 400, headers: CORS });
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
       }
       if (lines.length === 0) {
-        return Response.json({ error: 'lines are required' }, { status: 400, headers: CORS });
+        return Response.json({ error: 'lines are required' }, { status: 400, headers: cors });
       }
       if (!env.ANTHROPIC_API_KEY) {
-        return Response.json({ error: 'server not configured' }, { status: 500, headers: CORS });
+        return Response.json({ error: 'server not configured' }, { status: 500, headers: cors });
       }
 
       const { url, init } = buildTriageRequest(lines, env.ANTHROPIC_API_KEY);
@@ -267,7 +317,7 @@ export default {
             ok: false, error: `upstream ${upstream.status}`,
           }),
         );
-        return Response.json({ error: 'upstream error' }, { status: 502, headers: CORS });
+        return Response.json({ error: 'upstream error' }, { status: 502, headers: cors });
       }
       const raw = await upstream.json();
       const items = parseTriageResponse(raw);
@@ -278,9 +328,9 @@ export default {
           inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true,
         }),
       );
-      return Response.json({ items }, { headers: CORS });
+      return Response.json({ items }, { headers: cors });
     }
 
-    return new Response('doubledone-ai', { status: 200, headers: CORS });
+    return new Response('doubledone-ai', { status: 200, headers: cors });
   },
 } satisfies ExportedHandler<Env>;
