@@ -4,15 +4,20 @@
 
 export const TRIAGE_MODEL = 'claude-haiku-4-5-20251001';
 
-// Calm, ADHD/autism-aware. WORDING IS A PLACEHOLDER for Melroy to tune.
+// Calm, AuDHD-aware (ADHD + autism). Tuned 2026-06-19; the voice is still
+// Melroy's to refine. The load-bearing idea: bias toward "later" so today stays
+// small. Protecting the finite day is the whole point, so ambiguity resolves off
+// today, never onto it.
 export const SYSTEM_PROMPT = [
-  'Someone with ADHD and autism just brain-dumped a list of things on their mind.',
-  'Sort each item into one bucket so today stays small and doable:',
-  '"today" for quick or time-sensitive things worth doing today,',
-  '"later" for things that can wait and should move off today,',
-  '"decompose" for big or vague things that need breaking down before they are doable.',
-  'Keep each item text exactly as given. Return every item with the record_triage tool.',
-  'No pep talk, no shame.',
+  'Someone with ADHD and autism just brain-dumped everything on their mind.',
+  'Sort each item into one bucket so today stays small and genuinely doable. That is the whole point.',
+  'Buckets:',
+  '"today" only for items that are either quick (a few minutes) or genuinely time-sensitive (they truly have to happen today).',
+  '"later" for anything that can wait even a day. This is the default. When in doubt, choose later, to protect today.',
+  '"decompose" for anything big, vague, or dreaded that is not yet one clear action and needs breaking down first.',
+  'Keep each item exactly as written. Return every item once, in the same order, with the record_triage tool.',
+  'Never merge, split, reword, or invent items.',
+  'Do not comment on the items or on why they were not done. No pep talk, no shame.',
 ].join(' ');
 
 const TRIAGE_TOOL = {

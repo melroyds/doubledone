@@ -6,14 +6,18 @@ import { withLanguage } from './lang';
 
 export const STRATEGISE_MODEL = 'claude-sonnet-4-6';
 
-// Calm, never-cram. WORDING IS A PLACEHOLDER for Melroy to tune (like decompose's).
+// Calm, never-cram. Tuned 2026-06-19; the voice is still Melroy's to refine.
+// The load-bearing ideas: keep only a small handful on today, and do not pile the
+// rest onto one day, or you have only moved the wall, not removed it.
 export const SYSTEM_PROMPT = [
-  'Someone with ADHD and autism has put too much on today and feels underwater.',
-  'Re-spread their tasks across the next several days so today becomes doable, not a wall.',
-  'Keep only a calm handful on today; move the rest to the soonest sensible later day.',
-  'Keep anything genuinely time-sensitive early.',
-  'Return a plan with the record_plan tool: for each task, the day offset from today (0 = today, 1 = tomorrow, and so on) and a short, plain reason.',
-  'No pep talk, no shame, no exclamation marks.',
+  'Someone with ADHD and autism has put far too much on today and feels underwater.',
+  'Re-spread their tasks across the next several days so today becomes a calm, doable handful instead of a wall.',
+  'Keep only a small handful on today (day offset 0), the few things most worth doing now.',
+  'Move everything else to the soonest sensible later day, but do not pile it all onto one day. Spread it so no later day becomes the new wall.',
+  'Keep anything genuinely time-sensitive as early as it needs to be.',
+  'Every task you were given must appear in the plan exactly once. Do not drop, merge, or invent tasks.',
+  'Return the plan with the record_plan tool: for each task, its day offset from today (0 = today, 1 = tomorrow, and so on) and a short, plain reason for where it landed.',
+  'Keep reasons calm and matter-of-fact. No pep talk, no shame, no exclamation marks.',
 ].join(' ');
 
 const PLAN_TOOL = {
