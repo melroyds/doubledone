@@ -1137,3 +1137,9 @@ The select bar is now the single home for every per-task and bulk action: Done, 
 Focus stops auto-choosing. Tapping the Focus entry opens **"Which one?"**, a calm list of today's tasks; you pick the one to sit with and it fills the screen ("Just this one"). "Done" completes it and returns you to the list to choose the next (or the calm empty state when nothing's left); "Choose another" returns without completing. This replaces the old skip-through-the-queue model (`focusSkips` removed). Choosing what to focus on is gentler than being handed a task and made to reject it, which matters for an RSD-prone audience. Verified in preview: Focus → Which one? → pick → the focus body ("Just this one" / Done / Choose another).
 
 Last Today slice: the close-the-day "anything else you did?" prompt.
+
+## 2026-06-21 Today redesign (5/5, complete): close-day "anything else?" prompt
+
+The close-the-day wrap gains a gentle **"Anything else you did?"** field above Goodnight. A final off-list win typed there is logged as a completed task (the same off-plan path) before the day closes, so it lands in today's finished set and the Lookback. Optional, never required, no auto-focus (Goodnight straight through stays a one-tap close). Verified in preview: Close the day → type "Watered the plants" → Goodnight → it becomes a done task and the day closes to the rested screen.
+
+**This completes the Today redesign.** The screen, end to end: warm weight copy + date presets · the 3-layer IA (Focus promoted above the list, "I also did that" relocated beneath it, the day-actions drawer dissolved to Strategise + Close) · tap-and-hold selection with the adaptive bar (Done / Tomorrow / Move to… / Break down [single] / Remove, plus Select all) · Focus pick-and-go ("Which one?") · this close prompt. Every slice preview-verified, 202 client tests green throughout. Next screen: the Lookback.

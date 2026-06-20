@@ -64,6 +64,7 @@ export default function TodayScreen() {
   const [reentry, setReentry] = useState(false);
   const [didOpen, setDidOpen] = useState(false);
   const [didText, setDidText] = useState('');
+  const [closeNote, setCloseNote] = useState('');
   const [moveToOpen, setMoveToOpen] = useState(false);
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusPick, setFocusPick] = useState<string | null>(null);
@@ -1091,8 +1092,26 @@ export default function TodayScreen() {
                 <Text style={styles.wrapLine}>A quiet day. That is allowed.</Text>
               )}
               <Text style={styles.wrapRoll}>Anything left rolls to tomorrow. Nothing is lost.</Text>
+              <Text style={styles.closeNoteLabel}>Anything else you did?</Text>
+              <TextInput
+                style={styles.didInput}
+                value={closeNote}
+                onChangeText={setCloseNote}
+                placeholder="Something off the list…"
+                placeholderTextColor={theme.colors.inkFaint}
+                returnKeyType="done"
+                accessibilityLabel="Anything else you did today"
+              />
               <Pressable
                 onPress={() => {
+                  const note = closeNote.trim();
+                  if (note) {
+                    const now = nowMs();
+                    const did: Task = { id: makeId(), title: note, done: true, createdAt: now, updatedAt: now, completedAt: now };
+                    commit([...tasks, did]);
+                    track('offplan.logged', { at: 'close' });
+                  }
+                  setCloseNote('');
                   setClosing(false);
                   setClosedDate(toISODate(today));
                   void saveClosedDate(toISODate(today));
@@ -1356,6 +1375,7 @@ const makeStyles = (t: Theme) =>
     focusPickList: { marginTop: spacing.five, gap: spacing.four, alignItems: 'center' },
     focusPickItem: { paddingVertical: spacing.two, paddingHorizontal: spacing.three },
     focusPickItemText: { color: t.colors.accent, fontFamily: fonts.sans, fontSize: 22 * t.scale, textAlign: 'center' },
+    closeNoteLabel: { color: t.colors.inkSoft, fontFamily: fonts.body, fontSize: 14 * t.scale, marginTop: spacing.three, marginBottom: spacing.two, textAlign: 'center' },
     focusScreen: { flex: 1, backgroundColor: t.colors.bg, padding: spacing.six, justifyContent: 'center', alignItems: 'center' },
     focusExit: { position: 'absolute', top: spacing.seven, left: spacing.five },
     focusExitText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
