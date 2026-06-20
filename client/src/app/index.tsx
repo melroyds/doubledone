@@ -66,7 +66,7 @@ export default function TodayScreen() {
   const [didText, setDidText] = useState('');
   const [moveToOpen, setMoveToOpen] = useState(false);
   const [focusOpen, setFocusOpen] = useState(false);
-  const [focusSkips, setFocusSkips] = useState<string[]>([]);
+  const [focusPick, setFocusPick] = useState<string | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -193,7 +193,7 @@ export default function TodayScreen() {
   const spreadable = visible.filter((t) => !isRecurring(t) && !isDoneOn(t, today));
   // Focus mode shows one unfinished one-off at a time (recurring habits are not the
   // wall-of-awful). The first not-yet-skipped one; completing or skipping advances it.
-  const focusTask = focusOpen ? (spreadable.find((t) => !focusSkips.includes(t.id)) ?? null) : null;
+  const focusTask = focusOpen && focusPick ? (spreadable.find((t) => t.id === focusPick) ?? null) : null;
   const weightOfDay = dayWeight(spreadable.length);
 
   function commit(next: Task[]) {
@@ -232,21 +232,18 @@ export default function TodayScreen() {
       }),
     );
     track('focus.completed');
-  }
-
-  function focusSkip(id: string) {
-    setFocusSkips((s) => [...s, id]);
+    setFocusPick(null); // back to "Which one?" so the next can be chosen, or the calm empty state
   }
 
   function openFocus() {
-    setFocusSkips([]);
+    setFocusPick(null);
     setFocusOpen(true);
     track('focus.opened');
   }
 
   function closeFocus() {
     setFocusOpen(false);
-    setFocusSkips([]);
+    setFocusPick(null);
   }
 
   // Tap-and-hold a task to enter selection with that task already picked, then act
@@ -919,13 +916,13 @@ export default function TodayScreen() {
               ) : null}
               <View style={styles.focusActions}>
                 <Pressable
-                  onPress={() => focusSkip(focusTask.id)}
+                  onPress={() => setFocusPick(null)}
                   accessibilityRole="button"
-                  accessibilityLabel="Not this one"
+                  accessibilityLabel="Choose another"
                   hitSlop={8}
                   style={({ pressed }) => [pressed && styles.pressed]}
                 >
-                  <Text style={styles.focusSkipText}>Not this one</Text>
+                  <Text style={styles.focusSkipText}>Choose another</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => focusComplete(focusTask.id)}
@@ -935,6 +932,24 @@ export default function TodayScreen() {
                 >
                   <Text style={styles.focusDoneText}>Done</Text>
                 </Pressable>
+              </View>
+            </View>
+          ) : spreadable.length > 0 ? (
+            <View style={styles.focusBody}>
+              <Text style={styles.focusLabel}>Just this one</Text>
+              <Text style={styles.focusTitle}>Which one?</Text>
+              <View style={styles.focusPickList}>
+                {spreadable.map((t) => (
+                  <Pressable
+                    key={t.id}
+                    onPress={() => setFocusPick(t.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Focus on ${t.title}`}
+                    style={({ pressed }) => [styles.focusPickItem, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.focusPickItemText}>{t.title}</Text>
+                  </Pressable>
+                ))}
               </View>
             </View>
           ) : (
@@ -1338,6 +1353,9 @@ const makeStyles = (t: Theme) =>
     moveChip: { borderWidth: 1, borderColor: t.colors.line, borderRadius: radius.pill, paddingVertical: spacing.two, paddingHorizontal: spacing.three },
     moveChipText: { color: t.colors.ink, fontFamily: fonts.body, fontSize: 14 * t.scale },
     moveCancelWrap: { marginTop: spacing.three, alignItems: 'center' },
+    focusPickList: { marginTop: spacing.five, gap: spacing.four, alignItems: 'center' },
+    focusPickItem: { paddingVertical: spacing.two, paddingHorizontal: spacing.three },
+    focusPickItemText: { color: t.colors.accent, fontFamily: fonts.sans, fontSize: 22 * t.scale, textAlign: 'center' },
     focusScreen: { flex: 1, backgroundColor: t.colors.bg, padding: spacing.six, justifyContent: 'center', alignItems: 'center' },
     focusExit: { position: 'absolute', top: spacing.seven, left: spacing.five },
     focusExitText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },

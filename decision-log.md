@@ -1131,3 +1131,9 @@ This deliberately reverses the earlier multi-select call ("decided AGAINST overl
 The adaptive bar gains **"Move to…"** beside Tomorrow. It opens a calm modal with two presets (This weekend, Next week, resolved by the new `presetDate` helpers) and the full month-grid DatePicker. Picking a day moves every selected one-off to that date (recurring tasks are left alone, they move by cadence, not a chosen date) and they wait in Later until then. New tested pure helper `deferTo(task, iso)` mirrors `deferToTomorrow`. Verified in preview: select a task → Move to… → This weekend → the task's due becomes the coming Saturday (2026-06-27), it lands in Later, and select mode exits.
 
 The select bar is now the single home for every per-task and bulk action: Done, Tomorrow, Move to…, Break down (single only), Remove. The Focus pick-and-go step and the close-the-day "anything else?" prompt are the last two Today slices.
+
+## 2026-06-21 Today redesign (4/n): Focus is now pick-and-go
+
+Focus stops auto-choosing. Tapping the Focus entry opens **"Which one?"**, a calm list of today's tasks; you pick the one to sit with and it fills the screen ("Just this one"). "Done" completes it and returns you to the list to choose the next (or the calm empty state when nothing's left); "Choose another" returns without completing. This replaces the old skip-through-the-queue model (`focusSkips` removed). Choosing what to focus on is gentler than being handed a task and made to reject it, which matters for an RSD-prone audience. Verified in preview: Focus → Which one? → pick → the focus body ("Just this one" / Done / Choose another).
+
+Last Today slice: the close-the-day "anything else you did?" prompt.
