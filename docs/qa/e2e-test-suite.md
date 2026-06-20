@@ -114,6 +114,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | SET-02 | P2 | Both | Text size small / default / large | Change text size across all three. | App scales. No clipping or broken layout at large. |
 | SET-03 | P2 | Both | Motion -> Reduce | Set Motion to Reduce. | Gentle fades and scrolling titles stop. |
 | SET-04 | P2 | Both | Privacy & data link | Tap 'Privacy & data' in Settings. | Opens the privacy screen. |
+| SET-05 | P2 | Both | Export your data | In Settings -> Your data, tap 'Export your data' (works with no account). | Web downloads a doubledone-export-<date>.json with your tasks + completions; native opens the share sheet. Tombstones excluded, completion data kept. |
 
 ## Accessibility
 

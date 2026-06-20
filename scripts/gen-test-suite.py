@@ -217,6 +217,9 @@ CASES = [
     ("SET-04", "Settings", "P2", "Privacy & data link",
      "Tap 'Privacy & data' in Settings.",
      "Opens the privacy screen.", "Both"),
+    ("SET-05", "Settings", "P2", "Export your data",
+     "In Settings -> Your data, tap 'Export your data' (works with no account).",
+     "Web downloads a doubledone-export-<date>.json with your tasks + completions; native opens the share sheet. Tombstones excluded, completion data kept.", "Both"),
 
     # --- Accessibility --------------------------------------------------------
     ("A11Y-01", "Accessibility", "P2", "Screen reader (TalkBack)",

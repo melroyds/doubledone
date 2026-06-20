@@ -1085,3 +1085,9 @@ Time-blindness lets Today silently overfill. A slim gauge under the spine now sh
 - **No alarm colour** at any level: a single calm mauve fill, the label carries the heavy day, never red. Shown only when there is a load (hidden on a clear day).
 
 Verified in preview: 4 tasks reads "A full day" with the bar ~67% filled.
+
+## 2026-06-20 Data export: your stuff is yours
+
+A "Your data" section in Settings (always visible, no account needed) exports the user's tasks + completions as a plain JSON file, `doubledone-export-YYYY-MM-DD.json`. On web it downloads (a Blob); on native it opens the system share sheet. `buildExport` is pure + tested; tombstoned (soft-deleted) tasks are dropped so the file holds only what the user would recognise as theirs. Completion data stays in (done + completedAt, recurring completedDates), so the export is the whole record, not just open todos. `data.exported` instrumented.
+
+Deliberately **tasks-only** (not the scrapbook images): the base64 keepsakes are huge and device-local and would bloat a text export; the to-do data is the "your stuff" that matters. Completes the privacy posture (local-first, your data is yours) alongside account deletion. Verified in preview: export produced `doubledone-export-2026-06-20.json` (application/json) with the full record including a completed task.

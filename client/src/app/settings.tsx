@@ -1,14 +1,16 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { deleteAccount } from '@/lib/account';
 import { useSession } from '@/lib/auth';
+import { toISODate } from '@/lib/day';
+import { buildExport } from '@/lib/export';
 import { type MotionPref, type TextSize, type ThemePref } from '@/lib/settings';
-import { saveTasks } from '@/lib/storage';
+import { loadTasks, saveTasks } from '@/lib/storage';
 import { loadEntitlement } from '@/lib/stripe';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
@@ -41,6 +43,8 @@ export default function SettingsScreen() {
   const [mcpToken, setMcpToken] = useState<string | null>(null);
   const [mcpCopied, setMcpCopied] = useState(false);
   const [premium, setPremium] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportNote, setExportNote] = useState<string | null>(null);
 
   // Reflect the live entitlement so Settings shows a calm "Active" marker on
   // Premium. Re-checks on focus, e.g. after returning from checkout.
@@ -55,6 +59,36 @@ export default function SettingsScreen() {
       };
     }, []),
   );
+
+  // "Your stuff is yours": download (web) or share (native) a JSON of the user's
+  // tasks + completions. Works with no account, the data is local.
+  async function runExport() {
+    setExporting(true);
+    setExportNote(null);
+    try {
+      const tasks = await loadTasks();
+      const json = buildExport(tasks, Date.now());
+      const name = `doubledone-export-${toISODate(new Date())}.json`;
+      if (Platform.OS === 'web') {
+        const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        setExportNote('Downloaded.');
+      } else {
+        await Share.share({ message: json, title: name });
+      }
+      track('data.exported', { count: tasks.length });
+    } catch {
+      setExportNote('Could not export just now.');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   // Delete the account + all synced data (the RPC removes the auth row; tasks
   // cascade), then wipe local tasks and reset to a clean, signed-out Today.
@@ -153,6 +187,21 @@ export default function SettingsScreen() {
         >
           <Text style={styles.privacyLinkText}>Privacy & data ›</Text>
         </Pressable>
+
+        <View style={styles.account}>
+          <Text style={styles.accountLabel}>Your data</Text>
+          <Text style={styles.exportHint}>{"Your tasks and what you've finished, as a file you keep. No account needed."}</Text>
+          <Pressable
+            onPress={runExport}
+            disabled={exporting}
+            accessibilityRole="button"
+            accessibilityLabel="Export your data"
+            hitSlop={6}
+          >
+            <Text style={styles.exportLink}>{exporting ? 'Exporting…' : 'Export your data'}</Text>
+          </Pressable>
+          {exportNote ? <Text style={styles.exportNote}>{exportNote}</Text> : null}
+        </View>
 
         {session ? (
           <View style={styles.account}>
@@ -343,6 +392,9 @@ const makeStyles = (t: Theme) =>
     account: { marginTop: spacing.six, gap: spacing.two },
     accountLabel: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     accountEmail: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+    exportHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20, fontFamily: fonts.body },
+    exportLink: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.one },
+    exportNote: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
     deleteLink: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.one },
     confirmBox: {
       marginTop: spacing.two,
