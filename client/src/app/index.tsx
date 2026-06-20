@@ -21,13 +21,13 @@ import {
 } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
-import { addDaysISO, formatTodayLabel, friendlyDate, toISODate } from '@/lib/day';
+import { addDaysISO, formatTodayLabel, friendlyDate, isReentry, toISODate } from '@/lib/day';
 import { aiLanguage } from '@/lib/locale';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { applySliceDelta } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadClosedDate, loadReminderOn, loadTasks, saveClosedDate, saveReminderOn, saveTasks } from '@/lib/storage';
+import { loadClosedDate, loadLastOpen, loadReminderOn, loadTasks, saveClosedDate, saveLastOpen, saveReminderOn, saveTasks } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { syncOnce } from '@/lib/sync';
 import { parseDump, type Task } from '@/lib/tasks';
@@ -40,6 +40,8 @@ import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
 
 let addCounter = 0;
+const REENTRY_GAP_DAYS = 4; // a calm "welcome back" shows on the first open after this many days away
+
 function makeId(): string {
   addCounter += 1;
   return `t-${Date.now().toString(36)}-${addCounter.toString(36)}`;
@@ -57,6 +59,7 @@ export default function TodayScreen() {
   const [loaded, setLoaded] = useState(false);
   const [closedDate, setClosedDate] = useState<string | null>(null);
   const [sortSummary, setSortSummary] = useState<string | null>(null);
+  const [reentry, setReentry] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -98,10 +101,18 @@ export default function TodayScreen() {
       void loadClosedDate().then((d) => {
         if (active) setClosedDate(d);
       });
+      void loadLastOpen().then((last) => {
+        if (!active) return;
+        if (isReentry(last, today, REENTRY_GAP_DAYS)) {
+          setReentry(true);
+          track('reentry.shown');
+        }
+        void saveLastOpen(toISODate(today));
+      });
       return () => {
         active = false;
       };
-    }, []),
+    }, [today]),
   );
 
   // Keep the latest tasks reachable from the sync effect without making it re-run
@@ -509,6 +520,23 @@ export default function TodayScreen() {
             </Pressable>
           </View>
         </View>
+        {reentry && !isClosed && (
+          <View style={styles.reentry}>
+            <Text style={styles.reentryTitle}>Welcome back.</Text>
+            <Text style={styles.reentryBody}>
+              {"However long it's been, the past is fine. Nothing's overdue, nothing's lost. Here's just today, when you're ready."}
+            </Text>
+            <Pressable
+              onPress={() => setReentry(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Start fresh"
+              hitSlop={8}
+              style={({ pressed }) => [styles.reentryBtn, pressed && styles.pressed]}
+            >
+              <Text style={styles.reentryBtnText}>Start fresh</Text>
+            </Pressable>
+          </View>
+        )}
         <Text style={styles.title}>Today</Text>
         <Text style={styles.spine}>Just today. The rest can wait.</Text>
 
@@ -877,6 +905,25 @@ const makeStyles = (t: Theme) =>
     syncAction: { color: t.colors.accent, fontSize: 13 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
     ethos: { marginTop: spacing.three, alignItems: 'center' },
     sortSummary: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginBottom: spacing.two },
+    reentry: {
+      backgroundColor: t.colors.accentSoft,
+      borderRadius: radius.lg,
+      paddingVertical: spacing.five,
+      paddingHorizontal: spacing.five,
+      gap: spacing.three,
+      marginBottom: spacing.five,
+    },
+    reentryTitle: { color: t.colors.ink, fontSize: 22 * t.scale, fontFamily: fonts.sans, fontWeight: '700', letterSpacing: -0.3 },
+    reentryBody: { color: t.colors.ink, fontSize: 16 * t.scale, lineHeight: 24, fontFamily: fonts.body },
+    reentryBtn: {
+      alignSelf: 'flex-start',
+      paddingVertical: spacing.two,
+      paddingHorizontal: spacing.five,
+      borderRadius: radius.md,
+      backgroundColor: t.colors.accent,
+      marginTop: spacing.one,
+    },
+    reentryBtnText: { color: '#FFFFFF', fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     dayActions: { marginTop: spacing.seven, alignItems: 'center', gap: spacing.three },
     closeDay: {
       paddingVertical: spacing.three,

@@ -64,3 +64,14 @@ export function friendlyDate(iso: string, today: Date, locale = 'en-AU'): string
     month: 'short',
   });
 }
+
+/**
+ * Whether opening today counts as a "return after a gap": the last open was an
+ * earlier day, at least `gapDays` calendar days ago. False on a brand-new install
+ * (no prior open) and on same-day reopens, so the welcome-back card never nags.
+ */
+export function isReentry(lastOpenISO: string | null, today: Date, gapDays: number): boolean {
+  if (!lastOpenISO) return false;
+  if (lastOpenISO === toISODate(today)) return false;
+  return daysBetween(fromISODate(lastOpenISO), today) >= gapDays;
+}

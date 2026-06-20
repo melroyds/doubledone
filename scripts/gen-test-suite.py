@@ -78,6 +78,9 @@ CASES = [
     ("TOD-07", "Today", "P2", "Long-press a task: the action menu",
      "Press and hold a task to open its menu: Tomorrow, Break down, Remove, Close.",
      "Remove is the only 'danger' (brick) coloured action; Close (mauve, to the right of Remove) just dismisses with nothing lost. Tomorrow defers, Break down opens decompose.", "Both"),
+    ("TOD-08", "Today", "P2", "Shame-free re-entry after a gap",
+     "Simulate not opening the app for 4+ days (set localStorage 'doubledone.lastopen.v1' to a date 5+ days ago), then reload Today.",
+     "A calm 'Welcome back, the past is fine, here's just today' card appears above Today, never '47 overdue'. 'Start fresh' dismisses it; reopening same-day does not re-show it.", "Both"),
 
     # --- AI: Bite the Elephant (decompose) -----------------------------------
     ("AI-01", "AI decompose", "P1", "Break down a dreaded task",

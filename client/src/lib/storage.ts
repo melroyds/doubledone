@@ -11,6 +11,7 @@ const REMINDER_KEY = 'doubledone.reminder.v1';
 const SETTINGS_KEY = 'doubledone.settings.v1';
 const SCRAPBOOKS_KEY = 'doubledone.scrapbooks.v1';
 const CLOSED_KEY = 'doubledone.closed.v1';
+const LASTOPEN_KEY = 'doubledone.lastopen.v1';
 
 /**
  * Load Today's tasks. On a brand-new install (nothing ever stored) seed once so
@@ -75,6 +76,25 @@ export async function saveClosedDate(iso: string | null): Promise<void> {
   try {
     if (iso) await AsyncStorage.setItem(CLOSED_KEY, iso);
     else await AsyncStorage.removeItem(CLOSED_KEY);
+  } catch {
+    // best effort
+  }
+}
+
+/** The ISO date the app was last opened, or null (brand-new install). Drives the
+ *  shame-free "welcome back" card after a multi-day gap. */
+export async function loadLastOpen(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(LASTOPEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Stamp today as the last-open date. Best effort. */
+export async function saveLastOpen(iso: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(LASTOPEN_KEY, iso);
   } catch {
     // best effort
   }

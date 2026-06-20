@@ -1047,3 +1047,14 @@ CI's "Lint · Type-check · Test" job had failed on every push since the Stripe 
 - **Client (brittle, pre-empted):** the lib floor was passing but at a razor-thin 90.3%, because `src/lib/stripe.ts` (the checkout / portal / entitlement fetch client, a thin I/O seam with no logic) was counted at 0%. Excluded it, consistent with the seams already excluded (storage, supabase, auth, reminders, locale). Lib coverage -> ~97%, real headroom restored.
 
 Both workspaces now pass `npm run test:coverage` locally (the exact CI command). Lesson: the pre-commit hook should arguably run coverage too, or the gap between "hook green" and "CI green" hides exactly this. Parked in the backlog rather than slowing every commit for now.
+
+## 2026-06-20 Shame-free re-entry: a welcome-back, not a guilt pile
+
+The single biggest retention lever for this audience (the week-six bar) and the most differentiated thing in the backlog. Open after falling off for a while and every other to-do app greets you with "47 overdue." DoubleDone now greets you with "Welcome back. The past is fine. Here's just today."
+
+- A persisted last-open date (`doubledone.lastopen.v1`); on focus, if the last open was >= 4 calendar days ago (`isReentry`, pure + tested via the existing `daysBetween`), a calm mauve card appears above Today: "Welcome back. However long it's been, the past is fine. Nothing's overdue, nothing's lost. Here's just today, when you're ready." A "Start fresh" button dismisses it.
+- The open stamps today immediately, so the card shows once per gap and never re-nags on a same-day reopen. `reentry.shown` instrumented.
+- Threshold **4 days**: more than a long weekend (a normal Fri-to-Mon never trips it), but a real "I fell off for most of a week" does. A tunable constant, recorded for challenge.
+- Decided AGAINST a full-screen takeover (like the rested close-the-day state): for an RSD-sensitive audience a gentle dismissible card is safer than making a production of "you've been away." Decided AGAINST any functional reshuffle of the old tasks: they already carry no "overdue" framing, so the card reframes, it never punishes.
+
+Verified in preview: a 6-day gap shows the card; dismissing or reopening (last-open now today) clears it.

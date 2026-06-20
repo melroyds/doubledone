@@ -6,10 +6,24 @@ import {
   formatTodayLabel,
   friendlyDate,
   fromISODate,
+  isReentry,
   isSameDay,
   startOfDay,
   toISODate,
 } from './day';
+
+describe('isReentry', () => {
+  const today = new Date(2026, 5, 20); // 20 Jun 2026
+  it('is false on a brand-new install and a same-day reopen', () => {
+    expect(isReentry(null, today, 4)).toBe(false);
+    expect(isReentry('2026-06-20', today, 4)).toBe(false);
+  });
+  it('is false for a short gap, true at or past the threshold', () => {
+    expect(isReentry('2026-06-18', today, 4)).toBe(false); // 2-day gap
+    expect(isReentry('2026-06-16', today, 4)).toBe(true); // 4-day gap
+    expect(isReentry('2026-06-01', today, 4)).toBe(true); // long gap
+  });
+});
 
 describe('startOfDay', () => {
   it('zeroes the time but keeps the calendar date', () => {

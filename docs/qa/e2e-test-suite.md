@@ -28,6 +28,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | TOD-05 | P2 | Both | Undo a completion | Complete a task, then undo it (toggle back). | Returns to open cleanly. Counts/Lookback stay consistent. |
 | TOD-06 | P1 | Both | Persistence across restart | Add tasks, fully close the app/tab, reopen. | Tasks are still there (local-first). Nothing lost. |
 | TOD-07 | P2 | Both | Long-press a task: the action menu | Press and hold a task to open its menu: Tomorrow, Break down, Remove, Close. | Remove is the only 'danger' (brick) coloured action; Close (mauve, to the right of Remove) just dismisses with nothing lost. Tomorrow defers, Break down opens decompose. |
+| TOD-08 | P2 | Both | Shame-free re-entry after a gap | Simulate not opening the app for 4+ days (set localStorage 'doubledone.lastopen.v1' to a date 5+ days ago), then reload Today. | A calm 'Welcome back, the past is fine, here's just today' card appears above Today, never '47 overdue'. 'Start fresh' dismisses it; reopening same-day does not re-show it. |
 
 ## AI decompose
 
