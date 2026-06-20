@@ -84,7 +84,12 @@ export default function PremiumScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top + spacing.three }]}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back" hitSlop={8}>
+        <Pressable
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          hitSlop={8}
+        >
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
         <Text style={styles.title}>Premium</Text>
@@ -99,6 +104,14 @@ export default function PremiumScreen() {
               DoubleDone independent.
             </Text>
             <Text style={styles.foot}>Manage or cancel anytime from your Stripe receipt email. The free monthly keepsake is always yours regardless.</Text>
+            <Pressable
+              onPress={() => router.replace('/')}
+              accessibilityRole="button"
+              accessibilityLabel="Back to Today"
+              style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
+            >
+              <Text style={styles.ctaText}>Back to Today</Text>
+            </Pressable>
           </View>
         ) : (
           <View style={styles.panel}>
