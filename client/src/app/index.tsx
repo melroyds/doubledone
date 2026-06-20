@@ -62,6 +62,8 @@ export default function TodayScreen() {
   const [reentry, setReentry] = useState(false);
   const [didOpen, setDidOpen] = useState(false);
   const [didText, setDidText] = useState('');
+  const [focusOpen, setFocusOpen] = useState(false);
+  const [focusSkips, setFocusSkips] = useState<string[]>([]);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -184,6 +186,9 @@ export default function TodayScreen() {
   const todayDone = useMemo(() => completionsByDay(tasks).get(toISODate(today)) ?? [], [tasks, today]);
   // One-off, undone tasks on Today: the ones Strategise can re-spread (recurring stay by cadence).
   const spreadable = visible.filter((t) => !isRecurring(t) && !isDoneOn(t, today));
+  // Focus mode shows one unfinished one-off at a time (recurring habits are not the
+  // wall-of-awful). The first not-yet-skipped one; completing or skipping advances it.
+  const focusTask = focusOpen ? (spreadable.find((t) => !focusSkips.includes(t.id)) ?? null) : null;
 
   function commit(next: Task[]) {
     setTasks(next);
@@ -207,6 +212,35 @@ export default function TodayScreen() {
     commit(tasks.map((t) => (t.id === id ? { ...deferToTomorrow(t, today), updatedAt: now } : t)));
     setConfirmingId(null);
     track('task.deferred');
+  }
+
+  // "Just this one" focus mode: complete the focused task fully (slices included) by
+  // the same done/completedAt path, then the next unfinished one surfaces on its own.
+  function focusComplete(id: string) {
+    const now = nowMs();
+    commit(
+      tasks.map((t) => {
+        if (t.id !== id) return t;
+        const slices = t.slices ? { total: t.slices.total, done: t.slices.total } : t.slices;
+        return { ...t, done: true, completedAt: now, updatedAt: now, ...(slices ? { slices } : {}) };
+      }),
+    );
+    track('focus.completed');
+  }
+
+  function focusSkip(id: string) {
+    setFocusSkips((s) => [...s, id]);
+  }
+
+  function openFocus() {
+    setFocusSkips([]);
+    setFocusOpen(true);
+    track('focus.opened');
+  }
+
+  function closeFocus() {
+    setFocusOpen(false);
+    setFocusSkips([]);
   }
 
   function signOut() {
@@ -672,6 +706,17 @@ export default function TodayScreen() {
                 {strategiseError && <Text style={styles.strategiseErr}>{strategiseError}</Text>}
               </>
             )}
+            {spreadable.length > 0 && (
+              <Pressable
+                onPress={openFocus}
+                accessibilityRole="button"
+                accessibilityLabel="Focus on one thing"
+                hitSlop={6}
+                style={({ pressed }) => [pressed && styles.pressed]}
+              >
+                <Text style={styles.focusLink}>Focus on one thing</Text>
+              </Pressable>
+            )}
             <Pressable
               onPress={() => setDidOpen(true)}
               accessibilityRole="button"
@@ -731,6 +776,63 @@ export default function TodayScreen() {
           <RotatingPhrase />
         </View>
       </View>
+
+      <Modal visible={focusOpen} animationType="fade" onRequestClose={closeFocus}>
+        <View style={styles.focusScreen}>
+          <Pressable
+            onPress={closeFocus}
+            accessibilityRole="button"
+            accessibilityLabel="Exit focus"
+            hitSlop={10}
+            style={({ pressed }) => [styles.focusExit, pressed && styles.pressed]}
+          >
+            <Text style={styles.focusExitText}>Exit</Text>
+          </Pressable>
+          {focusTask ? (
+            <View style={styles.focusBody}>
+              <Text style={styles.focusLabel}>Just this one</Text>
+              <Text style={styles.focusTitle}>{focusTask.title}</Text>
+              {focusTask.slices ? (
+                <Text style={styles.focusStep}>
+                  Step {Math.min(focusTask.slices.done + 1, focusTask.slices.total)} of {focusTask.slices.total}
+                </Text>
+              ) : null}
+              <View style={styles.focusActions}>
+                <Pressable
+                  onPress={() => focusSkip(focusTask.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Not this one"
+                  hitSlop={8}
+                  style={({ pressed }) => [pressed && styles.pressed]}
+                >
+                  <Text style={styles.focusSkipText}>Not this one</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => focusComplete(focusTask.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Done with ${focusTask.title}`}
+                  style={({ pressed }) => [styles.focusDoneBtn, pressed && styles.pressed]}
+                >
+                  <Text style={styles.focusDoneText}>Done</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.focusBody}>
+              <Text style={styles.focusTitle}>{"That's everything for now."}</Text>
+              <Text style={styles.focusEmptyNote}>{"Nothing left to focus on. Rest, or add something when you're ready."}</Text>
+              <Pressable
+                onPress={closeFocus}
+                accessibilityRole="button"
+                accessibilityLabel="Back to Today"
+                style={({ pressed }) => [styles.focusDoneBtn, pressed && styles.pressed]}
+              >
+                <Text style={styles.focusDoneText}>Back to Today</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+      </Modal>
 
       <Modal visible={didOpen} transparent animationType="fade" onRequestClose={() => setDidOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setDidOpen(false)} accessibilityLabel="Dismiss">
@@ -1048,6 +1150,19 @@ const makeStyles = (t: Theme) =>
     didCancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     didAddBtn: { paddingVertical: spacing.two, paddingHorizontal: spacing.five, borderRadius: radius.md, backgroundColor: t.colors.accent },
     didAddText: { color: '#FFFFFF', fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    focusLink: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    focusScreen: { flex: 1, backgroundColor: t.colors.bg, padding: spacing.six, justifyContent: 'center', alignItems: 'center' },
+    focusExit: { position: 'absolute', top: spacing.seven, left: spacing.five },
+    focusExitText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    focusBody: { alignItems: 'center', gap: spacing.four, maxWidth: 440, width: '100%' },
+    focusLabel: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
+    focusTitle: { color: t.colors.ink, fontSize: 30 * t.scale, lineHeight: 38, fontFamily: fonts.sans, fontWeight: '700', textAlign: 'center', letterSpacing: -0.3 },
+    focusStep: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body },
+    focusEmptyNote: { color: t.colors.inkSoft, fontSize: 16 * t.scale, lineHeight: 24, fontFamily: fonts.body, textAlign: 'center' },
+    focusActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.six, marginTop: spacing.four },
+    focusSkipText: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    focusDoneBtn: { paddingVertical: spacing.three, paddingHorizontal: spacing.seven, borderRadius: radius.md, backgroundColor: t.colors.accent },
+    focusDoneText: { color: '#FFFFFF', fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     backdrop: {
       flex: 1,
       backgroundColor: 'rgba(43,39,34,0.45)',

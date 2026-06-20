@@ -1064,3 +1064,14 @@ Verified in preview: a 6-day gap shows the card; dismissing or reopening (last-o
 This brain does loads that never made the list, and counting only ticked tasks feeds the "I did nothing" lie. A quiet "+ I also did that" link in the day actions opens a one-line input; what you type becomes a **completed** task stamped now, so it shows checked on Today and lands in the Lookback (the emotional payoff) like any finished thing. `offplan.logged` instrumented, so it also feeds the moat's completion data.
 
 Placed as an in-the-moment Today action (not gated behind close-the-day), because for this audience the win has to be caught before it is forgotten. Decided against a separate "done" list or a capture-schedule "done" mode (both muddy the todo-vs-done line); a completed task in the normal store is the simplest honest model and reuses the Lookback unchanged. Verified in preview: the entry stores `done: true` with a completion stamp and shows checked on Today.
+
+## 2026-06-20 "Just this one" focus mode: a wall against the wall-of-awful
+
+Starting is the #1 ADHD blocker, and a full list is paralysing. "Focus on one thing" (a link in the day actions) opens a full-screen single-task view, everything else gone: a big "JUST THIS ONE / <task>", "Not this one" to skip to the next, "Done" to complete it (the next surfaces on its own), "Exit". When nothing is left: "That's everything for now."
+
+- A full-screen Modal inside the Today screen (no new route, reuses the live task list + commit), showing the first unfinished one-off not yet skipped this session.
+- Scope: **one-off tasks only**; recurring habits are excluded (they are not the wall-of-awful, they live in the Repeating drawer). Sliced tasks show "Step X of N"; "Done" completes the whole thing in v1.
+- `focus.opened` / `focus.completed` instrumented.
+- **Deferred to a fast-follow:** the optional calm timer (the spec's "optional" part). The full-screen single task is the core; a timer adds interval/state for marginal v1 value and risks reading as pressure against the calm spine. Recorded for challenge.
+
+Verified in preview: open shows the first task; skip advances; done completes and advances past the skipped one; all-done shows the calm empty state.

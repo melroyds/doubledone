@@ -84,6 +84,9 @@ CASES = [
     ("TOD-09", "Today", "P2", "Log an off-list thing you did",
      "Tap '+ I also did that' in the day actions, type something you did, then Add it.",
      "It appears checked on Today and in the Lookback for today, counted as a completion, never as an unfinished task.", "Both"),
+    ("TOD-10", "Today", "P2", "Focus mode: just this one",
+     "With a few tasks present, tap 'Focus on one thing'. Try 'Not this one' (skip), 'Done' (complete), and Exit.",
+     "Full-screen single task, everything else hidden. Skip advances, Done completes and advances, Exit returns. When none left: 'That's everything for now.'", "Both"),
 
     # --- AI: Bite the Elephant (decompose) -----------------------------------
     ("AI-01", "AI decompose", "P1", "Break down a dreaded task",
