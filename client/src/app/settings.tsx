@@ -294,6 +294,15 @@ export default function SettingsScreen() {
           </LinearGradient>
         </Pressable>
 
+        <Pressable
+          onPress={() => router.push({ pathname: '/welcome', params: { replay: '1' } })}
+          accessibilityRole="button"
+          accessibilityLabel="See the welcome again"
+          hitSlop={8}
+          style={styles.welcomeAgain}
+        >
+          <Text style={styles.welcomeAgainText}>See the welcome again</Text>
+        </Pressable>
         <Text style={styles.footnote}>Saved to this device. Nothing here leaves it.</Text>
       </ScrollView>
     </View>
@@ -446,6 +455,8 @@ const makeStyles = (t: Theme) =>
       marginTop: spacing.one,
     },
     mcpFoot: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, lineHeight: 18, marginTop: spacing.one },
+    welcomeAgain: { alignItems: 'center', paddingTop: spacing.six },
+    welcomeAgainText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     footnote: {
       color: t.colors.inkFaint,
       fontSize: 13 * t.scale,

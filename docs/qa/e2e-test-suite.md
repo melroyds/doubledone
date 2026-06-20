@@ -40,6 +40,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | ID | Pri | Platform | Test | Steps | Expected |
 |---|---|---|---|---|---|
 | ONB-01 | P1 | Both | Guided welcome on first run | On a fresh install (or after clearing 'doubledone.onboarded.v1'), open the app. Walk Begin -> type a few lines -> Make my day -> This looks right -> Open Today. Separately, try Skip for now. | Today redirects to the welcome exactly once. The dump is triaged into a doable Today (some pushed to later, any big one flagged 'Looks big, break it down?'); confirming saves the tasks and opens Today. Skip (or an empty Make my day) goes straight to Today. It never reappears once done; if the AI is offline, everything lands on Today, nothing lost. |
+| ONB-02 | P2 | Both | Replay the welcome from Settings (non-destructive) | With tasks already on Today, open Settings -> 'See the welcome again'. Walk Begin -> dump a couple of lines -> Make my day -> This looks right. | The welcome replays identically, but the new tasks MERGE into the existing list (nothing is overwritten) and the onboarded flag is untouched. Skipping returns to Today with no change. |
 
 ## AI decompose
 

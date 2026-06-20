@@ -1,11 +1,11 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { triage } from '@/lib/ai';
-import { saveOnboarded, saveTasks } from '@/lib/storage';
+import { loadTasks, saveOnboarded, saveTasks } from '@/lib/storage';
 import { type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -30,6 +30,11 @@ const EXAMPLE = 'call the dentist\nreply to Dana\nsort out the garage\nbuy Mum a
 // hands off to Today; the Today screen redirects here once, when that flag is unset.
 export default function WelcomeScreen() {
   const router = useRouter();
+  // Replayable from Settings (?replay=1). A replay must never overwrite an existing
+  // list, so its capture merges in rather than replacing, and it leaves the
+  // onboarded flag alone.
+  const { replay } = useLocalSearchParams<{ replay?: string }>();
+  const isReplay = replay === '1';
   const insets = useSafeAreaInsets();
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
@@ -74,9 +79,14 @@ export default function WelcomeScreen() {
   }
 
   async function confirm() {
-    await saveTasks(revealed);
-    await saveOnboarded(true);
-    track('welcome.completed', { total: revealed.length });
+    if (isReplay) {
+      const existing = await loadTasks();
+      await saveTasks([...existing, ...revealed]);
+    } else {
+      await saveTasks(revealed);
+      await saveOnboarded(true);
+    }
+    track('welcome.completed', { total: revealed.length, replay: isReplay });
     setStep('handoff');
   }
 
