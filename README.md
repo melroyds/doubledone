@@ -215,6 +215,7 @@ PLAYBOOK.md                 the reusable build discipline (golden-path)
 | [`docs/build-journal.md`](docs/build-journal.md) | The engineering complement: stack rationale, architecture, the sync/AI/privacy mechanics, the testing and golden-path discipline, and the gotchas |
 | [Privacy policy](https://doubledone.app/privacy) | Plain-English: local-first, email is the only PII, AI egress disclosed, nothing sold. Also in-app via Settings → Privacy & data |
 | [`docs/product-spec.md`](docs/product-spec.md) | The full v1 spec: spine, core loop, tiered features, the moat, monetisation |
+| [`docs/cost-analysis.md`](docs/cost-analysis.md) | What it costs to run, modelled at 100 / 1k / 10k / 100k users; where the money goes |
 | [`docs/mcp.md`](docs/mcp.md) | The MCP server: endpoint, auth, the three tools, and connecting Claude Desktop |
 | [`docs/qa/`](docs/qa) | The end-to-end manual test suite (fillable `.xlsx` + readable `.md`) |
 | [`decision-log.md`](decision-log.md) | The why-trail, written as the work happened, including what was decided **against** |
