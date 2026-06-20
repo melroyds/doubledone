@@ -85,6 +85,7 @@ export default function TodayScreen() {
   const [bdPhases, setBdPhases] = useState<ReviewPhase[] | null>(null);
   const [bdAnswers, setBdAnswers] = useState<BreakdownAnswers | null>(null);
   const [bdBusy, setBdBusy] = useState(false);
+  const [bdError, setBdError] = useState<string | null>(null);
   const today = useMemo(() => new Date(), []);
   const router = useRouter();
   const session = useSession();
@@ -492,6 +493,7 @@ export default function TodayScreen() {
   async function bdSubmitQuestions(answers: BreakdownAnswers) {
     if (bdBusy) return;
     setBdAnswers(answers);
+    setBdError(null);
     setBdBusy(true);
     try {
       const { phases, firstSteps } = await planBreakdown(
@@ -521,6 +523,7 @@ export default function TodayScreen() {
       });
     } catch {
       setBdPhase('questions'); // stay put; the user can retry or dismiss
+      setBdError("Couldn't break it down just now. Your task is still here, try again?");
     } finally {
       setBdBusy(false);
     }
@@ -574,6 +577,7 @@ export default function TodayScreen() {
     setBdPhases(null);
     setBdAnswers(null);
     setBdBusy(false);
+    setBdError(null);
   }
 
   // AI triage: sort a brain-dump into buckets, then apply (later -> tomorrow; today
@@ -1176,6 +1180,7 @@ export default function TodayScreen() {
           task={bdTask}
           questions={bdQuestions}
           busy={bdBusy}
+          error={bdError}
           onSubmit={bdSubmitQuestions}
           onCancel={resetBreakdown}
           today={today}

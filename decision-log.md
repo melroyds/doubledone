@@ -1149,3 +1149,12 @@ The close-the-day wrap gains a gentle **"Anything else you did?"** field above G
 The Lookback already carried most of the system-pass design (the month grid + day detail with finished / scheduled / big-win, the kept-scrapbook polaroid, and the loading / gentle-error / not-enough states all shipped earlier). Two gaps closed to match the pass: the calendar dots now have a small **legend** (finished · a big one · scheduled) so the marks are legible, and a month with nothing finished yet shows a calm **"A quiet month so far. What you finish will appear here."** instead of an unexplained empty grid. Verified in preview both ways (a month with completions hides the note; an empty month shows it; the legend is always present).
 
 The discipline of stopping: the rest of the screen was already on-brand and uncluttered, so this was a refinement, not a rebuild. Next screen: Break-it-down.
+
+## 2026-06-21 Break-it-down redesign: wait + failure copy, preset consistency
+
+BreakdownQuestions already matched the system-pass B1 (the "few quick questions", the due chips, gradual/same-day, the optional "what's making it big"). Three deltas closed it out:
+- The due chips now resolve through the shared `presetDate` helpers (This week = the coming Friday, Two weeks = +14), so the breakdown chips and the Today "Move to…" picker agree on what each label means.
+- The AI wait gains the calm reassurance (B2): **"Working out a few small steps. This takes a moment, no need to wait here."** under the busy button.
+- The decompose failure was silent (it just dropped back to the questions); it now shows a gentle, honest line (B4): **"Couldn't break it down just now. Your task is still here, try again?"** — deliberately "still here" rather than the mockup's "safe on Today", because a fresh capture is not added to Today until its steps are accepted, so the honest framing is that the task is held in the open modal. `bdError` clears on retry, submit, and reset.
+
+Gated green (typecheck / lint / 202 tests). The questions modal needs a live AI `clarify` call to reach, so it was not preview-exercised here, to avoid AI spend; the changes are static-copy conditionals plus the already-tested `presetDate` helpers.

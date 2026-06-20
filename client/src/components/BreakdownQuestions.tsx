@@ -3,7 +3,7 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, Text
 
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { type Questions } from '@/lib/ai';
-import { addDaysISO, fromISODate } from '@/lib/day';
+import { fromISODate, presetDate } from '@/lib/day';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 import { DatePicker } from './DatePicker';
@@ -18,6 +18,7 @@ type Props = {
   task: string;
   questions: Questions;
   busy: boolean;
+  error?: string | null;
   onSubmit: (answers: BreakdownAnswers) => void;
   onCancel: () => void;
   today: Date;
@@ -27,18 +28,18 @@ type Props = {
 // control for each. The due date offers quick chips plus a full date picker (so a
 // far deadline like "by July 15" works), pre-filled with any date the AI spotted
 // in the task. Everything is pre-set, so the fast path is just "Break it down".
-export function BreakdownQuestions({ task, questions, busy, onSubmit, onCancel, today }: Props) {
+export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onCancel, today }: Props) {
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
   const presets: { label: string; iso: string | null }[] = [
     { label: 'No deadline', iso: null },
-    { label: 'Today', iso: addDaysISO(today, 0) },
-    { label: 'Tomorrow', iso: addDaysISO(today, 1) },
-    { label: 'This week', iso: addDaysISO(today, 7) },
-    { label: 'Two weeks', iso: addDaysISO(today, 14) },
+    { label: 'Today', iso: presetDate(today, 'today') },
+    { label: 'Tomorrow', iso: presetDate(today, 'tomorrow') },
+    { label: 'This week', iso: presetDate(today, 'thisWeek') },
+    { label: 'Two weeks', iso: presetDate(today, 'twoWeeks') },
   ];
-  // Default to the date the AI found in the task, else a week out.
-  const [dueISO, setDueISO] = useState<string | null>(() => questions.suggestedDueDate ?? addDaysISO(today, 7));
+  // Default to the date the AI found in the task, else the end of this week.
+  const [dueISO, setDueISO] = useState<string | null>(() => questions.suggestedDueDate ?? presetDate(today, 'thisWeek'));
   const [calOpen, setCalOpen] = useState(false);
   const [spread, setSpread] = useState<'gradual' | 'sameday'>('gradual');
   const [answer, setAnswer] = useState('');
@@ -160,6 +161,10 @@ export function BreakdownQuestions({ task, questions, busy, onSubmit, onCancel, 
                 <Text style={styles.btnText}>Break it down</Text>
               )}
             </Pressable>
+            {busy && (
+              <Text style={styles.waitNote}>Working out a few small steps. This takes a moment, no need to wait here.</Text>
+            )}
+            {!busy && error ? <Text style={styles.errorNote}>{error}</Text> : null}
             <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel="Not now">
               <Text style={styles.dismiss}>Not now</Text>
             </Pressable>
@@ -238,6 +243,8 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   pressed: { opacity: 0.85 },
   disabled: { opacity: 0.6 },
   dismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.two },
+  waitNote: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', lineHeight: 20, marginTop: spacing.two },
+  errorNote: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', lineHeight: 20, marginTop: spacing.two },
   disclosure: {
     color: t.colors.inkFaint,
     fontSize: 12 * t.scale,
