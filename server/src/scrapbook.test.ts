@@ -3,11 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { dataUrl, FALLBACK_SCENE, imagePrompt, parseImage, parseScene, sceneMessages } from './scrapbook';
 
 describe('sceneMessages', () => {
-  it('lists the week and asks for one abstract, non-literal scene', () => {
+  it('lists the week and asks for one calm still-life that surfaces it', () => {
     const msgs = sceneMessages(['Booked the dentist', 'Did the laundry']);
     expect(msgs[0].role).toBe('system');
-    expect(msgs[0].content).toMatch(/abstract/i);
-    expect(msgs[0].content).toMatch(/never name them/i);
+    expect(msgs[0].content).toMatch(/still-life/i);
+    expect(msgs[0].content).toMatch(/no text/i);
     expect(msgs[1].content).toContain('Booked the dentist');
     expect(msgs[1].content).toContain('Did the laundry');
   });

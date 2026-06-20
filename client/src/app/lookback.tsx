@@ -7,7 +7,7 @@ import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { makeScrapbook } from '@/lib/ai';
 import { addMonths, completionsByDay, monthLabel, monthMatrix, WEEKDAY_LABELS } from '@/lib/calendar';
 import { formatTodayLabel, fromISODate, toISODate } from '@/lib/day';
-import { findScrapbook, type Scrapbook, upsertScrapbook, weekLabel, weekStartISO, weekTitles } from '@/lib/scrapbook';
+import { findScrapbook, type Scrapbook, upsertScrapbook, weekCompletions, weekLabel, weekStartISO } from '@/lib/scrapbook';
 import { loadScrapbooks, loadTasks, saveScrapbooks } from '@/lib/storage';
 import { type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
@@ -58,19 +58,20 @@ export default function LookbackScreen() {
   // The scrapbook is per-week: the week of the selected day. Its image is made
   // from that week's finished titles, distilled into a calm, abstract scene.
   const weekStart = weekStartISO(fromISODate(selected));
-  const weekTitleList = useMemo(() => weekTitles(byDay, weekStart), [byDay, weekStart]);
+  const weekList = useMemo(() => weekCompletions(byDay, weekStart), [byDay, weekStart]);
   const existingBook = findScrapbook(scrapbooks, weekStart);
 
   async function makeWeekScrapbook() {
-    if (bookBusy || weekTitleList.length === 0) return;
+    const titles = weekList.map((c) => c.title);
+    if (bookBusy || titles.length === 0) return;
     setBookBusy(true);
     setBookError(null);
     try {
-      const { image, caption } = await makeScrapbook(weekTitleList);
+      const { image, caption } = await makeScrapbook(titles);
       const next = upsertScrapbook(scrapbooks, { weekStart, image, caption, createdAt: Date.now() });
       setScrapbooks(next);
       void saveScrapbooks(next);
-      track('scrapbook.made', { titles: weekTitleList.length });
+      track('scrapbook.made', { titles: titles.length });
     } catch {
       setBookError('Could not make a scrapbook just now. Try again.');
     } finally {
@@ -163,44 +164,64 @@ export default function LookbackScreen() {
 
       <View style={styles.scrapbook}>
         <Text style={styles.scrapbookHead}>Scrapbook</Text>
-        {existingBook ? (
-          <View style={styles.scrapbookCard}>
-            <Image
-              source={{ uri: existingBook.image }}
-              style={styles.scrapbookImage}
-              resizeMode="cover"
-              accessible
-              accessibilityLabel={`A calm keepsake image for the ${weekLabel(weekStart)}: ${existingBook.caption}`}
-            />
-            {existingBook.caption.length > 0 && <Text style={styles.scrapbookCaption}>{existingBook.caption}</Text>}
-            <Text style={styles.scrapbookNote}>Made with AI from the {weekLabel(weekStart)}.</Text>
+
+        {bookBusy ? (
+          <View style={styles.polaroid}>
+            <View style={styles.scrapbookImagePlaceholder}>
+              <ActivityIndicator size="small" color={theme.colors.accent} />
+            </View>
+            <Text style={styles.scrapbookCaption}>Making your scrapbook…</Text>
           </View>
-        ) : weekTitleList.length > 0 ? (
-          <View style={styles.scrapbookCard}>
-            <Text style={styles.scrapbookHint}>Turn the {weekLabel(weekStart)} into a calm keepsake image.</Text>
+        ) : existingBook ? (
+          <>
+            <View style={styles.polaroid}>
+              <Image
+                source={{ uri: existingBook.image }}
+                style={styles.scrapbookImage}
+                resizeMode="cover"
+                accessible
+                accessibilityLabel={`A keepsake still-life for the ${weekLabel(weekStart)}: ${existingBook.caption}`}
+              />
+              {existingBook.caption.length > 0 && <Text style={styles.scrapbookCaption}>{existingBook.caption}</Text>}
+            </View>
+            <Text style={styles.scrapbookMeta}>Made with AI · {weekLabel(weekStart)}</Text>
+          </>
+        ) : weekList.length > 0 ? (
+          <View style={styles.inviteWrap}>
+            <View style={styles.inviteFrame}>
+              <View style={styles.invitePlus}>
+                <Text style={styles.invitePlusText}>+</Text>
+              </View>
+            </View>
+            <Text style={styles.scrapbookHint}>Turn this week into a keepsake</Text>
             <Pressable
               onPress={makeWeekScrapbook}
-              disabled={bookBusy}
-              style={({ pressed }) => [styles.scrapbookBtn, pressed && styles.pressed, bookBusy && styles.dim]}
+              style={({ pressed }) => [styles.scrapbookBtn, pressed && styles.pressed]}
               accessibilityRole="button"
               accessibilityLabel={`Make a scrapbook of the ${weekLabel(weekStart)}`}
             >
-              {bookBusy ? (
-                <View style={styles.scrapbookBtnBusy}>
-                  <ActivityIndicator size="small" color={theme.colors.accent} />
-                  <Text style={styles.scrapbookBtnText}>Making it…</Text>
-                </View>
-              ) : (
-                <Text style={styles.scrapbookBtnText}>Make a scrapbook</Text>
-              )}
+              <Text style={styles.scrapbookBtnText}>Make a scrapbook</Text>
             </Pressable>
             {bookError && <Text style={styles.scrapbookError}>{bookError}</Text>}
             <Text style={styles.scrapbookNote}>
-              Your week&apos;s titles are sent to an AI to imagine a calm scene. No names are kept.
+              Your week&apos;s finished tasks are sent to an AI to imagine the still-life. No names are kept.
             </Text>
           </View>
         ) : (
           <Text style={styles.detailEmpty}>Finish a few things this week to make a scrapbook.</Text>
+        )}
+
+        {weekList.length > 0 && (
+          <View style={styles.weekList}>
+            <Text style={styles.weekListHead}>This week you finished</Text>
+            {weekList.map((c) => (
+              <View key={c.title} style={styles.item}>
+                <Text style={styles.itemMark}>✓</Text>
+                <Text style={styles.itemTitle}>{c.title}</Text>
+                {c.big && <Text style={styles.itemBig}>a big one</Text>}
+              </View>
+            ))}
+          </View>
         )}
       </View>
     </ScrollView>
@@ -249,28 +270,84 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   itemBig: { color: t.colors.done, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   scrapbook: { marginTop: spacing.six, gap: spacing.three },
   scrapbookHead: { color: t.colors.ink, fontSize: 20 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
-  scrapbookCard: { gap: spacing.two },
-  scrapbookImage: { width: '100%', aspectRatio: 1, borderRadius: radius.lg, backgroundColor: t.colors.surface },
+  // The keepsake polaroid: a soft mat around the square image with a gentle
+  // shadow, the caption resting on the lip below.
+  polaroid: {
+    backgroundColor: t.colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.three,
+    paddingBottom: spacing.four,
+    alignItems: 'center',
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 360,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+  scrapbookImage: { width: '100%', aspectRatio: 1, borderRadius: radius.sm, backgroundColor: t.colors.accentSoft },
+  scrapbookImagePlaceholder: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: radius.sm,
+    backgroundColor: t.colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   scrapbookCaption: {
     color: t.colors.ink,
     fontSize: 15 * t.scale,
     fontFamily: fonts.sans,
     fontStyle: 'italic',
     lineHeight: 21,
-    marginTop: spacing.one,
+    textAlign: 'center',
+    marginTop: spacing.three,
+    paddingHorizontal: spacing.two,
   },
-  scrapbookHint: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-  scrapbookBtn: {
-    alignSelf: 'flex-start',
-    backgroundColor: t.colors.accent,
+  scrapbookMeta: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+  inviteWrap: { gap: spacing.three, alignItems: 'center' },
+  inviteFrame: {
+    width: '100%',
+    maxWidth: 360,
+    aspectRatio: 1,
     borderRadius: radius.md,
-    paddingHorizontal: spacing.five,
+    borderWidth: 1.5,
+    borderColor: t.colors.line,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  invitePlus: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.pill,
+    backgroundColor: t.colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  invitePlusText: { color: t.colors.accent, fontSize: 28 * t.scale, fontFamily: fonts.body, lineHeight: 32 },
+  scrapbookHint: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+  scrapbookBtn: {
+    alignSelf: 'center',
+    backgroundColor: t.colors.accent,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.six,
     paddingVertical: spacing.three,
   },
-  scrapbookBtnBusy: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
   scrapbookBtnText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  scrapbookError: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body },
-  scrapbookNote: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, lineHeight: 17 },
+  scrapbookError: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+  scrapbookNote: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, lineHeight: 17, textAlign: 'center' },
+  weekList: { marginTop: spacing.four, gap: spacing.two },
+  weekListHead: {
+    color: t.colors.inkSoft,
+    fontSize: 13 * t.scale,
+    fontFamily: fonts.bodyBold,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+    marginBottom: spacing.one,
+  },
   pressed: { opacity: 0.85 },
-  dim: { opacity: 0.6 },
 });

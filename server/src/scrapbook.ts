@@ -1,28 +1,33 @@
 // AI scrapbook: turn a finished week into a calm, on-brand keepsake image. A
-// two-step Workers AI pipeline, distil the week's tasks into ONE abstract Dusk
-// scene (a small text model), then render it (a fast image model). Pure shaping
-// lives here; index.ts runs the AI binding. No Anthropic call: the scrapbook
-// lives entirely on Workers AI, so it does not touch the $25/mo Anthropic budget.
+// two-step Workers AI pipeline, distil the week's tasks into ONE calm still-life
+// that gently surfaces what was accomplished (a small text model), then render it
+// (a fast image model). The still-life (not an abstract mood) is deliberate: the
+// Lookback's whole job is to SHOW what you actually did, so the keepsake lets you
+// read your week in it. Pure shaping lives here; index.ts runs the AI binding.
+// No Anthropic call: the scrapbook lives entirely on Workers AI, off the budget.
 
 export const SCENE_MODEL = '@cf/meta/llama-3.2-3b-instruct';
 export const IMAGE_MODEL = '@cf/black-forest-labs/flux-1-schnell';
 
 export type ChatMessage = { role: 'system' | 'user'; content: string };
 
-// Distil finished tasks into ONE short, calm, ABSTRACT scene, never literal: the
-// image is a gentle mood of the week, not a depiction of the chores.
+// Distil finished tasks into ONE calm still-life whose soft objects gently evoke
+// what was accomplished, so the person can SEE their week. Recognisable but never
+// busy, and no text in the scene (image models can't render words cleanly anyway).
 export function sceneMessages(titles: string[]): ChatMessage[] {
   const list = titles.slice(0, 14).map((t) => `- ${t}`).join('\n');
   return [
     {
       role: 'system',
       content:
-        'You turn a week of finished to-do items into ONE short, calm, abstract visual scene for a gentle keepsake image. ' +
-        'Never depict the tasks literally and never name them. No people, no text, no words, no letters in the scene. ' +
-        'Evoke a peaceful mood of small things quietly accomplished: soft light, warmth, calm nature or a gentle still life. ' +
-        'Reply with the scene only, one sentence, under 25 words.',
+        'You turn a week of finished to-do items into ONE calm, warm still-life scene for a gentle keepsake image, ' +
+        'so the person can SEE what they accomplished. ' +
+        'Choose a few soft, recognisable objects that gently evoke the finished things (for example: folded linen for laundry, ' +
+        'a teacup and a phone for a message returned, keys by the door for an errand, a watered plant for a bit of care). ' +
+        'Arrange them in soft light. No people, and no text, words or letters anywhere in the scene. ' +
+        'Keep it peaceful and uncluttered, never busy. Reply with the scene only, one sentence, under 30 words.',
     },
-    { role: 'user', content: `This week's finished things:\n${list}\n\nThe calm scene:` },
+    { role: 'user', content: `This week's finished things:\n${list}\n\nThe still-life that evokes them:` },
   ];
 }
 

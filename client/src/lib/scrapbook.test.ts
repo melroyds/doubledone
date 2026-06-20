@@ -5,6 +5,7 @@ import {
   MAX_SCRAPBOOKS,
   type Scrapbook,
   upsertScrapbook,
+  weekCompletions,
   weekDates,
   weekStartISO,
   weekTitles,
@@ -40,6 +41,20 @@ describe('weekTitles', () => {
       ['2026-07-01', [{ title: 'Outside' }]],
     ]);
     expect(weekTitles(byDay, '2026-06-14')).toEqual(['A', 'B', 'C']);
+  });
+});
+
+describe('weekCompletions', () => {
+  it('dedupes by title and ORs the big flag across the week', () => {
+    const byDay = new Map<string, { title: string; big?: boolean }[]>([
+      ['2026-06-15', [{ title: 'Meds', big: false }, { title: 'Taxes', big: true }]],
+      ['2026-06-17', [{ title: 'Meds', big: false }]], // a recurring task ticked again, shown once
+      ['2026-07-01', [{ title: 'Outside', big: true }]],
+    ]);
+    expect(weekCompletions(byDay, '2026-06-14')).toEqual([
+      { title: 'Meds', big: false },
+      { title: 'Taxes', big: true },
+    ]);
   });
 });
 

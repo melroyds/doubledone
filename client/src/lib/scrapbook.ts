@@ -31,9 +31,30 @@ export function weekDates(weekStart: string): string[] {
   return Array.from({ length: 7 }, (_, i) => addDaysISO(start, i));
 }
 
-/** Every completed title in a week, from the Lookback's by-day completion map. */
-export function weekTitles(byDay: Map<string, { title: string }[]>, weekStart: string): string[] {
-  return weekDates(weekStart).flatMap((iso) => (byDay.get(iso) ?? []).map((c) => c.title));
+export type WeekItem = { title: string; big: boolean };
+
+/**
+ * Every completed task in a week, from the Lookback's by-day completion map,
+ * deduped by title (a recurring task ticked several days shows once) and marked
+ * `big` if any of its completions that week was a big win. First-seen order.
+ * This is what the scrapbook lists under the polaroid so you SEE what you did.
+ */
+export function weekCompletions(
+  byDay: Map<string, { title: string; big?: boolean }[]>,
+  weekStart: string,
+): WeekItem[] {
+  const byTitle = new Map<string, boolean>();
+  for (const iso of weekDates(weekStart)) {
+    for (const c of byDay.get(iso) ?? []) {
+      byTitle.set(c.title, (byTitle.get(c.title) ?? false) || Boolean(c.big));
+    }
+  }
+  return [...byTitle].map(([title, big]) => ({ title, big }));
+}
+
+/** Just the unique titles of a week's completions (what the image pipeline needs). */
+export function weekTitles(byDay: Map<string, { title: string; big?: boolean }[]>, weekStart: string): string[] {
+  return weekCompletions(byDay, weekStart).map((c) => c.title);
 }
 
 /** The scrapbook for a given week, if one has been made. */

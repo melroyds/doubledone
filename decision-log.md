@@ -944,3 +944,13 @@ The first slice of the premium scrapbook, built as **free delight first** (no pa
 **Cost reality:** image gen is neuron-heavy, so the Workers AI free tier is ~1-2 scrapbooks/day, which fits a free user's occasional keepsake; premium frequency (the monetisation plan) runs on the paid Workers AI tier, which the $5 covers.
 
 **Decided against** R2 / Supabase-Storage persistence for v1 (kept it device-local to minimise setup and ship the delight; cross-device sync is a later slice) and against an Anthropic call for the scene (Workers AI keeps the scrapbook self-contained and off the budget). **Gotcha banked:** Workers AI model ids deprecate (the original `llama-3.1-8b-instruct` was retired 2026-05-30, error 5028); `wrangler ai models` lists the account's current ids.
+
+## 2026-06-20 Scrapbook v2: surface the week (still-life image + finished list + the polaroid holder)
+
+Melroy steered two changes after seeing v1 and his Claude Design mockup.
+
+- **The image surfaces the tasks, not an abstract mood.** v1 deliberately made the image abstract / never-literal (my calm guardrail). Melroy's call, and the right one: the Lookback exists to SHOW what you actually did (the answer to the discounting reflex), so a generic pretty scene wastes it. The scene-distillation prompt now builds a calm **still-life** whose soft objects gently evoke the finished things (folded linen for laundry, a teacup and phone for a message), recognisable but never busy, still no text in the scene (image models can't render words cleanly). Overrides the v1 "never literal" choice. **Needs a Worker redeploy to go live.**
+- **The finished tasks are listed under the polaroid, with the big-win marker.** Below the keepsake, a "This week you finished" list of the week's completed titles, each marked "a big one" when it was a big win (reusing `isBigWin`), so you SEE the week concretely, not only via the interpreted image. Shown in the invite state too, so the week is visible before you even make the keepsake. `weekCompletions` dedupes by title (a recurring task ticked several days shows once) and ORs the big flag; unit-tested.
+- **The holder is now the mockup's polaroid keepsake.** Rebuilt the Lookback card to Melroy's Claude Design mockup: a soft photo-mat / polaroid with a gentle shadow, the scene caption in Newsreader italic on the lip, a faint "Made with AI · week of …" beneath; the invite state is a dashed empty frame with a mauve "+" and the button; loading shimmers in the frame. Light + dark, no overflow.
+
+Verified in preview (both states: polaroid + caption + meta + the finished list with the big marker; the invite frame + button + list; no console errors). 179 client + 48 server tests green.
