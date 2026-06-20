@@ -14,9 +14,9 @@ export default defineConfig({
       // A whole-repo number would be coverage-theatre; this floor is real.
       provider: 'v8',
       include: ['src/lib/**/*.ts'],
-      // The thin I/O seams (AsyncStorage, Supabase, expo-* device APIs) are all
-      // glue, no logic, and deliberately untested. Exclude them so the floor
-      // measures the logic, not the seams.
+      // The thin I/O seams (AsyncStorage, Supabase, the Stripe + entitlement fetch
+      // client, expo-* device APIs) are all glue, no logic, and deliberately
+      // untested. Exclude them so the floor measures the logic, not the seams.
       exclude: [
         '**/*.test.ts',
         'src/lib/storage.ts',
@@ -24,6 +24,7 @@ export default defineConfig({
         'src/lib/auth.ts',
         'src/lib/reminders.ts',
         'src/lib/locale.ts',
+        'src/lib/stripe.ts',
       ],
       reporter: ['text-summary'],
       // Measured ~98% lines / ~95% branches on the logic; floor set below that

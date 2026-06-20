@@ -1,9 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   checkoutSessionForm,
+  createCheckoutSession,
+  createPortalSession,
   type D1LikeDatabase,
   entitlementFromEvent,
+  handleCheckout,
+  handleEntitlement,
+  handlePortal,
+  handleWebhook,
   parseSigHeader,
   readEntitlement,
   signPayload,
@@ -161,5 +167,161 @@ describe('entitlement store', () => {
 
   it('reports not-premium for an unknown user', async () => {
     expect(await readEntitlement(fakeDb(), 'nobody')).toEqual({ premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null });
+  });
+});
+
+// The fetch-doing functions: we mock global fetch and assert the request shape and
+// the parsing, the same contract-test approach the AI request builders use. No live
+// Stripe call. (Secret key here is a dummy string, never a real sk_ token.)
+const SK = 'test-secret-key';
+
+describe('Stripe API request builders', () => {
+  const cfg = { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_123', APP_URL: 'https://doubledone.app' };
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('createCheckoutSession returns null when Stripe is not configured', async () => {
+    expect(await createCheckoutSession({}, 'u1')).toBeNull();
+  });
+
+  it('createCheckoutSession posts to Stripe and returns the hosted url', async () => {
+    let seen: { url: string; init: { headers: Record<string, string> } } | null = null;
+    vi.stubGlobal('fetch', async (url: string, init: { headers: Record<string, string> }) => {
+      seen = { url, init };
+      return new Response(JSON.stringify({ url: 'https://checkout.stripe.com/c/sess_1' }), { status: 200 });
+    });
+    const url = await createCheckoutSession(cfg, 'u1', 'a@b.co');
+    expect(url).toBe('https://checkout.stripe.com/c/sess_1');
+    expect(seen!.url).toContain('/checkout/sessions');
+    expect(seen!.init.headers.authorization).toBe(`Bearer ${SK}`);
+  });
+
+  it('createCheckoutSession returns null on a non-ok Stripe response', async () => {
+    vi.stubGlobal('fetch', async () => new Response('nope', { status: 400 }));
+    expect(await createCheckoutSession(cfg, 'u1')).toBeNull();
+  });
+
+  it('createPortalSession returns null without config, and the portal url on success', async () => {
+    expect(await createPortalSession({}, 'cus_1', 'https://x')).toBeNull();
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ url: 'https://billing.stripe.com/p/1' }), { status: 200 }));
+    expect(await createPortalSession(cfg, 'cus_1', 'https://doubledone.app/premium')).toBe('https://billing.stripe.com/p/1');
+  });
+});
+
+describe('Stripe HTTP handlers', () => {
+  const cors = { 'Access-Control-Allow-Origin': 'https://doubledone.app' };
+  const tokenFor = (sub: string) => `h.${btoa(JSON.stringify({ sub })).replace(/=/g, '')}.s`;
+  const req = (path: string, auth?: string, body?: unknown) =>
+    new Request(`https://w/${path}`, {
+      method: 'POST',
+      headers: auth ? { Authorization: `Bearer ${auth}` } : {},
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+
+  it('handleCheckout 401s without a token, 503s when not configured', async () => {
+    expect((await handleCheckout(req('checkout'), {}, cors)).status).toBe(401);
+    expect((await handleCheckout(req('checkout', tokenFor('u1'), {}), {}, cors)).status).toBe(503);
+  });
+
+  it('handlePortal 401s without a token, 404s with no stored subscription', async () => {
+    expect((await handlePortal(req('portal'), {}, cors)).status).toBe(401);
+    const env = { STRIPE_SECRET_KEY: SK, DB: fakeDb() };
+    expect((await handlePortal(req('portal', tokenFor('u1')), env, cors)).status).toBe(404);
+  });
+
+  it('handleEntitlement 401s without a token and returns a view when authed', async () => {
+    expect((await handleEntitlement(new Request('https://w/entitlement'), {}, cors)).status).toBe(401);
+    const res = await handleEntitlement(
+      new Request('https://w/entitlement', { headers: { Authorization: `Bearer ${tokenFor('u1')}` } }),
+      { DB: fakeDb() },
+      cors,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ premium: false });
+  });
+
+  it('handleWebhook 503s when not configured', async () => {
+    const res = await handleWebhook(req('stripe-webhook', undefined, {}), {}, '2026-06-20T00:00:00Z');
+    expect(res.status).toBe(503);
+  });
+});
+
+describe('Stripe handler flows (mocked fetch / signed webhook)', () => {
+  const cors = { 'Access-Control-Allow-Origin': 'https://doubledone.app' };
+  const tokenFor = (sub: string) => `h.${btoa(JSON.stringify({ sub })).replace(/=/g, '')}.s`;
+  const WH = 'wh-test-secret';
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('handleCheckout returns the url on success, 502 when Stripe fails', async () => {
+    const env = { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_123' };
+    const checkoutReq = (body: unknown) =>
+      new Request('https://w/checkout', { method: 'POST', headers: { Authorization: `Bearer ${tokenFor('u1')}` }, body: JSON.stringify(body) });
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ url: 'https://checkout.stripe.com/c/x' }), { status: 200 }));
+    const ok = await handleCheckout(checkoutReq({ email: 'a@b.co' }), env, cors);
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ url: 'https://checkout.stripe.com/c/x' });
+
+    vi.stubGlobal('fetch', async () => new Response('no', { status: 400 }));
+    expect((await handleCheckout(checkoutReq({}), env, cors)).status).toBe(502);
+  });
+
+  it('handleEntitlement returns a default view when DB is unbound', async () => {
+    const res = await handleEntitlement(
+      new Request('https://w/entitlement', { headers: { Authorization: `Bearer ${tokenFor('u1')}` } }),
+      {},
+      cors,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ premium: false });
+  });
+
+  it('handleWebhook verifies a signed event and writes the entitlement', async () => {
+    const db = fakeDb();
+    const now = 1_750_000_000;
+    const event = JSON.stringify({
+      type: 'checkout.session.completed',
+      data: { object: { client_reference_id: 'u9', payment_status: 'paid', status: 'complete', customer: 'cus_9' } },
+    });
+    const sig = await signPayload(event, WH, now);
+    const res = await handleWebhook(
+      new Request('https://w/stripe-webhook', { method: 'POST', headers: { 'Stripe-Signature': sig }, body: event }),
+      { STRIPE_WEBHOOK_SECRET: WH, DB: db },
+      '2026-06-20T00:00:00Z',
+      now,
+    );
+    expect(res.status).toBe(200);
+    expect((await readEntitlement(db, 'u9')).premium).toBe(true);
+  });
+
+  it('handleWebhook rejects a bad signature and unparseable json', async () => {
+    const env = { STRIPE_WEBHOOK_SECRET: WH, DB: fakeDb() };
+    const badSig = await handleWebhook(
+      new Request('https://w/stripe-webhook', { method: 'POST', headers: { 'Stripe-Signature': 't=1,v1=bad' }, body: '{}' }),
+      env,
+      'now',
+      1,
+    );
+    expect(badSig.status).toBe(400);
+
+    const now = 1_750_000_000;
+    const sig = await signPayload('not json', WH, now);
+    const badJson = await handleWebhook(
+      new Request('https://w/stripe-webhook', { method: 'POST', headers: { 'Stripe-Signature': sig }, body: 'not json' }),
+      env,
+      'now',
+      now,
+    );
+    expect(badJson.status).toBe(400);
+  });
+
+  it('handlePortal 503s without config and returns the billing url when subscribed', async () => {
+    const portalReq = () => new Request('https://w/portal', { method: 'POST', headers: { Authorization: `Bearer ${tokenFor('u1')}` } });
+    expect((await handlePortal(portalReq(), {}, cors)).status).toBe(503);
+
+    const db = fakeDb();
+    await writeEntitlement(db, { userId: 'u1', premium: true, status: 'active', currentPeriodEnd: 1, cancelAtPeriodEnd: false, customerId: 'cus_1' }, '2026-06-20T00:00:00Z');
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ url: 'https://billing.stripe.com/p/2' }), { status: 200 }));
+    const res = await handlePortal(portalReq(), { STRIPE_SECRET_KEY: SK, DB: db }, cors);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ url: 'https://billing.stripe.com/p/2' });
   });
 });
