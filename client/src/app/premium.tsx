@@ -198,7 +198,11 @@ export default function PremiumScreen() {
                 <Text style={styles.ctaText}>Sign in to go Premium</Text>
               </Pressable>
             )}
-            {!session ? <Text style={styles.foot}>Premium attaches to your account, so it follows you across devices.</Text> : null}
+            <Text style={styles.foot}>
+              {session
+                ? 'The free monthly keepsake is always yours, even if you never upgrade.'
+                : 'Premium attaches to your account, so it follows you across devices. The free monthly keepsake is always yours.'}
+            </Text>
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </View>
         )}
