@@ -117,6 +117,10 @@ async function capture(browser, shot) {
   const payload = {
     'doubledone.tasks.v1': JSON.stringify(shot.tasks),
     'doubledone.settings.v1': settings(shot.theme, shot.motion),
+    // Returning-user app: skip the first-run redirect (Today -> /welcome) so the
+    // Today/Lookback/Settings shots capture the real screen, not onboarding. The
+    // welcome shot uses /welcome directly, which renders regardless of this flag.
+    'doubledone.onboarded.v1': 'yes',
   };
   if (shot.scrapbooks) payload['doubledone.scrapbooks.v1'] = JSON.stringify(shot.scrapbooks);
   await ctx.addInitScript(seedLocalStorage, payload);
@@ -153,6 +157,7 @@ async function run() {
     { name: 'scrapbook-light', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'light', testid: 'scrapbook-card', waitText: 'Scrapbook' },
     { name: 'settings-light', route: '/settings', tasks: TODAY_TASKS, theme: 'light', motion: 'system', waitText: 'Theme' },
     { name: 'settings-dark', route: '/settings', tasks: TODAY_TASKS, theme: 'dark', motion: 'system', waitText: 'Theme' },
+    { name: 'welcome', route: '/welcome', tasks: TODAY_TASKS, theme: 'light', waitText: 'A calmer kind of to-do' },
   ].filter((s) => !only || only.has(s.name));
 
   // The scrapbook image is the only thing that needs the network; fetch it only if

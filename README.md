@@ -4,7 +4,7 @@
 
 > A calm, ADHD-friendly daily to-do app. It takes the things you have been avoiding, breaks them into pieces small enough to actually start, shows you only what today needs, and at the end shows you everything you finished, so your brain cannot tell you that you did nothing.
 
-**Status:** core loop live, solo build. The full daily loop, AI triage and phased Break-it-down, recurring tasks, slices, Strategise, the Lookback, close-the-day, reminders, opt-in cloud sync, the AI **scrapbook** (images on Cloudflare **R2**), and a task **MCP server** are shipped on web and Android, alongside the ADHD-specific touches that answer the failure modes below: **shame-free re-entry**, a **focus mode**, **off-list logging**, a **weight-of-today** gauge, **multi-select**, and **data export**. The public-launch basics (privacy policy, account + data deletion, AI-endpoint lockdown) are in too.
+**Status:** core loop live, solo build. The full daily loop, AI triage and phased Break-it-down, recurring tasks, slices, Strategise, the Lookback, close-the-day, reminders, opt-in cloud sync, the AI **scrapbook** (images on Cloudflare **R2**), and a task **MCP server** are shipped on web and Android, alongside the ADHD-specific touches that answer the failure modes below: **shame-free re-entry**, a **focus mode**, **off-list logging**, a **weight-of-today** gauge, **multi-select**, and **data export**. The public-launch basics (privacy policy, account + data deletion, AI-endpoint lockdown) are in too. The whole UI has since had a calm **design pass** (the system redesign), and new users get a guided **first-run** that triages their first brain-dump into a doable day, replayable any time from Settings.
 **Live:** [doubledone.app](https://doubledone.app) (web). Android installs via a sideloaded EAS build.
 
 <p align="center">
@@ -26,7 +26,12 @@
   &nbsp;
   <img src="docs/screenshots/settings-dark.png" alt="DoubleDone Settings in dark" width="270" />
 </p>
-<p align="center"><em>Settings, scoped to comfort and access: theme, text size, motion. Never an everything-dashboard.</em></p>
+<p align="center"><em>Settings, in two calm bands, Comfort (theme, text size, motion) and Access &amp; data. Never an everything-dashboard.</em></p>
+
+<p align="center">
+  <img src="docs/screenshots/welcome.png" alt="The DoubleDone first-run welcome: a calm pitch, with Begin and Skip for now" width="270" />
+</p>
+<p align="center"><em>First run: a calm welcome that onboards by doing. Your first brain-dump becomes a doable Today. Replayable any time from Settings.</em></p>
 
 ---
 
@@ -60,6 +65,7 @@ DoubleDone is built around those, not around a feature checklist. The founder is
 **Capture & triage**
 - Friction-free brain-dump with calm scheduling chips (Today / Tomorrow / Daily / Weekly / Custom).
 - AI triage ("Sort for me", Haiku) sorts a multi-line dump into today / later / break-it-down and applies it directly, because capture must be the lowest-pressure surface in the app.
+- **First run**: a guided welcome runs your very first brain-dump through that same triage, so the first thing you see is a doable Today, not an empty void or a tutorial wall. Replayable any time from Settings.
 
 **Break it down (the phased planner)**
 - Two calm steps: first the AI asks **three qualifying questions** (a due date, gradual-vs-same-day pacing, and one task-specific clarifier), then it returns a plan you **review and accept** (untick any step before adding).
@@ -72,10 +78,10 @@ DoubleDone is built around those, not around a feature checklist. The founder is
 - **Recurring tasks** (daily / weekly / every-N) with a dedicated Repeating drawer, no streaks.
 - **Strategise** (Sonnet): re-spread an over-full day, always propose-then-accept.
 - **Long-title marquee**: a title too long to fit scrolls gently instead of truncating, and respects reduced-motion.
-- **Multi-select**: pick several tasks and Done / Tomorrow / Remove them at once, instead of one long-press at a time.
+- **Tap-and-hold to select**: hold a task to enter selection, then act on one or many at once via an adaptive bar, Done / Tomorrow / Move to… / Break down / Remove, with Select all. One calm gesture replaced both the old per-task long-press menu and a separate multi-select button.
 
 **Built for the failure modes** (each answers one named above)
-- **Focus mode** ("Just this one") — full-screen a single task, everything else hidden, for **task-initiation paralysis**.
+- **Focus mode** ("Just this one") — pick one task and full-screen it, everything else hidden, for **task-initiation paralysis**.
 - **Weight of today** — a calm, honest load gauge so the day cannot silently overfill, for **time blindness**.
 - **"I also did that"** — log a win that was never on the list, so the Lookback counts what you actually did, for **the discounting reflex**.
 - **Shame-free re-entry** — come back after a gap to "welcome back, the past is fine, here's today", never "47 overdue", for **rejection-sensitive dysphoria**.
@@ -150,7 +156,6 @@ The full why-trail is in [`decision-log.md`](decision-log.md); the headline call
 The backlog is kept live with a **trigger** on every item (the full list, with reasoning, is in [`BUILD-PLAN.md`](BUILD-PLAN.md)). The honest near-term picture:
 
 - **Multi-language (Italian, Spanish, French)** — in progress; the AI will answer in the user's language. *Trigger: now.*
-- **Design overhaul** — a deliberate visual pass; the calm system is intentional but due a refresh. *Trigger: feature-complete core (reached).*
 - **"Other users took about X days" estimate** — the moat's user-facing payoff. *Trigger: enough anonymised cross-user volume to be honest.*
 - **Scrapbook cross-device sync** — the images are durable on R2; syncing their URLs to your account (so they follow you to a new device) is the remaining half. *Trigger: before real paid users.*
 - **Plan my day · Custom lists** — scoped, parked against the spine so they never turn Today into an everything-bucket.
@@ -185,6 +190,7 @@ npm run typecheck && npm run lint
 client/                     Expo app (Android + web, one codebase)
   src/app/                  expo-router screens
     index.tsx               Today: the home screen + every flow's orchestration
+    welcome.tsx             the guided first-run (redirected to once; replayable from Settings)
     lookback.tsx            the calendar payoff
     sign-in.tsx             passwordless email-OTP sign-in
   src/components/           BrainDump · TaskRow · BreakdownQuestions · BreakdownReview
@@ -227,4 +233,4 @@ PLAYBOOK.md                 the reusable build discipline (golden-path)
 
 ## Provenance
 
-Built on the [golden-path](https://github.com/melroyds/golden-path) harness. Third portfolio piece, after [ParkProof](https://github.com/melroyds/parkproof) and the Chronoloria sibling. Solo, by Melroy D'Souza, Melbourne, 2026. MIT licensed.
+Built on the [golden-path](https://github.com/melroyds/golden-path) harness. Second portfolio piece, after [ParkProof](https://github.com/melroyds/parkproof). Chronoloria, its richer unpublished sibling, was the first cut of the same instinct; DoubleDone is the leaner, shipped version. Solo, by Melroy D'Souza, Melbourne, 2026. MIT licensed.
