@@ -163,7 +163,9 @@ export function entitlementFromEvent(event: unknown): Entitlement | null {
       premium,
       status,
       currentPeriodEnd: subscriptionPeriodEnd(obj),
-      cancelAtPeriodEnd: obj.cancel_at_period_end === true,
+      // dahlia (2026-04) represents a scheduled "cancel at period end" via cancel_at
+      // (a timestamp), leaving the old cancel_at_period_end boolean false. Accept either.
+      cancelAtPeriodEnd: obj.cancel_at_period_end === true || typeof obj.cancel_at === 'number',
       customerId,
     };
   }

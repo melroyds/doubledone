@@ -76,6 +76,22 @@ describe('entitlementFromEvent', () => {
     expect(ent).toMatchObject({ userId: 'u3', premium: true, cancelAtPeriodEnd: true, currentPeriodEnd: 1_765_000_000 });
   });
 
+  it('treats a dahlia cancel_at timestamp as a scheduled cancel (boolean stays false)', () => {
+    const ent = entitlementFromEvent({
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          metadata: { user_id: 'u4' },
+          status: 'active',
+          cancel_at_period_end: false,
+          cancel_at: 1_784_533_872,
+          items: { data: [{ current_period_end: 1_784_533_872 }] },
+        },
+      },
+    });
+    expect(ent).toMatchObject({ userId: 'u4', premium: true, cancelAtPeriodEnd: true, currentPeriodEnd: 1_784_533_872 });
+  });
+
   it('ignores unrelated events and events with no user id', () => {
     expect(entitlementFromEvent({ type: 'invoice.paid', data: { object: {} } })).toBeNull();
     expect(entitlementFromEvent({ type: 'checkout.session.completed', data: { object: { payment_status: 'paid' } } })).toBeNull();
