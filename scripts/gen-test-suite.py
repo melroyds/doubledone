@@ -91,9 +91,9 @@ CASES = [
      "A calm friendly error. No raw HTTP/stack. App stays usable.", "Both"),
 
     # --- AI: Sort-for-me & Strategise ----------------------------------------
-    ("AI-05", "AI triage", "P2", "Sort-for-me (triage + discoverability)",
-     "In the brain-dump, type 2+ things, one per line. After one line a hint should nudge 'put each on its own line'; at two lines 'Break it down' becomes 'Sort for me'. Run it.",
-     "Hint is visible at one line, so Sort is discoverable. Sort returns a sensible ordering/grouping onto Today. Calm, never scolding.", "Both"),
+    ("AI-05", "AI triage", "P2", "Sort-for-me (triage + feedback)",
+     "In the brain-dump type a MIXED pile, one per line (a couple of quick things, one that can wait, one big/vague). At one line a hint nudges 'one per line'; at two, 'Break it down' becomes 'Sort for me'. Run it.",
+     "Shows a summary line ('Sorted: N for today, M for tomorrow, K to break down.'). Quick items stay on Today, can-waits move to tomorrow, big ones get an inline 'Looks big, break it down?' prompt. Calm, never scolding.", "Both"),
     ("AI-06", "AI strategise", "P2", "Strategise (chart a course)",
      "When the list feels heavy, run Strategise.",
      "Returns a weighted, ordered plan of action. No overwhelm.", "Both"),

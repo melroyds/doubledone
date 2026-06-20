@@ -1017,3 +1017,14 @@ Decided against a harder "reset" (clearing or archiving tasks on close): undone 
 The brain-dump's main button swaps from "Break it down" (one line) to "Sort for me" (2+ lines) by line count. Clean and contextual, but invisible: Melroy, the founder, never found Sort because he always typed single tasks, and the placeholder said "one per line" without naming the payoff (AI triage). Don't fight that signal, if the founder misses it, overwhelmed users will too.
 
 Fix: a quiet hint that appears the moment one line is typed, "More than one? Put each on its own line and I'll sort them for you." It names the sort payoff, shows only at `lineCount === 1` (so the resting screen stays clean and it disappears once the Sort button itself appears), and adds no button or setting. Decided against an always-on hint (clutters the calm home screen) and against a dead / disabled "Sort" button (friction). Verified in preview: one line shows the hint + "Break it down", two lines hides it + "Sort for me".
+
+## 2026-06-20 "Sort for me" earns its name: visible feedback + acting on the break-down verdict
+
+Melroy tested Sort with eat / sleep / drink and it "did nothing", all three landed on Today in input order. Diagnosis: not broken. Triage buckets each line into today / later / decompose and deliberately keeps order (it is not a ranker), biasing "later" so today stays small. eat/sleep/drink are all genuine quick today-items, so it correctly kept all three. The real failures: it gave zero feedback (a correct no-op looked dead), and it ignored its own "decompose" verdict (those items just landed on Today like anything else).
+
+Path A (chosen over making Sort a ranker, which fights the protect-the-finite-day thesis and risks a loss-of-control overwhelm):
+- **Feedback.** After Sort, a calm line: "Sorted: 3 for today, 2 for tomorrow, 1 to break down." Computed from what actually landed (always sums to the input), so even an all-today dump reads "Sorted: 3 for today." Sort now visibly does something on every dump.
+- **Act on decompose.** Items the AI flags as too big carry a new `suggestBreakdown` field and render an inline, one-tap "Looks big, break it down?" prompt (a new TaskRow variant: the row stays tappable, the prompt is a sibling Pressable, never nested). The verdict is no longer thrown away.
+- The apply + summarise logic moved to a pure, unit-tested `lib/triage.ts` (`triageToTasks`, `summarizeAdded`, `summaryLine`).
+
+Verified end to end in preview with a live triage: a mixed dump returned "Sorted: 3 for today, 2 to break down" and flagged the two big items ("File the tax return", "Plan the year of travel") inline. Deliberately did NOT add reordering, did NOT clear the flag on a cancelled break-down (it persists as an honest "still big" until the task is done or sliced), and did NOT rename it yet. Test input matters: a homogeneous dump can't show a sort, the value shows on a mixed pile.

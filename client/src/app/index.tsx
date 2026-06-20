@@ -31,6 +31,7 @@ import { loadClosedDate, loadReminderOn, loadTasks, saveClosedDate, saveReminder
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { syncOnce } from '@/lib/sync';
 import { parseDump, type Task } from '@/lib/tasks';
+import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
 import { useReducedMotion, useThemedStyles } from '@/lib/theme-provider';
 import { deferToTomorrow, isDoneOn, isRecurring, tasksForToday, toggleDoneOn, upcomingTasks } from '@/lib/today';
@@ -55,6 +56,7 @@ export default function TodayScreen() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [closedDate, setClosedDate] = useState<string | null>(null);
+  const [sortSummary, setSortSummary] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -285,6 +287,7 @@ export default function TodayScreen() {
   function capture(text: string, schedule: CaptureSchedule, sliceCount?: number) {
     const titles = parseDump(text);
     if (titles.length === 0) return;
+    setSortSummary(null);
     const now = nowMs();
     const fields = scheduleFields(schedule, today); // due / recurrence for the chosen when
     // Slices are a single one-off concept; BrainDump only offers them for a lone
@@ -458,18 +461,15 @@ export default function TodayScreen() {
     const lines = parseDump(text);
     if (lines.length === 0) return;
     const items = await triage(lines);
-    const bucketOf = new Map(items.map((it) => [it.text, it.bucket]));
-    const now = nowMs();
-    const added: Task[] = lines.map((title, i) => {
-      const base = { id: makeId(), title, done: false, createdAt: now + i, updatedAt: now + i };
-      return bucketOf.get(title) === 'later' ? { ...base, due: addDaysISO(today, 1) } : base;
-    });
+    const added = triageToTasks(lines, items, today, nowMs(), makeId);
     commit([...tasks, ...added]);
+    const summary = summarizeAdded(added);
+    setSortSummary(summaryLine(summary));
     track('triage.applied', {
       total: lines.length,
-      today: items.filter((it) => it.bucket === 'today').length,
-      later: items.filter((it) => it.bucket === 'later').length,
-      decompose: items.filter((it) => it.bucket === 'decompose').length,
+      today: summary.today,
+      later: summary.later,
+      decompose: summary.decompose,
     });
   }
 
@@ -562,6 +562,7 @@ export default function TodayScreen() {
               onRetreat={() => step(task.id, -1)}
               onBreakdown={() => breakdownExisting(task.title)}
               onDefer={() => deferTask(task.id)}
+              suggestBreakdown={task.suggestBreakdown}
             />
           ))}
         </View>
@@ -641,6 +642,7 @@ export default function TodayScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.four }]}>
+        {!isClosed && sortSummary && <Text style={styles.sortSummary}>{sortSummary}</Text>}
         {!isClosed && <BrainDump onCapture={capture} onBiteElephant={biteElephant} onSort={sortDump} today={today} />}
         {isSyncConfigured &&
           (session ? (
@@ -874,6 +876,7 @@ const makeStyles = (t: Theme) =>
     syncText: { color: t.colors.inkFaint, fontSize: 13 * t.scale, flexShrink: 1, fontFamily: fonts.body },
     syncAction: { color: t.colors.accent, fontSize: 13 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
     ethos: { marginTop: spacing.three, alignItems: 'center' },
+    sortSummary: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginBottom: spacing.two },
     dayActions: { marginTop: spacing.seven, alignItems: 'center', gap: spacing.three },
     closeDay: {
       paddingVertical: spacing.three,

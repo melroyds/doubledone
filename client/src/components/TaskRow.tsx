@@ -20,6 +20,7 @@ type Props = {
   onRetreat?: () => void;
   onBreakdown?: () => void;
   onDefer?: () => void;
+  suggestBreakdown?: boolean;
 };
 
 // A single row. Tap to complete (a soft sage check, gentle fade, never a shaming
@@ -45,6 +46,7 @@ export function TaskRow({
   onRetreat,
   onBreakdown,
   onDefer,
+  suggestBreakdown,
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
@@ -135,6 +137,42 @@ export function TaskRow({
     );
   }
 
+  // AI triage flagged this as too big to just do: same tappable row, with a calm,
+  // one-tap "break it down?" prompt underneath. The container is a plain View so the
+  // toggle and the prompt are siblings, never a Pressable nested in a Pressable.
+  if (suggestBreakdown && !done) {
+    return (
+      <View style={[styles.row, !recurring && styles.rowUnique, styles.suggestColumn]}>
+        <Pressable
+          onPress={onToggle}
+          onLongPress={onLongPress}
+          delayLongPress={400}
+          style={({ pressed }) => [styles.suggestMain, pressed && styles.pressed]}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: done }}
+          accessibilityLabel={title}
+        >
+          <View style={[styles.check, done && styles.checkDone]}>
+            {done && <Text style={styles.tick}>✓</Text>}
+          </View>
+          <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
+          {recurring && <Text style={styles.repeatMark}>↻</Text>}
+        </Pressable>
+        {onBreakdown && (
+          <Pressable
+            onPress={onBreakdown}
+            accessibilityRole="button"
+            accessibilityLabel={`Break down ${title}`}
+            hitSlop={6}
+            style={({ pressed }) => [styles.suggestHintBtn, pressed && styles.pressed]}
+          >
+            <Text style={styles.suggestHint}>Looks big, break it down?</Text>
+          </Pressable>
+        )}
+      </View>
+    );
+  }
+
   return (
     <Pressable
       onPress={onToggle}
@@ -190,6 +228,10 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   text: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 23 },
   textDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
   repeatMark: { color: t.colors.repeat, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+  suggestColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
+  suggestMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
+  suggestHintBtn: { alignSelf: 'flex-start' },
+  suggestHint: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   sliceColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
   sliceTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
   sliceCount: { color: t.colors.repeat, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },

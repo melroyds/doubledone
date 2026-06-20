@@ -23,6 +23,7 @@ export type Task = {
   recurrence?: Recurrence; // absent = one-off (see lib/recurrence)
   completedDates?: string[]; // ISO dates a recurring task was ticked (per-day completion)
   slices?: Slices | null; // absent = whole task; present = track progress across parts (see lib/slices)
+  suggestBreakdown?: boolean; // AI triage flagged this as too big to just do; shows an inline "break it down?" on the row
 };
 
 // Shown once on a brand-new install so the first open is not an empty void.
