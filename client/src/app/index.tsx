@@ -29,7 +29,7 @@ import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { applySliceDelta } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadClosedDate, loadLastOpen, loadReminderOn, loadTasks, saveClosedDate, saveLastOpen, saveReminderOn, saveTasks } from '@/lib/storage';
+import { loadClosedDate, loadLastOpen, loadOnboarded, loadReminderOn, loadTasks, saveClosedDate, saveLastOpen, saveReminderOn, saveTasks } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { syncOnce } from '@/lib/sync';
 import { parseDump, type Task } from '@/lib/tasks';
@@ -102,6 +102,18 @@ export default function TodayScreen() {
   // wipes it (native keeps a mounted screen alive on router.replace; web reloads).
   // The `loaded` gate still holds the empty / all-done copy until the first load
   // lands so neither flashes.
+  // First run: if the welcome has never been completed, redirect to it once. Keyed
+  // off the onboarded flag, not task count, since a fresh install seeds example tasks.
+  useEffect(() => {
+    let active = true;
+    void loadOnboarded().then((done) => {
+      if (active && !done) router.replace('/welcome');
+    });
+    return () => {
+      active = false;
+    };
+  }, [router]);
+
   useFocusEffect(
     useCallback(() => {
       let active = true;

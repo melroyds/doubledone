@@ -12,6 +12,7 @@ const SETTINGS_KEY = 'doubledone.settings.v1';
 const SCRAPBOOKS_KEY = 'doubledone.scrapbooks.v1';
 const CLOSED_KEY = 'doubledone.closed.v1';
 const LASTOPEN_KEY = 'doubledone.lastopen.v1';
+const ONBOARDED_KEY = 'doubledone.onboarded.v1';
 
 /**
  * Load Today's tasks. On a brand-new install (nothing ever stored) seed once so
@@ -95,6 +96,26 @@ export async function loadLastOpen(): Promise<string | null> {
 export async function saveLastOpen(iso: string): Promise<void> {
   try {
     await AsyncStorage.setItem(LASTOPEN_KEY, iso);
+  } catch {
+    // best effort
+  }
+}
+
+/** Whether the one-time welcome has been completed or skipped. On a storage failure
+ *  returns true, never trap a user in onboarding because the disk hiccupped. */
+export async function loadOnboarded(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(ONBOARDED_KEY)) === 'yes';
+  } catch {
+    return true;
+  }
+}
+
+/** Mark the welcome as done (or clear it). Best effort. */
+export async function saveOnboarded(done: boolean): Promise<void> {
+  try {
+    if (done) await AsyncStorage.setItem(ONBOARDED_KEY, 'yes');
+    else await AsyncStorage.removeItem(ONBOARDED_KEY);
   } catch {
     // best effort
   }

@@ -97,6 +97,11 @@ CASES = [
      "Tap-and-hold to select one or more tasks, tap 'Move to...', then pick 'This weekend', 'Next week', or a calendar day.",
      "Selected one-offs move to that date and wait in the Later list until then (recurring tasks are left alone); select mode exits.", "Both"),
 
+    # --- Onboarding: the one-time guided welcome ------------------------------
+    ("ONB-01", "Onboarding", "P1", "Guided welcome on first run",
+     "On a fresh install (or after clearing 'doubledone.onboarded.v1'), open the app. Walk Begin -> type a few lines -> Make my day -> This looks right -> Open Today. Separately, try Skip for now.",
+     "Today redirects to the welcome exactly once. The dump is triaged into a doable Today (some pushed to later, any big one flagged 'Looks big, break it down?'); confirming saves the tasks and opens Today. Skip (or an empty Make my day) goes straight to Today. It never reappears once done; if the AI is offline, everything lands on Today, nothing lost.", "Both"),
+
     # --- AI: Bite the Elephant (decompose) -----------------------------------
     ("AI-01", "AI decompose", "P1", "Break down a dreaded task",
      "Capture 'Do my taxes', tap Break it down, answer any clarifying questions.",

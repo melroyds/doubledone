@@ -35,6 +35,12 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | TOD-12 | P2 | Both | Multi-select bulk actions | Tap-and-hold a task to enter selection, tap more to add them (or 'Select all'), then use the bar: Done / Tomorrow / Move to... / Remove. Cancel exits. | Rows become checkboxes, the count updates, 'Break down' hides once more than one is selected, the bulk action applies to all at once and exits select mode. |
 | TOD-13 | P2 | Both | Move selected tasks to a chosen day | Tap-and-hold to select one or more tasks, tap 'Move to...', then pick 'This weekend', 'Next week', or a calendar day. | Selected one-offs move to that date and wait in the Later list until then (recurring tasks are left alone); select mode exits. |
 
+## Onboarding
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| ONB-01 | P1 | Both | Guided welcome on first run | On a fresh install (or after clearing 'doubledone.onboarded.v1'), open the app. Walk Begin -> type a few lines -> Make my day -> This looks right -> Open Today. Separately, try Skip for now. | Today redirects to the welcome exactly once. The dump is triaged into a doable Today (some pushed to later, any big one flagged 'Looks big, break it down?'); confirming saves the tasks and opens Today. Skip (or an empty Make my day) goes straight to Today. It never reappears once done; if the AI is offline, everything lands on Today, nothing lost. |
+
 ## AI decompose
 
 | ID | Pri | Platform | Test | Steps | Expected |

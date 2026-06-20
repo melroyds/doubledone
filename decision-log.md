@@ -1172,3 +1172,19 @@ The Premium screen already was the system-pass design: the P1 pitch ("Keep every
 **Privacy:** already the S3 typographic policy (serif title, "Last updated", the clean sections, "Privacy by architecture, not by promises"). Fixed one stale line: "Your control" claimed account-delete was "being added", but it shipped (and export shipped), so the public policy now states both accurately. Honesty matters more here than anywhere: a privacy policy that lags the build is a broken trust principle, and trust principles compound or compound-rot.
 
 Verified in preview: Settings shows both bands + the premium card; Privacy shows the corrected control copy. Next: the Repeating drawer.
+
+## 2026-06-21 Repeating drawer: already at spec (no change)
+
+Checked against the system-pass R1/R2 and it already matched: each habit shows its cadence (`describeRecurrence`, e.g. "Every day", "Every 3 days", "Every Sunday") with a tap-to-complete checkbox, and the empty state already teaches the way in ("No repeating tasks yet. Add one with the Daily or Weekly chip when you capture."). No change. The discipline of stopping.
+
+## 2026-06-21 First-run redesign (net-new): the guided welcome
+
+The last redesign piece, and the only net-new one. A one-time welcome that onboards by *doing*, not by a tutorial wall:
+- **F1 welcome:** the calm pitch ("A calmer kind of to-do", "No streaks, no nagging, no guilt. Nothing is ever overdue. It just waits.", "Works straight away. No account needed.") with Begin / Skip for now.
+- **F2 capture:** "What's on your mind?", the user's own first brain-dump, one per line.
+- **F3 reveal:** "Make my day" runs the lines through the **real triage** (the same `/triage` the "Sort for me" path uses), so the very first thing they see is the product working: a doable Today ("N for today") with the rest "waiting calmly for later" and any big one flagged "Looks big, break it down?". If the AI is unreachable, everything lands on Today (`triageToTasks` with no buckets), nothing lost.
+- **F4 hand-off:** "That's it. No setup." → Open Today.
+
+Routing: a new `onboarded` flag in storage (`loadOnboarded`/`saveOnboarded`; returns true on a storage failure, so a disk hiccup never traps a user in onboarding). Today redirects to `/welcome` once on mount when the flag is unset, keyed off the flag and **not** task count, because a fresh install seeds example tasks. Skipping at any step, or an empty "Make my day", just sets the flag and opens Today.
+
+Decided against a separate local "first 3 today" heuristic for the reveal: the whole point of the first impression is the AI triage actually working, so it uses the live path with the all-today fallback rather than a fake split. Verified in preview end to end: cleared the flag → Today redirected to /welcome → Begin → typed a 5-line dump → Make my day → the live triage returned **4 for today + 1 waiting** → This looks right (5 tasks saved, flag set) → Open Today landed on Today with the tasks and did not re-redirect. One live Haiku triage call (cheap). **This completes the full redesign: all seven surfaces.**
