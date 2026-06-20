@@ -4,7 +4,7 @@
 
 > A calm, ADHD-friendly daily to-do app. It takes the things you have been avoiding, breaks them into pieces small enough to actually start, shows you only what today needs, and at the end shows you everything you finished, so your brain cannot tell you that you did nothing.
 
-**Status:** core loop live, solo build. Capture, AI triage, phased Break-it-down, recurring tasks, slices, Strategise, the Lookback, close-the-day, daily reminders, opt-in cloud sync, the AI **scrapbook**, and a task **MCP server** are all shipped on web and Android. The public-launch basics (privacy policy, account and data deletion, AI-endpoint lockdown) are in too.
+**Status:** core loop live, solo build. The full daily loop, AI triage and phased Break-it-down, recurring tasks, slices, Strategise, the Lookback, close-the-day, reminders, opt-in cloud sync, the AI **scrapbook** (images on Cloudflare **R2**), and a task **MCP server** are shipped on web and Android, alongside the ADHD-specific touches that answer the failure modes below: **shame-free re-entry**, a **focus mode**, **off-list logging**, a **weight-of-today** gauge, **multi-select**, and **data export**. The public-launch basics (privacy policy, account + data deletion, AI-endpoint lockdown) are in too.
 **Live:** [doubledone.app](https://doubledone.app) (web). Android installs via a sideloaded EAS build.
 
 <p align="center">
@@ -72,15 +72,23 @@ DoubleDone is built around those, not around a feature checklist. The founder is
 - **Recurring tasks** (daily / weekly / every-N) with a dedicated Repeating drawer, no streaks.
 - **Strategise** (Sonnet): re-spread an over-full day, always propose-then-accept.
 - **Long-title marquee**: a title too long to fit scrolls gently instead of truncating, and respects reduced-motion.
+- **Multi-select**: pick several tasks and Done / Tomorrow / Remove them at once, instead of one long-press at a time.
+
+**Built for the failure modes** (each answers one named above)
+- **Focus mode** ("Just this one") — full-screen a single task, everything else hidden, for **task-initiation paralysis**.
+- **Weight of today** — a calm, honest load gauge so the day cannot silently overfill, for **time blindness**.
+- **"I also did that"** — log a win that was never on the list, so the Lookback counts what you actually did, for **the discounting reflex**.
+- **Shame-free re-entry** — come back after a gap to "welcome back, the past is fine, here's today", never "47 overdue", for **rejection-sensitive dysphoria**.
 
 **The payoff & retention**
 - **The Lookback**: a true Gregorian month calendar of what you finished each day, with a warmer mark for a "big win" (a long-dreaded or chunky task finally closed). The emotional core, not a stats page.
 - **Close the day**: a gentle wrap that rolls undone work forward with no guilt.
 - **Daily reminder** (opt-in, native): offers the day, never nags.
-- **The AI scrapbook**: turn a finished week into a calm still-life keepsake (Cloudflare Workers AI), the objects evoking what you actually did, with the week's finished tasks listed beneath. The first premium delight, on free-tier neurons (no Anthropic spend).
+- **The AI scrapbook**: turn a finished week into a calm still-life keepsake (Cloudflare Workers AI), the objects evoking what you actually did, with the week's finished tasks listed beneath. The first premium delight, on free-tier neurons (no Anthropic spend). Images persist on **Cloudflare R2** and are served by URL, so the keepsake survives a cache clear and stays off the device's storage quota.
 
 **Cloud (opt-in)**
 - Passwordless **email-OTP** sign-in, last-write-wins sync, soft-delete tombstones, and automatic anonymous→account migration on first sign-in. Local-first throughout: nothing requires an account.
+- **Data export**: download your tasks and everything you finished as a JSON file (no account needed). Your stuff is yours.
 
 **For AI agents (AX)**
 - A stateless **MCP server** (`/mcp` on the Worker) lets Claude Desktop and other agents add, list and complete your tasks, authorised by your own token so it only ever touches your own rows under RLS. Guide in [`docs/mcp.md`](docs/mcp.md).
@@ -97,6 +105,7 @@ flowchart TB
     App -->|"AI features"| W["<b>Cloudflare Worker</b> · doubledone-ai<br/>holds ANTHROPIC_API_KEY (secret)<br/>/clarify /plan /decompose /triage /strategise<br/>/scrapbook (Workers AI) · /mcp (agent task server)"]
     W -->|"tasks via MCP, under your own RLS"| SB
     W -->|"telemetry"| D1["<b>Cloudflare D1</b> · ai_calls<br/>pseudonymous · no public write path"]
+    W -->|"scrapbook images"| R2["<b>Cloudflare R2</b> · doubledone-scrapbooks<br/>keepsake images, served by URL"]
     W -->|"AI"| AN["<b>Anthropic Claude</b> (tiered)<br/>Haiku · Sonnet"]
 ```
 
@@ -117,6 +126,7 @@ The client never talks to Anthropic directly: the Worker is the only thing that 
 | AI contract | Forced tool-use + enum-constrained JSON schemas, defensive parsing | Reliable structured output; a malformed response never crashes a screen |
 | Moat telemetry | Cloudflare D1 (`ai_calls`), Worker-bound, no `user_id` | Pseudonymous capture of every AI call for the flywheel; no public write path |
 | Premium delight | Cloudflare Workers AI (scene → image) | The AI scrapbook, on free-tier neurons, no Anthropic spend |
+| Image storage | Cloudflare R2 (`doubledone-scrapbooks`) | Durable scrapbook keepsakes served by URL; the heavy image lives off the localStorage quota |
 | Agent surface (AX) | MCP server on the Worker (`/mcp`), bearer-token | AI agents drive tasks under the user's own RLS, no elevated key |
 | Tests | Vitest, co-located, risk-targeted | Logic + the AI request **contract** are tested (mock the SDK, assert the shape); no live AI calls in CI |
 | Quality gate | golden-path harness (pre-commit Inspector, gitleaks, CI) | The whole safety net for a solo build |
@@ -142,9 +152,10 @@ The backlog is kept live with a **trigger** on every item (the full list, with r
 - **Multi-language (Italian, Spanish, French)** — in progress; the AI will answer in the user's language. *Trigger: now.*
 - **Design overhaul** — a deliberate visual pass; the calm system is intentional but due a refresh. *Trigger: feature-complete core (reached).*
 - **"Other users took about X days" estimate** — the moat's user-facing payoff. *Trigger: enough anonymised cross-user volume to be honest.*
-- **Plan my day · Custom lists · a Settings page** — scoped, parked against the spine so they never turn Today into an everything-bucket.
+- **Scrapbook cross-device sync** — the images are durable on R2; syncing their URLs to your account (so they follow you to a new device) is the remaining half. *Trigger: before real paid users.*
+- **Plan my day · Custom lists** — scoped, parked against the spine so they never turn Today into an everything-bucket.
 - **Monetisation (Stripe Premium)** — **built in test mode**: a real Stripe Checkout subscription (A$5/mo), a webhook-verified entitlement in D1, a calm paywall, and scrapbook cadence gating (free monthly, premium weekly by tenure). Going live needs the Stripe keys set and a transactional email sender. *Trigger: a real public launch.*
-- **Public launch path** — account/data deletion, the written privacy policy, and AI-endpoint lockdown are **done**; the Play Store listing and a transactional email sender remain. *Trigger: before pointing real people at it.*
+- **Public launch path** — account/data deletion, data export, the written privacy policy, and AI-endpoint lockdown are **done**; the Play Store listing and a transactional email sender remain. *Trigger: before pointing real people at it.*
 
 ## Run it
 
