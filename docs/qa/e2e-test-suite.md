@@ -158,4 +158,5 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | PREM-06 | P2 | Worker | Webhook rejects a bad signature | POST a forged event to /stripe-webhook with no valid Stripe-Signature. | 400 bad signature; no entitlement change. |
 | PREM-07 | P1 | Web | Webhook delivery succeeds (Stripe side) | After the test checkout, open the Stripe event destination's delivery log. | The checkout/subscription events show 'delivered' with a 200 from the Worker. |
 | PREM-08 | P1 | Web | Manage subscription opens the billing portal | As premium: /premium -> Manage subscription. | Redirects to the Stripe Billing Portal (cancel / update card / invoices). |
-| PREM-09 | P1 | Web | Cancel reverts to free | In the portal, cancel the subscription, then return to the app. | Entitlement flips to free; the scrapbook is monthly-gated again; tenure (started_at) is preserved. |
+| PREM-09 | P1 | Web | Cancel reverts to free | In the portal, cancel immediately, then return to the app. | Entitlement flips to free; the scrapbook is monthly-gated again; tenure (started_at) is preserved. |
+| PREM-10 | P2 | Web | Premium screen shows the renew / cancel date | As premium, open /premium; then schedule a cancel-at-period-end in the portal and reopen. | Reads 'Renews <date>' when active, and 'Premium until <date>, then free' when a cancel is scheduled. |

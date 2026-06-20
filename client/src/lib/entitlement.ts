@@ -13,9 +13,10 @@ export type Entitlement = {
   status: string | null;
   since: string | null; // ISO of the first premium grant (the tenure clock)
   currentPeriodEnd: number | null; // epoch seconds
+  cancelAtPeriodEnd: boolean; // scheduled to cancel at the period end
 };
 
-export const FREE_ENTITLEMENT: Entitlement = { premium: false, status: null, since: null, currentPeriodEnd: null };
+export const FREE_ENTITLEMENT: Entitlement = { premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false };
 
 const WEEK_MS = 7 * 86_400_000;
 const MONTH_MS = 30 * 86_400_000;

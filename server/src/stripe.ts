@@ -119,7 +119,23 @@ export async function signPayload(rawBody: string, secret: string, t: number): P
 
 // --- Event -> entitlement --------------------------------------------------
 
-export type Entitlement = { userId: string; premium: boolean; status: string; currentPeriodEnd: number | null; customerId: string | null };
+export type Entitlement = {
+  userId: string;
+  premium: boolean;
+  status: string;
+  currentPeriodEnd: number | null;
+  cancelAtPeriodEnd: boolean;
+  customerId: string | null;
+};
+
+// dahlia (2026-04) moved current_period_end off the subscription top-level and into
+// its items; read whichever is present.
+function subscriptionPeriodEnd(obj: Record<string, unknown>): number | null {
+  if (typeof obj.current_period_end === 'number') return obj.current_period_end;
+  const items = (obj.items as { data?: { current_period_end?: unknown }[] } | undefined)?.data;
+  const fromItem = Array.isArray(items) ? items[0]?.current_period_end : undefined;
+  return typeof fromItem === 'number' ? fromItem : null;
+}
 
 /** Map a Stripe event to an entitlement change, or null if it is not one we act on.
  *  The user id rides in client_reference_id (checkout) or metadata.user_id (both). */
@@ -134,7 +150,7 @@ export function entitlementFromEvent(event: unknown): Entitlement | null {
     const userId = (obj.client_reference_id as string) || meta.user_id || '';
     if (!userId) return null;
     const paid = obj.payment_status === 'paid' || obj.status === 'complete';
-    return { userId, premium: paid, status: paid ? 'active' : 'incomplete', currentPeriodEnd: null, customerId };
+    return { userId, premium: paid, status: paid ? 'active' : 'incomplete', currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId };
   }
 
   if (type.startsWith('customer.subscription.')) {
@@ -142,8 +158,14 @@ export function entitlementFromEvent(event: unknown): Entitlement | null {
     if (!userId) return null;
     const status = typeof obj.status === 'string' ? obj.status : '';
     const premium = status === 'active' || status === 'trialing';
-    const currentPeriodEnd = typeof obj.current_period_end === 'number' ? obj.current_period_end : null;
-    return { userId, premium, status, currentPeriodEnd, customerId };
+    return {
+      userId,
+      premium,
+      status,
+      currentPeriodEnd: subscriptionPeriodEnd(obj),
+      cancelAtPeriodEnd: obj.cancel_at_period_end === true,
+      customerId,
+    };
   }
 
   return null;
@@ -159,33 +181,49 @@ export type { D1LikeDatabase };
 export async function writeEntitlement(db: D1LikeDatabase, ent: Entitlement, nowISO: string): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO entitlements (user_id, premium, status, current_period_end, started_at, stripe_customer_id, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+      `INSERT INTO entitlements (user_id, premium, status, current_period_end, cancel_at_period_end, started_at, stripe_customer_id, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
        ON CONFLICT(user_id) DO UPDATE SET
          premium = ?2,
          status = ?3,
-         current_period_end = ?4,
-         started_at = COALESCE(entitlements.started_at, ?5),
-         stripe_customer_id = COALESCE(?6, entitlements.stripe_customer_id),
-         updated_at = ?7`,
+         current_period_end = COALESCE(?4, entitlements.current_period_end),
+         cancel_at_period_end = ?5,
+         started_at = COALESCE(entitlements.started_at, ?6),
+         stripe_customer_id = COALESCE(?7, entitlements.stripe_customer_id),
+         updated_at = ?8`,
     )
-    .bind(ent.userId, ent.premium ? 1 : 0, ent.status, ent.currentPeriodEnd, ent.premium ? nowISO : null, ent.customerId, nowISO)
+    .bind(ent.userId, ent.premium ? 1 : 0, ent.status, ent.currentPeriodEnd, ent.cancelAtPeriodEnd ? 1 : 0, ent.premium ? nowISO : null, ent.customerId, nowISO)
     .run();
 }
 
-export type EntitlementView = { premium: boolean; status: string | null; since: string | null; currentPeriodEnd: number | null; customerId: string | null };
+export type EntitlementView = {
+  premium: boolean;
+  status: string | null;
+  since: string | null;
+  currentPeriodEnd: number | null;
+  cancelAtPeriodEnd: boolean;
+  customerId: string | null;
+};
 
 export async function readEntitlement(db: D1LikeDatabase, userId: string): Promise<EntitlementView> {
   const row = await db
-    .prepare('SELECT premium, status, started_at, current_period_end, stripe_customer_id FROM entitlements WHERE user_id = ?1')
+    .prepare('SELECT premium, status, started_at, current_period_end, cancel_at_period_end, stripe_customer_id FROM entitlements WHERE user_id = ?1')
     .bind(userId)
-    .first<{ premium: number; status: string | null; started_at: string | null; current_period_end: number | null; stripe_customer_id: string | null }>();
-  if (!row) return { premium: false, status: null, since: null, currentPeriodEnd: null, customerId: null };
+    .first<{
+      premium: number;
+      status: string | null;
+      started_at: string | null;
+      current_period_end: number | null;
+      cancel_at_period_end: number | null;
+      stripe_customer_id: string | null;
+    }>();
+  if (!row) return { premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null };
   return {
     premium: row.premium === 1,
     status: row.status,
     since: row.started_at,
     currentPeriodEnd: row.current_period_end,
+    cancelAtPeriodEnd: row.cancel_at_period_end === 1,
     customerId: row.stripe_customer_id,
   };
 }
@@ -264,7 +302,11 @@ export async function handleWebhook(request: Request, env: FullEnv, nowISO: stri
 export async function handleEntitlement(request: Request, env: FullEnv, cors: Record<string, string>): Promise<Response> {
   const sub = decodeJwtSub(bearer(request));
   if (!sub) return new Response(JSON.stringify({ error: 'sign_in_required' }), { status: 401, headers: { ...JSON_HEADERS, ...cors } });
-  if (!env.DB) return new Response(JSON.stringify({ premium: false, status: null, since: null, currentPeriodEnd: null, customerId: null }), { headers: { ...JSON_HEADERS, ...cors } });
+  if (!env.DB) {
+    return new Response(JSON.stringify({ premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null }), {
+      headers: { ...JSON_HEADERS, ...cors },
+    });
+  }
   const view = await readEntitlement(env.DB, sub);
   return new Response(JSON.stringify(view), { headers: { ...JSON_HEADERS, ...cors } });
 }

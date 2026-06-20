@@ -272,8 +272,11 @@ CASES = [
      "As premium: /premium -> Manage subscription.",
      "Redirects to the Stripe Billing Portal (cancel / update card / invoices).", "Web"),
     ("PREM-09", "Premium", "P1", "Cancel reverts to free",
-     "In the portal, cancel the subscription, then return to the app.",
+     "In the portal, cancel immediately, then return to the app.",
      "Entitlement flips to free; the scrapbook is monthly-gated again; tenure (started_at) is preserved.", "Web"),
+    ("PREM-10", "Premium", "P2", "Premium screen shows the renew / cancel date",
+     "As premium, open /premium; then schedule a cancel-at-period-end in the portal and reopen.",
+     "Reads 'Renews <date>' when active, and 'Premium until <date>, then free' when a cancel is scheduled.", "Web"),
 ]
 
 HEADERS = ["ID", "Area", "Priority", "Test", "Steps", "Expected result",

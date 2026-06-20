@@ -4,7 +4,7 @@ import { canMakeScrapbook, type Entitlement, FREE_ENTITLEMENT, weeklyAllowance }
 
 const DAY = 86_400_000;
 const now = Date.parse('2026-06-20T12:00:00Z');
-const premium = (since: string | null): Entitlement => ({ premium: true, status: 'active', since, currentPeriodEnd: null });
+const premium = (since: string | null): Entitlement => ({ premium: true, status: 'active', since, currentPeriodEnd: null, cancelAtPeriodEnd: false });
 
 describe('weeklyAllowance', () => {
   it('scales with tenure and never shrinks', () => {

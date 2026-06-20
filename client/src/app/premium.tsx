@@ -10,6 +10,16 @@ import { loadEntitlement, startCheckout, startPortal } from '@/lib/stripe';
 import { track } from '@/lib/telemetry';
 import { useThemedStyles } from '@/lib/theme-provider';
 
+// Format an epoch-seconds period end as a short date ("20 Jul 2026"), or null.
+function formatPeriod(epochSec: number | null): string | null {
+  if (!epochSec) return null;
+  try {
+    return new Date(epochSec * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch {
+    return null;
+  }
+}
+
 // The Premium surface. Calm, never a hard wall: the free monthly keepsake is always
 // honoured, and Premium is framed as "keep every week", not "unlock or lose". The
 // server is the source of truth for premium status; this screen only reads it and
@@ -25,6 +35,7 @@ export default function PremiumScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [allowance, setAllowance] = useState(1);
+  const [periodLabel, setPeriodLabel] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -38,6 +49,7 @@ export default function PremiumScreen() {
         if (!active) return false;
         setEnt(e);
         setAllowance(weeklyAllowance(e.since, Date.now()));
+        setPeriodLabel(formatPeriod(e.currentPeriodEnd));
         setLoading(false);
         return e.premium;
       };
@@ -122,6 +134,11 @@ export default function PremiumScreen() {
               You get {allowance} keepsake{allowance === 1 ? '' : 's'} a week{allowance < 4 ? ', and more the longer you stay.' : '.'} Thank you for keeping
               DoubleDone independent.
             </Text>
+            {ent.cancelAtPeriodEnd && periodLabel ? (
+              <Text style={styles.subStatus}>Premium until {periodLabel}, then back to the free monthly keepsake.</Text>
+            ) : periodLabel ? (
+              <Text style={styles.subStatus}>Renews {periodLabel}.</Text>
+            ) : null}
             <Text style={styles.foot}>The free monthly keepsake is always yours, even if you cancel.</Text>
             <Pressable
               onPress={manage}
@@ -230,6 +247,7 @@ const makeStyles = (t: Theme) =>
     ctaText: { color: '#FFFFFF', fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     pressed: { opacity: 0.8 },
     foot: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 20 },
+    subStatus: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 },
     error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body },
     backLink: { alignSelf: 'center', marginTop: spacing.one },
     backLinkText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },

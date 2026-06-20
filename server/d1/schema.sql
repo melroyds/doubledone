@@ -31,9 +31,12 @@ create table if not exists entitlements (
   premium integer not null default 0,   -- 0/1
   status text,                          -- Stripe subscription status (active, canceled, ...)
   current_period_end integer,           -- epoch seconds, when the paid period ends
+  cancel_at_period_end integer not null default 0,  -- 0/1, scheduled to cancel at the period end
   started_at text,                      -- ISO, first premium grant (the tenure clock)
   stripe_customer_id text,              -- cus_..., needed to open the billing portal (cancel/manage)
   updated_at text not null default (datetime('now'))
 );
--- For a DB created before stripe_customer_id existed, add it once (errors harmlessly
--- if already present): ALTER TABLE entitlements ADD COLUMN stripe_customer_id text;
+-- For a DB created before these columns existed, add them once (errors harmlessly if
+-- already present):
+--   ALTER TABLE entitlements ADD COLUMN stripe_customer_id text;
+--   ALTER TABLE entitlements ADD COLUMN cancel_at_period_end integer not null default 0;
