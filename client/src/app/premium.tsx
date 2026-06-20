@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { useSession } from '@/lib/auth';
 import { type Entitlement, FREE_ENTITLEMENT, weeklyAllowance } from '@/lib/entitlement';
-import { loadEntitlement, startCheckout } from '@/lib/stripe';
+import { loadEntitlement, startCheckout, startPortal } from '@/lib/stripe';
 import { track } from '@/lib/telemetry';
 import { useThemedStyles } from '@/lib/theme-provider';
 
@@ -81,6 +81,25 @@ export default function PremiumScreen() {
     }
   }
 
+  async function manage() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    track('premium.manage_opened');
+    const res = await startPortal();
+    if (!res.ok) {
+      setError(res.error === 'sign_in' ? 'Please sign in again.' : 'Could not open the billing portal. Please try again.');
+      setBusy(false);
+      return;
+    }
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.location.assign(res.url);
+    } else {
+      void Linking.openURL(res.url);
+      setBusy(false);
+    }
+  }
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top + spacing.three }]}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
@@ -103,15 +122,20 @@ export default function PremiumScreen() {
               You get {allowance} keepsake{allowance === 1 ? '' : 's'} a week{allowance < 4 ? ', and more the longer you stay.' : '.'} Thank you for keeping
               DoubleDone independent.
             </Text>
-            <Text style={styles.foot}>Manage or cancel anytime from your Stripe receipt email. The free monthly keepsake is always yours regardless.</Text>
+            <Text style={styles.foot}>The free monthly keepsake is always yours, even if you cancel.</Text>
             <Pressable
-              onPress={() => router.replace('/')}
+              onPress={manage}
+              disabled={busy}
               accessibilityRole="button"
-              accessibilityLabel="Back to Today"
-              style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
+              accessibilityLabel="Manage or cancel your subscription"
+              style={({ pressed }) => [styles.cta, pressed && styles.pressed, busy && styles.ctaBusy]}
             >
-              <Text style={styles.ctaText}>Back to Today</Text>
+              <Text style={styles.ctaText}>{busy ? 'Opening…' : 'Manage subscription'}</Text>
             </Pressable>
+            <Pressable onPress={() => router.replace('/')} accessibilityRole="button" accessibilityLabel="Back to Today" hitSlop={8} style={styles.backLink}>
+              <Text style={styles.backLinkText}>Back to Today</Text>
+            </Pressable>
+            {error ? <Text style={styles.error}>{error}</Text> : null}
           </View>
         ) : (
           <View style={styles.panel}>
@@ -207,4 +231,6 @@ const makeStyles = (t: Theme) =>
     pressed: { opacity: 0.8 },
     foot: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 20 },
     error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body },
+    backLink: { alignSelf: 'center', marginTop: spacing.one },
+    backLinkText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   });

@@ -268,6 +268,12 @@ CASES = [
     ("PREM-07", "Premium", "P1", "Webhook delivery succeeds (Stripe side)",
      "After the test checkout, open the Stripe event destination's delivery log.",
      "The checkout/subscription events show 'delivered' with a 200 from the Worker.", "Web"),
+    ("PREM-08", "Premium", "P1", "Manage subscription opens the billing portal",
+     "As premium: /premium -> Manage subscription.",
+     "Redirects to the Stripe Billing Portal (cancel / update card / invoices).", "Web"),
+    ("PREM-09", "Premium", "P1", "Cancel reverts to free",
+     "In the portal, cancel the subscription, then return to the app.",
+     "Entitlement flips to free; the scrapbook is monthly-gated again; tenure (started_at) is preserved.", "Web"),
 ]
 
 HEADERS = ["ID", "Area", "Priority", "Test", "Steps", "Expected result",

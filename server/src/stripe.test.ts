@@ -46,12 +46,12 @@ describe('webhook signature', () => {
 });
 
 describe('entitlementFromEvent', () => {
-  it('grants premium on a paid checkout session', () => {
+  it('grants premium on a paid checkout session, capturing the customer id', () => {
     const ent = entitlementFromEvent({
       type: 'checkout.session.completed',
-      data: { object: { client_reference_id: 'u1', payment_status: 'paid', status: 'complete' } },
+      data: { object: { client_reference_id: 'u1', payment_status: 'paid', status: 'complete', customer: 'cus_1' } },
     });
-    expect(ent).toEqual({ userId: 'u1', premium: true, status: 'active', currentPeriodEnd: null });
+    expect(ent).toEqual({ userId: 'u1', premium: true, status: 'active', currentPeriodEnd: null, customerId: 'cus_1' });
   });
 
   it('tracks subscription status changes by metadata user id', () => {
@@ -87,7 +87,7 @@ function fakeDb(): D1LikeDatabase & { rows: Map<string, Record<string, unknown>>
           return stmt;
         },
         async run() {
-          const [userId, premium, status, cpe, startedAt, updatedAt] = args as [string, number, string, number | null, string | null, string];
+          const [userId, premium, status, cpe, startedAt, customerId, updatedAt] = args as [string, number, string, number | null, string | null, string | null, string];
           const existing = rows.get(userId);
           rows.set(userId, {
             user_id: userId,
@@ -95,6 +95,7 @@ function fakeDb(): D1LikeDatabase & { rows: Map<string, Record<string, unknown>>
             status,
             current_period_end: cpe,
             started_at: (existing?.started_at as string | null) ?? startedAt, // COALESCE(existing, new)
+            stripe_customer_id: customerId ?? (existing?.stripe_customer_id as string | null) ?? null,
             updated_at: updatedAt,
           });
         },
@@ -109,20 +110,21 @@ function fakeDb(): D1LikeDatabase & { rows: Map<string, Record<string, unknown>>
 }
 
 describe('entitlement store', () => {
-  it('writes premium then reads it back, preserving the tenure start across a cancel', async () => {
+  it('writes premium then reads it back, preserving the tenure start and customer across a cancel', async () => {
     const db = fakeDb();
-    await writeEntitlement(db, { userId: 'u1', premium: true, status: 'active', currentPeriodEnd: 123 }, '2026-06-20T00:00:00Z');
+    await writeEntitlement(db, { userId: 'u1', premium: true, status: 'active', currentPeriodEnd: 123, customerId: 'cus_1' }, '2026-06-20T00:00:00Z');
     let view = await readEntitlement(db, 'u1');
-    expect(view).toEqual({ premium: true, status: 'active', since: '2026-06-20T00:00:00Z', currentPeriodEnd: 123 });
+    expect(view).toEqual({ premium: true, status: 'active', since: '2026-06-20T00:00:00Z', currentPeriodEnd: 123, customerId: 'cus_1' });
 
-    // a later cancel flips premium off but must NOT reset the tenure clock
-    await writeEntitlement(db, { userId: 'u1', premium: false, status: 'canceled', currentPeriodEnd: 123 }, '2026-09-01T00:00:00Z');
+    // a later cancel flips premium off but must NOT reset the tenure clock or lose the customer
+    await writeEntitlement(db, { userId: 'u1', premium: false, status: 'canceled', currentPeriodEnd: 123, customerId: null }, '2026-09-01T00:00:00Z');
     view = await readEntitlement(db, 'u1');
     expect(view.premium).toBe(false);
     expect(view.since).toBe('2026-06-20T00:00:00Z');
+    expect(view.customerId).toBe('cus_1'); // preserved by COALESCE
   });
 
   it('reports not-premium for an unknown user', async () => {
-    expect(await readEntitlement(fakeDb(), 'nobody')).toEqual({ premium: false, status: null, since: null, currentPeriodEnd: null });
+    expect(await readEntitlement(fakeDb(), 'nobody')).toEqual({ premium: false, status: null, since: null, currentPeriodEnd: null, customerId: null });
   });
 });

@@ -56,6 +56,22 @@ export async function createCheckoutSession(env: StripeEnv, userId: string, emai
   return typeof session.url === 'string' ? session.url : null;
 }
 
+/** Create a Billing Portal session for a customer (manage / cancel), returning its URL. */
+export async function createPortalSession(env: StripeEnv, customerId: string, returnUrl: string): Promise<string | null> {
+  if (!env.STRIPE_SECRET_KEY) return null;
+  const form = new URLSearchParams();
+  form.set('customer', customerId);
+  form.set('return_url', returnUrl);
+  const res = await fetch(`${STRIPE_API}/billing_portal/sessions`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${env.STRIPE_SECRET_KEY}`, 'content-type': 'application/x-www-form-urlencoded' },
+    body: form.toString(),
+  });
+  if (!res.ok) return null;
+  const session = (await res.json()) as { url?: unknown };
+  return typeof session.url === 'string' ? session.url : null;
+}
+
 // --- Webhook signature (Stripe's scheme, via Web Crypto) -------------------
 
 /** Parse a `Stripe-Signature` header: `t=...,v1=...,v1=...`. */
@@ -103,7 +119,7 @@ export async function signPayload(rawBody: string, secret: string, t: number): P
 
 // --- Event -> entitlement --------------------------------------------------
 
-export type Entitlement = { userId: string; premium: boolean; status: string; currentPeriodEnd: number | null };
+export type Entitlement = { userId: string; premium: boolean; status: string; currentPeriodEnd: number | null; customerId: string | null };
 
 /** Map a Stripe event to an entitlement change, or null if it is not one we act on.
  *  The user id rides in client_reference_id (checkout) or metadata.user_id (both). */
@@ -112,12 +128,13 @@ export function entitlementFromEvent(event: unknown): Entitlement | null {
   const obj = e.data?.object ?? {};
   const type = typeof e.type === 'string' ? e.type : '';
   const meta = (obj.metadata as Record<string, string> | undefined) ?? {};
+  const customerId = typeof obj.customer === 'string' ? obj.customer : null;
 
   if (type === 'checkout.session.completed') {
     const userId = (obj.client_reference_id as string) || meta.user_id || '';
     if (!userId) return null;
     const paid = obj.payment_status === 'paid' || obj.status === 'complete';
-    return { userId, premium: paid, status: paid ? 'active' : 'incomplete', currentPeriodEnd: null };
+    return { userId, premium: paid, status: paid ? 'active' : 'incomplete', currentPeriodEnd: null, customerId };
   }
 
   if (type.startsWith('customer.subscription.')) {
@@ -126,7 +143,7 @@ export function entitlementFromEvent(event: unknown): Entitlement | null {
     const status = typeof obj.status === 'string' ? obj.status : '';
     const premium = status === 'active' || status === 'trialing';
     const currentPeriodEnd = typeof obj.current_period_end === 'number' ? obj.current_period_end : null;
-    return { userId, premium, status, currentPeriodEnd };
+    return { userId, premium, status, currentPeriodEnd, customerId };
   }
 
   return null;
@@ -142,32 +159,34 @@ export type { D1LikeDatabase };
 export async function writeEntitlement(db: D1LikeDatabase, ent: Entitlement, nowISO: string): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO entitlements (user_id, premium, status, current_period_end, started_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+      `INSERT INTO entitlements (user_id, premium, status, current_period_end, started_at, stripe_customer_id, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
        ON CONFLICT(user_id) DO UPDATE SET
          premium = ?2,
          status = ?3,
          current_period_end = ?4,
          started_at = COALESCE(entitlements.started_at, ?5),
-         updated_at = ?6`,
+         stripe_customer_id = COALESCE(?6, entitlements.stripe_customer_id),
+         updated_at = ?7`,
     )
-    .bind(ent.userId, ent.premium ? 1 : 0, ent.status, ent.currentPeriodEnd, ent.premium ? nowISO : null, nowISO)
+    .bind(ent.userId, ent.premium ? 1 : 0, ent.status, ent.currentPeriodEnd, ent.premium ? nowISO : null, ent.customerId, nowISO)
     .run();
 }
 
-export type EntitlementView = { premium: boolean; status: string | null; since: string | null; currentPeriodEnd: number | null };
+export type EntitlementView = { premium: boolean; status: string | null; since: string | null; currentPeriodEnd: number | null; customerId: string | null };
 
 export async function readEntitlement(db: D1LikeDatabase, userId: string): Promise<EntitlementView> {
   const row = await db
-    .prepare('SELECT premium, status, started_at, current_period_end FROM entitlements WHERE user_id = ?1')
+    .prepare('SELECT premium, status, started_at, current_period_end, stripe_customer_id FROM entitlements WHERE user_id = ?1')
     .bind(userId)
-    .first<{ premium: number; status: string | null; started_at: string | null; current_period_end: number | null }>();
-  if (!row) return { premium: false, status: null, since: null, currentPeriodEnd: null };
+    .first<{ premium: number; status: string | null; started_at: string | null; current_period_end: number | null; stripe_customer_id: string | null }>();
+  if (!row) return { premium: false, status: null, since: null, currentPeriodEnd: null, customerId: null };
   return {
     premium: row.premium === 1,
     status: row.status,
     since: row.started_at,
     currentPeriodEnd: row.current_period_end,
+    customerId: row.stripe_customer_id,
   };
 }
 
@@ -197,6 +216,21 @@ export async function handleCheckout(request: Request, env: FullEnv, cors: Recor
   }
   const url = await createCheckoutSession(env, sub, typeof email === 'string' ? email : undefined);
   if (!url) return new Response(JSON.stringify({ error: 'checkout_failed' }), { status: 502, headers: { ...JSON_HEADERS, ...cors } });
+  return new Response(JSON.stringify({ url }), { headers: { ...JSON_HEADERS, ...cors } });
+}
+
+/** POST /portal — authed. Returns { url } to the Stripe Billing Portal (manage / cancel).
+ *  Needs the customer id the webhook stored; 404 if the user has no subscription yet. */
+export async function handlePortal(request: Request, env: FullEnv, cors: Record<string, string>): Promise<Response> {
+  const sub = decodeJwtSub(bearer(request));
+  if (!sub) return new Response(JSON.stringify({ error: 'sign_in_required' }), { status: 401, headers: { ...JSON_HEADERS, ...cors } });
+  if (!env.STRIPE_SECRET_KEY || !env.DB) {
+    return new Response(JSON.stringify({ error: 'not_configured' }), { status: 503, headers: { ...JSON_HEADERS, ...cors } });
+  }
+  const view = await readEntitlement(env.DB, sub);
+  if (!view.customerId) return new Response(JSON.stringify({ error: 'no_subscription' }), { status: 404, headers: { ...JSON_HEADERS, ...cors } });
+  const url = await createPortalSession(env, view.customerId, `${env.APP_URL ?? DEFAULT_APP_URL}/premium`);
+  if (!url) return new Response(JSON.stringify({ error: 'portal_failed' }), { status: 502, headers: { ...JSON_HEADERS, ...cors } });
   return new Response(JSON.stringify({ url }), { headers: { ...JSON_HEADERS, ...cors } });
 }
 
@@ -230,7 +264,7 @@ export async function handleWebhook(request: Request, env: FullEnv, nowISO: stri
 export async function handleEntitlement(request: Request, env: FullEnv, cors: Record<string, string>): Promise<Response> {
   const sub = decodeJwtSub(bearer(request));
   if (!sub) return new Response(JSON.stringify({ error: 'sign_in_required' }), { status: 401, headers: { ...JSON_HEADERS, ...cors } });
-  if (!env.DB) return new Response(JSON.stringify({ premium: false, status: null, since: null, currentPeriodEnd: null }), { headers: { ...JSON_HEADERS, ...cors } });
+  if (!env.DB) return new Response(JSON.stringify({ premium: false, status: null, since: null, currentPeriodEnd: null, customerId: null }), { headers: { ...JSON_HEADERS, ...cors } });
   const view = await readEntitlement(env.DB, sub);
   return new Response(JSON.stringify(view), { headers: { ...JSON_HEADERS, ...cors } });
 }

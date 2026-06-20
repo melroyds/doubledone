@@ -30,6 +30,20 @@ export async function startCheckout(): Promise<CheckoutResult> {
   }
 }
 
+/** Open the Stripe Billing Portal (manage / cancel the subscription). */
+export async function startPortal(): Promise<CheckoutResult> {
+  const auth = await authHeader();
+  if (!auth) return { ok: false, error: 'sign_in' };
+  try {
+    const res = await fetch(`${API_URL}/portal`, { method: 'POST', headers: { 'content-type': 'application/json', ...auth }, body: '{}' });
+    if (!res.ok) return { ok: false, error: 'failed' };
+    const { url } = (await res.json()) as { url?: unknown };
+    return typeof url === 'string' ? { ok: true, url } : { ok: false, error: 'failed' };
+  } catch {
+    return { ok: false, error: 'failed' };
+  }
+}
+
 /** Read the current entitlement from the server (the source of truth). Defaults to free. */
 export async function loadEntitlement(): Promise<Entitlement> {
   const auth = await authHeader();

@@ -9,7 +9,7 @@ import { handleMcp } from './mcp';
 import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
 import { dataUrl, IMAGE_MODEL, imagePrompt, parseImage, parseScene, SCENE_MODEL, sceneMessages } from './scrapbook';
 import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
-import { handleCheckout, handleEntitlement, handleWebhook } from './stripe';
+import { handleCheckout, handleEntitlement, handlePortal, handleWebhook } from './stripe';
 import { type D1LikeDatabase, extractUsage, logAiCall } from './telemetry';
 import { buildTriageRequest, parseTriageResponse, TRIAGE_MODEL } from './triage';
 
@@ -122,6 +122,9 @@ export default {
     // the webhook can attribute the subscription). No Anthropic cost, so not gated.
     if (pathname === '/checkout' && request.method === 'POST') {
       return handleCheckout(request, env, cors);
+    }
+    if (pathname === '/portal' && request.method === 'POST') {
+      return handlePortal(request, env, cors);
     }
     if (pathname === '/entitlement' && request.method === 'GET') {
       return handleEntitlement(request, env, cors);
