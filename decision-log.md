@@ -1162,3 +1162,13 @@ Gated green (typecheck / lint / 202 tests). The questions modal needs a live AI 
 ## 2026-06-21 Premium redesign: the free-keepsake reassurance on the pitch
 
 The Premium screen already was the system-pass design: the P1 pitch ("Keep every week", the 1 → 2 → 4 tenure tiers, "A$5 / month. Cancel anytime. No ads, ever.", "Go Premium" / "Sign in to go Premium"), the P2 "You're Premium ✓" panel with renew/cancel status, and the loading / setting-up / cancelled / not-signed-in states. One gap: the no-dark-pattern reassurance **"The free monthly keepsake is always yours"** lived only on the premium panel (P2), not the pitch. Added to P1 (worded for signed-in vs not) so the pitch itself promises nothing is taken away. Verified in preview: the not-signed-in pitch shows all six elements plus the reassurance. A refinement, not a rebuild. Next: Settings / Sign-in / Privacy.
+
+## 2026-06-21 Settings / Sign-in / Privacy redesign
+
+**Settings:** regrouped the flat list into the two system-pass bands, **Comfort** (Theme, Text size, Motion) and **Access & data** (Privacy & data, Export, Account, AI agent access). The sections already existed; this adds the band headers and tightens the spacing so the page reads as two clear groups instead of a scroll of rows. The Premium card still glows at the foot.
+
+**Sign-in:** already the system-pass S2 (the "Sync across devices" two-step, email → 6-digit code, with the sent-to / use-a-different-email / signed-in states). No change.
+
+**Privacy:** already the S3 typographic policy (serif title, "Last updated", the clean sections, "Privacy by architecture, not by promises"). Fixed one stale line: "Your control" claimed account-delete was "being added", but it shipped (and export shipped), so the public policy now states both accurately. Honesty matters more here than anywhere: a privacy policy that lags the build is a broken trust principle, and trust principles compound or compound-rot.
+
+Verified in preview: Settings shows both bands + the premium card; Privacy shows the corrected control copy. Next: the Repeating drawer.

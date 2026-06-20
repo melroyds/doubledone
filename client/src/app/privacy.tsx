@@ -59,9 +59,9 @@ export default function PrivacyScreen() {
         </Section>
 
         <Section styles={styles} heading="Your control">
-          Work entirely offline and anonymous if you like. Sign out whenever you want, which stops syncing. A full
-          delete-my-account-and-data option is being added; until then you can clear the app&apos;s data from your
-          device or browser.
+          Work entirely offline and anonymous if you like. Sign out whenever you want, which stops syncing. You can
+          export all your data as a file at any time. And if you sync, you can permanently delete your account and
+          everything synced to it from Settings.
         </Section>
 
         <Section styles={styles} heading="Questions">

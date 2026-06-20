@@ -145,6 +145,7 @@ export default function SettingsScreen() {
         <Text style={styles.title}>Settings</Text>
         <Text style={styles.subtitle}>Make it comfortable. These follow you across the app.</Text>
 
+        <Text style={styles.band}>Comfort</Text>
         <View style={styles.rows}>
           <Choice<ThemePref>
             label="Theme"
@@ -179,6 +180,7 @@ export default function SettingsScreen() {
           />
         </View>
 
+        <Text style={styles.band}>Access & data</Text>
         <Pressable
           onPress={() => router.push('/privacy')}
           accessibilityRole="button"
@@ -351,7 +353,17 @@ const makeStyles = (t: Theme) =>
     // Editorial serif header at weight 400, the calm counterpoint to bold "Today".
     title: { color: t.colors.ink, fontSize: 42 * t.scale, fontWeight: '400', fontFamily: fonts.sans, marginTop: spacing.three },
     subtitle: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22, marginTop: spacing.two },
-    rows: { marginTop: spacing.six, gap: spacing.six },
+    band: {
+      color: t.colors.inkFaint,
+      fontSize: 12 * t.scale,
+      fontFamily: fonts.bodyBold,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: 0.8,
+      marginTop: spacing.six,
+      marginBottom: spacing.two,
+    },
+    rows: { marginTop: spacing.two, gap: spacing.six },
     rowLabel: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     rowHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20, marginTop: spacing.one },
     segment: { flexDirection: 'row', gap: spacing.two, marginTop: spacing.three },
@@ -369,7 +381,7 @@ const makeStyles = (t: Theme) =>
     segText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     segTextOn: { color: t.colors.accent },
     pressed: { opacity: 0.7 },
-    privacyLink: { marginTop: spacing.six },
+    privacyLink: { marginTop: spacing.two },
     privacyLinkText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     premiumCardWrap: { marginTop: 'auto', paddingTop: spacing.six }, // pin to the bottom of the page
     premiumCard: {
