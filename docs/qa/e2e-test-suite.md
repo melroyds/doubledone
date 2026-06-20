@@ -27,6 +27,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | TOD-04b | P2 | Both | Reopen a closed day | From the rested screen, tap 'Reopen today'. | Returns to the normal Today with all tasks intact. (A new calendar day also auto-clears the closed state.) |
 | TOD-05 | P2 | Both | Undo a completion | Complete a task, then undo it (toggle back). | Returns to open cleanly. Counts/Lookback stay consistent. |
 | TOD-06 | P1 | Both | Persistence across restart | Add tasks, fully close the app/tab, reopen. | Tasks are still there (local-first). Nothing lost. |
+| TOD-07 | P2 | Both | Long-press a task: the action menu | Press and hold a task to open its menu: Tomorrow, Break down, Remove, Close. | Remove is the only 'danger' (brick) coloured action; Close (mauve, to the right of Remove) just dismisses with nothing lost. Tomorrow defers, Break down opens decompose. |
 
 ## AI decompose
 

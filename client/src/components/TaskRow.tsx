@@ -67,11 +67,11 @@ export function TaskRow({
           >
             <Text style={[styles.keep, slices.done <= 0 && styles.controlOff]}>Step back</Text>
           </Pressable>
-          <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel="Close">
-            <Text style={styles.keep}>Close</Text>
-          </Pressable>
           <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${title}`}>
             <Text style={styles.remove}>Remove</Text>
+          </Pressable>
+          <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel="Close">
+            <Text style={styles.close}>Close</Text>
           </Pressable>
         </View>
       );
@@ -94,11 +94,11 @@ export function TaskRow({
               <Text style={styles.keep}>Break down</Text>
             </Pressable>
           )}
-          <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel="Keep">
-            <Text style={styles.keep}>Keep</Text>
-          </Pressable>
           <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${title}`}>
             <Text style={styles.remove}>Remove</Text>
+          </Pressable>
+          <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel="Close">
+            <Text style={styles.close}>Close</Text>
           </Pressable>
         </View>
       </View>
@@ -213,7 +213,8 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   confirmActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.three },
   keep: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', paddingHorizontal: spacing.two },
   controlOff: { color: t.colors.inkFaint },
-  remove: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', paddingHorizontal: spacing.two },
+  close: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', paddingHorizontal: spacing.two },
+  remove: { color: t.colors.danger, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', paddingHorizontal: spacing.two },
   check: {
     width: 26,
     height: 26,

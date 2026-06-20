@@ -75,6 +75,9 @@ CASES = [
     ("TOD-06", "Today", "P1", "Persistence across restart",
      "Add tasks, fully close the app/tab, reopen.",
      "Tasks are still there (local-first). Nothing lost.", "Both"),
+    ("TOD-07", "Today", "P2", "Long-press a task: the action menu",
+     "Press and hold a task to open its menu: Tomorrow, Break down, Remove, Close.",
+     "Remove is the only 'danger' (brick) coloured action; Close (mauve, to the right of Remove) just dismisses with nothing lost. Tomorrow defers, Break down opens decompose.", "Both"),
 
     # --- AI: Bite the Elephant (decompose) -----------------------------------
     ("AI-01", "AI decompose", "P1", "Break down a dreaded task",

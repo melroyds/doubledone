@@ -1028,3 +1028,13 @@ Path A (chosen over making Sort a ranker, which fights the protect-the-finite-da
 - The apply + summarise logic moved to a pure, unit-tested `lib/triage.ts` (`triageToTasks`, `summarizeAdded`, `summaryLine`).
 
 Verified end to end in preview with a live triage: a mixed dump returned "Sorted: 3 for today, 2 to break down" and flagged the two big items ("File the tax return", "Plan the year of travel") inline. Deliberately did NOT add reordering, did NOT clear the flag on a cancelled break-down (it persists as an honest "still big" until the task is done or sliced), and did NOT rename it yet. Test input matters: a homogeneous dump can't show a sort, the value shows on a mixed pile.
+
+## 2026-06-20 A calm "danger" colour for Remove, and Close as the prominent escape
+
+The long-press menu (Tomorrow / Break down / Keep / Remove) had two faults Melroy caught: "Keep" read as a no-op (it is the menu's only escape, but the muted word + styling hid that), and Remove sat in the same mauve accent as everything else, so the one destructive action did not look destructive.
+
+- "Keep" became **"Close"**, moved to the right of Remove (action-first, escape-last) and given the prominent mauve accent the safe default deserves. Matches the sliced-task menu, which already said "Close".
+- Remove now uses a new palette token **`danger`** (light `#A1554C`, dark `#D2887E`), a muted brick: the calm stand-in for the red a delete would normally get, without the alarm that breaks the Dusk palette's no-urgency rule. Clears WCAG AA on the menu's mauve-tint background in both schemes.
+- The handler is unchanged: purely label, order, and colour.
+
+Decided against alarming red (breaks the calm contract) and against dropping the explicit escape for tap-away only (an explicit, labelled "out" suits an anxious / RSD-prone audience better than making them infer it). Verified in preview: order is Tomorrow / Break down / Remove / Close, Close mauve, Remove brick.

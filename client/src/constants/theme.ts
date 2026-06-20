@@ -22,6 +22,7 @@ export type Palette = {
   done: string;
   doneSoft: string;
   repeat: string;
+  danger: string;
   priorityGradient: readonly string[];
   accents: readonly string[];
 };
@@ -38,6 +39,7 @@ const light = {
   done: '#7E9B6B', // sage, completion, calm not alarming
   doneSoft: '#E9EFE2',
   repeat: '#6E72A0', // dusk periwinkle, marks repeating tasks
+  danger: '#A1554C', // muted brick, the calm stand-in for "red" on destructive actions (Remove)
   priorityGradient: ['#3B82F6', '#8B5CF6'], // saved loud blue->violet, for the premium "Prioritise a task" feature
   // A small, calm set of accent hues (e.g. for per-task dots). Desaturated by design.
   accents: ['#9B6A7D', '#4E8C86', '#C19A4F', '#6E72A0', '#BE7F84'], // mauve, teal, gold, periwinkle, rose
@@ -55,6 +57,7 @@ const dark = {
   done: '#9DB98A',
   doneSoft: '#2A3024',
   repeat: '#8E97C8', // lifted periwinkle
+  danger: '#D2887E', // lifted brick for dark mode
   priorityGradient: ['#5B8DEF', '#9B6CF0'],
   accents: ['#C68BA0', '#6FB0A8', '#D6B36A', '#8E97C8', '#D6979C'],
 } satisfies Palette;
