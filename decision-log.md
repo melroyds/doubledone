@@ -989,3 +989,14 @@ Built the monetisation surface as **Path B** (demonstrated, test-mode): a real S
 **Cancel / manage (2026-06-20).** Used Stripe's hosted **Billing Portal** rather than a custom cancel UI, the standard build-vs-buy call (don't reinvent billing surfaces). A `/portal` endpoint creates a portal session from the stored `stripe_customer_id` (now captured from the webhook into a new `entitlements` column), the client's "Manage subscription" button opens it, and a cancellation flows back through the **existing** `customer.subscription.deleted/updated` webhook → the entitlement reverts to free. The tenure clock (`started_at`) survives a cancel via COALESCE, so re-subscribing keeps the loyalty. **Pending Melroy:** redeploy, activate the Customer Portal in the Stripe sandbox (enable cancellation), and resend one subscription event to backfill the customer id onto the pre-existing entitlement row.
 
 **Subscription lifecycle states (2026-06-20).** The entitlement now also captures `cancel_at_period_end` and the period-end date, read from the dahlia subscription *items* (Stripe moved `current_period_end` off the top level there; banked as a gotcha). So the Premium screen distinguishes **renewing** ("Renews 20 Jul") from **scheduled-to-cancel** ("Premium until 20 Jul, then back to the free monthly keepsake"), and a cancel-then-keep round-trip shows in the data rather than being inferred from a timestamp. The webhook write COALESCEs the period (a null checkout event can't clobber a known date). Two new D1 columns, applied live.
+
+## 2026-06-20 The Lookback shows scheduled tasks, not just finished ones
+
+Melroy deferred a task to tomorrow, then looked for it in the Lookback and it wasn't there. The task was safe (the Today screen's "Later" strip), but the month calendar, the natural "what's scheduled when" surface, showed nothing on its date. Don't fight that signal: the founder reached for the calendar to see upcoming work, and real users will too.
+
+Added without diluting the Lookback's purpose (the completion payoff stays the headline):
+- **A distinct marker.** Future days with a scheduled one-off get a mauve **outline** dot, visually separate from the sage **filled** "you finished this" dot.
+- **Forward day-detail.** Tapping a future day lists its scheduled tasks under a "Scheduled" label with a hollow ○ marker (vs the ✓ for completions).
+- Scope: **future-dated one-offs only** (deferred + the "Date…" chip), the same set as the Today "Later" strip. Recurring tasks stay in the Repeating drawer, not sprayed across every future day. `scheduledByDay` is pure + unit-tested.
+
+A calm partial answer to the deferred "outstanding section of Today" question (decision-log 2026-06-19): future work is now visible in two honest places, the "Later" strip and the calendar, without turning Today into an everything-bucket. Verified in preview.

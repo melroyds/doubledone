@@ -78,3 +78,25 @@ export function completionsByDay<T extends Completable>(tasks: T[]): Map<string,
   }
   return byDay;
 }
+
+export type ScheduledItem = { id: string; title: string };
+
+/**
+ * Map of ISO date -> one-off tasks scheduled for that FUTURE day (a deferred or
+ * "Date…" task). Only future-dated, not-done, not-tombstoned one-offs; recurring
+ * tasks live in the Repeating drawer, so they are not marked on the calendar here.
+ * Mirrors the "Later" list, but grouped by due date for the month grid.
+ */
+export function scheduledByDay<T extends Completable>(tasks: T[], today: Date): Map<string, ScheduledItem[]> {
+  const todayIso = toISODate(today);
+  const byDay = new Map<string, ScheduledItem[]>();
+  for (const t of tasks) {
+    if (t.deletedAt || isRecurring(t) || t.done) continue;
+    if (t.due != null && t.due > todayIso) {
+      const list = byDay.get(t.due);
+      if (list) list.push({ id: t.id, title: t.title });
+      else byDay.set(t.due, [{ id: t.id, title: t.title }]);
+    }
+  }
+  return byDay;
+}

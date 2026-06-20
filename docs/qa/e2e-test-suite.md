@@ -55,6 +55,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | LB-01 | P1 | Both | Open the calendar | Open the Lookback. Browse to different days/months. | A real Gregorian calendar. Navigation works, no crash. |
 | LB-02 | P1 | Both | Completed tasks show on their day | Complete a task today, open the Lookback on today. | The completed task is listed under today. |
 | LB-03 | P2 | Both | Old dreaded task is celebrated | Complete a task that is old or high-complexity; view it in the Lookback. | Marked 'a big one' / weighted celebration. Never shamed for being old. |
+| LB-04 | P2 | Both | Scheduled tasks show on the calendar | Defer a task to tomorrow (or use 'Date...'), then open the Lookback and tap that future day. | The future day shows an outline marker; tapping it lists the task under 'Scheduled'. |
 
 ## Scrapbook
 

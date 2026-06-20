@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { makeScrapbook } from '@/lib/ai';
-import { addMonths, completionsByDay, monthLabel, monthMatrix, WEEKDAY_LABELS } from '@/lib/calendar';
+import { addMonths, completionsByDay, monthLabel, monthMatrix, scheduledByDay, WEEKDAY_LABELS } from '@/lib/calendar';
 import { formatTodayLabel, fromISODate, toISODate } from '@/lib/day';
 import { canMakeScrapbook, type Entitlement, FREE_ENTITLEMENT } from '@/lib/entitlement';
 import { findScrapbook, type Scrapbook, upsertScrapbook, weekCompletions, weekLabel, weekStartISO } from '@/lib/scrapbook';
@@ -57,9 +57,11 @@ export default function LookbackScreen() {
   );
 
   const byDay = useMemo(() => completionsByDay(tasks), [tasks]);
+  const scheduled = useMemo(() => scheduledByDay(tasks, today), [tasks, today]);
   const weeks = useMemo(() => monthMatrix(view.year, view.month), [view]);
   const todayIso = toISODate(today);
   const selectedItems = byDay.get(selected) ?? [];
+  const selectedScheduled = scheduled.get(selected) ?? [];
 
   // The scrapbook is per-week: the week of the selected day. Its image is made
   // from that week's finished titles, distilled into a calm, abstract scene.
@@ -149,6 +151,7 @@ export default function LookbackScreen() {
             const items = byDay.get(iso);
             const count = items?.length ?? 0;
             const bigDay = items?.some((c) => c.big) ?? false;
+            const sched = scheduled.get(iso)?.length ?? 0;
             const isToday = iso === todayIso;
             const isSelected = iso === selected;
             return (
@@ -157,14 +160,20 @@ export default function LookbackScreen() {
                 onPress={() => openDay(iso)}
                 style={styles.cell}
                 accessibilityRole="button"
-                accessibilityLabel={`${iso}, ${count} finished${bigDay ? ', a big one' : ''}`}
+                accessibilityLabel={`${iso}, ${count} finished${bigDay ? ', a big one' : ''}${sched > 0 ? `, ${sched} scheduled` : ''}`}
               >
                 <View style={[styles.dayBlob, isToday && styles.dayToday, isSelected && styles.daySelected]}>
                   <Text style={[styles.dayNum, isSelected && styles.dayNumSelected]}>
                     {fromISODate(iso).getDate()}
                   </Text>
                 </View>
-                {count > 0 ? <View style={bigDay ? styles.dotBig : styles.dot} /> : <View style={styles.dotSpacer} />}
+                {count > 0 ? (
+                  <View style={bigDay ? styles.dotBig : styles.dot} />
+                ) : sched > 0 ? (
+                  <View style={styles.dotScheduled} />
+                ) : (
+                  <View style={styles.dotSpacer} />
+                )}
               </Pressable>
             );
           })}
@@ -181,6 +190,16 @@ export default function LookbackScreen() {
               {c.big && <Text style={styles.itemBig}>a big one</Text>}
             </View>
           ))
+        ) : selectedScheduled.length > 0 ? (
+          <>
+            <Text style={styles.detailScheduledHead}>Scheduled</Text>
+            {selectedScheduled.map((s) => (
+              <View key={s.id} style={styles.item}>
+                <Text style={styles.itemMarkScheduled}>○</Text>
+                <Text style={styles.itemTitle}>{s.title}</Text>
+              </View>
+            ))}
+          </>
         ) : (
           <Text style={styles.detailEmpty}>Nothing logged this day.</Text>
         )}
@@ -285,11 +304,22 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   dot: { width: 5, height: 5, borderRadius: radius.pill, backgroundColor: t.colors.done, marginTop: 3 },
   dotBig: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: t.colors.done, marginTop: 1 },
   dotSpacer: { width: 5, height: 5, marginTop: 3 },
+  dotScheduled: { width: 6, height: 6, borderRadius: radius.pill, borderWidth: 1.5, borderColor: t.colors.accent, marginTop: 2 },
   detail: { marginTop: spacing.six, gap: spacing.two },
   detailDate: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginBottom: spacing.one },
   detailEmpty: { color: t.colors.inkFaint, fontSize: 15 * t.scale, fontFamily: fonts.body },
   item: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
   itemMark: { color: t.colors.done, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+  itemMarkScheduled: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+  detailScheduledHead: {
+    color: t.colors.accent,
+    fontSize: 12 * t.scale,
+    fontFamily: fonts.bodyBold,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.one,
+  },
   itemTitle: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, flexShrink: 1 },
   itemBig: { color: t.colors.done, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   scrapbook: { marginTop: spacing.six, gap: spacing.three },

@@ -105,6 +105,9 @@ CASES = [
     ("LB-03", "Lookback", "P2", "Old dreaded task is celebrated",
      "Complete a task that is old or high-complexity; view it in the Lookback.",
      "Marked 'a big one' / weighted celebration. Never shamed for being old.", "Both"),
+    ("LB-04", "Lookback", "P2", "Scheduled tasks show on the calendar",
+     "Defer a task to tomorrow (or use 'Date...'), then open the Lookback and tap that future day.",
+     "The future day shows an outline marker; tapping it lists the task under 'Scheduled'.", "Both"),
 
     # --- Scrapbook ------------------------------------------------------------
     ("SB-01", "Scrapbook", "P1", "Make a scrapbook",
