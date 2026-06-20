@@ -90,6 +90,9 @@ CASES = [
     ("TOD-11", "Today", "P3", "Weight-of-today gauge",
      "Add a few tasks and watch the slim gauge under 'Just today'.",
      "A calm bar + label (clear / light / full / heavy) reflects the count of unfinished one-offs, honest, never alarming, hidden on a clear day.", "Both"),
+    ("TOD-12", "Today", "P2", "Multi-select bulk actions",
+     "Tap 'Select several', tap a few tasks to select, then use the bar: Done / Tomorrow / Remove. Cancel exits.",
+     "Rows become checkboxes, the count updates, the bulk action applies to all selected at once and exits select mode. Long-press still gives a single task its own menu.", "Both"),
 
     # --- AI: Bite the Elephant (decompose) -----------------------------------
     ("AI-01", "AI decompose", "P1", "Break down a dreaded task",

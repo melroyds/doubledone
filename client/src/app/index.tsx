@@ -65,6 +65,8 @@ export default function TodayScreen() {
   const [didText, setDidText] = useState('');
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusSkips, setFocusSkips] = useState<string[]>([]);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -243,6 +245,52 @@ export default function TodayScreen() {
   function closeFocus() {
     setFocusOpen(false);
     setFocusSkips([]);
+  }
+
+  // Multi-select: pick several tasks and act on them at once. Long-press keeps its
+  // single-task menu; this is the calm "clear a few quickly" path.
+  function enterSelect() {
+    setSelectMode(true);
+    setSelected([]);
+    track('select.opened');
+  }
+  function exitSelect() {
+    setSelectMode(false);
+    setSelected([]);
+  }
+  function toggleSelect(id: string) {
+    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  }
+  function bulkComplete() {
+    if (selected.length === 0) return;
+    const now = nowMs();
+    const set = new Set(selected);
+    commit(
+      tasks.map((t) => {
+        if (!set.has(t.id) || isDoneOn(t, today)) return t;
+        const toggled = { ...toggleDoneOn(t, today), updatedAt: now };
+        if (!isRecurring(toggled)) toggled.completedAt = toggled.done ? now : null;
+        return toggled;
+      }),
+    );
+    track('bulk.completed', { count: selected.length });
+    exitSelect();
+  }
+  function bulkDefer() {
+    if (selected.length === 0) return;
+    const now = nowMs();
+    const set = new Set(selected);
+    commit(tasks.map((t) => (set.has(t.id) && !isRecurring(t) ? { ...deferToTomorrow(t, today), updatedAt: now } : t)));
+    track('bulk.deferred', { count: selected.length });
+    exitSelect();
+  }
+  function bulkRemove() {
+    if (selected.length === 0) return;
+    const now = nowMs();
+    const set = new Set(selected);
+    commit(tasks.map((t) => (set.has(t.id) ? { ...t, deletedAt: now, updatedAt: now } : t)));
+    track('bulk.removed', { count: selected.length });
+    exitSelect();
   }
 
   function signOut() {
@@ -653,6 +701,9 @@ export default function TodayScreen() {
               onBreakdown={() => breakdownExisting(task.title)}
               onDefer={() => deferTask(task.id)}
               suggestBreakdown={task.suggestBreakdown}
+              selecting={selectMode}
+              selected={selected.includes(task.id)}
+              onSelect={() => toggleSelect(task.id)}
             />
           ))}
         </View>
@@ -700,7 +751,7 @@ export default function TodayScreen() {
             ))}
           </View>
         )}
-        {loaded && (
+        {loaded && !selectMode && (
           <View style={styles.dayActions}>
             {spreadable.length >= 2 && (
               <>
@@ -728,6 +779,17 @@ export default function TodayScreen() {
                 <Text style={styles.focusLink}>Focus on one thing</Text>
               </Pressable>
             )}
+            {visible.length > 0 && (
+              <Pressable
+                onPress={enterSelect}
+                accessibilityRole="button"
+                accessibilityLabel="Select multiple tasks"
+                hitSlop={6}
+                style={({ pressed }) => [pressed && styles.pressed]}
+              >
+                <Text style={styles.focusLink}>Select several</Text>
+              </Pressable>
+            )}
             <Pressable
               onPress={() => setDidOpen(true)}
               accessibilityRole="button"
@@ -752,6 +814,26 @@ export default function TodayScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.four }]}>
+        {selectMode ? (
+          <View style={styles.selectBar}>
+            <Text style={styles.selectCount}>{selected.length === 0 ? 'Tap tasks to select' : `${selected.length} selected`}</Text>
+            <View style={styles.selectActions}>
+              <Pressable onPress={bulkComplete} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Mark selected done" hitSlop={6}>
+                <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>Done</Text>
+              </Pressable>
+              <Pressable onPress={bulkDefer} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Move selected to tomorrow" hitSlop={6}>
+                <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>Tomorrow</Text>
+              </Pressable>
+              <Pressable onPress={bulkRemove} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Remove selected" hitSlop={6}>
+                <Text style={[styles.selectRemove, selected.length === 0 && styles.selectActionOff]}>Remove</Text>
+              </Pressable>
+            </View>
+            <Pressable onPress={exitSelect} accessibilityRole="button" accessibilityLabel="Cancel selection" hitSlop={6}>
+              <Text style={styles.selectCancel}>Cancel</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <>
         {!isClosed && sortSummary && <Text style={styles.sortSummary}>{sortSummary}</Text>}
         {!isClosed && <BrainDump onCapture={capture} onBiteElephant={biteElephant} onSort={sortDump} today={today} />}
         {isSyncConfigured &&
@@ -786,6 +868,8 @@ export default function TodayScreen() {
         <View style={styles.ethos}>
           <RotatingPhrase />
         </View>
+          </>
+        )}
       </View>
 
       <Modal visible={focusOpen} animationType="fade" onRequestClose={closeFocus}>
@@ -1084,6 +1168,13 @@ const makeStyles = (t: Theme) =>
     syncText: { color: t.colors.inkFaint, fontSize: 13 * t.scale, flexShrink: 1, fontFamily: fonts.body },
     syncAction: { color: t.colors.accent, fontSize: 13 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
     ethos: { marginTop: spacing.three, alignItems: 'center' },
+    selectBar: { gap: spacing.three, alignItems: 'center', paddingVertical: spacing.two },
+    selectCount: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    selectActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.six },
+    selectAction: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    selectRemove: { color: t.colors.danger, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    selectActionOff: { color: t.colors.inkFaint },
+    selectCancel: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     sortSummary: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginBottom: spacing.two },
     reentry: {
       backgroundColor: t.colors.accentSoft,

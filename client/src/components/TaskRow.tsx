@@ -21,6 +21,9 @@ type Props = {
   onBreakdown?: () => void;
   onDefer?: () => void;
   suggestBreakdown?: boolean;
+  selecting?: boolean;
+  selected?: boolean;
+  onSelect?: () => void;
 };
 
 // A single row. Tap to complete (a soft sage check, gentle fade, never a shaming
@@ -47,9 +50,30 @@ export function TaskRow({
   onBreakdown,
   onDefer,
   suggestBreakdown,
+  selecting,
+  selected,
+  onSelect,
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
+
+  // Multi-select mode: every row becomes a checkbox (tap to pick), and the calm
+  // tap-to-complete / long-press menu are suspended until the user leaves select mode.
+  if (selecting) {
+    return (
+      <Pressable
+        onPress={onSelect}
+        style={({ pressed }) => [styles.row, !recurring && styles.rowUnique, selected && styles.rowSelected, pressed && styles.pressed]}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: Boolean(selected) }}
+        accessibilityLabel={`Select ${title}`}
+      >
+        <View style={[styles.selectDot, selected && styles.selectDotOn]}>{selected && <Text style={styles.tick}>✓</Text>}</View>
+        <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
+        {recurring && <Text style={styles.repeatMark}>↻</Text>}
+      </Pressable>
+    );
+  }
   if (confirming) {
     // A sliced task's hold reveals its quiet controls: step a slice back (the only
     // place the "minus" lives now), or remove. The count updates live as you step.
@@ -225,6 +249,17 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     justifyContent: 'center',
   },
   checkDone: { backgroundColor: t.colors.done, borderColor: t.colors.done },
+  rowSelected: { borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
+  selectDot: {
+    width: 26,
+    height: 26,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    borderColor: t.colors.inkFaint,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectDotOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
   tick: { color: '#FFFFFF', fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', lineHeight: 17 },
   text: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 23 },
   textDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },

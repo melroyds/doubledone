@@ -1103,3 +1103,13 @@ Built and deployed with Melroy here (R2 enabled, `doubledone-scrapbooks` bucket 
 Verified LIVE: a real generation returned a `/scrapbook-img/…jpg` URL (not a blob), and fetching it served `image/jpeg`, 380KB, `cache-control: immutable` from R2. Worker version `fba3a254`.
 
 Remaining (the cross-device half): sync the scrapbook URLs to a Supabase `scrapbooks` table so they survive a cache-clear and follow a signed-in user to a new device. The *image* is durable in R2 now; the URL reference still lives only in localStorage until that sync lands.
+
+## 2026-06-21 Multi-select: clear a few tasks at once
+
+Long-press gives one task its menu, but clearing several meant repeating it. A "Select several" link in the day actions now enters a **select mode**: every row becomes a checkbox, the day actions + capture give way to a calm bottom bar (Done / Tomorrow / Remove / Cancel), and the action applies to every picked task at once. Long-press keeps its single-task power menu (Break down etc.), so nothing was lost; multi-select is a distinct, explicit mode.
+
+- Bulk **Done** (the same per-task completion path, recurring + slices handled), **Tomorrow** (defer one-offs; recurring skipped, deferring a habit is meaningless), **Remove** (soft-delete, the brick "danger" colour). Each exits select mode after acting. `select.opened` / `bulk.completed` / `bulk.deferred` / `bulk.removed` instrumented.
+- Scoped to **today's main list** for v1 (Melroy's "at least on a specific day"); the Later strip stays single-action.
+- Decided AGAINST overloading long-press to enter multi-select: it would cost the useful single-task menu. An explicit "Select" mode is clearer and keeps both.
+
+Verified in preview: enter select, pick two of three, Remove -> the two soft-delete, the third survives, select mode exits.

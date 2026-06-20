@@ -32,6 +32,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | TOD-09 | P2 | Both | Log an off-list thing you did | Tap '+ I also did that' in the day actions, type something you did, then Add it. | It appears checked on Today and in the Lookback for today, counted as a completion, never as an unfinished task. |
 | TOD-10 | P2 | Both | Focus mode: just this one | With a few tasks present, tap 'Focus on one thing'. Try 'Not this one' (skip), 'Done' (complete), and Exit. | Full-screen single task, everything else hidden. Skip advances, Done completes and advances, Exit returns. When none left: 'That's everything for now.' |
 | TOD-11 | P3 | Both | Weight-of-today gauge | Add a few tasks and watch the slim gauge under 'Just today'. | A calm bar + label (clear / light / full / heavy) reflects the count of unfinished one-offs, honest, never alarming, hidden on a clear day. |
+| TOD-12 | P2 | Both | Multi-select bulk actions | Tap 'Select several', tap a few tasks to select, then use the bar: Done / Tomorrow / Remove. Cancel exits. | Rows become checkboxes, the count updates, the bulk action applies to all selected at once and exits select mode. Long-press still gives a single task its own menu. |
 
 ## AI decompose
 
