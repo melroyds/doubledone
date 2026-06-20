@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrainDump } from '@/components/BrainDump';
 import { type BreakdownAnswers, BreakdownQuestions } from '@/components/BreakdownQuestions';
 import { BreakdownReview, type ReviewPhase, type ReviewStep } from '@/components/BreakdownReview';
+import { DatePicker } from '@/components/DatePicker';
 import { RepeatingDrawer } from '@/components/RepeatingDrawer';
 import { RotatingPhrase } from '@/components/RotatingPhrase';
 import { TaskRow } from '@/components/TaskRow';
@@ -21,7 +22,7 @@ import {
 } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
-import { addDaysISO, formatTodayLabel, friendlyDate, isReentry, toISODate } from '@/lib/day';
+import { addDaysISO, formatTodayLabel, friendlyDate, isReentry, presetDate, toISODate } from '@/lib/day';
 import { dayWeight } from '@/lib/estimate';
 import { aiLanguage } from '@/lib/locale';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
@@ -35,7 +36,7 @@ import { parseDump, type Task } from '@/lib/tasks';
 import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
 import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
-import { deferToTomorrow, isDoneOn, isRecurring, tasksForToday, toggleDoneOn, upcomingTasks } from '@/lib/today';
+import { deferTo, deferToTomorrow, isDoneOn, isRecurring, tasksForToday, toggleDoneOn, upcomingTasks } from '@/lib/today';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
@@ -63,6 +64,7 @@ export default function TodayScreen() {
   const [reentry, setReentry] = useState(false);
   const [didOpen, setDidOpen] = useState(false);
   const [didText, setDidText] = useState('');
+  const [moveToOpen, setMoveToOpen] = useState(false);
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusSkips, setFocusSkips] = useState<string[]>([]);
   const [selectMode, setSelectMode] = useState(false);
@@ -291,6 +293,15 @@ export default function TodayScreen() {
     const set = new Set(selected);
     commit(tasks.map((t) => (set.has(t.id) ? { ...t, deletedAt: now, updatedAt: now } : t)));
     track('bulk.removed', { count: selected.length });
+    exitSelect();
+  }
+  function bulkMoveTo(iso: string) {
+    if (selected.length === 0) return;
+    const now = nowMs();
+    const set = new Set(selected);
+    commit(tasks.map((t) => (set.has(t.id) && !isRecurring(t) ? { ...deferTo(t, iso), updatedAt: now } : t)));
+    track('bulk.moved', { count: selected.length });
+    setMoveToOpen(false);
     exitSelect();
   }
 
@@ -821,6 +832,9 @@ export default function TodayScreen() {
               <Pressable onPress={bulkDefer} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Move selected to tomorrow" hitSlop={6}>
                 <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>Tomorrow</Text>
               </Pressable>
+              <Pressable onPress={() => setMoveToOpen(true)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Move selected to a date" hitSlop={6}>
+                <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>Move to…</Text>
+              </Pressable>
               {selected.length === 1 && (
                 <Pressable
                   onPress={() => {
@@ -977,6 +991,45 @@ export default function TodayScreen() {
                 <Text style={styles.didAddText}>Add it</Text>
               </Pressable>
             </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={moveToOpen} transparent animationType="fade" onRequestClose={() => setMoveToOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setMoveToOpen(false)} accessibilityLabel="Dismiss">
+          <Pressable style={styles.wrapCard} onPress={() => {}}>
+            <Text style={styles.didTitle}>Move to…</Text>
+            <Text style={styles.didHint}>
+              {`${selected.length} ${selected.length === 1 ? 'task' : 'tasks'} will wait calmly in Later until the day you pick.`}
+            </Text>
+            <View style={styles.moveToPresets}>
+              <Pressable
+                onPress={() => bulkMoveTo(presetDate(today, 'thisWeekend'))}
+                style={({ pressed }) => [styles.moveChip, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityLabel="This weekend"
+              >
+                <Text style={styles.moveChipText}>This weekend</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => bulkMoveTo(presetDate(today, 'nextWeek'))}
+                style={({ pressed }) => [styles.moveChip, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Next week"
+              >
+                <Text style={styles.moveChipText}>Next week</Text>
+              </Pressable>
+            </View>
+            <DatePicker value={null} onChange={(iso) => bulkMoveTo(iso)} today={today} />
+            <Pressable
+              onPress={() => setMoveToOpen(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel"
+              hitSlop={8}
+              style={styles.moveCancelWrap}
+            >
+              <Text style={styles.didCancel}>Cancel</Text>
+            </Pressable>
           </Pressable>
         </Pressable>
       </Modal>
@@ -1281,6 +1334,10 @@ const makeStyles = (t: Theme) =>
     alsoDidUnderList: { marginTop: spacing.three, marginBottom: spacing.two, alignItems: 'center' },
     selectTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.two },
     selectAllText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
+    moveToPresets: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two, justifyContent: 'center', marginBottom: spacing.three },
+    moveChip: { borderWidth: 1, borderColor: t.colors.line, borderRadius: radius.pill, paddingVertical: spacing.two, paddingHorizontal: spacing.three },
+    moveChipText: { color: t.colors.ink, fontFamily: fonts.body, fontSize: 14 * t.scale },
+    moveCancelWrap: { marginTop: spacing.three, alignItems: 'center' },
     focusScreen: { flex: 1, backgroundColor: t.colors.bg, padding: spacing.six, justifyContent: 'center', alignItems: 'center' },
     focusExit: { position: 'absolute', top: spacing.seven, left: spacing.five },
     focusExitText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },

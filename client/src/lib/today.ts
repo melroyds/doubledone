@@ -61,6 +61,12 @@ export function deferToTomorrow<T extends Scheduled>(task: T, date: Date): T {
   return { ...task, due: addDaysISO(date, 1) };
 }
 
+/** Move a one-off to a specific date (the calm "Move to…"); recurring tasks are unchanged. */
+export function deferTo<T extends Scheduled>(task: T, iso: string): T {
+  if (isRecurring(task)) return task;
+  return { ...task, due: iso };
+}
+
 /** Future-dated one-offs (due after today), not done, soonest first: the "Later" list. */
 export function upcomingTasks<T extends Scheduled>(tasks: T[], date: Date): T[] {
   const todayIso = toISODate(date);

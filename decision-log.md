@@ -1125,3 +1125,9 @@ Still to land (next commits): tap-and-hold to enter selection (replacing the lon
 This deliberately reverses the earlier multi-select call ("decided AGAINST overloading long-press to enter multi-select"). The system-pass redesign dissolves the objection that reversal raised, which was that long-press-to-select would cost the single-task menu: the menu's actions are not lost, they move into the adaptive bar. Tap-and-hold a task now enters selection with that task already picked. With one selected the bar offers Done / Tomorrow / Break down / Remove (Break down only makes sense for a single task); with several, the same minus Break down. "Select all" picks every unfinished one-off. The Select-several button is gone. So two interactions (the per-task long-press menu and the multi-select button) fold into one calm gesture. Verified in preview: long-press a task → the bar shows selected / Select all / Tomorrow / Break down / Remove / Cancel.
 
 "Move to…" (a date picker in the bar, using the new presets) lands next.
+
+## 2026-06-21 Today redesign (3/n): "Move to…" in the select bar
+
+The adaptive bar gains **"Move to…"** beside Tomorrow. It opens a calm modal with two presets (This weekend, Next week, resolved by the new `presetDate` helpers) and the full month-grid DatePicker. Picking a day moves every selected one-off to that date (recurring tasks are left alone, they move by cadence, not a chosen date) and they wait in Later until then. New tested pure helper `deferTo(task, iso)` mirrors `deferToTomorrow`. Verified in preview: select a task → Move to… → This weekend → the task's due becomes the coming Saturday (2026-06-27), it lands in Later, and select mode exits.
+
+The select bar is now the single home for every per-task and bulk action: Done, Tomorrow, Move to…, Break down (single only), Remove. The Focus pick-and-go step and the close-the-day "anything else?" prompt are the last two Today slices.
