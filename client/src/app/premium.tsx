@@ -29,17 +29,35 @@ export default function PremiumScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
+      let timer: ReturnType<typeof setInterval> | undefined;
+      let tries = 0;
       track('premium.viewed', { status: status ?? 'open' });
-      void (async () => {
+
+      const load = async () => {
         const e = await loadEntitlement();
-        if (active) {
-          setEnt(e);
-          setAllowance(weeklyAllowance(e.since, Date.now()));
-          setLoading(false);
+        if (!active) return false;
+        setEnt(e);
+        setAllowance(weeklyAllowance(e.since, Date.now()));
+        setLoading(false);
+        return e.premium;
+      };
+
+      void load().then((isPremium) => {
+        // The webhook can lag a few seconds after returning from checkout, so poll
+        // briefly rather than leaving the screen on "updates in a moment" forever.
+        if (active && status === 'success' && !isPremium) {
+          timer = setInterval(() => {
+            tries += 1;
+            void load().then((ok) => {
+              if ((ok || tries >= 10) && timer) clearInterval(timer);
+            });
+          }, 2000);
         }
-      })();
+      });
+
       return () => {
         active = false;
+        if (timer) clearInterval(timer);
       };
     }, [status]),
   );
