@@ -41,7 +41,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 
 | ID | Pri | Platform | Test | Steps | Expected |
 |---|---|---|---|---|---|
-| AI-05 | P2 | Both | Sort-for-me (triage) | With several tasks present, run Sort-for-me / triage. | Sensible ordering/grouping. Calm, never scolding. |
+| AI-05 | P2 | Both | Sort-for-me (triage + discoverability) | In the brain-dump, type 2+ things, one per line. After one line a hint should nudge 'put each on its own line'; at two lines 'Break it down' becomes 'Sort for me'. Run it. | Hint is visible at one line, so Sort is discoverable. Sort returns a sensible ordering/grouping onto Today. Calm, never scolding. |
 
 ## AI strategise
 

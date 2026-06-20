@@ -1011,3 +1011,9 @@ Added a calm **rested Today**:
 - The flag is **keyed by date**, so it self-clears when the day rolls over. Tomorrow is a fresh Today with no un-close step. Nothing is reset or lost, the tasks sit behind a closed door.
 
 Decided against a harder "reset" (clearing or archiving tasks on close): undone tasks already roll forward on their own, and wiping the list would break the never-lose-a-task contract. The close stays a state-of-mind boundary, now with a visible one. This completes the daily loop's emotional spine: dump, work, close, rest, tomorrow. Verified in preview (close to rested, survives reload, reopen restores). E2E TOD-04 / TOD-04b updated.
+
+## 2026-06-20 Make "Sort for me" discoverable (the founder couldn't find it)
+
+The brain-dump's main button swaps from "Break it down" (one line) to "Sort for me" (2+ lines) by line count. Clean and contextual, but invisible: Melroy, the founder, never found Sort because he always typed single tasks, and the placeholder said "one per line" without naming the payoff (AI triage). Don't fight that signal, if the founder misses it, overwhelmed users will too.
+
+Fix: a quiet hint that appears the moment one line is typed, "More than one? Put each on its own line and I'll sort them for you." It names the sort payoff, shows only at `lineCount === 1` (so the resting screen stays clean and it disappears once the Sort button itself appears), and adds no button or setting. Decided against an always-on hint (clutters the calm home screen) and against a dead / disabled "Sort" button (friction). Verified in preview: one line shows the hint + "Break it down", two lines hides it + "Sort for me".
