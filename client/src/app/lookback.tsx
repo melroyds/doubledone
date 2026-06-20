@@ -162,7 +162,7 @@ export default function LookbackScreen() {
         )}
       </View>
 
-      <View style={styles.scrapbook}>
+      <View style={styles.scrapbook} testID="scrapbook-card">
         <Text style={styles.scrapbookHead}>Scrapbook</Text>
 
         {bookBusy ? (

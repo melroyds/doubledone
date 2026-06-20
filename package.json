@@ -17,6 +17,10 @@
     "test": "npm --workspace client run test && npm --workspace server run test",
     "test:coverage": "npm --workspace client run test:coverage && npm --workspace server run test:coverage",
     "test:watch": "npm --workspace client run test:watch",
+    "shots": "node scripts/screenshots.mjs",
     "setup": "git config core.hooksPath .githooks"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.61.0"
   }
 }

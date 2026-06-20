@@ -8,15 +8,25 @@
 **Live:** [doubledone.app](https://doubledone.app) (web). Android installs via a sideloaded EAS build.
 
 <p align="center">
-  <img src="docs/screenshots/today-light.png" alt="DoubleDone Today screen in the warm light theme" width="300" />
+  <img src="docs/screenshots/today-light.png" alt="DoubleDone Today screen in the warm light theme" width="270" />
   &nbsp;
-  <img src="docs/screenshots/today-dark.png" alt="DoubleDone Today screen in the warm-charcoal dark theme" width="300" />
-  <br /><br />
-  <img src="docs/screenshots/settings-light.png" alt="DoubleDone Settings in light" width="300" />
-  &nbsp;
-  <img src="docs/screenshots/settings-dark.png" alt="DoubleDone Settings in dark" width="300" />
+  <img src="docs/screenshots/today-dark.png" alt="DoubleDone Today screen in the warm-charcoal dark theme" width="270" />
 </p>
-<p align="center"><em>Today and Settings, light and dark. The home screen is one doable day; dark follows your device, or your choice.</em></p>
+<p align="center"><em>Today, the home screen: one doable day. Light, and a dark that follows your device or your choice.</em></p>
+
+<p align="center">
+  <img src="docs/screenshots/lookback-light.png" alt="The Lookback: a calendar of everything finished, with completion dots" width="270" />
+  &nbsp;
+  <img src="docs/screenshots/scrapbook-light.png" alt="An AI scrapbook: a still-life keepsake of a finished week, with the tasks listed" width="232" />
+</p>
+<p align="center"><em>The Lookback, the payoff: a calendar of everything you actually finished. And the AI scrapbook, a still-life keepsake of the week whose objects evoke what you did, the finished tasks listed beneath.</em></p>
+
+<p align="center">
+  <img src="docs/screenshots/settings-light.png" alt="DoubleDone Settings in light" width="270" />
+  &nbsp;
+  <img src="docs/screenshots/settings-dark.png" alt="DoubleDone Settings in dark" width="270" />
+</p>
+<p align="center"><em>Settings, scoped to comfort and access: theme, text size, motion. Never an everything-dashboard.</em></p>
 
 ---
 
@@ -146,6 +156,8 @@ npm run typecheck && npm run lint
 ```
 
 > Native Android: `npm run android` (needs Android Studio or a connected device). Config is via env; see [`.env.example`](.env.example). The app runs fully local with no keys set; Supabase keys enable sync, and the AI features call the deployed Worker.
+
+> Screenshots: `npm run shots` regenerates [`docs/screenshots/`](docs/screenshots) by driving the running dev server in headless Chrome and seeding each state via `localStorage` (deterministic, no clicking through flows). See [`scripts/screenshots.mjs`](scripts/screenshots.mjs); it uses the system Chrome (no browser download) and makes one free Workers-AI call for the scrapbook image (`AI_OFF=1` to skip it). Add a screen by adding a `SHOTS` entry.
 
 ## Deploy it
 
