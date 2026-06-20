@@ -1113,3 +1113,9 @@ Long-press gives one task its menu, but clearing several meant repeating it. A "
 - Decided AGAINST overloading long-press to enter multi-select: it would cost the useful single-task menu. An explicit "Select" mode is clearer and keeps both.
 
 Verified in preview: enter select, pick two of three, Remove -> the two soft-delete, the third survives, select mode exits.
+
+## 2026-06-21 Today redesign (1/n): the 3-layer IA from the system pass
+
+Implementing the Claude Design redesign screen by screen. First slice of Today: the day-actions junk drawer (five flat links) is dissolving. **"Focus on one thing"** is promoted to a prominent bordered entry above the list; **"I also did that"** moves to a quiet link beneath the list; the row slims to Strategise (conditional) + Select several + Close. The weight gauge already carries the warmer copy ("A gentle day. Room to breathe.", prior commit). Verified in preview against the mockup's A1.
+
+Still to land (next commits): tap-and-hold to enter selection (replacing the long-press menu AND the Select-several button) with the adaptive action bar + "Move to…", the Focus pick-and-go step, and the close-the-day "anything else?" prompt. The E2E suite gets one refresh when the Today redesign is complete; churning it per intermediate commit of the same screen is not useful.

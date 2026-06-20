@@ -683,6 +683,16 @@ export default function TodayScreen() {
 
         {!isClosed && (
           <>
+        {spreadable.length > 0 && (
+          <Pressable
+            onPress={openFocus}
+            accessibilityRole="button"
+            accessibilityLabel="Focus on one thing"
+            style={({ pressed }) => [styles.focusEntry, pressed && styles.pressed]}
+          >
+            <Text style={styles.focusEntryText}>Focus on one thing</Text>
+          </Pressable>
+        )}
         <View style={styles.list}>
           {visible.map((task) => (
             <TaskRow
@@ -724,6 +734,18 @@ export default function TodayScreen() {
           </View>
         )}
         {allDone && <Text style={styles.calmNote}>{"That's the list. Nicely done."}</Text>}
+
+        {loaded && !selectMode && (
+          <Pressable
+            onPress={() => setDidOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Log something you also did"
+            hitSlop={6}
+            style={({ pressed }) => [styles.alsoDidUnderList, pressed && styles.pressed]}
+          >
+            <Text style={styles.alsoDidLink}>+ I also did that</Text>
+          </Pressable>
+        )}
 
         {upcoming.length > 0 && (
           <View style={styles.later}>
@@ -768,17 +790,6 @@ export default function TodayScreen() {
                 {strategiseError && <Text style={styles.strategiseErr}>{strategiseError}</Text>}
               </>
             )}
-            {spreadable.length > 0 && (
-              <Pressable
-                onPress={openFocus}
-                accessibilityRole="button"
-                accessibilityLabel="Focus on one thing"
-                hitSlop={6}
-                style={({ pressed }) => [pressed && styles.pressed]}
-              >
-                <Text style={styles.focusLink}>Focus on one thing</Text>
-              </Pressable>
-            )}
             {visible.length > 0 && (
               <Pressable
                 onPress={enterSelect}
@@ -790,15 +801,6 @@ export default function TodayScreen() {
                 <Text style={styles.focusLink}>Select several</Text>
               </Pressable>
             )}
-            <Pressable
-              onPress={() => setDidOpen(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Log something you also did"
-              hitSlop={6}
-              style={({ pressed }) => [pressed && styles.pressed]}
-            >
-              <Text style={styles.alsoDidLink}>+ I also did that</Text>
-            </Pressable>
             <Pressable
               onPress={openClose}
               style={({ pressed }) => [styles.closeDay, pressed && styles.pressed]}
@@ -1257,6 +1259,17 @@ const makeStyles = (t: Theme) =>
     didAddBtn: { paddingVertical: spacing.two, paddingHorizontal: spacing.five, borderRadius: radius.md, backgroundColor: t.colors.accent },
     didAddText: { color: '#FFFFFF', fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     focusLink: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    focusEntry: {
+      borderWidth: 1,
+      borderColor: t.colors.accent,
+      borderRadius: radius.md,
+      paddingVertical: spacing.three,
+      paddingHorizontal: spacing.four,
+      marginBottom: spacing.four,
+      alignItems: 'center',
+    },
+    focusEntryText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    alsoDidUnderList: { marginTop: spacing.three, marginBottom: spacing.two, alignItems: 'center' },
     focusScreen: { flex: 1, backgroundColor: t.colors.bg, padding: spacing.six, justifyContent: 'center', alignItems: 'center' },
     focusExit: { position: 'absolute', top: spacing.seven, left: spacing.five },
     focusExitText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
