@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,6 +8,7 @@ import { deleteAccount } from '@/lib/account';
 import { useSession } from '@/lib/auth';
 import { type MotionPref, type TextSize, type ThemePref } from '@/lib/settings';
 import { saveTasks } from '@/lib/storage';
+import { loadEntitlement } from '@/lib/stripe';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
 import { useSettings, useThemedStyles } from '@/lib/theme-provider';
@@ -33,6 +34,21 @@ export default function SettingsScreen() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [mcpToken, setMcpToken] = useState<string | null>(null);
   const [mcpCopied, setMcpCopied] = useState(false);
+  const [premium, setPremium] = useState(false);
+
+  // Reflect the live entitlement so Settings shows a calm "Active" marker on
+  // Premium. Re-checks on focus, e.g. after returning from checkout.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      void loadEntitlement().then((e) => {
+        if (active) setPremium(e.premium);
+      });
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
 
   // Delete the account + all synced data (the RPC removes the auth row; tasks
   // cascade), then wipe local tasks and reset to a clean, signed-out Today.
@@ -135,10 +151,13 @@ export default function SettingsScreen() {
         <Pressable
           onPress={() => router.push('/premium')}
           accessibilityRole="button"
-          accessibilityLabel="DoubleDone Premium"
+          accessibilityLabel={premium ? 'DoubleDone Premium, active' : 'DoubleDone Premium'}
           style={styles.premiumLink}
         >
-          <Text style={styles.premiumLinkText}>DoubleDone Premium ›</Text>
+          <View style={styles.premiumRow}>
+            <Text style={styles.premiumLinkText}>DoubleDone Premium ›</Text>
+            {premium ? <Text style={styles.premiumBadge}>Active ✓</Text> : null}
+          </View>
         </Pressable>
 
         {session ? (
@@ -294,6 +313,18 @@ const makeStyles = (t: Theme) =>
     privacyLinkText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     premiumLink: { marginTop: spacing.four },
     premiumLinkText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    premiumRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.two },
+    premiumBadge: {
+      color: t.colors.accent,
+      fontSize: 13 * t.scale,
+      fontFamily: fonts.bodyBold,
+      fontWeight: '700',
+      backgroundColor: t.colors.accentSoft,
+      borderRadius: radius.sm,
+      paddingVertical: spacing.one,
+      paddingHorizontal: spacing.two,
+      overflow: 'hidden',
+    },
     account: { marginTop: spacing.six, gap: spacing.two },
     accountLabel: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     accountEmail: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
