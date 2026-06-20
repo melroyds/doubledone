@@ -156,3 +156,4 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | PREM-04 | P1 | Both | Entitlement flips to premium | After the test checkout, reopen Premium and the Lookback. | Premium shows active; the scrapbook is no longer monthly-gated (now weekly). |
 | PREM-05 | P2 | Both | Premium weekly wait stays calm | As premium, make this week's allowance of scrapbooks, then try one more. | A calm 'next ready in N days' message, never a paywall. |
 | PREM-06 | P2 | Worker | Webhook rejects a bad signature | POST a forged event to /stripe-webhook with no valid Stripe-Signature. | 400 bad signature; no entitlement change. |
+| PREM-07 | P1 | Web | Webhook delivery succeeds (Stripe side) | After the test checkout, open the Stripe event destination's delivery log. | The checkout/subscription events show 'delivered' with a 200 from the Worker. |

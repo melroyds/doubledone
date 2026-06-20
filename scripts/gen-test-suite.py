@@ -265,6 +265,9 @@ CASES = [
     ("PREM-06", "Premium", "P2", "Webhook rejects a bad signature",
      "POST a forged event to /stripe-webhook with no valid Stripe-Signature.",
      "400 bad signature; no entitlement change.", "Worker"),
+    ("PREM-07", "Premium", "P1", "Webhook delivery succeeds (Stripe side)",
+     "After the test checkout, open the Stripe event destination's delivery log.",
+     "The checkout/subscription events show 'delivered' with a 200 from the Worker.", "Web"),
 ]
 
 HEADERS = ["ID", "Area", "Priority", "Test", "Steps", "Expected result",
