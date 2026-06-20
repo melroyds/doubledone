@@ -1058,3 +1058,9 @@ The single biggest retention lever for this audience (the week-six bar) and the 
 - Decided AGAINST a full-screen takeover (like the rested close-the-day state): for an RSD-sensitive audience a gentle dismissible card is safer than making a production of "you've been away." Decided AGAINST any functional reshuffle of the old tasks: they already carry no "overdue" framing, so the card reframes, it never punishes.
 
 Verified in preview: a 6-day gap shows the card; dismissing or reopening (last-open now today) clears it.
+
+## 2026-06-20 "I also did that": count the off-plan wins
+
+This brain does loads that never made the list, and counting only ticked tasks feeds the "I did nothing" lie. A quiet "+ I also did that" link in the day actions opens a one-line input; what you type becomes a **completed** task stamped now, so it shows checked on Today and lands in the Lookback (the emotional payoff) like any finished thing. `offplan.logged` instrumented, so it also feeds the moat's completion data.
+
+Placed as an in-the-moment Today action (not gated behind close-the-day), because for this audience the win has to be caught before it is forgotten. Decided against a separate "done" list or a capture-schedule "done" mode (both muddy the todo-vs-done line); a completed task in the normal store is the simplest honest model and reuses the Lookback unchanged. Verified in preview: the entry stores `done: true` with a completion stamp and shows checked on Today.

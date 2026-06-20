@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrainDump } from '@/components/BrainDump';
@@ -33,7 +33,7 @@ import { syncOnce } from '@/lib/sync';
 import { parseDump, type Task } from '@/lib/tasks';
 import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
-import { useReducedMotion, useThemedStyles } from '@/lib/theme-provider';
+import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { deferToTomorrow, isDoneOn, isRecurring, tasksForToday, toggleDoneOn, upcomingTasks } from '@/lib/today';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
@@ -60,6 +60,8 @@ export default function TodayScreen() {
   const [closedDate, setClosedDate] = useState<string | null>(null);
   const [sortSummary, setSortSummary] = useState<string | null>(null);
   const [reentry, setReentry] = useState(false);
+  const [didOpen, setDidOpen] = useState(false);
+  const [didText, setDidText] = useState('');
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -84,6 +86,7 @@ export default function TodayScreen() {
   // useState, not useRef: reading a ref in render trips the React Compiler lint.
   const [closeRise] = useState(() => new Animated.Value(0));
   const styles = useThemedStyles(makeStyles);
+  const theme = useTheme();
 
   // Re-read the persisted list on every focus, not only first mount, so returning
   // to Today always reflects the current store, including after an account deletion
@@ -321,6 +324,20 @@ export default function TodayScreen() {
       schedule: schedule.mode,
     });
     if (useSlices) track('slices.defined', { total: sliceCount });
+  }
+
+  // "I also did that": log something already done that was never on the list, so the
+  // Lookback reflects what you actually did, not just what you ticked. A completed
+  // task stamped now (shows checked on Today and in the Lookback). Feeds the moat.
+  function logDidIt(text: string) {
+    const title = text.trim();
+    if (!title) return;
+    const now = nowMs();
+    const did: Task = { id: makeId(), title, done: true, createdAt: now, updatedAt: now, completedAt: now };
+    commit([...tasks, did]);
+    track('offplan.logged');
+    setDidText('');
+    setDidOpen(false);
   }
 
   // Advance (or step back) one slice of a sliced task. Crossing to all-slices-done
@@ -656,6 +673,15 @@ export default function TodayScreen() {
               </>
             )}
             <Pressable
+              onPress={() => setDidOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Log something you also did"
+              hitSlop={6}
+              style={({ pressed }) => [pressed && styles.pressed]}
+            >
+              <Text style={styles.alsoDidLink}>+ I also did that</Text>
+            </Pressable>
+            <Pressable
               onPress={openClose}
               style={({ pressed }) => [styles.closeDay, pressed && styles.pressed]}
               accessibilityRole="button"
@@ -705,6 +731,47 @@ export default function TodayScreen() {
           <RotatingPhrase />
         </View>
       </View>
+
+      <Modal visible={didOpen} transparent animationType="fade" onRequestClose={() => setDidOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setDidOpen(false)} accessibilityLabel="Dismiss">
+          <Pressable style={styles.wrapCard} onPress={() => {}}>
+            <Text style={styles.didTitle}>What did you do?</Text>
+            <Text style={styles.didHint}>{"Something you got done that was never on the list. It still counts."}</Text>
+            <TextInput
+              style={styles.didInput}
+              value={didText}
+              onChangeText={setDidText}
+              placeholder="Made the call, took a walk…"
+              placeholderTextColor={theme.colors.inkFaint}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={() => logDidIt(didText)}
+              accessibilityLabel="What did you do"
+            />
+            <View style={styles.didActions}>
+              <Pressable
+                onPress={() => {
+                  setDidText('');
+                  setDidOpen(false);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                hitSlop={8}
+              >
+                <Text style={styles.didCancel}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => logDidIt(didText)}
+                accessibilityRole="button"
+                accessibilityLabel="Add it"
+                style={({ pressed }) => [styles.didAddBtn, pressed && styles.pressed]}
+              >
+                <Text style={styles.didAddText}>Add it</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Modal visible={closing} transparent animationType="fade" onRequestClose={() => setClosing(false)}>
         <Pressable style={styles.backdrop} onPress={() => setClosing(false)} accessibilityLabel="Dismiss">
@@ -962,6 +1029,25 @@ const makeStyles = (t: Theme) =>
     planWhen: { color: t.colors.accent, fontSize: 14 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
     planDismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two, fontFamily: fonts.body },
     pressed: { opacity: 0.85 },
+    alsoDidLink: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    didTitle: { color: t.colors.ink, fontSize: 21 * t.scale, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3 },
+    didHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20, fontFamily: fonts.body },
+    didInput: {
+      borderWidth: 1,
+      borderColor: t.colors.line,
+      borderRadius: radius.md,
+      paddingVertical: spacing.three,
+      paddingHorizontal: spacing.four,
+      fontSize: 17 * t.scale,
+      fontFamily: fonts.body,
+      color: t.colors.ink,
+      backgroundColor: t.colors.surface,
+      marginTop: spacing.one,
+    },
+    didActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.five, marginTop: spacing.two },
+    didCancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    didAddBtn: { paddingVertical: spacing.two, paddingHorizontal: spacing.five, borderRadius: radius.md, backgroundColor: t.colors.accent },
+    didAddText: { color: '#FFFFFF', fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     backdrop: {
       flex: 1,
       backgroundColor: 'rgba(43,39,34,0.45)',
