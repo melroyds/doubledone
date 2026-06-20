@@ -971,3 +971,15 @@ Built a small Model Context Protocol server so an AI agent can manage a user's t
 - **In-app affordance:** Settings → "AI agent access (MCP)" (signed-in only) shows the endpoint and a "Copy my token" button (web copies to clipboard; the token is also shown selectable for native). Connection guide in [`docs/mcp.md`](docs/mcp.md).
 
 Verified live: initialize returns the server info, tools/list returns the three tools, a tool call with no token returns a calm isError ("Not connected…") without touching Supabase. The authed task calls are Melroy's to exercise with his account.
+
+## 2026-06-20 Stripe Premium (test mode): subscription, webhook → D1 entitlement, scrapbook cadence
+
+Built the monetisation surface as **Path B** (demonstrated, test-mode): a real Stripe integration with no real charges, the portfolio-legible version. The model (locked earlier): **A$5/month subscription, no ads, no in-app currency.** The scrapbook is the premium delight, free = one a month, premium = weekly, scaling 1 → 2 → 4 by **tenure**, never a streak.
+
+- **Dependency-free server.** Talks the Stripe REST API over fetch and verifies webhooks with Web Crypto (HMAC-SHA256), so the pure pieces (the checkout form, the signature check, the event → entitlement map, the D1 upsert) are unit-tested. No Stripe SDK, matching the codebase's hand-rolled ethos (cf. the MCP server).
+- **The server never trusts the client for premium.** Flow: client `/checkout` → Stripe Checkout → Stripe webhook → `/stripe-webhook` verifies the signature and writes the entitlement to D1 → the client reads it from the authed `/entitlement`. Only a verified webhook grants premium.
+- **Entitlements in D1, not Supabase.** A second D1 table (`entitlements`, user-keyed), written only by the Worker, because the webhook is not a user request (no user token) and we never use the `service_role` key. The tenure clock (`started_at`) is set once and preserved across a lapse (never-shame: loyalty only grows). This is the legitimate exception to `ai_calls`' pseudonymity, it gates a paid feature for a specific user.
+- **Gating is calm.** Free hitting the monthly limit routes to the paywall (the conversion moment); premium hitting the weekly allowance gets a calm "next in N days", never a wall. The cadence is pure and unit-tested.
+- **Config split:** price id = a non-secret wrangler var; `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` = Worker secrets (Melroy sets them); the publishable key is parked (the redirect Checkout flow needs no client-side Stripe.js yet).
+
+**Decided against** a live-charging integration (real money + liability, overkill for a portfolio) and the Stripe SDK in the Worker (a dependency plus the async-crypto provider it needs; hand-rolled REST + Web Crypto is smaller and fully tested). Server-side scrapbook-quota enforcement is a noted follow-up (the cadence is client-side for now; the entitlement is server-verified). **Pending Melroy:** set the two Worker secrets, register the webhook URL, then test with Stripe's `4242` test card.

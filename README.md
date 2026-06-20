@@ -143,7 +143,7 @@ The backlog is kept live with a **trigger** on every item (the full list, with r
 - **Design overhaul** — a deliberate visual pass; the calm system is intentional but due a refresh. *Trigger: feature-complete core (reached).*
 - **"Other users took about X days" estimate** — the moat's user-facing payoff. *Trigger: enough anonymised cross-user volume to be honest.*
 - **Plan my day · Custom lists · a Settings page** — scoped, parked against the spine so they never turn Today into an everything-bucket.
-- **Monetisation (Stripe + the paywall)** — the scrapbook ships free; the paid tier (entitlement gating, Stripe) is the next build. *Trigger: ready to invest in the paywall.*
+- **Monetisation (Stripe Premium)** — **built in test mode**: a real Stripe Checkout subscription (A$5/mo), a webhook-verified entitlement in D1, a calm paywall, and scrapbook cadence gating (free monthly, premium weekly by tenure). Going live needs the Stripe keys set and a transactional email sender. *Trigger: a real public launch.*
 - **Public launch path** — account/data deletion, the written privacy policy, and AI-endpoint lockdown are **done**; the Play Store listing and a transactional email sender remain. *Trigger: before pointing real people at it.*
 
 ## Run it

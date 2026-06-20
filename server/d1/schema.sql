@@ -21,3 +21,16 @@ create table if not exists ai_calls (
   error text,
   created_at text not null default (datetime('now'))
 );
+
+-- Premium entitlements, written ONLY by the verified Stripe webhook. Separate from
+-- ai_calls (which is pseudonymous): this legitimately holds a user id because it
+-- gates a paid feature for that specific user. The client reads its own row via an
+-- authed Worker endpoint, never directly.
+create table if not exists entitlements (
+  user_id text primary key,             -- Supabase auth uid (the JWT sub)
+  premium integer not null default 0,   -- 0/1
+  status text,                          -- Stripe subscription status (active, canceled, ...)
+  current_period_end integer,           -- epoch seconds, when the paid period ends
+  started_at text,                      -- ISO, first premium grant (the tenure clock)
+  updated_at text not null default (datetime('now'))
+);

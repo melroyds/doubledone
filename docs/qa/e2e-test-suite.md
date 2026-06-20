@@ -144,3 +144,15 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | DEP-01 | P1 | Web | Web loads + deep links | Open doubledone.app, then hard-load /privacy and /sign-in directly. | App loads; deep links resolve (SPA fallback), no 404. |
 | DEP-02 | P1 | Android | Android APK installs + launches | Sideload the latest APK and open it. | Installs and runs. Core loop works. |
 | DEP-03 | P2 | Both | Local-first offline | Use core features (add/complete) with no network. | Works offline; syncs later when signed in. |
+
+## Premium
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| PREM-00 | P1 | Setup | PREREQ: Stripe test keys + webhook | Set STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET as Worker secrets; register the /stripe-webhook URL in the Stripe sandbox. | Worker deployed with the keys; webhook endpoint registered and reachable. |
+| PREM-01 | P1 | Both | Paywall renders | Open Settings -> DoubleDone Premium. | The calm 'Keep every week' pitch, the A$5/mo price, the 1 -> 2 -> 4 tenure tiers. |
+| PREM-02 | P1 | Both | Free monthly gate routes to the paywall | As a free user who already made a scrapbook this month, tap 'Make a scrapbook'. | Routed to the Premium paywall, calm, never a shaming message. |
+| PREM-03 | P1 | Web | Checkout with a test card | Signed in, tap Go Premium, pay with Stripe test card 4242 4242 4242 4242 (any future expiry, any CVC). | Stripe Checkout opens, payment succeeds, returns to /premium?status=success. |
+| PREM-04 | P1 | Both | Entitlement flips to premium | After the test checkout, reopen Premium and the Lookback. | Premium shows active; the scrapbook is no longer monthly-gated (now weekly). |
+| PREM-05 | P2 | Both | Premium weekly wait stays calm | As premium, make this week's allowance of scrapbooks, then try one more. | A calm 'next ready in N days' message, never a paywall. |
+| PREM-06 | P2 | Worker | Webhook rejects a bad signature | POST a forged event to /stripe-webhook with no valid Stripe-Signature. | 400 bad signature; no entitlement change. |

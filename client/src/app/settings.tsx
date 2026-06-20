@@ -132,6 +132,15 @@ export default function SettingsScreen() {
           <Text style={styles.privacyLinkText}>Privacy & data ›</Text>
         </Pressable>
 
+        <Pressable
+          onPress={() => router.push('/premium')}
+          accessibilityRole="button"
+          accessibilityLabel="DoubleDone Premium"
+          style={styles.premiumLink}
+        >
+          <Text style={styles.premiumLinkText}>DoubleDone Premium ›</Text>
+        </Pressable>
+
         {session ? (
           <View style={styles.account}>
             <Text style={styles.accountLabel}>Account</Text>
@@ -283,6 +292,8 @@ const makeStyles = (t: Theme) =>
     pressed: { opacity: 0.7 },
     privacyLink: { marginTop: spacing.six },
     privacyLinkText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    premiumLink: { marginTop: spacing.four },
+    premiumLinkText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     account: { marginTop: spacing.six, gap: spacing.two },
     accountLabel: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     accountEmail: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },

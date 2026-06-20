@@ -7,8 +7,10 @@ import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { makeScrapbook } from '@/lib/ai';
 import { addMonths, completionsByDay, monthLabel, monthMatrix, WEEKDAY_LABELS } from '@/lib/calendar';
 import { formatTodayLabel, fromISODate, toISODate } from '@/lib/day';
+import { canMakeScrapbook, type Entitlement, FREE_ENTITLEMENT } from '@/lib/entitlement';
 import { findScrapbook, type Scrapbook, upsertScrapbook, weekCompletions, weekLabel, weekStartISO } from '@/lib/scrapbook';
 import { loadScrapbooks, loadTasks, saveScrapbooks } from '@/lib/storage';
+import { loadEntitlement } from '@/lib/stripe';
 import { type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -26,6 +28,7 @@ export default function LookbackScreen() {
   const [scrapbooks, setScrapbooks] = useState<Scrapbook[]>([]);
   const [bookBusy, setBookBusy] = useState(false);
   const [bookError, setBookError] = useState<string | null>(null);
+  const [ent, setEnt] = useState<Entitlement>(FREE_ENTITLEMENT);
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
 
@@ -42,6 +45,9 @@ export default function LookbackScreen() {
       });
       void loadScrapbooks().then((books) => {
         if (active) setScrapbooks(books);
+      });
+      void loadEntitlement().then((e) => {
+        if (active) setEnt(e);
       });
       track('lookback.viewed');
       return () => {
@@ -64,6 +70,24 @@ export default function LookbackScreen() {
   async function makeWeekScrapbook() {
     const titles = weekList.map((c) => c.title);
     if (bookBusy || titles.length === 0) return;
+    // Cadence gate: free is one a month (tapping past it is the paywall moment);
+    // premium is the weekly allowance (a calm wait, never a wall). Entitlement is
+    // server-verified; the count is the user's own local scrapbook history.
+    const gate = canMakeScrapbook(
+      ent,
+      scrapbooks.map((b) => b.createdAt),
+      Date.now(),
+    );
+    if (!gate.allowed) {
+      if (gate.reason === 'free_monthly') {
+        track('premium.gate_hit', { reason: 'free_monthly' });
+        router.push('/premium');
+        return;
+      }
+      const days = Math.max(1, Math.ceil((gate.resetAt - Date.now()) / 86_400_000));
+      setBookError(`That's this week's keepsakes. The next is ready in ${days} day${days === 1 ? '' : 's'}.`);
+      return;
+    }
     setBookBusy(true);
     setBookError(null);
     try {

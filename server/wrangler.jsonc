@@ -13,5 +13,12 @@
   // path, unlike the old anon-key Supabase insert that anyone could reach.
   "d1_databases": [
     { "binding": "DB", "database_name": "doubledone-telemetry", "database_id": "a5d8ba94-3f1b-46fe-b113-59c7f047aea6" }
-  ]
+  ],
+  // Stripe (test mode) for Premium. Non-secret config: the price id is a sandbox/test
+  // price, safe to commit. The secret key + webhook signing secret are Worker secrets
+  // (npx wrangler secret put STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET), never committed.
+  "vars": {
+    "STRIPE_PRICE_ID": "price_1TkHYbJmzIqjJFzquDyxxZKl",
+    "APP_URL": "https://doubledone.app"
+  }
 }

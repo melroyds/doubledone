@@ -9,6 +9,7 @@ import { handleMcp } from './mcp';
 import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
 import { dataUrl, IMAGE_MODEL, imagePrompt, parseImage, parseScene, SCENE_MODEL, sceneMessages } from './scrapbook';
 import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
+import { handleCheckout, handleEntitlement, handleWebhook } from './stripe';
 import { type D1LikeDatabase, extractUsage, logAiCall } from './telemetry';
 import { buildTriageRequest, parseTriageResponse, TRIAGE_MODEL } from './triage';
 
@@ -36,8 +37,16 @@ export interface Env {
   AI_LIMITER?: RateLimitBinding;
   // Workers AI, for the scrapbook image pipeline. Optional so tests inject a mock.
   AI?: AiBinding;
-  // D1 telemetry store (the moat). Worker-bound, so there is no public write path.
+  // D1 store (Worker-bound): the moat's telemetry (pseudonymous) plus the
+  // entitlements table (user-keyed) the Stripe webhook writes.
   DB?: D1LikeDatabase;
+  // Stripe (test mode) for Premium. Secret key + webhook signing secret are Worker
+  // secrets; the price id is a non-secret var (wrangler.jsonc). Optional so the app
+  // and tests run with billing unconfigured.
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
+  STRIPE_PRICE_ID?: string;
+  APP_URL?: string;
 }
 
 // The app's own origins. A browser request from anywhere else is refused before
@@ -60,8 +69,8 @@ function isAllowedOrigin(origin: string | null): boolean {
 
 function corsFor(origin: string | null): Record<string, string> {
   const headers: Record<string, string> = {
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'content-type',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'content-type, authorization',
     Vary: 'Origin',
   };
   if (isAllowedOrigin(origin)) headers['Access-Control-Allow-Origin'] = origin as string;
@@ -93,6 +102,12 @@ export default {
       return handleMcp(request, env);
     }
 
+    // Stripe webhook: Stripe calls it server-to-server (no Origin). The signature is
+    // the auth, and the raw body is needed to verify it, so it runs before anything else.
+    if (pathname === '/stripe-webhook' && request.method === 'POST') {
+      return handleWebhook(request, env, new Date().toISOString());
+    }
+
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: cors });
     }
@@ -100,6 +115,16 @@ export default {
     if (pathname === '/health') {
       // Reports whether the key is wired, never the key itself.
       return Response.json({ ok: true, hasKey: Boolean(env.ANTHROPIC_API_KEY) }, { headers: cors });
+    }
+
+    // Stripe Premium: create a Checkout session, and read the current entitlement.
+    // Both are authed with the user's Supabase token (the user id rides into Stripe so
+    // the webhook can attribute the subscription). No Anthropic cost, so not gated.
+    if (pathname === '/checkout' && request.method === 'POST') {
+      return handleCheckout(request, env, cors);
+    }
+    if (pathname === '/entitlement' && request.method === 'GET') {
+      return handleEntitlement(request, env, cors);
     }
 
     // Guard the paid AI routes before any upstream call. A browser request from a
