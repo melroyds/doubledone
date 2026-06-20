@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -16,6 +17,11 @@ import { useSettings, useThemedStyles } from '@/lib/theme-provider';
 // The MCP server endpoint (the AI backend's /mcp route). Same origin as the AI
 // Worker; falls back to the deployed Worker when EXPO_PUBLIC_AI_URL is unset.
 const MCP_URL = `${process.env.EXPO_PUBLIC_AI_URL ?? 'https://doubledone-ai.melroy-a02.workers.dev'}/mcp`;
+
+// A warm, "flowery" mauve → rose → honey gradient for the one decorative cell, the
+// Premium card. The Dusk spine stays calm everywhere else; this is the deliberate
+// exception: the special, paid surface gets to glow a little.
+const PREMIUM_GRADIENT = ['#8E5E72', '#B5798F', '#D6A77E'] as const;
 
 // The one deliberate Settings surface. Scoped to comfort and access (theme, text
 // size, motion), never open-ended config: that is the line that keeps "remove
@@ -148,18 +154,6 @@ export default function SettingsScreen() {
           <Text style={styles.privacyLinkText}>Privacy & data ›</Text>
         </Pressable>
 
-        <Pressable
-          onPress={() => router.push('/premium')}
-          accessibilityRole="button"
-          accessibilityLabel={premium ? 'DoubleDone Premium, active' : 'DoubleDone Premium'}
-          style={styles.premiumLink}
-        >
-          <View style={styles.premiumRow}>
-            <Text style={styles.premiumLinkText}>DoubleDone Premium ›</Text>
-            {premium ? <Text style={styles.premiumBadge}>Active ✓</Text> : null}
-          </View>
-        </Pressable>
-
         {session ? (
           <View style={styles.account}>
             <Text style={styles.accountLabel}>Account</Text>
@@ -231,6 +225,23 @@ export default function SettingsScreen() {
             <Text style={styles.mcpFoot}>The token refreshes about hourly. Re-copy it if your agent stops connecting.</Text>
           </View>
         ) : null}
+
+        <Pressable
+          onPress={() => router.push('/premium')}
+          accessibilityRole="button"
+          accessibilityLabel={premium ? 'DoubleDone Premium, active' : 'DoubleDone Premium, see plans'}
+          style={({ pressed }) => [styles.premiumCardWrap, pressed && styles.pressed]}
+        >
+          <LinearGradient colors={PREMIUM_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premiumCard}>
+            <View style={styles.premiumCardText}>
+              <Text style={styles.premiumCardTitle}>DoubleDone Premium</Text>
+              <Text style={styles.premiumCardSub}>
+                {premium ? 'Active. Your week, kept.' : 'Keep every finished week as a calm AI keepsake.'}
+              </Text>
+            </View>
+            <Text style={styles.premiumCardCue}>{premium ? 'Active ✓' : '›'}</Text>
+          </LinearGradient>
+        </Pressable>
 
         <Text style={styles.footnote}>Saved to this device. Nothing here leaves it.</Text>
       </ScrollView>
@@ -311,20 +322,24 @@ const makeStyles = (t: Theme) =>
     pressed: { opacity: 0.7 },
     privacyLink: { marginTop: spacing.six },
     privacyLinkText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    premiumLink: { marginTop: spacing.four },
-    premiumLinkText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    premiumRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.two },
-    premiumBadge: {
-      color: t.colors.accent,
-      fontSize: 13 * t.scale,
-      fontFamily: fonts.bodyBold,
-      fontWeight: '700',
-      backgroundColor: t.colors.accentSoft,
-      borderRadius: radius.sm,
-      paddingVertical: spacing.one,
-      paddingHorizontal: spacing.two,
-      overflow: 'hidden',
+    premiumCardWrap: { marginTop: 'auto', paddingTop: spacing.six }, // pin to the bottom of the page
+    premiumCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.three,
+      borderRadius: radius.lg,
+      paddingVertical: spacing.five,
+      paddingHorizontal: spacing.five,
+      shadowColor: '#6E4A59',
+      shadowOpacity: 0.3,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 5,
     },
+    premiumCardText: { flex: 1, gap: spacing.one },
+    premiumCardTitle: { color: '#FFFFFF', fontSize: 22 * t.scale, fontFamily: fonts.sans, fontWeight: '400' },
+    premiumCardSub: { color: 'rgba(255,255,255,0.9)', fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 },
+    premiumCardCue: { color: '#FFFFFF', fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     account: { marginTop: spacing.six, gap: spacing.two },
     accountLabel: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     accountEmail: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
@@ -373,7 +388,6 @@ const makeStyles = (t: Theme) =>
       fontFamily: fonts.body,
       lineHeight: 20,
       textAlign: 'center',
-      marginTop: 'auto',
-      paddingTop: spacing.six,
+      paddingTop: spacing.four,
     },
   });
