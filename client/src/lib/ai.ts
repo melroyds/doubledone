@@ -179,3 +179,20 @@ export async function triage(lines: string[]): Promise<TriagedItem[]> {
   if (!res.ok) throw new Error(`triage failed (${res.status})`);
   return parseTriage(await res.json());
 }
+
+// The AI scrapbook: a finished week's titles in, a calm keepsake image (a base64
+// data URL) plus the scene caption out. Generated entirely on Workers AI; see the
+// Worker's /scrapbook route. Throws on a failed call; the caller shows a calm error.
+export type ScrapbookResult = { image: string; caption: string };
+
+export async function makeScrapbook(titles: string[]): Promise<ScrapbookResult> {
+  const res = await fetch(`${AI_URL}/scrapbook`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ titles }),
+  });
+  if (!res.ok) throw new Error(`scrapbook failed (${res.status})`);
+  const data = (await res.json()) as { image?: unknown; caption?: unknown };
+  if (typeof data.image !== 'string' || data.image.length === 0) throw new Error('no image');
+  return { image: data.image, caption: typeof data.caption === 'string' ? data.caption : '' };
+}

@@ -6,6 +6,7 @@ import { buildClarifyRequest, CLARIFY_MODEL, parseClarifyResponse } from './clar
 import { buildDecomposeRequest, DECOMPOSE_MODEL, type DecomposeContext, parseDecomposeResponse } from './decompose';
 import { parseLanguage } from './lang';
 import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
+import { dataUrl, IMAGE_MODEL, imagePrompt, parseImage, parseScene, SCENE_MODEL, sceneMessages } from './scrapbook';
 import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
 import { extractUsage, logAiCall } from './telemetry';
 import { buildTriageRequest, parseTriageResponse, TRIAGE_MODEL } from './triage';
@@ -14,6 +15,12 @@ import { buildTriageRequest, parseTriageResponse, TRIAGE_MODEL } from './triage'
 // do not depend on a specific @cloudflare/workers-types version.
 interface RateLimitBinding {
   limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
+// Workers AI binding (see wrangler.jsonc), typed locally so we do not depend on a
+// specific @cloudflare/workers-types version. `run` returns the model's output.
+interface AiBinding {
+  run(model: string, input: Record<string, unknown>): Promise<unknown>;
 }
 
 export interface Env {
@@ -26,6 +33,8 @@ export interface Env {
   // Per-IP rate limiter guarding the paid AI routes. Optional so tests / local
   // dev (no binding) simply skip the check.
   AI_LIMITER?: RateLimitBinding;
+  // Workers AI, for the scrapbook image pipeline. Optional so tests inject a mock.
+  AI?: AiBinding;
 }
 
 // The app's own origins. A browser request from anywhere else is refused before
@@ -39,7 +48,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:8081',
   'http://localhost:19006',
 ];
-const AI_ROUTES = new Set(['/clarify', '/decompose', '/plan', '/strategise', '/triage']);
+const AI_ROUTES = new Set(['/clarify', '/decompose', '/plan', '/strategise', '/triage', '/scrapbook']);
 
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
@@ -329,6 +338,59 @@ export default {
         }),
       );
       return Response.json({ items }, { headers: cors });
+    }
+
+    // AI scrapbook: a finished week's task titles in, a calm Dusk keepsake image
+    // out. A two-step Workers AI pipeline (distil an abstract scene, then render
+    // it). No Anthropic call, so it runs off the Workers AI free tier, never the
+    // $25/mo budget. The image comes back base64 in JSON, ready for the client.
+    if (pathname === '/scrapbook' && request.method === 'POST') {
+      let titles: string[] = [];
+      try {
+        const body = (await request.json()) as { titles?: unknown };
+        if (Array.isArray(body.titles)) {
+          titles = body.titles
+            .filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
+            .map((t) => t.trim());
+        }
+      } catch {
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
+      }
+      if (titles.length === 0) {
+        return Response.json({ error: 'titles are required' }, { status: 400, headers: cors });
+      }
+      if (!env.AI) {
+        return Response.json({ error: 'server not configured' }, { status: 500, headers: cors });
+      }
+
+      const started = Date.now();
+      try {
+        const sceneRes = await env.AI.run(SCENE_MODEL, {
+          messages: sceneMessages(titles),
+          temperature: 0.7,
+          max_tokens: 60,
+        });
+        const scene = parseScene(sceneRes);
+        const imageRes = await env.AI.run(IMAGE_MODEL, { prompt: imagePrompt(scene), steps: 4 });
+        const base64 = parseImage(imageRes);
+        if (!base64) throw new Error('no image returned');
+        ctx.waitUntil(
+          logAiCall(env, {
+            endpoint: 'scrapbook', model: IMAGE_MODEL, input: { titles }, output: { caption: scene },
+            inputTokens: null, outputTokens: null, latencyMs: Date.now() - started, ok: true,
+          }),
+        );
+        return Response.json({ image: dataUrl(base64), caption: scene }, { headers: cors });
+      } catch (e) {
+        ctx.waitUntil(
+          logAiCall(env, {
+            endpoint: 'scrapbook', model: IMAGE_MODEL, input: { titles }, output: null,
+            inputTokens: null, outputTokens: null, latencyMs: Date.now() - started,
+            ok: false, error: e instanceof Error ? e.message : 'scrapbook error',
+          }),
+        );
+        return Response.json({ error: 'could not make a scrapbook just now' }, { status: 502, headers: cors });
+      }
     }
 
     return new Response('doubledone-ai', { status: 200, headers: cors });

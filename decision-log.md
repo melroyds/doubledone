@@ -932,3 +932,15 @@ Melroy wants to start monetisation. His seed idea: in-app currency earned by use
 - **Shape:** free = full calm core + an occasional taste (~1 scrapbook/month); premium ($5/mo) = more scrapbooks, 1 → 2 → 4 per week by tenure; the already-backlogged premium AI (chart-a-course, prioritise) as later add-ons.
 
 **Open for Melroy:** the exact free-taste rate and tenure thresholds; whether to include any currency feel; and (for the portfolio) whether to ship a real Stripe flow or a demonstrated one (test mode + sample scrapbooks). The build is real (Stripe + an image-gen API + the Lookback scrapbook UI + tenure/entitlement logic), a multi-week effort, sequenced after the current polish.
+
+## 2026-06-20 The AI scrapbook (Workers AI), the free-delight slice
+
+The first slice of the premium scrapbook, built as **free delight first** (no paywall), per the monetisation direction: build the lovely thing before the gate, so it strengthens the Lookback even before a cent changes hands. Open a finished week in the Lookback and you can turn it into a calm keepsake image.
+
+- **The pipeline runs entirely on Workers AI, no Anthropic call** (so it never touches the $25 budget): a small text model (`@cf/meta/llama-3.2-3b-instruct`) distils the week's finished titles into ONE short, abstract, never-literal scene; a fast image model (`@cf/black-forest-labs/flux-1-schnell`, 4 steps) renders it in the Dusk palette. The Worker's new `/scrapbook` route returns the image as a base64 data URL plus the caption, origin-gated + rate-limited like the other AI routes, telemetry logged (the caption, never the image).
+- **Client:** a "Scrapbook" card at the foot of the Lookback, tied to the selected day's week. The keepsake (image + the scene caption in Newsreader italic + a faint "Made with AI" note) if one exists, else an invitation with a "Make a scrapbook" button when the week has wins, with a point-of-use AI-egress disclosure. Persisted in a bounded local store (`doubledone.scrapbooks.v1`, capped, separate from the task blob so the base64 never bloats it).
+- **Verified live:** the deployed route returned a real calm caption ("a serene, softly lit morning room... a steaming cup... wildflowers", never the literal chores) and a valid 423KB JPEG; the Lookback card renders both the keepsake and the invite states, no overflow, no console errors. 178 client + 48 server tests green, coverage over the floor.
+
+**Cost reality:** image gen is neuron-heavy, so the Workers AI free tier is ~1-2 scrapbooks/day, which fits a free user's occasional keepsake; premium frequency (the monetisation plan) runs on the paid Workers AI tier, which the $5 covers.
+
+**Decided against** R2 / Supabase-Storage persistence for v1 (kept it device-local to minimise setup and ship the delight; cross-device sync is a later slice) and against an Anthropic call for the scene (Workers AI keeps the scrapbook self-contained and off the budget). **Gotcha banked:** Workers AI model ids deprecate (the original `llama-3.1-8b-instruct` was retired 2026-05-30, error 5028); `wrangler ai models` lists the account's current ids.

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { type Scrapbook } from './scrapbook';
 import { DEFAULT_SETTINGS, parseSettings, serializeSettings, type Settings } from './settings';
 import { deserialize, SEED, serialize, type Task } from './tasks';
 import { track } from './telemetry';
@@ -8,6 +9,7 @@ import { track } from './telemetry';
 const STORAGE_KEY = 'doubledone.tasks.v1';
 const REMINDER_KEY = 'doubledone.reminder.v1';
 const SETTINGS_KEY = 'doubledone.settings.v1';
+const SCRAPBOOKS_KEY = 'doubledone.scrapbooks.v1';
 
 /**
  * Load Today's tasks. On a brand-new install (nothing ever stored) seed once so
@@ -69,6 +71,35 @@ export async function loadSettings(): Promise<Settings> {
 export async function saveSettings(settings: Settings): Promise<void> {
   try {
     await AsyncStorage.setItem(SETTINGS_KEY, serializeSettings(settings));
+  } catch {
+    // best effort
+  }
+}
+
+/** Load saved AI scrapbooks. Defensive: any unreadable / malformed blob yields []. */
+export async function loadScrapbooks(): Promise<Scrapbook[]> {
+  try {
+    const raw = await AsyncStorage.getItem(SCRAPBOOKS_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (b): b is Scrapbook =>
+        b != null &&
+        typeof (b as Scrapbook).weekStart === 'string' &&
+        typeof (b as Scrapbook).image === 'string' &&
+        typeof (b as Scrapbook).caption === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
+/** Persist scrapbooks. Best effort: the base64 images are large, so a quota
+ *  failure must be swallowed, never crash the app. */
+export async function saveScrapbooks(books: Scrapbook[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(SCRAPBOOKS_KEY, JSON.stringify(books));
   } catch {
     // best effort
   }

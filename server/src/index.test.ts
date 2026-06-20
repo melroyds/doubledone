@@ -72,6 +72,47 @@ describe('rate limit', () => {
   });
 });
 
+describe('scrapbook', () => {
+  it('runs the two-step AI pipeline and returns a data-url image + caption', async () => {
+    const env = makeEnv({
+      AI: {
+        run: async (model: string) =>
+          model.includes('flux') ? { image: 'BASE64IMG' } : { response: 'a quiet field at dawn' },
+      },
+    });
+    const res = await worker.fetch(
+      req('POST', '/scrapbook', { origin: 'https://doubledone.app', body: { titles: ['Booked dentist', 'Did laundry'] } }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { image: string; caption: string };
+    expect(body.image).toBe('data:image/jpeg;base64,BASE64IMG');
+    expect(body.caption).toBe('a quiet field at dawn');
+  });
+
+  it('400s when titles are missing', async () => {
+    const res = await worker.fetch(
+      req('POST', '/scrapbook', { origin: 'https://doubledone.app', body: {} }),
+      makeEnv({ AI: { run: async () => ({}) } }),
+      ctx,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('502s if the image step yields nothing', async () => {
+    const env = makeEnv({
+      AI: { run: async (model: string) => (model.includes('flux') ? {} : { response: 'scene' }) },
+    });
+    const res = await worker.fetch(
+      req('POST', '/scrapbook', { origin: 'https://doubledone.app', body: { titles: ['x'] } }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(502);
+  });
+});
+
 describe('health', () => {
   it('reports key presence without leaking it', async () => {
     const res = await worker.fetch(req('GET', '/health'), makeEnv(), ctx);
