@@ -62,6 +62,11 @@ export default function LookbackScreen() {
   const todayIso = toISODate(today);
   const selectedItems = byDay.get(selected) ?? [];
   const selectedScheduled = scheduled.get(selected) ?? [];
+  const monthHasCompletions = useMemo(() => {
+    const prefix = `${view.year}-${String(view.month + 1).padStart(2, '0')}-`;
+    for (const iso of byDay.keys()) if (iso.startsWith(prefix)) return true;
+    return false;
+  }, [byDay, view]);
 
   // The scrapbook is per-week: the week of the selected day. Its image is made
   // from that week's finished titles, distilled into a calm, abstract scene.
@@ -179,6 +184,25 @@ export default function LookbackScreen() {
           })}
         </View>
       ))}
+
+      <View style={styles.legend}>
+        <View style={styles.legendItem}>
+          <View style={styles.legendDot} />
+          <Text style={styles.legendText}>finished</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={styles.legendDotBig} />
+          <Text style={styles.legendText}>a big one</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={styles.legendDotScheduled} />
+          <Text style={styles.legendText}>scheduled</Text>
+        </View>
+      </View>
+
+      {!monthHasCompletions && (
+        <Text style={styles.monthEmpty}>A quiet month so far. What you finish will appear here.</Text>
+      )}
 
       <View style={styles.detail}>
         <Text style={styles.detailDate}>{formatTodayLabel(fromISODate(selected))}</Text>
@@ -305,6 +329,13 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   dotBig: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: t.colors.done, marginTop: 1 },
   dotSpacer: { width: 5, height: 5, marginTop: 3 },
   dotScheduled: { width: 6, height: 6, borderRadius: radius.pill, borderWidth: 1.5, borderColor: t.colors.accent, marginTop: 2 },
+  legend: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: spacing.four, marginTop: spacing.four },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.one },
+  legendDot: { width: 6, height: 6, borderRadius: radius.pill, backgroundColor: t.colors.done },
+  legendDotBig: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: t.colors.done },
+  legendDotScheduled: { width: 7, height: 7, borderRadius: radius.pill, borderWidth: 1.5, borderColor: t.colors.accent },
+  legendText: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body },
+  monthEmpty: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.five },
   detail: { marginTop: spacing.six, gap: spacing.two },
   detailDate: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginBottom: spacing.one },
   detailEmpty: { color: t.colors.inkFaint, fontSize: 15 * t.scale, fontFamily: fonts.body },

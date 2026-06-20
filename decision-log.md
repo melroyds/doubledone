@@ -1143,3 +1143,9 @@ Last Today slice: the close-the-day "anything else you did?" prompt.
 The close-the-day wrap gains a gentle **"Anything else you did?"** field above Goodnight. A final off-list win typed there is logged as a completed task (the same off-plan path) before the day closes, so it lands in today's finished set and the Lookback. Optional, never required, no auto-focus (Goodnight straight through stays a one-tap close). Verified in preview: Close the day → type "Watered the plants" → Goodnight → it becomes a done task and the day closes to the rested screen.
 
 **This completes the Today redesign.** The screen, end to end: warm weight copy + date presets · the 3-layer IA (Focus promoted above the list, "I also did that" relocated beneath it, the day-actions drawer dissolved to Strategise + Close) · tap-and-hold selection with the adaptive bar (Done / Tomorrow / Move to… / Break down [single] / Remove, plus Select all) · Focus pick-and-go ("Which one?") · this close prompt. Every slice preview-verified, 202 client tests green throughout. Next screen: the Lookback.
+
+## 2026-06-21 Lookback redesign: legend + quiet-month state
+
+The Lookback already carried most of the system-pass design (the month grid + day detail with finished / scheduled / big-win, the kept-scrapbook polaroid, and the loading / gentle-error / not-enough states all shipped earlier). Two gaps closed to match the pass: the calendar dots now have a small **legend** (finished · a big one · scheduled) so the marks are legible, and a month with nothing finished yet shows a calm **"A quiet month so far. What you finish will appear here."** instead of an unexplained empty grid. Verified in preview both ways (a month with completions hides the note; an empty month shows it; the legend is always present).
+
+The discipline of stopping: the rest of the screen was already on-brand and uncluttered, so this was a refinement, not a rebuild. Next screen: Break-it-down.
