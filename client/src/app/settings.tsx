@@ -12,6 +12,10 @@ import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
 import { useSettings, useThemedStyles } from '@/lib/theme-provider';
 
+// The MCP server endpoint (the AI backend's /mcp route). Same origin as the AI
+// Worker; falls back to the deployed Worker when EXPO_PUBLIC_AI_URL is unset.
+const MCP_URL = `${process.env.EXPO_PUBLIC_AI_URL ?? 'https://doubledone-ai.melroy-a02.workers.dev'}/mcp`;
+
 // The one deliberate Settings surface. Scoped to comfort and access (theme, text
 // size, motion), never open-ended config: that is the line that keeps "remove
 // friction, never add a setting" intact everywhere else. Calm by design: an
@@ -27,6 +31,8 @@ export default function SettingsScreen() {
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [mcpToken, setMcpToken] = useState<string | null>(null);
+  const [mcpCopied, setMcpCopied] = useState(false);
 
   // Delete the account + all synced data (the RPC removes the auth row; tasks
   // cascade), then wipe local tasks and reset to a clean, signed-out Today.
@@ -46,6 +52,25 @@ export default function SettingsScreen() {
       window.location.assign('/'); // a clean reload to an empty, signed-out Today
     } else {
       router.replace('/');
+    }
+  }
+
+  // Reveal (and on web, copy) the user's MCP token: their Supabase access token.
+  // An AI agent pastes it into its MCP client to act on this account's tasks under
+  // RLS. Selectable so native users can copy it too; the token refreshes ~hourly.
+  async function revealMcpToken() {
+    if (!supabase) return;
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token ?? null;
+    if (!token) return;
+    setMcpToken(token);
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(token);
+        setMcpCopied(true);
+      } catch {
+        // the selectable field below is the fallback
+      }
     }
   }
 
@@ -152,6 +177,33 @@ export default function SettingsScreen() {
           </View>
         ) : null}
 
+        {session ? (
+          <View style={styles.account}>
+            <Text style={styles.accountLabel}>AI agent access (MCP)</Text>
+            <Text style={styles.mcpHint}>
+              Let an AI agent add and finish your tasks. Add this server to your MCP client, then paste your token.
+            </Text>
+            <Text style={styles.mcpUrl} selectable>
+              {MCP_URL}
+            </Text>
+            <Pressable
+              onPress={revealMcpToken}
+              accessibilityRole="button"
+              accessibilityLabel="Copy my MCP token"
+              hitSlop={6}
+              style={({ pressed }) => [pressed && styles.pressed]}
+            >
+              <Text style={styles.mcpAction}>{mcpCopied ? 'Token copied ✓' : 'Copy my token'}</Text>
+            </Pressable>
+            {mcpToken ? (
+              <Text style={styles.mcpToken} selectable numberOfLines={3}>
+                {mcpToken}
+              </Text>
+            ) : null}
+            <Text style={styles.mcpFoot}>The token refreshes about hourly. Re-copy it if your agent stops connecting.</Text>
+          </View>
+        ) : null}
+
         <Text style={styles.footnote}>Saved to this device. Nothing here leaves it.</Text>
       </ScrollView>
     </View>
@@ -249,6 +301,30 @@ const makeStyles = (t: Theme) =>
     keep: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     deleteConfirm: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     deleteErr: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body },
+    mcpHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 },
+    mcpUrl: {
+      color: t.colors.ink,
+      fontSize: 13 * t.scale,
+      fontFamily: fonts.body,
+      backgroundColor: t.colors.surface,
+      borderWidth: 1,
+      borderColor: t.colors.line,
+      borderRadius: radius.md,
+      paddingVertical: spacing.two,
+      paddingHorizontal: spacing.three,
+      marginTop: spacing.one,
+    },
+    mcpAction: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.one },
+    mcpToken: {
+      color: t.colors.inkSoft,
+      fontSize: 12 * t.scale,
+      fontFamily: fonts.body,
+      backgroundColor: t.colors.accentSoft,
+      borderRadius: radius.md,
+      padding: spacing.three,
+      marginTop: spacing.one,
+    },
+    mcpFoot: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, lineHeight: 18, marginTop: spacing.one },
     footnote: {
       color: t.colors.inkFaint,
       fontSize: 13 * t.scale,

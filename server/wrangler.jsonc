@@ -8,5 +8,10 @@
   // real user, a hard cap on scripted abuse against the $25/mo Anthropic budget.
   "ratelimits": [{ "name": "AI_LIMITER", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } }],
   // Workers AI, for the scrapbook image pipeline (free-tier neurons, no Anthropic call).
-  "ai": { "binding": "AI" }
+  "ai": { "binding": "AI" },
+  // Telemetry store (the moat). D1 is Worker-bound, so there is NO public write
+  // path, unlike the old anon-key Supabase insert that anyone could reach.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "doubledone-telemetry", "database_id": "a5d8ba94-3f1b-46fe-b113-59c7f047aea6" }
+  ]
 }

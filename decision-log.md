@@ -954,3 +954,20 @@ Melroy steered two changes after seeing v1 and his Claude Design mockup.
 - **The holder is now the mockup's polaroid keepsake.** Rebuilt the Lookback card to Melroy's Claude Design mockup: a soft photo-mat / polaroid with a gentle shadow, the scene caption in Newsreader italic on the lip, a faint "Made with AI · week of …" beneath; the invite state is a dashed empty frame with a mauve "+" and the button; loading shimmers in the frame. Light + dark, no overflow.
 
 Verified in preview (both states: polaroid + caption + meta + the finished list with the big marker; the invite frame + button + list; no console errors). 179 client + 48 server tests green.
+
+## 2026-06-20 The moat's telemetry store moved to Cloudflare D1 (no public write path)
+
+The AI-call telemetry (the moat: what decompositions we offer and whether they get used) was being written from the Worker to a Supabase `ai_calls` table using the public anon key. That key ships in the client, so anyone holding it could POST junk rows. Closed it by moving the store to a **Cloudflare D1** database (`doubledone-telemetry`, binding `DB`) bound directly to the Worker: there is no public endpoint to write to at all, only the Worker can insert. Same posture as before, pseudonymous by design (no user_id, no IP, no account identity), still retaining the task text + returned JSON for product improvement (disclosed in-product). `logAiCall` now runs a parameterised D1 insert; `aiCallStatement` (the SQL + bound params) is the pure, unit-tested surface. Schema in `server/d1/schema.sql`, applied to the remote DB.
+
+**Decided against** the alternative I'd floated (keeping Supabase but locking the table with a shared-secret header + RLS): D1 is simpler, removes the public surface entirely, and needs no migration Melroy has to run. The old Supabase `ai_calls` table is now unused and can be dropped whenever (not urgent). Verified live: a scrapbook call landed exactly one row in D1.
+
+## 2026-06-20 A remote MCP server for DoubleDone tasks (bearer-token, stateless)
+
+Built a small Model Context Protocol server so an AI agent can manage a user's tasks (`add_task` / `list_today` / `complete_task`). It lives on the existing Worker at `/mcp`, speaks MCP Streamable HTTP (JSON-RPC 2.0 over one POST), and is **stateless**.
+
+- **Auth is the user's own Supabase access token**, pasted into their MCP client. Every tool call proxies to Supabase REST *with that token*, so RLS scopes it to exactly their rows. The server holds no elevated key (only the public anon key); it cannot reach another account. Discovery (initialize / tools/list) needs no auth; tool calls do.
+- **Decided against `McpAgent` (Agents SDK / Durable Object).** Its auth model is OAuth-centric and it carries DO state we don't need. A plain stateless Worker route with hand-rolled JSON-RPC is smaller, adds no dependency, and fits "the token is the auth." Pure helpers (tool schemas, the JWT-sub decode, the Supabase request builders, the JSON-RPC envelopes) are exported and unit-tested; `handleMcp` does the I/O.
+- **v1 lists one-offs.** `list_today` returns open, non-future, non-recurring tasks; recurring "due today" needs cadence logic PostgREST can't do, deferred.
+- **In-app affordance:** Settings → "AI agent access (MCP)" (signed-in only) shows the endpoint and a "Copy my token" button (web copies to clipboard; the token is also shown selectable for native). Connection guide in [`docs/mcp.md`](docs/mcp.md).
+
+Verified live: initialize returns the server info, tools/list returns the three tools, a tool call with no token returns a calm isError ("Not connected…") without touching Supabase. The authed task calls are Melroy's to exercise with his account.

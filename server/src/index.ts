@@ -5,10 +5,11 @@
 import { buildClarifyRequest, CLARIFY_MODEL, parseClarifyResponse } from './clarify';
 import { buildDecomposeRequest, DECOMPOSE_MODEL, type DecomposeContext, parseDecomposeResponse } from './decompose';
 import { parseLanguage } from './lang';
+import { handleMcp } from './mcp';
 import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
 import { dataUrl, IMAGE_MODEL, imagePrompt, parseImage, parseScene, SCENE_MODEL, sceneMessages } from './scrapbook';
 import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
-import { extractUsage, logAiCall } from './telemetry';
+import { type D1LikeDatabase, extractUsage, logAiCall } from './telemetry';
 import { buildTriageRequest, parseTriageResponse, TRIAGE_MODEL } from './triage';
 
 // Cloudflare per-IP rate limiter binding (see wrangler.jsonc). Typed locally so we
@@ -25,9 +26,9 @@ interface AiBinding {
 
 export interface Env {
   ANTHROPIC_API_KEY: string;
-  // Pseudonymous AI-call telemetry (the moat). Optional: if unset, the Worker
-  // simply skips logging. The anon key is public/safe; both are set as Worker
-  // secrets (see CLAUDE.md), never committed.
+  // Supabase project URL + public anon key. Used by the MCP server to proxy a
+  // user's tasks (with the user's own bearer token) under row-level security. The
+  // anon key is public/safe; both are Worker secrets (see CLAUDE.md), never committed.
   SUPABASE_URL?: string;
   SUPABASE_ANON_KEY?: string;
   // Per-IP rate limiter guarding the paid AI routes. Optional so tests / local
@@ -35,6 +36,8 @@ export interface Env {
   AI_LIMITER?: RateLimitBinding;
   // Workers AI, for the scrapbook image pipeline. Optional so tests inject a mock.
   AI?: AiBinding;
+  // D1 telemetry store (the moat). Worker-bound, so there is no public write path.
+  DB?: D1LikeDatabase;
 }
 
 // The app's own origins. A browser request from anywhere else is refused before
@@ -83,6 +86,12 @@ export default {
     const { pathname } = new URL(request.url);
     const origin = request.headers.get('Origin');
     const cors = corsFor(origin);
+
+    // MCP server: token-authed and not origin-gated (so browser-based MCP clients
+    // like the Inspector reach it). It carries its own permissive CORS.
+    if (pathname === '/mcp') {
+      return handleMcp(request, env);
+    }
 
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: cors });
