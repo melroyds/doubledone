@@ -75,3 +75,34 @@ export function isReentry(lastOpenISO: string | null, today: Date, gapDays: numb
   if (lastOpenISO === toISODate(today)) return false;
   return daysBetween(fromISODate(lastOpenISO), today) >= gapDays;
 }
+
+/** The next occurrence of a weekday (0=Sun .. 6=Sat), today or later. */
+export function nextWeekday(today: Date, dow: number): string {
+  return addDaysISO(today, (dow - today.getDay() + 7) % 7);
+}
+
+/** The Monday that starts next week (always 1..7 days out, never today). */
+export function nextWeekStart(today: Date): string {
+  return addDaysISO(today, ((1 - today.getDay() + 7) % 7) || 7);
+}
+
+export type DatePresetKind = 'today' | 'tomorrow' | 'thisWeek' | 'thisWeekend' | 'nextWeek' | 'twoWeeks';
+
+/** Resolve a calendar quick-pick ("This week", "Next week", ...) to a YYYY-MM-DD,
+ *  relative to today. Used by the date-picker presets and Break-it-down's due chips. */
+export function presetDate(today: Date, kind: DatePresetKind): string {
+  switch (kind) {
+    case 'today':
+      return toISODate(today);
+    case 'tomorrow':
+      return addDaysISO(today, 1);
+    case 'thisWeek':
+      return nextWeekday(today, 5); // Friday
+    case 'thisWeekend':
+      return nextWeekday(today, 6); // Saturday
+    case 'nextWeek':
+      return nextWeekStart(today); // next Monday
+    case 'twoWeeks':
+      return addDaysISO(today, 14);
+  }
+}

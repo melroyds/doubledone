@@ -53,9 +53,9 @@ export type DayWeight = { level: 'clear' | 'light' | 'full' | 'heavy'; label: st
  * the label describes the day, it never scolds, so Today can't silently overfill.
  */
 export function dayWeight(count: number): DayWeight {
-  const fill = Math.min(Math.max(count, 0) / 6, 1);
+  const fill = Math.min(Math.max(count, 0) / 8, 1);
   if (count <= 0) return { level: 'clear', label: 'A clear day', fill: 0 };
-  if (count <= 2) return { level: 'light', label: 'A light day', fill };
-  if (count <= 5) return { level: 'full', label: 'A full day', fill };
-  return { level: 'heavy', label: 'A heavy day', fill: 1 };
+  if (count <= 4) return { level: 'light', label: 'A gentle day. Room to breathe.', fill };
+  if (count <= 7) return { level: 'full', label: 'A full day, but doable.', fill };
+  return { level: 'heavy', label: 'A lot on. Be gentle with yourself.', fill: 1 };
 }

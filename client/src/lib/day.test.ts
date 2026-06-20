@@ -8,9 +8,24 @@ import {
   fromISODate,
   isReentry,
   isSameDay,
+  presetDate,
   startOfDay,
   toISODate,
 } from './day';
+
+describe('presetDate', () => {
+  const wed = new Date(2026, 5, 17); // 17 Jun 2026
+  it('resolves fixed-offset presets', () => {
+    expect(presetDate(wed, 'today')).toBe('2026-06-17');
+    expect(presetDate(wed, 'tomorrow')).toBe('2026-06-18');
+    expect(presetDate(wed, 'twoWeeks')).toBe('2026-07-01');
+  });
+  it('resolves weekday presets to the right day-of-week, today or later', () => {
+    expect(fromISODate(presetDate(wed, 'thisWeek')).getDay()).toBe(5); // Friday
+    expect(fromISODate(presetDate(wed, 'thisWeekend')).getDay()).toBe(6); // Saturday
+    expect(fromISODate(presetDate(wed, 'nextWeek')).getDay()).toBe(1); // Monday
+  });
+});
 
 describe('isReentry', () => {
   const today = new Date(2026, 5, 20); // 20 Jun 2026
