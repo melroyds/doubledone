@@ -34,6 +34,13 @@ Order is a craft skill, practise it.
 - Tests ship before architecture experiments.
 - When the first attempt fails, the **right pivot removes components, not adds them.** If
   your fix is *cleverer*, be suspicious. If it's *simpler*, you're probably right.
+- **On a redesign or refactor, audit before you rebuild.** Read each surface against the
+  target *first*; refine what's already close, rebuild only what's genuinely broken.
+  "Redesign everything" is almost always "rebuild one, refine a few, leave the rest." The
+  discipline of stopping applies to redesigns too.
+- **Work in verified increments.** One surface at a time: gates green **and** the behaviour
+  preview-verified *before* the commit, never more than one change in flight. Trivial to
+  review, trivial to revert, and the decision-log why-trail stays honest.
 
 ## 2. Quality gates, make the right thing automatic `[0]`
 
@@ -66,6 +73,10 @@ something the user cares about."* More than that is overhead; less is theatre.
   as the change.
 - ~100–150 cases across 5–6 files is the right size for an MVP. More is anti-portfolio.
 - **Don't** test component rendering, snapshots, trivial getters, or live API calls.
+- **A seeded state must satisfy every render gate, not just provide data.** When the app
+  gains an app-level gate (onboarding, auth, a paywall), every screenshot/test fixture must
+  also set the flag that bypasses it, or it silently captures or tests the wrong screen.
+  Document it right where the seed payload lives.
 
 ## 4. AI integration is testable, at the contract layer `[0]`
 

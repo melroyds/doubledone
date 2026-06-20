@@ -67,6 +67,16 @@ The hardest part of a solo build is not adding things. The backlog is kept live,
 
 The same discipline applies to the project itself: once the core loop is feature-complete and demoable, the leverage moves from *more features* to *legibility, polish, and reach*. Knowing where that line is, and choosing to stop building and go ship the story, is part of the craft.
 
+## The redesign: when polish becomes the work
+
+The first version earned an honest complaint from its own founder: Today had become cluttered. Not broken, *cluttered*, the way any screen does when feature after feature lands as "one more link in the row" and nobody steps back. That is the failure mode of shipping fast and solo: each addition is locally reasonable, and the sum is a junk drawer.
+
+So the whole UI took a system-pass redesign, and the first call was scope. Of seven surfaces, only Today genuinely needed rebuilding; the other five (the Lookback, Break-it-down, Premium, Settings, the Repeating drawer) were already close to the calm target and took small refinements or none at all. Auditing each screen against the spec *before* touching it is the discipline of stopping pointed at a redesign: "redesign everything" was really "rebuild one, refine a few, leave the rest." Tearing up what already works is its own kind of overwork.
+
+Today's rebuild folded a row of five flat actions into the screen itself: "Focus on one thing" promoted to a calm entry, off-list logging tucked beneath the list, and a single tap-and-hold gesture that replaced *both* a per-task menu and a separate multi-select button. One gesture, one clear set of actions, instead of a drawer of links.
+
+The redesign also surfaced the one thing a feature-complete app still lacked: a front door. New users arrived mid-stream. The fix is a guided first-run that onboards by *doing*, your first brain-dump runs through the real triage, so the first thing you see is the product working, a doable Today, not a tutorial wall or an empty void. It is the spine delivered as a first impression. And because the lovely part is the guided capture rather than a recap, it was made replayable and non-destructive from Settings, not locked to install day.
+
 ## What this is meant to show
 
 A product manager who:
@@ -75,8 +85,9 @@ A product manager who:
 - designs from a population's real failure modes, not a feature list;
 - holds one non-negotiable rule and lets it override good ideas;
 - builds a defensible data moat and resolves its privacy tension by architecture;
-- and keeps a reasoning trail honest enough to reconstruct every call, including the roads not taken.
+- and keeps a reasoning trail honest enough to reconstruct every call, including the roads not taken;
+- and knows when polish is the highest-leverage work, scoping a redesign by auditing each surface rather than rebuilding on reflex.
 
 ## Status
 
-Core loop shipped on web ([doubledone.app](https://doubledone.app)) and Android: capture, AI triage, phased Break-it-down, slices, recurring tasks, Strategise, the Lookback, close-the-day, daily reminders, opt-in cloud sync, and pseudonymous AI telemetry. Next: multi-language, then a deliberate design overhaul. The full sequence and the parked-with-triggers backlog are in [`BUILD-PLAN.md`](../BUILD-PLAN.md).
+Core loop shipped on web ([doubledone.app](https://doubledone.app)) and Android: capture, AI triage, phased Break-it-down, slices, recurring tasks, Strategise, the Lookback, close-the-day, daily reminders, opt-in cloud sync, and pseudonymous AI telemetry. The UI has since had a full design pass and gained a guided, replayable first-run. Next: multi-language. The full sequence and the parked-with-triggers backlog are in [`BUILD-PLAN.md`](../BUILD-PLAN.md).

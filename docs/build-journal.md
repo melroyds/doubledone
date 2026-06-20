@@ -64,6 +64,16 @@ The "Dusk" palette is warm and calm by intent — paper light, charcoal-brown da
 - **Reactive theming.** A `ThemeProvider` exposes `useTheme` / `useThemedStyles`; every component's styles are built from a `(theme) => StyleSheet.create(...)` factory, so theme, text-size, and reduced-motion changes re-paint the whole app live with no reload. Colours come from `theme.colors`; every font size is multiplied by a `scale` factor (the text-size setting).
 - **Fonts the hard, correct way.** React-Native-Web gives every `<Text>` its own default font, so a page-level CSS font never reaches body text. The fix is explicit per-style font tokens (Newsreader for headings, the Braille Institute's Atkinson Hyperlegible for body), backed by CSS variables on web and by `expo-google-fonts` families loaded in the root layout on native. Verbose, but version-independent and native-ready.
 
+## The redesign, and the front door
+
+Feature-complete is not finished. After the core loop landed, the founder's own verdict was that Today had grown cluttered — features had each arrived as one more link in a day-actions row. The fix was a system-pass redesign run as a string of small **verified increments**: one surface at a time, `typecheck`/`lint`/`tests` green and the behaviour preview-verified before each commit, with a decision-log entry per slice. A dozen commits, never more than one screen in flight.
+
+The engineering scope call mirrored the product one: of seven surfaces only Today needed a rebuild; the rest were already at spec and took refinements or nothing. Today's interaction overhaul collapsed two separate mechanisms (a per-task long-press menu and a separate multi-select button) into **one tap-and-hold gesture** with an adaptive action bar that offers Break-it-down only when a single task is selected. A small shared helper (`presetDate`) now backs both the new "Move to…" picker and the Break-it-down due chips, so "This week" resolves to the same date in both.
+
+The one net-new surface was a **first-run**. It is a normal expo-router screen (`/welcome`) plus a one-key `onboarded` flag in storage; Today redirects to it once on mount when the flag is unset. The detection is keyed off the flag, **not** task count — a fresh install seeds example tasks, so "no tasks" would be the wrong signal. The reveal runs the user's first brain-dump through the *real* `/triage` path (with an all-to-today fallback if the AI is unreachable), so there is no separate demo code to rot. Replaying it from Settings is non-destructive: in replay mode the confirm **merges** into the existing list instead of overwriting, so a returning user can never lose their tasks to a re-run.
+
+That flag had a subtle blast radius. The screenshot harness seeds `localStorage` to capture each screen deterministically, and once Today redirected on a missing `onboarded` flag, every Today/Lookback/Settings shot would silently capture onboarding instead. The fix, and the portable rule, is that **a seeded state must satisfy every render gate, not just provide data**: the harness now sets the flag and has a welcome shot of its own.
+
 ## Testing strategy
 
 Risk-targeted, not coverage-theatre. Tests are **co-located** with the pure logic in `lib/` and the Worker `src/`, and they cluster where a bug would silently hurt:
@@ -73,7 +83,7 @@ Risk-targeted, not coverage-theatre. Tests are **co-located** with the pure logi
 - Store parse/recovery (a corrupt blob must never crash or drop the list).
 - The AI request contracts (shape in, defensive parse out).
 
-What is deliberately **not** tested: the model's actual output, and the thin SDK seams (AsyncStorage, the Supabase client) that are all I/O and no logic. As of this writing: 179 client + 59 server cases, run non-interactively on every commit, plus a 60-case manual [end-to-end suite](qa/) for what only a human on real devices can verify.
+What is deliberately **not** tested: the model's actual output, and the thin SDK seams (AsyncStorage, the Supabase client) that are all I/O and no logic. As of this writing: 202 client cases plus the server's request-contract cases, run non-interactively on every commit, alongside an 83-case manual [end-to-end suite](qa/) for what only a human on real devices can verify.
 
 ## The golden-path discipline
 
