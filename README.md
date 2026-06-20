@@ -4,7 +4,7 @@
 
 > A calm, ADHD-friendly daily to-do app. It takes the things you have been avoiding, breaks them into pieces small enough to actually start, shows you only what today needs, and at the end shows you everything you finished, so your brain cannot tell you that you did nothing.
 
-**Status:** core loop live, solo build. Capture, AI triage, phased Break-it-down, recurring tasks, slices, Strategise, the Lookback, close-the-day, daily reminders, and opt-in cloud sync are all shipped on web and Android.
+**Status:** core loop live, solo build. Capture, AI triage, phased Break-it-down, recurring tasks, slices, Strategise, the Lookback, close-the-day, daily reminders, opt-in cloud sync, the AI **scrapbook**, and a task **MCP server** are all shipped on web and Android. The public-launch basics (privacy policy, account and data deletion, AI-endpoint lockdown) are in too.
 **Live:** [doubledone.app](https://doubledone.app) (web). Android installs via a sideloaded EAS build.
 
 <p align="center">
@@ -67,41 +67,32 @@ DoubleDone is built around those, not around a feature checklist. The founder is
 - **The Lookback**: a true Gregorian month calendar of what you finished each day, with a warmer mark for a "big win" (a long-dreaded or chunky task finally closed). The emotional core, not a stats page.
 - **Close the day**: a gentle wrap that rolls undone work forward with no guilt.
 - **Daily reminder** (opt-in, native): offers the day, never nags.
+- **The AI scrapbook**: turn a finished week into a calm still-life keepsake (Cloudflare Workers AI), the objects evoking what you actually did, with the week's finished tasks listed beneath. The first premium delight, on free-tier neurons (no Anthropic spend).
 
 **Cloud (opt-in)**
 - Passwordless **email-OTP** sign-in, last-write-wins sync, soft-delete tombstones, and automatic anonymous→account migration on first sign-in. Local-first throughout: nothing requires an account.
 
+**For AI agents (AX)**
+- A stateless **MCP server** (`/mcp` on the Worker) lets Claude Desktop and other agents add, list and complete your tasks, authorised by your own token so it only ever touches your own rows under RLS. Guide in [`docs/mcp.md`](docs/mcp.md).
+
 **The moat (instrumented from day one)**
-- Every AI call is logged **pseudonymously** (no `user_id`, insert-only) so the decompositions and plans we offer can be tuned on what actually gets used. Built before there was data to use, on purpose.
+- Every AI call is logged **pseudonymously** (no `user_id`) to a Worker-bound **Cloudflare D1** database with no public write path, so the decompositions and plans we offer can be tuned on what actually gets used. Built before there was data to use, on purpose.
 
 ## Architecture
 
-```
-┌──────────────────────────── Device (local-first) ────────────────────────────┐
-│  Expo app  (React Native → Android + Web, one codebase, expo-router)          │
-│  • Today · capture · Break it down · Lookback · Close the day · Repeating      │
-│  • AsyncStorage  (canonical local store; the whole app works with no account)  │
-└───────────────┬─────────────────────────────────────────┬─────────────────────┘
-                │ opt-in sync (passwordless email OTP)      │ AI features
-                ▼                                           ▼
-┌────────────────────────────────┐        ┌────────────────────────────────────┐
-│ Supabase                       │        │ Cloudflare Worker  "doubledone-ai"  │
-│ • Postgres + RLS  (tasks)      │        │ • holds ANTHROPIC_API_KEY (secret)  │
-│ • Auth  (passwordless OTP)     │◀───────│ • /clarify /plan /decompose         │
-│ • ai_calls  (pseudonymous)     │  log   │   /triage /strategise  (+telemetry) │
-└────────────────────────────────┘        └─────────────────┬──────────────────┘
-                                                             ▼
-                                            ┌────────────────────────────────┐
-                                            │ Anthropic Claude (tiered)      │
-                                            │ Haiku  → triage, clarify       │
-                                            │ Sonnet → plan, decompose,      │
-                                            │          strategise            │
-                                            └────────────────────────────────┘
-
-Web: Cloudflare Pages → doubledone.app (auto-deploy on push)   Android: Expo EAS
+```mermaid
+flowchart TB
+    App["<b>Expo app</b> · React Native → Android + Web (one codebase, expo-router)<br/>Today · capture · Break it down · Lookback · scrapbook · Close the day<br/>AsyncStorage — canonical local store; the whole app works with no account"]
+    App -->|"opt-in sync · passwordless email OTP"| SB["<b>Supabase</b><br/>Postgres + RLS (tasks)<br/>Auth (passwordless OTP)"]
+    App -->|"AI features"| W["<b>Cloudflare Worker</b> · doubledone-ai<br/>holds ANTHROPIC_API_KEY (secret)<br/>/clarify /plan /decompose /triage /strategise<br/>/scrapbook (Workers AI) · /mcp (agent task server)"]
+    W -->|"tasks via MCP, under your own RLS"| SB
+    W -->|"telemetry"| D1["<b>Cloudflare D1</b> · ai_calls<br/>pseudonymous · no public write path"]
+    W -->|"AI"| AN["<b>Anthropic Claude</b> (tiered)<br/>Haiku · Sonnet"]
 ```
 
-The client never talks to Anthropic directly: the Worker is the only thing that holds the key. The Supabase publishable key is safe in the client; the `service_role` key is never used. The AI-telemetry table is insert-only with no user identity, so it can be written but never read back through the public API.
+*Web: Cloudflare Pages → [doubledone.app](https://doubledone.app) (auto-deploy on push). Android: Expo EAS. The client never holds the Anthropic key; the Worker does.*
+
+The client never talks to Anthropic directly: the Worker is the only thing that holds the key. The Supabase publishable key is safe in the client; the `service_role` key is never used. The AI telemetry lives in a Worker-bound Cloudflare D1 database with no public write path and no user identity, so it cannot be written (or read) through any public API. The MCP server holds no elevated key either: it acts only with the user's own token, under the same RLS.
 
 ## Stack
 
@@ -114,7 +105,9 @@ The client never talks to Anthropic directly: the Worker is the only thing that 
 | AI backend | Cloudflare Worker | Holds the Anthropic key server-side; cheap, global, fast cold starts |
 | AI models | Claude, tiered: Haiku (triage, clarify) · Sonnet (plan, decompose, strategise) | Match model cost to task; stay under a $25/mo cap |
 | AI contract | Forced tool-use + enum-constrained JSON schemas, defensive parsing | Reliable structured output; a malformed response never crashes a screen |
-| Moat telemetry | Supabase `ai_calls`, insert-only RLS, no `user_id` | Pseudonymous capture of every AI call for the completion-data flywheel |
+| Moat telemetry | Cloudflare D1 (`ai_calls`), Worker-bound, no `user_id` | Pseudonymous capture of every AI call for the flywheel; no public write path |
+| Premium delight | Cloudflare Workers AI (scene → image) | The AI scrapbook, on free-tier neurons, no Anthropic spend |
+| Agent surface (AX) | MCP server on the Worker (`/mcp`), bearer-token | AI agents drive tasks under the user's own RLS, no elevated key |
 | Tests | Vitest, co-located, risk-targeted | Logic + the AI request **contract** are tested (mock the SDK, assert the shape); no live AI calls in CI |
 | Quality gate | golden-path harness (pre-commit Inspector, gitleaks, CI) | The whole safety net for a solo build |
 | Hosting | Cloudflare Pages (web, auto-deploy) · Expo EAS (Android) | SPA web output; sideloaded APK |
@@ -140,7 +133,8 @@ The backlog is kept live with a **trigger** on every item (the full list, with r
 - **Design overhaul** — a deliberate visual pass; the calm system is intentional but due a refresh. *Trigger: feature-complete core (reached).*
 - **"Other users took about X days" estimate** — the moat's user-facing payoff. *Trigger: enough anonymised cross-user volume to be honest.*
 - **Plan my day · Custom lists · a Settings page** — scoped, parked against the spine so they never turn Today into an everything-bucket.
-- **Public launch path** — account/data deletion, a written privacy policy, AI-endpoint lockdown, Play Store. *Trigger: before pointing real people at it.*
+- **Monetisation (Stripe + the paywall)** — the scrapbook ships free; the paid tier (entitlement gating, Stripe) is the next build. *Trigger: ready to invest in the paywall.*
+- **Public launch path** — account/data deletion, the written privacy policy, and AI-endpoint lockdown are **done**; the Play Store listing and a transactional email sender remain. *Trigger: before pointing real people at it.*
 
 ## Run it
 
@@ -177,11 +171,14 @@ client/                     Expo app (Android + web, one codebase)
     day · sync · sync-merge · storage · ai · telemetry · reminders · supabase · auth
   src/constants/theme.ts    the calm design tokens
 server/                     Cloudflare Worker (the only thing that holds the AI key)
-  src/index.ts              routes: /clarify /plan /decompose /triage /strategise /health
+  src/index.ts              routes: /clarify /plan /decompose /triage /strategise /scrapbook /mcp /health
   src/{clarify,plan,decompose,triage,strategise}.ts   per-route prompt + request/response shaping
-  src/telemetry.ts          pseudonymous ai_calls logging
-supabase/schema.sql         tasks + ai_calls tables, RLS, migration notes
-docs/                       product-spec · case-study · testing · lessons-for-next-project
+  src/scrapbook.ts          the Workers-AI still-life pipeline (the scrapbook)
+  src/mcp.ts                the task MCP server (bearer-token, proxies to Supabase under RLS)
+  src/telemetry.ts          pseudonymous AI-call logging → Cloudflare D1
+  d1/schema.sql             the D1 telemetry schema
+supabase/schema.sql         tasks + RLS (the ai_calls table is superseded by D1)
+docs/                       product-spec · case-study · testing · mcp · qa/ · lessons-for-next-project
 decision-log.md             the contemporaneous why-trail
 BUILD-PLAN.md               where we are, what is next, the triggered backlog
 PLAYBOOK.md                 the reusable build discipline (golden-path)
@@ -195,6 +192,8 @@ PLAYBOOK.md                 the reusable build discipline (golden-path)
 | [`docs/build-journal.md`](docs/build-journal.md) | The engineering complement: stack rationale, architecture, the sync/AI/privacy mechanics, the testing and golden-path discipline, and the gotchas |
 | [Privacy policy](https://doubledone.app/privacy) | Plain-English: local-first, email is the only PII, AI egress disclosed, nothing sold. Also in-app via Settings → Privacy & data |
 | [`docs/product-spec.md`](docs/product-spec.md) | The full v1 spec: spine, core loop, tiered features, the moat, monetisation |
+| [`docs/mcp.md`](docs/mcp.md) | The MCP server: endpoint, auth, the three tools, and connecting Claude Desktop |
+| [`docs/qa/`](docs/qa) | The end-to-end manual test suite (fillable `.xlsx` + readable `.md`) |
 | [`decision-log.md`](decision-log.md) | The why-trail, written as the work happened, including what was decided **against** |
 | [`BUILD-PLAN.md`](BUILD-PLAN.md) | Where we are, the staged sequence, and the triggered backlog |
 | [`docs/lessons-for-next-project.md`](docs/lessons-for-next-project.md) | Portable takeaways |

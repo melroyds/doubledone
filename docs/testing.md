@@ -28,6 +28,9 @@ npm run test:coverage  # HTML report at coverage/index.html
 ```
 CI runs `npm test` on every push (`.github/workflows/ci.yml`); the README badge reflects it.
 
+## Manual end-to-end suite
+The automated tests cover logic and the AI request contract. The things only a human on real devices and a real account can verify (sign-in, sync, account deletion, the MCP round-trip, on-device fonts and reminders, the scrapbook) live in a fillable suite at [`qa/`](qa): 60 cases tagged P1/P2/P3, generated from [`scripts/gen-test-suite.py`](../scripts/gen-test-suite.py). Every new user-facing feature adds its case there (a project rule in [`CLAUDE.md`](../CLAUDE.md)).
+
 ## Layout
 Tests live next to source as `*.test.ts`. Co-location is deliberate: refactor `thing.ts` and
 its test shows up in the same diff, one keystroke away.

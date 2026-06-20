@@ -28,7 +28,7 @@ The home screen is **Today**, sized to be doable. Everything else is plumbing in
 
 **Why AuDHD especially.** The autism-plus-ADHD overlap is underserved and a sharp fit. Autism pulls toward routine, predictability, low sensory load, and no surprises. ADHD pulls toward low friction and externalised memory. DoubleDone's calm, near-zero-maintenance, never-shame, no-new-settings spine serves both at once, where the typical dopamine-streak ADHD app actively repels the autistic side. Demand avoidance, common in AuDHD, is also why the never-pressure, never-shame framing is non-negotiable rather than merely nice.
 
-**Secondary:** developers and AI agents, via a public API and an MCP server (the AX/DX surface, deferred but architected for).
+**Secondary:** developers and AI agents, via a public API and an MCP server (the AX/DX surface). The MCP server is now shipped (`/mcp`, bearer-token, tasks under the user's own RLS); the public API remains deferred.
 
 **Not for:**
 - Neurotypical productivity optimisers (Motion, Todoist serve them well)
@@ -63,7 +63,7 @@ Two implied promises: lower the stakes of starting, and provide evidence against
 |---|---|---|
 | **1, build first** | Today view, brain-dump capture, AI hydration, Bite the Elephant, recurring daily tracker | The whole core loop. Nothing ships without these. |
 | **2, soon after** | Strategise reshuffle, finished-old-task celebration, close-the-day wrap, the Lookback, gentle nudges | What makes it sticky rather than merely functional. |
-| **3, defer** | Cross-device sync, calendar read, energy-level matching, public API, MCP server | Real, not day-one. Each gets a build trigger. |
+| **3, defer** | Calendar read, energy-level matching, public API | Real, not day-one. Each gets a build trigger. (Cross-device sync and the MCP server, also Tier 3, have since shipped.) |
 | **4, skip** | Teams, assignees, dependencies, Gantt, social feed | Wrong product. |
 
 ---

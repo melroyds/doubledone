@@ -41,12 +41,20 @@ The merge is **last-write-wins by `updatedAt`**, with **soft-delete tombstones**
 - **Date maths on-device, not in the model.** The AI orders steps; the client computes the dates (`lib/spread`). Deterministic, free, and testable.
 - **The endpoints are locked down.** A CORS allowlist (app origins only), an Origin gate (a disallowed browser origin is refused before any Claude call), and a per-IP Cloudflare rate limit. The rate limit is the real cost guard for native (which sends no Origin); the spend cap is the final backstop.
 
+## The scrapbook (a second AI surface, off the Anthropic budget)
+
+The first premium delight turns a finished week into a calm still-life keepsake in the Lookback. It is a two-step **Workers AI** pipeline on the same Worker, deliberately *not* an Anthropic call: a small Llama model distils the week's finished task titles into a one-sentence still-life scene (objects that evoke the tasks, never text), then FLUX renders it. Workers AI runs on free-tier neurons, so the feature costs nothing against the $25 Anthropic cap. The image is device-local for now (base64), with the week's finished tasks listed beneath the keepsake so you *see* the week even before the picture loads. Lesson banked: Workers AI model ids deprecate on a date (an 8B Llama retired mid-build, surfacing as error 5028), so `wrangler ai models` is the source of truth, not memory.
+
+## The MCP server (the agent surface)
+
+A small, stateless **Model Context Protocol** server at `/mcp` lets an AI agent (Claude Desktop, the Inspector) add, list and complete tasks. It speaks MCP Streamable HTTP (JSON-RPC over a single POST). The design call that matters: **auth is the user's own Supabase access token**, pasted into their client, and every tool proxies to Supabase REST *with that token*, so row-level security scopes it to exactly their rows and the server holds no elevated key. A plain stateless Worker route beat the heavier `McpAgent` (its OAuth model and durable-object state buy nothing here). The pure parts (tool schemas, the JWT-sub decode, the request builders, the JSON-RPC envelopes) are unit-tested; only the I/O glue is not.
+
 ## Privacy by architecture
 
 The only PII the app can ever hold is an email, and only if you choose to sync. Beyond that:
 
 - **Secrets stay server-side.** The Anthropic key is a Worker secret; the client ships only the public Supabase publishable key; the service-role key is never used.
-- **Telemetry is pseudonymous and insert-only.** AI calls are logged to an `ai_calls` table with no `user_id` and no IP, and the table's RLS allows insert but not select, so it cannot be read back through the public API. It exists to tune decompositions and, eventually, to power the cross-user estimate — aggregate, anonymise, never sell.
+- **Telemetry is pseudonymous and has no public write path.** AI calls are logged with no `user_id` and no IP to a **Cloudflare D1** database bound to the Worker, so nothing public can write it (or read it). It exists to tune decompositions and, eventually, to power the cross-user estimate — aggregate, anonymise, never sell. (It began as a Supabase `ai_calls` table written with the public anon key; moving it to Worker-bound D1 closed that write path.)
 - **Right to erasure is real.** A `SECURITY DEFINER` RPC scoped to `auth.uid()` lets a signed-in user delete their account and cascade their data, with no elevated client privileges.
 
 ## The design system in code (Dusk)
@@ -65,7 +73,7 @@ Risk-targeted, not coverage-theatre. Tests are **co-located** with the pure logi
 - Store parse/recovery (a corrupt blob must never crash or drop the list).
 - The AI request contracts (shape in, defensive parse out).
 
-What is deliberately **not** tested: the model's actual output, and the thin SDK seams (AsyncStorage, the Supabase client) that are all I/O and no logic. As of this writing: 171 client + 38 server cases, run non-interactively on every commit.
+What is deliberately **not** tested: the model's actual output, and the thin SDK seams (AsyncStorage, the Supabase client) that are all I/O and no logic. As of this writing: 179 client + 59 server cases, run non-interactively on every commit, plus a 60-case manual [end-to-end suite](qa/) for what only a human on real devices can verify.
 
 ## The golden-path discipline
 
@@ -84,4 +92,4 @@ The hard-won ones, kept because the first time you hit them is the worst time to
 
 ## Known limits and what is next
 
-Local-first means no remote-wipe of other devices on account deletion. The cross-user estimate is, today, a transparent on-device heuristic framed as the app's own guidance — it becomes real anonymised crowd data only when there is enough volume to be honest, and the instrumentation to feed it is already live. The `ai_calls` write path is hardened against abuse at the read layer but its insert path is a pre-public-launch item. Native font weights are single-variant for now. Each of these is parked with a trigger in [`BUILD-PLAN.md`](../BUILD-PLAN.md), which is the live sequence; nothing deferred is lost.
+Local-first means no remote-wipe of other devices on account deletion. The cross-user estimate is, today, a transparent on-device heuristic framed as the app's own guidance — it becomes real anonymised crowd data only when there is enough volume to be honest, and the instrumentation to feed it is already live. (The telemetry insert path, once a public anon-key write and a pre-launch risk, is now closed: it writes only to Worker-bound D1.) The next build is **monetisation**: the scrapbook ships free, and the paid tier (Stripe + entitlement gating) is the trigger. Each parked item has a trigger in [`BUILD-PLAN.md`](../BUILD-PLAN.md), which is the live sequence; nothing deferred is lost.
