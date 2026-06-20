@@ -145,6 +145,8 @@ The single home for everything we have consciously parked. Nothing here is dropp
 
 **Audience-driven product backlog** (brainstorm 2026-06-20, imagining the ADHD / AuDHD / OCD user; ⭐ = strongest, ⭐⭐ = top pick). Each waits behind a trigger; a sequencing exercise follows.
 
+> ✅ **Tier 1+2 polish sprint shipped 2026-06-20** (autonomous build, all preview-verified, see decision-log): **shame-free re-entry** (⭐⭐), **"just this one" focus mode** (⭐), **"I also did that"** off-plan logging (⭐), **"weight of today"** load gauge (⭐), and **data export** ("your stuff is yours"). The sixth, **scrapbook → R2 persistence**, is *staged not built* (needs R2 + a Supabase migration + a Worker deploy + live verification): full plan in [`docs/scrapbook-r2.md`](docs/scrapbook-r2.md), to run as one joint session.
+
 *Capture, get it out before it's gone*
 - ⭐ **Talk-to-capture.** Hold to speak a brain-dump; AI splits it into tasks. Fleeting thoughts + typing friction = lost thoughts. Strong AI / multimodal signal. Trigger: next feature sequence.
 - **Quick-capture from outside the app** (share target / home-screen widget / a notification you can type into). The thought arrives mid-task; opening the app loses it. Trigger: native distribution matures (Play Store / OTA).
