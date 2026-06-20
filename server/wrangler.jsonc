@@ -9,6 +9,9 @@
   "ratelimits": [{ "name": "AI_LIMITER", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } }],
   // Workers AI, for the scrapbook image pipeline (free-tier neurons, no Anthropic call).
   "ai": { "binding": "AI" },
+  // R2 bucket for scrapbook keepsake images (off the localStorage quota; the Worker
+  // serves them at GET /scrapbook-img/:key).
+  "r2_buckets": [{ "binding": "SCRAPBOOKS", "bucket_name": "doubledone-scrapbooks" }],
   // Telemetry store (the moat). D1 is Worker-bound, so there is NO public write
   // path, unlike the old anon-key Supabase insert that anyone could reach.
   "d1_databases": [

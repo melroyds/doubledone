@@ -25,6 +25,13 @@ interface AiBinding {
   run(model: string, input: Record<string, unknown>): Promise<unknown>;
 }
 
+// R2 bucket binding (see wrangler.jsonc), typed locally so we do not depend on a
+// specific @cloudflare/workers-types version. Holds the scrapbook keepsake images.
+interface R2Binding {
+  put(key: string, value: ArrayBuffer | Uint8Array, options?: { httpMetadata?: { contentType?: string } }): Promise<unknown>;
+  get(key: string): Promise<{ body: ReadableStream; httpMetadata?: { contentType?: string } } | null>;
+}
+
 export interface Env {
   ANTHROPIC_API_KEY: string;
   // Supabase project URL + public anon key. Used by the MCP server to proxy a
@@ -37,6 +44,8 @@ export interface Env {
   AI_LIMITER?: RateLimitBinding;
   // Workers AI, for the scrapbook image pipeline. Optional so tests inject a mock.
   AI?: AiBinding;
+  // R2 bucket holding the scrapbook keepsake images (off the localStorage quota).
+  SCRAPBOOKS?: R2Binding;
   // D1 store (Worker-bound): the moat's telemetry (pseudonymous) plus the
   // entitlements table (user-keyed) the Stripe webhook writes.
   DB?: D1LikeDatabase;
@@ -115,6 +124,22 @@ export default {
     if (pathname === '/health') {
       // Reports whether the key is wired, never the key itself.
       return Response.json({ ok: true, hasKey: Boolean(env.ANTHROPIC_API_KEY) }, { headers: cors });
+    }
+
+    // Public read for a scrapbook keepsake image stored in R2. Not origin-gated (the
+    // <Image> tag loads it cross-origin), read-only, and the key is an unguessable
+    // UUID. Long-cached and immutable.
+    if (request.method === 'GET' && pathname.startsWith('/scrapbook-img/')) {
+      if (!env.SCRAPBOOKS) return new Response('not found', { status: 404 });
+      const key = decodeURIComponent(pathname.slice('/scrapbook-img/'.length));
+      const obj = await env.SCRAPBOOKS.get(key);
+      if (!obj) return new Response('not found', { status: 404 });
+      return new Response(obj.body, {
+        headers: {
+          'content-type': obj.httpMetadata?.contentType ?? 'image/jpeg',
+          'cache-control': 'public, max-age=31536000, immutable',
+        },
+      });
     }
 
     // Stripe Premium: create a Checkout session, and read the current entitlement.
@@ -411,13 +436,27 @@ export default {
         const imageRes = await env.AI.run(IMAGE_MODEL, { prompt: imagePrompt(scene), steps: 4 });
         const base64 = parseImage(imageRes);
         if (!base64) throw new Error('no image returned');
+        // Persist the bytes to R2 and hand back a small URL, so the client stores an
+        // ~80-char link instead of a ~500KB data-URL (the localStorage quota fix).
+        // Falls back to the inline data-URL if R2 is unbound or hiccups.
+        let image = dataUrl(base64);
+        if (env.SCRAPBOOKS) {
+          try {
+            const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+            const key = `${crypto.randomUUID()}.jpg`;
+            await env.SCRAPBOOKS.put(key, bytes, { httpMetadata: { contentType: 'image/jpeg' } });
+            image = `${new URL(request.url).origin}/scrapbook-img/${key}`;
+          } catch {
+            // keep the data-URL fallback
+          }
+        }
         ctx.waitUntil(
           logAiCall(env, {
             endpoint: 'scrapbook', model: IMAGE_MODEL, input: { titles }, output: { caption: scene },
             inputTokens: null, outputTokens: null, latencyMs: Date.now() - started, ok: true,
           }),
         );
-        return Response.json({ image: dataUrl(base64), caption: scene }, { headers: cors });
+        return Response.json({ image, caption: scene }, { headers: cors });
       } catch (e) {
         ctx.waitUntil(
           logAiCall(env, {

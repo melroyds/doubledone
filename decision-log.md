@@ -1095,3 +1095,11 @@ Deliberately **tasks-only** (not the scrapbook images): the base64 keepsakes are
 ## 2026-06-20 Scrapbook -> R2 persistence: staged, not blind-built
 
 The last of the Tier 1+2 polish sprint, and the only one I deliberately did NOT build autonomously. Moving scrapbook images off device-local base64 to Cloudflare R2 (Worker uploads, serves by URL) plus a Supabase `scrapbooks` table needs an R2 bucket, a Supabase migration, and a Worker deploy, all on Melroy's accounts, and it must be verified live (the upload round-trip and cross-device sync cannot be confirmed in the web preview). Blind-building untested paid-tier infra and committing it is exactly the risk "ultra-polished" should avoid. So it is fully designed and staged in [`docs/scrapbook-r2.md`](docs/scrapbook-r2.md) (R2 command, Worker diff, schema + RLS, client changes, the live-verify checklist), to run as one ~25-minute joint session. The discipline of stopping, applied to the one feature that genuinely needs hands-on infra.
+
+## 2026-06-20 Scrapbook -> R2 persistence: built and live (the R2 half)
+
+Built and deployed with Melroy here (R2 enabled, `doubledone-scrapbooks` bucket created, deploy authorised). The Worker `/scrapbook` now decodes the generated image, `put`s the bytes to R2 under a random UUID key, and returns a small `/scrapbook-img/:key` URL instead of a ~380KB base64 data-URL. A public, long-cached `GET /scrapbook-img/:key` serves it back from R2 (not origin-gated; the key is unguessable). Graceful fallback to the inline data-URL if R2 is unbound or errors, so nothing breaks. **No client change**: the app stores + renders an image string either way, it just shrank ~5000x (the localStorage quota fix).
+
+Verified LIVE: a real generation returned a `/scrapbook-img/…jpg` URL (not a blob), and fetching it served `image/jpeg`, 380KB, `cache-control: immutable` from R2. Worker version `fba3a254`.
+
+Remaining (the cross-device half): sync the scrapbook URLs to a Supabase `scrapbooks` table so they survive a cache-clear and follow a signed-in user to a new device. The *image* is durable in R2 now; the URL reference still lives only in localStorage until that sync lands.
