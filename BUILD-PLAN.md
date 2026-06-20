@@ -143,6 +143,55 @@ The single home for everything we have consciously parked. Nothing here is dropp
 **Portfolio and public documentation**
 - ◑ **Portfolio-grade GitHub, modelled on ParkProof** (Melroy, 2026-06-18). *README rewritten to ParkProof's shape (hero, what-it-does, architecture diagram, stack table, notable decisions, what's-not-built-with-triggers, files tree, further reading) and `docs/case-study.md` written (the PM narrative: pivot, spine, moat, never-shame, discipline of stopping) — 2026-06-19.* ✅ **Screenshots done 2026-06-19:** Today + Settings, light + dark, captured at a true 390px viewport and current to the Dusk look (incl. the rotating-phrase footer). **Remaining (optional):** a build-journal / how-it-was-built doc like ParkProof's.
 
+**Audience-driven product backlog** (brainstorm 2026-06-20, imagining the ADHD / AuDHD / OCD user; ⭐ = strongest, ⭐⭐ = top pick). Each waits behind a trigger; a sequencing exercise follows.
+
+*Capture, get it out before it's gone*
+- ⭐ **Talk-to-capture.** Hold to speak a brain-dump; AI splits it into tasks. Fleeting thoughts + typing friction = lost thoughts. Strong AI / multimodal signal. Trigger: next feature sequence.
+- **Quick-capture from outside the app** (share target / home-screen widget / a notification you can type into). The thought arrives mid-task; opening the app loses it. Trigger: native distribution matures (Play Store / OTA).
+- **A "someday" inbox that demands no decision.** Demand avoidance: don't force scheduling at capture. Pairs with Custom lists. Trigger: with Custom lists.
+
+*Starting, the wall of awful*
+- ⭐ **"Just this one" focus mode.** Full-screen a single task + its first step, everything else hidden, optional calm timer. Body-doubling, in-app. Trigger: after the capture/start sequence.
+- **"Tiny version" reframe.** One tap shrinks a task to its 2-minute version. Lower the stakes to cross the start line. Trigger: cheap, bundle with focus mode.
+- **Start-anywhere on a broken-down task.** Do steps in any order; kill the "must do it right" freeze. Trigger: small, with the decomposition polish.
+
+*Time blindness*
+- ⭐ **A visible "weight of today".** The day's load shown honestly so Today can't silently overfill. Extends `lib/estimate`. Trigger: alongside the estimate work, or sooner as a calm gauge.
+- **Gentle wind-down nudge.** Hyperfocus + autistic transitions miss the day ending. A soft "winding down?", never an alarm. Trigger: with smarter reminders.
+
+*Evidence you did things (the discounting reflex)*
+- ⭐ **"I also did that".** Log things done that were never on the list; this brain does loads off-plan, and counting only ticked tasks feeds "I did nothing". Cheap, high payoff, feeds the Lookback + the moat. Trigger: near-term.
+- **Cumulative never-streak counts.** "You've closed 142 things here." Tenure that only grows. Trigger: with the Lookback's next pass.
+
+*Re-entry & retention (the week-six bar)*
+- ⭐⭐ **Shame-free re-entry.** Open after a gap → "welcome back, here's today, the past is fine", never "47 overdue". The single biggest retention lever for this audience, and differentiated. Trigger: before any real-user push.
+- **Invitational reminders.** "Today's here when you are", never a nag or badge. Trigger: with the reminder rework.
+
+*AuDHD, routine & sensory*
+- ⭐ **Routines.** A morning / evening sequence surfaced at the right time as a gentle checklist. Autism anchors on routine; ADHD needs the externalised sequence. Trigger: after the start/capture sequence.
+- **Deeper low-stimulation mode** for sensory-overload days (extends reduce-motion). Trigger: a real ask, or the design pass.
+
+*OCD, reassurance without feeding the compulsion*
+- ⭐ **"Done is done".** Ticking gives a clear, permanent "recorded, you don't need to check again", countering the checking loop. Trigger: small, near-term.
+- **"Good enough" permission.** A gentle, explicit "this is done enough" to release the not-just-right feeling. Trigger: with the OCD pass.
+- *Restraint as the feature:* the no-folders / no-tags / no-settings spine is what stops the app becoming a compulsion. Not a build, a guardrail to defend (see "do NOT build" below).
+
+*Energy / capacity*
+- ⭐ **"Low-capacity day" mode.** One tap shrinks Today to the bare minimum, guilt-free. Honours bad days instead of pretending every day is equal. Trigger: after the core start/capture work.
+
+*Polish & trust*
+- ⭐ **Scrapbook image persistence** (Melroy, 2026-06-20). Images are base64 in `localStorage` today: device-local, lost on cache-clear / reinstall, no sync, ~500 KB each risks the quota. Move the bytes to **Cloudflare R2** (the Worker uploads on generation, returns a URL) + sync metadata via a Supabase `scrapbooks` table. Higher priority now the scrapbook is paid. Trigger: before real users touch the paid tier.
+- **Calm completion feedback** (optional soft haptic / chime, off by default, never gamified). Trigger: polish pass.
+- **Warm empty states + a gentle first-run** (no tutorial wall). Trigger: before a public push.
+- **Data export** ("your stuff is yours"). Trigger: before real users, with the privacy story.
+
+*The discipline of stopping (tempting, but do NOT build)*
+- No streaks / points / leaderboards (RSD + the streak-break shame).
+- No folders / tags / projects / deep customization (feeds OCD perfecting and ADHD organising-as-avoidance; the no-settings spine is the feature).
+- No social or sharing by default (sensory + RSD).
+- No variable / surprise rewards (autism needs predictability).
+- No AI that silently reorganises (demand avoidance; always propose-then-accept).
+
 ---
 
 ## Privacy and Security
