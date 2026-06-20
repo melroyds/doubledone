@@ -1000,3 +1000,14 @@ Added without diluting the Lookback's purpose (the completion payoff stays the h
 - Scope: **future-dated one-offs only** (deferred + the "Date…" chip), the same set as the Today "Later" strip. Recurring tasks stay in the Repeating drawer, not sprayed across every future day. `scheduledByDay` is pure + unit-tested.
 
 A calm partial answer to the deferred "outstanding section of Today" question (decision-log 2026-06-19): future work is now visible in two honest places, the "Later" strip and the calendar, without turning Today into an everything-bucket. Verified in preview.
+
+## 2026-06-20 Closing the day now rests it, instead of dropping you back on the same screen
+
+Melroy closed the day in testing and felt nothing happened. The wrap modal ("That's the day", what you finished, "rolls to tomorrow", Goodnight) was a complete ritual, but Goodnight dismissed straight back to the identical Today: same tasks, same list. "Close the day" implies the day ends, and landing on the unchanged screen undercut the closure. Don't fight the signal, the founder-user expected a real end-state.
+
+Added a calm **rested Today**:
+- Goodnight now persists a per-day closed flag (`doubledone.closed.v1` = today's ISO). While closed, Today replaces the task list + capture with a quiet card: the dusk art, "You've closed today.", what you finished, "It's all here tomorrow." The header (Lookback / Settings / Repeating) stays reachable.
+- **"Reopen today"** clears the flag if something surfaces after you have closed.
+- The flag is **keyed by date**, so it self-clears when the day rolls over. Tomorrow is a fresh Today with no un-close step. Nothing is reset or lost, the tasks sit behind a closed door.
+
+Decided against a harder "reset" (clearing or archiving tasks on close): undone tasks already roll forward on their own, and wiping the list would break the never-lose-a-task contract. The close stays a state-of-mind boundary, now with a visible one. This completes the daily loop's emotional spine: dump, work, close, rest, tomorrow. Verified in preview (close to rested, survives reload, reopen restores). E2E TOD-04 / TOD-04b updated.

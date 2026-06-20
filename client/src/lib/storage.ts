@@ -10,6 +10,7 @@ const STORAGE_KEY = 'doubledone.tasks.v1';
 const REMINDER_KEY = 'doubledone.reminder.v1';
 const SETTINGS_KEY = 'doubledone.settings.v1';
 const SCRAPBOOKS_KEY = 'doubledone.scrapbooks.v1';
+const CLOSED_KEY = 'doubledone.closed.v1';
 
 /**
  * Load Today's tasks. On a brand-new install (nothing ever stored) seed once so
@@ -53,6 +54,27 @@ export async function loadReminderOn(): Promise<boolean> {
 export async function saveReminderOn(on: boolean): Promise<void> {
   try {
     await AsyncStorage.setItem(REMINDER_KEY, on ? 'on' : 'off');
+  } catch {
+    // best effort
+  }
+}
+
+/** The ISO date (YYYY-MM-DD) the user closed the day on, or null. Drives the calm
+ *  "rested" Today state; it self-clears when the date rolls over (a new day's ISO
+ *  no longer matches). */
+export async function loadClosedDate(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(CLOSED_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Persist (or clear, when null) the closed-day date. Best effort. */
+export async function saveClosedDate(iso: string | null): Promise<void> {
+  try {
+    if (iso) await AsyncStorage.setItem(CLOSED_KEY, iso);
+    else await AsyncStorage.removeItem(CLOSED_KEY);
   } catch {
     // best effort
   }

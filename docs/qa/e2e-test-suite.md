@@ -23,7 +23,8 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | TOD-01 | P1 | Both | Complete a task | Tap a task's done control on Today. | Marked done with calm feedback. No shame language anywhere. |
 | TOD-02 | P1 | Both | Today is sized to be doable | Add many tasks across days; look at Today. | Today shows today's achievable set, not the entire backlog. |
 | TOD-03 | P1 | Both | Push a task to tomorrow | Use the Tomorrow action on a task in Today. | Leaves Today and appears tomorrow. No guilt framing. |
-| TOD-04 | P2 | Both | Close the day gently | Complete / close out the day. | Gentle close, zero guilt. Unfinished tasks are not shamed. |
+| TOD-04 | P1 | Both | Close the day -> rested state | Tap 'Close the day', read the wrap, then tap 'Goodnight'. | Wrap celebrates what you finished (zero guilt, unfinished never shamed). After Goodnight, Today becomes a calm 'You've closed today' rested screen with the task list + capture hidden. Survives reload. |
+| TOD-04b | P2 | Both | Reopen a closed day | From the rested screen, tap 'Reopen today'. | Returns to the normal Today with all tasks intact. (A new calendar day also auto-clears the closed state.) |
 | TOD-05 | P2 | Both | Undo a completion | Complete a task, then undo it (toggle back). | Returns to open cleanly. Counts/Lookback stay consistent. |
 | TOD-06 | P1 | Both | Persistence across restart | Add tasks, fully close the app/tab, reopen. | Tasks are still there (local-first). Nothing lost. |
 

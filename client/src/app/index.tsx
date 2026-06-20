@@ -27,7 +27,7 @@ import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { applySliceDelta } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadReminderOn, loadTasks, saveReminderOn, saveTasks } from '@/lib/storage';
+import { loadClosedDate, loadReminderOn, loadTasks, saveClosedDate, saveReminderOn, saveTasks } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { syncOnce } from '@/lib/sync';
 import { parseDump, type Task } from '@/lib/tasks';
@@ -54,6 +54,7 @@ export default function TodayScreen() {
   const insets = useSafeAreaInsets();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [closedDate, setClosedDate] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -91,6 +92,9 @@ export default function TodayScreen() {
         if (!active) return;
         setTasks(stored);
         setLoaded(true);
+      });
+      void loadClosedDate().then((d) => {
+        if (active) setClosedDate(d);
       });
       return () => {
         active = false;
@@ -159,6 +163,8 @@ export default function TodayScreen() {
   const visible = tasksForToday(tasks, today);
   const upcoming = upcomingTasks(tasks, today);
   const allDone = loaded && visible.length > 0 && visible.every((t) => isDoneOn(t, today));
+  // Closed when the stored close-date is today's; it self-clears when the date rolls over.
+  const isClosed = closedDate === toISODate(today);
   const todayDone = useMemo(() => completionsByDay(tasks).get(toISODate(today)) ?? [], [tasks, today]);
   // One-off, undone tasks on Today: the ones Strategise can re-spread (recurring stay by cadence).
   const spreadable = visible.filter((t) => !isRecurring(t) && !isDoneOn(t, today));
@@ -197,6 +203,12 @@ export default function TodayScreen() {
   function openClose() {
     setClosing(true);
     track('day.closed', { finished: todayDone.length });
+  }
+
+  function reopenDay() {
+    setClosedDate(null);
+    void saveClosedDate(null);
+    track('day.reopened');
   }
 
   function openDrawer() {
@@ -500,6 +512,39 @@ export default function TodayScreen() {
         <Text style={styles.title}>Today</Text>
         <Text style={styles.spine}>Just today. The rest can wait.</Text>
 
+        {isClosed && (
+          <View style={styles.rested}>
+            <View style={styles.restedArt}>
+              <Image
+                source={closeDayArt}
+                style={styles.artFill}
+                resizeMode="cover"
+                accessibilityIgnoresInvertColors
+                accessible
+                accessibilityLabel="A calm dusk sky settling over a closed notebook"
+              />
+            </View>
+            <Text style={styles.restedTitle}>{"You've closed today."}</Text>
+            <Text style={styles.restedLine}>
+              {todayDone.length > 0
+                ? `You finished ${todayDone.length} ${todayDone.length === 1 ? 'thing' : 'things'} today. Rest well.`
+                : "A quiet day, and that's allowed. Rest well."}
+            </Text>
+            <Text style={styles.restedSub}>{"It's all here tomorrow."}</Text>
+            <Pressable
+              onPress={reopenDay}
+              accessibilityRole="button"
+              accessibilityLabel="Reopen today"
+              hitSlop={8}
+              style={({ pressed }) => [pressed && styles.pressed]}
+            >
+              <Text style={styles.restedReopen}>Reopen today</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {!isClosed && (
+          <>
         <View style={styles.list}>
           {visible.map((task) => (
             <TaskRow
@@ -591,10 +636,12 @@ export default function TodayScreen() {
             </Pressable>
           </View>
         )}
+          </>
+        )}
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.four }]}>
-        <BrainDump onCapture={capture} onBiteElephant={biteElephant} onSort={sortDump} today={today} />
+        {!isClosed && <BrainDump onCapture={capture} onBiteElephant={biteElephant} onSort={sortDump} today={today} />}
         {isSyncConfigured &&
           (session ? (
             <View style={styles.syncRow}>
@@ -672,7 +719,11 @@ export default function TodayScreen() {
               )}
               <Text style={styles.wrapRoll}>Anything left rolls to tomorrow. Nothing is lost.</Text>
               <Pressable
-                onPress={() => setClosing(false)}
+                onPress={() => {
+                  setClosing(false);
+                  setClosedDate(toISODate(today));
+                  void saveClosedDate(toISODate(today));
+                }}
                 style={({ pressed }) => [styles.wrapBtn, pressed && styles.pressed]}
                 accessibilityRole="button"
                 accessibilityLabel="Goodnight"
@@ -832,6 +883,19 @@ const makeStyles = (t: Theme) =>
       borderColor: t.colors.line,
     },
     closeDayText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
+    rested: { alignItems: 'center', gap: spacing.three, paddingTop: spacing.five, paddingBottom: spacing.four },
+    restedArt: {
+      width: '100%',
+      maxWidth: 300,
+      aspectRatio: 3 / 2,
+      borderRadius: radius.lg,
+      overflow: 'hidden',
+      marginBottom: spacing.two,
+    },
+    restedTitle: { color: t.colors.ink, fontSize: 26 * t.scale, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3, textAlign: 'center' },
+    restedLine: { color: t.colors.ink, fontSize: 17 * t.scale, lineHeight: 24, fontFamily: fonts.body, textAlign: 'center' },
+    restedSub: { color: t.colors.inkFaint, fontSize: 14 * t.scale, lineHeight: 20, fontFamily: fonts.body, textAlign: 'center' },
+    restedReopen: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.three },
     strategiseNudge: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     strategiseBtn: {
       borderRadius: radius.md,
