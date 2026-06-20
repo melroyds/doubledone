@@ -247,11 +247,12 @@ export default function TodayScreen() {
     setFocusSkips([]);
   }
 
-  // Multi-select: pick several tasks and act on them at once. Long-press keeps its
-  // single-task menu; this is the calm "clear a few quickly" path.
-  function enterSelect() {
+  // Tap-and-hold a task to enter selection with that task already picked, then act
+  // on one or several at once. This is the calm "clear a few quickly" path; it
+  // replaces both the old long-press single-task menu and the Select-several button.
+  function enterSelectWith(id: string) {
     setSelectMode(true);
-    setSelected([]);
+    setSelected([id]);
     track('select.opened');
   }
   function exitSelect() {
@@ -700,7 +701,7 @@ export default function TodayScreen() {
               title={task.title}
               done={isDoneOn(task, today)}
               onToggle={() => toggle(task.id)}
-              onLongPress={() => setConfirmingId(task.id)}
+              onLongPress={() => enterSelectWith(task.id)}
               confirming={confirmingId === task.id}
               onRemove={() => removeTask(task.id)}
               onKeep={() => setConfirmingId(null)}
@@ -790,17 +791,6 @@ export default function TodayScreen() {
                 {strategiseError && <Text style={styles.strategiseErr}>{strategiseError}</Text>}
               </>
             )}
-            {visible.length > 0 && (
-              <Pressable
-                onPress={enterSelect}
-                accessibilityRole="button"
-                accessibilityLabel="Select multiple tasks"
-                hitSlop={6}
-                style={({ pressed }) => [pressed && styles.pressed]}
-              >
-                <Text style={styles.focusLink}>Select several</Text>
-              </Pressable>
-            )}
             <Pressable
               onPress={openClose}
               style={({ pressed }) => [styles.closeDay, pressed && styles.pressed]}
@@ -818,7 +808,12 @@ export default function TodayScreen() {
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.four }]}>
         {selectMode ? (
           <View style={styles.selectBar}>
-            <Text style={styles.selectCount}>{selected.length === 0 ? 'Tap tasks to select' : `${selected.length} selected`}</Text>
+            <View style={styles.selectTop}>
+              <Text style={styles.selectCount}>{selected.length === 0 ? 'Tap tasks to select' : `${selected.length} selected`}</Text>
+              <Pressable onPress={() => setSelected(spreadable.map((x) => x.id))} accessibilityRole="button" accessibilityLabel="Select all tasks" hitSlop={6}>
+                <Text style={styles.selectAllText}>Select all</Text>
+              </Pressable>
+            </View>
             <View style={styles.selectActions}>
               <Pressable onPress={bulkComplete} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Mark selected done" hitSlop={6}>
                 <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>Done</Text>
@@ -826,6 +821,20 @@ export default function TodayScreen() {
               <Pressable onPress={bulkDefer} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Move selected to tomorrow" hitSlop={6}>
                 <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>Tomorrow</Text>
               </Pressable>
+              {selected.length === 1 && (
+                <Pressable
+                  onPress={() => {
+                    const one = tasks.find((y) => y.id === selected[0]);
+                    if (one) breakdownExisting(one.title);
+                    exitSelect();
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Break down the selected task"
+                  hitSlop={6}
+                >
+                  <Text style={styles.selectAction}>Break down</Text>
+                </Pressable>
+              )}
               <Pressable onPress={bulkRemove} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Remove selected" hitSlop={6}>
                 <Text style={[styles.selectRemove, selected.length === 0 && styles.selectActionOff]}>Remove</Text>
               </Pressable>
@@ -1270,6 +1279,8 @@ const makeStyles = (t: Theme) =>
     },
     focusEntryText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     alsoDidUnderList: { marginTop: spacing.three, marginBottom: spacing.two, alignItems: 'center' },
+    selectTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.two },
+    selectAllText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
     focusScreen: { flex: 1, backgroundColor: t.colors.bg, padding: spacing.six, justifyContent: 'center', alignItems: 'center' },
     focusExit: { position: 'absolute', top: spacing.seven, left: spacing.five },
     focusExitText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
