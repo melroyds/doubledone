@@ -87,6 +87,9 @@ CASES = [
     ("TOD-10", "Today", "P2", "Focus mode: just this one",
      "With a few tasks present, tap 'Focus on one thing'. Try 'Not this one' (skip), 'Done' (complete), and Exit.",
      "Full-screen single task, everything else hidden. Skip advances, Done completes and advances, Exit returns. When none left: 'That's everything for now.'", "Both"),
+    ("TOD-11", "Today", "P3", "Weight-of-today gauge",
+     "Add a few tasks and watch the slim gauge under 'Just today'.",
+     "A calm bar + label (clear / light / full / heavy) reflects the count of unfinished one-offs, honest, never alarming, hidden on a clear day.", "Both"),
 
     # --- AI: Bite the Elephant (decompose) -----------------------------------
     ("AI-01", "AI decompose", "P1", "Break down a dreaded task",

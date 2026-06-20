@@ -22,6 +22,7 @@ import {
 import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
 import { addDaysISO, formatTodayLabel, friendlyDate, isReentry, toISODate } from '@/lib/day';
+import { dayWeight } from '@/lib/estimate';
 import { aiLanguage } from '@/lib/locale';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
@@ -189,6 +190,7 @@ export default function TodayScreen() {
   // Focus mode shows one unfinished one-off at a time (recurring habits are not the
   // wall-of-awful). The first not-yet-skipped one; completing or skipping advances it.
   const focusTask = focusOpen ? (spreadable.find((t) => !focusSkips.includes(t.id)) ?? null) : null;
+  const weightOfDay = dayWeight(spreadable.length);
 
   function commit(next: Task[]) {
     setTasks(next);
@@ -590,6 +592,15 @@ export default function TodayScreen() {
         )}
         <Text style={styles.title}>Today</Text>
         <Text style={styles.spine}>Just today. The rest can wait.</Text>
+        {loaded && !isClosed && spreadable.length > 0 && (
+          <View style={styles.weight}>
+            <View style={styles.weightTrack}>
+              <View style={[styles.weightFill, { flex: weightOfDay.fill }]} />
+              <View style={{ flex: 1 - weightOfDay.fill }} />
+            </View>
+            <Text style={styles.weightLabel}>{weightOfDay.label}</Text>
+          </View>
+        )}
 
         {isClosed && (
           <View style={styles.rested}>
@@ -1093,6 +1104,10 @@ const makeStyles = (t: Theme) =>
       marginTop: spacing.one,
     },
     reentryBtnText: { color: '#FFFFFF', fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    weight: { marginTop: spacing.two, marginBottom: spacing.four, gap: spacing.two },
+    weightTrack: { flexDirection: 'row', height: 6, borderRadius: radius.pill, backgroundColor: t.colors.line, overflow: 'hidden' },
+    weightFill: { backgroundColor: t.colors.accent },
+    weightLabel: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
     dayActions: { marginTop: spacing.seven, alignItems: 'center', gap: spacing.three },
     closeDay: {
       paddingVertical: spacing.three,

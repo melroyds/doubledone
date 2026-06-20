@@ -1075,3 +1075,13 @@ Starting is the #1 ADHD blocker, and a full list is paralysing. "Focus on one th
 - **Deferred to a fast-follow:** the optional calm timer (the spec's "optional" part). The full-screen single task is the core; a timer adds interval/state for marginal v1 value and risks reading as pressure against the calm spine. Recorded for challenge.
 
 Verified in preview: open shows the first task; skip advances; done completes and advances past the skipped one; all-done shows the calm empty state.
+
+## 2026-06-20 "Weight of today": an honest, calm load gauge
+
+Time-blindness lets Today silently overfill. A slim gauge under the spine now shows the day's load honestly: a mauve fill (0..1) plus a plain label, "A clear day" / "A light day" / "A full day" / "A heavy day", from the count of unfinished one-off tasks (`dayWeight`, pure + tested, extends `lib/estimate`). It complements the existing Strategise nudge (the actionable prompt at a full day) with a continuous, glanceable read.
+
+- Count of **one-off** tasks only (recurring habits are routine, not the load that overwhelms). A sliced task counts as one (it is one thing).
+- Deliberately **count-based, not time-based**: most tasks carry no minute estimate, so a "2 hours today" gauge would be mostly fabricated defaults; the count is honest. (When real per-task effort exists, this can swap to a time read with no UI change.)
+- **No alarm colour** at any level: a single calm mauve fill, the label carries the heavy day, never red. Shown only when there is a load (hidden on a clear day).
+
+Verified in preview: 4 tasks reads "A full day" with the bar ~67% filled.

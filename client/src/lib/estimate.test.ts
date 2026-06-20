@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
-import { describePace, paceDays } from './estimate';
+import { dayWeight, describePace, paceDays } from './estimate';
+
+describe('dayWeight', () => {
+  it('reads clear at zero, scaling up to heavy, never below clear', () => {
+    expect(dayWeight(0)).toEqual({ level: 'clear', label: 'A clear day', fill: 0 });
+    expect(dayWeight(2).level).toBe('light');
+    expect(dayWeight(4).level).toBe('full');
+    expect(dayWeight(6).level).toBe('heavy');
+    expect(dayWeight(20).level).toBe('heavy');
+  });
+  it('fills 0..1 and caps at 1', () => {
+    expect(dayWeight(3).fill).toBeCloseTo(0.5);
+    expect(dayWeight(6).fill).toBe(1);
+    expect(dayWeight(100).fill).toBe(1);
+  });
+});
 
 describe('paceDays', () => {
   it('is at least a day, even with no steps', () => {

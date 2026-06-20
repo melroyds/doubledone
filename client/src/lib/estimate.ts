@@ -44,3 +44,18 @@ export function describePace(days: number): string {
             : 'a week or two';
   return `Usually ${span}, at a gentle pace. No rush.`;
 }
+
+export type DayWeight = { level: 'clear' | 'light' | 'full' | 'heavy'; label: string; fill: number };
+
+/**
+ * A calm, honest read on how full Today is, from the count of unfinished one-off
+ * tasks (recurring habits are routine, not load). `fill` is 0..1 for a slim gauge;
+ * the label describes the day, it never scolds, so Today can't silently overfill.
+ */
+export function dayWeight(count: number): DayWeight {
+  const fill = Math.min(Math.max(count, 0) / 6, 1);
+  if (count <= 0) return { level: 'clear', label: 'A clear day', fill: 0 };
+  if (count <= 2) return { level: 'light', label: 'A light day', fill };
+  if (count <= 5) return { level: 'full', label: 'A full day', fill };
+  return { level: 'heavy', label: 'A heavy day', fill: 1 };
+}
