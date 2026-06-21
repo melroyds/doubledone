@@ -40,6 +40,7 @@ import { localBelongsToAnother, syncOnce } from '@/lib/sync';
 import { parseDump, type Task } from '@/lib/tasks';
 import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
+import { updateWidget } from '@/widget/update';
 import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { deferTo, deferToTomorrow, isDoneOn, isRecurring, tasksForToday, toggleDoneOn, upcomingTasks } from '@/lib/today';
 
@@ -263,6 +264,7 @@ export default function TodayScreen() {
   function commit(next: Task[]) {
     setTasks(next);
     void saveTasks(next);
+    void updateWidget(next, closedDate); // keep any home-screen widget in sync (native; no-op on web)
   }
 
   // Soft-delete: tombstone the task (hidden from every view) rather than dropping

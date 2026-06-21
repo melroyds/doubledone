@@ -118,6 +118,9 @@ CASES = [
     ("AND-04", "Android", "P2", "Share text into DoubleDone",
      "On Android, from another app (a browser, notes, a chat) use the system Share sheet and pick DoubleDone. Try sharing a line of text, and a URL.",
      "DoubleDone opens with the shared text (or URL) already in the capture box on Today, focused and ready to add. Adding it makes a normal task; nothing is sent anywhere until you do.", "Android"),
+    ("AND-05", "Android", "P2", "Home-screen Today widget",
+     "On Android, long-press the home screen and add the 'DoubleDone: Today' widget. Check it with tasks left, with all done, and after closing the day. Complete a task in the app and watch the widget. Tap the widget.",
+     "The widget shows today's top unfinished titles (or a calm 'All done for today.' / 'Nothing for today yet.'), in light or dark to match the device. It refreshes within a moment of a change in the app (and at least every 30 minutes). Tapping it opens DoubleDone.", "Android"),
 
     # --- Onboarding: the one-time guided welcome ------------------------------
     ("ONB-01", "Onboarding", "P1", "Guided welcome on first run",
