@@ -106,6 +106,14 @@ CASES = [
      "Tap-and-hold to select one or more tasks, tap 'Move to...', then pick 'This weekend', 'Next week', or a calendar day.",
      "Selected one-offs move to that date and wait in the Later list until then (recurring tasks are left alone); select mode exits.", "Both"),
 
+    # --- OCD reassurance (Cluster A) -----------------------------------------
+    ("OCD-01", "Today", "P2", "Done is done (completion affirmation)",
+     "Complete any task: tap a Today task, or select tasks and tap Done.",
+     "A brief, consistent calm line appears near the capture ('Done is done. Recorded.') and clears itself after a few seconds. It is the SAME line every time (never a rotating or variable reward), reduce-motion safe, and never shaming.", "Both"),
+    ("OCD-02", "Today", "P2", "Good enough (release a stuck-perfected task)",
+     "On Today, long-press a task to select it, then tap 'Good enough'. On a Later task, long-press it and tap 'Good enough' in the menu.",
+     "The task completes with a gentler line ('Good enough is done. Let it go.'). The action only appears for an incomplete one-off. It is permission to release, never a nag.", "Both"),
+
     # --- Haptics (Android device only) ---------------------------------------
     ("HAP-01", "Haptics", "P3", "Earned-moment haptics fire (Android)",
      "On a physical Android device with a haptic motor: complete a single task; clear the whole day; close the day with Goodnight; break a dreaded task into steps; and (premium) reveal a scrapbook.",

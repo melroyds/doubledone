@@ -68,6 +68,8 @@ export default function TodayScreen() {
   const [loaded, setLoaded] = useState(false);
   const [closedDate, setClosedDate] = useState<string | null>(null);
   const [sortSummary, setSortSummary] = useState<string | null>(null);
+  const [affirmation, setAffirmation] = useState<string | null>(null); // a brief "done is done" / "good enough" reassurance; auto-clears
+  const affirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [reentry, setReentry] = useState(false);
   const [didOpen, setDidOpen] = useState(false);
   const [didText, setDidText] = useState('');
@@ -355,6 +357,7 @@ export default function TodayScreen() {
       }),
     );
     track('bulk.completed', { count: selected.length });
+    affirm('Done is done. Recorded.');
     exitSelect();
   }
   function bulkDefer() {
@@ -491,6 +494,14 @@ export default function TodayScreen() {
     setPlan(null);
   }
 
+  // A brief, consistent reassurance after completing (Done-is-done / Good-enough). One
+  // timer at a time, so a fresh completion is never cut short by an older one's clear.
+  function affirm(line: string) {
+    setAffirmation(line);
+    if (affirmTimer.current) clearTimeout(affirmTimer.current);
+    affirmTimer.current = setTimeout(() => setAffirmation(null), 3500);
+  }
+
   function toggle(id: string) {
     const next = tasks.map((t) => {
       if (t.id !== id) return t;
@@ -517,8 +528,18 @@ export default function TodayScreen() {
       dayCleared(reduced); // the whole day just cleared: a fuller success than one task
     } else if (done) {
       taskDone(reduced); // a single task done: the core, soft cue
+      affirm('Done is done. Recorded.'); // OCD reassurance: it is filed, you can stop checking
     }
     commit(next);
+  }
+
+  // Good enough: complete a task you are stuck perfecting, with explicit permission to
+  // release it. Reuses toggle, then overrides the affirmation to the gentler line.
+  function goodEnough(id: string) {
+    setConfirmingId(null);
+    toggle(id);
+    affirm('Good enough is done. Let it go.');
+    track('goodenough.used');
   }
 
   function capture(text: string, schedule: CaptureSchedule, sliceCount?: number) {
@@ -858,6 +879,7 @@ export default function TodayScreen() {
               onRetreat={() => step(task.id, -1)}
               onBreakdown={() => breakdownExisting(task.title)}
               onDefer={() => deferTask(task.id)}
+              onGoodEnough={() => goodEnough(task.id)}
               suggestBreakdown={task.suggestBreakdown}
               selecting={selectMode}
               selected={selected.includes(task.id)}
@@ -917,6 +939,7 @@ export default function TodayScreen() {
                   onAdvance={() => step(task.id, 1)}
                   onRetreat={() => step(task.id, -1)}
                   onBreakdown={() => breakdownExisting(task.title)}
+                  onGoodEnough={() => goodEnough(task.id)}
                 />
               </View>
             ))}
@@ -966,6 +989,20 @@ export default function TodayScreen() {
               <Pressable onPress={bulkComplete} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Mark selected done" hitSlop={6}>
                 <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>Done</Text>
               </Pressable>
+              {selected.length === 1 && (
+                <Pressable
+                  onPress={() => {
+                    const one = selected[0];
+                    if (one) goodEnough(one);
+                    exitSelect();
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Mark the selected task good enough and done"
+                  hitSlop={6}
+                >
+                  <Text style={[styles.selectAction, { color: theme.colors.done }]}>Good enough</Text>
+                </Pressable>
+              )}
               <Pressable onPress={bulkDefer} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Move selected to tomorrow" hitSlop={6}>
                 <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>Tomorrow</Text>
               </Pressable>
@@ -1002,6 +1039,7 @@ export default function TodayScreen() {
         ) : (
           <>
         {!isClosed && sortSummary && <Text style={styles.sortSummary}>{sortSummary}</Text>}
+        {!isClosed && affirmation && <Text style={styles.affirmation}>{affirmation}</Text>}
         {!isClosed && <BrainDump ref={brainDumpRef} onCapture={capture} onBiteElephant={biteElephant} onSort={sortDump} today={today} />}
         {isSyncConfigured &&
           (session ? (
@@ -1453,6 +1491,7 @@ const makeStyles = (t: Theme) =>
     selectActionOff: { color: t.colors.inkFaint },
     selectCancel: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     sortSummary: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginBottom: spacing.two },
+    affirmation: { color: t.colors.done, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', marginBottom: spacing.two },
     reentry: {
       backgroundColor: t.colors.accentSoft,
       borderRadius: radius.lg,

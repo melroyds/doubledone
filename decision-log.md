@@ -1388,3 +1388,17 @@ Melroy's question, ahead of building Cluster B: do we permanently decompose a ta
 **Why it earns its place (beyond the instinct):** it answers the rot risk above, and it turns the moat to gold. Today the flywheel sees "steps got ticked". With a parent link it sees the real prize: did this decomposition actually get the dreaded thing DONE, and over how many days. That is the dataset a funded competitor cannot buy.
 
 **Implementation sketch (for when built):** a `parentId` on Task (or generalise `decompositionId` into one), keep the parent task off Today and silent, resurface-next on a pebble's completion, and complete + celebrate the parent when its pebbles are all done. Minimal, and it touches the user-facing simplicity not at all. Not built yet (Melroy: "don't build yet"), locked in here for when Cluster B lands.
+
+## 2026-06-22 Cluster A shipped: Done-is-done + Good-enough (OCD reassurance)
+
+The first ADHD-seam cluster, built first because it is small, zero-token (pure client UI, copy, and state, no Claude call), and serves the most underserved corner of the audience. Both are completion-moment micro-interactions.
+
+**Done is done.** The OCD checking loop ("did I really do it?") is countered by a brief, calm affirmation on completion: "Done is done. Recorded." It fires from every completion path (a single tap, the select-bar "Done", and both Good-enough entries), auto-clears after 3.5s, and renders as a quiet centred line by the capture (the `sortSummary` slot). Consistent, NOT rotating: the "do NOT build" list forbids variable / surprise rewards (autism needs predictability), so the same line every time is the on-brand call, reassurance over delight.
+
+**Good enough.** Permission to release a task you are stuck perfecting (the OCD perfectionism that stops you ticking it). A "Good enough" action completes the task with a gentler line ("Good enough is done. Let it go."). Placed in the two per-task action surfaces: the long-press confirm menu in `TaskRow` (reaches the Later list) and the select bar as a single-select action (the Today path, since Today's long-press enters select mode, not the confirm menu). Gated to incomplete one-offs.
+
+Implementation: a small `affirmation` state + an `affirm()` helper (one `setTimeout`, a ref so a fresh completion is never cut short by an older clear, and no effect so the React Compiler stays clean). `goodEnough(id)` reuses `toggle`, then overrides the affirmation. Telemetry `goodenough.used` (the moat; `task.toggled` / `bulk.completed` already fire). Zero AI, zero tokens, zero new dependency.
+
+Decided against: a rotating set of affirmations (the predictability guardrail); a popup or modal (friction, and the spine removes friction); and a persistent "recorded" badge on every done row (clutter). The ephemeral line is enough.
+
+Verification: typecheck / lint / 363 tests green, and the app loads with no console errors. The headless preview cannot drive RN web's pointer-responder taps, so the in-the-moment affirmation and the Good-enough flow are Melroy's on-device check (like the live mic was). Manual cases OCD-01 / OCD-02 added.
