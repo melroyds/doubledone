@@ -95,3 +95,15 @@ export async function syncOnce(client: SupabaseClient, local: Task[], userId: st
   await pushTasks(client, toPush, userId);
   return merged;
 }
+
+/**
+ * Whether the local store was last synced with a DIFFERENT account than `userId`.
+ * When true the local tasks are not this user's (a sign-out then sign-in as someone
+ * else, or a half-finished sign-out), so they must NOT be merged or migrated into this
+ * account, sync from an empty local set instead. `owner === null` (anonymous, no prior
+ * account) is deliberately not "another", so an anonymous-first sign-in still migrates
+ * its local list up.
+ */
+export function localBelongsToAnother(owner: string | null, userId: string): boolean {
+  return owner !== null && owner !== userId;
+}

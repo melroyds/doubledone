@@ -2,8 +2,20 @@ import { type SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
 
 import { type Recurrence } from './recurrence';
-import { rowToTask, syncOnce, taskToRow, type TaskRow } from './sync';
+import { localBelongsToAnother, rowToTask, syncOnce, taskToRow, type TaskRow } from './sync';
 import { type Task } from './tasks';
+
+describe('localBelongsToAnother', () => {
+  it('is false for anonymous local (no prior owner), so a first sign-in still migrates', () => {
+    expect(localBelongsToAnother(null, 'user-b')).toBe(false);
+  });
+  it('is false when the local store already belongs to this user', () => {
+    expect(localBelongsToAnother('user-a', 'user-a')).toBe(false);
+  });
+  it('is true when the local store belongs to a different user (never inherit it)', () => {
+    expect(localBelongsToAnother('user-a', 'user-b')).toBe(true);
+  });
+});
 
 describe('taskToRow / rowToTask', () => {
   it('round-trips a minimal task', () => {

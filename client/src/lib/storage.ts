@@ -13,6 +13,7 @@ const SCRAPBOOKS_KEY = 'doubledone.scrapbooks.v1';
 const CLOSED_KEY = 'doubledone.closed.v1';
 const LASTOPEN_KEY = 'doubledone.lastopen.v1';
 const ONBOARDED_KEY = 'doubledone.onboarded.v1';
+const ACCOUNT_KEY = 'doubledone.account.v1';
 
 /**
  * Load Today's tasks. On a brand-new install (nothing ever stored) seed once so
@@ -163,6 +164,27 @@ export async function loadScrapbooks(): Promise<Scrapbook[]> {
 export async function saveScrapbooks(books: Scrapbook[]): Promise<void> {
   try {
     await AsyncStorage.setItem(SCRAPBOOKS_KEY, JSON.stringify(books));
+  } catch {
+    // best effort
+  }
+}
+
+/** The user id the local task store was last synced with, or null (anonymous / never
+ *  synced). Drives the cross-account guard: a sign-in as a different user must not
+ *  inherit or migrate the previous user's local tasks. */
+export async function loadSyncedOwner(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(ACCOUNT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Record (or clear, when null) the account the local store belongs to. Best effort. */
+export async function saveSyncedOwner(userId: string | null): Promise<void> {
+  try {
+    if (userId) await AsyncStorage.setItem(ACCOUNT_KEY, userId);
+    else await AsyncStorage.removeItem(ACCOUNT_KEY);
   } catch {
     // best effort
   }

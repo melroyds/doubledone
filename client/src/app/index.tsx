@@ -31,9 +31,9 @@ import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { applySliceDelta } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadClosedDate, loadLastOpen, loadOnboarded, loadReminderOn, loadTasks, saveClosedDate, saveLastOpen, saveReminderOn, saveTasks } from '@/lib/storage';
+import { loadClosedDate, loadLastOpen, loadOnboarded, loadReminderOn, loadSyncedOwner, loadTasks, saveClosedDate, saveLastOpen, saveReminderOn, saveSyncedOwner, saveTasks } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
-import { syncOnce } from '@/lib/sync';
+import { localBelongsToAnother, syncOnce } from '@/lib/sync';
 import { parseDump, type Task } from '@/lib/tasks';
 import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
@@ -165,15 +165,30 @@ export default function TodayScreen() {
   // and logged, the app stays usable offline regardless.
   useEffect(() => {
     if (!supabase || !session) return;
+    const client = supabase;
+    const uid = session.user.id;
     let active = true;
-    void syncOnce(supabase, tasksRef.current, session.user.id)
-      .then((merged) => {
+    void (async () => {
+      // Cross-account guard: if the local store was last synced with a DIFFERENT
+      // account (a sign-out then sign-in as someone else, or a half-finished sign-out),
+      // never merge or migrate its tasks into this account. Start the merge from empty,
+      // and clear the visible list first. Anonymous local (no prior owner) still migrates.
+      const foreign = localBelongsToAnother(await loadSyncedOwner(), uid);
+      if (foreign) {
+        setTasks([]);
+        void saveTasks([]);
+      }
+      try {
+        const merged = await syncOnce(client, foreign ? [] : tasksRef.current, uid);
         if (!active) return;
         setTasks(merged);
         void saveTasks(merged);
+        void saveSyncedOwner(uid);
         track('sync.completed', { count: merged.length });
-      })
-      .catch((e) => track('sync.failed', { error: e instanceof Error ? e.message : e }));
+      } catch (e) {
+        track('sync.failed', { error: e instanceof Error ? e.message : e });
+      }
+    })();
     return () => {
       active = false;
     };
@@ -320,7 +335,23 @@ export default function TodayScreen() {
   }
 
   function signOut() {
-    if (supabase) void supabase.auth.signOut();
+    if (!supabase) return;
+    const client = supabase;
+    const uid = session?.user.id;
+    void (async () => {
+      // Sync is on-open only, so push any pending local changes to this account before
+      // the session ends, or they would be orphaned. Best effort: a failed push (e.g.
+      // offline) must not block sign-out, and the local store is left intact so no work
+      // is lost. The cross-account guard runs on the next sign-in, not here.
+      if (uid) {
+        try {
+          await syncOnce(client, tasksRef.current, uid);
+        } catch {
+          // offline / transient: keep local intact, never lose work
+        }
+      }
+      await client.auth.signOut();
+    })();
     track('auth.signed_out');
   }
 
