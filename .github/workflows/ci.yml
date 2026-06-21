@@ -15,9 +15,9 @@ jobs:
     name: Lint · Type-check · Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           # PIN to the runtime you deploy on so a green CI run implies prod works.
           node-version: '22'
@@ -36,7 +36,7 @@ jobs:
     name: Secret scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # full history so gitleaks scans every commit
       - name: Install gitleaks
@@ -56,8 +56,8 @@ jobs:
     name: Build (web export)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'npm'
