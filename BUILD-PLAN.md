@@ -195,11 +195,11 @@ The single home for everything we have consciously parked. Nothing here is dropp
 **ADHD seam, sequenced (planned 2026-06-22; Melroy picked A, B, D).** The still-open ⭐s, clustered by shared design and sequenced by value vs spine-risk:
 - **A. OCD reassurance** (small): "Done is done" + "Good enough" permission, one calm completion micro-interaction. Start here.
 - **B. Crossing the start line** (small): the "tiny version" reframe + start-anywhere. **Data model locked (decision-log 2026-06-22):** a tiny-version / decomposition keeps the REAL task as a *silent background parent* and chains the pebbles to it (a `parentId`, generalising the moat-only `decompositionId`), never a flat replacement and never a visible project tree. The app holds the thread, the user holds one pebble; the pebbles completing completes + celebrates the real task, and the parent never displays or nags. (Start-anywhere may be near-free: decomposed steps already land as independent Today tasks.)
-- **C. Honoring the day** (medium, not picked yet): low-capacity day mode + wind-down nudge.
+- **C. Honoring the day** (medium): low-capacity day mode + wind-down nudge. Design line: low-capacity is a one-tap, per-day action ("today is a low day, shrink it"), never a persistent setting and never-shame. Reuses the weight-of-today gauge and the nudge engine.
 - **D. Routines** (large): the morning/evening gentle checklist. Design line: never a streak, never a habit-tracker.
 - Deferred: custom lists + a someday inbox (highest spine-risk), cumulative never-streak counts, deeper low-stim mode (a setting). Invitational reminders is ~already done (the reminder copy is already invitational).
 
-Sequence: **A → B → D** (Melroy's pick), C and the rest later.
+Sequence: **A → B → C → D** (Melroy's pick; ascending effort, quick wins first). The rest (custom lists, cumulative counts, deeper low-stim) later.
 
 *Capture, get it out before it's gone*
 - ✅ **Talk-to-capture (shipped 2026-06-21).** Speak a brain-dump on web: each phrase, split on a natural pause, becomes a line, then the existing Sort/Add takes over (T1, the Web Speech API mic, `13fe636`). A no-pause or typed run-on is separated by a new AI `/split` route (Haiku), offered as a calm "Split into tasks" affordance (T2, `fdc3b26`, Worker deployed and live-confirmed). Voice is web-only (Android has the Gboard mic), Split is cross-platform. Moat: `capture.dictation.used` + `capture.split.used`. Native in-app voice (the EAS-rebuild path) stays deferred (T3).
