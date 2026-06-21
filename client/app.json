@@ -41,7 +41,8 @@
           "enforceContrast": false
         }
       ],
-      "expo-quick-actions"
+      "expo-quick-actions",
+      "expo-share-intent"
     ],
     "experiments": {
       "typedRoutes": true,

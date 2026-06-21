@@ -1261,3 +1261,13 @@ Built on a small `lib/inbound.ts` bridge (pure, unit-tested): the app root stash
 `BrainDump` exposes an imperative `seed(text | null)` via `forwardRef` (null = focus only, so "Brain dump" never wipes in-progress text). That shape was forced by the React Compiler lint, which forbids synchronous setState inside an effect: an imperative ref method runs like an event handler, and the inbound effect only SUBSCRIBES, with `subscribeInbound` firing immediately for an intent that landed before Today mounted (the cold-launch case). A good lesson: the strict lint pushed the design toward the cleaner imperative shape.
 
 Decided against a "Today" shortcut (the icon tap already opens Today) and static build-time action icons (deferred; the default launcher icon is fine). All native; web gates the registration out. The test suite also caught up here with on-device cases for the whole native batch (keep-awake, system bars, shortcuts). On-device check on the APK.
+
+## 2026-06-21 Share to DoubleDone (Android share target)
+
+DoubleDone now appears in the Android share sheet: share text or a URL from any app (a browser, an email, a chat) and it lands in the capture box on Today, ready to add. The biggest capture-friction win in the batch, because for an ADHD brain the thought arrives somewhere else, and the moment to capture it is right then.
+
+Reuses the inbound bridge from the shortcuts work: `expo-share-intent`'s `useShareIntent` hook catches the share, and a `capture` intent seeds the capture box (the consumption was already built). It is behind a platform-split wrapper (`lib/share-intent.ts` native, `lib/share-intent.web.ts` no-op) so expo-share-intent never enters the web bundle. The library's config plugin (auto-added by `expo install`) registers the Android `SEND` intent filter for `text/*` by default, which covers text and URLs, so no app.json config was needed.
+
+Verified expo-share-intent 7.0.0 targets SDK 56 (peer `expo: ^56`), so no compatibility risk. The npm-audit picture: its moderate advisories (uuid via xcode via @expo/config-plugins, plus esbuild's dev server) are pre-existing Expo build-toolchain issues shared by the whole SDK, not shipped in the app and not introduced by this library; `audit fix --force` would downgrade Expo, so we leave them.
+
+Decided to seed the capture box (review-then-add) rather than auto-add the shared text as a task: a shared URL or a long quote often wants a quick edit or a title first, and seeding keeps the user in control while staying one tap from done. Decided against the ShareIntentProvider/context pattern (the standalone hook at the root is enough for one consumption point). All native; web no-ops. On-device check on the APK.

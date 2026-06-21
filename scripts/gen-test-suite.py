@@ -115,6 +115,9 @@ CASES = [
     ("AND-03", "Android", "P2", "Launcher long-press shortcuts",
      "On Android, long-press the DoubleDone home-screen icon. Tap 'Brain dump'; relaunch and tap 'Focus on one thing'. Try both from a cold start and with the app backgrounded.",
      "'Brain dump' opens the app with the capture box focused and ready to type. 'Focus on one thing' opens directly in Focus mode.", "Android"),
+    ("AND-04", "Android", "P2", "Share text into DoubleDone",
+     "On Android, from another app (a browser, notes, a chat) use the system Share sheet and pick DoubleDone. Try sharing a line of text, and a URL.",
+     "DoubleDone opens with the shared text (or URL) already in the capture box on Today, focused and ready to add. Adding it makes a normal task; nothing is sent anywhere until you do.", "Android"),
 
     # --- Onboarding: the one-time guided welcome ------------------------------
     ("ONB-01", "Onboarding", "P1", "Guided welcome on first run",

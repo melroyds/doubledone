@@ -15,6 +15,7 @@ import { Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { setInbound } from '@/lib/inbound';
+import { useShareInbound } from '@/lib/share-intent';
 import { ThemeProvider, useTheme } from '@/lib/theme-provider';
 
 // Hold the native splash until the Dusk fonts load. On web the families come from
@@ -59,6 +60,9 @@ function routeQuickAction(action: QuickActions.Action) {
 function RootStack() {
   const theme = useTheme();
   const isDark = theme.scheme === 'dark';
+
+  // Catch a share from another app (text or a URL) and queue it for Today's capture box.
+  useShareInbound();
 
   // Paint the native window background to match the theme so launch, transitions, and
   // overscroll never flash the wrong colour. Native only; web has its own page background.

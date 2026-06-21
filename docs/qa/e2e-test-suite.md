@@ -49,6 +49,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | AND-01 | P3 | Android | Screen stays awake in Focus mode | On an Android device, open Focus (Focus on one thing) and leave the screen untouched past the usual sleep timeout. | The screen stays on while Focus is open, and returns to normal sleep behaviour once Focus is closed. |
 | AND-02 | P3 | Android | System bars match the theme | On Android, switch the in-app theme (Settings) between light and dark, including a case where the app theme differs from the system theme. Watch the status bar and the bottom navigation bar. | Status-bar and navigation-bar icons stay legible against the app background in both themes; no white flash on launch or overscroll. |
 | AND-03 | P2 | Android | Launcher long-press shortcuts | On Android, long-press the DoubleDone home-screen icon. Tap 'Brain dump'; relaunch and tap 'Focus on one thing'. Try both from a cold start and with the app backgrounded. | 'Brain dump' opens the app with the capture box focused and ready to type. 'Focus on one thing' opens directly in Focus mode. |
+| AND-04 | P2 | Android | Share text into DoubleDone | On Android, from another app (a browser, notes, a chat) use the system Share sheet and pick DoubleDone. Try sharing a line of text, and a URL. | DoubleDone opens with the shared text (or URL) already in the capture box on Today, focused and ready to add. Adding it makes a normal task; nothing is sent anywhere until you do. |
 
 ## Onboarding
 
