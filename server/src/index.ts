@@ -2,6 +2,7 @@
 // Holds the Anthropic key as a Worker secret and is the only thing that calls
 // Claude. The app talks to this, never to Anthropic directly.
 
+import { handleApi } from './api';
 import { buildClarifyRequest, CLARIFY_MODEL, parseClarifyResponse } from './clarify';
 import { buildDecomposeRequest, DECOMPOSE_MODEL, type DecomposeContext, parseDecomposeResponse } from './decompose';
 import { parseLanguage } from './lang';
@@ -116,6 +117,12 @@ export default {
     // like the Inspector reach it). It carries its own permissive CORS.
     if (pathname === '/mcp') {
       return handleMcp(request, env);
+    }
+
+    // Public REST API (token-authed, OpenAPI-described) over the user's tasks. Not
+    // origin-gated: the bearer token is the auth, and handleApi carries its own CORS.
+    if (pathname.startsWith('/api/')) {
+      return handleApi(request, env);
     }
 
     // Stripe webhook: Stripe calls it server-to-server (no Origin). The signature is

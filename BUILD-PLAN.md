@@ -163,7 +163,7 @@ The single home for everything we have consciously parked. Nothing here is dropp
 - A real transactional email provider for sign-in mail, versus Supabase's shared sender. Trigger: real users, or test mail landing in spam.
 
 **Developer surface (AX / DX)**
-- Public REST API plus OpenAPI spec. Trigger: a reason for outside integrations, or the portfolio wants the DX story.
+- ✅ **Public REST API + OpenAPI shipped 2026-06-21.** A versioned CRUD surface over the user's tasks at `/api/v1/tasks[/{id}]` (GET / POST / PATCH / DELETE), bearer-authed by the user's own token proxied to Supabase under RLS (the MCP pattern, no elevated key). An OpenAPI 3.1 spec at `/api/v1/openapi.json` + a browsable Swagger UI at `/api/v1/docs`. `server/src/api.ts` + `openapi.ts`, 19 contract tests; guide in [`docs/api.md`](docs/api.md). Goes live on the Worker deploy. Decision-log 2026-06-21.
 - ✅ **MCP server shipped 2026-06-20** (let AI agents drive DoubleDone). A stateless bearer-token MCP server at the Worker's `/mcp` (tools `add_task` / `list_today` / `complete_task`, proxied to Supabase under the user's own token + RLS); "Copy my token" in Settings; guide in [`docs/mcp.md`](docs/mcp.md). Verified live (initialize / tools-list / auth gate). Decision-log 2026-06-20.
 
 **Monetisation** (Melroy, 2026-06-20; design direction + open calls in decision-log 2026-06-20)
