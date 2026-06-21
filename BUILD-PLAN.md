@@ -23,6 +23,24 @@ Full core loop working: capture, AI decomposition (Bite the Elephant), in-app sc
 - ✅ **Cloud sync LIVE, verified end-to-end** (step 12): Supabase client, last-write-wins merge engine, soft-delete tombstones, passwordless email-OTP sign-in (Resend SMTP, doubledone.app verified for any recipient), sync on sign-in/open, anonymous-to-account migration. Confirmed live: sign-in works and tasks land in the `tasks` table. Setup + the two live-table fixes (created_at type, id PK) recorded in `supabase/auth-setup.md` and `supabase/schema.sql`.
 - ✅ GitHub remote live and **public**: github.com/melroyds/doubledone, `main` pushed, CI + web deploy green
 - ✅ **Full UI redesign + a net-new first-run shipped 2026-06-21** ("the system pass"): all seven surfaces brought to spec (Today rebuilt; Lookback / Break-it-down / Premium / Settings / Sign-in / Repeating refined or confirmed), plus a guided first-run that onboards by doing (replayable, non-destructively, from Settings). Screenshots regenerated; README, case-study, build-journal and lessons updated; provenance corrected (2nd piece, not 3rd); CI bumped off the deprecated Node 20.
+- ✅ **Native platform + the notification engine shipped 2026-06-21** (a full native push, all code-complete + gate-verified + on `main`): haptics, keep-awake in Focus, themed Android system bars, launcher shortcuts + a shared inbound bridge, share-to-DoubleDone, a home-screen **widget**, and a two-phase **notification engine** (Phase 1 per-task local nudges; Phase 2 web push). Each needs a verification / go-live step (an APK build, or the web-push deploy), not new code. Detail in the next section.
+
+## Widgets + the notification engine (2026-06-21)
+
+All code-complete, gate-verified, and on `main`. What remains for each is a verification or go-live step that needs Melroy's hands (an APK build, or a web-push deploy), never new code. (Also shipped the same session, in the decision-log: haptics, keep-awake in Focus, themed system bars, launcher shortcuts + the inbound bridge, share-to-DoubleDone.)
+
+### Home-screen widget (Android) — built, pending the EAS build
+
+A native Today widget (`react-native-android-widget`): the top unfinished titles, or a calm rested line, Dusk light/dark, tap-to-open. The headless render task reads the same AsyncStorage the app writes and reuses the pure today-filter + a new `buildWidgetModel` (one source of truth); the app pushes `requestWidgetUpdate` from `commit`, with a 30-minute periodic fallback. Web-safe via platform splits; a custom `index.js` entry registers the task on native. Commit `50a85b2`. Verified by typecheck / lint / tests + the generated AppWidgetProvider via `expo config --type introspect`.
+- **The one open risk:** the native EAS build on RN 0.85 (the library was tested on 0.83) cannot be tested without `eas build`. If the native module fails to compile, the fallback is `git revert 50a85b2` then rebuild — everything else is unaffected.
+- **Deferred (Tier 2/3):** check a task off from the widget (interactive actions writing back to storage), a "+" tap to capture, bundling Newsreader for the widget, a custom picker preview image. Trigger: the widget works on-device and you want more.
+
+### Notification engine — Phase 1 shipped, Phase 2 code-complete
+
+- **Phase 1 — per-task "remind me in X hours" (Android, local).** On a today task: "Remind me" → In 1 hour / In 3 hours / This evening → a local notification, a 9pm cutoff (no small-hours pokes), and cancel-on-handled (done / removed / deferred clears the pending nudge). Fully local; nothing leaves the phone. The row shows a bell + time. Commit `70f9fee`. **Pending:** the APK rebuild to test on-device.
+- **Phase 2 — web push (PC + phone), code-complete.** A D1 subscription store + origin-gated routes (`3adc234`); a service worker + the web opt-in (`3a3d640`); a VAPID sender + an hourly Cloudflare Cron Trigger (`cb38745`). The daily push is **payloadless** (the message lives in the service worker), so no task content crosses the wire; the server holds only a subscription + a preferred hour + a tz offset. The "Daily reminder" toggle appears on web once a VAPID key is configured. A VAPID sign-then-verify test proves the crypto. **Pending:** the deploy runbook (Go-live checklist, item 4).
+- The pre-existing daily Android reminder was refactored to cancel only itself, so it and the per-task nudges coexist on their own channels.
+- **Deferred:** per-task nudges on web (needs the push pipeline per nudge), a periodic tz-offset refresh (a stored offset can drift an hour across DST), native FCM push for server events ("scrapbook ready" to Android). Trigger: web push is live and the gap is felt.
 
 ## The immediate next action
 
@@ -51,7 +69,14 @@ The "built, needs your hands" cluster, in order. None of it is new code; it is c
    1. Open the **Supabase SQL editor** and run the `delete_account()` block from `supabase/schema.sql` (the `create or replace function public.delete_account() … security definer …` plus its `revoke` / `grant` lines).
    2. **Test on your own account:** sign in → Settings → Access & data → Account → Delete account and data → confirm → verify the account and its rows are gone. (Migrations can't be rolled back; test on an account you're happy to lose.)
 
-**3. On-device checks (need a fresh Android build).** The current APK predates the redesign, so build a new one first (`eas build -p android --profile preview`), sideload it, then check: the **daily reminder** fires at the set time, and **dark mode + the Newsreader / Atkinson fonts** render correctly (the web preview can't exercise native).
+**3. On-device checks (need a fresh Android build).** The APK predates the redesign AND the whole 2026-06-21 native batch, so build a new one first (`eas build -p android --profile preview`), sideload, then check: the redesign + fonts + dark mode, the **daily reminder**, and the native batch — **haptics**, **keep-awake in Focus**, **themed system bars**, **launcher shortcuts**, **share-to-DoubleDone**, the **home-screen widget**, and the **per-task "remind me" nudges** (test cases `HAP-01/02`, `AND-01`–`AND-06`). One build covers all of it. **Widget caveat:** if the build fails to compile on the widget's native module (RN 0.85 vs the library's 0.83), `git revert 50a85b2` and rebuild — you keep everything else.
+
+**4. Web push (Phase 2 reminders) — deploy runbook.** The code is complete and on `main`; to make web reminders live:
+   1. `node scripts/gen-vapid.mjs` → copy the two values it prints.
+   2. Worker secrets: `npx wrangler secret put VAPID_PRIVATE_KEY --name doubledone-ai` (paste the private JWK) and `npx wrangler secret put VAPID_SUBJECT --name doubledone-ai` (e.g. `mailto:you@doubledone.app`).
+   3. Add the `push_subs` table: `npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --file d1/schema.sql`.
+   4. Deploy the Worker (registers the hourly cron + the `/push` routes): `npx wrangler deploy` from `server/` (needs your explicit OK per CLAUDE.md).
+   5. Set `EXPO_PUBLIC_VAPID_KEY` (the public value) in the Cloudflare **Pages** project env, then trigger a web rebuild. The "Daily reminder" toggle then appears on web; toggling it on subscribes the browser and the hourly cron sends the daily nudge.
 
 ---
 
