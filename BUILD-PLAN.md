@@ -203,8 +203,8 @@ Sequence: **A → B → C → D** (Melroy's pick; ascending effort, quick wins f
 
 **A-D device-test feedback (Melroy, 2026-06-22).** The seam works; polish and two flow fixes are queued.
 - **B1, celebrate the whole-task completion properly.** Finishing a decomposed dreaded task shows the same brief fade as ticking any task. It is the single biggest "you did the thing" moment and reads too feeble. Give it a distinct, held celebration proportionate to the achievement (ideally complexity-weighted), not a 3.5s line. Trigger: the Claude Design pass, but the principle is locked now.
-- **B2, guard the tiny-version against infinite children + a calm progress nudge (logic).** Re-running Make-it-tiny on the same parent spawns another child each time, so repeated taps accumulate duplicate pebbles. Fix: never create a second active tiny child while one is still open (block or replace), and on a pebble done show a calm "making progress on X", never gamified. Trigger: near-term, it is a real bug.
-- **D3, make routine-remove recoverable (logic).** Remove deletes a routine instantly with no safety net; a built object deserves better than an accidental tap. Fix: an undo toast or a soft-delete, NOT a confirmation dialog (a confirm gauntlet is the friction the spine forbids). Trigger: near-term, fold into routines polish.
+- ✅ **B2, guarded the tiny-version against infinite children + a calm progress nudge (fixed 2026-06-22).** Re-running Make-it-tiny used to spawn another child each time. Now `hasActiveTinyChild` blocks a second open pebble, `resurfaceOpenParent` retires the spent pebble on completion (no pile-up), and the line is a calm progress nudge ("A step done. You're chipping away at X."). Both helpers unit-tested.
+- ✅ **D3, routine-remove is now recoverable (fixed 2026-06-22).** Remove offers a brief Undo banner (6s) instead of an instant delete, not a confirmation dialog (a confirm gauntlet is the friction the spine forbids).
 - **A and B want the visual redesign** (functional-first surfaces). C is good as-is, D1 works. Trigger: the Claude Design pass.
 
 *Capture, get it out before it's gone*

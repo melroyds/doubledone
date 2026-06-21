@@ -127,9 +127,9 @@ CASES = [
     ("RTN-02", "Routines", "P2", "A routine is fresh tomorrow (never a streak)",
      "Tick some routine steps today, then advance the device clock to tomorrow and reopen Routines.",
      "Every step is un-ticked again and the progress is back to 0 of M. There is NO streak count, no 'you missed it', and no chain to break: yesterday simply falls away with no guilt (the never-shame spine).", "Both"),
-    ("RTN-03", "Routines", "P3", "Remove a routine",
-     "On a routine card tap Remove.",
-     "The routine disappears immediately. No confirmation gauntlet, no penalty.", "Both"),
+    ("RTN-03", "Routines", "P3", "Remove a routine (recoverable)",
+     "On a routine card tap Remove, then optionally tap Undo.",
+     "The routine is removed with a brief 'Routine removed. Undo' banner, not a confirmation dialog. Tapping Undo within a few seconds restores it, otherwise it stays gone. Recoverable, never a confirm gauntlet.", "Both"),
 
     # --- Haptics (Android device only) ---------------------------------------
     ("HAP-01", "Haptics", "P3", "Earned-moment haptics fire (Android)",
@@ -188,9 +188,9 @@ CASES = [
     ("AI-07", "AI decompose", "P2", "Breakdown keeps the real task as a silent parent (chain)",
      "Break down a task (e.g. 'Plan the party'), then complete all of its steps, in any order.",
      "The original task disappears from Today and Later (it becomes a silent parent, not clutter beside its steps). When the last step is done, the real task completes on its own with a bigger 'you finished the whole thing' line and lands in the Lookback as the finished real task. Multi-phase: finishing a milestone's steps cascades up to the root.", "Both"),
-    ("AI-08", "AI decompose", "P2", "Make it tiny keeps the real task (open parent)",
-     "On a dreaded task choose 'Make it tiny', then do the 2-minute version it creates.",
-     "The dreaded task disappears and a 2-minute starter version takes its place on Today. Completing that starter does NOT mark the big task done (it is a partial step): instead the real task quietly reappears on Today with 'Started. X is here when you're ready.', never lost. You can make it tiny again for the next pebble, or just complete it.", "Both"),
+    ("AI-08", "AI decompose", "P2", "Make it tiny keeps the real task (open parent), no pile-up",
+     "On a dreaded task choose 'Make it tiny' and do the 2-minute version. Then shrink the same task again to confirm pebbles do not accumulate.",
+     "The dreaded task disappears and a 2-minute starter takes its place on Today. Completing the starter does NOT mark the big task done: the spent starter is retired (no clutter) and the real task reappears with a calm progress line ('A step done. You're chipping away at X.'). Shrinking the same task repeatedly never piles up duplicate pebbles, only one is open at a time. Make it tiny again for the next step, or just complete the task.", "Both"),
 
     # --- AI: Sort-for-me & Strategise ----------------------------------------
     ("AI-05", "AI triage", "P2", "Sort-for-me (triage + feedback)",

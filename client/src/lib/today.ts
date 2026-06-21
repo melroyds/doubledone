@@ -116,3 +116,36 @@ export function completeAncestors<T extends Parentable>(
   }
   return { tasks: next, completed };
 }
+
+/** Whether a task already has an active (incomplete, not deleted) child. Guards Make-it-tiny
+ *  from spawning a duplicate pebble for the same parent. Pure. */
+export function hasActiveTinyChild<T extends { parentId?: string; done: boolean; deletedAt?: number | null }>(
+  tasks: T[],
+  parentId: string,
+): boolean {
+  return tasks.some((t) => t.parentId === parentId && !t.done && !t.deletedAt);
+}
+
+/**
+ * When a tiny-version pebble is completed, bring its OPEN parent back onto Today and retire
+ * the spent pebble (it was scaffolding to cross the start line, not a task of record), so
+ * pebbles never pile up no matter how many times the task is shrunk. Returns the updated
+ * tasks plus the parent's title for the progress nudge, or a null title when the completed
+ * task is not a tiny pebble of an open parent. Pure.
+ */
+export function resurfaceOpenParent<T extends Parentable>(
+  tasks: T[],
+  completedId: string,
+  now: number,
+): { tasks: T[]; parentTitle: string | null } {
+  const parentId = tasks.find((t) => t.id === completedId)?.parentId;
+  if (!parentId) return { tasks, parentTitle: null };
+  const parent = tasks.find((t) => t.id === parentId);
+  if (!parent || !parent.openParent) return { tasks, parentTitle: null };
+  const next = tasks.map((t) => {
+    if (t.id === parentId) return { ...t, silentParent: false, updatedAt: now };
+    if (t.id === completedId) return { ...t, deletedAt: now, updatedAt: now };
+    return t;
+  });
+  return { tasks: next, parentTitle: parent.title };
+}

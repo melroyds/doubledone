@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -40,6 +40,8 @@ export default function RoutinesScreen() {
   const [name, setName] = useState('');
   const [when, setWhen] = useState<RoutineWhen>('morning');
   const [stepsText, setStepsText] = useState('');
+  const [undo, setUndo] = useState<Routine | null>(null); // the just-removed routine, for a brief undo
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -80,9 +82,25 @@ export default function RoutinesScreen() {
     setWhen('morning');
   }
 
+  // Remove is recoverable, not a confirmation gauntlet: a routine is a built object, so an
+  // accidental tap offers a brief Undo rather than a heavy "are you sure?" (the friction the
+  // spine forbids), matching the care a task gets.
   function removeRoutine(id: string) {
+    const removed = routines.find((r) => r.id === id);
+    if (!removed) return;
     commit(routines.filter((r) => r.id !== id));
     track('routine.removed');
+    setUndo(removed);
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    undoTimer.current = setTimeout(() => setUndo(null), 6000);
+  }
+
+  function undoRemove() {
+    if (!undo) return;
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    commit([...routines, undo]);
+    track('routine.remove.undone');
+    setUndo(null);
   }
 
   const groups = WHENS.map((w) => ({ ...w, items: routines.filter((r) => r.when === w.value) })).filter(
@@ -103,6 +121,15 @@ export default function RoutinesScreen() {
 
         <Text style={styles.title}>Routines</Text>
         <Text style={styles.subtitle}>Gentle rituals. No streaks, no pressure, just today.</Text>
+
+        {undo && (
+          <View style={styles.undoBar}>
+            <Text style={styles.undoText}>Routine removed.</Text>
+            <Pressable onPress={undoRemove} accessibilityRole="button" accessibilityLabel="Undo removing the routine" hitSlop={8}>
+              <Text style={styles.undoAction}>Undo</Text>
+            </Pressable>
+          </View>
+        )}
 
         {routines.length === 0 && !adding && (
           <Text style={styles.empty}>
@@ -216,6 +243,19 @@ const makeStyles = (t: Theme) =>
     back: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two },
     title: { color: t.colors.ink, fontSize: 30 * t.scale, fontFamily: fonts.sans, marginTop: spacing.two },
     subtitle: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, marginBottom: spacing.three },
+    undoBar: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: t.colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: t.colors.line,
+      paddingHorizontal: spacing.four,
+      paddingVertical: spacing.three,
+    },
+    undoText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+    undoAction: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
     empty: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale, marginTop: spacing.four },
     group: { gap: spacing.two, marginTop: spacing.two },
     groupHeading: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, textTransform: 'uppercase', letterSpacing: 1 },

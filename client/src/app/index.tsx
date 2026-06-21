@@ -44,7 +44,7 @@ import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
 import { updateWidget } from '@/widget/update';
 import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
-import { completeAncestors, deferTo, deferToTomorrow, isDoneOn, isRecurring, tasksForToday, toggleDoneOn, upcomingTasks } from '@/lib/today';
+import { completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, isRecurring, resurfaceOpenParent, tasksForToday, toggleDoneOn, upcomingTasks } from '@/lib/today';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
@@ -555,9 +555,11 @@ export default function TodayScreen() {
     if (done && justToggled?.parentId) {
       const parent = next.find((t) => t.id === justToggled.parentId);
       if (parent?.openParent) {
-        // a tiny-version pebble done: bring the real task back, it never auto-completes
-        finalTasks = next.map((t) => (t.id === parent.id ? { ...t, silentParent: false, updatedAt: nowMs() } : t));
-        parentBack = parent.title;
+        // a tiny-version pebble done: bring the real task back (it never auto-completes) and
+        // retire the spent pebble, so pebbles never pile up however often it is shrunk
+        const { tasks: resurfaced, parentTitle } = resurfaceOpenParent(next, id, nowMs());
+        finalTasks = resurfaced;
+        parentBack = parentTitle;
         track('tiny.stepDone');
       } else {
         const { tasks: walked, completed } = completeAncestors(next, id, today, nowMs());
@@ -579,7 +581,7 @@ export default function TodayScreen() {
     const message = parentDone
       ? `You finished "${parentDone}". The whole thing.`
       : parentBack
-        ? `Started. "${parentBack}" is here when you're ready.`
+        ? `A step done. You're chipping away at "${parentBack}".`
         : done && !cleared
           ? 'Done is done. Recorded.' // OCD reassurance: it is filed, you can stop checking
           : null;
@@ -794,6 +796,14 @@ export default function TodayScreen() {
   // Finishing the tiny version resurfaces the real task (see toggle), never losing it.
   async function makeTiny(id: string, title: string) {
     if (tinyBusy.current) return;
+    // Guard against infinite pebbles: if a tiny step for this task is still open, do not
+    // spawn another. One pebble at a time.
+    if (hasActiveTinyChild(tasks, id)) {
+      setConfirmingId(null);
+      exitSelect();
+      affirm('You already have a tiny step for this. Finish that one first.');
+      return;
+    }
     tinyBusy.current = true;
     setConfirmingId(null);
     exitSelect();

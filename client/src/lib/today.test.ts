@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { type Recurrence } from './recurrence';
-import { completeAncestors, deferTo, deferToTomorrow, isDoneOn, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
+import { completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, resurfaceOpenParent, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
 
 const today = new Date(2026, 5, 17);
 const iso = '2026-06-17';
@@ -151,6 +151,7 @@ describe('completeAncestors (Cluster B chain)', () => {
     silentParent?: boolean;
     completedAt?: number | null;
     openParent?: boolean;
+    deletedAt?: number | null;
   };
   const mk = (id: string, parentId: string | undefined, done: boolean, silentParent = false): TestTask => ({
     id,
@@ -193,5 +194,25 @@ describe('completeAncestors (Cluster B chain)', () => {
   it('never auto-completes an open (tiny-version) parent', () => {
     const tasks = [{ ...mk('p', undefined, false, true), openParent: true }, mk('c', 'p', true)];
     expect(completeAncestors(tasks, 'c', today, 100).completed).toEqual([]);
+  });
+
+  it('hasActiveTinyChild is true only for an incomplete, non-deleted child', () => {
+    expect(hasActiveTinyChild([mk('p', undefined, false, true), mk('c', 'p', false)], 'p')).toBe(true);
+    expect(hasActiveTinyChild([mk('p', undefined, false, true), mk('c', 'p', true)], 'p')).toBe(false); // done
+    expect(hasActiveTinyChild([mk('p', undefined, false, true), { ...mk('c', 'p', false), deletedAt: 1 }], 'p')).toBe(false); // retired
+    expect(hasActiveTinyChild([mk('p', undefined, false, true)], 'p')).toBe(false); // no child
+  });
+
+  it('resurfaceOpenParent un-silences an open parent and retires the spent pebble', () => {
+    const tasks = [{ ...mk('p', undefined, false, true), openParent: true }, mk('c', 'p', true)];
+    const { tasks: next, parentTitle } = resurfaceOpenParent(tasks, 'c', 100);
+    expect(parentTitle).toBe('p');
+    expect(next.find((t) => t.id === 'p')?.silentParent).toBe(false);
+    expect(next.find((t) => t.id === 'c')?.deletedAt).toBe(100); // pebble retired, no pile-up
+  });
+
+  it('resurfaceOpenParent ignores a non-open (exhaustive) parent and a parentless task', () => {
+    expect(resurfaceOpenParent([mk('p', undefined, false, true), mk('c', 'p', true)], 'c', 100).parentTitle).toBeNull();
+    expect(resurfaceOpenParent([mk('a', undefined, true)], 'a', 100).parentTitle).toBeNull();
   });
 });

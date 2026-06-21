@@ -48,7 +48,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 |---|---|---|---|---|---|
 | RTN-01 | P2 | Both | Create and run a routine | From the Today header tap Routines, then + New routine. Name it (e.g. Morning), pick Morning / Evening / Anytime, type a few steps one per line, tap Add routine. Then tick some steps. | The routine appears grouped under its time-of-day with an 'N of M' progress. Tapping a step marks it done for today (a sage tick and a strike-through) and updates the count. Calm, with no streak and no celebration pressure. |
 | RTN-02 | P2 | Both | A routine is fresh tomorrow (never a streak) | Tick some routine steps today, then advance the device clock to tomorrow and reopen Routines. | Every step is un-ticked again and the progress is back to 0 of M. There is NO streak count, no 'you missed it', and no chain to break: yesterday simply falls away with no guilt (the never-shame spine). |
-| RTN-03 | P3 | Both | Remove a routine | On a routine card tap Remove. | The routine disappears immediately. No confirmation gauntlet, no penalty. |
+| RTN-03 | P3 | Both | Remove a routine (recoverable) | On a routine card tap Remove, then optionally tap Undo. | The routine is removed with a brief 'Routine removed. Undo' banner, not a confirmation dialog. Tapping Undo within a few seconds restores it, otherwise it stays gone. Recoverable, never a confirm gauntlet. |
 
 ## Haptics
 
@@ -90,7 +90,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | AI-03 | P2 | Both | AI egress disclosure at point of use | Open the Break-it-down questions modal. | A calm one-liner discloses the text is sent to an AI and kept anonymously. |
 | AI-04 | P2 | Both | Friendly error state | Turn off wifi (or block the AI URL), then Break it down. | A calm friendly error. No raw HTTP/stack. App stays usable. |
 | AI-07 | P2 | Both | Breakdown keeps the real task as a silent parent (chain) | Break down a task (e.g. 'Plan the party'), then complete all of its steps, in any order. | The original task disappears from Today and Later (it becomes a silent parent, not clutter beside its steps). When the last step is done, the real task completes on its own with a bigger 'you finished the whole thing' line and lands in the Lookback as the finished real task. Multi-phase: finishing a milestone's steps cascades up to the root. |
-| AI-08 | P2 | Both | Make it tiny keeps the real task (open parent) | On a dreaded task choose 'Make it tiny', then do the 2-minute version it creates. | The dreaded task disappears and a 2-minute starter version takes its place on Today. Completing that starter does NOT mark the big task done (it is a partial step): instead the real task quietly reappears on Today with 'Started. X is here when you're ready.', never lost. You can make it tiny again for the next pebble, or just complete it. |
+| AI-08 | P2 | Both | Make it tiny keeps the real task (open parent), no pile-up | On a dreaded task choose 'Make it tiny' and do the 2-minute version. Then shrink the same task again to confirm pebbles do not accumulate. | The dreaded task disappears and a 2-minute starter takes its place on Today. Completing the starter does NOT mark the big task done: the spent starter is retired (no clutter) and the real task reappears with a calm progress line ('A step done. You're chipping away at X.'). Shrinking the same task repeatedly never piles up duplicate pebbles, only one is open at a time. Make it tiny again for the next step, or just complete the task. |
 
 ## AI triage
 
