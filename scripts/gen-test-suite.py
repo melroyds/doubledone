@@ -105,6 +105,9 @@ CASES = [
     ("TOD-13", "Today", "P2", "Move selected tasks to a chosen day",
      "Tap-and-hold to select one or more tasks, tap 'Move to...', then pick 'This weekend', 'Next week', or a calendar day.",
      "Selected one-offs move to that date and wait in the Later list until then (recurring tasks are left alone); select mode exits.", "Both"),
+    ("TOD-14", "Today", "P2", "Low-capacity day (gentle recalibration)",
+     "Under the weight gauge, tap 'Low on energy? Make it a low day'.",
+     "The gauge recalibrates to a gentler capacity (the same task count reads as fuller) and the label gives permission ('A low day. A couple of things is plenty.', up to 'Just pick one, the rest waits.'). A brief affirmation shows. The backlog is untouched, nothing is deferred or shamed. The toggle reads 'Back to a normal day' to undo, and the state self-clears at midnight (per-day, never a setting).", "Both"),
 
     # --- OCD reassurance (Cluster A) -----------------------------------------
     ("OCD-01", "Today", "P2", "Done is done (completion affirmation)",

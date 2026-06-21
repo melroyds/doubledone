@@ -11,6 +11,7 @@ const REMINDER_KEY = 'doubledone.reminder.v1';
 const SETTINGS_KEY = 'doubledone.settings.v1';
 const SCRAPBOOKS_KEY = 'doubledone.scrapbooks.v1';
 const CLOSED_KEY = 'doubledone.closed.v1';
+const LOWDAY_KEY = 'doubledone.lowday.v1';
 const LASTOPEN_KEY = 'doubledone.lastopen.v1';
 const ONBOARDED_KEY = 'doubledone.onboarded.v1';
 const ACCOUNT_KEY = 'doubledone.account.v1';
@@ -78,6 +79,26 @@ export async function saveClosedDate(iso: string | null): Promise<void> {
   try {
     if (iso) await AsyncStorage.setItem(CLOSED_KEY, iso);
     else await AsyncStorage.removeItem(CLOSED_KEY);
+  } catch {
+    // best effort
+  }
+}
+
+/** The ISO date the user marked a low-capacity day on, or null. Per-day, like the
+ *  closed-day flag: it self-clears when the date rolls over, never a persistent setting. */
+export async function loadLowDayDate(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(LOWDAY_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Persist (or clear, when null) the low-capacity-day date. Best effort. */
+export async function saveLowDayDate(iso: string | null): Promise<void> {
+  try {
+    if (iso) await AsyncStorage.setItem(LOWDAY_KEY, iso);
+    else await AsyncStorage.removeItem(LOWDAY_KEY);
   } catch {
     // best effort
   }

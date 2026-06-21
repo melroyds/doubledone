@@ -36,7 +36,7 @@ import { availableNudgePresets, type NudgePreset, nudgeTargetFor } from '@/lib/n
 import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge } from '@/lib/reminders';
 import { applySliceDelta } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadClosedDate, loadLastOpen, loadOnboarded, loadReminderOn, loadSyncedOwner, loadTasks, saveClosedDate, saveLastOpen, saveReminderOn, saveSyncedOwner, saveTasks } from '@/lib/storage';
+import { loadClosedDate, loadLastOpen, loadLowDayDate, loadOnboarded, loadReminderOn, loadSyncedOwner, loadTasks, saveClosedDate, saveLastOpen, saveLowDayDate, saveReminderOn, saveSyncedOwner, saveTasks } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { localBelongsToAnother, syncOnce } from '@/lib/sync';
 import { parseDump, type Task } from '@/lib/tasks';
@@ -68,6 +68,7 @@ export default function TodayScreen() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [closedDate, setClosedDate] = useState<string | null>(null);
+  const [lowDayDate, setLowDayDate] = useState<string | null>(null);
   const [sortSummary, setSortSummary] = useState<string | null>(null);
   const [affirmation, setAffirmation] = useState<string | null>(null); // a brief "done is done" / "good enough" reassurance; auto-clears
   const affirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -140,6 +141,9 @@ export default function TodayScreen() {
       });
       void loadClosedDate().then((d) => {
         if (active) setClosedDate(d);
+      });
+      void loadLowDayDate().then((d) => {
+        if (active) setLowDayDate(d);
       });
       void loadLastOpen().then((last) => {
         if (!active) return;
@@ -261,6 +265,7 @@ export default function TodayScreen() {
   const allDone = loaded && visible.length > 0 && visible.every((t) => isDoneOn(t, today));
   // Closed when the stored close-date is today's; it self-clears when the date rolls over.
   const isClosed = closedDate === toISODate(today);
+  const isLowDay = lowDayDate === toISODate(today);
   const todayDone = useMemo(() => completionsByDay(tasks).get(toISODate(today)) ?? [], [tasks, today]);
   // One-off, undone tasks on Today: the ones Strategise can re-spread (recurring stay by cadence).
   const spreadable = visible.filter((t) => !isRecurring(t) && !isDoneOn(t, today));
@@ -268,7 +273,7 @@ export default function TodayScreen() {
   // Focus mode shows one unfinished one-off at a time (recurring habits are not the
   // wall-of-awful). The first not-yet-skipped one; completing or skipping advances it.
   const focusTask = focusOpen && focusPick ? (spreadable.find((t) => t.id === focusPick) ?? null) : null;
-  const weightOfDay = dayWeight(spreadable.length);
+  const weightOfDay = dayWeight(spreadable.length, isLowDay);
 
   // When a task leaves the active-today state (done, removed, deferred), cancel any pending
   // nudge and strip its fields, so you are never poked about something already handled.
@@ -442,6 +447,23 @@ export default function TodayScreen() {
     setClosedDate(null);
     void saveClosedDate(null);
     track('day.reopened');
+  }
+
+  // A low-capacity day: one tap recalibrates the weight gauge to a gentler target and
+  // gives permission to do little. Per-day (self-clears at midnight), never a setting,
+  // never-shame. The backlog is untouched, only the day's expectation shrinks.
+  function toggleLowDay() {
+    if (isLowDay) {
+      setLowDayDate(null);
+      void saveLowDayDate(null);
+      track('lowday.off');
+    } else {
+      const iso = toISODate(today);
+      setLowDayDate(iso);
+      void saveLowDayDate(iso);
+      track('lowday.on');
+      affirm('A low day. Be gentle, a little is plenty.');
+    }
   }
 
   function openDrawer() {
@@ -886,6 +908,16 @@ export default function TodayScreen() {
               <View style={{ flex: 1 - weightOfDay.fill }} />
             </View>
             <Text style={styles.weightLabel}>{weightOfDay.label}</Text>
+            <Pressable
+              onPress={toggleLowDay}
+              accessibilityRole="button"
+              accessibilityLabel={isLowDay ? 'Back to a normal day' : 'Mark today a low-capacity day'}
+              hitSlop={8}
+            >
+              <Text style={styles.lowDayToggle}>
+                {isLowDay ? 'Back to a normal day' : 'Low on energy? Make it a low day'}
+              </Text>
+            </Pressable>
           </View>
         )}
 
@@ -1600,6 +1632,7 @@ const makeStyles = (t: Theme) =>
     weightTrack: { flexDirection: 'row', height: 6, borderRadius: radius.pill, backgroundColor: t.colors.line, overflow: 'hidden' },
     weightFill: { backgroundColor: t.colors.accent },
     weightLabel: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
+    lowDayToggle: { color: t.colors.accent, fontSize: 12 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
     dayActions: { marginTop: spacing.seven, alignItems: 'center', gap: spacing.three },
     closeDay: {
       paddingVertical: spacing.three,

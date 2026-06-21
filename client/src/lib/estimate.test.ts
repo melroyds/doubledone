@@ -17,6 +17,22 @@ describe('dayWeight', () => {
   });
 });
 
+describe('dayWeight (low-capacity day)', () => {
+  it('recalibrates to a gentler capacity: fewer tasks read as a fuller day', () => {
+    expect(dayWeight(2, true).level).toBe('light');
+    expect(dayWeight(4, true).level).toBe('full');
+    expect(dayWeight(5, true).level).toBe('heavy');
+  });
+  it('gives permission in the label, never scolds', () => {
+    expect(dayWeight(2, true).label).toBe('A low day. A couple of things is plenty.');
+    expect(dayWeight(6, true).label).toContain('pick one');
+  });
+  it('fills faster than a normal day (capacity ~halved)', () => {
+    expect(dayWeight(4, true).fill).toBe(1); // 4 fills the low-day gauge
+    expect(dayWeight(4, false).fill).toBeCloseTo(0.5); // same count, normal day
+  });
+});
+
 describe('paceDays', () => {
   it('is at least a day, even with no steps', () => {
     expect(paceDays([])).toBe(1);

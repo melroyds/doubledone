@@ -51,10 +51,18 @@ export type DayWeight = { level: 'clear' | 'light' | 'full' | 'heavy'; label: st
  * A calm, honest read on how full Today is, from the count of unfinished one-off
  * tasks (recurring habits are routine, not load). `fill` is 0..1 for a slim gauge;
  * the label describes the day, it never scolds, so Today can't silently overfill.
+ * On a low-capacity day (Cluster C) the same load reads as fuller: capacity is
+ * roughly halved and the label gives explicit permission to do little.
  */
-export function dayWeight(count: number): DayWeight {
-  const fill = Math.min(Math.max(count, 0) / 8, 1);
-  if (count <= 0) return { level: 'clear', label: 'A clear day', fill: 0 };
+export function dayWeight(count: number, lowDay = false): DayWeight {
+  if (count <= 0) return { level: 'clear', label: lowDay ? 'A clear day. Rest up.' : 'A clear day', fill: 0 };
+  if (lowDay) {
+    const fill = Math.min(count / 4, 1);
+    if (count <= 2) return { level: 'light', label: 'A low day. A couple of things is plenty.', fill };
+    if (count <= 4) return { level: 'full', label: 'A low day. Be gentle, the rest can wait.', fill };
+    return { level: 'heavy', label: 'A low day with a lot on. Just pick one, the rest waits.', fill: 1 };
+  }
+  const fill = Math.min(count / 8, 1);
   if (count <= 4) return { level: 'light', label: 'A gentle day. Room to breathe.', fill };
   if (count <= 7) return { level: 'full', label: 'A full day, but doable.', fill };
   return { level: 'heavy', label: 'A lot on. Be gentle with yourself.', fill: 1 };
