@@ -4,7 +4,7 @@ import { Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleS
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BrainDump } from '@/components/BrainDump';
+import { BrainDump, type BrainDumpHandle } from '@/components/BrainDump';
 import { type BreakdownAnswers, BreakdownQuestions } from '@/components/BreakdownQuestions';
 import { BreakdownReview, type ReviewPhase, type ReviewStep } from '@/components/BreakdownReview';
 import { DatePicker } from '@/components/DatePicker';
@@ -27,6 +27,7 @@ import { completionsByDay } from '@/lib/calendar';
 import { addDaysISO, formatTodayLabel, friendlyDate, isReentry, presetDate, toISODate } from '@/lib/day';
 import { dayWeight } from '@/lib/estimate';
 import { dayCleared, dayClosed, stepsLanded, taskDone } from '@/lib/haptics';
+import { type Inbound, subscribeInbound, takeInbound } from '@/lib/inbound';
 import { aiLanguage } from '@/lib/locale';
 import { buildOutcome } from '@/lib/outcome';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
@@ -72,6 +73,7 @@ export default function TodayScreen() {
   const [moveToOpen, setMoveToOpen] = useState(false);
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusPick, setFocusPick] = useState<string | null>(null);
+  const brainDumpRef = useRef<BrainDumpHandle>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -227,6 +229,23 @@ export default function TodayScreen() {
       void deactivateKeepAwake('doubledone-focus');
     };
   }, [focusOpen]);
+
+  // Inbound launch intents (a launcher shortcut, or shared text) are stashed at the app
+  // root and consumed here: open Focus, or seed and focus the capture box. Drained once
+  // on mount (a cold launch) and on each later arrival while Today is open.
+  const applyInbound = useCallback((i: Inbound | null) => {
+    if (!i) return;
+    if (i.kind === 'focus') {
+      setFocusPick(null);
+      setFocusOpen(true);
+      track('focus.opened', { via: 'shortcut' });
+      return;
+    }
+    brainDumpRef.current?.seed(i.kind === 'capture' ? i.text : null);
+    track(i.kind === 'capture' ? 'capture.shared' : 'capture.shortcut');
+  }, []);
+
+  useEffect(() => subscribeInbound(() => applyInbound(takeInbound())), [applyInbound]);
 
   const visible = tasksForToday(tasks, today);
   const upcoming = upcomingTasks(tasks, today);
@@ -938,7 +957,7 @@ export default function TodayScreen() {
         ) : (
           <>
         {!isClosed && sortSummary && <Text style={styles.sortSummary}>{sortSummary}</Text>}
-        {!isClosed && <BrainDump onCapture={capture} onBiteElephant={biteElephant} onSort={sortDump} today={today} />}
+        {!isClosed && <BrainDump ref={brainDumpRef} onCapture={capture} onBiteElephant={biteElephant} onSort={sortDump} today={today} />}
         {isSyncConfigured &&
           (session ? (
             <View style={styles.syncRow}>

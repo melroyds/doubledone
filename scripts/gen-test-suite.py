@@ -105,6 +105,17 @@ CASES = [
      "Set Settings -> Motion -> Reduce (or enable the OS reduce-motion), then complete a task and close the day.",
      "No haptic fires for any cue while motion is reduced (the accessibility guarantee). The Motion hint states Reduce also stops the buzz.", "Android"),
 
+    # --- Android native polish (device only) ---------------------------------
+    ("AND-01", "Android", "P3", "Screen stays awake in Focus mode",
+     "On an Android device, open Focus (Focus on one thing) and leave the screen untouched past the usual sleep timeout.",
+     "The screen stays on while Focus is open, and returns to normal sleep behaviour once Focus is closed.", "Android"),
+    ("AND-02", "Android", "P3", "System bars match the theme",
+     "On Android, switch the in-app theme (Settings) between light and dark, including a case where the app theme differs from the system theme. Watch the status bar and the bottom navigation bar.",
+     "Status-bar and navigation-bar icons stay legible against the app background in both themes; no white flash on launch or overscroll.", "Android"),
+    ("AND-03", "Android", "P2", "Launcher long-press shortcuts",
+     "On Android, long-press the DoubleDone home-screen icon. Tap 'Brain dump'; relaunch and tap 'Focus on one thing'. Try both from a cold start and with the app backgrounded.",
+     "'Brain dump' opens the app with the capture box focused and ready to type. 'Focus on one thing' opens directly in Focus mode.", "Android"),
+
     # --- Onboarding: the one-time guided welcome ------------------------------
     ("ONB-01", "Onboarding", "P1", "Guided welcome on first run",
      "On a fresh install (or after clearing 'doubledone.onboarded.v1'), open the app. Walk Begin -> type a few lines -> Make my day -> This looks right -> Open Today. Separately, try Skip for now.",

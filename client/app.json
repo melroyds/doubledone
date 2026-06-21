@@ -40,7 +40,8 @@
         {
           "enforceContrast": false
         }
-      ]
+      ],
+      "expo-quick-actions"
     ],
     "experiments": {
       "typedRoutes": true,

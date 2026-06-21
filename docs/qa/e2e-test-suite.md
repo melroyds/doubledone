@@ -42,6 +42,14 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | HAP-01 | P3 | Android | Earned-moment haptics fire (Android) | On a physical Android device with a haptic motor: complete a single task; clear the whole day; close the day with Goodnight; break a dreaded task into steps; and (premium) reveal a scrapbook. | Soft tap on a single completion; a fuller success buzz when the day clears; a warm soft tap on Goodnight; a light tap when steps land; a success flourish when the scrapbook image appears. Nothing buzzes on plain taps, navigation, capture, or any error. |
 | HAP-02 | P2 | Android | Reduced motion silences haptics | Set Settings -> Motion -> Reduce (or enable the OS reduce-motion), then complete a task and close the day. | No haptic fires for any cue while motion is reduced (the accessibility guarantee). The Motion hint states Reduce also stops the buzz. |
 
+## Android
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| AND-01 | P3 | Android | Screen stays awake in Focus mode | On an Android device, open Focus (Focus on one thing) and leave the screen untouched past the usual sleep timeout. | The screen stays on while Focus is open, and returns to normal sleep behaviour once Focus is closed. |
+| AND-02 | P3 | Android | System bars match the theme | On Android, switch the in-app theme (Settings) between light and dark, including a case where the app theme differs from the system theme. Watch the status bar and the bottom navigation bar. | Status-bar and navigation-bar icons stay legible against the app background in both themes; no white flash on launch or overscroll. |
+| AND-03 | P2 | Android | Launcher long-press shortcuts | On Android, long-press the DoubleDone home-screen icon. Tap 'Brain dump'; relaunch and tap 'Focus on one thing'. Try both from a cold start and with the app backgrounded. | 'Brain dump' opens the app with the capture box focused and ready to type. 'Focus on one thing' opens directly in Focus mode. |
+
 ## Onboarding
 
 | ID | Pri | Platform | Test | Steps | Expected |

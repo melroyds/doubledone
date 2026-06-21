@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
@@ -15,6 +15,10 @@ type Props = {
   onSort: (text: string) => Promise<void>;
   today: Date;
 };
+
+// What a parent can do to the capture box via ref: drop in text (or null to just focus)
+// and focus the input. Used by the launcher "Brain dump" shortcut and by shared text.
+export type BrainDumpHandle = { seed: (text: string | null) => void };
 
 type Mode = 'today' | 'tomorrow' | 'date' | 'daily' | 'weekly' | 'everyN';
 
@@ -41,7 +45,7 @@ const ADD_LABEL: Record<Mode, string> = {
 // Capture, with a calm "when" (the chips, for adding) and a "break it down" path
 // (hand a dreaded task to the AI and get small steps into Today). Default is one
 // gesture; everything else is there only when wanted.
-export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
+export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({ onCapture, onBiteElephant, onSort, today }, ref) {
   const [value, setValue] = useState('');
   const [mode, setMode] = useState<Mode>('today');
   const [weekdays, setWeekdays] = useState<number[]>([today.getDay()]);
@@ -54,6 +58,18 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
   const [error, setError] = useState<string | null>(null);
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
+  const inputRef = useRef<TextInput>(null);
+
+  // Expose seed() to parents: drop in text (null = just focus, so a "Brain dump" shortcut
+  // never clears in-progress text) and focus the input. Imperative, so the setState runs
+  // like an event handler, never during render or as a cascading effect.
+  useImperativeHandle(ref, () => ({
+    seed: (text: string | null) => {
+      if (text !== null) setValue(text);
+      inputRef.current?.focus();
+    },
+  }), []);
+
   const busy = busyKind !== null;
   const lineCount = value.split('\n').filter((l) => l.trim().length > 0).length;
   // Steps only make sense for a single, one-off task (a thing with parts). Hidden
@@ -132,6 +148,7 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
   return (
     <View style={styles.wrap}>
       <TextInput
+        ref={inputRef}
         value={value}
         onChangeText={setValue}
         editable={!busy}
@@ -345,7 +362,7 @@ export function BrainDump({ onCapture, onBiteElephant, onSort, today }: Props) {
       </Modal>
     </View>
   );
-}
+});
 
 const makeStyles = (t: Theme) => StyleSheet.create({
   wrap: { gap: spacing.three },

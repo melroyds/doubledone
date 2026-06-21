@@ -5,6 +5,7 @@ import {
 import { Newsreader_600SemiBold } from '@expo-google-fonts/newsreader';
 import { useFonts } from 'expo-font';
 import { NavigationBar } from 'expo-navigation-bar';
+import * as QuickActions from 'expo-quick-actions';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -13,6 +14,7 @@ import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { setInbound } from '@/lib/inbound';
 import { ThemeProvider, useTheme } from '@/lib/theme-provider';
 
 // Hold the native splash until the Dusk fonts load. On web the families come from
@@ -48,6 +50,12 @@ export default function RootLayout() {
   );
 }
 
+// Map a tapped launcher shortcut to an inbound intent for the Today screen to consume.
+function routeQuickAction(action: QuickActions.Action) {
+  if (action.id === 'dump') setInbound({ kind: 'dump' });
+  else if (action.id === 'focus') setInbound({ kind: 'focus' });
+}
+
 function RootStack() {
   const theme = useTheme();
   const isDark = theme.scheme === 'dark';
@@ -58,6 +66,18 @@ function RootStack() {
     if (Platform.OS === 'web') return;
     void SystemUI.setBackgroundColorAsync(theme.colors.bg);
   }, [theme.colors.bg]);
+
+  // Register the launcher long-press shortcuts once, and route a tapped one into the app.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    void QuickActions.setItems([
+      { id: 'dump', title: 'Brain dump', subtitle: 'Empty your head' },
+      { id: 'focus', title: 'Focus on one thing', subtitle: 'Just the next thing' },
+    ]);
+    if (QuickActions.initial) routeQuickAction(QuickActions.initial);
+    const sub = QuickActions.addListener(routeQuickAction);
+    return () => sub.remove();
+  }, []);
 
   return (
     <>
