@@ -15,6 +15,7 @@ import {
   clarify,
   DEFAULT_QUESTIONS,
   plan as planBreakdown,
+  reportOutcome,
   strategise,
   triage,
   type PlanItem,
@@ -25,6 +26,7 @@ import { completionsByDay } from '@/lib/calendar';
 import { addDaysISO, formatTodayLabel, friendlyDate, isReentry, presetDate, toISODate } from '@/lib/day';
 import { dayWeight } from '@/lib/estimate';
 import { aiLanguage } from '@/lib/locale';
+import { buildOutcome } from '@/lib/outcome';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { applySliceDelta } from '@/lib/slices';
@@ -86,6 +88,7 @@ export default function TodayScreen() {
   const [bdAnswers, setBdAnswers] = useState<BreakdownAnswers | null>(null);
   const [bdBusy, setBdBusy] = useState(false);
   const [bdError, setBdError] = useState<string | null>(null);
+  const [bdCorrId, setBdCorrId] = useState<string | null>(null);
   const today = useMemo(() => new Date(), []);
   const router = useRouter();
   const session = useSession();
@@ -398,6 +401,12 @@ export default function TodayScreen() {
     const justToggled = next.find((t) => t.id === id);
     // The moat starts at the call site: log the outcome, not just "done".
     track('task.toggled', { done: justToggled ? isDoneOn(justToggled, today) : false });
+    // The moat's completion half: a finished breakdown step reports an anonymised
+    // outcome (id + timing only), so "how long this takes" becomes real data over time.
+    if (justToggled && justToggled.decompositionId && isDoneOn(justToggled, today)) {
+      const outcome = buildOutcome(justToggled, nowMs());
+      if (outcome) void reportOutcome(outcome);
+    }
     const todays = tasksForToday(next, today);
     if (todays.length > 0 && todays.every((t) => isDoneOn(t, today))) {
       track('day.cleared', { count: todays.length });
@@ -507,6 +516,8 @@ export default function TodayScreen() {
     setBdAnswers(answers);
     setBdError(null);
     setBdBusy(true);
+    const corrId = makeId(); // a pseudonymous id for this decomposition (the moat link)
+    setBdCorrId(corrId);
     try {
       const { phases, firstSteps } = await planBreakdown(
         bdTask,
@@ -517,6 +528,7 @@ export default function TodayScreen() {
           answer: answers.customAnswer,
         },
         aiLanguage,
+        corrId,
       );
       if (firstSteps.length === 0) throw new Error('no steps');
       // Distribute the phase starts across the runway (phase 1 starts Today).
@@ -552,6 +564,7 @@ export default function TodayScreen() {
       createdAt: now + i,
       updatedAt: now + i,
       complexity: s.minutes, // the step's effort, used to weight its completion
+      ...(bdCorrId ? { decompositionId: bdCorrId, decompositionSteps: selected.length } : {}),
       ...(s.date ? { due: s.date } : {}),
     }));
     const phaseTasks: Task[] = (bdPhases ?? []).map((p, i) => ({
@@ -590,6 +603,7 @@ export default function TodayScreen() {
     setBdAnswers(null);
     setBdBusy(false);
     setBdError(null);
+    setBdCorrId(null);
   }
 
   // AI triage: sort a brain-dump into buckets, then apply (later -> tomorrow; today

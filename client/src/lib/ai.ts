@@ -112,14 +112,34 @@ export function parsePlanResult(data: unknown): PlanResult {
 }
 
 /** Plan a breakdown into phases plus phase-one steps. Throws on a failed call. */
-export async function plan(task: string, context?: DecomposeContext, language?: string): Promise<PlanResult> {
+export async function plan(
+  task: string,
+  context?: DecomposeContext,
+  language?: string,
+  decompositionId?: string,
+): Promise<PlanResult> {
   const res = await fetch(`${AI_URL}/plan`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ task, context, language }),
+    body: JSON.stringify({ task, context, language, decompositionId }),
   });
   if (!res.ok) throw new Error(`plan failed (${res.status})`);
   return parsePlanResult(await res.json());
+}
+
+/** Report an anonymised completion outcome (the moat's completion half) to the Worker.
+ *  Fire-and-forget: never throws, never blocks the UI. No identity, just the
+ *  decomposition id and timing. */
+export async function reportOutcome(payload: { id: string; steps_total: number | null; days_elapsed: number }): Promise<void> {
+  try {
+    await fetch(`${AI_URL}/outcome`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    // best effort, never surfaced
+  }
 }
 
 export type PlanItem = { id: string; dayOffset: number; reason: string };
