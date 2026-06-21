@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { aiCallStatement, extractUsage, type AiCallLog } from './telemetry';
+import { aiCallStatement, extractUsage, outcomeStatement, type AiCallLog } from './telemetry';
 
 const sampleLog: AiCallLog = {
   endpoint: 'decompose',
@@ -28,6 +28,7 @@ describe('aiCallStatement', () => {
       1300,
       1, // ok -> 1 for SQLite
       null, // no error
+      null, // no corr_id (only /plan sets it)
     ]);
   });
 
@@ -48,6 +49,20 @@ describe('aiCallStatement', () => {
   it('has one placeholder per bound param', () => {
     const { sql, params } = aiCallStatement(sampleLog);
     expect((sql.match(/\?/g) ?? []).length).toBe(params.length);
+  });
+});
+
+describe('outcomeStatement', () => {
+  it('builds a parameterised outcomes insert with no identity, just id + timing', () => {
+    const { sql, params } = outcomeStatement({ corrId: 'd-abc', stepsTotal: 4, daysElapsed: 3 });
+    expect(sql).toMatch(/^INSERT INTO outcomes/);
+    expect(sql).not.toMatch(/user_id/); // pseudonymous by design
+    expect(params).toEqual(['d-abc', 4, 3]);
+    expect((sql.match(/\?/g) ?? []).length).toBe(params.length);
+  });
+
+  it('allows a null step total', () => {
+    expect(outcomeStatement({ corrId: 'd-x', stepsTotal: null, daysElapsed: 0 }).params).toEqual(['d-x', null, 0]);
   });
 });
 

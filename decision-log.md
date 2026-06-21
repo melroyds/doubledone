@@ -1194,3 +1194,13 @@ Decided against a separate local "first 3 today" heuristic for the reveal: the w
 Melroy: the welcome is lovely but should be repeatable, and he was unsure where, Settings or a "?" on Today. Placed it in **Settings** ("See the welcome again"), not a Today header icon: Today was just decluttered, and replaying onboarding is an occasional action, which is exactly what Settings is for. The link opens `/welcome?replay=1`. In replay mode the flow is identical, but `confirm()` **merges** the triaged tasks into the existing list (`loadTasks` + append) instead of overwriting, and leaves the onboarded flag alone, so re-running can never wipe a real list. Verified in preview: seeded two tasks, replayed, dumped two more, confirmed → four tasks, both kept and both added.
 
 Decided against a tour-only recap (the pitch with no capture): the lovely part *is* the guided capture → triage → reveal, so making it safe (merge) keeps the whole flow available as a calm "get it out of your head again" without the destructiveness.
+
+## 2026-06-21 The moat's completion half: the outcome flywheel (server)
+
+The moat was half-built. Every decomposition OFFERED was logged to D1 (`ai_calls`, pseudonymous), but whether its steps got FINISHED, the actual differentiator, was only local client telemetry and unlinked. The case study claimed both halves; the code had one. Melroy caught it, so we are closing the gap (the framework, not the user-facing estimate, which still needs volume).
+
+Design: the client mints a pseudonymous decomposition id and sends it with `/plan`; the Worker stores it on the `ai_calls` row, so the offered half is now identifiable. A new origin-gated, rate-limited `/outcome` endpoint takes an anonymised completion ping `{id, steps_total, days_elapsed}` into a new D1 `outcomes` table. The join `outcomes.corr_id = ai_calls.corr_id` reconstructs "this decomposition was offered [task text] and its steps finished over N days", with NO user_id, no IP, and no new task-text egress (the ping carries only the id and timing; the text already lives in `ai_calls`).
+
+Decided AGAINST the server minting the id (the client owns it, so it stamps it on the tasks and reports back with no extra round-trip) and AGAINST putting task text in the outcome ping (the corr-id join keeps the completion ping content-free, the cleaner privacy posture). The aggregate query and the real "X people took Y days" swap stay deferred (volume + similarity matching); the surface keeps its honest derived estimate until then.
+
+Server contract-tested (`outcomeStatement`, the `ai_calls` corr_id param; 84 server tests green). The client stamping + reporting lands next. The live pipeline needs a Worker deploy + the D1 migration (Melroy's per-instance OK).

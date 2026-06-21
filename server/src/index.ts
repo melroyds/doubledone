@@ -10,7 +10,7 @@ import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
 import { dataUrl, IMAGE_MODEL, imagePrompt, parseImage, parseScene, SCENE_MODEL, sceneMessages } from './scrapbook';
 import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
 import { handleCheckout, handleEntitlement, handlePortal, handleWebhook } from './stripe';
-import { type D1LikeDatabase, extractUsage, logAiCall } from './telemetry';
+import { type D1LikeDatabase, extractUsage, logAiCall, logOutcome } from './telemetry';
 import { buildTriageRequest, parseTriageResponse, TRIAGE_MODEL } from './triage';
 
 // Cloudflare per-IP rate limiter binding (see wrangler.jsonc). Typed locally so we
@@ -159,7 +159,7 @@ export default {
     // disallowed origin is refused (cross-site abuse); native apps send no Origin
     // and pass here. A per-IP rate limit then caps scripted abuse against the
     // $25/mo Anthropic budget. Both run before the body is even read.
-    if (request.method === 'POST' && AI_ROUTES.has(pathname)) {
+    if (request.method === 'POST' && (AI_ROUTES.has(pathname) || pathname === '/outcome')) {
       if (origin !== null && !isAllowedOrigin(origin)) {
         return Response.json({ error: 'forbidden origin' }, { status: 403, headers: cors });
       }
@@ -170,6 +170,28 @@ export default {
           return Response.json({ error: 'rate limited, try again shortly' }, { status: 429, headers: cors });
         }
       }
+    }
+
+    // The completion half of the moat flywheel: an anonymised ping that a
+    // decomposition's step finished, linked only by its pseudonymous id (the same id
+    // the /plan call stored on its ai_calls row). No identity, no task text, ever.
+    if (pathname === '/outcome' && request.method === 'POST') {
+      let corrId = '';
+      let stepsTotal: number | null = null;
+      let daysElapsed = 0;
+      try {
+        const body = (await request.json()) as { id?: unknown; steps_total?: unknown; days_elapsed?: unknown };
+        corrId = typeof body.id === 'string' ? body.id : '';
+        stepsTotal = typeof body.steps_total === 'number' ? Math.max(0, Math.floor(body.steps_total)) : null;
+        daysElapsed = typeof body.days_elapsed === 'number' ? Math.max(0, Math.floor(body.days_elapsed)) : 0;
+      } catch {
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
+      }
+      if (!corrId) {
+        return Response.json({ error: 'id is required' }, { status: 400, headers: cors });
+      }
+      ctx.waitUntil(logOutcome(env, { corrId, stepsTotal, daysElapsed }));
+      return Response.json({ ok: true }, { headers: cors });
     }
 
     // Break it down, call 1: a dreaded task in, three qualifying questions out.
@@ -267,11 +289,13 @@ export default {
       let task = '';
       let context: DecomposeContext | undefined;
       let language: string | undefined;
+      let corrId: string | undefined;
       try {
-        const body = (await request.json()) as { task?: unknown; context?: unknown; language?: unknown };
+        const body = (await request.json()) as { task?: unknown; context?: unknown; language?: unknown; decompositionId?: unknown };
         task = typeof body.task === 'string' ? body.task.trim() : '';
         context = parseContext(body.context);
         language = parseLanguage(body.language);
+        corrId = typeof body.decompositionId === 'string' ? body.decompositionId : undefined;
       } catch {
         return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
       }
@@ -290,7 +314,7 @@ export default {
           logAiCall(env, {
             endpoint: 'plan', model: PLAN_MODEL, input: { task }, output: null,
             inputTokens: null, outputTokens: null, latencyMs: Date.now() - started,
-            ok: false, error: `upstream ${upstream.status}`,
+            ok: false, error: `upstream ${upstream.status}`, corrId,
           }),
         );
         return Response.json({ error: 'upstream error' }, { status: 502, headers: cors });
@@ -301,7 +325,7 @@ export default {
       ctx.waitUntil(
         logAiCall(env, {
           endpoint: 'plan', model: PLAN_MODEL, input: { task }, output: plan,
-          inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true,
+          inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true, corrId,
         }),
       );
       return Response.json({ plan }, { headers: cors });

@@ -37,6 +37,7 @@ export type AiCallLog = {
   latencyMs: number;
   ok: boolean;
   error?: string | null;
+  corrId?: string | null; // pseudonymous decomposition id (only set on /plan); the flywheel link
 };
 
 /** Pull Anthropic token usage out of a Messages API response, defensively. */
@@ -55,8 +56,8 @@ export function extractUsage(raw: unknown): { input: number | null; output: numb
  */
 export function aiCallStatement(log: AiCallLog): { sql: string; params: unknown[] } {
   const sql =
-    'INSERT INTO ai_calls (endpoint, model, input, output, input_tokens, output_tokens, latency_ms, ok, error) ' +
-    'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
+    'INSERT INTO ai_calls (endpoint, model, input, output, input_tokens, output_tokens, latency_ms, ok, error, corr_id) ' +
+    'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
   const params = [
     log.endpoint,
     log.model,
@@ -67,6 +68,7 @@ export function aiCallStatement(log: AiCallLog): { sql: string; params: unknown[
     log.latencyMs,
     log.ok ? 1 : 0,
     log.error ?? null,
+    log.corrId ?? null,
   ];
   return { sql, params };
 }
@@ -77,6 +79,32 @@ export async function logAiCall(env: TelemetryEnv, log: AiCallLog): Promise<void
   if (!env.DB) return;
   try {
     const { sql, params } = aiCallStatement(log);
+    await env.DB.prepare(sql)
+      .bind(...params)
+      .run();
+  } catch {
+    // best effort, swallow
+  }
+}
+
+// The completion half of the moat: an anonymised record that a decomposition's step
+// finished, linked to the offered decomposition only by its pseudonymous corr_id.
+// No user_id, no task text, no IP — just the id, the step total, and the days from
+// offer to completion. Pairs with aiCallStatement (the offered half).
+export type OutcomeLog = { corrId: string; stepsTotal: number | null; daysElapsed: number };
+
+/** The INSERT statement + ordered bind params for one completion outcome. Pure and
+ *  unit-tested (the params are the contract surface), like aiCallStatement. */
+export function outcomeStatement(o: OutcomeLog): { sql: string; params: unknown[] } {
+  const sql = 'INSERT INTO outcomes (corr_id, steps_total, days_elapsed) VALUES (?, ?, ?)';
+  return { sql, params: [o.corrId, o.stepsTotal, o.daysElapsed] };
+}
+
+/** Fire-and-forget outcome insert. Never throws; skips cleanly with no D1 binding. */
+export async function logOutcome(env: TelemetryEnv, o: OutcomeLog): Promise<void> {
+  if (!env.DB) return;
+  try {
+    const { sql, params } = outcomeStatement(o);
     await env.DB.prepare(sql)
       .bind(...params)
       .run();

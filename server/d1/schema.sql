@@ -19,8 +19,25 @@ create table if not exists ai_calls (
   latency_ms integer,
   ok integer not null default 1,   -- 0/1
   error text,
+  corr_id text,                    -- pseudonymous decomposition id; joins to outcomes.corr_id (the flywheel link)
   created_at text not null default (datetime('now'))
 );
+-- For a DB created before corr_id existed (errors harmlessly if already present):
+--   ALTER TABLE ai_calls ADD COLUMN corr_id text;
+
+-- outcomes: the completion half of the moat flywheel. Anonymously links a
+-- decomposition (by its pseudonymous corr_id, the same id stamped on the offered
+-- ai_calls row) to whether/when its steps got finished. NO user_id, no task text,
+-- no IP: just the id, the step total, and the whole days from offer to a step
+-- finishing. Worker-bound, written only by /outcome, so there is no public write path.
+create table if not exists outcomes (
+  id integer primary key autoincrement,
+  corr_id text not null,           -- the decomposition's pseudonymous id (joins ai_calls.corr_id)
+  steps_total integer,             -- how many steps the decomposition had (the denominator)
+  days_elapsed integer,            -- whole days from the decomposition being offered to this step finishing
+  created_at text not null default (datetime('now'))
+);
+create index if not exists outcomes_corr on outcomes (corr_id);
 
 -- Premium entitlements, written ONLY by the verified Stripe webhook. Separate from
 -- ai_calls (which is pseudonymous): this legitimately holds a user id because it
