@@ -4,7 +4,7 @@
 
 ---
 
-## Current state (as of 2026-06-18)
+## Current state (as of 2026-06-21)
 
 Full core loop working: capture, AI decomposition (Bite the Elephant), in-app scheduling, and opt-in cloud sync. Web live at doubledone.app, Android installable via EAS.
 
@@ -22,17 +22,36 @@ Full core loop working: capture, AI decomposition (Bite the Elephant), in-app sc
 - ✅ **Bite the Elephant live** (step 5): "Break it down" on the capture box calls the Worker, drops atomic steps into Today. Moat telemetry (`decomposition.offered`) instrumented.
 - ✅ **Cloud sync LIVE, verified end-to-end** (step 12): Supabase client, last-write-wins merge engine, soft-delete tombstones, passwordless email-OTP sign-in (Resend SMTP, doubledone.app verified for any recipient), sync on sign-in/open, anonymous-to-account migration. Confirmed live: sign-in works and tasks land in the `tasks` table. Setup + the two live-table fixes (created_at type, id PK) recorded in `supabase/auth-setup.md` and `supabase/schema.sql`.
 - ✅ GitHub remote live and **public**: github.com/melroyds/doubledone, `main` pushed, CI + web deploy green
+- ✅ **Full UI redesign + a net-new first-run shipped 2026-06-21** ("the system pass"): all seven surfaces brought to spec (Today rebuilt; Lookback / Break-it-down / Premium / Settings / Sign-in / Repeating refined or confirmed), plus a guided first-run that onboards by doing (replayable, non-destructively, from Settings). Screenshots regenerated; README, case-study, build-journal and lessons updated; provenance corrected (2nd piece, not 3rd); CI bumped off the deprecated Node 20.
 
 ## The immediate next action
 
-**The build is functionally complete.** The full daily loop is shipped and live: capture, AI triage, AI decompose (with a calm pace estimate, the visible moat), in-app scheduling (today / tomorrow / recurring / "starting from"), **push a task to tomorrow**, slices, the repeating drawer, cloud sync, the calendar Lookback with weighted celebration, close-the-day, Strategise, and the daily reminder. The Dusk design pass (palette + dark, serif + Atkinson, native fonts, illustrations, Settings) is done, screenshots are current, and the AI prompts (decompose / strategise / triage) are tuned and deployed.
+**The build is portfolio-complete; the leverage has left the codebase.** The full daily loop, the Dusk design pass, AND the **2026-06-21 system redesign + guided first-run** are all shipped and live: capture, AI triage, AI decompose (with the calm pace estimate, the visible moat), in-app scheduling, push-to-tomorrow, slices, the repeating drawer, cloud sync, the calendar Lookback with weighted celebration, close-the-day, Strategise, the daily reminder, a redesigned every-screen UI, and an onboarding first-run. Screenshots, README, the case-study and the build-journal are all current.
 
-What remains is **not build work**, it is deferred-with-triggers or your-decision:
+What remains is **not build work**. In priority order:
 
-1. **On device / in your own time** (built, need Melroy): the daily reminder firing on the Android build, and the Dusk dark palette + native fonts rendering on a real Android device (the web preview can't exercise native).
-2. **Before any public launch:** harden the `ai_calls` writes (the anon key can insert from anywhere), then the rest of the privacy/launch triggers in the Privacy section.
-3. **Your-decision projects:** monetisation (Stripe paid tier), and the real anonymised crowd-data swap for the moat estimate (needs cross-user volume).
-4. The rest of the Backlog (one-off far-future date, custom lists, Plan my day, Prioritise, calendar sync, i18n translations, distribution), each parked with a trigger.
+1. **Go-live ops (built, needs Melroy's hands)** — the highest-value cluster: it turns three "built" claims (monetisation, deletion, native) into "demonstrably live" ones. Full runbook in [Go-live checklist (B)](#go-live-checklist-b) below.
+2. **Parked with triggers** (real features, correctly deferred): custom lists, Plan my day, talk-to-capture, routines, calendar sync, an edit path for slices / dates on an existing task. **Multi-language's trigger ("after the design overhaul") has now fired** — the one item that became build-ready, though it re-banks ParkProof's i18n signal rather than adding a new one.
+3. **Needs volume, not code:** the real anonymised "other users took ~X days" crowd estimate. The surface is built; it needs real users to be honest. A launch dependency.
+4. **Launch path:** Play Store listing, a transactional email sender. Reach, not product.
+
+### Go-live checklist (B)
+
+The "built, needs your hands" cluster, in order. None of it is new code; it is configuration, one migration, and a device check.
+
+**1. Stripe Premium (test mode first, then live).** The `/checkout` + `/stripe-webhook` flow, the `/premium` paywall, and the D1 entitlement are built; they need keys and a product.
+   1. In the **Stripe dashboard** (test mode), create a Product "DoubleDone Premium" with a recurring **A$5 / month** price; copy the price id (`price_…`).
+   2. In `server/wrangler.jsonc`, set the non-secret vars `STRIPE_PRICE_ID` (that price id) and `APP_URL` (`https://doubledone.app`).
+   3. Set the secret `STRIPE_SECRET_KEY` (your `sk_test_…`): `npx wrangler secret put STRIPE_SECRET_KEY` from `server/`.
+   4. Confirm the D1 `entitlements` table exists (`server/d1/schema.sql`), then **deploy the Worker** (`npx wrangler deploy` from `server/`, which needs your explicit OK per CLAUDE.md).
+   5. In Stripe, add a **webhook endpoint** → `https://doubledone-ai.melroy-a02.workers.dev/stripe-webhook`, events `checkout.session.completed` + `customer.subscription.updated` + `customer.subscription.deleted`; copy its signing secret (`whsec_…`) and set it: `npx wrangler secret put STRIPE_WEBHOOK_SECRET` (secrets apply with no redeploy).
+   6. **Test:** signed in on doubledone.app → Settings → DoubleDone Premium → Go Premium → pay with `4242 4242 4242 4242` (any future expiry, any CVC) → land back on `/premium` as "You're Premium ✓". Going live = repeat 1 / 3 / 5 with the live product and `sk_live_…` keys.
+
+**2. Account deletion (one migration + a live test).**
+   1. Open the **Supabase SQL editor** and run the `delete_account()` block from `supabase/schema.sql` (the `create or replace function public.delete_account() … security definer …` plus its `revoke` / `grant` lines).
+   2. **Test on your own account:** sign in → Settings → Access & data → Account → Delete account and data → confirm → verify the account and its rows are gone. (Migrations can't be rolled back; test on an account you're happy to lose.)
+
+**3. On-device checks (need a fresh Android build).** The current APK predates the redesign, so build a new one first (`eas build -p android --profile preview`), sideload it, then check: the **daily reminder** fires at the set time, and **dark mode + the Newsreader / Atkinson fonts** render correctly (the web preview can't exercise native).
 
 ---
 
@@ -137,15 +156,15 @@ The single home for everything we have consciously parked. Nothing here is dropp
 - Investigate the expo-router "multiple renderers" dev warning. Trigger: before launch, or if it ever surfaces in production.
 - Tier-1 CI hardening: a coverage floor and a build job (PLAYBOOK). Trigger: real users, when silent regressions start costing people.
 - ✅ **Lock down the AI endpoints** (shipped + live 2026-06-19). The five AI routes have a **CORS allowlist** (app origins only), an **Origin gate** (a disallowed browser origin → 403 before any Claude call), and a **per-IP Cloudflare rate limit** (`AI_LIMITER`, 30 req/60s). Deployed (version `3f6e03c8`) and live-verified with zero AI spend; server-only, nothing changed for existing web/native users. Contract-tested (9 cases). See decision-log 2026-06-19.
-- ◑ **Design overhaul, the "Dusk" system** (Melroy, 2026-06-18; in progress 2026-06-19). Melroy's design tooling produced the Dusk system (mockups in `docs/design/`). ✅ **Palette + system-following dark shipped.** ✅ **Serif headings** (Newsreader) wired. ✅ **Illustration suite wired** (2026-06-19): app icon / splash / favicon, the empty-Today and close-the-day "moment" banners (the close card with a reduced-motion-safe fade-and-rise), and the README hero. ✅ **Native dark-mode enabled** (`userInterfaceStyle: automatic`, needs on-device verification). ✅ **Settings page** (theme / text size / motion, live across the app). ✅ **Atkinson Hyperlegible body font** swept onto every component, so body text now renders the Braille Institute legibility face on web while headings stay Newsreader (RN-web gives every Text its own default font, so it had to be applied per style; decision-log 2026-06-19). **The Dusk design pass is essentially complete.** ✅ **Native fonts shipped 2026-06-19** (`expo-google-fonts` + `useFonts`: Newsreader / Atkinson now load on Android, web unchanged; one weight per face for v1, see below). Remaining and smaller: optional component polish (capture send button, per-task accent dots). ✅ **README screenshots refreshed 2026-06-19** to the Dusk look, incl. the new rotating-phrase footer.
+- ◑ **Design overhaul, the "Dusk" system** (Melroy, 2026-06-18; in progress 2026-06-19). Melroy's design tooling produced the Dusk system (mockups in `docs/design/`). ✅ **Palette + system-following dark shipped.** ✅ **Serif headings** (Newsreader) wired. ✅ **Illustration suite wired** (2026-06-19): app icon / splash / favicon, the empty-Today and close-the-day "moment" banners (the close card with a reduced-motion-safe fade-and-rise), and the README hero. ✅ **Native dark-mode enabled** (`userInterfaceStyle: automatic`, needs on-device verification). ✅ **Settings page** (theme / text size / motion, live across the app). ✅ **Atkinson Hyperlegible body font** swept onto every component, so body text now renders the Braille Institute legibility face on web while headings stay Newsreader (RN-web gives every Text its own default font, so it had to be applied per style; decision-log 2026-06-19). **The Dusk design pass is essentially complete.** ✅ **The full system-pass redesign then shipped 2026-06-21** (all seven surfaces rebuilt or refined + the net-new first-run; see the redesign entries in the decision-log). ✅ **Native fonts shipped 2026-06-19** (`expo-google-fonts` + `useFonts`: Newsreader / Atkinson now load on Android, web unchanged; one weight per face for v1, see below). Remaining and smaller: optional component polish (capture send button, per-task accent dots). ✅ **README screenshots refreshed 2026-06-19** to the Dusk look, incl. the new rotating-phrase footer.
   - ◑ **Full native font weights / italics** (follow-on to the v1 native-font load). ✅ **Bold body shipped 2026-06-20:** a `bodyBold` token (real Atkinson 700 on native, same CSS var on web) now backs the 44 bold body styles, because Android does not synthesise bold for custom fonts. Decision-log 2026-06-20. **Remaining (optional):** a real italic variant for the foot phrase (synthesised today; risks a double-slant), a bold-heading variant (headings sit at Newsreader 600, fine), and a handful of inherited-family selected states. Trigger: a device check shows they read poorly.
 
 **Portfolio and public documentation**
-- ◑ **Portfolio-grade GitHub, modelled on ParkProof** (Melroy, 2026-06-18). *README rewritten to ParkProof's shape (hero, what-it-does, architecture diagram, stack table, notable decisions, what's-not-built-with-triggers, files tree, further reading) and `docs/case-study.md` written (the PM narrative: pivot, spine, moat, never-shame, discipline of stopping) — 2026-06-19.* ✅ **Screenshots done 2026-06-19:** Today + Settings, light + dark, captured at a true 390px viewport and current to the Dusk look (incl. the rotating-phrase footer). **Remaining (optional):** a build-journal / how-it-was-built doc like ParkProof's.
+- ◑ **Portfolio-grade GitHub, modelled on ParkProof** (Melroy, 2026-06-18). *README rewritten to ParkProof's shape (hero, what-it-does, architecture diagram, stack table, notable decisions, what's-not-built-with-triggers, files tree, further reading) and `docs/case-study.md` written (the PM narrative: pivot, spine, moat, never-shame, discipline of stopping) — 2026-06-19.* ✅ **Screenshots done 2026-06-19:** Today + Settings, light + dark, captured at a true 390px viewport and current to the Dusk look (incl. the rotating-phrase footer). ✅ **build-journal shipped** ([`docs/build-journal.md`](docs/build-journal.md)), updated 2026-06-21 with the redesign chapter.
 
 **Audience-driven product backlog** (brainstorm 2026-06-20, imagining the ADHD / AuDHD / OCD user; ⭐ = strongest, ⭐⭐ = top pick). Each waits behind a trigger; a sequencing exercise follows.
 
-> ✅ **Tier 1+2 polish sprint shipped 2026-06-20** (autonomous build, all preview-verified, see decision-log): **shame-free re-entry** (⭐⭐), **"just this one" focus mode** (⭐), **"I also did that"** off-plan logging (⭐), **"weight of today"** load gauge (⭐), and **data export** ("your stuff is yours"). The sixth, **scrapbook → R2 persistence**, is *staged not built* (needs R2 + a Supabase migration + a Worker deploy + live verification): full plan in [`docs/scrapbook-r2.md`](docs/scrapbook-r2.md), to run as one joint session.
+> ✅ **Tier 1+2 polish sprint shipped 2026-06-20** (autonomous build, all preview-verified, see decision-log): **shame-free re-entry** (⭐⭐), **"just this one" focus mode** (⭐), **"I also did that"** off-plan logging (⭐), **"weight of today"** load gauge (⭐), and **data export** ("your stuff is yours"). The sixth, **scrapbook → R2 persistence**, ✅ **R2 image persistence shipped** (the Worker uploads keepsake images to R2 and serves them by URL, off the device's localStorage quota); plan was in [`docs/scrapbook-r2.md`](docs/scrapbook-r2.md). The cross-device sync of those URLs to a Supabase `scrapbooks` table is the remaining half, still parked.
 
 *Capture, get it out before it's gone*
 - ⭐ **Talk-to-capture.** Hold to speak a brain-dump; AI splits it into tasks. Fleeting thoughts + typing friction = lost thoughts. Strong AI / multimodal signal. Trigger: next feature sequence.
@@ -184,7 +203,7 @@ The single home for everything we have consciously parked. Nothing here is dropp
 *Polish & trust*
 - ⭐ **Scrapbook image persistence** (Melroy, 2026-06-20). Images are base64 in `localStorage` today: device-local, lost on cache-clear / reinstall, no sync, ~500 KB each risks the quota. Move the bytes to **Cloudflare R2** (the Worker uploads on generation, returns a URL) + sync metadata via a Supabase `scrapbooks` table. Higher priority now the scrapbook is paid. Trigger: before real users touch the paid tier.
 - **Calm completion feedback** (optional soft haptic / chime, off by default, never gamified). Trigger: polish pass.
-- **Warm empty states + a gentle first-run** (no tutorial wall). Trigger: before a public push.
+- ✅ **Warm empty states + a gentle first-run** (no tutorial wall) — **shipped 2026-06-21:** a guided welcome that runs your first brain-dump through the real triage, redirected-to once and replayable non-destructively from Settings. Decision-log 2026-06-21.
 - **Data export** ("your stuff is yours"). Trigger: before real users, with the privacy story.
 
 *The discipline of stopping (tempting, but do NOT build)*
