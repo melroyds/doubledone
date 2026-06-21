@@ -866,6 +866,14 @@ export default function TodayScreen() {
               <Text style={styles.lookbackLink}>Repeating</Text>
             </Pressable>
             <Pressable
+              onPress={() => router.push('/routines')}
+              accessibilityRole="button"
+              accessibilityLabel="Open Routines"
+              hitSlop={8}
+            >
+              <Text style={styles.lookbackLink}>Routines</Text>
+            </Pressable>
+            <Pressable
               onPress={() => router.push('/lookback')}
               accessibilityRole="button"
               accessibilityLabel="Open the Lookback calendar"

@@ -42,6 +42,14 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | OCD-01 | P2 | Both | Done is done (completion affirmation) | Complete any task: tap a Today task, or select tasks and tap Done. | A brief, consistent calm line appears near the capture ('Done is done. Recorded.') and clears itself after a few seconds. It is the SAME line every time (never a rotating or variable reward), reduce-motion safe, and never shaming. |
 | OCD-02 | P2 | Both | Good enough (release a stuck-perfected task) | On Today, long-press a task to select it, then tap 'Good enough'. On a Later task, long-press it and tap 'Good enough' in the menu. | The task completes with a gentler line ('Good enough is done. Let it go.'). The action only appears for an incomplete one-off. It is permission to release, never a nag. |
 
+## Routines
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| RTN-01 | P2 | Both | Create and run a routine | From the Today header tap Routines, then + New routine. Name it (e.g. Morning), pick Morning / Evening / Anytime, type a few steps one per line, tap Add routine. Then tick some steps. | The routine appears grouped under its time-of-day with an 'N of M' progress. Tapping a step marks it done for today (a sage tick and a strike-through) and updates the count. Calm, with no streak and no celebration pressure. |
+| RTN-02 | P2 | Both | A routine is fresh tomorrow (never a streak) | Tick some routine steps today, then advance the device clock to tomorrow and reopen Routines. | Every step is un-ticked again and the progress is back to 0 of M. There is NO streak count, no 'you missed it', and no chain to break: yesterday simply falls away with no guilt (the never-shame spine). |
+| RTN-03 | P3 | Both | Remove a routine | On a routine card tap Remove. | The routine disappears immediately. No confirmation gauntlet, no penalty. |
+
 ## Haptics
 
 | ID | Pri | Platform | Test | Steps | Expected |

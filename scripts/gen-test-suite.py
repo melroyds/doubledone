@@ -120,6 +120,17 @@ CASES = [
      "On Today, long-press a task to select it, then tap 'Good enough'. On a Later task, long-press it and tap 'Good enough' in the menu.",
      "The task completes with a gentler line ('Good enough is done. Let it go.'). The action only appears for an incomplete one-off. It is permission to release, never a nag.", "Both"),
 
+    # --- Routines (Cluster D) ------------------------------------------------
+    ("RTN-01", "Routines", "P2", "Create and run a routine",
+     "From the Today header tap Routines, then + New routine. Name it (e.g. Morning), pick Morning / Evening / Anytime, type a few steps one per line, tap Add routine. Then tick some steps.",
+     "The routine appears grouped under its time-of-day with an 'N of M' progress. Tapping a step marks it done for today (a sage tick and a strike-through) and updates the count. Calm, with no streak and no celebration pressure.", "Both"),
+    ("RTN-02", "Routines", "P2", "A routine is fresh tomorrow (never a streak)",
+     "Tick some routine steps today, then advance the device clock to tomorrow and reopen Routines.",
+     "Every step is un-ticked again and the progress is back to 0 of M. There is NO streak count, no 'you missed it', and no chain to break: yesterday simply falls away with no guilt (the never-shame spine).", "Both"),
+    ("RTN-03", "Routines", "P3", "Remove a routine",
+     "On a routine card tap Remove.",
+     "The routine disappears immediately. No confirmation gauntlet, no penalty.", "Both"),
+
     # --- Haptics (Android device only) ---------------------------------------
     ("HAP-01", "Haptics", "P3", "Earned-moment haptics fire (Android)",
      "On a physical Android device with a haptic motor: complete a single task; clear the whole day; close the day with Goodnight; break a dreaded task into steps; and (premium) reveal a scrapbook.",
