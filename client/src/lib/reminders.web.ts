@@ -5,7 +5,11 @@
 // Metro resolves this .web.ts on web. Per-task nudges stay native-only (no-op here).
 
 const AI_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://doubledone-ai.melroy-a02.workers.dev';
-const VAPID_PUBLIC = process.env.EXPO_PUBLIC_VAPID_KEY ?? '';
+// Baked in as a fallback so the deployed web build always has it; EXPO_PUBLIC_VAPID_KEY
+// overrides it (e.g. for key rotation). This is the PUBLIC key, designed to be exposed
+// (it ships to every browser); the private JWK is a Worker secret, never here.
+const VAPID_PUBLIC =
+  process.env.EXPO_PUBLIC_VAPID_KEY ?? 'BCLgPiUxAM8-T1-vbHitJbtEes3cVCFRik5cNhJO5EpmmozbtMuEKel-mLQ_fbFbfBmjmGrJOqmCueKLoHdTEs8'; // gitleaks:allow
 
 // applicationServerKey wants the url-base64 VAPID public key as bytes.
 function urlB64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {

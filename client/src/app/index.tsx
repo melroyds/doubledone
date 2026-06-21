@@ -1022,16 +1022,14 @@ export default function TodayScreen() {
               <Text style={styles.sync}>Sync across devices</Text>
             </Pressable>
           ))}
-        {(Platform.OS !== 'web' || Boolean(process.env.EXPO_PUBLIC_VAPID_KEY)) && (
-          <Pressable
-            onPress={toggleReminder}
-            accessibilityRole="button"
-            accessibilityLabel="Toggle daily reminder"
-            hitSlop={6}
-          >
-            <Text style={styles.sync}>Daily reminder · {reminderOn ? 'On' : 'Off'}</Text>
-          </Pressable>
-        )}
+        <Pressable
+          onPress={toggleReminder}
+          accessibilityRole="button"
+          accessibilityLabel="Toggle daily reminder"
+          hitSlop={6}
+        >
+          <Text style={styles.sync}>Daily reminder · {reminderOn ? 'On' : 'Off'}</Text>
+        </Pressable>
         <View style={styles.ethos}>
           <RotatingPhrase />
         </View>
