@@ -52,3 +52,10 @@ export function formatNudgeTime(ms: number): string {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return m === 0 ? `${h12}${period}` : `${h12}:${String(m).padStart(2, '0')}${period}`;
 }
+
+/** The evening wind-down window: 6pm onward, the calm time to close the day. Drives an
+ *  in-app nudge toward the close-the-day ritual (never a notification, no new setting).
+ *  Pure; the screen gates a gentle line on it. */
+export function isWindDownTime(now: Date): boolean {
+  return now.getHours() >= EVENING_HOUR;
+}

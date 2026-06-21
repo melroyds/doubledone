@@ -32,7 +32,7 @@ import { type Inbound, subscribeInbound, takeInbound } from '@/lib/inbound';
 import { aiLanguage } from '@/lib/locale';
 import { buildOutcome } from '@/lib/outcome';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
-import { availableNudgePresets, type NudgePreset, nudgeTargetFor } from '@/lib/nudge';
+import { availableNudgePresets, isWindDownTime, type NudgePreset, nudgeTargetFor } from '@/lib/nudge';
 import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge } from '@/lib/reminders';
 import { applySliceDelta } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
@@ -266,6 +266,7 @@ export default function TodayScreen() {
   // Closed when the stored close-date is today's; it self-clears when the date rolls over.
   const isClosed = closedDate === toISODate(today);
   const isLowDay = lowDayDate === toISODate(today);
+  const windDown = isWindDownTime(today); // evening: a gentle in-app nudge toward closing the day
   const todayDone = useMemo(() => completionsByDay(tasks).get(toISODate(today)) ?? [], [tasks, today]);
   // One-off, undone tasks on Today: the ones Strategise can re-spread (recurring stay by cadence).
   const spreadable = visible.filter((t) => !isRecurring(t) && !isDoneOn(t, today));
@@ -1066,6 +1067,11 @@ export default function TodayScreen() {
                 {strategiseError && <Text style={styles.strategiseErr}>{strategiseError}</Text>}
               </>
             )}
+            {windDown && !isClosed && (
+              <Text style={styles.windDown}>
+                {"Evening's here. Close the day when you're ready, even a little counts."}
+              </Text>
+            )}
             <Pressable
               onPress={openClose}
               style={({ pressed }) => [styles.closeDay, pressed && styles.pressed]}
@@ -1633,6 +1639,7 @@ const makeStyles = (t: Theme) =>
     weightFill: { backgroundColor: t.colors.accent },
     weightLabel: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
     lowDayToggle: { color: t.colors.accent, fontSize: 12 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
+    windDown: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     dayActions: { marginTop: spacing.seven, alignItems: 'center', gap: spacing.three },
     closeDay: {
       paddingVertical: spacing.three,

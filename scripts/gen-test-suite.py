@@ -108,6 +108,9 @@ CASES = [
     ("TOD-14", "Today", "P2", "Low-capacity day (gentle recalibration)",
      "Under the weight gauge, tap 'Low on energy? Make it a low day'.",
      "The gauge recalibrates to a gentler capacity (the same task count reads as fuller) and the label gives permission ('A low day. A couple of things is plenty.', up to 'Just pick one, the rest waits.'). A brief affirmation shows. The backlog is untouched, nothing is deferred or shamed. The toggle reads 'Back to a normal day' to undo, and the state self-clears at midnight (per-day, never a setting).", "Both"),
+    ("TOD-15", "Today", "P3", "Evening wind-down nudge",
+     "Open the app in the evening (after 6pm) with the day not yet closed.",
+     "A calm line appears above 'Close the day' ('Evening's here. Close the day when you're ready, even a little counts.'), inviting the closing ritual. It is in-app only (no notification), never shaming, and absent during the day.", "Both"),
 
     # --- OCD reassurance (Cluster A) -----------------------------------------
     ("OCD-01", "Today", "P2", "Done is done (completion affirmation)",

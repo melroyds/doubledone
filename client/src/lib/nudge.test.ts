@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { availableNudgePresets, formatNudgeTime, nudgeTargetFor } from './nudge';
+import { availableNudgePresets, formatNudgeTime, isWindDownTime, nudgeTargetFor } from './nudge';
 
 function at(h: number, m = 0): Date {
   return new Date(2026, 5, 21, h, m, 0, 0); // 21 June 2026
@@ -48,5 +48,17 @@ describe('formatNudgeTime', () => {
     expect(formatNudgeTime(at(21).getTime())).toBe('9pm');
     expect(formatNudgeTime(at(9, 30).getTime())).toBe('9:30am');
     expect(formatNudgeTime(at(0).getTime())).toBe('12am');
+  });
+});
+
+describe('isWindDownTime', () => {
+  it('is the evening, from 6pm onward', () => {
+    expect(isWindDownTime(at(17, 59))).toBe(false);
+    expect(isWindDownTime(at(18))).toBe(true);
+    expect(isWindDownTime(at(22))).toBe(true);
+  });
+  it('is not the daytime or the small hours', () => {
+    expect(isWindDownTime(at(9))).toBe(false);
+    expect(isWindDownTime(at(0))).toBe(false);
   });
 });
