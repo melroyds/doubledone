@@ -1,18 +1,72 @@
-// Web has no scheduled local notifications, so the daily reminder is a no-op here.
-// This platform-specific module exists so the web bundle never imports
-// expo-notifications at all: importing it on web initialises a push-token listener
-// that logs a benign but noisy "not yet fully supported on web" warning. Native uses
-// reminders.ts (the real implementation); Metro resolves this .web.ts on web. The
-// export signatures mirror reminders.ts so callers are platform-agnostic.
+// Web reminders (Phase 2): a daily "your today is here" nudge via Web Push. The browser
+// registers a service worker and a push subscription; the subscription is stored on the
+// Worker, which sends a PAYLOADLESS daily push (the service worker holds the message, so no
+// task content ever reaches the browser). Native uses reminders.ts (local scheduling);
+// Metro resolves this .web.ts on web. Per-task nudges stay native-only (no-op here).
 
-/** No-op on web: scheduled local reminders are native-only. Always "off". */
-export async function enableDailyReminder(): Promise<boolean> {
-  return false;
+const AI_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://doubledone-ai.melroy-a02.workers.dev';
+const VAPID_PUBLIC = process.env.EXPO_PUBLIC_VAPID_KEY ?? '';
+
+// applicationServerKey wants the url-base64 VAPID public key as bytes.
+function urlB64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
+  const padding = '='.repeat((4 - (base64.length % 4)) % 4);
+  const b64 = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(b64);
+  const buffer = new ArrayBuffer(raw.length);
+  const out = new Uint8Array(buffer);
+  for (let i = 0; i < raw.length; i += 1) out[i] = raw.charCodeAt(i);
+  return out;
 }
 
-/** No-op on web. */
+/** Subscribe this browser to the daily web-push nudge: register the service worker, ask
+ *  permission, subscribe, and store the subscription on the Worker. Returns whether it is
+ *  on. False (and a no-op) when web push is unconfigured or unsupported, or denied. */
+export async function enableDailyReminder(hour = 9): Promise<boolean> {
+  try {
+    if (
+      !VAPID_PUBLIC ||
+      typeof navigator === 'undefined' ||
+      !('serviceWorker' in navigator) ||
+      typeof window === 'undefined' ||
+      !('PushManager' in window)
+    ) {
+      return false;
+    }
+    if ((await Notification.requestPermission()) !== 'granted') return false;
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC),
+    });
+    const res = await fetch(`${AI_URL}/push/subscribe`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ subscription: sub.toJSON(), hour, tzOffset: new Date().getTimezoneOffset() }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Unsubscribe this browser from the daily nudge, and tell the Worker to drop it. */
 export async function disableDailyReminder(): Promise<void> {
-  // nothing to cancel on web
+  try {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = await reg?.pushManager.getSubscription();
+    if (!sub) return;
+    const { endpoint } = sub;
+    await sub.unsubscribe();
+    await fetch(`${AI_URL}/push/unsubscribe`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ endpoint }),
+    });
+  } catch {
+    // best effort
+  }
 }
 
 /** No-op on web: per-task nudges are native-only (web has no local scheduling). */

@@ -443,7 +443,8 @@ export default function TodayScreen() {
     track('repeating.opened');
   }
 
-  // A calm daily reminder, opt-in. Native only (web cannot schedule local ones).
+  // A calm daily reminder, opt-in. Native schedules a local one; on web (Phase 2)
+  // reminders.web.ts subscribes to a web-push daily nudge. Same toggle, platform-fit.
   async function toggleReminder() {
     if (reminderOn) {
       await disableDailyReminder();
@@ -1021,7 +1022,7 @@ export default function TodayScreen() {
               <Text style={styles.sync}>Sync across devices</Text>
             </Pressable>
           ))}
-        {Platform.OS !== 'web' && (
+        {(Platform.OS !== 'web' || Boolean(process.env.EXPO_PUBLIC_VAPID_KEY)) && (
           <Pressable
             onPress={toggleReminder}
             accessibilityRole="button"
