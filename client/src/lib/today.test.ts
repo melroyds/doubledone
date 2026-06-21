@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { type Recurrence } from './recurrence';
-import { deferTo, deferToTomorrow, isDoneOn, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
+import { completeAncestors, deferTo, deferToTomorrow, isDoneOn, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
 
 const today = new Date(2026, 5, 17);
 const iso = '2026-06-17';
@@ -100,6 +100,14 @@ describe('tasksForToday', () => {
     ];
     expect(tasksForToday(tasks, today).map((t) => t.id)).toEqual(['live']);
   });
+
+  it('hides a silent parent (its children show instead)', () => {
+    const tasks = [
+      { id: 'parent', done: false, silentParent: true },
+      { id: 'step', done: false, parentId: 'parent' },
+    ];
+    expect(tasksForToday(tasks, today).map((t) => t.id)).toEqual(['step']);
+  });
 });
 
 describe('upcomingTasks', () => {
@@ -122,5 +130,62 @@ describe('upcomingTasks', () => {
       { id: 'gone', done: false, due: '2026-06-20', deletedAt: 1 },
     ];
     expect(upcomingTasks(tasks, today).map((t) => t.id)).toEqual(['soon']);
+  });
+
+  it('excludes a future-dated silent parent', () => {
+    const tasks = [
+      { id: 'soon', done: false, due: '2026-06-19' },
+      { id: 'parent', done: false, due: '2026-06-20', silentParent: true },
+    ];
+    expect(upcomingTasks(tasks, today).map((t) => t.id)).toEqual(['soon']);
+  });
+});
+
+describe('completeAncestors (Cluster B chain)', () => {
+  type TestTask = {
+    id: string;
+    title: string;
+    parentId?: string;
+    done: boolean;
+    updatedAt: number;
+    silentParent?: boolean;
+    completedAt?: number | null;
+  };
+  const mk = (id: string, parentId: string | undefined, done: boolean, silentParent = false): TestTask => ({
+    id,
+    title: id,
+    parentId,
+    done,
+    updatedAt: 0,
+    silentParent,
+  });
+
+  it('completes a parent when its last child is done, and reports it', () => {
+    const tasks = [mk('p', undefined, false, true), mk('c1', 'p', true), mk('c2', 'p', true)];
+    const { tasks: next, completed } = completeAncestors(tasks, 'c2', today, 100);
+    const parent = next.find((t) => t.id === 'p');
+    expect(parent?.done).toBe(true);
+    expect(parent?.completedAt).toBe(100);
+    expect(parent?.silentParent).toBe(false);
+    expect(completed).toEqual(['p']);
+  });
+
+  it('leaves the parent open while a sibling is unfinished', () => {
+    const tasks = [mk('p', undefined, false, true), mk('c1', 'p', true), mk('c2', 'p', false)];
+    const { tasks: next, completed } = completeAncestors(tasks, 'c1', today, 100);
+    expect(next.find((t) => t.id === 'p')?.done).toBe(false);
+    expect(completed).toEqual([]);
+  });
+
+  it('cascades up: the last step finishes the milestone and then the root', () => {
+    const tasks = [mk('root', undefined, false, true), mk('mile', 'root', false, true), mk('s1', 'mile', true)];
+    const { tasks: next, completed } = completeAncestors(tasks, 's1', today, 100);
+    expect(next.find((t) => t.id === 'mile')?.done).toBe(true);
+    expect(next.find((t) => t.id === 'root')?.done).toBe(true);
+    expect(completed).toEqual(['mile', 'root']);
+  });
+
+  it('does nothing for a task with no parent', () => {
+    expect(completeAncestors([mk('a', undefined, true)], 'a', today, 100).completed).toEqual([]);
   });
 });

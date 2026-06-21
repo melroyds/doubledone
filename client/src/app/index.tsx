@@ -43,7 +43,7 @@ import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
 import { updateWidget } from '@/widget/update';
 import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
-import { deferTo, deferToTomorrow, isDoneOn, isRecurring, tasksForToday, toggleDoneOn, upcomingTasks } from '@/lib/today';
+import { completeAncestors, deferTo, deferToTomorrow, isDoneOn, isRecurring, tasksForToday, toggleDoneOn, upcomingTasks } from '@/lib/today';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
@@ -92,6 +92,7 @@ export default function TodayScreen() {
   // Break it down, the two-call flow: qualify (questions) -> decompose (review).
   const [bdPhase, setBdPhase] = useState<'off' | 'questions' | 'review'>('off');
   const [bdTask, setBdTask] = useState('');
+  const [bdParentId, setBdParentId] = useState<string | null>(null); // the existing task being broken down (its id becomes the silent parent), or null for an at-capture breakdown
   const [bdQuestions, setBdQuestions] = useState<Questions | null>(null);
   const [bdSteps, setBdSteps] = useState<ReviewStep[] | null>(null);
   const [bdPhases, setBdPhases] = useState<ReviewPhase[] | null>(null);
@@ -521,16 +522,33 @@ export default function TodayScreen() {
       const outcome = buildOutcome(justToggled, nowMs());
       if (outcome) void reportOutcome(outcome);
     }
-    const todays = tasksForToday(next, today);
+    // Cluster B: completing a step may finish its silent parent, and on up the chain.
+    // That is the real task getting done; it lands in the Lookback and earns the big line.
+    let finalTasks = next;
+    let parentDone: string | null = null;
+    if (done && justToggled?.parentId) {
+      const { tasks: walked, completed } = completeAncestors(next, id, today, nowMs());
+      finalTasks = walked;
+      if (completed.length > 0) {
+        parentDone = completed[completed.length - 1];
+        track('parent.completed', { depth: completed.length });
+      }
+    }
+    const todays = tasksForToday(finalTasks, today);
     const cleared = todays.length > 0 && todays.every((t) => isDoneOn(t, today));
     if (cleared) {
       track('day.cleared', { count: todays.length });
       dayCleared(reduced); // the whole day just cleared: a fuller success than one task
     } else if (done) {
       taskDone(reduced); // a single task done: the core, soft cue
-      affirm('Done is done. Recorded.'); // OCD reassurance: it is filed, you can stop checking
     }
-    commit(next);
+    const message = parentDone
+      ? `You finished "${parentDone}". The whole thing.`
+      : done && !cleared
+        ? 'Done is done. Recorded.' // OCD reassurance: it is filed, you can stop checking
+        : null;
+    if (message) affirm(message);
+    commit(finalTasks);
   }
 
   // Good enough: complete a task you are stuck perfecting, with explicit permission to
@@ -619,10 +637,11 @@ export default function TodayScreen() {
   // Break it down, call 1: ask the AI for the qualifying questions, then show
   // them. Clarify is best-effort, so a failure falls back to default questions
   // and the flow never blocks.
-  async function biteElephant(text: string) {
+  async function biteElephant(text: string, parentId?: string) {
     const task = text.trim();
     if (!task) return;
     setBdTask(task);
+    setBdParentId(parentId ?? null);
     setBdBusy(true);
     try {
       setBdQuestions(await clarify(task, aiLanguage));
@@ -685,6 +704,11 @@ export default function TodayScreen() {
   // each later phase (each broken down later, when you reach it).
   function bdAccept(selected: ReviewStep[]) {
     const now = nowMs();
+    // Keep the real task as a silent parent and chain the steps to it (Cluster B): an
+    // existing task becomes the parent; an at-capture breakdown mints one.
+    const parentId = bdParentId ?? makeId();
+    const link = { parentId, parentTitle: bdTask };
+    const totalMinutes = selected.reduce((sum, s) => sum + s.minutes, 0);
     const stepTasks: Task[] = selected.map((s, i) => ({
       id: makeId(),
       title: `${s.title} (${s.minutes} min)`,
@@ -692,6 +716,7 @@ export default function TodayScreen() {
       createdAt: now + i,
       updatedAt: now + i,
       complexity: s.minutes, // the step's effort, used to weight its completion
+      ...link,
       ...(bdCorrId ? { decompositionId: bdCorrId, decompositionSteps: selected.length } : {}),
       ...(s.date ? { due: s.date } : {}),
     }));
@@ -701,9 +726,14 @@ export default function TodayScreen() {
       done: false,
       createdAt: now + selected.length + i,
       updatedAt: now + selected.length + i,
+      ...link,
       ...(p.date ? { due: p.date } : {}),
     }));
-    commit([...tasks, ...stepTasks, ...phaseTasks]);
+    // The parent is hidden from Today / Later and completed + celebrated when its children finish.
+    const withParent: Task[] = bdParentId
+      ? tasks.map((t) => (t.id === bdParentId ? { ...t, silentParent: true, complexity: totalMinutes, updatedAt: now } : t))
+      : [...tasks, { id: parentId, title: bdTask, done: false, createdAt: now, updatedAt: now, silentParent: true, complexity: totalMinutes }];
+    commit([...withParent, ...stepTasks, ...phaseTasks]);
     stepsLanded(reduced); // the dreaded task just got smaller
     // The moat: how many of the offered steps the user kept, and how many phases.
     track('breakdown.added', {
@@ -718,14 +748,15 @@ export default function TodayScreen() {
   // Break down an existing task (e.g. a later-phase milestone when you reach it):
   // feed its title into the same flow. The task itself stays; the user can tick or
   // remove it once its steps are on the board.
-  function breakdownExisting(title: string) {
+  function breakdownExisting(title: string, id?: string) {
     setConfirmingId(null);
-    void biteElephant(title);
+    void biteElephant(title, id);
   }
 
   function resetBreakdown() {
     setBdPhase('off');
     setBdTask('');
+    setBdParentId(null);
     setBdQuestions(null);
     setBdSteps(null);
     setBdPhases(null);
@@ -877,7 +908,7 @@ export default function TodayScreen() {
               slices={task.slices ?? undefined}
               onAdvance={() => step(task.id, 1)}
               onRetreat={() => step(task.id, -1)}
-              onBreakdown={() => breakdownExisting(task.title)}
+              onBreakdown={() => breakdownExisting(task.title, task.id)}
               onDefer={() => deferTask(task.id)}
               onGoodEnough={() => goodEnough(task.id)}
               suggestBreakdown={task.suggestBreakdown}
@@ -938,7 +969,7 @@ export default function TodayScreen() {
                   slices={task.slices ?? undefined}
                   onAdvance={() => step(task.id, 1)}
                   onRetreat={() => step(task.id, -1)}
-                  onBreakdown={() => breakdownExisting(task.title)}
+                  onBreakdown={() => breakdownExisting(task.title, task.id)}
                   onGoodEnough={() => goodEnough(task.id)}
                 />
               </View>
@@ -1018,7 +1049,7 @@ export default function TodayScreen() {
                 <Pressable
                   onPress={() => {
                     const one = tasks.find((y) => y.id === selected[0]);
-                    if (one) breakdownExisting(one.title);
+                    if (one) breakdownExisting(one.title, one.id);
                     exitSelect();
                   }}
                   accessibilityRole="button"

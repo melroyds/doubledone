@@ -168,6 +168,9 @@ CASES = [
     ("AI-04", "AI decompose", "P2", "Friendly error state",
      "Turn off wifi (or block the AI URL), then Break it down.",
      "A calm friendly error. No raw HTTP/stack. App stays usable.", "Both"),
+    ("AI-05", "AI decompose", "P2", "Breakdown keeps the real task as a silent parent (chain)",
+     "Break down a task (e.g. 'Plan the party'), then complete all of its steps, in any order.",
+     "The original task disappears from Today and Later (it becomes a silent parent, not clutter beside its steps). When the last step is done, the real task completes on its own with a bigger 'you finished the whole thing' line and lands in the Lookback as the finished real task. Multi-phase: finishing a milestone's steps cascades up to the root.", "Both"),
 
     # --- AI: Sort-for-me & Strategise ----------------------------------------
     ("AI-05", "AI triage", "P2", "Sort-for-me (triage + feedback)",

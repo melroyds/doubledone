@@ -10,6 +10,7 @@ export type Scheduled = {
   recurrence?: Recurrence;
   completedDates?: string[]; // ISO dates a recurring task was completed
   deletedAt?: number | null; // soft-delete tombstone; set = never shown
+  silentParent?: boolean; // a silent parent (Cluster B): hidden from Today / Later until its children are done
 };
 
 export function isRecurring(t: Scheduled): boolean {
@@ -45,7 +46,7 @@ export function toggleDoneOn<T extends Scheduled>(task: T, date: Date): T {
 export function tasksForToday<T extends Scheduled>(tasks: T[], date: Date): T[] {
   const todayIso = toISODate(date);
   return tasks.filter((t) =>
-    t.deletedAt ? false : isRecurring(t) ? isDueOn(t, date) : t.due == null || t.due <= todayIso,
+    t.deletedAt || t.silentParent ? false : isRecurring(t) ? isDueOn(t, date) : t.due == null || t.due <= todayIso,
   );
 }
 
@@ -71,6 +72,45 @@ export function deferTo<T extends Scheduled>(task: T, iso: string): T {
 export function upcomingTasks<T extends Scheduled>(tasks: T[], date: Date): T[] {
   const todayIso = toISODate(date);
   return tasks
-    .filter((t) => !t.deletedAt && !isRecurring(t) && t.due != null && t.due > todayIso && !t.done)
+    .filter((t) => !t.deletedAt && !t.silentParent && !isRecurring(t) && t.due != null && t.due > todayIso && !t.done)
     .sort((a, b) => (a.due ?? '').localeCompare(b.due ?? ''));
+}
+
+type Parentable = Scheduled & {
+  id: string;
+  title: string;
+  parentId?: string;
+  completedAt?: number | null;
+  updatedAt: number;
+};
+
+/**
+ * After a task completes, walk up its parent chain (Cluster B): for each ancestor
+ * whose children are now ALL done, mark that ancestor done too, so it surfaces in
+ * the Lookback as the finished whole task, and keep walking up. Returns the updated
+ * tasks plus the titles of any parents that just completed (for the celebration).
+ * Pure; the screen does the commit and the celebratory line. A `seen` set guards
+ * against a malformed cycle.
+ */
+export function completeAncestors<T extends Parentable>(
+  tasks: T[],
+  completedId: string,
+  date: Date,
+  now: number,
+): { tasks: T[]; completed: string[] } {
+  let next = tasks;
+  const completed: string[] = [];
+  const seen = new Set<string>();
+  let cursorId = tasks.find((t) => t.id === completedId)?.parentId;
+  while (cursorId && !seen.has(cursorId)) {
+    seen.add(cursorId);
+    const parent = next.find((t) => t.id === cursorId);
+    if (!parent || isDoneOn(parent, date)) break;
+    const children = next.filter((t) => t.parentId === cursorId && !t.deletedAt);
+    if (children.length === 0 || !children.every((c) => isDoneOn(c, date))) break;
+    next = next.map((t) => (t.id === cursorId ? { ...t, done: true, completedAt: now, silentParent: false, updatedAt: now } : t));
+    completed.push(parent.title);
+    cursorId = parent.parentId;
+  }
+  return { tasks: next, completed };
 }

@@ -1402,3 +1402,13 @@ Implementation: a small `affirmation` state + an `affirm()` helper (one `setTime
 Decided against: a rotating set of affirmations (the predictability guardrail); a popup or modal (friction, and the spine removes friction); and a persistent "recorded" badge on every done row (clutter). The ephemeral line is enough.
 
 Verification: typecheck / lint / 363 tests green, and the app loads with no console errors. The headless preview cannot drive RN web's pointer-responder taps, so the in-the-moment affirmation and the Good-enough flow are Melroy's on-device check (like the live mic was). Manual cases OCD-01 / OCD-02 added.
+
+## 2026-06-22 Cluster B slice 1 shipped: the silent-parent chain (decompose)
+
+Built the data model decided above (the silent background parent). Breaking a task down no longer flattens it: the original becomes a SILENT PARENT (`silentParent: true`, hidden from Today and Later via `tasksForToday` + `upcomingTasks`), and the steps plus phase milestones link to it (`parentId` + a denormalised `parentTitle`). At-capture breakdowns mint a parent; existing-task breakdowns convert the task in place (`breakdownExisting` now passes the id). The parent's `complexity` is the sum of its steps' minutes, so the eventual completion weights as the big one it is.
+
+Completion walks the chain. `completeAncestors` (pure, `today.ts`, unit-tested including the multi-level cascade) runs when a step finishes: any ancestor whose children are now all done completes too (set done + completedAt + un-silenced, so it surfaces in the Lookback as the finished whole task), on up the chain. The in-moment line escalates, a finished parent earns `You finished "X". The whole thing.` over the plain "Done is done." Moat: `parent.completed` with the chain depth.
+
+Start-anywhere is already satisfied: decomposed steps are independent Today/Later tasks (date-spread), done in any order, with no enforced sequence. No build needed beyond noting it.
+
+Deferred to slice 2: the tiny-version (a new Haiku endpoint plus UI, about the size of `/split`, one tiny child of the parent at a time). Verification: typecheck / lint / 369 tests green (incl. the new `completeAncestors` and silent-parent-exclusion cases); the full break-down-and-finish flow (taps plus an AI call) is Melroy's device check, like A. Case AI-05 added.

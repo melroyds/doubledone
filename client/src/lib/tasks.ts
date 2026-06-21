@@ -26,6 +26,9 @@ export type Task = {
   suggestBreakdown?: boolean; // AI triage flagged this as too big to just do; shows an inline "break it down?" on the row
   decompositionId?: string; // pseudonymous id of the AI decomposition this step came from; links to the /outcome completion ping (the moat)
   decompositionSteps?: number; // how many steps that decomposition produced (the moat's completion denominator)
+  parentId?: string; // this task is a child (a decomposition step or a tiny-version) of a bigger task; links to its silent parent (Cluster B chain)
+  parentTitle?: string; // the parent's title, denormalised so the whole-task celebration needs no lookup
+  silentParent?: boolean; // a silent parent: kept for the eventual whole-task celebration, hidden from Today / Later until its children are all done
   nudgeAt?: number; // epoch ms a local "remind me" nudge will fire (today only); drives the row indicator
   nudgeId?: string; // the scheduled-notification id, so the nudge can be cancelled when the task is done / removed / deferred
 };

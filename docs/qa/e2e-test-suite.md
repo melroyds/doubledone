@@ -79,6 +79,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | AI-02 | P2 | Both | Time estimate shows | On the breakdown review, look for the pace/time estimate. | A sensible total estimate is shown (the crowd/pace estimate). |
 | AI-03 | P2 | Both | AI egress disclosure at point of use | Open the Break-it-down questions modal. | A calm one-liner discloses the text is sent to an AI and kept anonymously. |
 | AI-04 | P2 | Both | Friendly error state | Turn off wifi (or block the AI URL), then Break it down. | A calm friendly error. No raw HTTP/stack. App stays usable. |
+| AI-05 | P2 | Both | Breakdown keeps the real task as a silent parent (chain) | Break down a task (e.g. 'Plan the party'), then complete all of its steps, in any order. | The original task disappears from Today and Later (it becomes a silent parent, not clutter beside its steps). When the last step is done, the real task completes on its own with a bigger 'you finished the whole thing' line and lands in the Lookback as the finished real task. Multi-phase: finishing a milestone's steps cascades up to the root. |
 
 ## AI triage
 
