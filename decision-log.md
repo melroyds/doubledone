@@ -1370,3 +1370,21 @@ The next tech build after Talk-to-capture: a clean, documented REST API over a u
 **Deferred:** the long-lived API-key system (above); rate-limiting the API routes (RLS already scopes each token to its own data and Supabase has its own limits, so v1 leans on those, noted as hardening); richer querying (pagination, filters) beyond `?today`; and resources beyond tasks.
 
 Pure builders + body parsers + the handler routing are unit-tested (`api.test.ts`, 19 cases, fetch mocked, no live call). **Deployed + live-confirmed 2026-06-21** (Worker version `bebb1564`): `/api/v1/openapi.json` (200, the spec), `/api/v1/docs` (200, the Swagger UI), and `/api/v1/tasks` with no token (401, clean JSON error) all verified. The token-gated CRUD is Melroy's to drive with his own token.
+
+## 2026-06-22 Decompose / tiny-version data model: a silent background parent, not flat replacement (planned, Cluster B)
+
+Melroy's question, ahead of building Cluster B: do we permanently decompose a task, or keep a memory of the real task and chain the small steps to it to finish it off eventually?
+
+**Current state (flat).** Breaking down "Do my taxes" lands the steps as independent Today tasks, each tagged only with a pseudonymous `decompositionId` (+ `decompositionSteps`) that exists purely for the moat (the `/outcome` ping correlates "these steps got finished"). There is no `parentId`, nothing points a step back to the real task, nothing stores its title, and nothing tracks whether the dreaded thing ever actually got done. A flat list with a moat tag, not a chain back to the mountain.
+
+**Decided (for Cluster B plus a retrofit of decompose): keep the real task as a SILENT BACKGROUND PARENT and chain the pebbles to it.** The real task ("Do my taxes") is remembered, off Today, out of sight. Each pebble (a tiny-version, or a decomposition step) links to it. Finishing a pebble can gently resurface the next; finishing the last completes AND celebrates the real task in the Lookback (the big payoff lands on the mountain, not the pebble). Generalises the existing moat-only `decompositionId` into a real parent link.
+
+**The rule that keeps it on-brand, and it is the whole game: the app holds the thread, the user only ever holds one pebble.** The parent is never displayed as a looming "Do My Taxes (1/7)" header or a progress bar (that re-summons the exact dread the tiny-version dissolved), and never nags (never-shame: it is not a guilt backlog item). The user never sees or manages a hierarchy.
+
+**Decided against:**
+- *Flat replacement* (today's model): the real goal is lost, so you do tiny things forever and the dreaded task silently rots, or you lose the thread entirely.
+- *A user-facing hierarchy / project tree*: that is the forbidden overwhelm (folders / projects / nesting, on the "do NOT build" list, the ADHD organising-as-avoidance trap). The line between the two is who carries the structure. An app-managed invisible chain removes the burden of holding the big goal in your head (good); a user-managed visible tree adds it (forbidden). Same data, opposite experience.
+
+**Why it earns its place (beyond the instinct):** it answers the rot risk above, and it turns the moat to gold. Today the flywheel sees "steps got ticked". With a parent link it sees the real prize: did this decomposition actually get the dreaded thing DONE, and over how many days. That is the dataset a funded competitor cannot buy.
+
+**Implementation sketch (for when built):** a `parentId` on Task (or generalise `decompositionId` into one), keep the parent task off Today and silent, resurface-next on a pebble's completion, and complete + celebrate the parent when its pebbles are all done. Minimal, and it touches the user-facing simplicity not at all. Not built yet (Melroy: "don't build yet"), locked in here for when Cluster B lands.

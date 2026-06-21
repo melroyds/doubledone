@@ -192,6 +192,15 @@ The single home for everything we have consciously parked. Nothing here is dropp
 
 > ✅ **Tier 1+2 polish sprint shipped 2026-06-20** (autonomous build, all preview-verified, see decision-log): **shame-free re-entry** (⭐⭐), **"just this one" focus mode** (⭐), **"I also did that"** off-plan logging (⭐), **"weight of today"** load gauge (⭐), and **data export** ("your stuff is yours"). The sixth, **scrapbook → R2 persistence**, ✅ **R2 image persistence shipped** (the Worker uploads keepsake images to R2 and serves them by URL, off the device's localStorage quota); plan was in [`docs/scrapbook-r2.md`](docs/scrapbook-r2.md). The cross-device sync of those URLs to a Supabase `scrapbooks` table is the remaining half, still parked.
 
+**ADHD seam, sequenced (planned 2026-06-22; Melroy picked A, B, D).** The still-open ⭐s, clustered by shared design and sequenced by value vs spine-risk:
+- **A. OCD reassurance** (small): "Done is done" + "Good enough" permission, one calm completion micro-interaction. Start here.
+- **B. Crossing the start line** (small): the "tiny version" reframe + start-anywhere. **Data model locked (decision-log 2026-06-22):** a tiny-version / decomposition keeps the REAL task as a *silent background parent* and chains the pebbles to it (a `parentId`, generalising the moat-only `decompositionId`), never a flat replacement and never a visible project tree. The app holds the thread, the user holds one pebble; the pebbles completing completes + celebrates the real task, and the parent never displays or nags. (Start-anywhere may be near-free: decomposed steps already land as independent Today tasks.)
+- **C. Honoring the day** (medium, not picked yet): low-capacity day mode + wind-down nudge.
+- **D. Routines** (large): the morning/evening gentle checklist. Design line: never a streak, never a habit-tracker.
+- Deferred: custom lists + a someday inbox (highest spine-risk), cumulative never-streak counts, deeper low-stim mode (a setting). Invitational reminders is ~already done (the reminder copy is already invitational).
+
+Sequence: **A → B → D** (Melroy's pick), C and the rest later.
+
 *Capture, get it out before it's gone*
 - ✅ **Talk-to-capture (shipped 2026-06-21).** Speak a brain-dump on web: each phrase, split on a natural pause, becomes a line, then the existing Sort/Add takes over (T1, the Web Speech API mic, `13fe636`). A no-pause or typed run-on is separated by a new AI `/split` route (Haiku), offered as a calm "Split into tasks" affordance (T2, `fdc3b26`, Worker deployed and live-confirmed). Voice is web-only (Android has the Gboard mic), Split is cross-platform. Moat: `capture.dictation.used` + `capture.split.used`. Native in-app voice (the EAS-rebuild path) stays deferred (T3).
 - **Quick-capture from outside the app** (share target / home-screen widget / a notification you can type into). The thought arrives mid-task; opening the app loses it. Trigger: native distribution matures (Play Store / OTA).
