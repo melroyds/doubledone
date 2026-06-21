@@ -386,15 +386,15 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
           disabled={busy}
           style={({ pressed }) => [styles.split, pressed && styles.pressed, busy && styles.disabled]}
           accessibilityRole="button"
-          accessibilityLabel="Split this into separate tasks with AI"
+          accessibilityLabel="Tidy this into tasks with AI"
         >
           {busyKind === 'split' ? (
             <View style={styles.biteBusy}>
               <ActivityIndicator size="small" color={theme.colors.accent} />
-              <Text style={styles.splitText}>Splitting…</Text>
+              <Text style={styles.splitText}>Tidying…</Text>
             </View>
           ) : (
-            <Text style={styles.splitText}>{"More than one thing in there? Split into tasks"}</Text>
+            <Text style={styles.splitText}>{"Tidy this into tasks"}</Text>
           )}
         </Pressable>
       )}
