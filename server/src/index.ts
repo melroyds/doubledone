@@ -7,6 +7,7 @@ import { buildDecomposeRequest, DECOMPOSE_MODEL, type DecomposeContext, parseDec
 import { parseLanguage } from './lang';
 import { handleMcp } from './mcp';
 import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
+import { deleteSub, parsePushSub, saveSub } from './push';
 import { dataUrl, IMAGE_MODEL, imagePrompt, parseImage, parseScene, SCENE_MODEL, sceneMessages } from './scrapbook';
 import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
 import { handleCheckout, handleEntitlement, handlePortal, handleWebhook } from './stripe';
@@ -153,6 +154,42 @@ export default {
     }
     if (pathname === '/entitlement' && request.method === 'GET') {
       return handleEntitlement(request, env, cors);
+    }
+
+    // Web Push (Phase 2 reminders): store / remove a browser subscription for the daily
+    // nudge. Browser-only, so origin-gated; the daily cron sends to the stored subs.
+    if (pathname === '/push/subscribe' && request.method === 'POST') {
+      if (!isAllowedOrigin(origin)) {
+        return Response.json({ error: 'forbidden origin' }, { status: 403, headers: cors });
+      }
+      let sub: ReturnType<typeof parsePushSub> = null;
+      try {
+        sub = parsePushSub(await request.json());
+      } catch {
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
+      }
+      if (!sub) {
+        return Response.json({ error: 'invalid subscription' }, { status: 400, headers: cors });
+      }
+      ctx.waitUntil(saveSub(env, sub));
+      return Response.json({ ok: true }, { headers: cors });
+    }
+    if (pathname === '/push/unsubscribe' && request.method === 'POST') {
+      if (!isAllowedOrigin(origin)) {
+        return Response.json({ error: 'forbidden origin' }, { status: 403, headers: cors });
+      }
+      let endpoint = '';
+      try {
+        const body = (await request.json()) as { endpoint?: unknown };
+        endpoint = typeof body.endpoint === 'string' ? body.endpoint : '';
+      } catch {
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
+      }
+      if (!endpoint) {
+        return Response.json({ error: 'endpoint required' }, { status: 400, headers: cors });
+      }
+      ctx.waitUntil(deleteSub(env, endpoint));
+      return Response.json({ ok: true }, { headers: cors });
     }
 
     // Guard the paid AI routes before any upstream call. A browser request from a

@@ -1296,3 +1296,11 @@ Held to the spine:
 - The daily reminder was refactored to cancel only itself by a fixed id (not the old blanket cancel-all), so the daily reminder and the nudges coexist on their own Android channels without clobbering each other.
 
 Privacy: fully local. The device schedules the nudge; nothing (not the task text, not the time) leaves the phone. Native only; on web `scheduleNudge` is a no-op and the "Remind me" action is hidden (web reminders are Phase 2's push). On-device check on the APK; the web build is gate-verified to still render Today cleanly. Decided against absolute-time reminders (more friction, less on-spine) and a free time input (presets keep it one tap).
+
+## 2026-06-21 Reminders, Phase 2 (web push), part 1: the subscription store
+
+The web half of reminders. A closed browser tab can only be reached by push, which needs a server, so this is the one piece that shifts a sliver of the local-first posture: the Worker now holds web-push subscriptions. Kept minimal by design.
+
+Part 1 is the store + routes: a D1 `push_subs` table (endpoint, the subscription keys, a preferred local hour, a tz offset) and `/push/subscribe` + `/push/unsubscribe` (origin-gated, browser-only). NO user_id and NO task content, just a push endpoint and a time, so the only thing the server learns is "this browser wants a nudge around 9am". The pure parse / statement / scheduling-math (`server/src/push.ts`, 7 tests) is the contract surface.
+
+The sender approach decided for parts 2-3: a PAYLOADLESS push. The daily nudge is generic ("your today is here"), so the Worker signs only a VAPID token and pings the push service with no body; the service worker shows a static, hardcoded message. That avoids RFC 8291 payload encryption entirely (only VAPID JWT signing, which Workers' Web Crypto does cleanly) and means no task content is ever encrypted or sent. The cron's local-hour math is here and tested; the service worker, the client opt-in, the VAPID sender, and the Cloudflare Cron Trigger follow. VAPID keys are deploy config Melroy sets (a gen script ships with the sender). The new push_subs table is applied to the remote D1 with the same idempotent `wrangler d1 execute ... --file d1/schema.sql` as the rest, at deploy time.

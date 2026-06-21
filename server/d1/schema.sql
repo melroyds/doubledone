@@ -57,3 +57,18 @@ create table if not exists entitlements (
 -- already present):
 --   ALTER TABLE entitlements ADD COLUMN stripe_customer_id text;
 --   ALTER TABLE entitlements ADD COLUMN cancel_at_period_end integer not null default 0;
+
+-- Web Push subscriptions (Phase 2 of reminders): the browser's PushSubscription plus the
+-- user's preferred LOCAL nudge hour and tz offset, so a daily "your today is here" nudge
+-- can reach the web app (PC + phone) while it is closed. Worker-bound, written only by
+-- /push/subscribe. NO user_id and NO task content: just a push endpoint and a time. The
+-- daily cron reads this to fire each sub at its local hour. Apply once (idempotent):
+--   npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --file d1/schema.sql
+create table if not exists push_subs (
+  endpoint text primary key,            -- the PushSubscription endpoint (unique per browser)
+  p256dh text not null,                 -- subscription public key (stored for future payload encryption)
+  auth text not null,                   -- subscription auth secret
+  hour integer not null default 9,      -- preferred LOCAL hour for the daily nudge (0-23)
+  tz_offset integer not null default 0, -- minutes from UTC (Date.getTimezoneOffset; positive = behind UTC)
+  created_at text not null default (datetime('now'))
+);
