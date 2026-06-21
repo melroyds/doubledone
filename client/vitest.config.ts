@@ -22,9 +22,19 @@ export default defineConfig({
         'src/lib/storage.ts',
         'src/lib/supabase.ts',
         'src/lib/auth.ts',
-        'src/lib/reminders.ts',
         'src/lib/locale.ts',
         'src/lib/stripe.ts',
+        // Platform / device / browser seams: pure glue around an OS or browser API,
+        // no logic to test (the logic is extracted to tested pure modules, e.g.
+        // nudge.ts, dictation.ts, inbound.ts). Each is a native .ts and/or a web
+        // .web.ts half. Excluded so the floor measures real logic, not the seams.
+        'src/lib/reminders.ts',
+        'src/lib/reminders.web.ts',
+        'src/lib/haptics.web.ts',
+        'src/lib/share-intent.ts',
+        'src/lib/share-intent.web.ts',
+        'src/lib/speech.ts',
+        'src/lib/speech.web.ts',
       ],
       reporter: ['text-summary'],
       // Measured ~98% lines / ~95% branches on the logic; floor set below that
