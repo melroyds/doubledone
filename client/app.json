@@ -34,7 +34,13 @@
           }
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      [
+        "expo-navigation-bar",
+        {
+          "enforceContrast": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

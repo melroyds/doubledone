@@ -4,9 +4,11 @@ import {
 } from '@expo-google-fonts/atkinson-hyperlegible';
 import { Newsreader_600SemiBold } from '@expo-google-fonts/newsreader';
 import { useFonts } from 'expo-font';
+import { NavigationBar } from 'expo-navigation-bar';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -48,9 +50,22 @@ export default function RootLayout() {
 
 function RootStack() {
   const theme = useTheme();
+  const isDark = theme.scheme === 'dark';
+
+  // Paint the native window background to match the theme so launch, transitions, and
+  // overscroll never flash the wrong colour. Native only; web has its own page background.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    void SystemUI.setBackgroundColorAsync(theme.colors.bg);
+  }, [theme.colors.bg]);
+
   return (
     <>
-      <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      {/* Android nav-bar icons follow the IN-APP theme (which can differ from the system
+          theme); the plugin's enforceContrast:false lets this style take effect under
+          SDK 56 edge-to-edge. Renders null off Android. */}
+      {Platform.OS === 'android' && <NavigationBar style={isDark ? 'dark' : 'light'} />}
       <Stack
         screenOptions={{
           headerShown: false,
