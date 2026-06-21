@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { deserializeRoutines, type Routine, serializeRoutines } from './routines';
 import { type Scrapbook } from './scrapbook';
 import { DEFAULT_SETTINGS, parseSettings, serializeSettings, type Settings } from './settings';
 import { deserialize, SEED, serialize, type Task } from './tasks';
@@ -10,6 +11,7 @@ const STORAGE_KEY = 'doubledone.tasks.v1';
 const REMINDER_KEY = 'doubledone.reminder.v1';
 const SETTINGS_KEY = 'doubledone.settings.v1';
 const SCRAPBOOKS_KEY = 'doubledone.scrapbooks.v1';
+const ROUTINES_KEY = 'doubledone.routines.v1';
 const CLOSED_KEY = 'doubledone.closed.v1';
 const LOWDAY_KEY = 'doubledone.lowday.v1';
 const LASTOPEN_KEY = 'doubledone.lastopen.v1';
@@ -185,6 +187,24 @@ export async function loadScrapbooks(): Promise<Scrapbook[]> {
 export async function saveScrapbooks(books: Scrapbook[]): Promise<void> {
   try {
     await AsyncStorage.setItem(SCRAPBOOKS_KEY, JSON.stringify(books));
+  } catch {
+    // best effort
+  }
+}
+
+/** Load saved routines (Cluster D). Defensive: any unreadable / malformed blob yields []. */
+export async function loadRoutines(): Promise<Routine[]> {
+  try {
+    return deserializeRoutines(await AsyncStorage.getItem(ROUTINES_KEY));
+  } catch {
+    return [];
+  }
+}
+
+/** Persist routines. Best effort, never thrown at the UI. */
+export async function saveRoutines(routines: Routine[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(ROUTINES_KEY, serializeRoutines(routines));
   } catch {
     // best effort
   }
