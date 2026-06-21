@@ -58,6 +58,9 @@ CASES = [
     ("CAP-08", "Capture", "P3", "Talk-to-capture hides where unsupported",
      "Open the web app in Firefox (no Web Speech API), and separately open the Android app.",
      "The '🎤 Speak' button is simply absent (no error, no setting) on Firefox and on native Android, where the Gboard keyboard mic already dictates into the box.", "Both"),
+    ("CAP-09", "Capture", "P2", "Split a run-on into separate tasks (AI)",
+     "Type or speak a single run-on line of several things ('buy milk and walk the dog and email Sarah'), then tap 'More than one thing in there? Split into tasks'.",
+     "The line is replaced by the separate tasks, one per line, in your own words (nothing invented or reordered), and 'Sort for me' then appears to sort them. On failure it degrades calmly ('Couldn't split that just now'), text kept. Works on web and Android. Needs the Worker deployed with /split.", "Both"),
 
     # --- Today & the daily loop ----------------------------------------------
     ("TOD-01", "Today", "P1", "Complete a task",

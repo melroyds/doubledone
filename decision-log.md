@@ -1342,3 +1342,15 @@ The next portfolio-signal feature after the native batch: speak a brain-dump ins
 **Graceful degradation, no setting.** `isDictationSupported()` gates the mic: shown in Chrome / Edge / Safari, hidden in Firefox and on native (the `speech.ts` stub returns false). Platform-split files (`speech.web.ts` real, `speech.ts` no-op) keep the browser API out of the native bundle, the same pattern as reminders/haptics.
 
 Assumptions to challenge: web-first (vs holding to ship web + native together), tap-toggle (vs hold-to-talk), and pause-segmentation reusing Sort (vs the AI `/split` in v1). All three are cheap to reverse.
+
+## 2026-06-21 Talk-to-capture T2: AI split for a no-pause ramble
+
+T1 segments dictation on natural pauses, so a no-pause run-on ("buy milk and then email Sarah and book the dentist") lands as one line. T2 closes that with a cheap AI split: a new Worker route `/split` (Haiku, the triage pattern) takes the run-on text and returns the separate tasks, ONLY splitting, never sorting, reordering, or inventing. The client offers it as a calm "More than one thing in there? Split into tasks" affordance that appears under the box when there is a single line of six or more words. Tapping it replaces the line with the separated tasks, after which the existing "Sort for me" surfaces. Propose-then-accept throughout (the user taps Split, sees the lines, then Sorts), per the spine, and nothing auto-runs.
+
+Decided against folding split into triage: triage's contract is "sort, never split, merge, or reword", and a brain-dump of already-clean lines must stay untouched. A separate `/split` keeps each call's job single and the prompts honest. Decided against auto-splitting when dictation ends: it would spend a token without consent and reorganise silently, both off-brand.
+
+Cross-platform, unlike the voice input. `/split` is an AI call, so the Split affordance works on native too (it helps a typed run-on, not just a dictated one), and only the microphone stays web-only. Moat telemetry `capture.split.used` logs the resulting count, never the text.
+
+Privacy: the same posture as the other AI features. The run-on text goes to the Worker and on to Anthropic, retained pseudonymously in D1 like the rest, which the privacy copy already covers as AI egress. No new disclosure surface beyond what Break-it-down and Sort already state.
+
+Pending Melroy: a Worker deploy (`npx wrangler deploy` from `server/`, his per-instance OK per CLAUDE.md) makes `/split` live. Until then the Split button degrades gracefully (a calm "couldn't split just now"), the same as any AI route when offline. Built and contract-tested (server `split.test.ts`, client `ai.test.ts`, route-gate `index.test.ts`), with the UI preview-verified against a stubbed `/split`.

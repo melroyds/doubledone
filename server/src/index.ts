@@ -9,6 +9,7 @@ import { handleMcp } from './mcp';
 import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
 import { deleteSub, parsePushSub, saveSub, sendDailyNudges } from './push';
 import { dataUrl, IMAGE_MODEL, imagePrompt, parseImage, parseScene, SCENE_MODEL, sceneMessages } from './scrapbook';
+import { buildSplitRequest, parseSplitResponse, SPLIT_MODEL } from './split';
 import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
 import { handleCheckout, handleEntitlement, handlePortal, handleWebhook } from './stripe';
 import { type D1LikeDatabase, extractUsage, logAiCall, logOutcome } from './telemetry';
@@ -75,7 +76,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:8081',
   'http://localhost:19006',
 ];
-const AI_ROUTES = new Set(['/clarify', '/decompose', '/plan', '/strategise', '/triage', '/scrapbook']);
+const AI_ROUTES = new Set(['/clarify', '/decompose', '/plan', '/split', '/strategise', '/triage', '/scrapbook']);
 
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
@@ -462,6 +463,49 @@ export default {
       ctx.waitUntil(
         logAiCall(env, {
           endpoint: 'triage', model: TRIAGE_MODEL, input: { lines }, output: { items },
+          inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true,
+        }),
+      );
+      return Response.json({ items }, { headers: cors });
+    }
+
+    // AI split: one run-on brain-dump (often dictated in a single breath, no
+    // pauses) in, the separate tasks out. It ONLY splits; /triage then sorts the
+    // lines. Cheap (Haiku), on the friction-free capture path.
+    if (pathname === '/split' && request.method === 'POST') {
+      let text = '';
+      try {
+        const body = (await request.json()) as { text?: unknown };
+        text = typeof body.text === 'string' ? body.text.trim() : '';
+      } catch {
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
+      }
+      if (!text) {
+        return Response.json({ error: 'text is required' }, { status: 400, headers: cors });
+      }
+      if (!env.ANTHROPIC_API_KEY) {
+        return Response.json({ error: 'server not configured' }, { status: 500, headers: cors });
+      }
+
+      const { url, init } = buildSplitRequest(text, env.ANTHROPIC_API_KEY);
+      const started = Date.now();
+      const upstream = await fetch(url, init as RequestInit);
+      if (!upstream.ok) {
+        ctx.waitUntil(
+          logAiCall(env, {
+            endpoint: 'split', model: SPLIT_MODEL, input: { text }, output: null,
+            inputTokens: null, outputTokens: null, latencyMs: Date.now() - started,
+            ok: false, error: `upstream ${upstream.status}`,
+          }),
+        );
+        return Response.json({ error: 'upstream error' }, { status: 502, headers: cors });
+      }
+      const raw = await upstream.json();
+      const items = parseSplitResponse(raw);
+      const usage = extractUsage(raw);
+      ctx.waitUntil(
+        logAiCall(env, {
+          endpoint: 'split', model: SPLIT_MODEL, input: { text }, output: { items },
           inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true,
         }),
       );

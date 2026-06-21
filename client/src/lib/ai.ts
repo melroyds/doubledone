@@ -200,6 +200,22 @@ export async function triage(lines: string[]): Promise<TriagedItem[]> {
   return parseTriage(await res.json());
 }
 
+/** Split a run-on brain-dump (often dictated in one breath) into separate task
+ *  strings via the AI backend. It only splits, never sorts; /triage sorts after.
+ *  Throws on a failed call. Returns the trimmed, non-empty items. */
+export async function split(text: string): Promise<string[]> {
+  const res = await fetch(`${AI_URL}/split`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) throw new Error(`split failed (${res.status})`);
+  const data = (await res.json()) as { items?: unknown };
+  return Array.isArray(data.items)
+    ? data.items.filter((s): s is string => typeof s === 'string' && s.trim().length > 0).map((s) => s.trim())
+    : [];
+}
+
 // The AI scrapbook: a finished week's titles in, a calm keepsake image (a base64
 // data URL) plus the scene caption out. Generated entirely on Workers AI; see the
 // Worker's /scrapbook route. Throws on a failed call; the caller shows a calm error.

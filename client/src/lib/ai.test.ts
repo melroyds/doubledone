@@ -11,6 +11,7 @@ import {
   parseTriage,
   plan,
   strategise,
+  split,
   triage,
 } from './ai';
 
@@ -296,5 +297,34 @@ describe('triage', () => {
   it('throws on a non-ok response', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502 }) as unknown as Response));
     await expect(triage(['x'])).rejects.toThrow();
+  });
+});
+
+describe('split', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('POSTs the text to /split and returns the parsed items (mocked, no live call)', async () => {
+    const fetchMock = vi.fn(
+      async (_url: string, _init: { method: string; body: string }) =>
+        ({ ok: true, json: async () => ({ items: ['buy milk', 'walk the dog'] }) }) as unknown as Response,
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const items = await split('buy milk and walk the dog');
+    expect(items).toEqual(['buy milk', 'walk the dog']);
+
+    const url = fetchMock.mock.calls[0][0];
+    const init = fetchMock.mock.calls[0][1];
+    expect(url).toContain('/split');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body).text).toBe('buy milk and walk the dog');
+  });
+
+  it('trims and drops empty items, then throws on a non-ok response', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ items: ['  a ', '', 'b'] }) }) as unknown as Response));
+    expect(await split('a and b')).toEqual(['a', 'b']);
+
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502 }) as unknown as Response));
+    await expect(split('x')).rejects.toThrow();
   });
 });

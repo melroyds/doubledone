@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { split } from '@/lib/ai';
 import { friendlyDate, toISODate } from '@/lib/day';
 import { appendPhrase } from '@/lib/dictation';
 import { type CaptureSchedule } from '@/lib/recurrence';
@@ -57,7 +58,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   const [dueDate, setDueDate] = useState(() => toISODate(today)); // ISO due for a one-off "Date…" task
   const [pickerFor, setPickerFor] = useState<'start' | 'due' | null>(null); // which date the modal edits
   const [sliceCount, setSliceCount] = useState(0); // 0 = whole task; >=MIN_SLICES = tracked in steps
-  const [busyKind, setBusyKind] = useState<'bite' | 'sort' | null>(null);
+  const [busyKind, setBusyKind] = useState<'bite' | 'sort' | 'split' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
@@ -86,6 +87,9 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
 
   const busy = busyKind !== null;
   const lineCount = value.split('\n').filter((l) => l.trim().length > 0).length;
+  // A single long line is probably several things said in one breath; offer an AI split.
+  const wordCount = value.trim() ? value.trim().split(/\s+/).length : 0;
+  const canSplit = lineCount === 1 && wordCount >= 6;
   // Steps only make sense for a single, one-off task (a thing with parts). Hidden
   // for a multi-line dump or a repeating task, so it never clutters those.
   const canSlice = lineCount <= 1 && (mode === 'today' || mode === 'tomorrow' || mode === 'date');
@@ -189,6 +193,30 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
       reset();
     } catch {
       setError('Could not sort just now. Try again.');
+    } finally {
+      setBusyKind(null);
+    }
+  }
+
+  // Hand a run-on line (often a no-pause dictation) to the AI, which separates it
+  // into the distinct tasks; they replace the single line so "Sort for me" then
+  // appears. Only splits, never sorts (the user stays in control). Works on web
+  // and native (it is an AI call, not voice).
+  async function splitDump() {
+    const text = value.trim();
+    if (!text || busy) return;
+    setError(null);
+    setBusyKind('split');
+    try {
+      const items = await split(text);
+      if (items.length >= 1) {
+        setValue(items.join('\n'));
+        track('capture.split.used', { to: items.length });
+      } else {
+        setError("Couldn't split that just now. Try again, or put each on its own line.");
+      }
+    } catch {
+      setError("Couldn't split that just now. Try again, or put each on its own line.");
     } finally {
       setBusyKind(null);
     }
@@ -349,8 +377,26 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
         </View>
       )}
 
-      {lineCount === 1 && !busy && (
+      {lineCount === 1 && !busy && !canSplit && (
         <Text style={styles.sortHint}>{"More than one? Put each on its own line and I'll sort them for you."}</Text>
+      )}
+      {canSplit && (busyKind === 'split' || !busy) && (
+        <Pressable
+          onPress={splitDump}
+          disabled={busy}
+          style={({ pressed }) => [styles.split, pressed && styles.pressed, busy && styles.disabled]}
+          accessibilityRole="button"
+          accessibilityLabel="Split this into separate tasks with AI"
+        >
+          {busyKind === 'split' ? (
+            <View style={styles.biteBusy}>
+              <ActivityIndicator size="small" color={theme.colors.accent} />
+              <Text style={styles.splitText}>Splitting…</Text>
+            </View>
+          ) : (
+            <Text style={styles.splitText}>{"More than one thing in there? Split into tasks"}</Text>
+          )}
+        </Pressable>
       )}
 
       <View style={styles.actions}>
@@ -558,4 +604,6 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   speakText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, fontWeight: '500' },
   speakTextOn: { color: t.colors.accent },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.colors.accent },
+  split: { alignSelf: 'center', alignItems: 'center', paddingVertical: spacing.two, paddingHorizontal: spacing.three, marginTop: spacing.one },
+  splitText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center' },
 });

@@ -113,6 +113,18 @@ describe('scrapbook', () => {
   });
 });
 
+describe('split', () => {
+  it('400s when text is missing (reached before any upstream call)', async () => {
+    const res = await worker.fetch(req('POST', '/split', { origin: 'https://doubledone.app', body: {} }), makeEnv(), ctx);
+    expect(res.status).toBe(400);
+  });
+
+  it('refuses a disallowed browser origin before any upstream call', async () => {
+    const res = await worker.fetch(req('POST', '/split', { origin: 'https://evil.example', body: { text: 'a and b' } }), makeEnv(), ctx);
+    expect(res.status).toBe(403);
+  });
+});
+
 describe('health', () => {
   it('reports key presence without leaking it', async () => {
     const res = await worker.fetch(req('GET', '/health'), makeEnv(), ctx);
