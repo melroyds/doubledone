@@ -4,6 +4,9 @@
   "compatibility_date": "2025-06-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
+  // Daily web-push nudge (Phase 2): an hourly cron fires the scheduled() handler, which
+  // sends to each subscription whose LOCAL hour matches now (see server/src/push.ts).
+  "triggers": { "crons": ["0 * * * *"] },
   // Per-IP rate limit on the paid AI routes: 30 requests per 60s. Generous for a
   // real user, a hard cap on scripted abuse against the $25/mo Anthropic budget.
   "ratelimits": [{ "name": "AI_LIMITER", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } }],

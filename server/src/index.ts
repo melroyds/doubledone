@@ -7,7 +7,7 @@ import { buildDecomposeRequest, DECOMPOSE_MODEL, type DecomposeContext, parseDec
 import { parseLanguage } from './lang';
 import { handleMcp } from './mcp';
 import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
-import { deleteSub, parsePushSub, saveSub } from './push';
+import { deleteSub, parsePushSub, saveSub, sendDailyNudges } from './push';
 import { dataUrl, IMAGE_MODEL, imagePrompt, parseImage, parseScene, SCENE_MODEL, sceneMessages } from './scrapbook';
 import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
 import { handleCheckout, handleEntitlement, handlePortal, handleWebhook } from './stripe';
@@ -57,6 +57,11 @@ export interface Env {
   STRIPE_WEBHOOK_SECRET?: string;
   STRIPE_PRICE_ID?: string;
   APP_URL?: string;
+  // Web Push (Phase 2): the VAPID private key (the EC private JWK as a string) + the
+  // contact subject. Worker secrets, never committed. Optional so the app/tests run
+  // without push configured.
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT?: string;
 }
 
 // The app's own origins. A browser request from anywhere else is refused before
@@ -531,5 +536,11 @@ export default {
     }
 
     return new Response('doubledone-ai', { status: 200, headers: cors });
+  },
+
+  // Daily web-push nudge (Phase 2). A Cloudflare Cron Trigger fires hourly; this sends a
+  // payloadless push to each subscription whose local hour matches now. See push.ts.
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(sendDailyNudges(env, Date.now()));
   },
 } satisfies ExportedHandler<Env>;

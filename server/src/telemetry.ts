@@ -20,6 +20,7 @@ export interface D1LikeStatement {
   bind(...values: unknown[]): D1LikeStatement;
   run(): Promise<unknown>;
   first<T = unknown>(): Promise<T | null>;
+  all<T = unknown>(): Promise<{ results: T[] }>;
 }
 export interface D1LikeDatabase {
   prepare(query: string): D1LikeStatement;

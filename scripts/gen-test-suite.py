@@ -125,6 +125,11 @@ CASES = [
      "On Android, tap-and-hold a today task, tap 'Remind me', pick a preset (e.g. 'In 1 hour'). Check the row indicator. Then complete (or remove, or push to tomorrow) the task before the nudge fires. Separately, open 'Remind me' after 9pm.",
      "A local notification fires at the chosen time (the task as the title, 'Whenever you are ready.' as the body); the row shows a small bell + time. Completing / removing / deferring the task cancels the pending nudge (no poke about a handled task). After 9pm the late presets are hidden. Web does not show 'Remind me'.", "Android"),
 
+    # --- Web push (deployed; needs VAPID configured) -------------------------
+    ("WEB-01", "Web", "P2", "Daily reminder via web push",
+     "On the deployed web app (PC or Android Chrome) with VAPID configured, toggle 'Daily reminder' on and allow notifications. Check around your daily hour (the hourly cron can be run manually to verify without waiting).",
+     "Toggling on registers a service worker and subscribes the browser; a calm 'Your today is here when you are ready.' notification arrives around the daily hour, and tapping it opens the app. Toggling off unsubscribes. The push carries no task content. The toggle is hidden when VAPID is unconfigured.", "Web"),
+
     # --- Onboarding: the one-time guided welcome ------------------------------
     ("ONB-01", "Onboarding", "P1", "Guided welcome on first run",
      "On a fresh install (or after clearing 'doubledone.onboarded.v1'), open the app. Walk Begin -> type a few lines -> Make my day -> This looks right -> Open Today. Separately, try Skip for now.",

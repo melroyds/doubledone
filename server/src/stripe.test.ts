@@ -143,6 +143,9 @@ function fakeDb(): D1LikeDatabase & { rows: Map<string, Record<string, unknown>>
           const r = rows.get(args[0] as string);
           return (r ?? null) as T | null;
         },
+        async all<T>() {
+          return { results: [...rows.values()] as T[] };
+        },
       };
       return stmt;
     },

@@ -5,6 +5,7 @@
 // endpoint and a time. The pure statement builders + scheduling math are the contract
 // surface and are unit-tested, mirroring telemetry.ts.
 import type { D1LikeDatabase } from './telemetry';
+import { sendPush, type VapidJwk } from './webpush';
 
 export type PushEnv = { DB?: D1LikeDatabase };
 
@@ -81,4 +82,37 @@ export function localHour(utcNowMs: number, tzOffsetMin: number): number {
  *  matches its preferred hour). The daily cron runs hourly and fires the due subs. */
 export function subDueAt(sub: { hour: number; tzOffset: number }, utcNowMs: number): boolean {
   return localHour(utcNowMs, sub.tzOffset) === sub.hour;
+}
+
+export type CronEnv = { DB?: D1LikeDatabase; VAPID_PRIVATE_KEY?: string; VAPID_SUBJECT?: string };
+
+/** The daily-nudge cron body: read every subscription, send a payloadless push to each
+ *  whose local hour matches now, and prune subscriptions the push service reports gone
+ *  (404 / 410). Best effort; skips cleanly when D1 or the VAPID key is unconfigured. */
+export async function sendDailyNudges(env: CronEnv, nowMs: number): Promise<void> {
+  if (!env.DB || !env.VAPID_PRIVATE_KEY) return;
+  let jwk: VapidJwk;
+  try {
+    jwk = JSON.parse(env.VAPID_PRIVATE_KEY) as VapidJwk;
+  } catch {
+    return;
+  }
+  const subject = env.VAPID_SUBJECT || 'mailto:hello@doubledone.app';
+  let subs: { endpoint: string; hour: number; tz_offset: number }[] = [];
+  try {
+    const rows = await env.DB.prepare('SELECT endpoint, hour, tz_offset FROM push_subs').all<{
+      endpoint: string;
+      hour: number;
+      tz_offset: number;
+    }>();
+    subs = rows.results ?? [];
+  } catch {
+    return;
+  }
+  const nowSeconds = Math.floor(nowMs / 1000);
+  for (const s of subs) {
+    if (!subDueAt({ hour: s.hour, tzOffset: s.tz_offset }, nowMs)) continue;
+    const status = await sendPush(jwk, subject, s.endpoint, nowSeconds);
+    if (status === 404 || status === 410) await deleteSub(env, s.endpoint);
+  }
 }
