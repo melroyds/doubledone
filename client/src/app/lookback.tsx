@@ -8,12 +8,13 @@ import { makeScrapbook } from '@/lib/ai';
 import { addMonths, completionsByDay, monthLabel, monthMatrix, scheduledByDay, WEEKDAY_LABELS } from '@/lib/calendar';
 import { formatTodayLabel, fromISODate, toISODate } from '@/lib/day';
 import { canMakeScrapbook, type Entitlement, FREE_ENTITLEMENT } from '@/lib/entitlement';
+import { scrapbookReady } from '@/lib/haptics';
 import { findScrapbook, type Scrapbook, upsertScrapbook, weekCompletions, weekLabel, weekStartISO } from '@/lib/scrapbook';
 import { loadScrapbooks, loadTasks, saveScrapbooks } from '@/lib/storage';
 import { loadEntitlement } from '@/lib/stripe';
 import { type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
-import { useTheme, useThemedStyles } from '@/lib/theme-provider';
+import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 // The Lookback: an interactive Gregorian calendar of what you actually finished,
 // browsable by day. The emotional payoff, never a stats page, never a streak.
@@ -21,6 +22,7 @@ import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 export default function LookbackScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const reduced = useReducedMotion();
   const today = useMemo(() => new Date(), []);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [view, setView] = useState({ year: today.getFullYear(), month: today.getMonth() });
@@ -102,6 +104,7 @@ export default function LookbackScreen() {
       const next = upsertScrapbook(scrapbooks, { weekStart, image, caption, createdAt: Date.now() });
       setScrapbooks(next);
       void saveScrapbooks(next);
+      scrapbookReady(reduced); // the keepsake landed: the payoff flourish, at the reveal
       track('scrapbook.made', { titles: titles.length });
     } catch {
       setBookError('Could not make a scrapbook just now. Try again.');

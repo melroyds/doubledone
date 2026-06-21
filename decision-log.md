@@ -1224,3 +1224,20 @@ Root cause: sign-out left user 1's tasks in the local store (local-first), and t
 Fix: track the local store's owner (a new `doubledone.account.v1` key, the `user_id` it was last synced with). On sign-in, if the store belongs to a DIFFERENT account (`localBelongsToAnother`, pure + unit-tested) start the merge from EMPTY, never inheriting or migrating the previous user's tasks, and clear the visible list first. An anonymous store (no prior owner) is deliberately NOT "another", so an anonymous-first sign-in still migrates its local list up (the intended local-first behaviour). Sign-out now pushes pending local changes first, since sync is on-open only, best-effort so a failed push never blocks sign-out or loses local work.
 
 Decided AGAINST clearing the local store on sign-out: a failed push (offline) followed by a clear would lose unsynced work, and clearing is unnecessary, the owner guard on the next sign-in is what prevents inheritance. So signed-out keeps the local-first view of your own tasks; a different user's sign-in is what clears it. 208 client tests green (3 new for the guard). The end-to-end two-account flow is Melroy's to verify on a real device, it needs live Supabase auth, like the email sign-in and account deletion.
+
+## 2026-06-21 Haptics on Android (earned-moment cues, gated on reduced motion)
+
+Added tactile feedback for the native Android build via `expo-haptics`, behind a new `client/src/lib/haptics.ts` with a `haptics.web.ts` no-op so the web bundle never imports the native module (Metro resolves the platform file). Each cue is an intention-named function (`taskDone`, `dayClosed`, `dayCleared`, `scrapbookReady`, `stepsLanded`) that takes the resolved `reduced` flag from `useReducedMotion()`, so the reduced-motion gate is type-enforced at every call site and cannot be forgotten. Cues fire only on earned moments: a soft tap on completing a task, a fuller success when the whole day clears, a warm soft tap on the gentle close, a light tap when a dreaded task breaks into steps, and a success flourish at the scrapbook reveal.
+
+Decided:
+- Build them. The tactile payoff was missing entirely, and it is real, grounding dopamine for the ADHD half of the audience.
+- Soft and sparse only. Light/soft impacts plus success notifications for the two payoff moments. Never on every tap, never on navigation or capture.
+- Gate on the EXISTING reduced-motion preference (app setting + OS), not a new toggle. The people who reduce motion are often the same ones a buzz can overwhelm, and the spine forbids adding a setting. The Motion hint now says Reduce also stops the buzz. A unit test locks the guarantee that reduced motion silences every cue.
+
+Decided against:
+- A sustained "rumble" during scrapbook GENERATION (the first instinct). expo-haptics cannot make a textured rumble (Android gives a flat motor buzz); a sustained buzz is the single most aversive pattern for the sensory-sensitive autistic half (it reads as an alarm); it fights the calm spine; and it costs battery over a multi-second hold. Moved the cue to the REVEAL instead: a short warm success flourish when the keepsake lands, with the calm loading visual carrying the wait. A build-up pulse is left as an on-device option for Melroy to feel and decide.
+- ANY haptic on error or failure. A punishing buzz when something goes wrong is exactly the shame mechanic RSD makes fatal. Errors stay calm and visual.
+- Web haptics (navigator.vibrate). The cues live in the Android APK; web stays silent.
+- A selection tick on tap-and-hold multi-select: deferred (Tier 3), to watch buzz frequency on a real device before adding it.
+
+The wiring, the gate, and the web no-op are verified by typecheck + 296 tests (4 new for the gate) + a clean web render with no console errors. The physical feel is Melroy's on-device check on the APK, like the email sign-in.

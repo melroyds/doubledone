@@ -25,6 +25,7 @@ import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
 import { addDaysISO, formatTodayLabel, friendlyDate, isReentry, presetDate, toISODate } from '@/lib/day';
 import { dayWeight } from '@/lib/estimate';
+import { dayCleared, dayClosed, stepsLanded, taskDone } from '@/lib/haptics';
 import { aiLanguage } from '@/lib/locale';
 import { buildOutcome } from '@/lib/outcome';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
@@ -430,8 +431,9 @@ export default function TodayScreen() {
       return toggled;
     });
     const justToggled = next.find((t) => t.id === id);
+    const done = justToggled ? isDoneOn(justToggled, today) : false;
     // The moat starts at the call site: log the outcome, not just "done".
-    track('task.toggled', { done: justToggled ? isDoneOn(justToggled, today) : false });
+    track('task.toggled', { done });
     // The moat's completion half: a finished breakdown step reports an anonymised
     // outcome (id + timing only), so "how long this takes" becomes real data over time.
     if (justToggled && justToggled.decompositionId && isDoneOn(justToggled, today)) {
@@ -439,8 +441,12 @@ export default function TodayScreen() {
       if (outcome) void reportOutcome(outcome);
     }
     const todays = tasksForToday(next, today);
-    if (todays.length > 0 && todays.every((t) => isDoneOn(t, today))) {
+    const cleared = todays.length > 0 && todays.every((t) => isDoneOn(t, today));
+    if (cleared) {
       track('day.cleared', { count: todays.length });
+      dayCleared(reduced); // the whole day just cleared: a fuller success than one task
+    } else if (done) {
+      taskDone(reduced); // a single task done: the core, soft cue
     }
     commit(next);
   }
@@ -607,6 +613,7 @@ export default function TodayScreen() {
       ...(p.date ? { due: p.date } : {}),
     }));
     commit([...tasks, ...stepTasks, ...phaseTasks]);
+    stepsLanded(reduced); // the dreaded task just got smaller
     // The moat: how many of the offered steps the user kept, and how many phases.
     track('breakdown.added', {
       added: selected.length,
@@ -1176,6 +1183,7 @@ export default function TodayScreen() {
                   setClosing(false);
                   setClosedDate(toISODate(today));
                   void saveClosedDate(toISODate(today));
+                  dayClosed(reduced); // the gentle close: a warm, soft confirmation
                 }}
                 style={({ pressed }) => [styles.wrapBtn, pressed && styles.pressed]}
                 accessibilityRole="button"

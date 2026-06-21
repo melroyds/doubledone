@@ -170,7 +170,7 @@ export default function SettingsScreen() {
           />
           <Choice<MotionPref>
             label="Motion"
-            hint="Reduce stops the gentle fades and the scrolling titles."
+            hint="Reduce stops the gentle fades, the scrolling titles, and the buzz of haptics."
             value={settings.motion}
             options={[
               { value: 'system', label: 'Follow system' },

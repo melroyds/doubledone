@@ -35,6 +35,13 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | TOD-12 | P2 | Both | Multi-select bulk actions | Tap-and-hold a task to enter selection, tap more to add them (or 'Select all'), then use the bar: Done / Tomorrow / Move to... / Remove. Cancel exits. | Rows become checkboxes, the count updates, 'Break down' hides once more than one is selected, the bulk action applies to all at once and exits select mode. |
 | TOD-13 | P2 | Both | Move selected tasks to a chosen day | Tap-and-hold to select one or more tasks, tap 'Move to...', then pick 'This weekend', 'Next week', or a calendar day. | Selected one-offs move to that date and wait in the Later list until then (recurring tasks are left alone); select mode exits. |
 
+## Haptics
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| HAP-01 | P3 | Android | Earned-moment haptics fire (Android) | On a physical Android device with a haptic motor: complete a single task; clear the whole day; close the day with Goodnight; break a dreaded task into steps; and (premium) reveal a scrapbook. | Soft tap on a single completion; a fuller success buzz when the day clears; a warm soft tap on Goodnight; a light tap when steps land; a success flourish when the scrapbook image appears. Nothing buzzes on plain taps, navigation, capture, or any error. |
+| HAP-02 | P2 | Android | Reduced motion silences haptics | Set Settings -> Motion -> Reduce (or enable the OS reduce-motion), then complete a task and close the day. | No haptic fires for any cue while motion is reduced (the accessibility guarantee). The Motion hint states Reduce also stops the buzz. |
+
 ## Onboarding
 
 | ID | Pri | Platform | Test | Steps | Expected |
