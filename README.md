@@ -153,14 +153,16 @@ The full why-trail is in [`decision-log.md`](decision-log.md); the headline call
 
 ## What's not built yet
 
-The backlog is kept live with a **trigger** on every item (the full list, with reasoning, is in [`BUILD-PLAN.md`](BUILD-PLAN.md)). The honest near-term picture:
+The build is feature-complete; what's left is launch-readiness and consciously-parked scope, each with a **trigger** (the full list, with reasoning, is in [`BUILD-PLAN.md`](BUILD-PLAN.md)). The honest picture:
 
-- **Multi-language (Italian, Spanish, French)** — in progress; the AI will answer in the user's language. *Trigger: now.*
-- **"Other users took about X days" estimate** — the moat's user-facing payoff. *Trigger: enough anonymised cross-user volume to be honest.*
+- **Go-live config** (built, not yet switched on) — the **Stripe Premium** flow runs in *test mode* (A$5/mo Checkout, a webhook-verified entitlement in D1, the paywall, cadence gating) and needs its keys + product to go live; **account deletion** is built and needs its one migration run. Both are configuration, not code. *Trigger: a real public launch.*
+- **Multi-language (Italian, Spanish, French)** — the AI already answers in the user's language; externalising the UI strings and the translations themselves is the remaining half. *Trigger: now (the design pass it waited on is done).*
+- **"Other users took about X days" estimate** — the moat's user-facing payoff. The surface is built; it needs real anonymised cross-user volume to be honest. *Trigger: enough volume.*
 - **Scrapbook cross-device sync** — the images are durable on R2; syncing their URLs to your account (so they follow you to a new device) is the remaining half. *Trigger: before real paid users.*
-- **Plan my day · Custom lists** — scoped, parked against the spine so they never turn Today into an everything-bucket.
-- **Monetisation (Stripe Premium)** — **built in test mode**: a real Stripe Checkout subscription (A$5/mo), a webhook-verified entitlement in D1, a calm paywall, and scrapbook cadence gating (free monthly, premium weekly by tenure). Going live needs the Stripe keys set and a transactional email sender. *Trigger: a real public launch.*
-- **Public launch path** — account/data deletion, data export, the written privacy policy, and AI-endpoint lockdown are **done**; the Play Store listing and a transactional email sender remain. *Trigger: before pointing real people at it.*
+- **Plan my day · Custom lists** — scoped and parked against the spine, so they never turn Today into an everything-bucket. *Trigger: a real need the spine can absorb.*
+- **Distribution** — a Play Store listing and a transactional email sender (vs the shared dev one). *Trigger: before pointing real people at it.*
+
+*Graduated out of this list as they shipped: the full UI design pass, the guided first-run, data export, the privacy policy, and AI-endpoint lockdown. Items leave here as they land.*
 
 ## Run it
 
