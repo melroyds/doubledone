@@ -201,6 +201,12 @@ The single home for everything we have consciously parked. Nothing here is dropp
 
 Sequence: **A → B → C → D** (Melroy's pick; ascending effort, quick wins first). ✅ **A, B, C, and D all shipped 2026-06-22.** The ADHD seam (A through D) is complete. The rest (custom lists, cumulative counts, deeper low-stim) later.
 
+**A-D device-test feedback (Melroy, 2026-06-22).** The seam works; polish and two flow fixes are queued.
+- **B1, celebrate the whole-task completion properly.** Finishing a decomposed dreaded task shows the same brief fade as ticking any task. It is the single biggest "you did the thing" moment and reads too feeble. Give it a distinct, held celebration proportionate to the achievement (ideally complexity-weighted), not a 3.5s line. Trigger: the Claude Design pass, but the principle is locked now.
+- **B2, guard the tiny-version against infinite children + a calm progress nudge (logic).** Re-running Make-it-tiny on the same parent spawns another child each time, so repeated taps accumulate duplicate pebbles. Fix: never create a second active tiny child while one is still open (block or replace), and on a pebble done show a calm "making progress on X", never gamified. Trigger: near-term, it is a real bug.
+- **D3, make routine-remove recoverable (logic).** Remove deletes a routine instantly with no safety net; a built object deserves better than an accidental tap. Fix: an undo toast or a soft-delete, NOT a confirmation dialog (a confirm gauntlet is the friction the spine forbids). Trigger: near-term, fold into routines polish.
+- **A and B want the visual redesign** (functional-first surfaces). C is good as-is, D1 works. Trigger: the Claude Design pass.
+
 *Capture, get it out before it's gone*
 - ✅ **Talk-to-capture (shipped 2026-06-21).** Speak a brain-dump on web: each phrase, split on a natural pause, becomes a line, then the existing Sort/Add takes over (T1, the Web Speech API mic, `13fe636`). A no-pause or typed run-on is separated by a new AI `/split` route (Haiku), offered as a calm "Split into tasks" affordance (T2, `fdc3b26`, Worker deployed and live-confirmed). Voice is web-only (Android has the Gboard mic), Split is cross-platform. Moat: `capture.dictation.used` + `capture.split.used`. Native in-app voice (the EAS-rebuild path) stays deferred (T3).
 - **Quick-capture from outside the app** (share target / home-screen widget / a notification you can type into). The thought arrives mid-task; opening the app loses it. Trigger: native distribution matures (Play Store / OTA).
