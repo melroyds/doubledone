@@ -1,10 +1,13 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { friendlyDate, toISODate } from '@/lib/day';
+import { appendPhrase } from '@/lib/dictation';
 import { type CaptureSchedule } from '@/lib/recurrence';
 import { MAX_SLICES, MIN_SLICES } from '@/lib/slices';
+import { type Dictation, isDictationSupported, startDictation } from '@/lib/speech';
+import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 import { DatePicker } from './DatePicker';
@@ -60,6 +63,13 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   const theme = useTheme();
   const inputRef = useRef<TextInput>(null);
 
+  // Talk-to-capture (web only; the mic stays hidden where unsupported). Each spoken
+  // phrase lands as its own line, then the existing Sort / Add flow takes over.
+  const [canDictate] = useState(() => isDictationSupported());
+  const [listening, setListening] = useState(false);
+  const dictationRef = useRef<Dictation | null>(null);
+  const phraseCountRef = useRef(0);
+
   // Expose seed() to parents: drop in text (null = just focus, so a "Brain dump" shortcut
   // never clears in-progress text) and focus the input. Imperative, so the setState runs
   // like an event handler, never during render or as a cascading effect.
@@ -69,6 +79,10 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
       inputRef.current?.focus();
     },
   }), []);
+
+  // Stop dictation if we unmount mid-listen. Only a cleanup runs here (no setState
+  // in the effect body), so the React Compiler stays happy.
+  useEffect(() => () => { dictationRef.current?.stop(); }, []);
 
   const busy = busyKind !== null;
   const lineCount = value.split('\n').filter((l) => l.trim().length > 0).length;
@@ -96,6 +110,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   }
 
   function reset() {
+    stopDictation();
     setValue('');
     setMode('today');
     setWeekdays([today.getDay()]);
@@ -103,6 +118,44 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
     setDueDate(todayIso);
     setPickerFor(null);
     setSliceCount(0);
+  }
+
+  // Talk-to-capture: tap to start, tap to stop. Each final phrase becomes a line;
+  // a result arriving after a stop is ignored, so a sorted or cleared box never
+  // re-fills. Web only (the mic is gated on isDictationSupported).
+  function stopDictation() {
+    const active = dictationRef.current;
+    if (active === null) return;
+    dictationRef.current = null;
+    active.stop(); // fires onEnd -> listening off + telemetry
+  }
+
+  function toggleDictation() {
+    if (busy) return;
+    if (dictationRef.current !== null) {
+      stopDictation();
+      return;
+    }
+    setError(null);
+    phraseCountRef.current = 0;
+    setListening(true);
+    dictationRef.current = startDictation({
+      onPhrase: (phrase) => {
+        if (dictationRef.current === null) return; // a late result after stop
+        phraseCountRef.current += 1;
+        setValue((v) => appendPhrase(v, phrase));
+      },
+      onError: () => {
+        dictationRef.current = null;
+        setListening(false);
+        setError("Couldn't hear that. Try again, or just type.");
+      },
+      onEnd: () => {
+        dictationRef.current = null;
+        setListening(false);
+        if (phraseCountRef.current > 0) track('capture.dictation.used', { lines: phraseCountRef.current });
+      },
+    });
   }
 
   function add() {
@@ -159,6 +212,24 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
         textAlignVertical="top"
         accessibilityLabel="Brain-dump. Add one or more things, one per line"
       />
+
+      {canDictate && (
+        <View style={styles.speakRow}>
+          <Pressable
+            onPress={toggleDictation}
+            disabled={busy}
+            style={({ pressed }) => [styles.speak, listening && styles.speakOn, pressed && styles.pressed, busy && styles.disabled]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: listening }}
+            accessibilityLabel={listening ? 'Listening. Tap to stop.' : 'Speak your tasks instead of typing'}
+          >
+            {listening && <View style={styles.liveDot} />}
+            <Text style={[styles.speakText, listening && styles.speakTextOn]}>
+              {listening ? 'Listening… tap to stop' : '🎤 Speak'}
+            </Text>
+          </Pressable>
+        </View>
+      )}
 
       <View style={styles.chips}>
         {MODES.map(({ mode: m, label }) => (
@@ -470,4 +541,21 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   disabled: { opacity: 0.5 },
   addText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body },
+  speakRow: { flexDirection: 'row' },
+  speak: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.two,
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.three,
+    paddingVertical: spacing.two,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: t.colors.line,
+    backgroundColor: t.colors.surface,
+  },
+  speakOn: { borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
+  speakText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, fontWeight: '500' },
+  speakTextOn: { color: t.colors.accent },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.colors.accent },
 });

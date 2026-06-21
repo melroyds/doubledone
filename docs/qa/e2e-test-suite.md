@@ -15,6 +15,8 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | CAP-04 | P2 | Both | Schedule chips (Today / Tomorrow / etc.) | Capture a task and pick each schedule chip in turn. | Task lands on the chosen day. Today shows only today's. |
 | CAP-05 | P3 | Both | Empty / whitespace capture | Submit an empty box, then a box of only spaces. | Nothing is added. No error, no blank row. |
 | CAP-06 | P3 | Both | Very long title | Capture a task with a very long title (a full sentence+). | Wraps or truncates gracefully. No layout break or overflow. |
+| CAP-07 | P2 | Web | Talk-to-capture: speak a brain-dump (web) | On the web app in Chrome / Edge / Safari, tap the '🎤 Speak' button under the capture box and allow the mic. Say a few tasks, pausing between each, then tap 'Listening… tap to stop'. | Each spoken phrase lands on its own line; two or more lines surface 'Sort for me', which sorts them as normal. The browser does the speech-to-text (no audio reaches our servers), so only text leaves the device, and only if you Sort. Tapping stop returns the button to 'Speak' and keeps the captured lines. |
+| CAP-08 | P3 | Both | Talk-to-capture hides where unsupported | Open the web app in Firefox (no Web Speech API), and separately open the Android app. | The '🎤 Speak' button is simply absent (no error, no setting) on Firefox and on native Android, where the Gboard keyboard mic already dictates into the box. |
 
 ## Today
 

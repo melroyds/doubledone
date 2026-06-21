@@ -52,6 +52,12 @@ CASES = [
     ("CAP-06", "Capture", "P3", "Very long title",
      "Capture a task with a very long title (a full sentence+).",
      "Wraps or truncates gracefully. No layout break or overflow.", "Both"),
+    ("CAP-07", "Capture", "P2", "Talk-to-capture: speak a brain-dump (web)",
+     "On the web app in Chrome / Edge / Safari, tap the '🎤 Speak' button under the capture box and allow the mic. Say a few tasks, pausing between each, then tap 'Listening… tap to stop'.",
+     "Each spoken phrase lands on its own line; two or more lines surface 'Sort for me', which sorts them as normal. The browser does the speech-to-text (no audio reaches our servers), so only text leaves the device, and only if you Sort. Tapping stop returns the button to 'Speak' and keeps the captured lines.", "Web"),
+    ("CAP-08", "Capture", "P3", "Talk-to-capture hides where unsupported",
+     "Open the web app in Firefox (no Web Speech API), and separately open the Android app.",
+     "The '🎤 Speak' button is simply absent (no error, no setting) on Firefox and on native Android, where the Gboard keyboard mic already dictates into the box.", "Both"),
 
     # --- Today & the daily loop ----------------------------------------------
     ("TOD-01", "Today", "P1", "Complete a task",
