@@ -1,6 +1,7 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrainDump } from '@/components/BrainDump';
@@ -215,6 +216,17 @@ export default function TodayScreen() {
     anim.start();
     return () => anim.stop();
   }, [closing, reduced, closeRise]);
+
+  // Focus mode is for sitting with a single task; hold a wake lock while it is open so
+  // the screen does not dim and sleep mid-task, released the moment Focus closes (or the
+  // screen unmounts). Native only; the web build has no wake lock worth requesting here.
+  useEffect(() => {
+    if (!focusOpen || Platform.OS === 'web') return;
+    void activateKeepAwakeAsync('doubledone-focus');
+    return () => {
+      void deactivateKeepAwake('doubledone-focus');
+    };
+  }, [focusOpen]);
 
   const visible = tasksForToday(tasks, today);
   const upcoming = upcomingTasks(tasks, today);

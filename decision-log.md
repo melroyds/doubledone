@@ -1241,3 +1241,7 @@ Decided against:
 - A selection tick on tap-and-hold multi-select: deferred (Tier 3), to watch buzz frequency on a real device before adding it.
 
 The wiring, the gate, and the web no-op are verified by typecheck + 296 tests (4 new for the gate) + a clean web render with no console errors. The physical feel is Melroy's on-device check on the APK, like the email sign-in.
+
+## 2026-06-21 Keep the screen awake in Focus mode (Android polish)
+
+Focus mode is for sitting with a single task, so the screen dimming and sleeping mid-task is a small but real friction. While Focus is open the app holds a wake lock (`expo-keep-awake`, tag `doubledone-focus`), released the moment Focus closes or the screen unmounts. Native only (gated `Platform.OS !== 'web'`); the web build has no wake lock worth requesting. First of the Android-native polish batch (with haptics): things a real native build gets that a web wrapper cannot. None of the batch is observable in the web preview, so each is verified by the gate plus an on-device check.
