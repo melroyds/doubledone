@@ -12,6 +12,7 @@ import {
   plan,
   strategise,
   split,
+  tiny,
   triage,
 } from './ai';
 
@@ -326,5 +327,24 @@ describe('split', () => {
 
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502 }) as unknown as Response));
     await expect(split('x')).rejects.toThrow();
+  });
+});
+
+describe('tiny', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('POSTs the task to /tiny and returns the trimmed tiny action', async () => {
+    const fetchMock = vi.fn(
+      async (_url: string, _init: { method: string; body: string }) =>
+        ({ ok: true, json: async () => ({ tiny: '  Find the file.  ' }) }) as unknown as Response,
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await tiny('Do my taxes')).toBe('Find the file.');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).task).toBe('Do my taxes');
+  });
+
+  it('throws on a non-ok response', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502 }) as unknown as Response));
+    await expect(tiny('x')).rejects.toThrow();
   });
 });

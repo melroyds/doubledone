@@ -18,6 +18,7 @@ import {
   plan as planBreakdown,
   reportOutcome,
   strategise,
+  tiny,
   triage,
   type PlanItem,
   type Questions,
@@ -70,6 +71,7 @@ export default function TodayScreen() {
   const [sortSummary, setSortSummary] = useState<string | null>(null);
   const [affirmation, setAffirmation] = useState<string | null>(null); // a brief "done is done" / "good enough" reassurance; auto-clears
   const affirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tinyBusy = useRef(false); // guards the make-it-tiny AI call from a double-fire
   const [reentry, setReentry] = useState(false);
   const [didOpen, setDidOpen] = useState(false);
   const [didText, setDidText] = useState('');
@@ -522,16 +524,25 @@ export default function TodayScreen() {
       const outcome = buildOutcome(justToggled, nowMs());
       if (outcome) void reportOutcome(outcome);
     }
-    // Cluster B: completing a step may finish its silent parent, and on up the chain.
-    // That is the real task getting done; it lands in the Lookback and earns the big line.
+    // Cluster B: completing a child may finish its silent parent (decompose, exhaustive),
+    // or resurface its open parent (tiny-version, partial pebbles). Either is the real task.
     let finalTasks = next;
     let parentDone: string | null = null;
+    let parentBack: string | null = null;
     if (done && justToggled?.parentId) {
-      const { tasks: walked, completed } = completeAncestors(next, id, today, nowMs());
-      finalTasks = walked;
-      if (completed.length > 0) {
-        parentDone = completed[completed.length - 1];
-        track('parent.completed', { depth: completed.length });
+      const parent = next.find((t) => t.id === justToggled.parentId);
+      if (parent?.openParent) {
+        // a tiny-version pebble done: bring the real task back, it never auto-completes
+        finalTasks = next.map((t) => (t.id === parent.id ? { ...t, silentParent: false, updatedAt: nowMs() } : t));
+        parentBack = parent.title;
+        track('tiny.stepDone');
+      } else {
+        const { tasks: walked, completed } = completeAncestors(next, id, today, nowMs());
+        finalTasks = walked;
+        if (completed.length > 0) {
+          parentDone = completed[completed.length - 1];
+          track('parent.completed', { depth: completed.length });
+        }
       }
     }
     const todays = tasksForToday(finalTasks, today);
@@ -544,9 +555,11 @@ export default function TodayScreen() {
     }
     const message = parentDone
       ? `You finished "${parentDone}". The whole thing.`
-      : done && !cleared
-        ? 'Done is done. Recorded.' // OCD reassurance: it is filed, you can stop checking
-        : null;
+      : parentBack
+        ? `Started. "${parentBack}" is here when you're ready.`
+        : done && !cleared
+          ? 'Done is done. Recorded.' // OCD reassurance: it is filed, you can stop checking
+          : null;
     if (message) affirm(message);
     commit(finalTasks);
   }
@@ -753,6 +766,32 @@ export default function TodayScreen() {
     void biteElephant(title, id);
   }
 
+  // Make it tiny: the AI returns a 2-minute version; the real task goes silent as an OPEN
+  // parent (it never auto-completes), and the tiny version becomes its child on Today.
+  // Finishing the tiny version resurfaces the real task (see toggle), never losing it.
+  async function makeTiny(id: string, title: string) {
+    if (tinyBusy.current) return;
+    tinyBusy.current = true;
+    setConfirmingId(null);
+    exitSelect();
+    affirm('Shrinking it…');
+    try {
+      const tinyTitle = await tiny(title);
+      if (!tinyTitle) throw new Error('empty');
+      const now = nowMs();
+      commit([
+        ...tasks.map((t) => (t.id === id ? { ...t, silentParent: true, openParent: true, updatedAt: now } : t)),
+        { id: makeId(), title: tinyTitle, done: false, createdAt: now, updatedAt: now, parentId: id, parentTitle: title },
+      ]);
+      track('tiny.made');
+      affirm('Made it tiny. Just this one.');
+    } catch {
+      affirm("Couldn't shrink that just now. Try again.");
+    } finally {
+      tinyBusy.current = false;
+    }
+  }
+
   function resetBreakdown() {
     setBdPhase('off');
     setBdTask('');
@@ -909,6 +948,7 @@ export default function TodayScreen() {
               onAdvance={() => step(task.id, 1)}
               onRetreat={() => step(task.id, -1)}
               onBreakdown={() => breakdownExisting(task.title, task.id)}
+              onMakeTiny={() => makeTiny(task.id, task.title)}
               onDefer={() => deferTask(task.id)}
               onGoodEnough={() => goodEnough(task.id)}
               suggestBreakdown={task.suggestBreakdown}
@@ -970,6 +1010,7 @@ export default function TodayScreen() {
                   onAdvance={() => step(task.id, 1)}
                   onRetreat={() => step(task.id, -1)}
                   onBreakdown={() => breakdownExisting(task.title, task.id)}
+                  onMakeTiny={() => makeTiny(task.id, task.title)}
                   onGoodEnough={() => goodEnough(task.id)}
                 />
               </View>
@@ -1057,6 +1098,19 @@ export default function TodayScreen() {
                   hitSlop={6}
                 >
                   <Text style={styles.selectAction}>Break down</Text>
+                </Pressable>
+              )}
+              {selected.length === 1 && (
+                <Pressable
+                  onPress={() => {
+                    const one = tasks.find((y) => y.id === selected[0]);
+                    if (one) void makeTiny(one.id, one.title);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Make the selected task tiny"
+                  hitSlop={6}
+                >
+                  <Text style={styles.selectAction}>Make it tiny</Text>
                 </Pressable>
               )}
               <Pressable onPress={bulkRemove} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Remove selected" hitSlop={6}>

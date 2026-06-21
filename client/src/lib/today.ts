@@ -82,6 +82,7 @@ type Parentable = Scheduled & {
   parentId?: string;
   completedAt?: number | null;
   updatedAt: number;
+  openParent?: boolean; // a tiny-version parent: never auto-completed (its pebbles are partial)
 };
 
 /**
@@ -105,7 +106,8 @@ export function completeAncestors<T extends Parentable>(
   while (cursorId && !seen.has(cursorId)) {
     seen.add(cursorId);
     const parent = next.find((t) => t.id === cursorId);
-    if (!parent || isDoneOn(parent, date)) break;
+    // An open (tiny-version) parent never auto-completes: its children are partial pebbles.
+    if (!parent || isDoneOn(parent, date) || parent.openParent) break;
     const children = next.filter((t) => t.parentId === cursorId && !t.deletedAt);
     if (children.length === 0 || !children.every((c) => isDoneOn(c, date))) break;
     next = next.map((t) => (t.id === cursorId ? { ...t, done: true, completedAt: now, silentParent: false, updatedAt: now } : t));

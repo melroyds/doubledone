@@ -1411,4 +1411,16 @@ Completion walks the chain. `completeAncestors` (pure, `today.ts`, unit-tested i
 
 Start-anywhere is already satisfied: decomposed steps are independent Today/Later tasks (date-spread), done in any order, with no enforced sequence. No build needed beyond noting it.
 
-Deferred to slice 2: the tiny-version (a new Haiku endpoint plus UI, about the size of `/split`, one tiny child of the parent at a time). Verification: typecheck / lint / 369 tests green (incl. the new `completeAncestors` and silent-parent-exclusion cases); the full break-down-and-finish flow (taps plus an AI call) is Melroy's device check, like A. Case AI-05 added.
+Deferred to slice 2: the tiny-version (a new Haiku endpoint plus UI, about the size of `/split`, one tiny child of the parent at a time). Verification: typecheck / lint / 369 tests green (incl. the new `completeAncestors` and silent-parent-exclusion cases); the full break-down-and-finish flow (taps plus an AI call) is Melroy's device check, like A. Case AI-07 added.
+
+## 2026-06-22 Cluster B slice 2 shipped: the tiny-version ("Make it tiny"), B complete
+
+The headline of Cluster B. A dreaded task gets a "Make it tiny" affordance (in the select bar and the row's confirm menu, beside Break down). It calls a new Haiku endpoint, `/tiny` (`server/src/tiny.ts`, contract-tested, origin-gated like `/split`, D1-logged as endpoint `tiny`), which returns a single 2-minute starter version ("Do my taxes" becomes "Find last year's tax file and open it").
+
+The model decision: a tiny-version is NOT a decomposition. Decompose's steps are exhaustive (all of them ARE the task, so finishing them finishes it, slice 1). A tiny-version is a partial pebble. So the real task becomes an OPEN parent (`openParent: true`, plus `silentParent` so it hides while you do the pebble), and the tiny version is its child. Completing the pebble must NOT auto-complete the real task, so `completeAncestors` skips open parents (guarded and unit-tested), and `toggle` instead RESURFACES the real task (un-silences it back onto Today) with "Started. X is here when you're ready." The dreaded thing is never lost, and you can make it tiny again for the next pebble. openParent persists, silentParent toggles.
+
+Why resurface rather than a "is it done?" modal: the never-add-a-setting, never-interrupt spine. After a pebble you often have momentum, so the real task simply reappears (no guilt, no prompt), and you either keep going, make it tiny again, or close the day. Marking the whole thing done is the ordinary tap on the resurfaced task.
+
+Considered and rejected: (a) replacing the task's title with the tiny version, which loses the real task, the exact thing the chain protects; (b) auto-completing the parent after one pebble, wrong because a pebble is partial; (c) a per-pebble "more or done?" modal, friction and a decision tax this audience does not need. Language on `/tiny` deferred (an English reframe for v1, matching `/split`, and i18n is the deferred Pass 2).
+
+Moat: `tiny.made` (offered) and `tiny.stepDone` (a pebble finished). Verification: typecheck / lint / 376 tests / the coverage floor all green. Deploy plus a single live `/tiny` call confirm end-to-end; the tap-driven flow is Melroy's device check, like A. Case AI-08 added. Cluster B (the silent-parent chain, the tiny-version, and start-anywhere) is complete.

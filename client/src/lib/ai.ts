@@ -216,6 +216,19 @@ export async function split(text: string): Promise<string[]> {
     : [];
 }
 
+/** Shrink a dreaded task to its 2-minute version via the AI backend (the wall of awful,
+ *  lowered). Throws on a failed call; the caller shows a calm error. */
+export async function tiny(task: string): Promise<string> {
+  const res = await fetch(`${AI_URL}/tiny`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ task }),
+  });
+  if (!res.ok) throw new Error(`tiny failed (${res.status})`);
+  const data = (await res.json()) as { tiny?: unknown };
+  return typeof data.tiny === 'string' ? data.tiny.trim() : '';
+}
+
 // The AI scrapbook: a finished week's titles in, a calm keepsake image (a base64
 // data URL) plus the scene caption out. Generated entirely on Workers AI; see the
 // Worker's /scrapbook route. Throws on a failed call; the caller shows a calm error.

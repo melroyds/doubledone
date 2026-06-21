@@ -22,6 +22,7 @@ type Props = {
   onBreakdown?: () => void;
   onDefer?: () => void;
   onGoodEnough?: () => void;
+  onMakeTiny?: () => void;
   suggestBreakdown?: boolean;
   selecting?: boolean;
   selected?: boolean;
@@ -53,6 +54,7 @@ export function TaskRow({
   onBreakdown,
   onDefer,
   onGoodEnough,
+  onMakeTiny,
   suggestBreakdown,
   selecting,
   selected,
@@ -121,6 +123,11 @@ export function TaskRow({
           {onDefer && !recurring && (
             <Pressable onPress={onDefer} accessibilityRole="button" accessibilityLabel={`Move ${title} to tomorrow`}>
               <Text style={styles.keep}>Tomorrow</Text>
+            </Pressable>
+          )}
+          {onMakeTiny && !recurring && (
+            <Pressable onPress={onMakeTiny} accessibilityRole="button" accessibilityLabel={`Make ${title} tiny`}>
+              <Text style={styles.keep}>Make it tiny</Text>
             </Pressable>
           )}
           {onBreakdown && !recurring && (

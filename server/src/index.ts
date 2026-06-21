@@ -11,6 +11,7 @@ import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
 import { deleteSub, parsePushSub, saveSub, sendDailyNudges } from './push';
 import { dataUrl, IMAGE_MODEL, imagePrompt, parseImage, parseScene, SCENE_MODEL, sceneMessages } from './scrapbook';
 import { buildSplitRequest, parseSplitResponse, SPLIT_MODEL } from './split';
+import { buildTinyRequest, parseTinyResponse, TINY_MODEL } from './tiny';
 import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
 import { handleCheckout, handleEntitlement, handlePortal, handleWebhook } from './stripe';
 import { type D1LikeDatabase, extractUsage, logAiCall, logOutcome } from './telemetry';
@@ -77,7 +78,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:8081',
   'http://localhost:19006',
 ];
-const AI_ROUTES = new Set(['/clarify', '/decompose', '/plan', '/split', '/strategise', '/triage', '/scrapbook']);
+const AI_ROUTES = new Set(['/clarify', '/decompose', '/plan', '/split', '/tiny', '/strategise', '/triage', '/scrapbook']);
 
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
@@ -517,6 +518,48 @@ export default {
         }),
       );
       return Response.json({ items }, { headers: cors });
+    }
+
+    // AI "make it tiny": a dreaded task in, a 2-minute starter version out (the wall of
+    // awful, shrunk). The real task is kept client-side as the silent parent.
+    if (pathname === '/tiny' && request.method === 'POST') {
+      let task = '';
+      try {
+        const body = (await request.json()) as { task?: unknown };
+        task = typeof body.task === 'string' ? body.task.trim() : '';
+      } catch {
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
+      }
+      if (!task) {
+        return Response.json({ error: 'task is required' }, { status: 400, headers: cors });
+      }
+      if (!env.ANTHROPIC_API_KEY) {
+        return Response.json({ error: 'server not configured' }, { status: 500, headers: cors });
+      }
+
+      const { url, init } = buildTinyRequest(task, env.ANTHROPIC_API_KEY);
+      const started = Date.now();
+      const upstream = await fetch(url, init as RequestInit);
+      if (!upstream.ok) {
+        ctx.waitUntil(
+          logAiCall(env, {
+            endpoint: 'tiny', model: TINY_MODEL, input: { task }, output: null,
+            inputTokens: null, outputTokens: null, latencyMs: Date.now() - started,
+            ok: false, error: `upstream ${upstream.status}`,
+          }),
+        );
+        return Response.json({ error: 'upstream error' }, { status: 502, headers: cors });
+      }
+      const raw = await upstream.json();
+      const tiny = parseTinyResponse(raw);
+      const usage = extractUsage(raw);
+      ctx.waitUntil(
+        logAiCall(env, {
+          endpoint: 'tiny', model: TINY_MODEL, input: { task }, output: { tiny },
+          inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true,
+        }),
+      );
+      return Response.json({ tiny }, { headers: cors });
     }
 
     // AI scrapbook: a finished week's task titles in, a calm Dusk keepsake image

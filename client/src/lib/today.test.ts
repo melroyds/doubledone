@@ -150,6 +150,7 @@ describe('completeAncestors (Cluster B chain)', () => {
     updatedAt: number;
     silentParent?: boolean;
     completedAt?: number | null;
+    openParent?: boolean;
   };
   const mk = (id: string, parentId: string | undefined, done: boolean, silentParent = false): TestTask => ({
     id,
@@ -187,5 +188,10 @@ describe('completeAncestors (Cluster B chain)', () => {
 
   it('does nothing for a task with no parent', () => {
     expect(completeAncestors([mk('a', undefined, true)], 'a', today, 100).completed).toEqual([]);
+  });
+
+  it('never auto-completes an open (tiny-version) parent', () => {
+    const tasks = [{ ...mk('p', undefined, false, true), openParent: true }, mk('c', 'p', true)];
+    expect(completeAncestors(tasks, 'c', today, 100).completed).toEqual([]);
   });
 });

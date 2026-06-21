@@ -29,6 +29,7 @@ export type Task = {
   parentId?: string; // this task is a child (a decomposition step or a tiny-version) of a bigger task; links to its silent parent (Cluster B chain)
   parentTitle?: string; // the parent's title, denormalised so the whole-task celebration needs no lookup
   silentParent?: boolean; // a silent parent: kept for the eventual whole-task celebration, hidden from Today / Later until its children are all done
+  openParent?: boolean; // a tiny-version parent: its children are partial pebbles, so it never auto-completes (it resurfaces instead); see completeAncestors
   nudgeAt?: number; // epoch ms a local "remind me" nudge will fire (today only); drives the row indicator
   nudgeId?: string; // the scheduled-notification id, so the nudge can be cancelled when the task is done / removed / deferred
 };
