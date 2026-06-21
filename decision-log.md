@@ -1369,4 +1369,4 @@ The next tech build after Talk-to-capture: a clean, documented REST API over a u
 
 **Deferred:** the long-lived API-key system (above); rate-limiting the API routes (RLS already scopes each token to its own data and Supabase has its own limits, so v1 leans on those, noted as hardening); richer querying (pagination, filters) beyond `?today`; and resources beyond tasks.
 
-Pure builders + body parsers + the handler routing are unit-tested (`api.test.ts`, 19 cases, fetch mocked, no live call). Pending Melroy: a Worker deploy (`npx wrangler deploy` from `server/`, his per-instance OK) to make `/api/v1/*` live, then a live curl to confirm.
+Pure builders + body parsers + the handler routing are unit-tested (`api.test.ts`, 19 cases, fetch mocked, no live call). **Deployed + live-confirmed 2026-06-21** (Worker version `bebb1564`): `/api/v1/openapi.json` (200, the spec), `/api/v1/docs` (200, the Swagger UI), and `/api/v1/tasks` with no token (401, clean JSON error) all verified. The token-gated CRUD is Melroy's to drive with his own token.
