@@ -155,14 +155,14 @@ The full why-trail is in [`decision-log.md`](decision-log.md); the headline call
 
 The build is feature-complete; what's left is launch-readiness and consciously-parked scope, each with a **trigger** (the full list, with reasoning, is in [`BUILD-PLAN.md`](BUILD-PLAN.md)). The honest picture:
 
-- **Go-live config** (built, not yet switched on) — the **Stripe Premium** flow runs in *test mode* (A$5/mo Checkout, a webhook-verified entitlement in D1, the paywall, cadence gating) and needs its keys + product to go live; **account deletion** is built and needs its one migration run. Both are configuration, not code. *Trigger: a real public launch.*
+- **Go-live config** — **account deletion** is built and needs its one migration run. (Stripe Premium is already wired and **tested in test mode**: the A$5/mo Checkout, a webhook-verified entitlement in D1, the paywall, cadence gating; flipping to live keys for real charges is a launch step.) Configuration, not code. *Trigger: a real public launch.*
 - **Multi-language (Italian, Spanish, French)** — the AI already answers in the user's language; externalising the UI strings and the translations themselves is the remaining half. *Trigger: now (the design pass it waited on is done).*
-- **"Other users took about X days" estimate** — the moat's user-facing payoff. The surface is built; it needs real anonymised cross-user volume to be honest. *Trigger: enough volume.*
+- **"Other users took about X days" estimate** — the moat's user-facing payoff. Both halves of the flywheel are now instrumented (the decomposition offered, and an anonymised completion ping); the surface stays an honest *derived* estimate until there's enough real cross-user volume to swap in true crowd timings. *Trigger: enough volume.*
 - **Scrapbook cross-device sync** — the images are durable on R2; syncing their URLs to your account (so they follow you to a new device) is the remaining half. *Trigger: before real paid users.*
 - **Plan my day · Custom lists** — scoped and parked against the spine, so they never turn Today into an everything-bucket. *Trigger: a real need the spine can absorb.*
 - **Distribution** — a Play Store listing and a transactional email sender (vs the shared dev one). *Trigger: before pointing real people at it.*
 
-*Graduated out of this list as they shipped: the full UI design pass, the guided first-run, data export, the privacy policy, and AI-endpoint lockdown. Items leave here as they land.*
+*Graduated out of this list as they shipped: the full UI design pass, the guided first-run, the moat's completion-telemetry framework, Stripe Premium (test mode), data export, the privacy policy, and AI-endpoint lockdown. Items leave here as they land.*
 
 ## Run it
 

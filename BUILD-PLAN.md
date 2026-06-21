@@ -39,7 +39,7 @@ What remains is **not build work**. In priority order:
 
 The "built, needs your hands" cluster, in order. None of it is new code; it is configuration, one migration, and a device check.
 
-**1. Stripe Premium (test mode first, then live).** The `/checkout` + `/stripe-webhook` flow, the `/premium` paywall, and the D1 entitlement are built; they need keys and a product.
+**1. Stripe Premium — ✅ done (test mode, tested 2026-06-21).** Melroy set the keys + product and verified the `4242` flow end to end. The steps below stay for reference, and for the one remaining bit: flipping to live-mode (real charges), which is a launch step. The `/checkout` + `/stripe-webhook` flow, the `/premium` paywall, and the D1 entitlement are built.
    1. In the **Stripe dashboard** (test mode), create a Product "DoubleDone Premium" with a recurring **A$5 / month** price; copy the price id (`price_…`).
    2. In `server/wrangler.jsonc`, set the non-secret vars `STRIPE_PRICE_ID` (that price id) and `APP_URL` (`https://doubledone.app`).
    3. Set the secret `STRIPE_SECRET_KEY` (your `sk_test_…`): `npx wrangler secret put STRIPE_SECRET_KEY` from `server/`.
