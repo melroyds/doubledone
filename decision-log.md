@@ -1283,3 +1283,16 @@ Web-safe by the same platform-split pattern as share/haptics: every widget-libra
 Decided for v1: tap-to-open the whole card (`clickAction: 'OPEN_APP'`), no bundled font (the system face plus the Dusk colours carry the brand; bundling Newsreader for the widget is a noted follow-on), no preview image (the picker shows a default), and the update trigger only on task changes (closing the day reflects on the next change or the 30-minute tick, a minor accepted lag). Decided against checking a task off FROM the widget (interactive actions writing back to storage) and a "+" capture affordance, both deferred (Tier 2/3).
 
 The honest risk, recorded: this is a real native module (Kotlin + C++) and we are on RN 0.85, two minors past the 0.83 the library was tested against. Every line of JS is gate-verified here, but the EAS native build is the genuine test. If it fails to compile, that is a library-vs-RN-version issue (the JS is then ready for a library update), not our code. The library targets Expo >=54 and is the standard, so it is worth trying. 5 unit tests cover the view-model.
+
+## 2026-06-21 Reminders, Phase 1: per-task "remind me in X hours" (Android, local)
+
+The first half of the notification work, and the "unique to Android" surface. On a today task you can set a gentle nudge ("In 1 hour", "In 3 hours", "This evening") from the tap-and-hold action bar; it fires a local notification (the task as the title, "Whenever you are ready." as the body) and the row shows a small bell with the time. A poke, never a deadline.
+
+Melroy's idea, and a better primitive than the absolute-time reminder first sketched: relative deferral is how an ADHD brain actually thinks ("later", not "3:47pm"), it is a snooze not a deadline (RSD-safe), and it mirrors the existing "push to tomorrow" one scale down (tomorrow removes it from today; a nudge keeps it and pokes you later).
+
+Held to the spine:
+- The pure logic (`lib/nudge.ts`, tested) enforces a 9pm cutoff so a nudge never fires in the small hours. A preset whose target would land past 9pm is capped to 9pm; one that can no longer fire today is simply not offered; "This evening" (6pm) drops off after 6pm.
+- Cancel-on-handled: completing, removing, or deferring a task (single or bulk) cancels its pending nudge and clears the fields, via one `clearNudgeIfAny` helper threaded through every such path, so you are never poked about something already done. The task carries `nudgeId` (the scheduled-notification id) and `nudgeAt` (the indicator).
+- The daily reminder was refactored to cancel only itself by a fixed id (not the old blanket cancel-all), so the daily reminder and the nudges coexist on their own Android channels without clobbering each other.
+
+Privacy: fully local. The device schedules the nudge; nothing (not the task text, not the time) leaves the phone. Native only; on web `scheduleNudge` is a no-op and the "Remind me" action is hidden (web reminders are Phase 2's push). On-device check on the APK; the web build is gate-verified to still render Today cleanly. Decided against absolute-time reminders (more friction, less on-spine) and a free time input (presets keep it one tap).

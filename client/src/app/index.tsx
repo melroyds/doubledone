@@ -31,7 +31,8 @@ import { type Inbound, subscribeInbound, takeInbound } from '@/lib/inbound';
 import { aiLanguage } from '@/lib/locale';
 import { buildOutcome } from '@/lib/outcome';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
-import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
+import { availableNudgePresets, type NudgePreset, nudgeTargetFor } from '@/lib/nudge';
+import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge } from '@/lib/reminders';
 import { applySliceDelta } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
 import { loadClosedDate, loadLastOpen, loadOnboarded, loadReminderOn, loadSyncedOwner, loadTasks, saveClosedDate, saveLastOpen, saveReminderOn, saveSyncedOwner, saveTasks } from '@/lib/storage';
@@ -72,6 +73,8 @@ export default function TodayScreen() {
   const [didText, setDidText] = useState('');
   const [closeNote, setCloseNote] = useState('');
   const [moveToOpen, setMoveToOpen] = useState(false);
+  const [nudgeOpen, setNudgeOpen] = useState(false);
+  const [nudgePresets, setNudgePresets] = useState<NudgePreset[]>([]);
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusPick, setFocusPick] = useState<string | null>(null);
   const brainDumpRef = useRef<BrainDumpHandle>(null);
@@ -256,10 +259,22 @@ export default function TodayScreen() {
   const todayDone = useMemo(() => completionsByDay(tasks).get(toISODate(today)) ?? [], [tasks, today]);
   // One-off, undone tasks on Today: the ones Strategise can re-spread (recurring stay by cadence).
   const spreadable = visible.filter((t) => !isRecurring(t) && !isDoneOn(t, today));
+  const onlyTask = selected.length === 1 ? visible.find((t) => t.id === selected[0]) : undefined;
   // Focus mode shows one unfinished one-off at a time (recurring habits are not the
   // wall-of-awful). The first not-yet-skipped one; completing or skipping advances it.
   const focusTask = focusOpen && focusPick ? (spreadable.find((t) => t.id === focusPick) ?? null) : null;
   const weightOfDay = dayWeight(spreadable.length);
+
+  // When a task leaves the active-today state (done, removed, deferred), cancel any pending
+  // nudge and strip its fields, so you are never poked about something already handled.
+  function clearNudgeIfAny(task: Task): Task {
+    if (!task.nudgeId) return task;
+    void cancelNudge(task.nudgeId);
+    const next = { ...task };
+    delete next.nudgeId;
+    delete next.nudgeAt;
+    return next;
+  }
 
   function commit(next: Task[]) {
     setTasks(next);
@@ -271,7 +286,7 @@ export default function TodayScreen() {
   // it, so the deletion can sync to other devices instead of resurrecting on pull.
   function removeTask(id: string) {
     const now = nowMs();
-    commit(tasks.map((t) => (t.id === id ? { ...t, deletedAt: now, updatedAt: now } : t)));
+    commit(tasks.map((t) => (t.id === id ? clearNudgeIfAny({ ...t, deletedAt: now, updatedAt: now }) : t)));
     setConfirmingId(null);
     track('task.removed');
   }
@@ -281,7 +296,7 @@ export default function TodayScreen() {
   // roll forward. Never-shame: no counter, no penalty, just a date move.
   function deferTask(id: string) {
     const now = nowMs();
-    commit(tasks.map((t) => (t.id === id ? { ...deferToTomorrow(t, today), updatedAt: now } : t)));
+    commit(tasks.map((t) => (t.id === id ? clearNudgeIfAny({ ...deferToTomorrow(t, today), updatedAt: now }) : t)));
     setConfirmingId(null);
     track('task.deferred');
   }
@@ -294,7 +309,7 @@ export default function TodayScreen() {
       tasks.map((t) => {
         if (t.id !== id) return t;
         const slices = t.slices ? { total: t.slices.total, done: t.slices.total } : t.slices;
-        return { ...t, done: true, completedAt: now, updatedAt: now, ...(slices ? { slices } : {}) };
+        return clearNudgeIfAny({ ...t, done: true, completedAt: now, updatedAt: now, ...(slices ? { slices } : {}) });
       }),
     );
     track('focus.completed');
@@ -346,7 +361,7 @@ export default function TodayScreen() {
     if (selected.length === 0) return;
     const now = nowMs();
     const set = new Set(selected);
-    commit(tasks.map((t) => (set.has(t.id) && !isRecurring(t) ? { ...deferToTomorrow(t, today), updatedAt: now } : t)));
+    commit(tasks.map((t) => (set.has(t.id) && !isRecurring(t) ? clearNudgeIfAny({ ...deferToTomorrow(t, today), updatedAt: now }) : t)));
     track('bulk.deferred', { count: selected.length });
     exitSelect();
   }
@@ -354,7 +369,7 @@ export default function TodayScreen() {
     if (selected.length === 0) return;
     const now = nowMs();
     const set = new Set(selected);
-    commit(tasks.map((t) => (set.has(t.id) ? { ...t, deletedAt: now, updatedAt: now } : t)));
+    commit(tasks.map((t) => (set.has(t.id) ? clearNudgeIfAny({ ...t, deletedAt: now, updatedAt: now }) : t)));
     track('bulk.removed', { count: selected.length });
     exitSelect();
   }
@@ -362,9 +377,30 @@ export default function TodayScreen() {
     if (selected.length === 0) return;
     const now = nowMs();
     const set = new Set(selected);
-    commit(tasks.map((t) => (set.has(t.id) && !isRecurring(t) ? { ...deferTo(t, iso), updatedAt: now } : t)));
+    commit(tasks.map((t) => (set.has(t.id) && !isRecurring(t) ? clearNudgeIfAny({ ...deferTo(t, iso), updatedAt: now }) : t)));
     track('bulk.moved', { count: selected.length });
     setMoveToOpen(false);
+    exitSelect();
+  }
+
+  // "Remind me": a calm preset chooser (the late-night guard hides anything that would fire
+  // past 9pm), then a local nudge for the single selected task, stamped so the row shows it
+  // and so done / remove / defer can cancel it. Native only; the web build no-ops.
+  function openNudge() {
+    setNudgePresets(availableNudgePresets(new Date()));
+    setNudgeOpen(true);
+  }
+  async function pickNudge(presetId: string) {
+    const task = onlyTask;
+    setNudgeOpen(false);
+    if (!task) return;
+    const target = nudgeTargetFor(presetId, new Date());
+    if (!target) return;
+    const id = await scheduleNudge(task.id, task.title, target);
+    if (id) {
+      commit(tasks.map((t) => (t.id === task.id ? { ...t, nudgeAt: target.getTime(), nudgeId: id, updatedAt: nowMs() } : t)));
+      track('nudge.set', { preset: presetId });
+    }
     exitSelect();
   }
 
@@ -461,7 +497,7 @@ export default function TodayScreen() {
       // Stamp the completion time for one-offs so the calendar can place them on the
       // right day. Recurring tasks carry their own dated completedDates instead.
       if (!isRecurring(toggled)) toggled.completedAt = toggled.done ? nowMs() : null;
-      return toggled;
+      return isDoneOn(toggled, today) ? clearNudgeIfAny(toggled) : toggled;
     });
     const justToggled = next.find((t) => t.id === id);
     const done = justToggled ? isDoneOn(justToggled, today) : false;
@@ -825,6 +861,7 @@ export default function TodayScreen() {
               selecting={selectMode}
               selected={selected.includes(task.id)}
               onSelect={() => toggleSelect(task.id)}
+              nudgeAt={task.nudgeAt}
             />
           ))}
         </View>
@@ -934,6 +971,11 @@ export default function TodayScreen() {
               <Pressable onPress={() => setMoveToOpen(true)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Move selected to a date" hitSlop={6}>
                 <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>Move to…</Text>
               </Pressable>
+              {Platform.OS !== 'web' && onlyTask && !isDoneOn(onlyTask, today) && (
+                <Pressable onPress={openNudge} accessibilityRole="button" accessibilityLabel="Remind me about this task" hitSlop={6}>
+                  <Text style={styles.selectAction}>Remind me</Text>
+                </Pressable>
+              )}
               {selected.length === 1 && (
                 <Pressable
                   onPress={() => {
@@ -1146,6 +1188,41 @@ export default function TodayScreen() {
               style={styles.moveCancelWrap}
             >
               <Text style={styles.didCancel}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={nudgeOpen} transparent animationType="fade" onRequestClose={() => setNudgeOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setNudgeOpen(false)} accessibilityLabel="Dismiss">
+          <Pressable style={styles.wrapCard} onPress={() => {}}>
+            <Text style={styles.didTitle}>Remind me…</Text>
+            <Text style={styles.didHint}>A gentle poke about this later today, never a deadline.</Text>
+            {nudgePresets.length === 0 ? (
+              <Text style={styles.didHint}>It is a little late for a nudge today. Tomorrow is always there.</Text>
+            ) : (
+              <View style={styles.moveToPresets}>
+                {nudgePresets.map((p) => (
+                  <Pressable
+                    key={p.id}
+                    onPress={() => void pickNudge(p.id)}
+                    style={({ pressed }) => [styles.moveChip, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel={p.label}
+                  >
+                    <Text style={styles.moveChipText}>{p.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+            <Pressable
+              onPress={() => setNudgeOpen(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Not now"
+              hitSlop={8}
+              style={styles.moveCancelWrap}
+            >
+              <Text style={styles.didCancel}>Not now</Text>
             </Pressable>
           </Pressable>
         </Pressable>

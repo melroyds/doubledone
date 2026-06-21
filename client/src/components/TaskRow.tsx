@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { formatNudgeTime } from '@/lib/nudge';
 import { type Slices } from '@/lib/tasks';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
@@ -24,6 +25,7 @@ type Props = {
   selecting?: boolean;
   selected?: boolean;
   onSelect?: () => void;
+  nudgeAt?: number | null;
 };
 
 // A single row. Tap to complete (a soft sage check, gentle fade, never a shaming
@@ -53,6 +55,7 @@ export function TaskRow({
   selecting,
   selected,
   onSelect,
+  nudgeAt,
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
@@ -180,6 +183,7 @@ export function TaskRow({
             {done && <Text style={styles.tick}>✓</Text>}
           </View>
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
+          {nudgeAt ? <Text style={styles.nudgeMark}>{`🔔 ${formatNudgeTime(nudgeAt)}`}</Text> : null}
           {recurring && <Text style={styles.repeatMark}>↻</Text>}
         </Pressable>
         {onBreakdown && (
@@ -211,6 +215,7 @@ export function TaskRow({
         {done && <Text style={styles.tick}>✓</Text>}
       </View>
       <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
+      {nudgeAt ? <Text style={styles.nudgeMark}>{`🔔 ${formatNudgeTime(nudgeAt)}`}</Text> : null}
       {recurring && <Text style={styles.repeatMark}>↻</Text>}
     </Pressable>
   );
@@ -264,6 +269,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   text: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 23 },
   textDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
   repeatMark: { color: t.colors.repeat, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+  nudgeMark: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   suggestColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
   suggestMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
   suggestHintBtn: { alignSelf: 'flex-start' },

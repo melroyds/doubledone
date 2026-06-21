@@ -14,3 +14,13 @@ export async function enableDailyReminder(): Promise<boolean> {
 export async function disableDailyReminder(): Promise<void> {
   // nothing to cancel on web
 }
+
+/** No-op on web: per-task nudges are native-only (web has no local scheduling). */
+export async function scheduleNudge(taskId: string, title: string, at: Date): Promise<string | null> {
+  return null;
+}
+
+/** No-op on web. */
+export async function cancelNudge(id: string): Promise<void> {
+  // nothing scheduled on web
+}

@@ -121,6 +121,9 @@ CASES = [
     ("AND-05", "Android", "P2", "Home-screen Today widget",
      "On Android, long-press the home screen and add the 'DoubleDone: Today' widget. Check it with tasks left, with all done, and after closing the day. Complete a task in the app and watch the widget. Tap the widget.",
      "The widget shows today's top unfinished titles (or a calm 'All done for today.' / 'Nothing for today yet.'), in light or dark to match the device. It refreshes within a moment of a change in the app (and at least every 30 minutes). Tapping it opens DoubleDone.", "Android"),
+    ("AND-06", "Android", "P2", "Remind me in X hours (per-task nudge)",
+     "On Android, tap-and-hold a today task, tap 'Remind me', pick a preset (e.g. 'In 1 hour'). Check the row indicator. Then complete (or remove, or push to tomorrow) the task before the nudge fires. Separately, open 'Remind me' after 9pm.",
+     "A local notification fires at the chosen time (the task as the title, 'Whenever you are ready.' as the body); the row shows a small bell + time. Completing / removing / deferring the task cancels the pending nudge (no poke about a handled task). After 9pm the late presets are hidden. Web does not show 'Remind me'.", "Android"),
 
     # --- Onboarding: the one-time guided welcome ------------------------------
     ("ONB-01", "Onboarding", "P1", "Guided welcome on first run",
