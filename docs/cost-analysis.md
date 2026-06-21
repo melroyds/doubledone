@@ -16,7 +16,7 @@
 | Lever | Assumption | Why |
 |---|---|---|
 | Active rate | 50% of registered users are monthly-active | ADHD retention is hard; only active users incur AI cost |
-| AI / active user / mo | 8 Break-it-downs, 12 triages, 4 Strategise | the AI features at moderate use |
+| AI / active user / mo | 8 Break-it-downs, 12 triages, 4 Strategise, plus a few cheap Haiku calls (Talk-to-capture `/split`, Make-it-tiny `/tiny`) | the AI features at moderate use |
 | Scrapbooks / active user / mo | ~0.6 avg (free ~1/mo, premium ~4/mo, not all make one) | the priciest AI op |
 | Premium conversion | 5% of registered users | conservative for a niche with strong founder-market-fit |
 | Premium price | A$5/mo (~US$3.30 net) | from the decision-log |
@@ -37,10 +37,14 @@
 |---|---|---|
 | **Break it down** | Haiku clarify + Sonnet decompose | ~$0.0135 |
 | **Sort / triage** | Haiku | ~$0.0015 |
+| **Talk-to-capture (`/split`)** | Haiku | ~$0.0015 |
+| **Make it tiny (`/tiny`)** | Haiku | ~$0.0015 |
 | **Strategise** | Sonnet | ~$0.012 |
 | **Scrapbook** | Workers AI image + R2 (~$0) | ~$0.08 |
 
-**AI per active user / month** ≈ 8×0.0135 + 12×0.0015 + 4×0.012 + 0.6×0.08 ≈ **$0.22** (of which Claude ~$0.17, scrapbook image ~$0.05).
+`/split` and `/tiny` (both shipped 2026-06-22) are occasional, same-class Haiku calls, priced like triage above. They are too cheap and too infrequent to move the per-user figure: even a generous 4 `/split` + 4 `/tiny` per active user adds ~$0.012/mo, lost in the rounding against the ~$0.22 below.
+
+**AI per active user / month** ≈ 8×0.0135 + 12×0.0015 + 4×0.012 + 0.6×0.08 ≈ **$0.22** (of which Claude ~$0.17, scrapbook image ~$0.05). The new `/split` and `/tiny` Haiku calls sit inside that ~$0.17 Claude share and do not change the rounded total.
 
 ## The spread
 
@@ -68,6 +72,7 @@ Monthly, by registered-user count (50% active):
 - **Infra is almost free.** Cloudflare's no-egress R2 plus the Workers / Pages / D1 free tiers make the platform cost trivial. That is a deliberate stack choice, not luck.
 - **Stripe's flat $0.30** makes an A$5 sub cost ~6% to process (vs the 2.9% headline). On 5,000 subs that is ~$1,500/mo of pure fixed fee. **An annual plan (A$50/yr) cuts the charge count 12×** and recovers most of it.
 - **Supabase** is the only step-change (free → $25 Pro at 50k MAU → usage). Tiny next to AI.
+- **Most of the 2026-06-22 work adds zero run cost.** Routines, the low-capacity day, and the wind-down nudge are fully local and client-side, so they touch no provider bill. The silent-parent chain (Break-it-down) reuses the existing decompose call and adds no AI. Only `/split` and `/tiny` add cost, and both are marginal Haiku.
 
 ## Margin levers (in order of impact)
 

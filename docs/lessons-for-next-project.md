@@ -50,3 +50,13 @@ Late in the build the whole UI got a system-pass redesign (all seven surfaces) p
 2. **Expo typed-routes note.** Adding an expo-router screen fails local `tsc` until the dev server regenerates the route types (CI is unaffected, the `Href` type falls back to `string`). Already in this repo's CLAUDE.md gotchas; it belongs in the harness's Expo notes.
 
 The first (a general fixture rule) is promoted into [`../PLAYBOOK.md`](../PLAYBOOK.md); the Expo typed-routes note stays a stack-specific gotcha in `CLAUDE.md`.
+
+## Lessons from the ADHD seam (2026-06-22)
+
+A deep run that added a whole product seam (OCD reassurance, the silent-parent chain, Make-it-tiny, the low-capacity day, the wind-down, Routines) plus talk-to-capture and a public API, then updated every public doc. The portable takeaways:
+
+- **Go deep on the core failure mode before going wide.** The MVP mapped one feature to each failure mode, which was the right thing to ship. The highest-leverage next move was not a new failure mode, it was a second and third answer to the hardest existing one (task initiation), because that is where the audience actually loses days. Founder-market-fit is largely the ability to feel which thin spot to deepen. *(General.)*
+- **Bake the principle into the data model, not just the copy.** Routines keep no streak because the model stores only each step's last-ticked date, with no count and no history to surface. A rule enforced by the shape of the data cannot be undone by a later UI tweak, which is what you want for a load-bearing rule like never-shame. *(General.)*
+- **Keep the real object, never flatten it.** Breaking a task into steps used to replace the task. Keeping the original as a silent parent and chaining the steps to it preserved the thing the user actually has to finish, and it upgraded the moat's signal from "steps ticked" to "the dreaded thing done" for free. When you decompose something, hold on to the whole.
+- **Slice a large feature, commit each slice green.** Routines shipped as a tested model first, then the screen; the start-line work shipped as the chain first, then the tiny-version. Each slice was its own green commit with its own decision-log entry, so nothing large was ever in flight at once. *(General.)*
+- **Parallelise a doc overhaul, keep the argument yourself.** Updating six public docs at once, the engineering and numbers docs went to focused sub-agents with tight briefs and the decision-log as the source of truth, while the front-door and argument docs (README, case study, commercialisation) stayed first-person. Even the mechanical consistency pass (scrubbing em-dashes to match house style) went to an agent. The judgment stayed central, the typing fanned out. *(General.)*
