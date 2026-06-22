@@ -84,7 +84,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 
 | ID | Pri | Platform | Test | Steps | Expected |
 |---|---|---|---|---|---|
-| WEB-01 | P2 | Web | Daily reminder via web push | On the deployed web app (PC or Android Chrome) with VAPID configured, toggle 'Daily reminder' on and allow notifications. Check around your daily hour (the hourly cron can be run manually to verify without waiting). | Toggling on registers a service worker and subscribes the browser; a calm 'Your today is here when you are ready.' notification arrives around the daily hour, and tapping it opens the app. Toggling off unsubscribes. The push carries no task content. The toggle is hidden when VAPID is unconfigured. |
+| WEB-01 | P2 | Web | Daily reminder via web push | On the deployed web app (PC or Android Chrome) with VAPID configured, turn the daily reminder on (the 'Turn on daily reminder' action in the Today footer, or Settings > Daily reminder) and allow notifications. Check around your daily hour (the hourly cron can be run manually to verify without waiting). | Toggling on registers a service worker and subscribes the browser; a calm 'Your today is here when you are ready.' notification arrives around the daily hour, and tapping it opens the app. Toggling off unsubscribes. The push carries no task content. The toggle is hidden when VAPID is unconfigured. |
 
 ## Onboarding
 

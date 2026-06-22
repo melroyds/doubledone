@@ -1207,7 +1207,9 @@ export default function TodayScreen() {
           accessibilityLabel="Toggle daily reminder"
           hitSlop={6}
         >
-          <Text style={styles.sync}>Daily reminder · {reminderOn ? 'On' : 'Off'}</Text>
+          <Text style={reminderOn ? styles.sync : styles.syncAction}>
+            {reminderOn ? 'Daily reminder on' : 'Turn on daily reminder'}
+          </Text>
         </Pressable>
         <View style={styles.ethos}>
           <RotatingPhrase />

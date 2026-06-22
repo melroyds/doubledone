@@ -9,8 +9,9 @@ import { deleteAccount } from '@/lib/account';
 import { useSession } from '@/lib/auth';
 import { toISODate } from '@/lib/day';
 import { buildExport } from '@/lib/export';
+import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { type MotionPref, type TextSize, type ThemePref } from '@/lib/settings';
-import { loadTasks, saveTasks } from '@/lib/storage';
+import { loadReminderOn, loadTasks, saveReminderOn, saveTasks } from '@/lib/storage';
 import { loadEntitlement } from '@/lib/stripe';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
@@ -45,6 +46,7 @@ export default function SettingsScreen() {
   const [premium, setPremium] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportNote, setExportNote] = useState<string | null>(null);
+  const [reminderOn, setReminderOn] = useState(false);
 
   // Reflect the live entitlement so Settings shows a calm "Active" marker on
   // Premium. Re-checks on focus, e.g. after returning from checkout.
@@ -54,11 +56,30 @@ export default function SettingsScreen() {
       void loadEntitlement().then((e) => {
         if (active) setPremium(e.premium);
       });
+      void loadReminderOn().then((on) => {
+        if (active) setReminderOn(on);
+      });
       return () => {
         active = false;
       };
     }, []),
   );
+
+  // Toggle the opt-in daily reminder from Settings. Mirrors the Today footer and shares the
+  // same lib + persisted flag, so the two stay in sync.
+  async function setReminder(on: boolean) {
+    if (on) {
+      const ok = await enableDailyReminder();
+      setReminderOn(ok);
+      void saveReminderOn(ok);
+      track('reminder.enabled', { granted: ok });
+    } else {
+      await disableDailyReminder();
+      setReminderOn(false);
+      void saveReminderOn(false);
+      track('reminder.disabled');
+    }
+  }
 
   // "Your stuff is yours": download (web) or share (native) a JSON of the user's
   // tasks + completions. Works with no account, the data is local.
@@ -177,6 +198,16 @@ export default function SettingsScreen() {
               { value: 'reduce', label: 'Reduce' },
             ]}
             onChange={(motion) => setSettings({ motion })}
+          />
+          <Choice<'off' | 'on'>
+            label="Daily reminder"
+            hint="One gentle nudge a day to come back to your day. Nothing more."
+            value={reminderOn ? 'on' : 'off'}
+            options={[
+              { value: 'off', label: 'Off' },
+              { value: 'on', label: 'On' },
+            ]}
+            onChange={(v) => setReminder(v === 'on')}
           />
         </View>
 
