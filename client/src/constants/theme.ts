@@ -13,6 +13,7 @@ import { Appearance, Platform } from 'react-native';
 export type Palette = {
   bg: string;
   surface: string;
+  surfaceCard: string;
   ink: string;
   inkSoft: string;
   inkFaint: string;
@@ -30,6 +31,7 @@ export type Palette = {
 const light = {
   bg: '#FAF6F1', // warm paper
   surface: '#FFFFFF', // cards
+  surfaceCard: 'rgba(255,255,255,0.92)', // cards over the living background (legibility held)
   ink: '#2B2722', // primary text (warm near-black)
   inkSoft: '#7A7066', // secondary text
   inkFaint: '#A89E93', // tertiary / placeholder
@@ -48,6 +50,7 @@ const light = {
 const dark = {
   bg: '#1B1917', // warm charcoal-brown, not terminal black
   surface: '#252119',
+  surfaceCard: 'rgba(37,33,25,0.86)', // cards over the living background
   ink: '#F2EBE0',
   inkSoft: '#A89E93',
   inkFaint: '#7A7066',
@@ -88,17 +91,10 @@ export const radius = {
   pill: 999,
 } as const;
 
-// Motion language (the "Dusk, evolved" redesign): one small set of durations, in ms.
-// Easing convention (applied in components): ease-out for entrances, ease-in-out for
-// ambient loops and state changes. No spring, bounce, or `back` overshoot anywhere.
-// Under reduced motion every animation collapses to its end-state (see useReducedMotion).
-export const motion = {
-  micro: 120, // tick fill, chip select
-  standard: 200, // state change, action bar, row settle
-  gentle: 320, // modal / sheet fade, progress fill
-  celebration: { quick: 1200, real: 1800, dreaded: 2400 }, // whole-task finish bloom, scaled
-  ambient: 50000, // living-background drift loop (40-60s)
-} as const;
+// Motion language (the redesign) lives in its own pure module so non-UI code can import it
+// under the test runner. Re-exported here so components keep importing it from the theme
+// alongside spacing / radius.
+export { motion } from './motion';
 
 // Two faces, applied per text style (RN-web gives every Text its own default
 // font, so neither inherits from the page): `sans` is Newsreader for headings,

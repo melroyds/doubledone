@@ -242,7 +242,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     gap: spacing.four,
     paddingVertical: spacing.four,
     paddingHorizontal: spacing.four,
-    backgroundColor: t.colors.surface,
+    backgroundColor: t.colors.surfaceCard,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: t.colors.line,
