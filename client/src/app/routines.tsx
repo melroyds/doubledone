@@ -237,7 +237,7 @@ export default function RoutinesScreen() {
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
-    screen: { flex: 1, backgroundColor: t.colors.bg },
+    screen: { flex: 1, backgroundColor: 'transparent' },
     scroll: { flex: 1 },
     content: { paddingHorizontal: spacing.five, paddingBottom: spacing.seven, gap: spacing.three },
     back: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two },
@@ -260,12 +260,13 @@ const makeStyles = (t: Theme) =>
     group: { gap: spacing.two, marginTop: spacing.two },
     groupHeading: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, textTransform: 'uppercase', letterSpacing: 1 },
     card: {
-      backgroundColor: t.colors.surface,
+      backgroundColor: t.colors.surfaceCard,
       borderRadius: radius.lg,
       padding: spacing.four,
       gap: spacing.one,
       borderWidth: 1,
       borderColor: t.colors.line,
+      boxShadow: t.scheme === 'dark' ? '0px 6px 18px -10px rgba(0,0,0,0.5)' : '0px 6px 18px -10px rgba(43,39,34,0.18)',
     },
     cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: spacing.one },
     cardName: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, flex: 1 },

@@ -192,7 +192,7 @@ export default function SignInScreen() {
 const makeStyles = (t: Theme) => StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: t.colors.bg,
+    backgroundColor: 'transparent',
     paddingHorizontal: spacing.five,
     maxWidth: 560,
     width: '100%',

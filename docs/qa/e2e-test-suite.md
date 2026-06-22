@@ -40,6 +40,17 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | TOD-14 | P2 | Both | Low-capacity day (gentle recalibration) | Under the weight gauge, tap 'Low on energy? Make it a low day'. | The gauge recalibrates to a gentler capacity (the same task count reads as fuller) and the label gives permission ('A low day. A couple of things is plenty.', up to 'Just pick one, the rest waits.'). A brief affirmation shows. The backlog is untouched, nothing is deferred or shamed. The toggle reads 'Back to a normal day' to undo, and the state self-clears at midnight (per-day, never a setting). |
 | TOD-15 | P3 | Both | Evening wind-down nudge | Open the app in the evening (after 6pm) with the day not yet closed. | A calm line appears above 'Close the day' ('Evening's here. Close the day when you're ready, even a little counts.'), inviting the closing ritual. It is in-app only (no notification), never shaming, and absent during the day. |
 | TOD-16 | P2 | Both | Rooms pill, phase greeting, soft cards (Today reborn) | Look at the Today header and the line under 'Today'. Tap the 'Rooms' pill, then a room. Open the app at different times of day. | The header shows the date plus one 'Rooms' pill (three dots and a label), never the old four-link row that wrapped on narrow phones. Tapping Rooms opens a calm bottom sheet listing Repeating, Routines, Lookback, Settings (each with a one-line hint); tap one to go, tap the scrim to close. The greeting under 'Today' changes with the clock: 'Good morning/afternoon. Just today.', 'Winding down. Just today.' in the evening, a restful line late at night. Task rows sit on a soft shadow, floating a hair above the living background. |
+
+## Visual
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| VIS-01 | P2 | Both | The living background (app-wide, calm, reduced-motion aware) | Open the app at different times of day, on light and dark. Move between Today, Routines, Lookback, Settings. Turn on Reduce Motion (in Settings or the OS) and watch the background. | A soft time-of-day gradient (dawn / day / dusk / night) with two slowly drifting light pools sits behind every screen, not just Today. It only ever shows in the margins: cards and rows stay on near-opaque surfaces, so text is always full-contrast, never washed out over the gradient. With Reduce Motion on, the colour still resolves to the time of day but the drift stops. Navigating between screens never flashes a hard background edge. |
+
+## Today
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
 | OCD-01 | P2 | Both | Done is done (completion affirmation) | Complete any task: tap a Today task, or select tasks and tap Done. | A brief, consistent calm line appears near the capture ('Done is done. Recorded.') and clears itself after a few seconds. It is the SAME line every time (never a rotating or variable reward), reduce-motion safe, and never shaming. |
 | OCD-02 | P2 | Both | Good enough (release a stuck-perfected task) | On Today, long-press a task to select it, then tap 'Good enough'. On a Later task, long-press it and tap 'Good enough' in the menu. | The task completes with a gentler line ('Good enough is done. Let it go.'). The action only appears for an incomplete one-off. It is permission to release, never a nag. |
 

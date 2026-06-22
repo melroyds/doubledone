@@ -213,7 +213,7 @@ export default function PremiumScreen() {
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
-    screen: { flex: 1, backgroundColor: t.colors.bg },
+    screen: { flex: 1, backgroundColor: 'transparent' },
     scroll: { flex: 1 },
     content: { paddingHorizontal: spacing.five, paddingBottom: spacing.six, maxWidth: 560, width: '100%', alignSelf: 'center' },
     back: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
