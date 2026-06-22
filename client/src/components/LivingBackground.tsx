@@ -106,8 +106,11 @@ export function LivingBackground() {
   const pools = PHASE_POOLS[theme.scheme];
   const { glow, pool } = poolLayout(width, height);
 
+  // overflow:hidden clips the oversized pools to the screen. A plain RN View defaults to
+  // overflow:visible, so on web the pools (larger than the viewport, anchored partly off it)
+  // make the page pannable past its edge. Native clips regardless; this matches it.
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
       <LinearGradient colors={stops} style={StyleSheet.absoluteFill} />
       <Pool
         id="ddPool1"
