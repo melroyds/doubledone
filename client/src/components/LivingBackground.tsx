@@ -5,12 +5,12 @@
 // near-opaque surfaces over it. The pure phase logic lives in lib/phase.ts.
 
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useMemo, useState } from 'react';
-import { Animated, Easing, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Animated, AppState, Easing, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { motion } from '@/constants/motion';
-import { dayPhase, PHASE_GRADIENT, PHASE_POOLS } from '@/lib/phase';
+import { dayPhase, PHASE_GRADIENT, PHASE_POOLS, poolLayout, type Phase } from '@/lib/phase';
 import { useReducedMotion, useTheme } from '@/lib/theme-provider';
 
 // A single soft light pool: an SVG radial gradient (colour at the centre fading to fully
@@ -82,19 +82,29 @@ function Pool({
   );
 }
 
+// Re-resolve the time-of-day phase whenever the app returns to the foreground (a tab becoming
+// visible on web, or AppState going active on native), so an app left open across a boundary
+// (day -> dusk) catches up on the next glance, not only on a cold start.
+function useForegroundPhase(): Phase {
+  const [phase, setPhase] = useState(() => dayPhase(new Date()));
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') setPhase(dayPhase(new Date()));
+    });
+    return () => sub.remove();
+  }, []);
+  return phase;
+}
+
 /** The whole-app background: a phase gradient with two drifting light pools behind it. */
 export function LivingBackground() {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
   const { width, height } = useWindowDimensions();
-  // Resolve the phase once on mount; re-resolving on app foreground is a later refinement.
-  const phase = useMemo(() => dayPhase(new Date()), []);
+  const phase = useForegroundPhase();
   const stops = PHASE_GRADIENT[phase][theme.scheme];
   const pools = PHASE_POOLS[theme.scheme];
-  // A large hero glow anchored at the top (the dawn wash from the mockup), plus a smaller
-  // second pool lower down. Sizes scale with the screen.
-  const glowSize = Math.max(width, 380) * 1.7;
-  const poolSize = Math.min(width, 460);
+  const { glow, pool } = poolLayout(width, height);
 
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -102,17 +112,17 @@ export function LivingBackground() {
       <Pool
         id="ddPool1"
         color={pools[0]}
-        size={glowSize}
-        start={{ x: (width - glowSize) / 2, y: -glowSize * 0.58 }}
-        drift={{ x: width * 0.08, y: height * 0.05 }}
+        size={glow.size}
+        start={{ x: glow.x, y: glow.y }}
+        drift={{ x: glow.driftX, y: glow.driftY }}
         reduceMotion={reduceMotion}
       />
       <Pool
         id="ddPool2"
         color={pools[1]}
-        size={poolSize}
-        start={{ x: width * 0.28, y: height * 0.44 }}
-        drift={{ x: -width * 0.1, y: -height * 0.04 }}
+        size={pool.size}
+        start={{ x: pool.x, y: pool.y }}
+        drift={{ x: pool.driftX, y: pool.driftY }}
         reduceMotion={reduceMotion}
       />
     </View>

@@ -33,6 +33,23 @@ export const PHASE_POOLS = {
   dark: ['rgba(232,150,92,0.36)', 'rgba(170,120,152,0.30)'] as const,
 };
 
+/** Geometry for the two light pools, given the viewport. The big hero glow scales with the
+ *  full viewport (a broad top wash that is fine at any width). The lower pool is composed for
+ *  a phone-width column, so on a wide / tall viewport we clamp its coordinate space to a
+ *  centred phone-like band: that keeps it behind the content instead of drifting into the
+ *  empty gutter as a discrete sphere (the web "ball"). The gradient still fills the screen. */
+export function poolLayout(width: number, height: number) {
+  const glowSize = Math.max(width, 380) * 1.7;
+  const bandW = Math.min(width, 600);
+  const bandH = Math.min(height, 920);
+  const ox = (width - bandW) / 2;
+  const poolSize = Math.min(bandW, 460);
+  return {
+    glow: { size: glowSize, x: (width - glowSize) / 2, y: -glowSize * 0.58, driftX: width * 0.08, driftY: height * 0.05 },
+    pool: { size: poolSize, x: ox + bandW * 0.28, y: bandH * 0.44, driftX: -bandW * 0.1, driftY: -bandH * 0.04 },
+  };
+}
+
 /** The greeting that drifts with the time of day, always ending on the spine. */
 export function phaseGreeting(date: Date): string {
   const h = date.getHours();
