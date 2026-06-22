@@ -37,3 +37,7 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Design-handoff mockup HTML, kept local (~3MB, base64-laden, trips the secret scan).
+# The README + screenshots in this dir ARE committed as the build reference.
+docs/design/redesign/*.html
