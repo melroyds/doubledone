@@ -91,7 +91,10 @@ export function LivingBackground() {
   const phase = useMemo(() => dayPhase(new Date()), []);
   const stops = PHASE_GRADIENT[phase][theme.scheme];
   const pools = PHASE_POOLS[theme.scheme];
-  const poolSize = Math.min(width, 420) * 0.9;
+  // A large hero glow anchored at the top (the dawn wash from the mockup), plus a smaller
+  // second pool lower down. Sizes scale with the screen.
+  const glowSize = Math.max(width, 380) * 1.7;
+  const poolSize = Math.min(width, 460);
 
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -99,17 +102,17 @@ export function LivingBackground() {
       <Pool
         id="ddPool1"
         color={pools[0]}
-        size={poolSize}
-        start={{ x: -poolSize * 0.2, y: height * 0.08 }}
-        drift={{ x: width * 0.18, y: height * 0.06 }}
+        size={glowSize}
+        start={{ x: (width - glowSize) / 2, y: -glowSize * 0.58 }}
+        drift={{ x: width * 0.08, y: height * 0.05 }}
         reduceMotion={reduceMotion}
       />
       <Pool
         id="ddPool2"
         color={pools[1]}
         size={poolSize}
-        start={{ x: width - poolSize * 0.8, y: height * 0.42 }}
-        drift={{ x: -width * 0.14, y: -height * 0.05 }}
+        start={{ x: width * 0.28, y: height * 0.44 }}
+        drift={{ x: -width * 0.1, y: -height * 0.04 }}
         reduceMotion={reduceMotion}
       />
     </View>

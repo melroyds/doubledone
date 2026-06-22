@@ -17,18 +17,20 @@ export function dayPhase(date: Date): Phase {
 
 type Stops = readonly [string, string, string]; // top, mid, bottom of the vertical gradient
 
-/** The vertical gradient stops per phase, light and dark, from the handoff. */
+/** The vertical gradient stops per phase, light and dark. Tuned for a visible warm wash:
+ *  the handoff's first values were nearly identical top-to-bottom, so they read as flat. */
 export const PHASE_GRADIENT: Record<Phase, { light: Stops; dark: Stops }> = {
-  dawn: { light: ['#FBEFE2', '#F6E3D6', '#F1E7EA'], dark: ['#221C24', '#1E1A22', '#1B1917'] },
-  day: { light: ['#FCF8F2', '#FAF6F1', '#F7F1E8'], dark: ['#1E1B19', '#1B1917', '#191613'] },
-  dusk: { light: ['#F7ECE4', '#F1E2E0', '#E9DCE2'], dark: ['#231C20', '#1F1A1C', '#1B1917'] },
-  night: { light: ['#ECE6E6', '#E6DEE0', '#DED8DC'], dark: ['#1A171C', '#16141A', '#121016'] },
+  dawn: { light: ['#FCEAD6', '#F7E2D8', '#F0DDE4'], dark: ['#2B2129', '#211A21', '#161217'] },
+  day: { light: ['#FCEFDB', '#FAF4EC', '#EFE6D5'], dark: ['#2C2420', '#1E1A15', '#13100C'] },
+  dusk: { light: ['#F9E5D5', '#F1DBDC', '#E6D8E6'], dark: ['#2D2125', '#21191D', '#161015'] },
+  night: { light: ['#EFE8EF', '#E4DCE9', '#D7D2E3'], dark: ['#231D2B', '#191620', '#110E18'] },
 };
 
-/** The two drifting light-pool colours (warm, then mauve or periwinkle) per theme. */
+/** The two light-pool colours per theme: a prominent warm hero glow (peach in light, amber
+ *  in dark, anchored at the top like the dawn wash) then a softer rose / mauve lower down. */
 export const PHASE_POOLS = {
-  light: ['rgba(231,176,140,0.40)', 'rgba(196,142,160,0.28)'] as const,
-  dark: ['rgba(110,114,170,0.34)', 'rgba(150,106,135,0.30)'] as const,
+  light: ['rgba(245,178,116,0.60)', 'rgba(214,148,172,0.34)'] as const,
+  dark: ['rgba(232,150,92,0.36)', 'rgba(170,120,152,0.30)'] as const,
 };
 
 /** The greeting that drifts with the time of day, always ending on the spine. */
