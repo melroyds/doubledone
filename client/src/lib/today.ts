@@ -89,18 +89,18 @@ type Parentable = Scheduled & {
  * After a task completes, walk up its parent chain (Cluster B): for each ancestor
  * whose children are now ALL done, mark that ancestor done too, so it surfaces in
  * the Lookback as the finished whole task, and keep walking up. Returns the updated
- * tasks plus the titles of any parents that just completed (for the celebration).
- * Pure; the screen does the commit and the celebratory line. A `seen` set guards
- * against a malformed cycle.
+ * tasks plus any parents that just completed, newest finished last (the last is the
+ * topmost "whole thing" the screen names in the finish celebration). Pure; the screen
+ * does the commit and the celebration. A `seen` set guards against a malformed cycle.
  */
 export function completeAncestors<T extends Parentable>(
   tasks: T[],
   completedId: string,
   date: Date,
   now: number,
-): { tasks: T[]; completed: string[] } {
+): { tasks: T[]; completed: T[] } {
   let next = tasks;
-  const completed: string[] = [];
+  const completed: T[] = [];
   const seen = new Set<string>();
   let cursorId = tasks.find((t) => t.id === completedId)?.parentId;
   while (cursorId && !seen.has(cursorId)) {
@@ -111,7 +111,7 @@ export function completeAncestors<T extends Parentable>(
     const children = next.filter((t) => t.parentId === cursorId && !t.deletedAt);
     if (children.length === 0 || !children.every((c) => isDoneOn(c, date))) break;
     next = next.map((t) => (t.id === cursorId ? { ...t, done: true, completedAt: now, silentParent: false, updatedAt: now } : t));
-    completed.push(parent.title);
+    completed.push(next.find((t) => t.id === cursorId)!);
     cursorId = parent.parentId;
   }
   return { tasks: next, completed };

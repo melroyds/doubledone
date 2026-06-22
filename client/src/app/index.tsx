@@ -4,6 +4,7 @@ import { Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleS
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Bloom, type BloomData } from '@/components/Bloom';
 import { BrainDump, type BrainDumpHandle } from '@/components/BrainDump';
 import { type BreakdownAnswers, BreakdownQuestions } from '@/components/BreakdownQuestions';
 import { BreakdownReview, type ReviewPhase, type ReviewStep } from '@/components/BreakdownReview';
@@ -25,6 +26,8 @@ import {
 } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
+import { celebrationTier, finishContext } from '@/lib/celebrate';
+import { ageInDays, isBigWin } from '@/lib/reward';
 import { addDaysISO, formatTodayLabel, friendlyDate, isReentry, presetDate, toISODate } from '@/lib/day';
 import { dayWeight } from '@/lib/estimate';
 import { dayCleared, dayClosed, stepsLanded, taskDone } from '@/lib/haptics';
@@ -71,6 +74,7 @@ export default function TodayScreen() {
   const [lowDayDate, setLowDayDate] = useState<string | null>(null);
   const [sortSummary, setSortSummary] = useState<string | null>(null);
   const [affirmation, setAffirmation] = useState<string | null>(null); // a brief "done is done" / "good enough" reassurance; auto-clears
+  const [bloom, setBloom] = useState<BloomData | null>(null); // the held whole-task-finish celebration
   const affirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tinyBusy = useRef(false); // guards the make-it-tiny AI call from a double-fire
   const [reentry, setReentry] = useState(false);
@@ -528,6 +532,9 @@ export default function TodayScreen() {
     affirmTimer.current = setTimeout(() => setAffirmation(null), 3500);
   }
 
+  // Stable so the Bloom's hold timer is not reset on every re-render of Today.
+  const dismissBloom = useCallback(() => setBloom(null), []);
+
   function toggle(id: string) {
     const next = tasks.map((t) => {
       if (t.id !== id) return t;
@@ -550,8 +557,8 @@ export default function TodayScreen() {
     // Cluster B: completing a child may finish its silent parent (decompose, exhaustive),
     // or resurface its open parent (tiny-version, partial pebbles). Either is the real task.
     let finalTasks = next;
-    let parentDone: string | null = null;
     let parentBack: string | null = null;
+    let bloomData: BloomData | null = null;
     if (done && justToggled?.parentId) {
       const parent = next.find((t) => t.id === justToggled.parentId);
       if (parent?.openParent) {
@@ -565,7 +572,10 @@ export default function TodayScreen() {
         const { tasks: walked, completed } = completeAncestors(next, id, today, nowMs());
         finalTasks = walked;
         if (completed.length > 0) {
-          parentDone = completed[completed.length - 1];
+          const whole = completed[completed.length - 1]; // the topmost finished task: the whole thing
+          const stepCount = finalTasks.filter((t) => t.parentId === whole.id && !t.deletedAt).length;
+          const tier = celebrationTier({ bigWin: isBigWin(whole), lingerDays: ageInDays(whole), stepMinutes: whole.complexity ?? 0 });
+          bloomData = { title: whole.title, context: finishContext({ lingerDays: ageInDays(whole), stepCount }), tier: tier.tier, durationMs: tier.durationMs };
           track('parent.completed', { depth: completed.length });
         }
       }
@@ -578,14 +588,18 @@ export default function TodayScreen() {
     } else if (done) {
       taskDone(reduced); // a single task done: the core, soft cue
     }
-    const message = parentDone
-      ? `You finished "${parentDone}". The whole thing.`
-      : parentBack
+    // A whole-task finish gets the held bloom (the centrepiece). Everything else keeps the
+    // quiet one-line reassurance. Never both: the bloom IS the moment.
+    if (bloomData) {
+      setBloom(bloomData);
+    } else {
+      const message = parentBack
         ? `A step done. You're chipping away at "${parentBack}".`
         : done && !cleared
           ? 'Done is done. Recorded.' // OCD reassurance: it is filed, you can stop checking
           : null;
-    if (message) affirm(message);
+      if (message) affirm(message);
+    }
     commit(finalTasks);
   }
 
@@ -1551,6 +1565,7 @@ export default function TodayScreen() {
           today={today}
         />
       )}
+      <Bloom data={bloom} onDone={dismissBloom} />
     </View>
   );
 }

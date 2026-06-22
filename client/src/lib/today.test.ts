@@ -169,7 +169,7 @@ describe('completeAncestors (Cluster B chain)', () => {
     expect(parent?.done).toBe(true);
     expect(parent?.completedAt).toBe(100);
     expect(parent?.silentParent).toBe(false);
-    expect(completed).toEqual(['p']);
+    expect(completed.map((t) => t.title)).toEqual(['p']);
   });
 
   it('leaves the parent open while a sibling is unfinished', () => {
@@ -184,7 +184,7 @@ describe('completeAncestors (Cluster B chain)', () => {
     const { tasks: next, completed } = completeAncestors(tasks, 's1', today, 100);
     expect(next.find((t) => t.id === 'mile')?.done).toBe(true);
     expect(next.find((t) => t.id === 'root')?.done).toBe(true);
-    expect(completed).toEqual(['mile', 'root']);
+    expect(completed.map((t) => t.title)).toEqual(['mile', 'root']);
   });
 
   it('does nothing for a task with no parent', () => {
