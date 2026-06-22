@@ -14,7 +14,7 @@ export const CLARIFY_MODEL = 'claude-haiku-4-5-20251001';
 export const SYSTEM_PROMPT = [
   'Someone with ADHD and autism wants to break down a task they have been avoiding.',
   'Before breaking it down, ask three short qualifying questions whose answers make the breakdown fit them.',
-  'Question one asks by when they want it done (the due date).',
+  'Question one asks only by when they want it done, as a single plain deadline question a date picker can answer, for example "When do you need this done by?". The only control under question one is a date picker, so it must never be an either/or or ask them to clarify a date already in the task; it just asks for the one deadline (or none).',
   'Question two asks whether to spread the steps gradually across several days or do them all in one sitting.',
   'Question three is the single most useful question about THIS specific task, the one whose answer most changes how you would break it down.',
   'Keep every question short, plain and literal: no pep talk, no shame, no exclamation marks.',
@@ -28,7 +28,7 @@ const QUESTIONS_TOOL = {
   input_schema: {
     type: 'object',
     properties: {
-      dueDateQuestion: { type: 'string', description: 'Asks by when they want it done.' },
+      dueDateQuestion: { type: 'string', description: 'A single plain "by when?" deadline question, answerable by picking one date (or none). No either/or, no clarifying sub-questions.' },
       spreadQuestion: { type: 'string', description: 'Asks gradual across days vs all in one sitting.' },
       customQuestion: { type: 'string', description: 'The most useful task-specific clarifier.' },
       suggestedDueDate: {
