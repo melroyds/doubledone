@@ -4,7 +4,7 @@
 
 ---
 
-## Current state (as of 2026-06-21)
+## Current state (as of 2026-06-23)
 
 Full core loop working: capture, AI decomposition (Bite the Elephant), in-app scheduling, and opt-in cloud sync. Web live at doubledone.app, Android installable via EAS.
 
@@ -51,20 +51,18 @@ A native Today widget (`react-native-android-widget`): the top unfinished titles
 - The pre-existing daily Android reminder was refactored to cancel only itself, so it and the per-task nudges coexist on their own channels.
 - **Deferred:** per-task nudges on web (needs the push pipeline per nudge), a periodic tz-offset refresh (a stored offset can drift an hour across DST), native FCM push for server events ("scrapbook ready" to Android). Trigger: web push is live and the gap is felt.
 
-## The immediate next action
+## What's left, and it is all pre-launch
 
-**The build is portfolio-complete; the leverage has left the codebase.** The full daily loop, the Dusk design pass, AND the **2026-06-21 system redesign + guided first-run** are all shipped and live: capture, AI triage, AI decompose (with the calm pace estimate, the visible moat), in-app scheduling, push-to-tomorrow, slices, the repeating drawer, cloud sync, the calendar Lookback with weighted celebration, close-the-day, Strategise, the daily reminder, a redesigned every-screen UI, and an onboarding first-run. Screenshots, README, the case-study and the build-journal are all current.
+**The build is done.** The whole product is shipped and live: the daily loop (capture, AI triage, AI decompose with the pace estimate and the moat, scheduling, push-to-tomorrow, slices, the repeating drawer), cloud sync, the calendar Lookback with weighted celebration, close-the-day, Strategise, the daily reminder, the full ADHD seam (low-capacity day, wind-down, Routines, the silent-parent decompose, Make-it-tiny), the scrapbook, the MCP server, the public REST API, native push + a home-screen widget, talk-to-capture, two design passes (Dusk, then Dusk-evolved), a guided first-run, and the 2026-06-23 live-pass UX fixes. Screenshots, README, case-study and build-journal are current.
 
-What remains is **not build work**. In priority order:
+Nothing below means "the product isn't finished." It is. What remains splits two ways:
 
-1. **Go-live ops (built, needs Melroy's hands)** — the highest-value cluster: it turns three "built" claims (monetisation, deletion, native) into "demonstrably live" ones. Full runbook in [Go-live checklist (B)](#go-live-checklist-b) below.
-2. **Parked with triggers** (real features, correctly deferred): custom lists, Plan my day, talk-to-capture, routines, calendar sync, an edit path for slices / dates on an existing task. **Multi-language's trigger ("after the design overhaul") has now fired** — the one item that became build-ready, though it re-banks ParkProof's i18n signal rather than adding a new one.
-3. **Needs volume, not code:** the real anonymised "other users took ~X days" crowd estimate. The surface is built; it needs real users to be honest. A launch dependency.
-4. **Launch path:** Play Store listing, a transactional email sender. Reach, not product.
+- **[Pre-launch](#pre-launch-not-part-of-the-build)** (config, ops, launch) — the real remaining work, none of it new code. This is the path to a public launch.
+- **[Backlog](#backlog-deferred-work-with-triggers)** — deferred features, each behind a trigger. Optional, dip in anytime, not blocking. (The items once listed as "next" — multi-language, talk-to-capture, routines, the ADHD seam — have all shipped; what is left there is genuinely later-or-never.)
 
-### Go-live checklist (B)
+## Pre-launch (not part of the build)
 
-The "built, needs your hands" cluster, in order. None of it is new code; it is configuration, one migration, and a device check.
+The "built, needs your hands" cluster: the steps that turn shipped code into a public launch. None of it is new code, it is configuration, one migration, device checks, and store / email setup. In rough order:
 
 **1. Stripe Premium — ✅ done (test mode, tested 2026-06-21).** Melroy set the keys + product and verified the `4242` flow end to end. The steps below stay for reference, and for the one remaining bit: flipping to live-mode (real charges), which is a launch step. The `/checkout` + `/stripe-webhook` flow, the `/premium` paywall, and the D1 entitlement are built.
    1. In the **Stripe dashboard** (test mode), create a Product "DoubleDone Premium" with a recurring **A$5 / month** price; copy the price id (`price_…`).
@@ -80,12 +78,18 @@ The "built, needs your hands" cluster, in order. None of it is new code; it is c
 
 **3. On-device checks (need a fresh Android build).** The APK predates the redesign AND the whole 2026-06-21 native batch, so build a new one first (`eas build -p android --profile preview`), sideload, then check: the redesign + fonts + dark mode, the **daily reminder**, and the native batch — **haptics**, **keep-awake in Focus**, **themed system bars**, **launcher shortcuts**, **share-to-DoubleDone**, the **home-screen widget**, and the **per-task "remind me" nudges** (test cases `HAP-01/02`, `AND-01`–`AND-06`). One build covers all of it. **Widget:** its native module compiled clean on RN 0.85 (build `defc4d3f`), so the old `git revert 50a85b2` fallback is moot, just confirm it renders today's tasks once added to the home screen.
 
-**4. Web push (Phase 2 reminders) — deploy runbook.** The code is complete and on `main`; to make web reminders live:
+**4. Web push (Phase 2 reminders) — ✅ live (2026-06-23).** The VAPID keys are set, the `push_subs` table is applied, the Worker is deployed (the hourly cron + the `/push` routes), and the public key is in Pages, so the "Daily reminder" toggle works on web and the daily nudge sends. The one unconfirmed bit is watching an actual notification land on a real device (a real opt-in, then the send hour). The runbook, for reference:
    1. `node scripts/gen-vapid.mjs` → copy the two values it prints.
    2. Worker secrets: `npx wrangler secret put VAPID_PRIVATE_KEY --name doubledone-ai` (paste the private JWK) and `npx wrangler secret put VAPID_SUBJECT --name doubledone-ai` (e.g. `mailto:you@doubledone.app`).
    3. Add the `push_subs` table: `npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --file d1/schema.sql`.
    4. Deploy the Worker (registers the hourly cron + the `/push` routes): `npx wrangler deploy` from `server/` (needs your explicit OK per CLAUDE.md).
    5. Set `EXPO_PUBLIC_VAPID_KEY` (the public value) in the Cloudflare **Pages** project env, then trigger a web rebuild. The "Daily reminder" toggle then appears on web; toggling it on subscribes the browser and the hourly cron sends the daily nudge.
+
+**5. Launch (reach, not product).** A Play Store listing (the sideloaded APK becomes a real install with auto-updates and a store-listing portfolio signal; ~$25 one-off plus review) and a real transactional email sender for the sign-in code (instead of Supabase's shared sender, which can land in spam). Detail in [Backlog → Platform and distribution](#backlog-deferred-work-with-triggers).
+
+**6. Privacy before public launch.** Remote-clear a device whose account was deleted elsewhere; enforce aggregation / anonymisation when telemetry graduates from the console to a real sink; and document Anthropic's data handling (API inputs are not used for training by default). The egress + retention disclosure and the AI-endpoint lockdown are already done. Detail in [Privacy and Security → To do](#privacy-and-security).
+
+**7. The honest crowd estimate needs volume, not code.** The "others took about X days" surface is built but shows the app's own transparent estimate until real anonymised cross-user timings exist. A launch dependency, not a task.
 
 ---
 
