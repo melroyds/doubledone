@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { type Recurrence } from './recurrence';
-import { completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, resurfaceOpenParent, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
+import { completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, resurfaceOpenParent, tinyParentTitle, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
 
 const today = new Date(2026, 5, 17);
 const iso = '2026-06-17';
@@ -214,5 +214,30 @@ describe('completeAncestors (Cluster B chain)', () => {
   it('resurfaceOpenParent ignores a non-open (exhaustive) parent and a parentless task', () => {
     expect(resurfaceOpenParent([mk('p', undefined, false, true), mk('c', 'p', true)], 'c', 100).parentTitle).toBeNull();
     expect(resurfaceOpenParent([mk('a', undefined, true)], 'a', 100).parentTitle).toBeNull();
+  });
+});
+
+describe('tinyParentTitle', () => {
+  type TT = { id: string; parentId?: string; parentTitle?: string; openParent?: boolean };
+
+  it('returns the parent title for a pebble whose parent is open', () => {
+    const tasks: TT[] = [
+      { id: 'p', openParent: true },
+      { id: 'peb', parentId: 'p', parentTitle: 'Do my taxes' },
+    ];
+    expect(tinyParentTitle(tasks, tasks[1])).toBe('Do my taxes');
+  });
+
+  it('returns null for a decomposition step (the parent is silent, not open)', () => {
+    const tasks: TT[] = [
+      { id: 'p' }, // a silent (not open) parent
+      { id: 's', parentId: 'p', parentTitle: 'Plan the party' },
+    ];
+    expect(tinyParentTitle(tasks, tasks[1])).toBeNull();
+  });
+
+  it('returns null for a task with no parent', () => {
+    const tasks: TT[] = [{ id: 'a' }];
+    expect(tinyParentTitle(tasks, tasks[0])).toBeNull();
   });
 });

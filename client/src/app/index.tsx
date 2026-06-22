@@ -49,7 +49,7 @@ import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
 import { updateWidget } from '@/widget/update';
 import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
-import { completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, isRecurring, resurfaceOpenParent, tasksForToday, toggleDoneOn, upcomingTasks } from '@/lib/today';
+import { completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, isRecurring, resurfaceOpenParent, tasksForToday, tinyParentTitle, toggleDoneOn, upcomingTasks } from '@/lib/today';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
@@ -597,7 +597,7 @@ export default function TodayScreen() {
       setBloom(bloomData);
     } else {
       const message = parentBack
-        ? `A step done. You're chipping away at "${parentBack}".`
+        ? `You started, that's the hard part. ${parentBack} is back when you're ready.`
         : done && !cleared
           ? 'Done is done. Recorded.' // OCD reassurance: it is filed, you can stop checking
           : null;
@@ -1004,6 +1004,7 @@ export default function TodayScreen() {
               selected={selected.includes(task.id)}
               onSelect={() => toggleSelect(task.id)}
               nudgeAt={task.nudgeAt}
+              tinyParent={tinyParentTitle(tasks, task)}
             />
           ))}
         </View>

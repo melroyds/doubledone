@@ -149,3 +149,15 @@ export function resurfaceOpenParent<T extends Parentable>(
   });
   return { tasks: next, parentTitle: parent.title };
 }
+
+/** The parent's title if this task is a tiny-version pebble (its parent is an OPEN parent),
+ *  else null. Lets a row show an "a tiny step toward X" eyebrow, distinguishing a pebble
+ *  from an ordinary decomposition step (whose parent is silent, not open). Pure. */
+export function tinyParentTitle<T extends { parentId?: string; parentTitle?: string; openParent?: boolean; id: string }>(
+  tasks: T[],
+  task: T,
+): string | null {
+  if (!task.parentId || !task.parentTitle) return null;
+  const parent = tasks.find((t) => t.id === task.parentId);
+  return parent?.openParent ? task.parentTitle : null;
+}

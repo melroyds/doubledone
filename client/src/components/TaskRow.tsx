@@ -28,6 +28,7 @@ type Props = {
   selected?: boolean;
   onSelect?: () => void;
   nudgeAt?: number | null;
+  tinyParent?: string | null; // set when this row is a make-it-tiny pebble: the dreaded parent's title
 };
 
 // A single row. Tap to complete (a soft sage check, gentle fade, never a shaming
@@ -60,6 +61,7 @@ export function TaskRow({
   selected,
   onSelect,
   nudgeAt,
+  tinyParent,
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
@@ -215,6 +217,30 @@ export function TaskRow({
     );
   }
 
+  // A make-it-tiny pebble: an eyebrow keeps the dreaded real task visible above the
+  // 2-minute step, so the link is never lost. Periwinkle, matching the one-off border.
+  if (tinyParent && !done) {
+    return (
+      <View style={[styles.row, styles.rowUnique, styles.tinyColumn]}>
+        <Text style={styles.tinyEyebrow} numberOfLines={1}>
+          A tiny step toward · {tinyParent}
+        </Text>
+        <Pressable
+          onPress={onToggle}
+          onLongPress={onLongPress}
+          delayLongPress={400}
+          style={({ pressed }) => [styles.tinyMain, pressed && styles.pressed]}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: done }}
+          accessibilityLabel={`${title}, a tiny step toward ${tinyParent}`}
+        >
+          <View style={[styles.check, done && styles.checkDone]}>{done && <Text style={styles.tick}>✓</Text>}</View>
+          <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <Pressable
       onPress={onToggle}
@@ -291,6 +317,9 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   suggestMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
   suggestHintBtn: { alignSelf: 'flex-start' },
   suggestHint: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+  tinyColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
+  tinyMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
+  tinyEyebrow: { color: t.colors.repeat, fontSize: 12 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', letterSpacing: 0.5 },
   sliceColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
   sliceTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
   sliceCount: { color: t.colors.repeat, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
