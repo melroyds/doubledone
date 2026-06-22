@@ -5,8 +5,10 @@ import { buildWidgetModel } from './widget-model';
 
 const TODAY = new Date(2026, 5, 21); // 21 June 2026
 
+// A done task carries a completedAt of TODAY: the today-filter keeps a finished task only on
+// its completion day, so the widget's "done" state needs a same-day completion to count.
 function task(id: string, title: string, done = false): Task {
-  return { id, title, done, createdAt: 1, updatedAt: 1, ...(done ? { completedAt: 1 } : {}) };
+  return { id, title, done, createdAt: 1, updatedAt: 1, ...(done ? { completedAt: TODAY.getTime() } : {}) };
 }
 
 describe('buildWidgetModel', () => {

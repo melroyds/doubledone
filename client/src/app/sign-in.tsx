@@ -84,7 +84,8 @@ export default function SignInScreen() {
   }
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top + spacing.six }]}>
+    <View style={styles.screen}>
+      <View style={[styles.content, { paddingTop: insets.top + spacing.six }]}>
       <Pressable onPress={goBack} accessibilityRole="button" accessibilityLabel="Not now" hitSlop={8}>
         <Text style={styles.cancel}>Not now</Text>
       </Pressable>
@@ -185,6 +186,7 @@ export default function SignInScreen() {
       )}
 
       {error && phase !== 'done' && <Text style={styles.error}>{error}</Text>}
+      </View>
     </View>
   );
 }
@@ -193,10 +195,13 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: t.colors.bg,
-    paddingHorizontal: spacing.five,
-    maxWidth: 560,
+  },
+  content: {
+    flex: 1,
     width: '100%',
+    maxWidth: 560,
     alignSelf: 'center',
+    paddingHorizontal: spacing.five,
   },
   cancel: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, marginBottom: spacing.six },
   title: {

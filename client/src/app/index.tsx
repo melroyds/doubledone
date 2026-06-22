@@ -1749,7 +1749,7 @@ const makeStyles = (t: Theme) =>
     },
     focusEntryText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     alsoDidUnderList: { marginTop: spacing.three, marginBottom: spacing.two, alignItems: 'center' },
-    selectTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.two },
+    selectTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four, marginBottom: spacing.two },
     selectAllText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
     moveToPresets: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two, justifyContent: 'center', marginBottom: spacing.three },
     moveChip: { borderWidth: 1, borderColor: t.colors.line, borderRadius: radius.pill, paddingVertical: spacing.two, paddingHorizontal: spacing.three },

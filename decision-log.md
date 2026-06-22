@@ -1548,3 +1548,11 @@ With the background finally visible, Melroy spotted two things on the web app. F
 Second, the optional polish: the phase now re-resolves when the app returns to the foreground (`useForegroundPhase`, via AppState 'active', which also fires on web tab-visibility), so an app left open across a boundary (day -> dusk) catches up on the next glance instead of only on a cold start.
 
 Decided: the living background stays Today-only (Melroy's call, confirmed) - it earns its keep as Today's signature and adds little spread across the calmer, denser screens. README screenshots regenerated (they predated the living background, so the GitHub portfolio never showed it). Verification: typecheck / lint / 282 client + 127 server tests, the new `poolLayout` geometry covered; the phone screenshots confirm the wash renders warm and calm; the wide-web result is Melroy's to confirm on deploy.
+
+## 2026-06-23 Three fixes from Melroy's live pass: sign-in fill, select-bar alignment, completed tasks no longer carry
+
+- **Sign-in** boxed its own background to 560px: the `maxWidth` + `alignSelf: center` were on the screen *root*, so the background itself was capped and the page bled through on wide screens. Split into a full-bleed `screen` (`flex: 1` + `colors.bg`) and a centred `content` column, the pattern the other screens already use. Both schemes.
+- **The multi-select bar's** "1 selected / Select all" row used `justifyContent: space-between`, but it is a content-sized child of a centred column, so there was no width to space across and the two labels collapsed together. Now a centred pair with an explicit gap.
+- **Behavioural:** a finished one-off used to linger on Today indefinitely (the today-filter only checked due date, never done-ness). `tasksForToday` now keeps a done one-off only on the day it was completed (by its `completedAt`), then it lives in the Lookback. Open tasks still roll forward calmly, never shamed; only completed ones stop carrying; recurring tasks are unchanged (they reset by cadence). Surfaced and fixed a widget-model test that fed a done task a 1970 `completedAt`.
+
+Decided against: dropping a task the instant it is ticked. You want to see today's wins before the day turns over, so a finished task stays until the date changes, then moves to the Lookback.

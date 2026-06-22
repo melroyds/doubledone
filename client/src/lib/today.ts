@@ -6,6 +6,7 @@ import { isDueOn, type Recurrence } from './recurrence';
 
 export type Scheduled = {
   done: boolean;
+  completedAt?: number | null; // one-off completion time; a done one-off shows on Today only the day it was finished
   due?: string | null;
   recurrence?: Recurrence;
   completedDates?: string[]; // ISO dates a recurring task was completed
@@ -38,16 +39,20 @@ export function toggleDoneOn<T extends Scheduled>(task: T, date: Date): T {
 }
 
 /**
- * What lands on Today. A recurring task shows when it is due today. A one-off
- * shows when it is undated (the "do it now" capture default) or its due date is
- * today or earlier, so an overdue one-off rolls forward calmly, with no shaming.
- * Future-dated one-offs wait in the Later list.
+ * What lands on Today. A recurring task shows when it is due today. An OPEN one-off
+ * shows when it is undated (the "do it now" capture default) or its due date is today
+ * or earlier, so an overdue one-off rolls forward calmly, with no shaming. A DONE
+ * one-off shows only on the day it was finished, then it lives in the Lookback (a
+ * completed task never carries into the next day). Future one-offs wait in Later.
  */
 export function tasksForToday<T extends Scheduled>(tasks: T[], date: Date): T[] {
   const todayIso = toISODate(date);
-  return tasks.filter((t) =>
-    t.deletedAt || t.silentParent ? false : isRecurring(t) ? isDueOn(t, date) : t.due == null || t.due <= todayIso,
-  );
+  return tasks.filter((t) => {
+    if (t.deletedAt || t.silentParent) return false;
+    if (isRecurring(t)) return isDueOn(t, date);
+    if (t.done) return t.completedAt != null && toISODate(new Date(t.completedAt)) === todayIso;
+    return t.due == null || t.due <= todayIso;
+  });
 }
 
 /**

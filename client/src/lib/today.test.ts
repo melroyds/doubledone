@@ -92,6 +92,18 @@ describe('tasksForToday', () => {
     ]);
   });
 
+  it('keeps a one-off finished today and a recurring done today, drops one finished earlier', () => {
+    const todayMs = new Date(2026, 5, 17, 9).getTime();
+    const yesterdayMs = new Date(2026, 5, 16, 9).getTime();
+    const tasks = [
+      { id: 'done-today', done: true, completedAt: todayMs },
+      { id: 'done-earlier', done: true, completedAt: yesterdayMs },
+      { id: 'open', done: false },
+      { id: 'daily-done', done: false, recurrence: daily, completedDates: [iso] },
+    ];
+    expect(tasksForToday(tasks, today).map((t) => t.id)).toEqual(['done-today', 'open', 'daily-done']);
+  });
+
   it('excludes soft-deleted (tombstoned) tasks, recurring or not', () => {
     const tasks = [
       { id: 'live', done: false },
