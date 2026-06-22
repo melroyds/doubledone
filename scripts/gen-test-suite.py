@@ -111,6 +111,9 @@ CASES = [
     ("TOD-15", "Today", "P3", "Evening wind-down nudge",
      "Open the app in the evening (after 6pm) with the day not yet closed.",
      "A calm line appears above 'Close the day' ('Evening's here. Close the day when you're ready, even a little counts.'), inviting the closing ritual. It is in-app only (no notification), never shaming, and absent during the day.", "Both"),
+    ("TOD-16", "Today", "P2", "Rooms pill, phase greeting, soft cards (Today reborn)",
+     "Look at the Today header and the line under 'Today'. Tap the 'Rooms' pill, then a room. Open the app at different times of day.",
+     "The header shows the date plus one 'Rooms' pill (three dots and a label), never the old four-link row that wrapped on narrow phones. Tapping Rooms opens a calm bottom sheet listing Repeating, Routines, Lookback, Settings (each with a one-line hint); tap one to go, tap the scrim to close. The greeting under 'Today' changes with the clock: 'Good morning/afternoon. Just today.', 'Winding down. Just today.' in the evening, a restful line late at night. Task rows sit on a soft shadow, floating a hair above the living background.", "Both"),
 
     # --- OCD reassurance (Cluster A) -----------------------------------------
     ("OCD-01", "Today", "P2", "Done is done (completion affirmation)",

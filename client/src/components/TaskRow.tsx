@@ -246,6 +246,8 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: t.colors.line,
+    // Soft elevation: rows float a hair above the living background (the redesign).
+    boxShadow: t.scheme === 'dark' ? '0px 6px 18px -10px rgba(0,0,0,0.5)' : '0px 6px 18px -10px rgba(43,39,34,0.18)',
   },
   rowUnique: { borderColor: t.colors.repeat, borderWidth: 2 },
   pressed: { opacity: 0.7 },

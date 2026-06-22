@@ -10,6 +10,7 @@ import { type BreakdownAnswers, BreakdownQuestions } from '@/components/Breakdow
 import { BreakdownReview, type ReviewPhase, type ReviewStep } from '@/components/BreakdownReview';
 import { DatePicker } from '@/components/DatePicker';
 import { RepeatingDrawer } from '@/components/RepeatingDrawer';
+import { RoomsSheet } from '@/components/RoomsSheet';
 import { RotatingPhrase } from '@/components/RotatingPhrase';
 import { TaskRow } from '@/components/TaskRow';
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
@@ -28,6 +29,7 @@ import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
 import { celebrationTier, finishContext } from '@/lib/celebrate';
 import { ageInDays, isBigWin } from '@/lib/reward';
+import { phaseGreeting } from '@/lib/phase';
 import { addDaysISO, formatTodayLabel, friendlyDate, isReentry, presetDate, toISODate } from '@/lib/day';
 import { dayWeight } from '@/lib/estimate';
 import { dayCleared, dayClosed, stepsLanded, taskDone } from '@/lib/haptics';
@@ -75,6 +77,7 @@ export default function TodayScreen() {
   const [sortSummary, setSortSummary] = useState<string | null>(null);
   const [affirmation, setAffirmation] = useState<string | null>(null); // a brief "done is done" / "good enough" reassurance; auto-clears
   const [bloom, setBloom] = useState<BloomData | null>(null); // the held whole-task-finish celebration
+  const [roomsOpen, setRoomsOpen] = useState(false); // the Rooms navigation sheet (collapses the 4 header links)
   const affirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tinyBusy = useRef(false); // guards the make-it-tiny AI call from a double-fire
   const [reentry, setReentry] = useState(false);
@@ -880,40 +883,20 @@ export default function TodayScreen() {
       >
         <View style={styles.topBar}>
           <Text style={styles.date}>{formatTodayLabel(today)}</Text>
-          <View style={styles.topLinks}>
-            <Pressable
-              onPress={openDrawer}
-              accessibilityRole="button"
-              accessibilityLabel="Open repeating tasks"
-              hitSlop={8}
-            >
-              <Text style={styles.lookbackLink}>Repeating</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => router.push('/routines')}
-              accessibilityRole="button"
-              accessibilityLabel="Open Routines"
-              hitSlop={8}
-            >
-              <Text style={styles.lookbackLink}>Routines</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => router.push('/lookback')}
-              accessibilityRole="button"
-              accessibilityLabel="Open the Lookback calendar"
-              hitSlop={8}
-            >
-              <Text style={styles.lookbackLink}>Lookback ›</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => router.push('/settings')}
-              accessibilityRole="button"
-              accessibilityLabel="Open Settings"
-              hitSlop={8}
-            >
-              <Text style={styles.gear}>⚙</Text>
-            </Pressable>
-          </View>
+          <Pressable
+            onPress={() => setRoomsOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Rooms: Repeating, Routines, Lookback, Settings"
+            hitSlop={8}
+            style={({ pressed }) => [styles.roomsPill, pressed && styles.pressed]}
+          >
+            <View style={styles.roomsDots}>
+              <View style={styles.roomsDot} />
+              <View style={styles.roomsDot} />
+              <View style={styles.roomsDot} />
+            </View>
+            <Text style={styles.roomsLabel}>Rooms</Text>
+          </Pressable>
         </View>
         {reentry && !isClosed && (
           <View style={styles.reentry}>
@@ -933,7 +916,7 @@ export default function TodayScreen() {
           </View>
         )}
         <Text style={styles.title}>Today</Text>
-        <Text style={styles.spine}>Just today. The rest can wait.</Text>
+        <Text style={styles.spine}>{phaseGreeting(today)}</Text>
         {loaded && !isClosed && spreadable.length > 0 && (
           <View style={styles.weight}>
             <View style={styles.weightTrack}>
@@ -1565,6 +1548,14 @@ export default function TodayScreen() {
           today={today}
         />
       )}
+      <RoomsSheet
+        visible={roomsOpen}
+        onClose={() => setRoomsOpen(false)}
+        onRepeating={openDrawer}
+        onRoutines={() => router.push('/routines')}
+        onLookback={() => router.push('/lookback')}
+        onSettings={() => router.push('/settings')}
+      />
       <Bloom data={bloom} onDone={dismissBloom} />
     </View>
   );
@@ -1583,9 +1574,20 @@ const makeStyles = (t: Theme) =>
     },
     topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.one },
     date: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    lookbackLink: { color: t.colors.accent, fontSize: 15 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
-    gear: { color: t.colors.accent, fontSize: 22 * t.scale, fontFamily: fonts.body },
-    topLinks: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
+    roomsPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.two,
+      borderWidth: 1,
+      borderColor: t.scheme === 'dark' ? 'rgba(242,235,224,0.14)' : 'rgba(43,39,34,0.10)',
+      backgroundColor: t.scheme === 'dark' ? 'rgba(37,33,25,0.6)' : 'rgba(255,255,255,0.6)',
+      borderRadius: radius.pill,
+      paddingVertical: 8,
+      paddingHorizontal: 13,
+    },
+    roomsDots: { flexDirection: 'row', gap: 3 },
+    roomsDot: { width: 4, height: 4, borderRadius: radius.pill, backgroundColor: t.colors.accent },
+    roomsLabel: { color: t.colors.accent, fontSize: 13 * t.scale, fontWeight: '700', fontFamily: fonts.bodyBold },
     title: {
       color: t.colors.ink,
       fontSize: 34 * t.scale,
