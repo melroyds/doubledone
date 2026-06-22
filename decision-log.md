@@ -1556,3 +1556,12 @@ Decided: the living background stays Today-only (Melroy's call, confirmed) - it 
 - **Behavioural:** a finished one-off used to linger on Today indefinitely (the today-filter only checked due date, never done-ness). `tasksForToday` now keeps a done one-off only on the day it was completed (by its `completedAt`), then it lives in the Lookback. Open tasks still roll forward calmly, never shamed; only completed ones stop carrying; recurring tasks are unchanged (they reset by cadence). Surfaced and fixed a widget-model test that fed a done task a 1970 `completedAt`.
 
 Decided against: dropping a task the instant it is ticked. You want to see today's wins before the day turns over, so a finished task stays until the date changes, then moves to the Lookback.
+
+## 2026-06-23 Today capture + footer redesign (Melroy's live pass, part 2)
+
+More Today feedback from Melroy:
+- **Speak is inline** beside a narrower capture box now, not on its own line below it.
+- **"Add to today" → "Add".** The button echoed the default-selected "Today" chip, which read as redundant. Relabelling the today case to a plain "Add" kills the echo. Melroy was unsure whether to drop the button entirely; I kept one clear "Add" because a button-free capture forces a when-chip to double as both selector and commit (ambiguous on a quick tap), and the Date / recurring chips need a confirm step regardless. For an ADHD capture, an unambiguous commit beats removing one button. Open to the chip-commit version if he prefers after seeing it.
+- **The optional links moved below the rolling marquee:** "Synced to X" (or the sync invite) and "Turn on daily reminder", both centred in the accent colour, out of the way as the low-priority, optional things they are. (Melroy chose "both below the marquee" over promoting sync.)
+
+The old footer stacked sync + reminder above the marquee, left-aligned; the new strip sits below it, centred. Screenshots regenerated.

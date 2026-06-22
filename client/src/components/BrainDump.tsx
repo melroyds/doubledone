@@ -38,7 +38,7 @@ const MODES: { mode: Mode; label: string }[] = [
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']; // index 0=Sun .. 6=Sat
 
 const ADD_LABEL: Record<Mode, string> = {
-  today: 'Add to today',
+  today: 'Add',
   tomorrow: 'Add for tomorrow',
   date: 'Add for that day',
   daily: 'Add daily',
@@ -228,21 +228,20 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
 
   return (
     <View style={styles.wrap}>
-      <TextInput
-        ref={inputRef}
-        value={value}
-        onChangeText={setValue}
-        editable={!busy}
-        placeholder="Empty your head. One line per thing."
-        placeholderTextColor={theme.colors.inkFaint}
-        style={styles.input}
-        multiline
-        textAlignVertical="top"
-        accessibilityLabel="Brain-dump. Add one or more things, one per line"
-      />
-
-      {canDictate && (
-        <View style={styles.speakRow}>
+      <View style={styles.captureRow}>
+        <TextInput
+          ref={inputRef}
+          value={value}
+          onChangeText={setValue}
+          editable={!busy}
+          placeholder="Empty your head. One line per thing."
+          placeholderTextColor={theme.colors.inkFaint}
+          style={[styles.input, styles.inputFlex]}
+          multiline
+          textAlignVertical="top"
+          accessibilityLabel="Brain-dump. Add one or more things, one per line"
+        />
+        {canDictate && (
           <Pressable
             onPress={toggleDictation}
             disabled={busy}
@@ -253,11 +252,11 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
           >
             {listening && <View style={styles.liveDot} />}
             <Text style={[styles.speakText, listening && styles.speakTextOn]}>
-              {listening ? 'Listening… tap to stop' : '🎤 Speak'}
+              {listening ? 'Listening…' : '🎤 Speak'}
             </Text>
           </Pressable>
-        </View>
-      )}
+        )}
+      </View>
 
       <View style={styles.chips}>
         {MODES.map(({ mode: m, label }) => (
@@ -587,7 +586,8 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   disabled: { opacity: 0.5 },
   addText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body },
-  speakRow: { flexDirection: 'row' },
+  captureRow: { flexDirection: 'row', gap: spacing.two, alignItems: 'flex-start' },
+  inputFlex: { flex: 1 },
   speak: {
     flexDirection: 'row',
     alignItems: 'center',

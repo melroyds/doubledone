@@ -1182,37 +1182,30 @@ export default function TodayScreen() {
         {!isClosed && sortSummary && <Text style={styles.sortSummary}>{sortSummary}</Text>}
         {!isClosed && affirmation && <Text style={styles.affirmation}>{affirmation}</Text>}
         {!isClosed && <BrainDump ref={brainDumpRef} onCapture={capture} onBiteElephant={biteElephant} onSort={sortDump} today={today} />}
-        {isSyncConfigured &&
-          (session ? (
-            <View style={styles.syncRow}>
-              <Text style={styles.syncText} numberOfLines={1}>
-                Synced to {session.user.email ?? 'your account'}
-              </Text>
-              <Pressable onPress={signOut} accessibilityRole="button" accessibilityLabel="Sign out" hitSlop={8}>
-                <Text style={styles.syncAction}>Sign out</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <Pressable
-              onPress={() => router.push('/sign-in')}
-              accessibilityRole="button"
-              accessibilityLabel="Sync across devices"
-            >
-              <Text style={styles.sync}>Sync across devices</Text>
-            </Pressable>
-          ))}
-        <Pressable
-          onPress={toggleReminder}
-          accessibilityRole="button"
-          accessibilityLabel="Toggle daily reminder"
-          hitSlop={6}
-        >
-          <Text style={reminderOn ? styles.sync : styles.syncAction}>
-            {reminderOn ? 'Daily reminder on' : 'Turn on daily reminder'}
-          </Text>
-        </Pressable>
         <View style={styles.ethos}>
           <RotatingPhrase />
+        </View>
+        {/* The optional, low-priority links live below the marquee, calm and out of the way:
+            who you're synced as (or the sync invite) and the daily-reminder toggle. */}
+        <View style={styles.optionalLinks}>
+          {isSyncConfigured &&
+            (session ? (
+              <>
+                <Text style={styles.optLink} numberOfLines={1}>
+                  Synced to {session.user.email ?? 'your account'}
+                </Text>
+                <Pressable onPress={signOut} accessibilityRole="button" accessibilityLabel="Sign out" hitSlop={6}>
+                  <Text style={styles.optFaint}>Sign out</Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable onPress={() => router.push('/sign-in')} accessibilityRole="button" accessibilityLabel="Sync across devices" hitSlop={6}>
+                <Text style={styles.optLink}>Sync across devices</Text>
+              </Pressable>
+            ))}
+          <Pressable onPress={toggleReminder} accessibilityRole="button" accessibilityLabel="Toggle daily reminder" hitSlop={6}>
+            <Text style={styles.optLink}>{reminderOn ? 'Daily reminder on' : 'Turn on daily reminder'}</Text>
+          </Pressable>
         </View>
           </>
         )}
@@ -1646,6 +1639,9 @@ const makeStyles = (t: Theme) =>
     syncText: { color: t.colors.inkFaint, fontSize: 13 * t.scale, flexShrink: 1, fontFamily: fonts.body },
     syncAction: { color: t.colors.accent, fontSize: 13 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
     ethos: { marginTop: spacing.three, alignItems: 'center' },
+    optionalLinks: { marginTop: spacing.four, alignItems: 'center', gap: spacing.two },
+    optLink: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center' },
+    optFaint: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     selectBar: { gap: spacing.three, alignItems: 'center', paddingVertical: spacing.two },
     selectCount: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     selectActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.six },
