@@ -9,6 +9,7 @@ import { BrainDump, type BrainDumpHandle } from '@/components/BrainDump';
 import { type BreakdownAnswers, BreakdownQuestions } from '@/components/BreakdownQuestions';
 import { BreakdownReview, type ReviewPhase, type ReviewStep } from '@/components/BreakdownReview';
 import { DatePicker } from '@/components/DatePicker';
+import { LivingBackground } from '@/components/LivingBackground';
 import { RepeatingDrawer } from '@/components/RepeatingDrawer';
 import { RoomsSheet } from '@/components/RoomsSheet';
 import { RotatingPhrase } from '@/components/RotatingPhrase';
@@ -876,6 +877,7 @@ export default function TodayScreen() {
 
   return (
     <View style={styles.screen}>
+      <LivingBackground />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.seven }]}

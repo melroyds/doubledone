@@ -114,9 +114,9 @@ CASES = [
     ("TOD-16", "Today", "P2", "Rooms pill, phase greeting, soft cards (Today reborn)",
      "Look at the Today header and the line under 'Today'. Tap the 'Rooms' pill, then a room. Open the app at different times of day.",
      "The header shows the date plus one 'Rooms' pill (three dots and a label), never the old four-link row that wrapped on narrow phones. Tapping Rooms opens a calm bottom sheet listing Repeating, Routines, Lookback, Settings (each with a one-line hint); tap one to go, tap the scrim to close. The greeting under 'Today' changes with the clock: 'Good morning/afternoon. Just today.', 'Winding down. Just today.' in the evening, a restful line late at night. Task rows sit on a soft shadow, floating a hair above the living background.", "Both"),
-    ("VIS-01", "Visual", "P2", "The living background (app-wide, calm, reduced-motion aware)",
-     "Open the app at different times of day, on light and dark. Move between Today, Routines, Lookback, Settings. Turn on Reduce Motion (in Settings or the OS) and watch the background.",
-     "A soft time-of-day gradient (dawn / day / dusk / night) with two slowly drifting light pools sits behind every screen, not just Today. It only ever shows in the margins: cards and rows stay on near-opaque surfaces, so text is always full-contrast, never washed out over the gradient. With Reduce Motion on, the colour still resolves to the time of day but the drift stops. Navigating between screens never flashes a hard background edge.", "Both"),
+    ("VIS-01", "Visual", "P2", "The living background (Today's signature, calm, reduced-motion aware)",
+     "Open Today at different times of day, on light and dark. Turn on Reduce Motion (in Settings or the OS) and watch the Today background. Then move to Routines, Lookback, Settings.",
+     "On Today, a soft time-of-day gradient (dawn / day / dusk / night) with a warm top glow and a softer lower pool sits behind the screen. It only ever shows in the margins: cards and rows stay on near-opaque surfaces, so text is always full-contrast, never washed out. With Reduce Motion on, the colour still resolves to the time of day but the drift stops. The other screens (Routines, Lookback, Settings, etc.) sit on a solid, calm Dusk background, with no grey flash.", "Both"),
 
     # --- OCD reassurance (Cluster A) -----------------------------------------
     ("OCD-01", "Today", "P2", "Done is done (completion affirmation)",

@@ -45,7 +45,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 
 | ID | Pri | Platform | Test | Steps | Expected |
 |---|---|---|---|---|---|
-| VIS-01 | P2 | Both | The living background (app-wide, calm, reduced-motion aware) | Open the app at different times of day, on light and dark. Move between Today, Routines, Lookback, Settings. Turn on Reduce Motion (in Settings or the OS) and watch the background. | A soft time-of-day gradient (dawn / day / dusk / night) with two slowly drifting light pools sits behind every screen, not just Today. It only ever shows in the margins: cards and rows stay on near-opaque surfaces, so text is always full-contrast, never washed out over the gradient. With Reduce Motion on, the colour still resolves to the time of day but the drift stops. Navigating between screens never flashes a hard background edge. |
+| VIS-01 | P2 | Both | The living background (Today's signature, calm, reduced-motion aware) | Open Today at different times of day, on light and dark. Turn on Reduce Motion (in Settings or the OS) and watch the Today background. Then move to Routines, Lookback, Settings. | On Today, a soft time-of-day gradient (dawn / day / dusk / night) with a warm top glow and a softer lower pool sits behind the screen. It only ever shows in the margins: cards and rows stay on near-opaque surfaces, so text is always full-contrast, never washed out. With Reduce Motion on, the colour still resolves to the time of day but the drift stops. The other screens (Routines, Lookback, Settings, etc.) sit on a solid, calm Dusk background, with no grey flash. |
 
 ## Today
 

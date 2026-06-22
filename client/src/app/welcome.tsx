@@ -202,7 +202,7 @@ export default function WelcomeScreen() {
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
-    screen: { flex: 1, backgroundColor: 'transparent', paddingHorizontal: spacing.five },
+    screen: { flex: 1, backgroundColor: t.colors.bg, paddingHorizontal: spacing.five },
     content: { flexGrow: 1, justifyContent: 'center', maxWidth: 480, width: '100%', alignSelf: 'center' },
     block: { gap: spacing.three },
     brand: { color: t.colors.ink, fontSize: 40 * t.scale, fontFamily: fonts.sans, fontWeight: '400', letterSpacing: -0.5 },

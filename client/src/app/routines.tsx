@@ -237,7 +237,7 @@ export default function RoutinesScreen() {
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
-    screen: { flex: 1, backgroundColor: 'transparent' },
+    screen: { flex: 1, backgroundColor: t.colors.bg },
     scroll: { flex: 1 },
     content: { paddingHorizontal: spacing.five, paddingBottom: spacing.seven, gap: spacing.three },
     back: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two },

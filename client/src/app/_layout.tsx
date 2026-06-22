@@ -14,7 +14,6 @@ import { useEffect } from 'react';
 import { Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { LivingBackground } from '@/components/LivingBackground';
 import { setInbound } from '@/lib/inbound';
 import { useShareInbound } from '@/lib/share-intent';
 import { ThemeProvider, useTheme } from '@/lib/theme-provider';
@@ -86,7 +85,6 @@ function RootStack() {
 
   return (
     <View style={{ flex: 1 }}>
-      <LivingBackground />
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* Android nav-bar icons follow the IN-APP theme (which can differ from the system
           theme); the plugin's enforceContrast:false lets this style take effect under

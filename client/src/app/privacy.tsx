@@ -86,7 +86,7 @@ function Section({ styles, heading, children }: { styles: ReturnType<typeof make
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
-    screen: { flex: 1, backgroundColor: 'transparent' },
+    screen: { flex: 1, backgroundColor: t.colors.bg },
     scroll: { flex: 1 },
     content: { paddingHorizontal: spacing.five, paddingBottom: spacing.seven, maxWidth: 640, width: '100%', alignSelf: 'center' },
     back: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },

@@ -348,7 +348,7 @@ function Choice<T extends string>({ label, hint, value, options, onChange }: Cho
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
-    screen: { flex: 1, backgroundColor: 'transparent' },
+    screen: { flex: 1, backgroundColor: t.colors.bg },
     scroll: { flex: 1 },
     content: {
       paddingHorizontal: spacing.five,
