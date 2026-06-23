@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
@@ -11,28 +11,48 @@ import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { triageToTasks } from '@/lib/triage';
 
-// Module scope so the id generator stays pure for the render linter (same reason as
-// the Today screen's makeId).
+import closeDayArt from '../../assets/images/closeday.jpg';
+import emptyArt from '../../assets/images/empty.jpg';
+
+// Module scope so the id generator stays pure for the render linter (same as Today's makeId).
 let seq = 0;
 function makeId(): string {
   seq += 1;
   return `t-${Date.now().toString(36)}-${seq.toString(36)}`;
 }
 
-type Step = 'welcome' | 'capture' | 'reveal' | 'handoff';
+// The six onboarding screens, in order (the "Dusk, evolved" Introduction). It teaches the
+// core loop by DOING it (the user's own dump runs through the real triage), then makes one
+// calm pass at the AI safety net and what-you-keep, then hands off to Today. Skippable on
+// every screen but the last; the rest of the app's features are left for in-context discovery
+// (curate, don't catalogue). The Today screen redirects here once, when onboarded is unset.
+const STEPS = ['welcome', 'capture', 'reveal', 'safetynet', 'keep', 'handoff'] as const;
+type Step = (typeof STEPS)[number];
+
+const PRIMARY: Record<Step, string> = {
+  welcome: 'Begin',
+  capture: 'Sort it for me',
+  reveal: 'This looks right',
+  safetynet: 'Got it',
+  keep: 'Almost there',
+  handoff: 'Open Today',
+};
 
 const EXAMPLE = 'call the dentist\nreply to Dana\nsort out the garage\nbuy Mum a card\ntake meds';
+const TRIAGE_TIMEOUT_MS = 8000;
 
-// The one-time welcome. Learn-by-doing rather than a tutorial wall: a calm pitch,
-// then the user's own first brain-dump runs through the real triage, so the very
-// first thing they see is the product working, a doable Today with the rest waiting
-// calmly. Skippable at every step. On finish or skip it sets the onboarded flag and
-// hands off to Today; the Today screen redirects here once, when that flag is unset.
+// The safety-net pass: the three "you're not alone with a hard task" tools, introduced once
+// here and discovered in context thereafter.
+const SAFETY_NET: { name: string; what: string }[] = [
+  { name: 'Break it down', what: 'into small, time-boxed steps.' },
+  { name: 'Make it tiny', what: 'a two-minute version, just to begin.' },
+  { name: 'Strategise', what: 'a too-full day, re-spread calmly across the week.' },
+];
+
 export default function WelcomeScreen() {
   const router = useRouter();
-  // Replayable from Settings (?replay=1). A replay must never overwrite an existing
-  // list, so its capture merges in rather than replacing, and it leaves the
-  // onboarded flag alone.
+  // Replayable from Settings (?replay=1). A replay must never overwrite an existing list, so
+  // its capture merges in rather than replacing, and it leaves the onboarded flag alone.
   const { replay } = useLocalSearchParams<{ replay?: string }>();
   const isReplay = replay === '1';
   const insets = useSafeAreaInsets();
@@ -42,16 +62,43 @@ export default function WelcomeScreen() {
   const [dump, setDump] = useState('');
   const [busy, setBusy] = useState(false);
   const [revealed, setRevealed] = useState<Task[]>([]);
+  const committed = useRef(false); // save the triaged tasks exactly once, on exit
 
-  async function skip() {
-    track('welcome.skipped', { step });
-    await saveOnboarded(true);
+  const stepIndex = STEPS.indexOf(step);
+
+  // Persist what was captured exactly once, then leave. Replay merges (never overwrites);
+  // first-run replaces and sets onboarded. Idempotent, so going back then forward, or
+  // skipping after the reveal, never double-saves.
+  async function commit() {
+    if (committed.current) return;
+    committed.current = true;
+    if (isReplay) {
+      const existing = await loadTasks();
+      await saveTasks([...existing, ...revealed]);
+    } else {
+      await saveTasks(revealed);
+      await saveOnboarded(true);
+    }
+    track('welcome.completed', { total: revealed.length, replay: isReplay });
+  }
+
+  async function leave() {
+    await commit();
     router.replace('/');
   }
 
-  // "Make my day": run the captured lines through the real triage (the same one
-  // "Sort for me" uses), then show the result. If the AI is unreachable, everything
-  // lands on Today, nothing is ever lost to a network blip.
+  async function skip() {
+    track('welcome.skipped', { step });
+    await leave();
+  }
+
+  function back() {
+    if (stepIndex > 0) setStep(STEPS[stepIndex - 1]);
+  }
+
+  // "Sort it for me": run the captured lines through the real triage (the same one the app's
+  // Sort for me uses), then reveal. A timeout AND a catch both fall back to "everything on
+  // today", so a slow or failed call never stalls or breaks the first impression.
   async function makeDay() {
     if (busy) return;
     const lines = dump
@@ -67,10 +114,13 @@ export default function WelcomeScreen() {
     const now = Date.now();
     let tasks: Task[];
     try {
-      const items = await triage(lines);
+      const items = await Promise.race([
+        triage(lines),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('triage timeout')), TRIAGE_TIMEOUT_MS)),
+      ]);
       tasks = triageToTasks(lines, items, today, now, makeId);
     } catch {
-      tasks = triageToTasks(lines, [], today, now, makeId);
+      tasks = triageToTasks(lines, [], today, now, makeId); // all on today, nothing lost
     }
     setRevealed(tasks);
     setBusy(false);
@@ -78,50 +128,77 @@ export default function WelcomeScreen() {
     track('welcome.triaged', { total: lines.length });
   }
 
-  async function confirm() {
-    if (isReplay) {
-      const existing = await loadTasks();
-      await saveTasks([...existing, ...revealed]);
-    } else {
-      await saveTasks(revealed);
-      await saveOnboarded(true);
+  function onPrimary() {
+    switch (step) {
+      case 'welcome':
+        setStep('capture');
+        break;
+      case 'capture':
+        void makeDay();
+        break;
+      case 'reveal':
+        setStep('safetynet');
+        break;
+      case 'safetynet':
+        setStep('keep');
+        break;
+      case 'keep':
+        setStep('handoff');
+        break;
+      case 'handoff':
+        void leave();
+        break;
     }
-    track('welcome.completed', { total: revealed.length, replay: isReplay });
-    setStep('handoff');
   }
 
   const todayTasks = revealed.filter((t) => !t.due);
   const laterCount = revealed.length - todayTasks.length;
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top + spacing.six, paddingBottom: insets.bottom + spacing.five }]}>
+    <View style={[styles.screen, { paddingTop: insets.top + spacing.three, paddingBottom: insets.bottom + spacing.four }]}>
+      <View style={styles.topBar}>
+        {stepIndex > 0 ? (
+          <Pressable onPress={back} accessibilityRole="button" accessibilityLabel="Back one screen" hitSlop={10}>
+            <Text style={styles.back}>‹ Back</Text>
+          </Pressable>
+        ) : (
+          <View />
+        )}
+        {step !== 'handoff' ? (
+          <Pressable onPress={skip} accessibilityRole="button" accessibilityLabel="Skip the introduction" hitSlop={10}>
+            <Text style={styles.skip}>Skip</Text>
+          </Pressable>
+        ) : (
+          <View />
+        )}
+      </View>
+
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {step === 'welcome' && (
           <View style={styles.block}>
+            <View style={styles.banner}>
+              <Image
+                source={emptyArt}
+                style={styles.bannerImg}
+                resizeMode="cover"
+                accessible
+                accessibilityIgnoresInvertColors
+                accessibilityLabel="A warm coffee beside an open notebook in morning light"
+              />
+            </View>
             <Text style={styles.brand}>DoubleDone</Text>
             <Text style={styles.tagline}>A calmer kind of to-do.</Text>
-            <Text style={styles.lead}>It shows you only what today needs, and quietly remembers everything you finish.</Text>
-            <Text style={styles.lead}>No streaks, no nagging, no guilt. Nothing is ever overdue. It just waits.</Text>
-            <Text style={styles.fine}>Works straight away. No account needed.</Text>
-            <Pressable
-              onPress={() => setStep('capture')}
-              style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
-              accessibilityRole="button"
-              accessibilityLabel="Begin"
-            >
-              <Text style={styles.primaryText}>Begin</Text>
-            </Pressable>
-            <Pressable onPress={skip} accessibilityRole="button" accessibilityLabel="Skip for now" hitSlop={8}>
-              <Text style={styles.skip}>Skip for now</Text>
-            </Pressable>
+            <Text style={styles.lead}>It shows you only what today needs, and quietly keeps everything you finish.</Text>
+            <Text style={styles.lead}>Nothing is ever overdue. It just waits.</Text>
           </View>
         )}
 
         {step === 'capture' && (
           <View style={styles.block}>
-            <Text style={styles.kicker}>Step 1 of 2</Text>
             <Text style={styles.h1}>{"What's on your mind?"}</Text>
-            <Text style={styles.lead}>{"Type a few things you'd like out of your head. One per line. Don't worry about order, that's our job."}</Text>
+            <Text style={styles.lead}>
+              {"Type whatever you're carrying. One thing per line. Don't worry about the order, that's our job."}
+            </Text>
             <TextInput
               value={dump}
               onChangeText={setDump}
@@ -133,68 +210,98 @@ export default function WelcomeScreen() {
               autoFocus
               accessibilityLabel="Your brain-dump, one thing per line"
             />
-            <Pressable
-              onPress={makeDay}
-              disabled={busy}
-              style={({ pressed }) => [styles.primary, pressed && styles.pressed, busy && styles.disabled]}
-              accessibilityRole="button"
-              accessibilityLabel="Make my day"
-            >
-              {busy ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.primaryText}>Make my day</Text>}
-            </Pressable>
-            <Pressable onPress={skip} disabled={busy} accessibilityRole="button" accessibilityLabel="I'll add things later" hitSlop={8}>
-              <Text style={styles.skip}>{"I'll add things later"}</Text>
-            </Pressable>
+            <Text style={styles.speak}>On web, you can just speak it.</Text>
           </View>
         )}
 
         {step === 'reveal' && (
           <View style={styles.block}>
-            <Text style={styles.kicker}>Step 2 of 2</Text>
             <Text style={styles.h1}>Here&apos;s today, sized to be doable.</Text>
             <Text style={styles.lead}>
               {todayTasks.length} for today.{laterCount > 0 ? ' The rest is waiting calmly for later.' : ''}
             </Text>
             <View style={styles.revealList}>
-              {todayTasks.map((t) => (
-                <View key={t.id} style={styles.revealRow}>
-                  <View style={styles.revealDot} />
+              {todayTasks.map((task) => (
+                <View key={task.id} style={styles.revealRow}>
+                  <View style={styles.revealCheck} />
                   <View style={styles.revealText}>
-                    <Text style={styles.revealTitle}>{t.title}</Text>
-                    {t.suggestBreakdown ? <Text style={styles.revealHint}>Looks big, break it down?</Text> : null}
+                    <Text style={styles.revealTitle}>{task.title}</Text>
+                    {task.suggestBreakdown ? <Text style={styles.revealHint}>Looks big, break it down?</Text> : null}
                   </View>
                 </View>
               ))}
             </View>
             {laterCount > 0 ? <Text style={styles.laterLine}>Later · {laterCount} waiting</Text> : null}
-            <Pressable
-              onPress={confirm}
-              style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
-              accessibilityRole="button"
-              accessibilityLabel="This looks right"
-            >
-              <Text style={styles.primaryText}>This looks right</Text>
-            </Pressable>
+          </View>
+        )}
+
+        {step === 'safetynet' && (
+          <View style={styles.block}>
+            <Text style={styles.h1}>When something feels too big, you&apos;re not alone with it.</Text>
+            <Text style={styles.lead}>Hand a dreaded task to DoubleDone, and it helps you start:</Text>
+            <View style={styles.netList}>
+              {SAFETY_NET.map((row) => (
+                <View key={row.name} style={styles.netRow}>
+                  <Text style={styles.netName}>{row.name}</Text>
+                  <Text style={styles.netWhat}>{row.what}</Text>
+                </View>
+              ))}
+            </View>
+            <Text style={styles.inscription}>you&apos;re allowed to go slowly</Text>
+          </View>
+        )}
+
+        {step === 'keep' && (
+          <View style={styles.block}>
+            <View style={styles.banner}>
+              <Image
+                source={closeDayArt}
+                style={styles.bannerImg}
+                resizeMode="cover"
+                accessible
+                accessibilityIgnoresInvertColors
+                accessibilityLabel="A calm dusk sky settling over a closed notebook"
+              />
+            </View>
+            <Text style={styles.h1}>What you finish, you keep.</Text>
+            <Text style={styles.lead}>
+              Everything you complete, even a task you dreaded for weeks, is saved in your Lookback. Your brain can&apos;t
+              tell you that you did nothing.
+            </Text>
+            <Text style={styles.lead}>Each evening, close the day. It honours what you did, never what you didn&apos;t.</Text>
           </View>
         )}
 
         {step === 'handoff' && (
           <View style={styles.block}>
+            <View style={styles.check}>
+              <Text style={styles.checkMark}>✓</Text>
+            </View>
             <Text style={styles.h1}>{"That's it. No setup."}</Text>
             <Text style={styles.lead}>
               {"It's already out of your head and onto today. Tomorrow it opens here, ready, without you arranging a thing."}
             </Text>
-            <Pressable
-              onPress={() => router.replace('/')}
-              style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
-              accessibilityRole="button"
-              accessibilityLabel="Open Today"
-            >
-              <Text style={styles.primaryText}>Open Today</Text>
-            </Pressable>
             <Text style={styles.ethos}>today is finite and achievable</Text>
+            <Text style={styles.fine}>Private by default. Nothing leaves your device unless you choose to sync.</Text>
           </View>
         )}
+
+        <View style={styles.footer}>
+          <View style={styles.dots}>
+            {STEPS.map((s, i) => (
+              <View key={s} style={[styles.dot, i === stepIndex && styles.dotOn]} />
+            ))}
+          </View>
+          <Pressable
+            onPress={onPrimary}
+            disabled={busy}
+            style={({ pressed }) => [styles.primary, pressed && styles.pressed, busy && styles.disabled]}
+            accessibilityRole="button"
+            accessibilityLabel={PRIMARY[step]}
+          >
+            {busy ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.primaryText}>{PRIMARY[step]}</Text>}
+          </Pressable>
+        </View>
       </ScrollView>
     </View>
   );
@@ -203,23 +310,21 @@ export default function WelcomeScreen() {
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: t.colors.bg, paddingHorizontal: spacing.five },
-    content: { flexGrow: 1, justifyContent: 'center', maxWidth: 480, width: '100%', alignSelf: 'center' },
+    topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 26 },
+    back: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    skip: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    content: { flexGrow: 1, justifyContent: 'space-between', maxWidth: 480, width: '100%', alignSelf: 'center', paddingVertical: spacing.four },
     block: { gap: spacing.three },
+    banner: { width: '100%', aspectRatio: 16 / 9, borderRadius: radius.lg, overflow: 'hidden', marginBottom: spacing.two },
+    bannerImg: { position: 'absolute', width: '100%', height: '100%' },
     brand: { color: t.colors.ink, fontSize: 40 * t.scale, fontFamily: fonts.sans, fontWeight: '400', letterSpacing: -0.5 },
     tagline: { color: t.colors.accent, fontSize: 20 * t.scale, fontFamily: fonts.sans, fontWeight: '400' },
+    h1: { color: t.colors.ink, fontSize: 30 * t.scale, fontFamily: fonts.sans, fontWeight: '400', letterSpacing: -0.3, lineHeight: 36 * t.scale },
     lead: { color: t.colors.inkSoft, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 26 * t.scale },
-    fine: { color: t.colors.inkFaint, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
-    kicker: {
-      color: t.colors.inkFaint,
-      fontSize: 13 * t.scale,
-      fontFamily: fonts.bodyBold,
-      fontWeight: '700',
-      textTransform: 'uppercase',
-      letterSpacing: 0.8,
-    },
-    h1: { color: t.colors.ink, fontSize: 30 * t.scale, fontFamily: fonts.sans, fontWeight: '400', letterSpacing: -0.3 },
+    speak: { color: t.colors.inkFaint, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
+    fine: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale, marginTop: spacing.two },
     input: {
-      minHeight: 140,
+      minHeight: 150,
       backgroundColor: t.colors.surface,
       borderWidth: 1,
       borderColor: t.colors.line,
@@ -229,20 +334,48 @@ const makeStyles = (t: Theme) =>
       fontFamily: fonts.body,
       color: t.colors.ink,
       textAlignVertical: 'top',
-      marginTop: spacing.two,
       lineHeight: 26 * t.scale,
+      marginTop: spacing.two,
     },
-    primary: { backgroundColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.four, alignItems: 'center', marginTop: spacing.three },
-    primaryText: { color: '#FFFFFF', fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    disabled: { opacity: 0.6 },
-    skip: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.one },
     revealList: { gap: spacing.three, marginTop: spacing.two },
-    revealRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.three },
-    revealDot: { width: 8, height: 8, borderRadius: radius.pill, backgroundColor: t.colors.accent, marginTop: 9 },
+    revealRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.three,
+      borderWidth: 1.5,
+      borderColor: t.colors.repeat,
+      borderRadius: radius.md,
+      paddingVertical: spacing.three,
+      paddingHorizontal: spacing.four,
+      backgroundColor: t.colors.surface,
+    },
+    revealCheck: { width: 22, height: 22, borderRadius: radius.pill, borderWidth: 2, borderColor: t.colors.inkFaint, marginTop: 1 },
     revealText: { flexShrink: 1 },
-    revealTitle: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.body, lineHeight: 25 * t.scale },
+    revealTitle: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 24 * t.scale },
     revealHint: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: 2 },
     laterLine: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.three },
-    ethos: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.four, fontStyle: 'italic' },
+    netList: { marginTop: spacing.two },
+    netRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: spacing.three,
+      flexWrap: 'wrap',
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: t.colors.line,
+      paddingVertical: spacing.three,
+    },
+    netName: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic' },
+    netWhat: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, flexShrink: 1 },
+    inscription: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', marginTop: spacing.three },
+    check: { width: 44, height: 44, borderRadius: radius.pill, backgroundColor: t.colors.done, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.one },
+    checkMark: { color: '#FFFFFF', fontSize: 24 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    ethos: { color: t.colors.inkFaint, fontSize: 14 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', marginTop: spacing.two },
+    footer: { marginTop: spacing.five, gap: spacing.four },
+    dots: { flexDirection: 'row', justifyContent: 'center', gap: spacing.two },
+    dot: { width: 7, height: 7, borderRadius: radius.pill, backgroundColor: t.scheme === 'dark' ? '#4A443C' : '#D8CFC4' },
+    dotOn: { backgroundColor: t.colors.accent },
+    primary: { backgroundColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.four, alignItems: 'center' },
+    primaryText: { color: '#FFFFFF', fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    disabled: { opacity: 0.6 },
     pressed: { opacity: 0.85 },
   });

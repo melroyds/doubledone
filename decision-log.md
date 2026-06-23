@@ -1665,3 +1665,25 @@ celebrationTier now floors a whole-task finish at `real` (the held 290px bloom),
 quick tier for whole-task finishes: `quick` stays in the type for the component but is no
 longer produced, the biggest "you did the thing" moment should never be the feeblest. The
 bloom's on-device animation feel remains a device check (the headless preview throttles rAF).
+## 2026-06-23 Introduction redesign: the 6-screen welcome
+
+Rebuilt welcome.tsx from the 4-step (welcome -> capture -> reveal -> handoff) into the
+"Dusk, evolved" 6-screen onboarding from the Claude Design handoff: Welcome (the empty.jpg
+banner), Empty-your-head (the real BrainDump), Sized-to-be-doable (the real triage result),
+The-safety-net (Break-it-down / Make-it-tiny / Strategise, introduced once), What-you-keep
+(the closeday.jpg banner, Lookback + close-the-day), and Open-Today (the handoff + a one-line
+privacy + sync note). A quiet 6-dot progress, Skip on every screen but the last, a Back
+affordance from screen 2 on (typed text preserved), and the design's final copy.
+
+Kept the depth principle the design recommended: curate, don't catalogue. The core loop is
+taught by DOING (the user's own dump runs through the real triage by screen 3) plus one light
+safety-net pass; Routines, sync, the scrapbook, the weight gauge and focus are left for
+in-context discovery, so the onboarding never becomes the overwhelm the app prevents.
+
+Triage fallback (the one real build risk, resolved): screen 2's "Sort it for me" wraps the
+real /triage in BOTH a try/catch AND an 8s timeout, so a slow or failed call falls back to
+"everything on today, nothing lost", framed identically. Tasks save once on exit (Open Today
+or Skip), idempotent, so Back/forward never double-saves and replay never double-merges.
+Deferred: a forward-swipe accelerator and a cross-fade transition (the button + Back are the
+reliable path; the screenshot harness throttles transitions anyway). Verified screens 1-2 +
+the nav in the preview; the rest reuse the same shared footer, banner, and text patterns.
