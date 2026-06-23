@@ -390,14 +390,6 @@ export default function TodayScreen() {
     affirm('Done is done. Recorded.');
     exitSelect();
   }
-  function bulkDefer() {
-    if (selected.length === 0) return;
-    const now = nowMs();
-    const set = new Set(selected);
-    commit(tasks.map((t) => (set.has(t.id) && !isRecurring(t) ? clearNudgeIfAny({ ...deferToTomorrow(t, today), updatedAt: now }) : t)));
-    track('bulk.deferred', { count: selected.length });
-    exitSelect();
-  }
   function bulkRemove() {
     if (selected.length === 0) return;
     const now = nowMs();
@@ -1127,64 +1119,65 @@ export default function TodayScreen() {
               </Pressable>
             </View>
             <View style={styles.selectActions}>
-              <Pressable onPress={bulkComplete} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Mark selected done" hitSlop={6}>
-                <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>Done</Text>
-              </Pressable>
-              {selected.length === 1 && (
-                <Pressable
-                  onPress={() => {
-                    const one = selected[0];
-                    if (one) goodEnough(one);
-                    exitSelect();
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Mark the selected task good enough and done"
-                  hitSlop={6}
-                >
-                  <Text style={[styles.selectAction, { color: theme.colors.done }]}>Good enough</Text>
+              <View style={styles.actionRow}>
+                <Pressable onPress={bulkComplete} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Mark selected done" hitSlop={6}>
+                  <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>Done</Text>
                 </Pressable>
-              )}
-              <Pressable onPress={bulkDefer} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Move selected to tomorrow" hitSlop={6}>
-                <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>Tomorrow</Text>
-              </Pressable>
-              <Pressable onPress={() => setMoveToOpen(true)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Move selected to a date" hitSlop={6}>
-                <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>Move to…</Text>
-              </Pressable>
-              {Platform.OS !== 'web' && onlyTask && !isDoneOn(onlyTask, today) && (
-                <Pressable onPress={openNudge} accessibilityRole="button" accessibilityLabel="Remind me about this task" hitSlop={6}>
-                  <Text style={styles.selectAction}>Remind me</Text>
+                {selected.length === 1 && (
+                  <Pressable
+                    onPress={() => {
+                      const one = selected[0];
+                      if (one) goodEnough(one);
+                      exitSelect();
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Mark the selected task good enough and done"
+                    hitSlop={6}
+                  >
+                    <Text style={[styles.selectAction, { color: theme.colors.done }]}>Good enough</Text>
+                  </Pressable>
+                )}
+                <Pressable onPress={() => setMoveToOpen(true)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Move selected to a date" hitSlop={6}>
+                  <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>Move to…</Text>
                 </Pressable>
-              )}
-              {selected.length === 1 && (
-                <Pressable
-                  onPress={() => {
-                    const one = tasks.find((y) => y.id === selected[0]);
-                    if (one) breakdownExisting(one.title, one.id);
-                    exitSelect();
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Break down the selected task"
-                  hitSlop={6}
-                >
-                  <Text style={styles.selectAction}>Break down</Text>
+                {Platform.OS !== 'web' && onlyTask && !isDoneOn(onlyTask, today) && (
+                  <Pressable onPress={openNudge} accessibilityRole="button" accessibilityLabel="Remind me about this task" hitSlop={6}>
+                    <Text style={styles.selectAction}>Remind me</Text>
+                  </Pressable>
+                )}
+              </View>
+              <View style={styles.actionRow}>
+                {selected.length === 1 && (
+                  <Pressable
+                    onPress={() => {
+                      const one = tasks.find((y) => y.id === selected[0]);
+                      if (one) breakdownExisting(one.title, one.id);
+                      exitSelect();
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Break down the selected task"
+                    hitSlop={6}
+                  >
+                    <Text style={styles.selectAction}>Break down</Text>
+                  </Pressable>
+                )}
+                {selected.length === 1 && (
+                  <Pressable
+                    onPress={() => {
+                      const one = tasks.find((y) => y.id === selected[0]);
+                      if (one) void makeTiny(one.id, one.title);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Make the selected task tiny"
+                    hitSlop={6}
+                  >
+                    <Text style={styles.selectAction}>Make it tiny</Text>
+                  </Pressable>
+                )}
+                <Pressable onPress={bulkRemove} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Remove selected" hitSlop={6}>
+                  <Text style={[styles.selectRemove, selected.length === 0 && styles.selectActionOff]}>Remove</Text>
                 </Pressable>
-              )}
-              {selected.length === 1 && (
-                <Pressable
-                  onPress={() => {
-                    const one = tasks.find((y) => y.id === selected[0]);
-                    if (one) void makeTiny(one.id, one.title);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Make the selected task tiny"
-                  hitSlop={6}
-                >
-                  <Text style={styles.selectAction}>Make it tiny</Text>
-                </Pressable>
-              )}
-              <Pressable onPress={bulkRemove} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Remove selected" hitSlop={6}>
-                <Text style={[styles.selectRemove, selected.length === 0 && styles.selectActionOff]}>Remove</Text>
-              </Pressable>
+              </View>
             </View>
             <Pressable onPress={exitSelect} accessibilityRole="button" accessibilityLabel="Cancel selection" hitSlop={6}>
               <Text style={styles.selectCancel}>Cancel</Text>
@@ -1657,7 +1650,8 @@ const makeStyles = (t: Theme) =>
     optFaint: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     selectBar: { gap: spacing.three, alignItems: 'center', paddingVertical: spacing.two },
     selectCount: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    selectActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: spacing.four },
+    selectActions: { alignItems: 'center', gap: spacing.three },
+    actionRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: spacing.four },
     selectAction: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     selectRemove: { color: t.colors.danger, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     selectActionOff: { color: t.colors.inkFaint },
