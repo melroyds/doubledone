@@ -38,7 +38,7 @@ anyone, verify the domain (below).
    `noreply@doubledone.app` (must be on the verified domain) -> Save.
 6. Send a code to a different address to confirm.
 
-You do not need a real mailbox for `noreply@`; Resend only sends. Optionally add a DMARC
+You do not need a real mailbox for `noreply@`; Resend only sends. Recommended (verified missing on 2026-06-23): add a DMARC
 TXT record (`_dmarc` -> `v=DMARC1; p=none;`) for better inbox placement. The free tier
 then covers any recipient (3,000/month, 100/day).
 
@@ -50,7 +50,7 @@ put `{{ .Token }}` (the code) in the body instead of `{{ .ConfirmationURL }}` (t
 - **Magic link or OTP** (fires on sign-in)
 - **Confirm sign up** (fires for a brand-new user)
 
-Minimal body for each:
+The branded template is in `supabase/email-templates/otp-code.html`, paste that into both. A minimal inline version for reference:
 
 ```html
 <h2>Your DoubleDone code</h2>

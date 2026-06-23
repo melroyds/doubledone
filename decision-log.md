@@ -1723,3 +1723,17 @@ content, and keeping it avoids a jarring re-onboard. Decided against any R2 clea
 image is a base64 data URL in local storage, not an R2 object (the Worker has no R2 binding), so
 clearing the local key removes it entirely. Side finding: the README and CLAUDE.md claim scrapbooks
 persist on R2 "served by URL", which is inaccurate and should be corrected.
+
+## 2026-06-23 Branded sign-in email + the transactional-sender audit
+
+Auditing the "real transactional email sender" item, the sender is already done: Resend SMTP,
+doubledone.app DKIM-verified (confirmed via a live DNS check of resend._domainkey), so sign-in
+codes go through a real domain-verified sender, not Supabase's shared one. The checklist item was
+stale. The one real gap was DMARC: _dmarc.doubledone.app had no record, so auth-setup.md now marks
+it recommended (record: v=DMARC1; p=none;), for Melroy to add in Cloudflare DNS.
+
+Built a branded OTP email template (supabase/email-templates/otp-code.html) in the Dusk palette,
+replacing the bare placeholder: the code in a mauve tile, the calm voice, table layout + inline
+styles for email-client support. Melroy pastes it into the two Supabase templates (Magic Link / OTP,
+Confirm signup). Decided to keep it a pasted template rather than move sending into the Worker:
+Supabase Auth already owns the OTP lifecycle, and a custom send path would duplicate it for no gain.
