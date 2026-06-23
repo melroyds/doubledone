@@ -151,3 +151,34 @@ describe('health', () => {
     expect(body.hasKey).toBe(true);
   });
 });
+
+describe('scrapbook purge (R2 delete on account deletion)', () => {
+  it('deletes each given key and reports the count', async () => {
+    const deleted: string[] = [];
+    const SCRAPBOOKS = {
+      put: async () => undefined,
+      get: async () => null,
+      delete: async (k: string) => {
+        deleted.push(k);
+      },
+    };
+    const res = await worker.fetch(
+      req('POST', '/scrapbook/purge', { origin: 'https://doubledone.app', body: { keys: ['a.jpg', 'b.jpg'] } }),
+      makeEnv({ SCRAPBOOKS }),
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, deleted: 2 });
+    expect(deleted).toEqual(['a.jpg', 'b.jpg']);
+  });
+
+  it('is a no-op when R2 is unbound', async () => {
+    const res = await worker.fetch(
+      req('POST', '/scrapbook/purge', { origin: 'https://doubledone.app', body: { keys: ['a.jpg'] } }),
+      makeEnv({ SCRAPBOOKS: undefined }),
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, deleted: 0 });
+  });
+});

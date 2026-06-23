@@ -182,7 +182,7 @@ export async function loadScrapbooks(): Promise<Scrapbook[]> {
   }
 }
 
-/** Persist scrapbooks. Best effort: the base64 images are large, so a quota
+/** Persist scrapbooks. Best effort: the image is normally a small R2 URL, but a base64 fallback can be large, so a quota
  *  failure must be swallowed, never crash the app. */
 export async function saveScrapbooks(books: Scrapbook[]): Promise<void> {
   try {

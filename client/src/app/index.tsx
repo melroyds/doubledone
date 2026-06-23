@@ -19,6 +19,7 @@ import {
   clarify,
   DEFAULT_QUESTIONS,
   plan as planBreakdown,
+  purgeScrapbookImages,
   reportOutcome,
   strategise,
   tiny,
@@ -42,7 +43,7 @@ import { availableNudgePresets, isWindDownTime, type NudgePreset, nudgeTargetFor
 import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge } from '@/lib/reminders';
 import { applySliceDelta } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadClosedDate, loadLastOpen, loadLowDayDate, loadOnboarded, loadReminderOn, loadSyncedOwner, loadTasks, saveClosedDate, saveLastOpen, saveLowDayDate, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData } from '@/lib/storage';
+import { loadClosedDate, loadLastOpen, loadLowDayDate, loadOnboarded, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveLastOpen, saveLowDayDate, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { isAccountGone, localBelongsToAnother, syncOnce } from '@/lib/sync';
 import { parseDump, type Task } from '@/lib/tasks';
@@ -218,6 +219,7 @@ export default function TodayScreen() {
           // data (tasks, scrapbooks, routines, per-day state) is wiped; only display prefs stay.
           if (!active) return;
           setTasks([]);
+          void purgeScrapbookImages((await loadScrapbooks()).map((b) => b.image));
           void wipeLocalData();
           void client.auth.signOut();
           track('sync.account_gone');

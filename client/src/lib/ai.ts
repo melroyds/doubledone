@@ -245,3 +245,25 @@ export async function makeScrapbook(titles: string[]): Promise<ScrapbookResult> 
   if (typeof data.image !== 'string' || data.image.length === 0) throw new Error('no image');
   return { image: data.image, caption: typeof data.caption === 'string' ? data.caption : '' };
 }
+
+// Delete a user's scrapbook keepsake images from R2 on account deletion. Takes the stored
+// image values, keeps only the R2-served ones (data: URLs are local-only and need no purge),
+// and asks the Worker to delete those keys. Best-effort: cleanup must never block a delete.
+export async function purgeScrapbookImages(imageValues: string[]): Promise<void> {
+  const keys = imageValues
+    .map((v) => {
+      const m = v.match(/\/scrapbook-img\/(.+)$/);
+      return m ? decodeURIComponent(m[1]) : null;
+    })
+    .filter((k): k is string => k !== null);
+  if (keys.length === 0) return;
+  try {
+    await fetch(`${AI_URL}/scrapbook/purge`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ keys }),
+    });
+  } catch {
+    // best effort; the local data is wiped regardless
+  }
+}

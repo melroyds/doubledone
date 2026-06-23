@@ -1737,3 +1737,23 @@ replacing the bare placeholder: the code in a mauve tile, the calm voice, table 
 styles for email-client support. Melroy pastes it into the two Supabase templates (Magic Link / OTP,
 Confirm signup). Decided to keep it a pasted template rather than move sending into the Worker:
 Supabase Auth already owns the OTP lifecycle, and a custom send path would duplicate it for no gain.
+
+## 2026-06-23 Correction, and R2 scrapbook purge on account deletion
+
+Correcting two earlier entries today: R2 IS wired, I was wrong. The Worker already uploads each
+scrapbook image to R2 (the SCRAPBOOKS binding in wrangler.jsonc) and serves it at GET
+/scrapbook-img/:key; the client stores that URL, with base64 only as a fallback. So the README's
+"images persist on R2, served by URL" was accurate. I had trusted a stale storage.ts comment and an
+R2 row missing from the CLAUDE.md table over the actual Worker code. The "R2 never wired / base64-local"
+notes in today's deletion and email entries are wrong; this is the correction.
+
+The real gap it surfaced: account deletion cleared the local scrapbook entry but not the R2 object, so
+the keepsake image survived a delete as an orphan (the R2 half of the bug Melroy reported). Fix: a POST
+/scrapbook/purge route on the Worker (deletes the given keys from R2, best-effort, capped at 200, keyed
+by the unguessable UUIDs the client already holds), a client purgeScrapbookImages() that sends those
+keys, and both deletion paths (settings runDelete, index detected-deletion) now purge the R2 images
+before wiping local. Contract-tested. Needs a Worker redeploy to go live.
+
+Decided against authenticating the purge beyond the unguessable key: the keys live only in the owner's
+local store, so a caller can only ever delete images it already knows, its own, and a deleted keepsake
+is low-harm. Also fixed the stale storage.ts comment and added the R2 row to the CLAUDE.md table.

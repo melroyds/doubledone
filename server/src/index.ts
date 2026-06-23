@@ -35,6 +35,7 @@ interface AiBinding {
 interface R2Binding {
   put(key: string, value: ArrayBuffer | Uint8Array, options?: { httpMetadata?: { contentType?: string } }): Promise<unknown>;
   get(key: string): Promise<{ body: ReadableStream; httpMetadata?: { contentType?: string } } | null>;
+  delete(key: string): Promise<unknown>;
 }
 
 // Cloudflare Email Routing send_email binding (see wrangler.jsonc), typed locally so we
@@ -153,6 +154,31 @@ export default {
       return Response.json({ ok: true, hasKey: Boolean(env.ANTHROPIC_API_KEY) }, { headers: cors });
     }
 
+    // Delete a user's own scrapbook images from R2 on account deletion. Keyed by the
+    // unguessable UUIDs the client holds locally, so a caller can only purge images it
+    // already knows the keys to (its own). Best-effort; an unknown key is a no-op.
+    if (pathname === '/scrapbook/purge' && request.method === 'POST') {
+      if (!env.SCRAPBOOKS) return Response.json({ ok: true, deleted: 0 }, { headers: cors });
+      let keys: string[] = [];
+      try {
+        const body = (await request.json()) as { keys?: unknown };
+        if (Array.isArray(body.keys)) {
+          keys = body.keys.filter((k): k is string => typeof k === 'string' && k.length > 0).slice(0, 200);
+        }
+      } catch {
+        return Response.json({ error: 'bad request' }, { status: 400, headers: cors });
+      }
+      let deleted = 0;
+      for (const key of keys) {
+        try {
+          await env.SCRAPBOOKS.delete(key);
+          deleted += 1;
+        } catch {
+          // best effort; keep going
+        }
+      }
+      return Response.json({ ok: true, deleted }, { headers: cors });
+    }
     // Public read for a scrapbook keepsake image stored in R2. Not origin-gated (the
     // <Image> tag loads it cross-origin), read-only, and the key is an unguessable
     // UUID. Long-cached and immutable.

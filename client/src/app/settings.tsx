@@ -6,12 +6,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { deleteAccount } from '@/lib/account';
+import { purgeScrapbookImages } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
 import { toISODate } from '@/lib/day';
 import { buildExport } from '@/lib/export';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { type MotionPref, type TextSize, type ThemePref } from '@/lib/settings';
-import { loadReminderOn, loadTasks, saveReminderOn, wipeLocalData } from '@/lib/storage';
+import { loadReminderOn, loadScrapbooks, loadTasks, saveReminderOn, wipeLocalData } from '@/lib/storage';
 import { loadEntitlement } from '@/lib/stripe';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
@@ -128,6 +129,8 @@ export default function SettingsScreen() {
       return;
     }
     track('account.deleted');
+    const books = await loadScrapbooks();
+    await purgeScrapbookImages(books.map((b) => b.image)); // delete the R2 images first
     await wipeLocalData(); // leave nothing of the account on this device
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.location.assign('/'); // a clean reload to an empty, signed-out Today
