@@ -44,3 +44,6 @@ docs/design/redesign/*.html
 
 # Local AI working doc, kept out of the public repo
 CLAUDE.md
+
+# Local "what's left" working list, kept out of the public repo
+WHATS-LEFT.md
