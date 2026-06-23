@@ -1657,7 +1657,7 @@ const makeStyles = (t: Theme) =>
     optFaint: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     selectBar: { gap: spacing.three, alignItems: 'center', paddingVertical: spacing.two },
     selectCount: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    selectActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.six },
+    selectActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: spacing.four },
     selectAction: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     selectRemove: { color: t.colors.danger, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     selectActionOff: { color: t.colors.inkFaint },
