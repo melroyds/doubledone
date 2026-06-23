@@ -230,3 +230,23 @@ export async function saveSyncedOwner(userId: string | null): Promise<void> {
     // best effort
   }
 }
+
+/**
+ * Erase everything tied to the person from this device, for account deletion: both the
+ * explicit in-app delete and the detected remote-deletion path call this. One key list,
+ * so neither path can quietly forget one again, which is exactly how the scrapbook used
+ * to survive a delete. Clears the user content and history (tasks, scrapbooks, routines)
+ * and the per-day / sync state; keeps only device-level display prefs (theme / text size /
+ * motion, the reminder toggle, the onboarded flag), which are not personal content. Tasks
+ * are set to an explicit empty rather than removed, so loadTasks does not re-seed the
+ * welcome examples onto a just-cleared device.
+ */
+export async function wipeLocalData(): Promise<void> {
+  await saveTasks([]);
+  await saveSyncedOwner(null);
+  try {
+    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, LASTOPEN_KEY]);
+  } catch {
+    // best effort, like the per-key savers above
+  }
+}

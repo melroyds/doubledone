@@ -1703,3 +1703,23 @@ Decided against a formal Zero-Data-Retention agreement (a sales-contract arrange
 a solo project, and the standard API already does not retain by default), and against an absolute
 "keeps nothing" claim, which the flagged-content exception would make untrue, so the wording is
 hedged with "by default" and names the exception.
+
+## 2026-06-23 Account deletion now wipes the scrapbook (and all local content)
+
+Melroy found that deleting his account left the week-of-21-June scrapbook behind. Both deletion
+paths (the in-app delete in settings.tsx, and the detected remote-deletion in index.tsx) cleared
+only tasks; the scrapbook, routines, and per-day state were left, by a deliberate "local-only data
+was never part of the account" choice. That holds for display prefs (theme), not for a keepsake
+generated from the user's finished tasks: it is their data, it just lives locally.
+
+Fix: one wipeLocalData() in storage.ts, called by both paths. It clears the user content and
+history (tasks set to empty so loadTasks does not re-seed, scrapbooks, routines, and the closed-day
+/ low-day / last-open state) and the synced-owner marker, and keeps only device prefs (theme / text
+size / motion, the reminder toggle, the onboarded flag). One key list, so neither path can forget a
+key again. Regression-tested in storage.test.ts.
+
+Decided to keep display prefs rather than do a full factory reset: a theme choice is not personal
+content, and keeping it avoids a jarring re-onboard. Decided against any R2 cleanup: the scrapbook
+image is a base64 data URL in local storage, not an R2 object (the Worker has no R2 binding), so
+clearing the local key removes it entirely. Side finding: the README and CLAUDE.md claim scrapbooks
+persist on R2 "served by URL", which is inaccurate and should be corrected.

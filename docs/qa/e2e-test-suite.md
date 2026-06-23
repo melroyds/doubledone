@@ -154,7 +154,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 |---|---|---|---|---|---|
 | DEL-00 | P1 | Setup | PREREQ: create the delete function | Run the delete_account() function from supabase/schema.sql once in the Supabase SQL editor. | Function created. (One-time setup; cannot be rolled back.) |
 | DEL-01 | P1 | Both | Delete account + data | Settings -> Delete account and data -> confirm. (Use a throwaway account first.) | Account and synced data are gone. Returns to a clean, signed-out Today. |
-| DEL-02 | P1 | Both | Originating device is wiped | On the device you deleted from, look at Today and the Lookback. | Nothing of the account remains locally. |
+| DEL-02 | P1 | Both | Originating device is wiped | On the device you deleted from, look at Today, the Lookback calendar, the scrapbook, and any routines. | Nothing of the account remains locally: no tasks, an empty Lookback, no scrapbook, no routines. Only display prefs (theme, text size) persist. |
 | DEL-03 | P3 | Both | Known limit: second device | On a second signed-in device after deletion, observe behaviour. | It keeps local data until its next sync fails auth (documented limitation). |
 
 ## MCP
