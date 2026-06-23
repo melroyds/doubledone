@@ -30,7 +30,7 @@
           "backgroundColor": "#F6F2E9",
           "android": {
             "image": "./assets/images/splash-icon.png",
-            "imageWidth": 200
+            "imageWidth": 300
           }
         }
       ],
