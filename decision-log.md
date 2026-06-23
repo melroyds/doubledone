@@ -1607,3 +1607,24 @@ Two known consequences, both expected: the Stripe TEST-mode webhook still pointe
 ## 2026-06-23 Feedback channel: a Settings mailto link
 
 Melroy wanted a way for users to send feedback. Chose the cheapest, zero-backend route: a "Send feedback" link in Settings that opens the user's mail client to support@doubledone.app via `mailto:` (no server, no outbound-email dependency; the inbox forwards through Cloudflare Email Routing). Decided against an in-app form, which would need a Worker route plus an email-sending service for marginal gain over mailto. Instrumented `feedback.opened`. Revisit if mailto friction (a web user with no mail handler configured) shows up, or feedback volume warrants a real form.
+
+
+## 2026-06-23 Pre-launch polish pass (accessibility + consistency)
+
+A UI polish sweep before launch, from a three-agent review. No new features. Fixed:
+
+- **Text scaling:** every hardcoded `lineHeight` now multiplies by `t.scale` (38 spots, 14 files), so the Large text-size setting stops clipping lines. Default size is identical (scale is 1 there).
+- **Contrast:** light-mode `inkFaint` #A89E93 -> #8A7F73, clearing WCAG AA on the paper background for tertiary text (hints, dates, legends).
+- **Heading honesty:** `fonts.sans` titles `fontWeight: '700'` -> `'600'`. Newsreader only ships 600, so 700 was a silent no-op on native and faux-bold on web; 600 renders identically on native and drops the web faux-bold.
+- **Modal a11y:** `accessibilityRole="button"` on the five Today dismiss-backdrops and the BrainDump picker backdrop (they had a label but no role).
+- **Touch targets** toward ~44px: `moveChip` (padding + hitSlop), `lowDayToggle` (12 -> 14px + hitSlop), Routines `whenPill` (padding).
+- **Routines** brought onto the shared screen pattern: title 30 -> 42px, back-link grey body -> mauve bodyBold "back-to-Today".
+- **Copy:** Privacy "AI features" wall split into two paragraphs; Premium "4 after six" -> "4 after six months"; two curly apostrophes -> straight; Lookback back-link gained its chevron; sign-in code `maxLength` 10 -> 6; DatePicker weekday `en-AU` -> device locale.
+- **Dead code:** removed five unused styles (sync/syncRow/syncText/syncAction/focusLink) and a stale "denim" comment; collision-proof key on the Lookback week-list; the one-off confirm title can now wrap to two lines.
+
+Decided against (reviewed, left on purpose):
+
+- **Periwinkle border (one-off) + the recurring mark sharing a hue** is not a collision: a row has one or the other, never both, so periwinkle reads cleanly as the task-type accent. Left the approved Dusk identity alone.
+- **An `onAccent` token for the ~15 `#FFFFFF` accent-fill literals:** already consistent; tokenising is churn for zero visual change.
+- **Flattening every serif title to 400** (the reviewer's alternative): kept the page-title-400 / modal-title-600 hierarchy and only made the 700s honest, because flattening is a visual change the screenshot harness cannot verify on the modal surfaces. Open to the lighter uniform look on request.
+- **The sliced-task confirm title** stays one line: it sits in a row beside the Step-back / Remove / Close buttons, where wrapping would crowd them.

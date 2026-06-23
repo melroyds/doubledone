@@ -449,7 +449,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
       {error && <Text style={styles.error}>{error}</Text>}
 
       <Modal visible={pickerFor !== null} transparent animationType="fade" onRequestClose={() => setPickerFor(null)}>
-        <Pressable style={styles.backdrop} onPress={() => setPickerFor(null)} accessibilityLabel="Dismiss">
+        <Pressable style={styles.backdrop} onPress={() => setPickerFor(null)} accessibilityRole="button" accessibilityLabel="Dismiss">
           <Pressable style={styles.pickerCard} onPress={() => {}}>
             <Text style={styles.pickerTitle}>{pickerFor === 'due' ? 'On which day' : 'Starting from'}</Text>
             <DatePicker
@@ -493,7 +493,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingVertical: spacing.three,
     fontSize: 16 * t.scale,
     fontFamily: fonts.body,
-    lineHeight: 22,
+    lineHeight: 22 * t.scale,
     color: t.colors.ink,
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },
@@ -564,7 +564,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     maxWidth: 360,
     gap: spacing.three,
   },
-  pickerTitle: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, fontWeight: '700' },
+  pickerTitle: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
   pickerToday: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center' },
   actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
   bite: {

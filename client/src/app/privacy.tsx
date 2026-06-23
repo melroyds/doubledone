@@ -45,13 +45,21 @@ export default function PrivacyScreen() {
           can read (row-level security scopes every row to your account). You can sign out, or stop syncing, any time.
         </Section>
 
-        <Section styles={styles} heading="The AI features">
-          Break it down, Strategise, and Sort for me send the text you typed to our server, which passes it to
-          Anthropic&apos;s Claude to do the work. Anthropic does not use anything sent through their API to train their models. That text and the response are kept, without your name, account, or IP
-          address, to improve how the app breaks tasks down for everyone. It is pseudonymous and aggregate, never tied
-          to you and never sold. And when you finish steps from a broken-down task, the app notes only that they got done, a random id and a number of days, never the task text or anything about you, so it can learn how long things really take. Prefer not to? Just don&apos;t use those features; the rest of the app works fully
-          without them.
-        </Section>
+        <View style={styles.section}>
+          <Text style={styles.heading}>The AI features</Text>
+          <Text style={styles.body}>
+            Break it down, Strategise, and Sort for me send the text you typed to our server, which passes it to
+            Anthropic&apos;s Claude to do the work. Anthropic does not use anything sent through their API to train
+            their models. That text and the response are kept, without your name, account, or IP address, to improve
+            how the app breaks tasks down for everyone. It is pseudonymous and aggregate, never tied to you and never
+            sold.
+          </Text>
+          <Text style={styles.body}>
+            And when you finish steps from a broken-down task, the app notes only that they got done, a random id and
+            a number of days, never the task text or anything about you, so it can learn how long things really take.
+            Prefer not to? Just don&apos;t use those features; the rest of the app works fully without them.
+          </Text>
+        </View>
 
         <Section styles={styles} heading="What we never do">
           No ads. No third-party trackers or analytics identities. No selling or sharing your data. We never ask for
@@ -91,9 +99,9 @@ const makeStyles = (t: Theme) =>
     back: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     title: { color: t.colors.ink, fontSize: 42 * t.scale, fontWeight: '400', fontFamily: fonts.sans, marginTop: spacing.three },
     updated: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.two },
-    lead: { color: t.colors.ink, fontSize: 16 * t.scale, lineHeight: 24, fontFamily: fonts.body, marginTop: spacing.five },
+    lead: { color: t.colors.ink, fontSize: 16 * t.scale, lineHeight: 24 * t.scale, fontFamily: fonts.body, marginTop: spacing.five },
     section: { marginTop: spacing.five, gap: spacing.two },
     heading: { color: t.colors.ink, fontSize: 18 * t.scale, fontWeight: '700', fontFamily: fonts.bodyBold },
-    body: { color: t.colors.inkSoft, fontSize: 15 * t.scale, lineHeight: 23, fontFamily: fonts.body },
+    body: { color: t.colors.inkSoft, fontSize: 15 * t.scale, lineHeight: 23 * t.scale, fontFamily: fonts.body },
     footnote: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.seven },
   });

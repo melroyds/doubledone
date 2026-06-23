@@ -128,7 +128,7 @@ export default function LookbackScreen() {
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.six, paddingBottom: insets.bottom + spacing.six }]}
     >
       <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back to today" hitSlop={8}>
-        <Text style={styles.back}>Today</Text>
+        <Text style={styles.back}>‹ Today</Text>
       </Pressable>
 
       <Text style={styles.title}>Lookback</Text>
@@ -284,8 +284,8 @@ export default function LookbackScreen() {
         {weekList.length > 0 && (
           <View style={styles.weekList}>
             <Text style={styles.weekListHead}>This week you finished</Text>
-            {weekList.map((c) => (
-              <View key={c.title} style={styles.item}>
+            {weekList.map((c, i) => (
+              <View key={`${c.title}-${i}`} style={styles.item}>
                 <Text style={styles.itemMark}>✓</Text>
                 <Text style={styles.itemTitle}>{c.title}</Text>
                 {c.big && <Text style={styles.itemBig}>a big one</Text>}
@@ -302,7 +302,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: t.colors.bg },
   content: { paddingHorizontal: spacing.five, maxWidth: 560, width: '100%', alignSelf: 'center' },
   back: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, marginBottom: spacing.five },
-  title: { color: t.colors.ink, fontSize: 34 * t.scale, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.5 },
+  title: { color: t.colors.ink, fontSize: 34 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.5 },
   sub: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, marginTop: spacing.two, marginBottom: spacing.six },
   monthBar: {
     flexDirection: 'row',
@@ -389,7 +389,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     fontSize: 15 * t.scale,
     fontFamily: fonts.sans,
     fontStyle: 'italic',
-    lineHeight: 21,
+    lineHeight: 21 * t.scale,
     textAlign: 'center',
     marginTop: spacing.three,
     paddingHorizontal: spacing.two,
@@ -415,7 +415,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  invitePlusText: { color: t.colors.accent, fontSize: 28 * t.scale, fontFamily: fonts.body, lineHeight: 32 },
+  invitePlusText: { color: t.colors.accent, fontSize: 28 * t.scale, fontFamily: fonts.body, lineHeight: 32 * t.scale },
   scrapbookHint: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
   scrapbookBtn: {
     alignSelf: 'center',
@@ -426,7 +426,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   scrapbookBtnText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   scrapbookError: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
-  scrapbookNote: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, lineHeight: 17, textAlign: 'center' },
+  scrapbookNote: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, lineHeight: 17 * t.scale, textAlign: 'center' },
   weekList: { marginTop: spacing.four, gap: spacing.two },
   weekListHead: {
     color: t.colors.inkSoft,

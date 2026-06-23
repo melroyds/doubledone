@@ -139,7 +139,7 @@ export default function SignInScreen() {
             style={styles.input}
             keyboardType="number-pad"
             inputMode="numeric"
-            maxLength={10}
+            maxLength={6}
             accessibilityLabel="Code from your email"
           />
           <Pressable
@@ -207,14 +207,14 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   title: {
     color: t.colors.ink,
     fontSize: 30 * t.scale,
-    fontWeight: '700',
+    fontWeight: '600',
     fontFamily: fonts.sans,
     letterSpacing: -0.5,
   },
-  sub: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 23, marginTop: spacing.three },
+  sub: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale, marginTop: spacing.three },
   form: { gap: spacing.three, marginTop: spacing.six },
   sentTo: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-  success: { color: t.colors.done, fontSize: 26 * t.scale, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3 },
+  success: { color: t.colors.done, fontSize: 26 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.3 },
   input: {
     backgroundColor: t.colors.surface,
     borderWidth: 1,

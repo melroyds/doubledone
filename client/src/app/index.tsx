@@ -1293,7 +1293,7 @@ export default function TodayScreen() {
       </Modal>
 
       <Modal visible={didOpen} transparent animationType="fade" onRequestClose={() => setDidOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setDidOpen(false)} accessibilityLabel="Dismiss">
+        <Pressable style={styles.backdrop} onPress={() => setDidOpen(false)} accessibilityRole="button" accessibilityLabel="Dismiss">
           <Pressable style={styles.wrapCard} onPress={() => {}}>
             <Text style={styles.didTitle}>What did you do?</Text>
             <Text style={styles.didHint}>{"Something you got done that was never on the list. It still counts."}</Text>
@@ -1334,7 +1334,7 @@ export default function TodayScreen() {
       </Modal>
 
       <Modal visible={moveToOpen} transparent animationType="fade" onRequestClose={() => setMoveToOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setMoveToOpen(false)} accessibilityLabel="Dismiss">
+        <Pressable style={styles.backdrop} onPress={() => setMoveToOpen(false)} accessibilityRole="button" accessibilityLabel="Dismiss">
           <Pressable style={styles.wrapCard} onPress={() => {}}>
             <Text style={styles.didTitle}>Move to…</Text>
             <Text style={styles.didHint}>
@@ -1343,7 +1343,7 @@ export default function TodayScreen() {
             <View style={styles.moveToPresets}>
               <Pressable
                 onPress={() => bulkMoveTo(presetDate(today, 'thisWeekend'))}
-                style={({ pressed }) => [styles.moveChip, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.moveChip, pressed && styles.pressed]} hitSlop={6}
                 accessibilityRole="button"
                 accessibilityLabel="This weekend"
               >
@@ -1351,7 +1351,7 @@ export default function TodayScreen() {
               </Pressable>
               <Pressable
                 onPress={() => bulkMoveTo(presetDate(today, 'nextWeek'))}
-                style={({ pressed }) => [styles.moveChip, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.moveChip, pressed && styles.pressed]} hitSlop={6}
                 accessibilityRole="button"
                 accessibilityLabel="Next week"
               >
@@ -1373,7 +1373,7 @@ export default function TodayScreen() {
       </Modal>
 
       <Modal visible={nudgeOpen} transparent animationType="fade" onRequestClose={() => setNudgeOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setNudgeOpen(false)} accessibilityLabel="Dismiss">
+        <Pressable style={styles.backdrop} onPress={() => setNudgeOpen(false)} accessibilityRole="button" accessibilityLabel="Dismiss">
           <Pressable style={styles.wrapCard} onPress={() => {}}>
             <Text style={styles.didTitle}>Remind me…</Text>
             <Text style={styles.didHint}>A gentle poke about this later today, never a deadline.</Text>
@@ -1385,7 +1385,7 @@ export default function TodayScreen() {
                   <Pressable
                     key={p.id}
                     onPress={() => void pickNudge(p.id)}
-                    style={({ pressed }) => [styles.moveChip, pressed && styles.pressed]}
+                    style={({ pressed }) => [styles.moveChip, pressed && styles.pressed]} hitSlop={6}
                     accessibilityRole="button"
                     accessibilityLabel={p.label}
                   >
@@ -1408,7 +1408,7 @@ export default function TodayScreen() {
       </Modal>
 
       <Modal visible={closing} transparent animationType="fade" onRequestClose={() => setClosing(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setClosing(false)} accessibilityLabel="Dismiss">
+        <Pressable style={styles.backdrop} onPress={() => setClosing(false)} accessibilityRole="button" accessibilityLabel="Dismiss">
           <Animated.View
             style={[
               styles.wrapAnim,
@@ -1486,7 +1486,7 @@ export default function TodayScreen() {
       </Modal>
 
       <Modal visible={plan != null} transparent animationType="fade" onRequestClose={() => setPlan(null)}>
-        <Pressable style={styles.backdrop} onPress={() => setPlan(null)} accessibilityLabel="Dismiss">
+        <Pressable style={styles.backdrop} onPress={() => setPlan(null)} accessibilityRole="button" accessibilityLabel="Dismiss">
           <Pressable style={styles.wrapCard} onPress={() => {}}>
             <Text style={styles.wrapTitle}>A calmer spread</Text>
             <Text style={styles.wrapLine}>{"Keep today lighter. Here's where the rest could go."}</Text>
@@ -1601,7 +1601,7 @@ const makeStyles = (t: Theme) =>
     },
     spine: { color: t.colors.inkSoft, fontSize: 16 * t.scale, marginTop: spacing.two, marginBottom: spacing.six, fontFamily: fonts.body },
     list: { gap: spacing.two },
-    calmNote: { color: t.colors.inkSoft, fontSize: 16 * t.scale, marginTop: spacing.five, lineHeight: 24, fontFamily: fonts.body },
+    calmNote: { color: t.colors.inkSoft, fontSize: 16 * t.scale, marginTop: spacing.five, lineHeight: 24 * t.scale, fontFamily: fonts.body },
     emptyState: { alignItems: 'center' },
     emptyArt: { width: '100%', maxWidth: 420, aspectRatio: 16 / 9, borderRadius: radius.lg, marginTop: spacing.five, overflow: 'hidden' },
     emptyNote: { textAlign: 'center' },
@@ -1628,22 +1628,6 @@ const makeStyles = (t: Theme) =>
       width: '100%',
       alignSelf: 'center',
     },
-    sync: {
-      color: t.colors.inkFaint,
-      fontSize: 13 * t.scale,
-      textAlign: 'center',
-      marginTop: spacing.three,
-      fontFamily: fonts.body,
-    },
-    syncRow: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-      gap: spacing.three,
-      marginTop: spacing.three,
-    },
-    syncText: { color: t.colors.inkFaint, fontSize: 13 * t.scale, flexShrink: 1, fontFamily: fonts.body },
-    syncAction: { color: t.colors.accent, fontSize: 13 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
     ethos: { marginTop: spacing.three, alignItems: 'center' },
     optionalLinks: { marginTop: spacing.four, alignItems: 'center', gap: spacing.two },
     optLink: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center' },
@@ -1666,8 +1650,8 @@ const makeStyles = (t: Theme) =>
       gap: spacing.three,
       marginBottom: spacing.five,
     },
-    reentryTitle: { color: t.colors.ink, fontSize: 22 * t.scale, fontFamily: fonts.sans, fontWeight: '700', letterSpacing: -0.3 },
-    reentryBody: { color: t.colors.ink, fontSize: 16 * t.scale, lineHeight: 24, fontFamily: fonts.body },
+    reentryTitle: { color: t.colors.ink, fontSize: 22 * t.scale, fontFamily: fonts.sans, fontWeight: '600', letterSpacing: -0.3 },
+    reentryBody: { color: t.colors.ink, fontSize: 16 * t.scale, lineHeight: 24 * t.scale, fontFamily: fonts.body },
     reentryBtn: {
       alignSelf: 'flex-start',
       paddingVertical: spacing.two,
@@ -1681,7 +1665,7 @@ const makeStyles = (t: Theme) =>
     weightTrack: { flexDirection: 'row', height: 6, borderRadius: radius.pill, backgroundColor: t.colors.line, overflow: 'hidden' },
     weightFill: { backgroundColor: t.colors.accent },
     weightLabel: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
-    lowDayToggle: { color: t.colors.accent, fontSize: 12 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
+    lowDayToggle: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
     windDown: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     dayActions: { marginTop: spacing.seven, alignItems: 'center', gap: spacing.three },
     closeDay: {
@@ -1701,9 +1685,9 @@ const makeStyles = (t: Theme) =>
       overflow: 'hidden',
       marginBottom: spacing.two,
     },
-    restedTitle: { color: t.colors.ink, fontSize: 26 * t.scale, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3, textAlign: 'center' },
-    restedLine: { color: t.colors.ink, fontSize: 17 * t.scale, lineHeight: 24, fontFamily: fonts.body, textAlign: 'center' },
-    restedSub: { color: t.colors.inkFaint, fontSize: 14 * t.scale, lineHeight: 20, fontFamily: fonts.body, textAlign: 'center' },
+    restedTitle: { color: t.colors.ink, fontSize: 26 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.3, textAlign: 'center' },
+    restedLine: { color: t.colors.ink, fontSize: 17 * t.scale, lineHeight: 24 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+    restedSub: { color: t.colors.inkFaint, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     restedReopen: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.three },
     strategiseNudge: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     strategiseBtn: {
@@ -1722,8 +1706,8 @@ const makeStyles = (t: Theme) =>
     planDismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two, fontFamily: fonts.body },
     pressed: { opacity: 0.85 },
     alsoDidLink: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    didTitle: { color: t.colors.ink, fontSize: 21 * t.scale, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3 },
-    didHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20, fontFamily: fonts.body },
+    didTitle: { color: t.colors.ink, fontSize: 21 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.3 },
+    didHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body },
     didInput: {
       borderWidth: 1,
       borderColor: t.colors.line,
@@ -1740,7 +1724,6 @@ const makeStyles = (t: Theme) =>
     didCancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     didAddBtn: { paddingVertical: spacing.two, paddingHorizontal: spacing.five, borderRadius: radius.md, backgroundColor: t.colors.accent },
     didAddText: { color: '#FFFFFF', fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    focusLink: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     focusEntry: {
       borderWidth: 1,
       borderColor: t.colors.accent,
@@ -1755,7 +1738,7 @@ const makeStyles = (t: Theme) =>
     selectTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four, marginBottom: spacing.two },
     selectAllText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
     moveToPresets: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two, justifyContent: 'center', marginBottom: spacing.three },
-    moveChip: { borderWidth: 1, borderColor: t.colors.line, borderRadius: radius.pill, paddingVertical: spacing.two, paddingHorizontal: spacing.three },
+    moveChip: { borderWidth: 1, borderColor: t.colors.line, borderRadius: radius.pill, paddingVertical: spacing.three, paddingHorizontal: spacing.three },
     moveChipText: { color: t.colors.ink, fontFamily: fonts.body, fontSize: 14 * t.scale },
     moveCancelWrap: { marginTop: spacing.three, alignItems: 'center' },
     focusPickList: { marginTop: spacing.five, gap: spacing.four, alignItems: 'center' },
@@ -1767,9 +1750,9 @@ const makeStyles = (t: Theme) =>
     focusExitText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     focusBody: { alignItems: 'center', gap: spacing.four, maxWidth: 440, width: '100%' },
     focusLabel: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
-    focusTitle: { color: t.colors.ink, fontSize: 30 * t.scale, lineHeight: 38, fontFamily: fonts.sans, fontWeight: '700', textAlign: 'center', letterSpacing: -0.3 },
+    focusTitle: { color: t.colors.ink, fontSize: 30 * t.scale, lineHeight: 38 * t.scale, fontFamily: fonts.sans, fontWeight: '600', textAlign: 'center', letterSpacing: -0.3 },
     focusStep: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body },
-    focusEmptyNote: { color: t.colors.inkSoft, fontSize: 16 * t.scale, lineHeight: 24, fontFamily: fonts.body, textAlign: 'center' },
+    focusEmptyNote: { color: t.colors.inkSoft, fontSize: 16 * t.scale, lineHeight: 24 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     focusActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.six, marginTop: spacing.four },
     focusSkipText: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     focusDoneBtn: { paddingVertical: spacing.three, paddingHorizontal: spacing.seven, borderRadius: radius.md, backgroundColor: t.colors.accent },
@@ -1791,13 +1774,13 @@ const makeStyles = (t: Theme) =>
       gap: spacing.three,
     },
     wrapArt: { width: '100%', aspectRatio: 16 / 9, borderRadius: radius.md, marginBottom: spacing.one, overflow: 'hidden' },
-    wrapTitle: { color: t.colors.ink, fontSize: 26 * t.scale, fontWeight: '700', fontFamily: fonts.sans, letterSpacing: -0.3 },
-    wrapLine: { color: t.colors.ink, fontSize: 17 * t.scale, lineHeight: 24, fontFamily: fonts.body },
+    wrapTitle: { color: t.colors.ink, fontSize: 26 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.3 },
+    wrapLine: { color: t.colors.ink, fontSize: 17 * t.scale, lineHeight: 24 * t.scale, fontFamily: fonts.body },
     wrapList: { gap: spacing.two, marginTop: spacing.one },
     wrapItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
     wrapCheck: { color: t.colors.done, fontSize: 16 * t.scale, fontWeight: '700', fontFamily: fonts.bodyBold },
     wrapItemText: { color: t.colors.inkSoft, fontSize: 16 * t.scale, flexShrink: 1, fontFamily: fonts.body },
-    wrapRoll: { color: t.colors.inkFaint, fontSize: 14 * t.scale, lineHeight: 20, marginTop: spacing.two, fontFamily: fonts.body },
+    wrapRoll: { color: t.colors.inkFaint, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, marginTop: spacing.two, fontFamily: fonts.body },
     wrapBtn: { backgroundColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.four, alignItems: 'center', marginTop: spacing.three },
     wrapBtnText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
   });

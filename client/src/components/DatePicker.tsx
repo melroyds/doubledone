@@ -70,7 +70,7 @@ export function DatePicker({ value, onChange, today }: Props) {
                 style={[styles.cell, selected && styles.cellOn]}
                 accessibilityRole="button"
                 accessibilityState={{ selected, disabled: past }}
-                accessibilityLabel={fromISODate(iso).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
+                accessibilityLabel={fromISODate(iso).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
               >
                 <Text style={[styles.day, past && styles.dayPast, selected && styles.dayOn]}>
                   {Number(iso.slice(8, 10))}
@@ -95,7 +95,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   nav: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill },
-  navText: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontSize: 22 * t.scale, fontWeight: '700', lineHeight: 24 },
+  navText: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontSize: 22 * t.scale, fontWeight: '700', lineHeight: 24 * t.scale },
   label: { color: t.colors.ink, fontFamily: fonts.bodyBold, fontSize: 15 * t.scale, fontWeight: '600' },
   week: { flexDirection: 'row' },
   weekday: { flex: 1, textAlign: 'center', color: t.colors.inkFaint, fontFamily: fonts.body, fontSize: 12 * t.scale, paddingVertical: spacing.one },

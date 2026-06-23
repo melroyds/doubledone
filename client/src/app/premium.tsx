@@ -129,7 +129,7 @@ export default function PremiumScreen() {
           <ActivityIndicator color={styles.spinner.color} style={styles.loadingPad} />
         ) : ent.premium ? (
           <View style={styles.panel}>
-            <Text style={styles.panelHead}>You’re Premium ✓</Text>
+            <Text style={styles.panelHead}>You&apos;re Premium ✓</Text>
             <Text style={styles.body}>
               You get {allowance} keepsake{allowance === 1 ? '' : 's'} a week{allowance < 4 ? ', and more the longer you stay.' : '.'} Thank you for keeping
               DoubleDone independent.
@@ -173,7 +173,7 @@ export default function PremiumScreen() {
               <Text style={styles.tierArrow}>→</Text>
               <Text style={styles.tier}>2 after two months</Text>
               <Text style={styles.tierArrow}>→</Text>
-              <Text style={styles.tier}>4 after six</Text>
+              <Text style={styles.tier}>4 after six months</Text>
             </View>
 
             <Text style={styles.price}>A$5 / month. Cancel anytime. No ads, ever.</Text>
@@ -222,7 +222,7 @@ const makeStyles = (t: Theme) =>
     loadingPad: { marginTop: spacing.six },
     panel: { marginTop: spacing.five, gap: spacing.three },
     panelHead: { color: t.colors.ink, fontSize: 24 * t.scale, fontFamily: fonts.sans, fontWeight: '400' },
-    body: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 24 },
+    body: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 24 * t.scale },
     note: {
       color: t.colors.accent,
       fontSize: 15 * t.scale,
@@ -250,8 +250,8 @@ const makeStyles = (t: Theme) =>
     ctaBusy: { opacity: 0.7 },
     ctaText: { color: '#FFFFFF', fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     pressed: { opacity: 0.8 },
-    foot: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 20 },
-    subStatus: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 },
+    foot: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },
+    subStatus: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale },
     error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body },
     backLink: { alignSelf: 'center', marginTop: spacing.one },
     backLinkText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },

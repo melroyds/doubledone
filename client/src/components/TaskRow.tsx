@@ -34,7 +34,7 @@ type Props = {
 // A single row. Tap to complete (a soft sage check, gentle fade, never a shaming
 // strike). Long-press to remove, behind a calm Keep / Remove confirm. One-off
 // (unique) tasks get a solid coloured border; repeating tasks stay plain but carry
-// the repeat mark. Same denim colour either way.
+// the repeat mark. Same periwinkle accent either way.
 //
 // A sliced task (a thing done in parts) renders its own way: tap to advance one
 // slice, a slim sage bar fills toward done, a quiet "n / N" count, and a small −
@@ -113,7 +113,7 @@ export function TaskRow({
     // Keep / Remove) fits without crushing the title on a narrow phone.
     return (
       <View style={[styles.row, styles.confirmRow, styles.confirmColumn]}>
-        <Text style={styles.confirmTitle} numberOfLines={1}>
+        <Text style={styles.confirmTitle} numberOfLines={2}>
           {title}
         </Text>
         <View style={styles.confirmActions}>
@@ -308,8 +308,8 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     justifyContent: 'center',
   },
   selectDotOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
-  tick: { color: '#FFFFFF', fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', lineHeight: 17 },
-  text: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 23 },
+  tick: { color: '#FFFFFF', fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', lineHeight: 17 * t.scale },
+  text: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale },
   textDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
   repeatMark: { color: t.colors.repeat, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
   nudgeMark: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },

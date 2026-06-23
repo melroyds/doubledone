@@ -34,7 +34,7 @@ const light = {
   surfaceCard: 'rgba(255,255,255,0.92)', // cards over the living background (legibility held)
   ink: '#2B2722', // primary text (warm near-black)
   inkSoft: '#7A7066', // secondary text
-  inkFaint: '#A89E93', // tertiary / placeholder
+  inkFaint: '#8A7F73', // tertiary / placeholder
   line: '#ECE4D8', // hairline borders
   accent: '#9B6A7D', // dusky mauve, the single accent, used sparingly
   accentSoft: '#F1E7EC', // mauve tint
@@ -52,7 +52,7 @@ const dark = {
   surface: '#252119',
   surfaceCard: 'rgba(37,33,25,0.86)', // cards over the living background
   ink: '#F2EBE0',
-  inkSoft: '#A89E93',
+  inkSoft: '#8A7F73',
   inkFaint: '#7A7066',
   line: '#34302A',
   accent: '#C68BA0', // lifted mauve
