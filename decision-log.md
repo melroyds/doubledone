@@ -1597,3 +1597,9 @@ Decided against a broader auth-error match (a false-positive wipe of someone's l
 The third privacy item, telemetry anonymisation, needs no work yet: `[doubledone.*]` events are console-only and never leave the device, so there is no sink to harden until one is built.
 
 **Native env leak found + fixed the same day:** the EAS `preview` environment still had `EXPO_PUBLIC_AI_URL = doubledone-ai.melroy-a02.workers.dev`, so the Android APK (which inlines EAS env, not the in-code default) still pointed at the name-bearing URL. Updated the EAS preview env to `https://api.doubledone.app` and rebuilt, so native matches web. This was the last surface still carrying the old URL, and the prerequisite for retiring workers.dev.
+
+## 2026-06-23 workers.dev retired (only api.doubledone.app serves now)
+
+With web, native (the EAS preview env), the docs, and the code defaults all on `api.doubledone.app`, nothing references the workers.dev URL any more, so it was retired: `workers_dev: false` in `server/wrangler.jsonc`, deployed. `doubledone-ai.melroy-a02.workers.dev` no longer resolves; only the custom domain serves the Worker. The personal name is now gone from every live surface (web, native, the API + MCP docs, Stripe's customer-facing fields, and the repo + its history).
+
+Two known consequences, both expected: the Stripe TEST-mode webhook still pointed at `…workers.dev/stripe-webhook`, so test-mode webhook events stop arriving until it is repointed at `api.doubledone.app/stripe-webhook` (a non-issue in practice: no test checkouts are running, and live mode needs a fresh webhook anyway). And a local `.env` whose `EXPO_PUBLIC_AI_URL` is the old URL must be updated to `api.doubledone.app`, or the line deleted since the code now defaults to it, for `npm run dev` to reach the backend.

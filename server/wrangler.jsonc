@@ -9,11 +9,11 @@
   // subdomain. Provisioned on `wrangler deploy`. The workers.dev URL stays live too,
   // so the cutover is non-breaking.
   "routes": [{ "pattern": "api.doubledone.app", "custom_domain": true }],
-  // Keep the old workers.dev URL serving alongside the custom domain. Adding a custom
-  // domain otherwise DISABLES workers.dev by default (wrangler warns about this), which
-  // would break the deployed web app until its EXPO_PUBLIC_AI_URL is flipped. Explicit
-  // true is what makes the cutover actually non-breaking.
-  "workers_dev": true,
+  // workers.dev is retired now that web, native (the EAS env), the docs, and the code
+  // defaults all point at the custom domain: false stops the name-bearing
+  // doubledone-ai.melroy-a02.workers.dev from resolving, leaving only api.doubledone.app.
+  // It was kept true through the cutover so the old URL served until everything moved off.
+  "workers_dev": false,
   // Daily web-push nudge (Phase 2): an hourly cron fires the scheduled() handler, which
   // sends to each subscription whose LOCAL hour matches now (see server/src/push.ts).
   "triggers": { "crons": ["0 * * * *"] },
