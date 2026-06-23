@@ -1123,7 +1123,7 @@ export default function TodayScreen() {
             <View style={styles.selectActions}>
               <View style={styles.actionRow}>
                 <Pressable onPress={bulkComplete} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Mark selected done" hitSlop={6}>
-                  <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>Done</Text>
+                  <Text style={[styles.selectDone, selected.length === 0 && styles.selectActionOff]}>Done</Text>
                 </Pressable>
                 {selected.length === 1 && (
                   <Pressable
@@ -1136,7 +1136,7 @@ export default function TodayScreen() {
                     accessibilityLabel="Mark the selected task good enough and done"
                     hitSlop={6}
                   >
-                    <Text style={[styles.selectAction, { color: theme.colors.done }]}>Good enough</Text>
+                    <Text style={styles.selectAction}>Good enough</Text>
                   </Pressable>
                 )}
                 <Pressable onPress={() => setMoveToOpen(true)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Move selected to a date" hitSlop={6}>
@@ -1654,14 +1654,15 @@ const makeStyles = (t: Theme) =>
       alignSelf: 'center',
     },
     ethos: { marginTop: spacing.three, alignItems: 'center' },
-    optionalLinks: { marginTop: spacing.four, alignItems: 'center', gap: spacing.two },
-    optLink: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center' },
+    optionalLinks: { marginTop: spacing.four, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: spacing.five },
+    optLink: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center' },
     optFaint: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     selectBar: { gap: spacing.three, alignItems: 'center', paddingVertical: spacing.two },
     selectCount: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     selectActions: { alignItems: 'center', gap: spacing.three },
     actionRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: spacing.four },
-    selectAction: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    selectAction: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    selectDone: { color: t.colors.done, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     selectRemove: { color: t.colors.danger, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     selectActionOff: { color: t.colors.inkFaint },
     selectCancel: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
@@ -1690,7 +1691,7 @@ const makeStyles = (t: Theme) =>
     weightTrack: { flexDirection: 'row', height: 6, borderRadius: radius.pill, backgroundColor: t.colors.line, overflow: 'hidden' },
     weightFill: { backgroundColor: t.colors.accent },
     weightLabel: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
-    lowDayToggle: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
+    lowDayToggle: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
     windDown: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     dayActions: { marginTop: spacing.seven, alignItems: 'center', gap: spacing.three },
     closeDay: {
@@ -1764,7 +1765,7 @@ const makeStyles = (t: Theme) =>
     focusEntryText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     alsoDidUnderList: { marginTop: spacing.three, marginBottom: spacing.two, alignItems: 'center' },
     selectTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four, marginBottom: spacing.two },
-    selectAllText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
+    selectAllText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
     moveToPresets: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two, justifyContent: 'center', marginBottom: spacing.three },
     moveChip: { borderWidth: 1, borderColor: t.colors.line, borderRadius: radius.pill, paddingVertical: spacing.three, paddingHorizontal: spacing.three },
     moveChipText: { color: t.colors.ink, fontFamily: fonts.body, fontSize: 14 * t.scale },
