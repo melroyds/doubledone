@@ -4,6 +4,11 @@
   "compatibility_date": "2025-06-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
+  // Custom domain: the public surfaces (AI backend, MCP at /mcp, REST API at /api/v1,
+  // the Stripe webhook) live at api.doubledone.app, not the account's workers.dev
+  // subdomain. Provisioned on `wrangler deploy`. The workers.dev URL stays live too,
+  // so the cutover is non-breaking.
+  "routes": [{ "pattern": "api.doubledone.app", "custom_domain": true }],
   // Daily web-push nudge (Phase 2): an hourly cron fires the scheduled() handler, which
   // sends to each subscription whose LOCAL hour matches now (see server/src/push.ts).
   "triggers": { "crons": ["0 * * * *"] },

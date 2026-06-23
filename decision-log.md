@@ -1565,3 +1565,17 @@ More Today feedback from Melroy:
 - **The optional links moved below the rolling marquee:** "Synced to X" (or the sync invite) and "Turn on daily reminder", both centred in the accent colour, out of the way as the low-priority, optional things they are. (Melroy chose "both below the marquee" over promoting sync.)
 
 The old footer stacked sync + reminder above the marquee, left-aligned; the new strip sits below it, centred. Screenshots regenerated.
+
+## 2026-06-23 The public surfaces move to api.doubledone.app (off the name-bearing workers.dev URL)
+
+Melroy, heading toward a public launch, flagged that Stripe and the MCP server both expose his first name. The root cause is one shared fact: the AI backend, the MCP server (`/mcp`), the public REST API (`/api/v1`), and the Stripe webhook are all the **same** Cloudflare Worker, whose only address was the account's free subdomain `doubledone-ai.melroy-a02.workers.dev`. One personal-name leak, four surfaces.
+
+**Decided: a custom domain, `api.doubledone.app`, on the zone we already own.** One move repoints all four surfaces off the name. Added to `server/wrangler.jsonc` as a `routes` custom-domain entry (provisioned on the next `wrangler deploy`), and every reference repointed: the four client defaults (`ai.ts`, `reminders.web.ts`, `stripe.ts`, and `settings.tsx`'s MCP URL), the OpenAPI `servers` URL (`openapi.ts`), the screenshot script, `.env.example`, the API + MCP docs, the Stripe-webhook runbook step, and the CLAUDE.md resources table.
+
+**Non-breaking by design.** The defaults are fallbacks behind `EXPO_PUBLIC_AI_URL`, which stays on the workers.dev URL in prod (Pages) and local (`.env`) until cutover, and the workers.dev URL is NOT disabled (`workers_dev` left default), so both addresses serve the Worker through the swap. The CORS allowlist and bearer auth key off the app origin and the token, not the backend host, so neither changes. It is also a portfolio upgrade: the API docs and MCP setup now read `api.doubledone.app`, which looks like a real product, not a hobby Worker.
+
+**Decided against:** renaming the account's workers.dev subdomain (account-wide, and still a `workers.dev` URL, so it neither hides the structure nor reads as a product); and deriving the OpenAPI server URL from the request host (more robust, but a bigger change than updating one constant, and the constant is clear).
+
+**Left for Melroy (the cutover, in order):** deploy the Worker to provision the domain (his per-instance OK), then flip `EXPO_PUBLIC_AI_URL` to `https://api.doubledone.app` in the Cloudflare Pages env (triggers a web rebuild) and in his local `.env`, then update the webhook URL in the Stripe dashboard to `https://api.doubledone.app/stripe-webhook`. Separately, not a URL fix: set the Stripe public business name + statement descriptor to "DoubleDone" so a customer's card statement never shows his legal name, and create a "DoubleDone" Expo org to move the project off the `@melroyds` owner before any Play Store release (`app.json`'s Android package is already the neutral `app.doubledone`). The decision-log's own historical entries keep their old URL, and the LICENSE / README keep his name (that is the portfolio, deliberately).
+
+Verification: gate green (typecheck / lint / tests); no live behaviour change until the deploy plus the env flip.

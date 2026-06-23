@@ -8,13 +8,13 @@ security scopes it to exactly your rows.
 ## Base URL
 
 ```
-https://doubledone-ai.melroy-a02.workers.dev/api/v1
+https://api.doubledone.app/api/v1
 ```
 
 ## Browse it
 
-- **Interactive docs (Swagger UI):** [`/api/v1/docs`](https://doubledone-ai.melroy-a02.workers.dev/api/v1/docs)
-- **OpenAPI 3.1 spec:** [`/api/v1/openapi.json`](https://doubledone-ai.melroy-a02.workers.dev/api/v1/openapi.json)
+- **Interactive docs (Swagger UI):** [`/api/v1/docs`](https://api.doubledone.app/api/v1/docs)
+- **OpenAPI 3.1 spec:** [`/api/v1/openapi.json`](https://api.doubledone.app/api/v1/openapi.json)
 
 ## Auth: your token
 
@@ -45,7 +45,7 @@ A task looks like:
 
 ```bash
 TOKEN="<paste your token>"
-BASE="https://doubledone-ai.melroy-a02.workers.dev/api/v1"
+BASE="https://api.doubledone.app/api/v1"
 
 # Today's open tasks
 curl -s "$BASE/tasks?today=true" -H "Authorization: Bearer $TOKEN"

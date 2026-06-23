@@ -69,7 +69,7 @@ The "built, needs your hands" cluster: the steps that turn shipped code into a p
    2. In `server/wrangler.jsonc`, set the non-secret vars `STRIPE_PRICE_ID` (that price id) and `APP_URL` (`https://doubledone.app`).
    3. Set the secret `STRIPE_SECRET_KEY` (your `sk_test_…`): `npx wrangler secret put STRIPE_SECRET_KEY` from `server/`.
    4. Confirm the D1 `entitlements` table exists (`server/d1/schema.sql`), then **deploy the Worker** (`npx wrangler deploy` from `server/`, which needs your explicit OK per CLAUDE.md).
-   5. In Stripe, add a **webhook endpoint** → `https://doubledone-ai.melroy-a02.workers.dev/stripe-webhook`, events `checkout.session.completed` + `customer.subscription.updated` + `customer.subscription.deleted`; copy its signing secret (`whsec_…`) and set it: `npx wrangler secret put STRIPE_WEBHOOK_SECRET` (secrets apply with no redeploy).
+   5. In Stripe, add a **webhook endpoint** → `https://api.doubledone.app/stripe-webhook`, events `checkout.session.completed` + `customer.subscription.updated` + `customer.subscription.deleted`; copy its signing secret (`whsec_…`) and set it: `npx wrangler secret put STRIPE_WEBHOOK_SECRET` (secrets apply with no redeploy).
    6. **Test:** signed in on doubledone.app → Settings → DoubleDone Premium → Go Premium → pay with `4242 4242 4242 4242` (any future expiry, any CVC) → land back on `/premium` as "You're Premium ✓". Going live = repeat 1 / 3 / 5 with the live product and `sk_live_…` keys.
 
 **2. Account deletion (one migration + a live test).**

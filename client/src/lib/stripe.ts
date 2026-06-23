@@ -5,7 +5,7 @@
 import { type Entitlement, FREE_ENTITLEMENT } from './entitlement';
 import { supabase } from './supabase';
 
-const API_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://doubledone-ai.melroy-a02.workers.dev';
+const API_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
 
 async function authHeader(): Promise<Record<string, string> | null> {
   if (!supabase) return null;

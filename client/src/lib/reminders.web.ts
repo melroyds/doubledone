@@ -4,7 +4,7 @@
 // task content ever reaches the browser). Native uses reminders.ts (local scheduling);
 // Metro resolves this .web.ts on web. Per-task nudges stay native-only (no-op here).
 
-const AI_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://doubledone-ai.melroy-a02.workers.dev';
+const AI_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
 // Baked in as a fallback so the deployed web build always has it; EXPO_PUBLIC_VAPID_KEY
 // overrides it (e.g. for key rotation). This is the PUBLIC key, designed to be exposed
 // (it ships to every browser); the private JWK is a Worker secret, never here.

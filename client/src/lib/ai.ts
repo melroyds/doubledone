@@ -3,7 +3,7 @@
 // hardcoded fallback keeps the deployed build working; EXPO_PUBLIC_AI_URL
 // overrides it for local dev.
 
-const AI_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://doubledone-ai.melroy-a02.workers.dev';
+const AI_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
 
 export type DecomposedStep = { title: string; minutes: number };
 

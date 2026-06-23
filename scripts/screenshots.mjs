@@ -26,7 +26,7 @@ import path from 'node:path';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.SHOT_URL ?? 'http://localhost:8081';
-const AI_URL = process.env.AI_URL ?? 'https://doubledone-ai.melroy-a02.workers.dev';
+const AI_URL = process.env.AI_URL ?? 'https://api.doubledone.app';
 const OUT = path.join(process.cwd(), 'docs', 'screenshots');
 const VIEWPORT = { width: 390, height: 844 };
 

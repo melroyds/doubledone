@@ -4,7 +4,7 @@
 // a clean, browsable contract for the CRUD surface in api.ts. Kept as a plain object
 // so it serializes directly and api.test.ts can assert its shape.
 
-const API_BASE = 'https://doubledone-ai.melroy-a02.workers.dev/api/v1';
+const API_BASE = 'https://api.doubledone.app/api/v1';
 
 const taskResponse = (description: string) => ({
   description,

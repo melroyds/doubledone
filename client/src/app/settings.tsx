@@ -19,7 +19,7 @@ import { useSettings, useThemedStyles } from '@/lib/theme-provider';
 
 // The MCP server endpoint (the AI backend's /mcp route). Same origin as the AI
 // Worker; falls back to the deployed Worker when EXPO_PUBLIC_AI_URL is unset.
-const MCP_URL = `${process.env.EXPO_PUBLIC_AI_URL ?? 'https://doubledone-ai.melroy-a02.workers.dev'}/mcp`;
+const MCP_URL = `${process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app'}/mcp`;
 
 // A warm, "flowery" mauve → rose → honey gradient for the one decorative cell, the
 // Premium card. The Dusk spine stays calm everywhere else; this is the deliberate

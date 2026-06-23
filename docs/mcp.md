@@ -8,7 +8,7 @@ as the AI backend, holds no elevated key, and acts only as **you**.
 ## Endpoint
 
 ```
-https://doubledone-ai.melroy-a02.workers.dev/mcp
+https://api.doubledone.app/mcp
 ```
 
 Transport: MCP Streamable HTTP (JSON-RPC 2.0 over a single POST).
@@ -45,7 +45,7 @@ Claude Desktop talks to stdio MCP servers, so bridge to this HTTP one with
       "args": [
         "-y",
         "mcp-remote",
-        "https://doubledone-ai.melroy-a02.workers.dev/mcp",
+        "https://api.doubledone.app/mcp",
         "--header",
         "Authorization: Bearer YOUR_TOKEN_HERE"
       ]
