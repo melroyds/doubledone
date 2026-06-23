@@ -168,7 +168,10 @@ export default function SettingsScreen() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ text, context: Platform.OS }),
       });
-      if (!res.ok) throw new Error(String(res.status));
+      // Demand a real { ok: true }: a catch-all 200 from an undeployed route must not
+      // read as success.
+      const data = (await res.json().catch(() => null)) as { ok?: boolean } | null;
+      if (!res.ok || data?.ok !== true) throw new Error(String(res.status));
       setFeedbackText('');
       setFeedbackState('sent');
       track('feedback.sent');
