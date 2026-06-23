@@ -105,10 +105,7 @@ export default function WelcomeScreen() {
       .split('\n')
       .map((l) => l.trim())
       .filter(Boolean);
-    if (lines.length === 0) {
-      void skip();
-      return;
-    }
+    if (lines.length === 0) return; // nothing to sort; the hidden primary makes this just a guard
     setBusy(true);
     const today = new Date();
     const now = Date.now();
@@ -153,6 +150,9 @@ export default function WelcomeScreen() {
 
   const todayTasks = revealed.filter((t) => !t.due);
   const laterCount = revealed.length - todayTasks.length;
+  // On capture, hold back the primary until there's something to sort, so an empty tap can
+  // never bail out of onboarding. Skip (top-right) stays the deliberate way to leave.
+  const captureEmpty = step === 'capture' && dump.trim().length === 0;
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + spacing.three, paddingBottom: insets.bottom + spacing.four }]}>
@@ -292,15 +292,17 @@ export default function WelcomeScreen() {
               <View key={s} style={[styles.dot, i === stepIndex && styles.dotOn]} />
             ))}
           </View>
-          <Pressable
-            onPress={onPrimary}
-            disabled={busy}
-            style={({ pressed }) => [styles.primary, pressed && styles.pressed, busy && styles.disabled]}
-            accessibilityRole="button"
-            accessibilityLabel={PRIMARY[step]}
-          >
-            {busy ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.primaryText}>{PRIMARY[step]}</Text>}
-          </Pressable>
+          {!captureEmpty && (
+            <Pressable
+              onPress={onPrimary}
+              disabled={busy}
+              style={({ pressed }) => [styles.primary, pressed && styles.pressed, busy && styles.disabled]}
+              accessibilityRole="button"
+              accessibilityLabel={PRIMARY[step]}
+            >
+              {busy ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.primaryText}>{PRIMARY[step]}</Text>}
+            </Pressable>
+          )}
         </View>
       </ScrollView>
     </View>
