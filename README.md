@@ -102,6 +102,9 @@ DoubleDone is built around those, not around a feature checklist. The founder is
 - Passwordless **email-OTP** sign-in, last-write-wins sync, soft-delete tombstones, and automatic anonymous→account migration on first sign-in. Local-first throughout: nothing requires an account.
 - **Data export**: download your tasks and everything you finished as a JSON file (no account needed). Your stuff is yours.
 
+**Support**
+- **In-app feedback**: a calm box in Settings sends your note straight to the maker (no mail client, no account), so what's broken or what you love gets heard.
+
 **For AI agents and developers (AX + DX)**
 - A stateless **MCP server** (`/mcp` on the Worker) lets Claude Desktop and other agents add, list and complete your tasks, authorised by your own token so it only ever touches your own rows under RLS. Guide in [`docs/mcp.md`](docs/mcp.md).
 - A public **REST API with an OpenAPI spec** exposes the same task operations to any developer or script, under the same token and the same RLS, with no elevated key. Reference in [`docs/api.md`](docs/api.md).

@@ -126,7 +126,7 @@ async function capture(browser, shot) {
   await ctx.addInitScript(seedLocalStorage, payload);
 
   const page = await ctx.newPage();
-  await page.goto(`${BASE}${shot.route}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.goto(`${BASE}${shot.route}`, { waitUntil: 'domcontentloaded', timeout: 120000 });
   if (shot.waitText) await page.getByText(shot.waitText, { exact: false }).first().waitFor({ timeout: 20000 });
   await page.evaluate(() => document.fonts.ready.then(() => true));
   await page.waitForTimeout(700); // let the calm fades settle
