@@ -92,6 +92,7 @@ export default function TodayScreen() {
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusPick, setFocusPick] = useState<string | null>(null);
   const brainDumpRef = useRef<BrainDumpHandle>(null);
+  const [captureOpen, setCaptureOpen] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -1188,7 +1189,30 @@ export default function TodayScreen() {
           <>
         {!isClosed && sortSummary && <Text style={styles.sortSummary}>{sortSummary}</Text>}
         {!isClosed && affirmation && <Text style={styles.affirmation}>{affirmation}</Text>}
-        {!isClosed && <BrainDump ref={brainDumpRef} onCapture={capture} onBiteElephant={biteElephant} onSort={sortDump} today={today} />}
+        {!isClosed &&
+          (captureOpen ? (
+            <View style={styles.capturePanel}>
+              <Pressable
+                onPress={() => setCaptureOpen(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Collapse the add panel"
+                hitSlop={8}
+                style={styles.captureHandle}
+              >
+                <Text style={styles.optLink}>Done adding</Text>
+              </Pressable>
+              <BrainDump ref={brainDumpRef} onCapture={capture} onBiteElephant={biteElephant} onSort={sortDump} today={today} />
+            </View>
+          ) : (
+            <Pressable
+              onPress={() => setCaptureOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Add a task to today"
+              style={({ pressed }) => [styles.addBar, pressed && styles.pressed]}
+            >
+              <Text style={styles.focusEntryText}>+  Add to today</Text>
+            </Pressable>
+          ))}
         <View style={styles.ethos}>
           <RotatingPhrase />
         </View>
@@ -1706,6 +1730,9 @@ const makeStyles = (t: Theme) =>
     planWhen: { color: t.colors.accent, fontSize: 14 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
     planDismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two, fontFamily: fonts.body },
     pressed: { opacity: 0.85 },
+    addBar: { borderWidth: 1, borderColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.four, alignItems: 'center' },
+    capturePanel: { gap: spacing.two },
+    captureHandle: { alignSelf: 'center', paddingVertical: spacing.two },
     alsoDidLink: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     didTitle: { color: t.colors.ink, fontSize: 21 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.3 },
     didHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body },
