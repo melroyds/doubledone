@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
@@ -15,7 +15,7 @@ import { loadReminderOn, loadTasks, saveReminderOn, saveTasks } from '@/lib/stor
 import { loadEntitlement } from '@/lib/stripe';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
-import { useSettings, useThemedStyles } from '@/lib/theme-provider';
+import { useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 // The MCP server endpoint (the AI backend's /mcp route). Same origin as the AI
 // Worker; falls back to the deployed Worker when EXPO_PUBLIC_AI_URL is unset.
@@ -37,6 +37,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { settings, setSettings } = useSettings();
   const styles = useThemedStyles(makeStyles);
+  const theme = useTheme();
   const session = useSession();
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -47,6 +48,9 @@ export default function SettingsScreen() {
   const [exporting, setExporting] = useState(false);
   const [exportNote, setExportNote] = useState<string | null>(null);
   const [reminderOn, setReminderOn] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackState, setFeedbackState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
 
   // Reflect the live entitlement so Settings shows a calm "Active" marker on
   // Premium. Re-checks on focus, e.g. after returning from checkout.
@@ -151,11 +155,27 @@ export default function SettingsScreen() {
     }
   }
 
-  // Open the user's mail client to write to the support inbox. mailto keeps this
-  // zero-backend; support@doubledone.app forwards via Cloudflare Email Routing.
-  function sendFeedback() {
-    void Linking.openURL('mailto:support@doubledone.app?subject=DoubleDone%20feedback').catch(() => {});
-    track('feedback.opened');
+  // Send the user's typed feedback in-app: POST it to the AI Worker, which emails it to
+  // the support inbox (no mail client, no leaving the app). Calm states, never a wall.
+  async function sendFeedback() {
+    const text = feedbackText.trim();
+    if (!text || feedbackState === 'sending') return;
+    setFeedbackState('sending');
+    try {
+      const base = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
+      const res = await fetch(`${base}/feedback`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text, context: Platform.OS }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      setFeedbackText('');
+      setFeedbackState('sent');
+      track('feedback.sent');
+    } catch {
+      setFeedbackState('error');
+      track('feedback.error');
+    }
   }
 
   return (
@@ -332,15 +352,64 @@ export default function SettingsScreen() {
           </LinearGradient>
         </Pressable>
 
-        <Pressable
-          onPress={sendFeedback}
-          accessibilityRole="button"
-          accessibilityLabel="Send feedback"
-          hitSlop={8}
-          style={styles.welcomeAgain}
-        >
-          <Text style={styles.welcomeAgainText}>Send feedback</Text>
-        </Pressable>
+        {feedbackState === 'sent' ? (
+          <Text style={styles.feedbackThanks}>Thank you. It is on its way.</Text>
+        ) : feedbackOpen ? (
+          <View style={styles.feedbackForm}>
+            <TextInput
+              style={styles.feedbackInput}
+              value={feedbackText}
+              onChangeText={(t) => {
+                setFeedbackText(t);
+                if (feedbackState === 'error') setFeedbackState('idle');
+              }}
+              placeholder="What is working, what is not, what you wish it did…"
+              placeholderTextColor={theme.colors.inkFaint}
+              multiline
+              editable={feedbackState !== 'sending'}
+              accessibilityLabel="Your feedback"
+            />
+            {feedbackState === 'error' && <Text style={styles.feedbackError}>Could not send just now. Please try again.</Text>}
+            <View style={styles.feedbackActions}>
+              <Pressable
+                onPress={() => {
+                  setFeedbackOpen(false);
+                  setFeedbackText('');
+                  setFeedbackState('idle');
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel feedback"
+                hitSlop={8}
+              >
+                <Text style={styles.feedbackCancel}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={sendFeedback}
+                disabled={!feedbackText.trim() || feedbackState === 'sending'}
+                accessibilityRole="button"
+                accessibilityLabel="Send feedback"
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.feedbackSend,
+                  pressed && { opacity: 0.85 },
+                  (!feedbackText.trim() || feedbackState === 'sending') && { opacity: 0.5 },
+                ]}
+              >
+                <Text style={styles.feedbackSendText}>{feedbackState === 'sending' ? 'Sending…' : 'Send'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Pressable
+            onPress={() => setFeedbackOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Send feedback"
+            hitSlop={8}
+            style={styles.welcomeAgain}
+          >
+            <Text style={styles.welcomeAgainText}>Send feedback</Text>
+          </Pressable>
+        )}
         <Pressable
           onPress={() => router.push({ pathname: '/welcome', params: { replay: '1' } })}
           accessibilityRole="button"
@@ -504,6 +573,25 @@ const makeStyles = (t: Theme) =>
     mcpFoot: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale, marginTop: spacing.one },
     welcomeAgain: { alignItems: 'center', paddingTop: spacing.six },
     welcomeAgainText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    feedbackForm: { paddingTop: spacing.six, gap: spacing.three },
+    feedbackInput: {
+      minHeight: 96,
+      borderWidth: 1,
+      borderColor: t.colors.line,
+      borderRadius: radius.md,
+      padding: spacing.three,
+      fontSize: 16 * t.scale,
+      fontFamily: fonts.body,
+      color: t.colors.ink,
+      backgroundColor: t.colors.surface,
+      textAlignVertical: 'top',
+    },
+    feedbackError: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body },
+    feedbackActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.five },
+    feedbackCancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    feedbackSend: { backgroundColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.three, paddingHorizontal: spacing.five },
+    feedbackSendText: { color: '#FFFFFF', fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    feedbackThanks: { color: t.colors.done, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', paddingTop: spacing.six },
     footnote: {
       color: t.colors.inkFaint,
       fontSize: 13 * t.scale,

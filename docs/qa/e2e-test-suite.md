@@ -178,6 +178,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | SET-03 | P2 | Both | Motion -> Reduce | Set Motion to Reduce. | Gentle fades and scrolling titles stop. |
 | SET-04 | P2 | Both | Privacy & data link | Tap 'Privacy & data' in Settings. | Opens the privacy screen. |
 | SET-05 | P2 | Both | Export your data | In Settings -> Your data, tap 'Export your data' (works with no account). | Web downloads a doubledone-export-<date>.json with your tasks + completions; native opens the share sheet. Tombstones excluded, completion data kept. |
+| SET-06 | P2 | Both | Send feedback in-app | In Settings, tap 'Send feedback', type a note, tap Send. | An inline box opens (no mail client, no leaving the app). Send shows 'Sending...' then a calm 'Thank you. It is on its way.', and the note arrives at the support inbox. On failure it shows a calm retry with the typed text kept. Needs the Worker deployed with /feedback + the FEEDBACK_TO secret set. |
 
 ## Accessibility
 

@@ -30,6 +30,11 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "doubledone-telemetry", "database_id": "a5d8ba94-3f1b-46fe-b113-59c7f047aea6" }
   ],
+  // In-app feedback: Cloudflare Email Routing's send_email binding lets the Worker email
+  // the support inbox. Unrestricted (sends to any verified destination); the recipient is
+  // the FEEDBACK_TO secret (the verified support address), set with
+  // `npx wrangler secret put FEEDBACK_TO`, never committed.
+  "send_email": [{ "name": "SEND_EMAIL" }],
   // Stripe (test mode) for Premium. Non-secret config: the price id is a sandbox/test
   // price, safe to commit. The secret key + webhook signing secret are Worker secrets
   // (npx wrangler secret put STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET), never committed.

@@ -5,6 +5,7 @@
 import { handleApi } from './api';
 import { buildClarifyRequest, CLARIFY_MODEL, parseClarifyResponse } from './clarify';
 import { buildDecomposeRequest, DECOMPOSE_MODEL, type DecomposeContext, parseDecomposeResponse } from './decompose';
+import { buildFeedbackEmail, parseFeedback } from './feedback';
 import { parseLanguage } from './lang';
 import { handleMcp } from './mcp';
 import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
@@ -36,6 +37,12 @@ interface R2Binding {
   get(key: string): Promise<{ body: ReadableStream; httpMetadata?: { contentType?: string } } | null>;
 }
 
+// Cloudflare Email Routing send_email binding (see wrangler.jsonc), typed locally so we
+// do not depend on a specific @cloudflare/workers-types version.
+interface SendEmailBinding {
+  send(message: unknown): Promise<void>;
+}
+
 export interface Env {
   ANTHROPIC_API_KEY: string;
   // Supabase project URL + public anon key. Used by the MCP server to proxy a
@@ -65,6 +72,11 @@ export interface Env {
   // without push configured.
   VAPID_PRIVATE_KEY?: string;
   VAPID_SUBJECT?: string;
+  // In-app feedback: the send_email binding + the verified destination it delivers to.
+  // FEEDBACK_TO is a Worker secret (the support inbox's verified address), never committed.
+  // Both optional so the app + tests run with feedback unconfigured.
+  SEND_EMAIL?: SendEmailBinding;
+  FEEDBACK_TO?: string;
 }
 
 // The app's own origins. A browser request from anywhere else is refused before
@@ -210,7 +222,7 @@ export default {
     // disallowed origin is refused (cross-site abuse); native apps send no Origin
     // and pass here. A per-IP rate limit then caps scripted abuse against the
     // $25/mo Anthropic budget. Both run before the body is even read.
-    if (request.method === 'POST' && (AI_ROUTES.has(pathname) || pathname === '/outcome')) {
+    if (request.method === 'POST' && (AI_ROUTES.has(pathname) || pathname === '/outcome' || pathname === '/feedback')) {
       if (origin !== null && !isAllowedOrigin(origin)) {
         return Response.json({ error: 'forbidden origin' }, { status: 403, headers: cors });
       }
@@ -243,6 +255,37 @@ export default {
       }
       ctx.waitUntil(logOutcome(env, { corrId, stepsTotal, daysElapsed }));
       return Response.json({ ok: true }, { headers: cors });
+    }
+
+    // In-app feedback: the user's typed note in, an email to the support inbox out (via
+    // the send_email binding). Awaited, not fire-and-forget, so the form can tell the user
+    // it actually sent. Origin-gated + rate-limited by the guard above.
+    if (pathname === '/feedback' && request.method === 'POST') {
+      const parsed = parseFeedback(await request.json().catch(() => null));
+      if (!parsed.ok) {
+        return Response.json({ error: parsed.error }, { status: 400, headers: cors });
+      }
+      if (!env.SEND_EMAIL || !env.FEEDBACK_TO) {
+        return Response.json({ error: 'feedback is not configured' }, { status: 503, headers: cors });
+      }
+      const from = 'feedback@doubledone.app';
+      const raw = buildFeedbackEmail({
+        from,
+        to: env.FEEDBACK_TO,
+        text: parsed.text,
+        context: parsed.context,
+        uuid: crypto.randomUUID(),
+        date: new Date().toUTCString(),
+      });
+      try {
+        const { EmailMessage } = (await import('cloudflare:email')) as {
+          EmailMessage: new (from: string, to: string, raw: string) => unknown;
+        };
+        await env.SEND_EMAIL.send(new EmailMessage(from, env.FEEDBACK_TO, raw));
+        return Response.json({ ok: true }, { headers: cors });
+      } catch {
+        return Response.json({ error: 'could not send just now' }, { status: 502, headers: cors });
+      }
     }
 
     // Break it down, call 1: a dreaded task in, three qualifying questions out.

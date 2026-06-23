@@ -72,6 +72,23 @@ describe('rate limit', () => {
   });
 });
 
+describe('feedback', () => {
+  it('400s when text is missing', async () => {
+    const res = await worker.fetch(req('POST', '/feedback', { origin: 'https://doubledone.app', body: {} }), makeEnv(), ctx);
+    expect(res.status).toBe(400);
+  });
+
+  it('refuses a disallowed browser origin', async () => {
+    const res = await worker.fetch(req('POST', '/feedback', { origin: 'https://evil.example', body: { text: 'hi' } }), makeEnv(), ctx);
+    expect(res.status).toBe(403);
+  });
+
+  it('503s when no send_email binding is configured', async () => {
+    const res = await worker.fetch(req('POST', '/feedback', { origin: 'https://doubledone.app', body: { text: 'hi' } }), makeEnv(), ctx);
+    expect(res.status).toBe(503);
+  });
+});
+
 describe('scrapbook', () => {
   it('runs the two-step AI pipeline and returns a data-url image + caption', async () => {
     const env = makeEnv({

@@ -1628,3 +1628,28 @@ Decided against (reviewed, left on purpose):
 - **An `onAccent` token for the ~15 `#FFFFFF` accent-fill literals:** already consistent; tokenising is churn for zero visual change.
 - **Flattening every serif title to 400** (the reviewer's alternative): kept the page-title-400 / modal-title-600 hierarchy and only made the 700s honest, because flattening is a visual change the screenshot harness cannot verify on the modal surfaces. Open to the lighter uniform look on request.
 - **The sliced-task confirm title** stays one line: it sits in a row beside the Step-back / Remove / Close buttons, where wrapping would crowd them.
+## 2026-06-23 In-app feedback (a send box, not a mailto)
+
+The "Send feedback" link was a mailto: (it opened the user's mail client, which on web
+often does not exist and on mobile throws them out of the app). Replaced with a real
+in-app form: a textarea + Send that POSTs to a new POST /feedback on the AI Worker,
+which emails the note to the support inbox. Calm sending / sent / error states, no
+leaving the app.
+
+- Send path: Cloudflare Email Routing's send_email binding, not a third party
+  (Resend/MailChannels). Email Routing is already set up for receiving support@, so
+  sending needs no new account and costs nothing. The constraint it imposes: it only
+  sends to a verified destination, so the recipient is the Gmail support@ already
+  forwards to, held in a FEEDBACK_TO Worker secret (never committed, private
+  server-side like the Anthropic key). Decided against Resend (a new account + DKIM DNS)
+  for launch; revisit if we ever want support@ itself as the literal To.
+- The cloudflare:email EmailMessage is a runtime dynamic import inside the handler, so
+  the Node/vitest import of index.ts never resolves the Workers-only module. The pure
+  parts (validation + the RFC 5322 MIME builder, base64 body so unicode survives) live
+  in server/src/feedback.ts and are unit-tested; the actual send is deploy-verified,
+  like the AI upstreams.
+- Guarded like the paid routes: origin-gated (browser) and per-IP rate-limited, so the
+  box is not an open spam relay. The note is capped at 4000 chars.
+
+Ships behind two of Melroy's ops: npx wrangler secret put FEEDBACK_TO, and the Worker
+deploy. Until both, the form shows its calm error; the web auto-deploys the form itself.

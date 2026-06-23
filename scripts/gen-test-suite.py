@@ -316,6 +316,9 @@ CASES = [
     ("SET-05", "Settings", "P2", "Export your data",
      "In Settings -> Your data, tap 'Export your data' (works with no account).",
      "Web downloads a doubledone-export-<date>.json with your tasks + completions; native opens the share sheet. Tombstones excluded, completion data kept.", "Both"),
+    ("SET-06", "Settings", "P2", "Send feedback in-app",
+     "In Settings, tap 'Send feedback', type a note, tap Send.",
+     "An inline box opens (no mail client, no leaving the app). Send shows 'Sending...' then a calm 'Thank you. It is on its way.', and the note arrives at the support inbox. On failure it shows a calm retry with the typed text kept. Needs the Worker deployed with /feedback + the FEEDBACK_TO secret set.", "Both"),
 
     # --- Accessibility --------------------------------------------------------
     ("A11Y-01", "Accessibility", "P2", "Screen reader (TalkBack)",
