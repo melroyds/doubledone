@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { celebrationTier, finishContext } from './celebrate';
 
 describe('celebrationTier', () => {
-  it('a quick win: same-day, small, not a big-win', () => {
-    expect(celebrationTier({ bigWin: false, lingerDays: 0, stepMinutes: 10 }).tier).toBe('quick');
+  it('floors a modest same-day whole-task finish at real, never the feeble quick tier', () => {
+    expect(celebrationTier({ bigWin: false, lingerDays: 0, stepMinutes: 10 }).tier).toBe('real');
   });
 
   it('a real finish: a few days, or a real chunk of work', () => {
@@ -18,11 +18,9 @@ describe('celebrationTier', () => {
     expect(celebrationTier({ bigWin: false, lingerDays: 0, stepMinutes: 120 }).tier).toBe('dreaded');
   });
 
-  it('the bloom duration grows from quick to dreaded', () => {
-    const quick = celebrationTier({ bigWin: false, lingerDays: 0, stepMinutes: 0 }).durationMs;
-    const real = celebrationTier({ bigWin: false, lingerDays: 3, stepMinutes: 0 }).durationMs;
+  it('the bloom duration grows from real to dreaded', () => {
+    const real = celebrationTier({ bigWin: false, lingerDays: 0, stepMinutes: 0 }).durationMs;
     const dreaded = celebrationTier({ bigWin: true, lingerDays: 0, stepMinutes: 0 }).durationMs;
-    expect(real).toBeGreaterThan(quick);
     expect(dreaded).toBeGreaterThan(real);
   });
 });

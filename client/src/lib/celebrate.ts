@@ -25,10 +25,12 @@ export function celebrationTier(input: CelebrationInput): { tier: CelebrationTie
   if (bigWin || lingerDays >= 7 || stepMinutes >= 90) {
     return { tier: 'dreaded', durationMs: motion.celebration.dreaded };
   }
-  if (lingerDays >= 2 || stepMinutes >= 30) {
-    return { tier: 'real', durationMs: motion.celebration.real };
-  }
-  return { tier: 'quick', durationMs: motion.celebration.quick };
+  // A whole-task finish is never "quick": completing something you broke into steps is, at
+  // minimum, a real finish and earns the held bloom. (It used to drop to `quick` for a
+  // same-day, modest task, which read too feeble for the biggest "you did the thing"
+  // moment, the B1 device-test note.) `quick` stays in the type for the component, but the
+  // whole-task bloom is floored at `real`.
+  return { tier: 'real', durationMs: motion.celebration.real };
 }
 
 // --- The warm context line under a whole-task-finish bloom ---

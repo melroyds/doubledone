@@ -1653,3 +1653,15 @@ leaving the app.
 
 Ships behind two of Melroy's ops: npx wrangler secret put FEEDBACK_TO, and the Worker
 deploy. Until both, the form shows its calm error; the web auto-deploys the form itself.
+## 2026-06-23 B1: the whole-task-finish bloom floored at "real"
+
+The device-test flag (B1) was that finishing a broken-down task read too feeble. The bloom
+and its trigger were already built (Bloom.tsx + the completeAncestors path in index.tsx);
+the cause was the tier. A same-day, modest whole-task finish (lingerDays < 2, stepMinutes
+< 30, not a big-win) fell into the smallest `quick` tier (a 210px light, ~1.2s). But
+finishing a task you broke into steps is never "quick", it is at minimum a real finish, so
+celebrationTier now floors a whole-task finish at `real` (the held 290px bloom), with
+`dreaded` still reserved for the long-lingered or heavy ones. Decided against keeping the
+quick tier for whole-task finishes: `quick` stays in the type for the component but is no
+longer produced, the biggest "you did the thing" moment should never be the feeblest. The
+bloom's on-device animation feel remains a device check (the headless preview throttles rAF).
