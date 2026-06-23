@@ -27,7 +27,7 @@ export default function PrivacyScreen() {
         </Pressable>
 
         <Text style={styles.title}>Privacy</Text>
-        <Text style={styles.updated}>Last updated 19 June 2026.</Text>
+        <Text style={styles.updated}>Last updated 23 June 2026.</Text>
 
         <Text style={styles.lead}>
           DoubleDone is built to need almost nothing from you. It runs on your device, and nothing leaves it unless you
@@ -47,7 +47,7 @@ export default function PrivacyScreen() {
 
         <Section styles={styles} heading="The AI features">
           Break it down, Strategise, and Sort for me send the text you typed to our server, which passes it to
-          Anthropic&apos;s Claude to do the work. That text and the response are kept, without your name, account, or IP
+          Anthropic&apos;s Claude to do the work. Anthropic does not use anything sent through their API to train their models. That text and the response are kept, without your name, account, or IP
           address, to improve how the app breaks tasks down for everyone. It is pseudonymous and aggregate, never tied
           to you and never sold. And when you finish steps from a broken-down task, the app notes only that they got done, a random id and a number of days, never the task text or anything about you, so it can learn how long things really take. Prefer not to? Just don&apos;t use those features; the rest of the app works fully
           without them.
@@ -65,8 +65,7 @@ export default function PrivacyScreen() {
         </Section>
 
         <Section styles={styles} heading="Questions">
-          DoubleDone is an independent project by Melroy D&apos;Souza. Questions or requests can go through the project
-          on GitHub: github.com/melroyds/doubledone.
+          DoubleDone is an independent project. Questions or privacy requests can be sent to support@doubledone.app.
         </Section>
 
         <Text style={styles.footnote}>Privacy by architecture, not by promises.</Text>

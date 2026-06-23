@@ -2,7 +2,7 @@ import { type SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
 
 import { type Recurrence } from './recurrence';
-import { localBelongsToAnother, rowToTask, syncOnce, taskToRow, type TaskRow } from './sync';
+import { isAccountGone, localBelongsToAnother, rowToTask, syncOnce, taskToRow, type TaskRow } from './sync';
 import { type Task } from './tasks';
 
 describe('localBelongsToAnother', () => {
@@ -14,6 +14,21 @@ describe('localBelongsToAnother', () => {
   });
   it('is true when the local store belongs to a different user (never inherit it)', () => {
     expect(localBelongsToAnother('user-a', 'user-b')).toBe(true);
+  });
+});
+
+describe('isAccountGone', () => {
+  it('is true for a foreign-key violation (the user row is gone)', () => {
+    expect(isAccountGone({ code: '23503', message: 'violates foreign key constraint' })).toBe(true);
+  });
+  it('is false for other Postgrest errors', () => {
+    expect(isAccountGone({ code: 'PGRST116' })).toBe(false);
+    expect(isAccountGone({ code: '42P01' })).toBe(false);
+  });
+  it('is false for a network error, null, or a codeless error', () => {
+    expect(isAccountGone(new Error('Network request failed'))).toBe(false);
+    expect(isAccountGone(null)).toBe(false);
+    expect(isAccountGone({ message: 'no code here' })).toBe(false);
   });
 });
 

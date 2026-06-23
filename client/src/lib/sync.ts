@@ -107,3 +107,14 @@ export async function syncOnce(client: SupabaseClient, local: Task[], userId: st
 export function localBelongsToAnother(owner: string | null, userId: string): boolean {
   return owner !== null && owner !== userId;
 }
+
+/**
+ * Whether a sync error means the signed-in account no longer exists (deleted here or on
+ * another device). The only foreign key on the `tasks` table is user_id -> auth.users
+ * (ON DELETE CASCADE), so a Postgres foreign-key violation (SQLSTATE 23503) on a write
+ * can only mean the user row is gone. Deliberately narrow: a network error, an expired
+ * token, or any other failure returns false, so a transient hiccup never wipes local data.
+ */
+export function isAccountGone(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '23503';
+}

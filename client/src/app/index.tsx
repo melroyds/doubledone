@@ -44,7 +44,7 @@ import { applySliceDelta } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
 import { loadClosedDate, loadLastOpen, loadLowDayDate, loadOnboarded, loadReminderOn, loadSyncedOwner, loadTasks, saveClosedDate, saveLastOpen, saveLowDayDate, saveReminderOn, saveSyncedOwner, saveTasks } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
-import { localBelongsToAnother, syncOnce } from '@/lib/sync';
+import { isAccountGone, localBelongsToAnother, syncOnce } from '@/lib/sync';
 import { parseDump, type Task } from '@/lib/tasks';
 import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
@@ -211,7 +211,20 @@ export default function TodayScreen() {
         void saveSyncedOwner(uid);
         track('sync.completed', { count: merged.length });
       } catch (e) {
-        track('sync.failed', { error: e instanceof Error ? e.message : e });
+        if (isAccountGone(e)) {
+          // The account was deleted (here or on another device), so writes now fail the
+          // user_id foreign key. Clear this orphaned device's synced tasks and ownership
+          // and sign out, rather than keep showing a deleted account's data. Local-only
+          // data (routines, settings) is untouched: it was never part of the account.
+          if (!active) return;
+          setTasks([]);
+          void saveTasks([]);
+          void saveSyncedOwner(null);
+          void client.auth.signOut();
+          track('sync.account_gone');
+        } else {
+          track('sync.failed', { error: e instanceof Error ? e.message : e });
+        }
       }
     })();
     return () => {
