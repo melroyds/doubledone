@@ -49,10 +49,11 @@ export default function PrivacyScreen() {
           <Text style={styles.heading}>The AI features</Text>
           <Text style={styles.body}>
             Break it down, Strategise, and Sort for me send the text you typed to our server, which passes it to
-            Anthropic&apos;s Claude to do the work. Anthropic does not use anything sent through their API to train
-            their models. That text and the response are kept, without your name, account, or IP address, to improve
-            how the app breaks tasks down for everyone. It is pseudonymous and aggregate, never tied to you and never
-            sold.
+            Anthropic&apos;s Claude to do the work. Anthropic does not train their models on it, and does not keep your
+            text or the response by default. Anything flagged for safety or legal reasons can be held by Anthropic for
+            up to two years. Separately, we keep a copy on our side, without your name, account, or IP address, to
+            improve how the app breaks tasks down for everyone. It is pseudonymous and aggregate, never tied to you and
+            never sold.
           </Text>
           <Text style={styles.body}>
             And when you finish steps from a broken-down task, the app notes only that they got done, a random id and

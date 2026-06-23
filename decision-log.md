@@ -1687,3 +1687,19 @@ or Skip), idempotent, so Back/forward never double-saves and replay never double
 Deferred: a forward-swipe accelerator and a cross-fade transition (the button + Back are the
 reliable path; the screenshot harness throttles transitions anyway). Verified screens 1-2 +
 the nav in the preview; the rest reuse the same shared footer, banner, and text patterns.
+
+## 2026-06-23 Privacy policy: Anthropic data-handling specifics
+
+The AI-features section said Anthropic does not train on what the API receives, then stopped and
+blurred Anthropic's handling into DoubleDone's own retention. Added the specifics, checked against
+Anthropic's current API data-retention docs (fetched 2026-06-23): commercial API traffic is not
+used for training, and prompts and outputs are not retained by default on the Messages API (the
+30-day requirement applies only to the Covered Models Fable 5 and Mythos 5, which DoubleDone does
+not use); the one exception is content flagged for safety or legal reasons, which may be held up to
+two years. Also separated the two parties: Anthropic does not keep the text, whereas DoubleDone
+keeps a pseudonymous, aggregate copy for the moat.
+
+Decided against a formal Zero-Data-Retention agreement (a sales-contract arrangement, overkill for
+a solo project, and the standard API already does not retain by default), and against an absolute
+"keeps nothing" claim, which the flagged-content exception would make untrue, so the wording is
+hedged with "by default" and names the exception.
