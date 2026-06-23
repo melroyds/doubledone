@@ -1111,7 +1111,7 @@ export default function TodayScreen() {
         )}
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.four }]}>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + (captureOpen ? spacing.one : spacing.four) }]}>
         {selectMode ? (
           <View style={styles.selectBar}>
             <View style={styles.selectTop}>
