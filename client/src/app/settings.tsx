@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
@@ -149,6 +149,13 @@ export default function SettingsScreen() {
         // the selectable field below is the fallback
       }
     }
+  }
+
+  // Open the user's mail client to write to the support inbox. mailto keeps this
+  // zero-backend; support@doubledone.app forwards via Cloudflare Email Routing.
+  function sendFeedback() {
+    void Linking.openURL('mailto:support@doubledone.app?subject=DoubleDone%20feedback').catch(() => {});
+    track('feedback.opened');
   }
 
   return (
@@ -325,6 +332,15 @@ export default function SettingsScreen() {
           </LinearGradient>
         </Pressable>
 
+        <Pressable
+          onPress={sendFeedback}
+          accessibilityRole="button"
+          accessibilityLabel="Send feedback"
+          hitSlop={8}
+          style={styles.welcomeAgain}
+        >
+          <Text style={styles.welcomeAgainText}>Send feedback</Text>
+        </Pressable>
         <Pressable
           onPress={() => router.push({ pathname: '/welcome', params: { replay: '1' } })}
           accessibilityRole="button"
