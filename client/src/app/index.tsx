@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Animated, AppState, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -46,7 +46,7 @@ import { spreadDueDates } from '@/lib/spread';
 import { loadClosedDate, loadLastOpen, loadLowDayDate, loadOnboarded, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveLastOpen, saveLowDayDate, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { isAccountGone, localBelongsToAnother, syncOnce } from '@/lib/sync';
-import { parseDump, type Task } from '@/lib/tasks';
+import { parseDump, sweepElapsedNudges, type Task } from '@/lib/tasks';
 import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
 import { updateWidget } from '@/widget/update';
@@ -148,7 +148,11 @@ export default function TodayScreen() {
       let active = true;
       void loadTasks().then((stored) => {
         if (!active) return;
-        setTasks(stored);
+        // Clear nudges whose time has already passed so a fired (or moot) reminder does not
+        // leave a stale bell on the row, then persist if anything was swept.
+        const swept = sweepElapsedNudges(stored, nowMs());
+        setTasks(swept);
+        if (swept !== stored) void saveTasks(swept);
         setLoaded(true);
       });
       void loadClosedDate().then((d) => {
@@ -186,6 +190,22 @@ export default function TodayScreen() {
     return () => {
       active = false;
     };
+  }, []);
+
+  // Sweep elapsed "remind me" nudges whenever the app returns to the foreground, so a bell
+  // whose time passed while the app was backgrounded clears on return. The load sweep covers
+  // a cold open, this covers a warm resume (which does not re-fire useFocusEffect). Reads the
+  // live tasks via the ref so the listener never needs re-binding.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s !== 'active') return;
+      const swept = sweepElapsedNudges(tasksRef.current, nowMs());
+      if (swept !== tasksRef.current) {
+        setTasks(swept);
+        void saveTasks(swept);
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   // Opt-in cloud sync: when signed in (and configured), reconcile once with the
@@ -1024,7 +1044,7 @@ export default function TodayScreen() {
               selecting={selectMode}
               selected={selected.includes(task.id)}
               onSelect={() => toggleSelect(task.id)}
-              nudgeAt={task.nudgeAt}
+              nudgeAt={task.nudgeAt != null && task.nudgeAt > nowMs() ? task.nudgeAt : undefined}
               tinyParent={tinyParentTitle(tasks, task)}
             />
           ))}

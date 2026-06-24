@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { deserialize, parseDump, serialize, type Task } from './tasks';
+import { deserialize, parseDump, serialize, sweepElapsedNudges, type Task } from './tasks';
 
 const sample: Task[] = [
   { id: 'a', title: 'Water the plants', done: false, createdAt: 10, updatedAt: 10 },
@@ -88,5 +88,46 @@ describe('parseDump', () => {
 
   it('does not mistake a hyphenated value for a list marker', () => {
     expect(parseDump('-5 degrees tonight')).toEqual(['-5 degrees tonight']);
+  });
+});
+
+describe('sweepElapsedNudges', () => {
+  const withNudge = (id: string, nudgeAt: number): Task => ({
+    id,
+    title: id,
+    done: false,
+    createdAt: 0,
+    updatedAt: 0,
+    nudgeAt,
+    nudgeId: `nudge-${id}`,
+  });
+
+  it('strips nudgeAt and nudgeId from a task whose nudge time has passed', () => {
+    const out = sweepElapsedNudges([withNudge('a', 1000)], 2000);
+    expect(out[0].nudgeAt).toBeUndefined();
+    expect(out[0].nudgeId).toBeUndefined();
+  });
+
+  it('keeps a nudge that is still in the future, returning the same reference', () => {
+    const tasks = [withNudge('a', 5000)];
+    const out = sweepElapsedNudges(tasks, 2000);
+    expect(out[0].nudgeAt).toBe(5000);
+    expect(out).toBe(tasks);
+  });
+
+  it('treats a nudge exactly at now as elapsed', () => {
+    const out = sweepElapsedNudges([withNudge('a', 2000)], 2000);
+    expect(out[0].nudgeAt).toBeUndefined();
+  });
+
+  it('leaves nudge-free tasks untouched and returns the same reference', () => {
+    const tasks: Task[] = [{ id: 'a', title: 'a', done: false, createdAt: 0, updatedAt: 0 }];
+    expect(sweepElapsedNudges(tasks, 9999)).toBe(tasks);
+  });
+
+  it('sweeps only the elapsed ones in a mixed list', () => {
+    const out = sweepElapsedNudges([withNudge('past', 1000), withNudge('future', 9000)], 5000);
+    expect(out.find((t) => t.id === 'past')?.nudgeAt).toBeUndefined();
+    expect(out.find((t) => t.id === 'future')?.nudgeAt).toBe(9000);
   });
 });

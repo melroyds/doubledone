@@ -30,11 +30,11 @@ describe('nudgeTargetFor', () => {
 
 describe('availableNudgePresets', () => {
   it('offers all three earlier in the day', () => {
-    expect(availableNudgePresets(at(10)).map((p) => p.id)).toEqual(['1h', '3h', 'evening']);
+    expect(availableNudgePresets(at(10)).map((p) => p.id)).toEqual(['test2m', '1h', '3h', 'evening']);
   });
 
   it('drops "this evening" after 6pm but keeps the capped relative ones', () => {
-    expect(availableNudgePresets(at(19)).map((p) => p.id)).toEqual(['1h', '3h']);
+    expect(availableNudgePresets(at(19)).map((p) => p.id)).toEqual(['test2m', '1h', '3h']);
   });
 
   it('offers nothing once it is too late to fire today', () => {

@@ -112,22 +112,34 @@ export function LivingBackground() {
   return (
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
       <LinearGradient colors={stops} style={StyleSheet.absoluteFill} />
-      <Pool
-        id="ddPool1"
-        color={pools[0]}
-        size={glow.size}
-        start={{ x: glow.x, y: glow.y }}
-        drift={{ x: glow.driftX, y: glow.driftY }}
-        reduceMotion={reduceMotion}
-      />
-      <Pool
-        id="ddPool2"
-        color={pools[1]}
-        size={pool.size}
-        start={{ x: pool.x, y: pool.y }}
-        drift={{ x: pool.driftX, y: pool.driftY }}
-        reduceMotion={reduceMotion}
-      />
+      {/* The SVG light pools are disabled on Android. react-native-svg (15.x) mis-rasterises
+          a LARGE RadialGradient (the pools run ~400-700px) into a vertical band there:
+          imperceptible over the bright background, but exposed as a "pillar" under the bloom's
+          dark scrim. Bloom.tsx's own gradients (<=360px) render fine, and switching the pools
+          to absolute coords + gradientUnits="userSpaceOnUse" did NOT help, because it is
+          size-driven, not a coordinate-units issue. Web (and iOS) render correctly, so keep
+          them there. Lift this guard if react-native-svg fixes large-radius radials, or once
+          the pools move to a non-SVG glow. */}
+      {Platform.OS !== 'android' && (
+        <>
+          <Pool
+            id="ddPool1"
+            color={pools[0]}
+            size={glow.size}
+            start={{ x: glow.x, y: glow.y }}
+            drift={{ x: glow.driftX, y: glow.driftY }}
+            reduceMotion={reduceMotion}
+          />
+          <Pool
+            id="ddPool2"
+            color={pools[1]}
+            size={pool.size}
+            start={{ x: pool.x, y: pool.y }}
+            drift={{ x: pool.driftX, y: pool.driftY }}
+            reduceMotion={reduceMotion}
+          />
+        </>
+      )}
     </View>
   );
 }

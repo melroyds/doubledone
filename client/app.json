@@ -43,6 +43,7 @@
       ],
       "expo-quick-actions",
       "expo-share-intent",
+      "./plugins/with-exact-alarm",
       [
         "react-native-android-widget",
         {

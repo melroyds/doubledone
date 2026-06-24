@@ -110,3 +110,24 @@ export function parseDump(text: string): string[] {
     .map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').trim())
     .filter((line) => line.length > 0);
 }
+
+/**
+ * Strip the "remind me" nudge fields from any task whose nudge time has already passed, so a
+ * fired (or now-moot) nudge stops showing its stale row indicator. Pure: returns the SAME array
+ * reference when nothing changed, so callers can skip a needless write. The scheduled
+ * notification is already spent by the time it elapses, so there is nothing to cancel here.
+ */
+export function sweepElapsedNudges(tasks: Task[], now: number): Task[] {
+  let changed = false;
+  const out = tasks.map((t) => {
+    if (t.nudgeAt != null && t.nudgeAt <= now) {
+      changed = true;
+      const next = { ...t };
+      delete next.nudgeAt;
+      delete next.nudgeId;
+      return next;
+    }
+    return t;
+  });
+  return changed ? out : tasks;
+}

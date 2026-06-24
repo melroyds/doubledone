@@ -12,7 +12,7 @@ const REMINDER_TITLE = 'DoubleDone';
 const REMINDER_BODY = 'Your today is here when you are ready.';
 const DAILY_ID = 'doubledone-daily'; // fixed id so we cancel only the daily, leaving nudges alone
 const DAILY_CHANNEL_ID = 'daily-reminder';
-const NUDGE_CHANNEL_ID = 'task-nudge';
+const NUDGE_CHANNEL_ID = 'task-nudge-v2'; // v2 forces a fresh HIGH-importance channel, since Android ignores importance changes to an already-created channel
 const NUDGE_BODY = 'Whenever you are ready.';
 
 // Show notifications even when the app is foregrounded. Without this, expo-notifications
@@ -30,14 +30,17 @@ Notifications.setNotificationHandler({
 });
 
 // Android 8+ requires a notification channel; without one a scheduled notification can
-// silently fail to appear. Importance DEFAULT shows it calmly in the tray, not as a
-// heads-up pop, in keeping with offer-not-demand. No-op off Android.
-async function ensureChannel(id: string, name: string): Promise<void> {
+// silently fail to appear. The daily reminder stays at DEFAULT importance (calm, tray-only,
+// in keeping with offer-not-demand). A user-requested "remind me" nudge uses HIGH, so the
+// reminder they explicitly asked for actually surfaces instead of sitting silently in the
+// tray. No-op off Android.
+async function ensureChannel(
+  id: string,
+  name: string,
+  importance: Notifications.AndroidImportance = Notifications.AndroidImportance.DEFAULT,
+): Promise<void> {
   if (Platform.OS !== 'android') return;
-  await Notifications.setNotificationChannelAsync(id, {
-    name,
-    importance: Notifications.AndroidImportance.DEFAULT,
-  });
+  await Notifications.setNotificationChannelAsync(id, { name, importance });
 }
 
 /** Request permission and schedule a calm daily reminder at `hour`. Returns whether it is on. */
@@ -83,12 +86,17 @@ export async function disableDailyReminder(): Promise<void> {
 export async function scheduleNudge(taskId: string, title: string, at: Date): Promise<string | null> {
   try {
     // Channel first (see enableDailyReminder): the Android 13 permission prompt needs a
-    // channel to exist before it will appear.
-    await ensureChannel(NUDGE_CHANNEL_ID, 'Task nudges');
+    // channel to exist before it will appear. HIGH importance so a requested reminder pops.
+    await ensureChannel(NUDGE_CHANNEL_ID, 'Task nudges', Notifications.AndroidImportance.HIGH);
     let { status } = await Notifications.getPermissionsAsync();
     if (status !== 'granted') ({ status } = await Notifications.requestPermissionsAsync());
     if (status !== 'granted') return null;
+    // A stable identifier (one nudge per task) plus the SCHEDULE_EXACT_ALARM / USE_EXACT_ALARM
+    // permissions from the with-exact-alarm config plugin let expo-notifications use an EXACT
+    // alarm. Without them Android 12+ falls back to an inexact alarm that Samsung's Doze can
+    // throttle into never firing.
     return await Notifications.scheduleNotificationAsync({
+      identifier: `nudge-${taskId}`,
       content: { title, body: NUDGE_BODY, data: { taskId } },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,

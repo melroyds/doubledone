@@ -1875,3 +1875,48 @@ columns, so they would error until the migration ran, so the migration went firs
 Worker deploy followed. Decided against a config plugin for expo-notifications: the docs confirm it is
 optional for local notifications and does not declare POST_NOTIFICATIONS (Android 13 auto-prompts), so it
 was never the cause.
+
+## 2026-06-24 Three Android device bugs, root-caused by a multi-agent pass, then fixed (Ultracode)
+
+More device testing from Melroy, and two prior blind fixes had already missed (the only verification
+surface is a paid APK on his Samsung, the headless web preview reproduces none of these). So instead of a
+third guess, a 13-agent workflow root-caused each bug: independent investigators grounded in BOTH the code
+and the react-native-svg / expo-notifications issue trackers, a synthesis per bug, then an adversarial
+skeptic per fix. The skeptic earned its keep, rejecting two of the three first-draft fixes as insufficient.
+
+**Bloom "pillar".** Confirmed react-native-svg (15.x) mis-rasterises a LARGE RadialGradient on Android. The
+LivingBackground light pools are ~400-700px, while the bloom's own glow is <=360px and renders fine, which
+is exactly why the pillar only showed under the bloom's dark scrim and never in normal use. It is
+size-driven, not coordinate-units, so the earlier userSpaceOnUse change (the 2026-06-24 bloom+select fix)
+never had a chance. Fix: a Platform.OS guard skips the SVG pools on Android only, web and iOS keep them. The
+pools are imperceptible in normal Android use, so nothing intended is lost. Decided against an
+expo-linear-gradient or PNG-glow replacement for now (more work and another build for a polish layer that
+was already invisible on Android), the guard is the lowest-risk fix and reverses in one line if
+react-native-svg ever fixes large radials.
+
+**Nudge never firing.** The bell rendered (so scheduling succeeded, with permission), yet nothing reached
+the tray. A DATE-trigger local notification needs an EXACT alarm on Android 12+, which needs the
+SCHEDULE_EXACT_ALARM / USE_EXACT_ALARM manifest permission. Without it expo-notifications falls back to an
+inexact alarm that Samsung One UI's Doze throttles into never firing. The skeptic caught that app.json's
+`android.permissions` is not reliably applied by Expo for these special-access permissions, so the
+permission is injected by an explicit withAndroidManifest config plugin (client/plugins/with-exact-alarm.js).
+USE_EXACT_ALARM is auto-granted, so there is no settings prompt for the user (the calm path), with
+SCHEDULE_EXACT_ALARM as its companion. This does NOT contradict the "no config plugin" note above: that was
+about POST_NOTIFICATIONS (genuinely auto), this plugin is for the exact-alarm permission, a different need.
+The nudge channel also moves DEFAULT -> HIGH (a renamed `task-nudge-v2` id, because Android ignores
+importance changes to an already-created channel) so a reminder the user explicitly asked for actually pops,
+and the schedule gains a stable identifier. The daily reminder stays calm at DEFAULT. Part of this may
+remain user-side: Samsung battery optimisation can restrict the app, which QA AND-06 now flags. Note:
+USE_EXACT_ALARM carries a Play Store policy expectation (alarm/reminder apps), fine for the sideloaded
+build, to revisit before any Play Store submission.
+
+**Stale nudge bell.** The bell cleared only on done/remove/defer, never when its time simply passed, so a
+fired-but-uncompleted nudge showed a stale time all day. Fix: a pure sweepElapsedNudges(tasks, now) (returns
+the same array reference when unchanged, unit-tested) run on task load and on AppState foreground resume,
+plus a render-guard backstop at the prop site. The skeptic rejected a render-guard-only fix, since the app
+does not re-render merely because time passed, which is why the data sweep on load and foreground is the
+primary mechanism.
+
+A TEMP "In 2 minutes (test)" nudge preset was added so firing can be tested in minutes rather than an hour,
+to be removed once firing is confirmed on device. Gate green (294 client + 140 server). All three are
+Android-only, so they are verified on the build by Melroy, not the preview.

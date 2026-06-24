@@ -12,6 +12,9 @@ export const EVENING_HOUR = 18; // "this evening" means 6pm
 // The presets offered, in order. One that resolves to null for the current time (would fire
 // too late, or already passed) is hidden, so the chooser only ever shows valid options.
 export const NUDGE_PRESETS: NudgePreset[] = [
+  // TEMP (remove once Android nudge firing is verified on device): a 2-minute option so a
+  // nudge can be tested in minutes instead of waiting an hour for the shortest real preset.
+  { id: 'test2m', label: 'In 2 minutes (test)' },
   { id: '1h', label: 'In 1 hour' },
   { id: '3h', label: 'In 3 hours' },
   { id: 'evening', label: 'This evening' },
@@ -30,6 +33,7 @@ function clamp(target: Date, now: Date): Date | null {
 
 /** The target fire-time for a preset, or null if it cannot sensibly fire today. */
 export function nudgeTargetFor(presetId: string, now: Date): Date | null {
+  if (presetId === 'test2m') return clamp(new Date(now.getTime() + 2 * 60_000), now); // TEMP test preset
   if (presetId === '1h') return clamp(new Date(now.getTime() + HOUR_MS), now);
   if (presetId === '3h') return clamp(new Date(now.getTime() + 3 * HOUR_MS), now);
   if (presetId === 'evening') {
