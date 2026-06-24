@@ -173,9 +173,9 @@ CASES = [
     ("AND-04", "Android", "P2", "Share text into DoubleDone",
      "On Android, from another app (a browser, notes, a chat) use the system Share sheet and pick DoubleDone. Try sharing a line of text, and a URL.",
      "DoubleDone opens with the shared text (or URL) already in the capture box on Today, focused and ready to add. Adding it makes a normal task; nothing is sent anywhere until you do.", "Android"),
-    ("AND-05", "Android", "P2", "Home-screen Today widget",
-     "On Android, long-press the home screen and add the 'DoubleDone: Today' widget. Check it with tasks left, with all done, and after closing the day. Complete a task in the app and watch the widget. Tap the widget.",
-     "The widget shows today's top unfinished titles (or a calm 'All done for today.' / 'Nothing for today yet.'), in light or dark to match the device. It refreshes within a moment of a change in the app (and at least every 30 minutes). Tapping it opens DoubleDone.", "Android"),
+    ("AND-05", "Android", "P3", "Home-screen widget is disabled (absent from the picker)",
+     "On Android, long-press the home screen and open the widget picker.",
+     "DoubleDone offers NO widget. It was removed (decision-log 2026-06-24) because react-native-android-widget 0.20.3 does not support RN 0.85's new architecture, so the widget only ever rendered blank. Nothing transparent or broken appears in the picker.", "Android"),
     ("AND-06", "Android", "P2", "Remind me in X hours (per-task nudge)",
      "On Android, tap-and-hold a today task, tap 'Remind me', pick a preset (e.g. 'In 1 hour'). Lock the screen and wait. Then set another and let its time pass WITHOUT completing the task. Separately, complete / remove / push-to-tomorrow a task with a pending nudge, and open 'Remind me' after 9pm. NOTE: if nothing fires, confirm Settings -> Apps -> DoubleDone -> Battery is not 'Restricted' (Samsung One UI throttles alarms).",
      "The notification reliably FIRES at the chosen time as a heads-up (the task as the title, 'Whenever you are ready.' as the body), even with the screen off, via an exact alarm. The row shows a small bell + time. Once the time has passed the bell clears on its own (on the next open or app resume) even if the task is still open. Completing / removing / deferring cancels a pending nudge (no poke about a handled task). After 9pm the late presets are hidden. Web does not show 'Remind me'.", "Android"),
@@ -359,8 +359,8 @@ CASES = [
 
     # --- Reminders (Android) --------------------------------------------------
     ("REM-01", "Reminders", "P1", "Daily reminder fires",
-     "Set up the daily reminder; wait for its time (or trigger the channel).",
-     "A calm notification arrives at the right time.", "Android"),
+     "Turn the daily reminder on (Settings > Daily reminder, or the Today footer) and grant permission. Then tap Settings > 'Send a test reminder (~90s)' to fire one on the daily channel without waiting for the scheduled hour. For the real schedule, also leave it on until the daily time.",
+     "The test reminder appears in the tray within about 90 seconds (the inline status line confirms it was scheduled), proving the daily channel delivers on this device. The status line warns if notification permission is off. The real daily reminder then arrives at its scheduled hour.", "Android"),
     ("REM-02", "Reminders", "P2", "Reminder channel present",
      "Android Settings -> Apps -> DoubleDone -> Notifications.",
      "A DoubleDone reminder channel exists and is controllable.", "Android"),

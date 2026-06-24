@@ -45,23 +45,6 @@
       "expo-share-intent",
       "./plugins/with-exact-alarm",
       [
-        "react-native-android-widget",
-        {
-          "widgets": [
-            {
-              "name": "Today",
-              "label": "DoubleDone: Today",
-              "minWidth": "180dp",
-              "minHeight": "110dp",
-              "targetCellWidth": 3,
-              "targetCellHeight": 2,
-              "description": "Today's tasks, at a glance",
-              "updatePeriodMillis": 1800000
-            }
-          ]
-        }
-      ],
-      [
         "expo-font",
         {
           "android": {

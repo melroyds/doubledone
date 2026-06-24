@@ -82,3 +82,8 @@ export async function scheduleNudge(taskId: string, title: string, at: Date): Pr
 export async function cancelNudge(id: string): Promise<void> {
   // nothing scheduled on web
 }
+
+/** No-op on web: the reminder test is native-only (web reminders arrive via server push). */
+export async function scheduleReminderTest(): Promise<boolean> {
+  return false;
+}

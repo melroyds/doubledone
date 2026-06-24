@@ -1991,3 +1991,38 @@ children) added.
 
 Pending Melroy's go-ahead: the production Worker deploy of /combine (for the live AI title). Until then the
 modal opens with an empty name to type, so the feature already works without the deploy.
+
+## 2026-06-24 Widget disabled, the /combine deploy, and a reminder test button
+
+Three follow-ups after Combine shipped, all at Melroy's direction.
+
+**The /combine Worker is deployed and the AI title is confirmed live.** Production deploy (version
+78a5a0aa, api.doubledone.app), on Melroy's per-instance OK. A single real call returned "Do the grocery
+shop" for milk/bread/eggs, so Combine's umbrella suggestion now works end to end on the deployed app, not
+just the type-it-yourself fallback.
+
+**The Android home-screen widget is disabled.** The earlier multi-agent pass diagnosed it as a
+react-native-android-widget 0.20.3 / RN 0.85 new-architecture incompatibility (the headless render task
+never fires, so the widget draws nothing). The plan was to confirm with one logcat line first, but Melroy
+could not get adb running and does not need the widget, so we skipped the confirmation and cut it. Disabled
+by removing the app.json plugin entry and the registerWidget() call in index.js, and by making
+updateWidget() (called from commit() on every task change) a no-op so it never fires a native
+requestWidgetUpdate against a widget that is no longer registered. Decided against deleting the widget/
+source (TodayWidget, the task handler, the model): it is kept, unused, for a one-line re-enable when the
+library catches up to RN 0.85, and it still reads as a built native-widget surface in the repo. Decided
+against removing the react-native-android-widget dependency, which would force an npm reinstall for no gain
+(the unused dep is harmless and keeps the kept source compiling). buildWidgetModel stays unit-tested.
+
+**A daily-reminder test button (debug).** Melroy has never seen the daily reminder fire on his Samsung (it
+works on web). scheduleReminderTest() fires a one-off notification about 90 seconds out on the daily
+reminder's own channel (DEFAULT importance, the same content), and a Settings link "Send a test reminder
+(~90s)" triggers it with an inline status line. Native only (hidden on web, with a no-op in reminders.web.ts
+so the shared import resolves). Honest caveat, recorded so it is not over-read: this exercises delivery on
+the daily channel (the channel, the permission, the foreground handler), not the repeating DAILY trigger's
+alarm exactness, which a one-off DATE trigger cannot replicate. If the test fires, the notification
+machinery works on the device. If it does not, there is a delivery problem worth knowing. The button is a
+debug affordance to revisit (gate or remove) before a wide launch.
+
+Gate green (309 client + 146 server). QA AND-05 flipped to "widget absent from the picker" and REM-01
+rewritten to use the test button as its fast path. An EAS Android build follows so Melroy can confirm on
+device: the widget gone, the reminder firing, and Combine.

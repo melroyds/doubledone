@@ -1,9 +1,5 @@
-// Custom entry: bootstrap expo-router, then register the headless Android widget task
-// handler so the home-screen widget can render while the app is closed. The widget modules
-// are platform-split, so `registerWidget` is a no-op import on web (register.web.ts) and
-// the widget library never enters the web bundle.
+// Custom entry: bootstrap expo-router. The Android home-screen widget is DISABLED (see
+// decision-log 2026-06-24): react-native-android-widget 0.20.3 does not support RN 0.85's new
+// architecture, so its headless render task never fired and the widget drew nothing. The widget/
+// source is kept (unused) for an easy re-enable when the library catches up to RN 0.85.
 import 'expo-router/entry';
-
-import { registerWidget } from './src/widget/register';
-
-registerWidget();

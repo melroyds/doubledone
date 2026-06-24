@@ -78,6 +78,33 @@ export async function disableDailyReminder(): Promise<void> {
 }
 
 /**
+ * DEBUG: fire a one-off reminder ~90 seconds out on the daily-reminder channel, so the daily
+ * reminder's delivery (the channel, the permission, the foreground handler) can be checked on a
+ * real device without waiting for the scheduled hour. Requests permission if needed. Returns
+ * whether it was scheduled. Native only; the web variant is a no-op. This exercises delivery on
+ * the daily channel, not the repeating DAILY trigger's exactness (see the decision log).
+ */
+export async function scheduleReminderTest(): Promise<boolean> {
+  try {
+    await ensureChannel(DAILY_CHANNEL_ID, 'Daily reminder');
+    let { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') ({ status } = await Notifications.requestPermissionsAsync());
+    if (status !== 'granted') return false;
+    await Notifications.scheduleNotificationAsync({
+      content: { title: REMINDER_TITLE, body: 'Test reminder. If you can see this, reminders work on this device.' },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: new Date(Date.now() + 90_000),
+        channelId: DAILY_CHANNEL_ID,
+      },
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Schedule a one-time gentle nudge for a today task at `at` (the title is the task itself,
  * the body a calm "whenever you are ready"). Requests permission if needed. Returns the
  * scheduled-notification id (to cancel later when the task is done / removed / deferred),
