@@ -35,7 +35,7 @@ export const OPENAPI_SPEC = {
             name: 'today',
             in: 'query',
             required: false,
-            description: 'When true, only open, non-recurring tasks due today or undated.',
+            description: 'When true, only open, non-recurring tasks due today or undated (a decomposed-task umbrella the app hides is excluded, so it matches the app Today).',
             schema: { type: 'boolean' },
           },
         ],

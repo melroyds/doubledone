@@ -72,6 +72,9 @@ header `Authorization: Bearer <your token>` for the task tools. `initialize` and
 - **One-offs for now.** `list_today` returns one-off tasks (open, due today or
   undated). Recurring tasks need cadence logic the database query can't express, so
   v1 leaves them to the app. A later version can surface today's recurrences.
+- **Mirrors what you see.** A task you have broken down hides behind its steps in the
+  app (its umbrella goes quiet until the steps are done). `list_today` hides that umbrella
+  too, so an agent sees the same Today you do, the steps to act on, not the parent.
 - **No elevated key.** The server holds the public anon key only; your token does the
   authorising. Nothing here can read or write another account's data.
 - **Calm by default.** Tool replies are short and plain ("Added …", "Marked it done.
