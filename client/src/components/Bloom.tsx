@@ -71,8 +71,12 @@ export function Bloom({ data, onDone }: { data: BloomData | null; onDone: () => 
   const size = TIER_SIZE[data.tier];
   const scale = anim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
 
+  // The scrim fades its opacity in over a full-screen translucent view. On Android that, plus
+  // elevation, produced a vertical hardware-compositing band (the "pillar") under the scrim.
+  // needsOffscreenAlphaCompositing renders the scrim as one flat layer before blending, and
+  // elevation is dropped (see styles.scrim), which removes the seam. No-op on web.
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, { opacity: anim }]}>
+    <Animated.View needsOffscreenAlphaCompositing style={[StyleSheet.absoluteFill, styles.scrim, { opacity: anim }]}>
       <Pressable style={styles.fill} onPress={dismiss} accessibilityRole="button" accessibilityLabel="Continue">
         <Animated.View style={[StyleSheet.absoluteFill, styles.center, { transform: [{ scale }] }]} pointerEvents="none">
           <Svg width={size} height={size}>
@@ -101,7 +105,7 @@ export function Bloom({ data, onDone }: { data: BloomData | null; onDone: () => 
 }
 
 const styles = StyleSheet.create({
-  scrim: { backgroundColor: SCRIM, zIndex: 100, elevation: 100 },
+  scrim: { backgroundColor: SCRIM, zIndex: 100 }, // elevation removed: a translucent elevated view animating opacity seamed into a vertical band on Android, and the bloom mounts last so zIndex alone keeps it on top
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   center: { alignItems: 'center', justifyContent: 'center' },
   caption: { alignItems: 'center', maxWidth: 320 },
