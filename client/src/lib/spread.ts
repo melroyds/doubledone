@@ -13,9 +13,11 @@ export type SpreadMode = 'gradual' | 'sameday';
  *
  * - sameday: every step shares one day, the due date (or Today if there is no
  *   deadline, or the deadline is today/past).
- * - gradual: the steps walk forward in order. With a due date they spread evenly
- *   from Today (the first step) to the due date (the last step). With no deadline
- *   they take one day each from Today, so only the first sits on Today.
+ * - gradual: the steps walk forward in order. With a FUTURE due date they spread
+ *   evenly from Today (the first step) to the due date (the last step). With a due
+ *   date of today or the past they all sit on Today (you asked for it today). With
+ *   no deadline at all they take one day each from Today, so only the first sits on
+ *   Today.
  */
 export function spreadDueDates(
   count: number,
@@ -35,7 +37,9 @@ export function spreadDueDates(
 
   // gradual
   if (horizon <= 0) {
-    // No deadline (or due today): one step per day from Today, first step Today.
+    // A due date of today or the past means "do it today", so every step lands on Today.
+    // Only a genuinely open-ended task (no deadline at all) walks one step per day.
+    if (dueDate) return Array.from({ length: count }, () => null);
     return Array.from({ length: count }, (_unused, i) => (i === 0 ? null : addDaysISO(today, i)));
   }
   if (count === 1) return [null]; // a lone step just starts Today

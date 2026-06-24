@@ -42,6 +42,11 @@ describe('spreadDueDates — gradual', () => {
     expect(spreadDueDates(3, today, null, 'gradual')).toEqual([null, '2026-06-19', '2026-06-20']);
   });
 
+  it('collapses a today or past deadline onto Today (you said do it today)', () => {
+    expect(spreadDueDates(3, today, '2026-06-18', 'gradual')).toEqual([null, null, null]);
+    expect(spreadDueDates(3, today, '2026-06-10', 'gradual')).toEqual([null, null, null]);
+  });
+
   it('a single step just starts Today', () => {
     expect(spreadDueDates(1, today, '2026-06-25', 'gradual')).toEqual([null]);
   });
