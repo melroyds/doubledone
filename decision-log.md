@@ -2026,3 +2026,17 @@ debug affordance to revisit (gate or remove) before a wide launch.
 Gate green (309 client + 146 server). QA AND-05 flipped to "widget absent from the picker" and REM-01
 rewritten to use the test button as its fast path. An EAS Android build follows so Melroy can confirm on
 device: the widget gone, the reminder firing, and Combine.
+
+## 2026-06-24 v1.0.0: DoubleDone goes gold
+
+Melroy verified on his own Samsung that the daily reminder fires, Combine works, and the widget is gone,
+and called it: we go gold. Version bumped 0.1.0 -> 1.0.0 in app.json. The Android versionCode is
+EAS-managed (eas.json appVersionSource is remote, and the production profile auto-increments it), so there
+is no versionCode to hand-set. The daily-reminder debug button and scheduleReminderTest are removed now
+that reminders are confirmed firing on a real device, they were scaffolding for that one verification, not
+a shipping feature. QA REM-01 reverted to the scheduled-hour check.
+
+Next is the Play Store listing: a production AAB via the eas.json production profile (already configured,
+buildType app-bundle + autoIncrement), then eas submit. Researched separately so the steps are current.
+The USE_EXACT_ALARM permission, flagged when the nudges were fixed, is the one Play policy item to declare
+at submission, and DoubleDone qualifies as a reminder app.

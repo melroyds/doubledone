@@ -205,7 +205,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 
 | ID | Pri | Platform | Test | Steps | Expected |
 |---|---|---|---|---|---|
-| REM-01 | P1 | Android | Daily reminder fires | Turn the daily reminder on (Settings > Daily reminder, or the Today footer) and grant permission. Then tap Settings > 'Send a test reminder (~90s)' to fire one on the daily channel without waiting for the scheduled hour. For the real schedule, also leave it on until the daily time. | The test reminder appears in the tray within about 90 seconds (the inline status line confirms it was scheduled), proving the daily channel delivers on this device. The status line warns if notification permission is off. The real daily reminder then arrives at its scheduled hour. |
+| REM-01 | P1 | Android | Daily reminder fires | Turn the daily reminder on (Settings > Daily reminder, or the Today footer), grant permission, and leave it on until the daily hour. | A calm 'Your today is here when you are ready.' notification arrives at the scheduled hour (verified firing on a real Samsung device). Toggling it off cancels it. |
 | REM-02 | P2 | Android | Reminder channel present | Android Settings -> Apps -> DoubleDone -> Notifications. | A DoubleDone reminder channel exists and is controllable. |
 
 ## Privacy

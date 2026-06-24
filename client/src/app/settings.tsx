@@ -10,7 +10,7 @@ import { purgeScrapbookImages } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
 import { toISODate } from '@/lib/day';
 import { buildExport } from '@/lib/export';
-import { disableDailyReminder, enableDailyReminder, scheduleReminderTest } from '@/lib/reminders';
+import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { type MotionPref, type TextSize, type ThemePref } from '@/lib/settings';
 import { loadReminderOn, loadScrapbooks, loadTasks, saveReminderOn, wipeLocalData } from '@/lib/storage';
 import { loadEntitlement } from '@/lib/stripe';
@@ -49,7 +49,6 @@ export default function SettingsScreen() {
   const [exporting, setExporting] = useState(false);
   const [exportNote, setExportNote] = useState<string | null>(null);
   const [reminderOn, setReminderOn] = useState(false);
-  const [reminderTestNote, setReminderTestNote] = useState<string | null>(null); // debug: the test-reminder button's status line
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackState, setFeedbackState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -85,16 +84,6 @@ export default function SettingsScreen() {
       void saveReminderOn(false);
       track('reminder.disabled');
     }
-  }
-
-  // Debug affordance: fire a one-off reminder ~90s out so the daily reminder's delivery can be
-  // checked on a real device without waiting for the scheduled hour. Native only (the button is
-  // hidden on web). The status line reports the outcome inline.
-  async function runReminderTest() {
-    setReminderTestNote('Scheduling…');
-    const ok = await scheduleReminderTest();
-    setReminderTestNote(ok ? 'Set. Watch for it in about 90 seconds.' : 'Could not schedule. Check notification permission.');
-    track('reminder.test', { ok });
   }
 
   // "Your stuff is yours": download (web) or share (native) a JSON of the user's
@@ -254,18 +243,6 @@ export default function SettingsScreen() {
             onChange={(v) => setReminder(v === 'on')}
           />
         </View>
-
-        {Platform.OS !== 'web' && (
-          <Pressable
-            onPress={runReminderTest}
-            accessibilityRole="button"
-            accessibilityLabel="Send a test reminder in about 90 seconds"
-            hitSlop={6}
-            style={styles.testReminder}
-          >
-            <Text style={styles.testReminderText}>{reminderTestNote ?? 'Send a test reminder (~90s)'}</Text>
-          </Pressable>
-        )}
 
         <Text style={styles.band}>Access & data</Text>
         <Pressable
@@ -536,8 +513,6 @@ const makeStyles = (t: Theme) =>
     segTextOn: { color: t.colors.accent },
     pressed: { opacity: 0.7 },
     privacyLink: { marginTop: spacing.two },
-    testReminder: { marginTop: spacing.four, alignItems: 'flex-start' },
-    testReminderText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, textDecorationLine: 'underline' },
     privacyLinkText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     premiumCardWrap: { marginTop: 'auto', paddingTop: spacing.six }, // pin to the bottom of the page
     premiumCard: {
