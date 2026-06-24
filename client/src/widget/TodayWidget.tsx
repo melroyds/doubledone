@@ -1,6 +1,5 @@
 import { FlexWidget, type HexColor, TextWidget } from 'react-native-android-widget';
 
-import { Colors } from '@/constants/theme';
 import { type WidgetModel } from '@/lib/widget-model';
 
 // The Today widget's UI, in the constrained widget component model (not RN views). Colors
@@ -9,8 +8,17 @@ import { type WidgetModel } from '@/lib/widget-model';
 // the app. No bundled font yet, so it uses the system face; the colours carry the brand.
 const hx = (c: string): HexColor => c as HexColor;
 
+// The widget's palette, inlined as raw hex (keep in sync with constants/theme's Dusk palette).
+// NOT imported from constants/theme on purpose: that module runs `import '@/global.css'` and
+// Appearance.getColorScheme() at load, which is unsafe in the headless widget task's JS context
+// and left the widget rendering blank on device. The widget needs only these four hues per scheme.
+const WIDGET_COLORS = {
+  light: { accent: '#9B6A7D', ink: '#2B2722', inkSoft: '#7A7066', bg: '#FAF6F1' },
+  dark: { accent: '#C68BA0', ink: '#F2EBE0', inkSoft: '#8A7F73', bg: '#1B1917' },
+} as const;
+
 export function TodayWidget({ model, scheme }: { model: WidgetModel; scheme: 'light' | 'dark' }) {
-  const c = Colors[scheme];
+  const c = WIDGET_COLORS[scheme];
 
   const children = [
     <TextWidget key="h" text="Today" style={{ fontSize: 16, color: hx(c.accent), fontWeight: '700' }} />,
