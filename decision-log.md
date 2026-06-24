@@ -1757,3 +1757,29 @@ before wiping local. Contract-tested. Needs a Worker redeploy to go live.
 Decided against authenticating the purge beyond the unguessable key: the keys live only in the owner's
 local store, so a caller can only ever delete images it already knows, its own, and a deleted keepsake
 is low-harm. Also fixed the stale storage.ts comment and added the R2 row to the CLAUDE.md table.
+
+## 2026-06-24 Affordance pass + pull-to-today (from a tester's usability note)
+
+A tester flagged three things, all fair: a Later task could not be moved up to today (only pushed
+further out), the drawer's "Done adding" did not read as a button, and more broadly "is it a button or
+a label" was confusing where the two looked alike. The root was an affordance gap, not a colour gap, so
+the fixes target tappability, not decoration.
+
+**Affordance language, made consistent.** The secondary text actions (Sync, the daily-reminder line,
+"Done adding", "Select all", the low-day toggle) were soft-ink with no tappable cue, so they read as
+inert labels. They now carry a quiet underline: clearly pressable, still calm, still no mauve. Mauve
+stays reserved for the one primary action, so the restraint from the 2026-06-23 polish is intact. The
+three tiers are now distinct, button / underlined-link / plain-label, and plain labels (the rotating
+ethos, dates) stay un-underlined.
+
+**Pull-to-today.** A visible "Bring to today" link now sits under each Later task. It is the mirror of
+deferTask: pullToToday sets the due to today via deferTo(t, toISODate(today)), so tasksForToday
+(due <= today) surfaces it and upcomingTasks (due > today) drops it. The daily loop is now
+bidirectional, defer or prioritise, with the same never-shame framing both ways. Verified on the
+preview: a seeded Later task moved into Today, its due updated, the link gone.
+
+Decided against a hidden long-press menu item for the pull. The tester could not find the action at all,
+so discoverability was the whole point, and a buried gesture would have repeated the mistake. Decided
+against re-introducing mauve on the secondary links to signal tappability, which would have undone the
+restraint that makes the screen calm. The underline buys the affordance without the colour. QA cases
+TOD-17 (pull) and TOD-18 (affordance) added.

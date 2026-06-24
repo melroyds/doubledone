@@ -337,6 +337,16 @@ export default function TodayScreen() {
     track('task.deferred');
   }
 
+  // Pull a Later task forward into today: the mirror of deferTask. A calm 'actually,
+  // this one matters now', same date-move shape, no shame, no counter. deferTo with
+  // today's ISO sets the due to today, so tasksForToday surfaces it and it leaves Later.
+  function pullToToday(id: string) {
+    const now = nowMs();
+    commit(tasks.map((t) => (t.id === id ? clearNudgeIfAny({ ...deferTo(t, toISODate(today)), updatedAt: now }) : t)));
+    setConfirmingId(null);
+    track('task.pulledForward');
+  }
+
   // "Just this one" focus mode: complete the focused task fully (slices included) by
   // the same done/completedAt path, then the next unfinished one surfaces on its own.
   function focusComplete(id: string) {
@@ -1073,6 +1083,15 @@ export default function TodayScreen() {
                   onMakeTiny={() => makeTiny(task.id, task.title)}
                   onGoodEnough={() => goodEnough(task.id)}
                 />
+                <Pressable
+                  onPress={() => pullToToday(task.id)}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Bring ${task.title} into today`}
+                  style={({ pressed }) => [styles.bringForward, pressed && styles.pressed]}
+                >
+                  <Text style={styles.bringForwardText}>↑ Bring to today</Text>
+                </Pressable>
               </View>
             ))}
           </View>
@@ -1645,6 +1664,10 @@ const makeStyles = (t: Theme) =>
     },
     laterItem: { gap: spacing.two },
     laterDate: { color: t.colors.inkSoft, fontSize: 13 * t.scale, marginTop: spacing.two, fontFamily: fonts.body },
+    // The quiet underlined 'secondary action' treatment: clearly tappable, calm, no mauve.
+    // Indented to sit under the task title (past the checkbox), so it reads as this task's.
+    bringForward: { alignSelf: 'flex-start', marginLeft: spacing.six, paddingVertical: spacing.one },
+    bringForwardText: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textDecorationLine: 'underline' },
     footer: {
       paddingHorizontal: spacing.five,
       paddingTop: spacing.three,
@@ -1661,8 +1684,8 @@ const makeStyles = (t: Theme) =>
     },
     ethos: { marginTop: spacing.three, alignItems: 'center' },
     optionalLinks: { marginTop: spacing.four, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: spacing.five },
-    optLink: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center' },
-    optFaint: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+    optLink: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', textDecorationLine: 'underline' },
+    optFaint: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center', textDecorationLine: 'underline' },
     selectBar: { gap: spacing.three, alignItems: 'center', paddingVertical: spacing.two },
     selectCount: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     selectActions: { alignItems: 'center', gap: spacing.three },
@@ -1697,7 +1720,7 @@ const makeStyles = (t: Theme) =>
     weightTrack: { flexDirection: 'row', height: 6, borderRadius: radius.pill, backgroundColor: t.colors.line, overflow: 'hidden' },
     weightFill: { backgroundColor: t.colors.accent },
     weightLabel: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
-    lowDayToggle: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
+    lowDayToggle: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.one, textDecorationLine: 'underline' },
     windDown: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     dayActions: { marginTop: spacing.seven, alignItems: 'center', gap: spacing.three },
     closeDay: {
@@ -1771,7 +1794,7 @@ const makeStyles = (t: Theme) =>
     focusEntryText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     alsoDidUnderList: { marginTop: spacing.three, marginBottom: spacing.two, alignItems: 'center' },
     selectTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four, marginBottom: spacing.two },
-    selectAllText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
+    selectAllText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, textDecorationLine: 'underline' },
     moveToPresets: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two, justifyContent: 'center', marginBottom: spacing.three },
     moveChip: { borderWidth: 1, borderColor: t.colors.line, borderRadius: radius.pill, paddingVertical: spacing.three, paddingHorizontal: spacing.three },
     moveChipText: { color: t.colors.ink, fontFamily: fonts.body, fontSize: 14 * t.scale },
