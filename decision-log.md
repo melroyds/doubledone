@@ -1828,3 +1828,23 @@ RN-web build and which once thrashed the animation. The targeted measureKey re-t
 imperative measure. The Android behaviour itself needs Melroy's on-device confirm, the headless web
 preview throttles both the animation and the long-press, so neither the scroll nor select can be driven
 here. QA TOD-19 added.
+
+## 2026-06-24 Marquee retired: long titles just wrap now (the Android fix that finally stuck)
+
+The absolute-train marquee fix from earlier today did NOT work on device. Melroy's APK still showed a
+blank title on a reminder row. The deeper problem was the method: the bug only ever reproduced on
+Android (the web layout was always fine), so every attempt was a blind guess at Yoga's behaviour, and
+the scroll had now been three rounds of exactly that.
+
+The discipline-of-stopping call, made with Melroy: stop fighting the marquee and just wrap the title
+onto up to three lines. MarqueeText is now a plain `<Text numberOfLines={3}>` with flex:1 + minWidth:0.
+No measurement, no Animated train, no reduced-motion branch, no measureKey. The whole class of Android
+layout bug is deleted along with the animation, and because it is now an ordinary wrapping Text, the web
+preview is representative of Android again. Verified on web: a long title with a reminder wraps to 3
+lines and stays fully visible, where it used to collapse to blank.
+
+Decided against keeping the scroll behind a reduced-motion check. The motion WAS the liability, and a
+scrolling title is movement a calm-first, often motion-averse audience does not really want anyway, so
+the wrap is the better default for everyone, not a fallback. Decided against renaming the component
+(MarqueeText is now a misnomer) to keep the change small and low-risk, with a comment noting it. The
+scrolling marquee (decision-log 2026-06-18) is retired. QA TOD-19 reworded to expect a wrap.

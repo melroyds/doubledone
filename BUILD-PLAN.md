@@ -145,6 +145,7 @@ The single home for everything we have consciously parked. Nothing here is dropp
 - Clickable email magic-link on web, in addition to the typed code. Trigger: you want one-tap web sign-in and the deep-linking is set up.
 - Sharing a list with another person. Trigger: a real second-user case (caution: this edges toward the team-tool trap the spec warns against, weigh hard).
 - Syncing the cross-user completion data (the moat flywheel) to its own anonymised store. Trigger: enough users that the aggregate is worth mining, pairs with the AI features.
+- **Sync the decompose chain (`silentParent` + `parentId`), and have the MCP / API exclude silent parents.** These Cluster B fields are client-only (no schema columns, not in the sync mapping), so a broken-down task's structure is lost on a second signed-in device (the parent and its loose steps all show, un-linked), and the MCP's `list_today` can surface a silent-parent umbrella the app itself hides. Both are cosmetic edge cases, not data loss. The fix is two columns (`silent_parent`, `parent_id`), the sync mapping extended to carry them, then a `silent_parent=is.false` filter on the MCP / API today query. Trigger: a multi-device user who decomposes hits it, or before promoting the MCP / API past v1.
 
 **AI, beyond the core**
 - Energy-level matching (suggest tasks that fit your current energy). Trigger: Bite the Elephant and triage are solid and you want smarter sequencing.
