@@ -67,6 +67,7 @@ const makeStyles = (t: Theme) =>
       fontSize: 15 * t.scale,
       lineHeight: 22 * t.scale,
       textAlign: 'center',
+      alignSelf: 'stretch',
       letterSpacing: 0.2,
     },
   });

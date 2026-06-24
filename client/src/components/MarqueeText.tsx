@@ -47,18 +47,33 @@ export function MarqueeText({ text, style }: Props) {
   const overflow = containerW > 0 && textW > containerW + 1; // +1 avoids jitter at an exact fit
   const scrolling = overflow && !reduced;
 
-  // Measure after layout, and again on a web resize. Reading refs here (not during
-  // render) keeps the React Compiler happy.
+  // Measure now, then retry on a few bounded delays. A native measure() can return 0
+  // right after a (re)mount (e.g. a row re-mounting when you leave multi-select), which
+  // left the marquee static. measureWidth ignores zero, so the retries only ever SET a
+  // real width, and re-setting the same value is a no-op (no re-render, so the running
+  // animation is never restarted). Bounded on purpose: a continuous onLayout re-measure
+  // thrashed the animation and killed scrolling entirely.
   useEffect(() => {
+    let cancelled = false;
     const read = () => {
+      if (cancelled) return;
       measureWidth(containerRef.current, setContainerW);
       measureWidth(measureRef.current, setTextW);
     };
     read();
+    const timers = [50, 150, 400, 800].map((ms) => setTimeout(read, ms));
+    const stopTimers = () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+    };
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.addEventListener('resize', read);
-      return () => window.removeEventListener('resize', read);
+      return () => {
+        stopTimers();
+        window.removeEventListener('resize', read);
+      };
     }
+    return stopTimers;
   }, [text]);
 
   useEffect(() => {
