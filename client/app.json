@@ -30,7 +30,7 @@
           "backgroundColor": "#F6F2E9",
           "android": {
             "image": "./assets/images/splash-icon.png",
-            "imageWidth": 300
+            "imageWidth": 200
           }
         }
       ],
@@ -57,6 +57,16 @@
               "description": "Today's tasks, at a glance",
               "updatePeriodMillis": 1800000
             }
+          ]
+        }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "node_modules/@expo-google-fonts/newsreader/600SemiBold/Newsreader_600SemiBold.ttf",
+            "node_modules/@expo-google-fonts/atkinson-hyperlegible/400Regular/AtkinsonHyperlegible_400Regular.ttf",
+            "node_modules/@expo-google-fonts/atkinson-hyperlegible/700Bold/AtkinsonHyperlegible_700Bold.ttf"
           ]
         }
       ]

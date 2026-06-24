@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -47,23 +47,19 @@ export function MarqueeText({ text, style }: Props) {
   const overflow = containerW > 0 && textW > containerW + 1; // +1 avoids jitter at an exact fit
   const scrolling = overflow && !reduced;
 
-  // Measure on mount, on a web resize, and on every layout (the onLayout below).
-  // The onLayout re-trigger fixes the marquee dying after a row re-mounts (e.g. on
-  // leaving multi-select): the effect runs only on [text], so a re-mounted row never
-  // re-measured and fell to a static line. measure() reads the refs (the reliable
-  // source on web), and onLayout just re-fires it after each native layout pass.
-  const measure = useCallback(() => {
-    measureWidth(containerRef.current, setContainerW);
-    measureWidth(measureRef.current, setTextW);
-  }, []);
-
+  // Measure after layout, and again on a web resize. Reading refs here (not during
+  // render) keeps the React Compiler happy.
   useEffect(() => {
-    measure();
+    const read = () => {
+      measureWidth(containerRef.current, setContainerW);
+      measureWidth(measureRef.current, setTextW);
+    };
+    read();
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      window.addEventListener('resize', measure);
-      return () => window.removeEventListener('resize', measure);
+      window.addEventListener('resize', read);
+      return () => window.removeEventListener('resize', read);
     }
-  }, [text, measure]);
+  }, [text]);
 
   useEffect(() => {
     if (!scrolling) {
@@ -93,7 +89,7 @@ export function MarqueeText({ text, style }: Props) {
   }, [scrolling, textW, tx]);
 
   return (
-    <View ref={containerRef} style={styles.clip} onLayout={measure}>
+    <View ref={containerRef} style={styles.clip}>
       {/* Measuring copy, out of flow: a very wide wrapper lets the text reach its
           natural single-line width (RN-web caps a numberOfLines text at 100%). */}
       <View
