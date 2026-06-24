@@ -24,7 +24,7 @@ The home screen is **Today**, sized to be doable. Everything else is plumbing in
 
 ## Who it is for
 
-**Primary:** adults with ADHD, autism, the AuDHD overlap, OCD, or chronic overwhelm who operate off a to-do list but drown in it. Task-initiation paralysis, time blindness, the wall of awful. The founder is one of these people and uses this daily. Founder-market fit is the strongest asset.
+**Primary:** adults with ADHD, autism, the AuDHD overlap, OCD, or chronic overwhelm who operate off a to-do list but drown in it. Task-initiation paralysis, time blindness, the wall of awful. The founder built this for the people he works with, has managed, and is close to who are these people. That proximity, not a personal diagnosis, is the strongest asset.
 
 **Why AuDHD especially.** The autism-plus-ADHD overlap is underserved and a sharp fit. Autism pulls toward routine, predictability, low sensory load, and no surprises. ADHD pulls toward low friction and externalised memory. DoubleDone's calm, near-zero-maintenance, never-shame, no-new-settings spine serves both at once, where the typical dopamine-streak ADHD app actively repels the autistic side. Demand avoidance, common in AuDHD, is also why the never-pressure, never-shame framing is non-negotiable rather than merely nice.
 

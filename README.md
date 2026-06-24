@@ -48,7 +48,7 @@ Most productivity apps are built for neurotypical optimisation: more capture, mo
 - **The discounting reflex**, the brain throws away everything you already did and says you did nothing.
 - **Rejection-sensitive dysphoria**, a guilt-based, overdue-red, nagging app is not motivating, it is repelling.
 
-DoubleDone is built around those, not around a feature checklist. The founder is in the audience and uses it daily; founder-market fit is the main asset.
+DoubleDone is built around those, not around a feature checklist. The founder built it for the people he works with, has managed, and is close to who live this, out of proximity rather than a personal diagnosis. That close-up empathy is the main asset.
 
 ## The core loop
 

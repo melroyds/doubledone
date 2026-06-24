@@ -34,7 +34,7 @@ So the category leaders don't just fail to help this user, they actively make th
 The promise in one line: *your brain can't tell you that you did nothing.*
 
 **Why it is defensible.**
-- **Founder-market-fit.** The founder is in the audience and dogfoods daily. This shows in a thousand small calls competitors won't make.
+- **Founder-market-fit.** The founder built this for the people he works with, has managed, and is close to who live it, out of proximity rather than a personal diagnosis. This shows in a thousand small calls competitors won't make.
 - **Depth, not a veneer.** The product answers each failure mode several ways now, and the OCD overlap too. That accumulated, dogfooded judgment about which thin spot to deepen next is the part a funded team cannot shortcut. They can copy a screen, not the sequence of calls that built it.
 - **Never-shame is architecture, not a setting.** No overdue-red, no streaks, undone work rolls forward quietly. A competitor can't bolt this on; it contradicts their engagement model (streaks and nags are how they retain neurotypical users).
 - **The calm/predictable design** fits the autistic side, where dopamine-streak apps actively repel.
