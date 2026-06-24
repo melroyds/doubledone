@@ -2060,4 +2060,31 @@ Correction (same day): the first deploy added a `/privacy /privacy.html 200` _re
 LOOPED. Cloudflare clean-URLs canonicalise privacy.html to /privacy, so the rule bounced /privacy ->
 /privacy.html -> 308 -> /privacy endlessly (confirmed: /privacy returned 308 with Location /privacy).
 Removed the rule. The static file serves at /privacy on its own (clean URLs, and static assets outrank the
-SPA catch-all). The _redirects comment now warns against re-adding the rule.
+SPA catch-all). The _redirects comment now warns against re-adding the rule. Verified live: /privacy is a
+direct 200 with the full policy.
+
+## 2026-06-25 Premium prioritisation, and a BUILD-PLAN reorg for legibility
+
+Two asks from Melroy: a clear, stack-ranked premium backlog with a defined free/premium wall, and a cleanup
+of the sprawling BUILD-PLAN so a hiring PM can read it cold.
+
+**Premium (docs/premium.md).** A 7-agent workflow scored every candidate gate across four panels
+(willingness-to-pay, RICE, spine-and-trust, hiring-PM signal), synthesised a stack-ranked backlog, then ran
+an adversarial pass. The adversarial pass earned its keep: the raw ranking put a tight free AI quota (about
+3 breakdowns a month) and a gated Lookback narrative in Tier 1, both high on conversion but both gating the
+user at the moment of RELIEF, which is RSD-fatal for this audience and breaks the wall's own rule. Corrected
+before writing it up: the free AI allowance is generous (about 10 breakdowns a month, never biting on a
+crisis day), the Lookback calendar and celebration stay free forever (only an optional stats/summary layer
+is premium), and the punitive items reordered down. The settled calls: monetise abundance and delight,
+never cripple the free tier. The paywall is never at friction (Sort, Break-it-down, Close-the-day stay
+free). Data export and the public API/MCP are never gated (trust and the moat). Multiple projects/workspaces
+is REJECTED as a spine veto (it would turn Today into an everything-bucket, and the free "custom lists" idea
+covers the real need). Model unchanged: A$5/mo, generous free, profitable near 5% conversion, with an
+A$50/yr plan as a post-launch lever. Tier 1 to build: pin-a-task, then OCR photo capture (the scrapbook is
+already the flagship). The AI Scrapbook (free monthly taste, premium weekly by tenure) is the gold standard
+every other gate is measured against.
+
+**BUILD-PLAN.** Rewritten from a 313-line chronological accretion into a clean arc: what it is, what shipped
+(grouped by theme), now and next, the deferred backlog (with triggers, shipped items removed), the
+discipline of stopping, principles, and a tight privacy posture. The full chronological detail stays here in
+the decision-log. Monetisation in BUILD-PLAN now points to docs/premium.md.
