@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -93,6 +93,8 @@ export default function TodayScreen() {
   const [focusPick, setFocusPick] = useState<string | null>(null);
   const brainDumpRef = useRef<BrainDumpHandle>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
+  const { width: winW } = useWindowDimensions();
+  const dockFooter = Platform.OS !== 'web' || winW < 700; // native + narrow web dock, wide web blends into the page
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -1111,7 +1113,7 @@ export default function TodayScreen() {
         )}
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + (captureOpen ? spacing.one : spacing.four) }]}>
+      <View style={[styles.footer, dockFooter && styles.footerDock, { paddingBottom: insets.bottom + (captureOpen ? spacing.one : spacing.four) }]}>
         {selectMode ? (
           <View style={styles.selectBar}>
             <View style={styles.selectTop}>
@@ -1646,12 +1648,16 @@ const makeStyles = (t: Theme) =>
     footer: {
       paddingHorizontal: spacing.five,
       paddingTop: spacing.three,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: t.colors.line,
-      backgroundColor: t.colors.bg,
       maxWidth: 560,
       width: '100%',
       alignSelf: 'center',
+    },
+    // The mobile / narrow-web dock: a filled bar with a hairline top. Dropped on wide web
+    // so the capture region blends into the Dusk page under the list, not a floating panel.
+    footerDock: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: t.colors.line,
+      backgroundColor: t.colors.bg,
     },
     ethos: { marginTop: spacing.three, alignItems: 'center' },
     optionalLinks: { marginTop: spacing.four, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: spacing.five },
