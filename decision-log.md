@@ -2055,3 +2055,9 @@ privacy.tsx screen is unchanged (client-side nav never hits the server), only di
 copies must stay in sync, noted in both files. Decided against a build-time generator or refactoring
 privacy.tsx to a shared source: the policy is short, legal, and rarely edited, so a mirrored file with a
 sync note is the lower-risk move right before launch.
+
+Correction (same day): the first deploy added a `/privacy /privacy.html 200` _redirects rule, which
+LOOPED. Cloudflare clean-URLs canonicalise privacy.html to /privacy, so the rule bounced /privacy ->
+/privacy.html -> 308 -> /privacy endlessly (confirmed: /privacy returned 308 with Location /privacy).
+Removed the rule. The static file serves at /privacy on its own (clean URLs, and static assets outrank the
+SPA catch-all). The _redirects comment now warns against re-adding the rule.

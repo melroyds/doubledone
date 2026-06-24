@@ -69,8 +69,8 @@ requirements:
 
 The catch for DoubleDone: the web app is a **client-rendered SPA** (`output: "single"`), so `/privacy`
 renders in JavaScript, and a non-JS crawler sees only the empty app shell. **This is now fixed**
-(2026-06-24): `client/public/privacy.html` is a static copy of the policy, and a `_redirects` rule serves it
-at `/privacy`, so a non-JS fetch returns the full text. Keep it in step with the in-app `privacy.tsx`. Just
+(2026-06-24): `client/public/privacy.html` is a static copy of the policy, served at `/privacy` by
+Cloudflare's clean URLs (a rewrite rule loops, so there is none), so a non-JS fetch returns the full text. Keep it in step with the in-app `privacy.tsx`. Just
 confirm it is live after the deploy (the checklist item below).
 
 Also: update the "Last updated" date in the policy to the submission date before you submit, reviewers

@@ -2,7 +2,8 @@
 # index.html hydrated client-side; serve it for any path so deep links and
 # refreshes on routes like /sign-in resolve instead of 404ing.
 #
-# EXCEPTION (must stay first): /privacy serves the static, crawlable privacy.html, not the
-# SPA shell, so a non-JS crawler (Google Play's policy check) gets the real policy text.
-/privacy    /privacy.html   200
+# Note: the static privacy.html is already served at /privacy by Cloudflare's clean-URL
+# canonicalisation, and static assets take precedence over this catch-all, so a crawler hitting
+# /privacy gets the real policy. Do NOT add a `/privacy /privacy.html 200` rule, it loops against
+# that canonicalisation (/privacy -> /privacy.html -> 308 -> /privacy -> ...).
 /*    /index.html   200
