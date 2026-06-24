@@ -229,6 +229,20 @@ export async function tiny(task: string): Promise<string> {
   return typeof data.tiny === 'string' ? data.tiny.trim() : '';
 }
 
+/** Combine several task titles into one umbrella title via the AI backend (the inverse
+ *  of Break-it-down). Throws on a failed call; the caller shows a calm error and lets the
+ *  user type a title instead, so the flow never blocks on the AI. */
+export async function combine(titles: string[], language?: string): Promise<string> {
+  const res = await fetch(`${AI_URL}/combine`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ titles, language }),
+  });
+  if (!res.ok) throw new Error(`combine failed (${res.status})`);
+  const data = (await res.json()) as { title?: unknown };
+  return typeof data.title === 'string' ? data.title.trim() : '';
+}
+
 // The AI scrapbook: a finished week's titles in, a calm keepsake image (a base64
 // data URL) plus the scene caption out. Generated entirely on Workers AI; see the
 // Worker's /scrapbook route. Throws on a failed call; the caller shows a calm error.

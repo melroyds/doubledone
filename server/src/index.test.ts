@@ -142,6 +142,26 @@ describe('split', () => {
   });
 });
 
+describe('combine', () => {
+  it('400s when fewer than two titles are given (reached before any upstream call)', async () => {
+    const res = await worker.fetch(
+      req('POST', '/combine', { origin: 'https://doubledone.app', body: { titles: ['only one'] } }),
+      makeEnv(),
+      ctx,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('refuses a disallowed browser origin before any upstream call', async () => {
+    const res = await worker.fetch(
+      req('POST', '/combine', { origin: 'https://evil.example', body: { titles: ['a', 'b'] } }),
+      makeEnv(),
+      ctx,
+    );
+    expect(res.status).toBe(403);
+  });
+});
+
 describe('health', () => {
   it('reports key presence without leaking it', async () => {
     const res = await worker.fetch(req('GET', '/health'), makeEnv(), ctx);

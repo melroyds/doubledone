@@ -17,6 +17,7 @@ import { TaskRow } from '@/components/TaskRow';
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import {
   clarify,
+  combine,
   DEFAULT_QUESTIONS,
   plan as planBreakdown,
   purgeScrapbookImages,
@@ -30,6 +31,7 @@ import {
 import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
 import { celebrationTier, finishContext } from '@/lib/celebrate';
+import { combineTasks, eligibleForCombine } from '@/lib/combine';
 import { ageInDays, isBigWin } from '@/lib/reward';
 import { phaseGreeting } from '@/lib/phase';
 import { addDaysISO, formatTodayLabel, friendlyDate, isReentry, presetDate, toISODate } from '@/lib/day';
@@ -87,6 +89,10 @@ export default function TodayScreen() {
   const [didText, setDidText] = useState('');
   const [closeNote, setCloseNote] = useState('');
   const [moveToOpen, setMoveToOpen] = useState(false);
+  const [combineOpen, setCombineOpen] = useState(false); // the Combine review modal
+  const [combineTitle, setCombineTitle] = useState(''); // the editable umbrella title (AI-suggested)
+  const [beingCombined, setBeingCombined] = useState<string[]>([]); // snapshot of the ids being folded
+  const combineBusy = useRef(false); // guards the combine AI call from a double-fire
   const [nudgeOpen, setNudgeOpen] = useState(false);
   const [nudgePresets, setNudgePresets] = useState<NudgePreset[]>([]);
   const [focusOpen, setFocusOpen] = useState(false);
@@ -316,6 +322,11 @@ export default function TodayScreen() {
   // One-off, undone tasks on Today: the ones Strategise can re-spread (recurring stay by cadence).
   const spreadable = visible.filter((t) => !isRecurring(t) && !isDoneOn(t, today));
   const onlyTask = selected.length === 1 ? visible.find((t) => t.id === selected[0]) : undefined;
+  // The selected tasks eligible to combine (open one-offs); the Combine action shows at 2+.
+  const combinable = selected.filter((id) => {
+    const t = tasks.find((x) => x.id === id);
+    return t != null && eligibleForCombine(t);
+  });
   // Focus mode shows one unfinished one-off at a time (recurring habits are not the
   // wall-of-awful). The first not-yet-skipped one; completing or skipping advances it.
   const focusTask = focusOpen && focusPick ? (spreadable.find((t) => t.id === focusPick) ?? null) : null;
@@ -439,6 +450,47 @@ export default function TodayScreen() {
     commit(tasks.map((t) => (set.has(t.id) && !isRecurring(t) ? clearNudgeIfAny({ ...deferTo(t, iso), updatedAt: now }) : t)));
     track('bulk.moved', { count: selected.length });
     setMoveToOpen(false);
+    exitSelect();
+  }
+
+  // Combine (the inverse of Break-it-down): hand the selected one-offs' titles to the AI for
+  // an umbrella name, then show it editable. The AI is best-effort, a failure just opens the
+  // review with an empty name to type, so the flow never blocks. The fold runs on accept.
+  async function openCombine() {
+    if (combineBusy.current) return;
+    const ids = combinable;
+    if (ids.length < 2) return;
+    combineBusy.current = true;
+    setBeingCombined(ids);
+    affirm('Finding a name…');
+    const titles = ids
+      .map((id) => tasks.find((t) => t.id === id)?.title)
+      .filter((t): t is string => typeof t === 'string' && t.length > 0);
+    let suggested = '';
+    try {
+      suggested = await combine(titles, aiLanguage);
+    } catch {
+      // best-effort: open the review with an empty name for the user to type
+    } finally {
+      combineBusy.current = false;
+    }
+    setCombineTitle(suggested);
+    setCombineOpen(true);
+  }
+
+  // Accept the umbrella: fold the selected tasks into one new task at the earliest of their due
+  // dates (tombstoning the originals, recorded on the umbrella's combinedFrom), and tombstone any
+  // silent parent the combine empties. The umbrella completes like an ordinary task (no bloom).
+  function combineAccept() {
+    const title = combineTitle.trim();
+    if (!title || beingCombined.length < 2) return;
+    const { next } = combineTasks(tasks, beingCombined, title, nowMs(), makeId());
+    commit(next);
+    track('combine.created', { count: beingCombined.length });
+    affirm(`Combined into one: ${title}.`);
+    setCombineOpen(false);
+    setCombineTitle('');
+    setBeingCombined([]);
     exitSelect();
   }
 
@@ -1211,6 +1263,16 @@ export default function TodayScreen() {
                     <Text style={styles.selectAction}>Make it tiny</Text>
                   </Pressable>
                 )}
+                {combinable.length >= 2 && (
+                  <Pressable
+                    onPress={() => void openCombine()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Combine selected tasks into one"
+                    hitSlop={6}
+                  >
+                    <Text style={styles.selectAction}>Combine</Text>
+                  </Pressable>
+                )}
                 <Pressable onPress={bulkRemove} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Remove selected" hitSlop={6}>
                   <Text style={[styles.selectRemove, selected.length === 0 && styles.selectActionOff]}>Remove</Text>
                 </Pressable>
@@ -1387,6 +1449,61 @@ export default function TodayScreen() {
                 style={({ pressed }) => [styles.didAddBtn, pressed && styles.pressed]}
               >
                 <Text style={styles.didAddText}>Add it</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={combineOpen} transparent animationType="fade" onRequestClose={() => setCombineOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setCombineOpen(false)} accessibilityRole="button" accessibilityLabel="Dismiss">
+          <Pressable style={styles.wrapCard} onPress={() => {}}>
+            <Text style={styles.didTitle}>Combine into one</Text>
+            <Text style={styles.didHint}>
+              {`${beingCombined.length} tasks become one. Edit the name, or keep the suggestion. It lands on the earliest of their dates.`}
+            </Text>
+            <TextInput
+              style={styles.didInput}
+              value={combineTitle}
+              onChangeText={setCombineTitle}
+              placeholder="Name the combined task…"
+              placeholderTextColor={theme.colors.inkFaint}
+              returnKeyType="done"
+              onSubmitEditing={combineAccept}
+              accessibilityLabel="The combined task's name"
+            />
+            <View style={styles.combineList}>
+              {beingCombined.map((id) => {
+                const t = tasks.find((x) => x.id === id);
+                if (!t) return null;
+                return (
+                  <Text key={id} style={styles.combineItem} numberOfLines={1}>
+                    · {t.title}
+                  </Text>
+                );
+              })}
+            </View>
+            <View style={styles.didActions}>
+              <Pressable
+                onPress={() => {
+                  setCombineOpen(false);
+                  setCombineTitle('');
+                  setBeingCombined([]);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                hitSlop={8}
+              >
+                <Text style={styles.didCancel}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={combineAccept}
+                disabled={!combineTitle.trim()}
+                accessibilityRole="button"
+                accessibilityLabel="Combine into one task"
+                style={({ pressed }) => [styles.didAddBtn, pressed && styles.pressed, !combineTitle.trim() && styles.disabledBtn]}
+              >
+                <Text style={styles.didAddText}>Combine</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -1817,6 +1934,8 @@ const makeStyles = (t: Theme) =>
     moveChip: { borderWidth: 1, borderColor: t.colors.line, borderRadius: radius.pill, paddingVertical: spacing.three, paddingHorizontal: spacing.three },
     moveChipText: { color: t.colors.ink, fontFamily: fonts.body, fontSize: 14 * t.scale },
     moveCancelWrap: { marginTop: spacing.three, alignItems: 'center' },
+    combineList: { gap: spacing.one, marginTop: spacing.one, marginBottom: spacing.one },
+    combineItem: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
     focusPickList: { marginTop: spacing.five, gap: spacing.four, alignItems: 'center' },
     focusPickItem: { paddingVertical: spacing.two, paddingHorizontal: spacing.three },
     focusPickItemText: { color: t.colors.accent, fontFamily: fonts.sans, fontSize: 22 * t.scale, textAlign: 'center' },

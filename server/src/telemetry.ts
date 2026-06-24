@@ -1,5 +1,5 @@
 // Server-side AI-call telemetry: the moat's front door. Every AI call the Worker
-// makes (clarify / decompose / plan / split / tiny / strategise / triage / scrapbook) is recorded
+// makes (clarify / combine / decompose / plan / split / tiny / strategise / triage / scrapbook) is recorded
 // with its input, returned value, model, token usage and latency, so what we offer
 // can be tuned on what actually gets used, and the spend watched.
 //
@@ -29,7 +29,7 @@ export interface D1LikeDatabase {
 export type TelemetryEnv = { DB?: D1LikeDatabase };
 
 export type AiCallLog = {
-  endpoint: 'decompose' | 'strategise' | 'triage' | 'clarify' | 'plan' | 'split' | 'tiny' | 'scrapbook';
+  endpoint: 'decompose' | 'strategise' | 'triage' | 'clarify' | 'combine' | 'plan' | 'split' | 'tiny' | 'scrapbook';
   model: string;
   input: unknown;
   output: unknown;

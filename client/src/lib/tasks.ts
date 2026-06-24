@@ -30,6 +30,7 @@ export type Task = {
   parentTitle?: string; // the parent's title, denormalised so the whole-task celebration needs no lookup
   silentParent?: boolean; // a silent parent: kept for the eventual whole-task celebration, hidden from Today / Later until its children are all done
   openParent?: boolean; // a tiny-version parent: its children are partial pebbles, so it never auto-completes (it resurfaces instead); see completeAncestors
+  combinedFrom?: { id: string; title: string }[]; // an umbrella made by Combine (the inverse of decompose): the id + title of each task folded into it, kept for the moat and a future un-combine
   nudgeAt?: number; // epoch ms a local "remind me" nudge will fire (today only); drives the row indicator
   nudgeId?: string; // the scheduled-notification id, so the nudge can be cancelled when the task is done / removed / deferred
 };

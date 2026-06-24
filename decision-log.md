@@ -1942,3 +1942,52 @@ The TEMP "In 2 minutes (test)" nudge preset is removed now that firing is confir
 hour / 3 hours / this evening) are restored, and QA AND-06 reverted to a real preset. The lesson about how
 this was finally cracked (the paid build loop, a multi-agent skeptic, and reasoning by elimination over
 hunches) is banked in the session memory.
+
+## 2026-06-24 Combine: fold several tasks into one (the inverse of Break-it-down)
+
+Melroy's feature: select two or more tasks, "Combine" them into one. A cheap Haiku call (/combine, the
+sibling of /decompose) suggests an umbrella title, the user edits it, and the originals fold into one new
+task placed at the earliest of their due dates. The intent is the mirror of Break-it-down: zoom OUT when
+the day is cluttered, the way Break-it-down zooms IN when a task is too big.
+
+**The model (overriding the design pass).** A multi-agent design workflow returned three takes that all
+missed the point: two kept the original tasks VISIBLE after combining (which does not declutter Today, the
+whole purpose), and the third made the umbrella a hidden silent parent with the children shown, which is
+just Break-it-down again. The shipped model instead: the selected tasks are tombstoned (the SAME reversible
+soft-delete the sync engine already uses, so nothing is lost and a future un-combine is possible) and
+recorded on the umbrella's new combinedFrom field (the id + title of each). The umbrella is an ordinary
+visible task, and Today goes from several rows to one. Decided against a hard delete (lossy, not
+reversible) and against any new "hidden child" visibility concept (the tombstone reuses what exists).
+
+**The dependency crux (Melroy: "handle that elegantly").** A combined task may already be a child of a
+decomposed silent parent. Tombstoning it detaches it. A parent left with live children is untouched and
+still completes normally when those finish. A parent emptied of ALL its children is tombstoned too, its
+work having moved into the umbrella. DoubleDone's decompositions are single-level, so there is no
+grandparent chain to re-walk, which was the skeptic's main worry. Decided AGAINST the workflow's "mark the
+emptied parent done": that fires a false completion and a Lookback entry for work that merely moved, which
+the never-false-reward spine forbids. Tombstoning removes it quietly, no bloom, no entry.
+
+**Earliest-date rule.** The umbrella takes the earliest due among the selected, where an UNDATED task
+counts as the earliest (it already sits on Today with no deadline). So a combine that includes an undated,
+due-today, or overdue task lands on Today with no imposed deadline, otherwise it takes the soonest future
+date. This corrects the design pass's filter-out-null version, which would have pushed an [undated,
+next-week] combine onto next week even though the undated one shows today. Worst case the user moves it.
+
+**Completion + eligibility.** The umbrella completes like any ordinary task, the calm "Done is done", NOT
+the whole-task decompose bloom, so the bloom stays reserved for finishing something you broke down and is
+not diluted by grouping small things. Combine is offered only for non-recurring, open, not-deleted tasks (a
+recurring task repeats and has no single due to fold).
+
+The pure fold, the four dependency cases (standalone / one parent fully / one parent partly / multiple
+parents), and the earliest-date rule are unit-tested (client combine.test.ts, 15 cases). The /combine
+endpoint is contract-tested (server combine.test.ts plus an index.test.ts route guard), and the moat logs
+it like the decompose telemetry ('combine' added to the D1 ai_calls endpoint union). Gate green (309 client
++ 146 server). Verified end-to-end on the web preview: long-press to select, Combine appears only at two or
+more eligible, the review modal, the fold (originals tombstoned, one umbrella on Today carrying
+combinedFrom, Today decluttered, select exits), persisting across reload. The headless preview cannot
+reflect the RN-web Modal's visual close (the documented Strategise / Close-day gotcha), but the close
+handler is the identical one-liner four shipped modals use. QA TOD-20 (core) and TOD-21 (decomposed
+children) added.
+
+Pending Melroy's go-ahead: the production Worker deploy of /combine (for the live AI title). Until then the
+modal opens with an empty name to type, so the feature already works without the deploy.

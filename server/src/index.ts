@@ -4,6 +4,7 @@
 
 import { handleApi } from './api';
 import { buildClarifyRequest, CLARIFY_MODEL, parseClarifyResponse } from './clarify';
+import { buildCombineRequest, COMBINE_MODEL, parseCombineResponse } from './combine';
 import { buildDecomposeRequest, DECOMPOSE_MODEL, type DecomposeContext, parseDecomposeResponse } from './decompose';
 import { buildFeedbackEmail, parseFeedback } from './feedback';
 import { parseLanguage } from './lang';
@@ -91,7 +92,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:8081',
   'http://localhost:19006',
 ];
-const AI_ROUTES = new Set(['/clarify', '/decompose', '/plan', '/split', '/tiny', '/strategise', '/triage', '/scrapbook']);
+const AI_ROUTES = new Set(['/clarify', '/combine', '/decompose', '/plan', '/split', '/tiny', '/strategise', '/triage', '/scrapbook']);
 
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
@@ -629,6 +630,54 @@ export default {
         }),
       );
       return Response.json({ tiny }, { headers: cors });
+    }
+
+    // Combine: several task titles in, one umbrella title out (the inverse of
+    // Bite-the-Elephant). Cheap (Haiku); the client folds the tasks into the umbrella.
+    if (pathname === '/combine' && request.method === 'POST') {
+      let titles: string[] = [];
+      let language: string | undefined;
+      try {
+        const body = (await request.json()) as { titles?: unknown; language?: unknown };
+        language = parseLanguage(body.language);
+        if (Array.isArray(body.titles)) {
+          titles = body.titles
+            .filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
+            .map((t) => t.trim());
+        }
+      } catch {
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
+      }
+      if (titles.length < 2) {
+        return Response.json({ error: 'at least two titles are required' }, { status: 400, headers: cors });
+      }
+      if (!env.ANTHROPIC_API_KEY) {
+        return Response.json({ error: 'server not configured' }, { status: 500, headers: cors });
+      }
+
+      const { url, init } = buildCombineRequest(titles, env.ANTHROPIC_API_KEY, language);
+      const started = Date.now();
+      const upstream = await fetch(url, init as RequestInit);
+      if (!upstream.ok) {
+        ctx.waitUntil(
+          logAiCall(env, {
+            endpoint: 'combine', model: COMBINE_MODEL, input: { titles }, output: null,
+            inputTokens: null, outputTokens: null, latencyMs: Date.now() - started,
+            ok: false, error: `upstream ${upstream.status}`,
+          }),
+        );
+        return Response.json({ error: 'upstream error' }, { status: 502, headers: cors });
+      }
+      const raw = await upstream.json();
+      const title = parseCombineResponse(raw);
+      const usage = extractUsage(raw);
+      ctx.waitUntil(
+        logAiCall(env, {
+          endpoint: 'combine', model: COMBINE_MODEL, input: { titles }, output: { title },
+          inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true,
+        }),
+      );
+      return Response.json({ title }, { headers: cors });
     }
 
     // AI scrapbook: a finished week's task titles in, a calm Dusk keepsake image
