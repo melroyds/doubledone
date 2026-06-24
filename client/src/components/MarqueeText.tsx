@@ -34,9 +34,13 @@ const PAUSE = 1200; // ms held at the start of each loop so the title reads firs
 type Props = {
   text: string;
   style?: StyleProp<TextStyle>;
+  // Re-measure when the row's layout changes without the text changing: a reminder bell
+  // appearing, or entering select mode where the row re-renders into a different shape.
+  // The imperative measure only re-runs when this key (or the text) changes.
+  measureKey?: string | number;
 };
 
-export function MarqueeText({ text, style }: Props) {
+export function MarqueeText({ text, style, measureKey }: Props) {
   const [containerW, setContainerW] = useState(0);
   const [textW, setTextW] = useState(0);
   const [tx] = useState(() => new Animated.Value(0)); // useState, not useRef: ref reads in render trip the compiler lint
@@ -74,7 +78,7 @@ export function MarqueeText({ text, style }: Props) {
       };
     }
     return stopTimers;
-  }, [text]);
+  }, [text, measureKey]);
 
   useEffect(() => {
     if (!scrolling) {
@@ -119,21 +123,27 @@ export function MarqueeText({ text, style }: Props) {
       </View>
 
       {scrolling ? (
-        // Two copies that keep their natural width (no numberOfLines cap) so the
-        // train can scroll; at -(width+gap) the second copy sits where the first
-        // began, making the reset seamless.
-        <Animated.View style={[styles.train, { transform: [{ translateX: tx }] }]}>
-          <Text style={[style, styles.noShrink]}>{text}</Text>
-          <View style={{ width: GAP }} />
-          <Text
-            style={[style, styles.noShrink]}
-            aria-hidden
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-          >
-            {text}
-          </Text>
-        </Animated.View>
+        // The scrolling train is ABSOLUTE so its (deliberately huge) two-copy width never
+        // feeds back into the clip's own width. On Android a long in-flow train competing
+        // with a sibling (a reminder bell) could collapse the clip to zero, taking the
+        // title with it. Out of flow, the clip keeps its flex width. A zero-content spacer
+        // gives the clip its line height, since the absolute train contributes none.
+        // At -(width+gap) the second copy sits where the first began, a seamless reset.
+        <>
+          <Text style={[style, styles.sizer]}>{' '}</Text>
+          <Animated.View style={[styles.train, { transform: [{ translateX: tx }] }]}>
+            <Text style={[style, styles.noShrink]}>{text}</Text>
+            <View style={{ width: GAP }} />
+            <Text
+              style={[style, styles.noShrink]}
+              aria-hidden
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              {text}
+            </Text>
+          </Animated.View>
+        </>
       ) : (
         // Fits, or reduced motion: a single line when it fits, a gentle wrap when
         // reduced motion is on and it would otherwise overflow.
@@ -171,6 +181,9 @@ const styles = StyleSheet.create({
   // Out-of-flow and very wide so the measured text never wraps or gets capped;
   // clipped by `clip`'s overflow so it adds no page width.
   measureWrap: { position: 'absolute', left: 0, top: 0, opacity: 0, flexDirection: 'row', width: 4000, pointerEvents: 'none' },
-  train: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start' },
+  train: { flexDirection: 'row', alignItems: 'center', position: 'absolute', top: 0, left: 0 },
+  // A zero-content, invisible in-flow line: gives the clip its height now that the
+  // scrolling train is absolute (out of flow) and contributes no height of its own.
+  sizer: { opacity: 0 },
   noShrink: { flexShrink: 0 },
 });

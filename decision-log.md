@@ -1802,3 +1802,29 @@ Decided against keeping both the button AND select-move: two ways to do one thin
 never-add-a-setting spine warns against, and Melroy preferred the agency of the deliberate path. The
 button shipped and came out within the hour, which is the decision log working as intended, a dead end
 caught at the first live look. QA TOD-17 rewritten to the select + Move-to flow.
+
+## 2026-06-24 Marquee fix: the scrolling train goes out of flow (Android title-vanish + select freeze)
+
+Two marquee bugs from Melroy's Android testing. A long-title task with a reminder set showed only the
+bell, the title blank. And entering select mode froze other scrolling titles and blanked a reminder one.
+
+Diagnosed on web first: the layout is fine there (the clip measures 184px with a bell, 264 without, the
+title renders). So it is Android/Yoga-specific. The root is the scrolling "train" (two full-width copies
+of the title, deliberately huge so it can scroll) sitting IN FLOW inside the clip. Web's flexbox honours
+the clip's overflow:hidden + minWidth:0 and constrains it. Android's Yoga, with a reminder bell also
+competing for the row, let the train's huge width collapse the clip to zero, taking the title with it.
+
+Fix, two parts:
+- The train is now position:absolute, so its width never feeds back into the clip's own width. A
+  zero-content invisible spacer gives the clip its line height (the absolute train contributes none).
+  Verified on web that this does not regress: same clip widths, title visible, clip height 23px.
+- A measureKey prop on MarqueeText, fed per TaskRow variant (select / slice / suggest / tiny / normal,
+  the last two also keyed on whether a reminder bell is present). The imperative measure only re-ran on
+  mount or text change, so a layout change with the same text (a bell appearing, or React re-using the
+  row across the normal -> select shape change) left a stale width. The key change re-runs the measure.
+
+Decided against onLayout for the container width, which an earlier marquee pass found unreliable in this
+RN-web build and which once thrashed the animation. The targeted measureKey re-trigger keeps the proven
+imperative measure. The Android behaviour itself needs Melroy's on-device confirm, the headless web
+preview throttles both the animation and the long-press, so neither the scroll nor select can be driven
+here. QA TOD-19 added.

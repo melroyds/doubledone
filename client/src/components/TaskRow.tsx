@@ -78,7 +78,7 @@ export function TaskRow({
         accessibilityLabel={`Select ${title}`}
       >
         <View style={[styles.selectDot, selected && styles.selectDotOn]}>{selected && <Text style={styles.tick}>✓</Text>}</View>
-        <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
+        <MarqueeText text={title} style={[styles.text, done && styles.textDone]} measureKey="sel" />
         {recurring && <Text style={styles.repeatMark}>↻</Text>}
       </Pressable>
     );
@@ -167,7 +167,7 @@ export function TaskRow({
           <View style={[styles.check, complete && styles.checkDone]}>
             {complete && <Text style={styles.tick}>✓</Text>}
           </View>
-          <MarqueeText text={title} style={[styles.text, complete && styles.textDone]} />
+          <MarqueeText text={title} style={[styles.text, complete && styles.textDone]} measureKey="slice" />
           <Text style={styles.sliceCount}>
             {slices.done} / {slices.total}
           </Text>
@@ -198,7 +198,7 @@ export function TaskRow({
           <View style={[styles.check, done && styles.checkDone]}>
             {done && <Text style={styles.tick}>✓</Text>}
           </View>
-          <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
+          <MarqueeText text={title} style={[styles.text, done && styles.textDone]} measureKey={nudgeAt ? 'sugN' : 'sug'} />
           {nudgeAt ? <Text style={styles.nudgeMark}>{`🔔 ${formatNudgeTime(nudgeAt)}`}</Text> : null}
           {recurring && <Text style={styles.repeatMark}>↻</Text>}
         </Pressable>
@@ -235,7 +235,7 @@ export function TaskRow({
           accessibilityLabel={`${title}, a tiny step toward ${tinyParent}`}
         >
           <View style={[styles.check, done && styles.checkDone]}>{done && <Text style={styles.tick}>✓</Text>}</View>
-          <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
+          <MarqueeText text={title} style={[styles.text, done && styles.textDone]} measureKey="tiny" />
         </Pressable>
       </View>
     );
@@ -254,7 +254,7 @@ export function TaskRow({
       <View style={[styles.check, done && styles.checkDone]}>
         {done && <Text style={styles.tick}>✓</Text>}
       </View>
-      <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
+      <MarqueeText text={title} style={[styles.text, done && styles.textDone]} measureKey={nudgeAt ? 'baseN' : 'base'} />
       {nudgeAt ? <Text style={styles.nudgeMark}>{`🔔 ${formatNudgeTime(nudgeAt)}`}</Text> : null}
       {recurring && <Text style={styles.repeatMark}>↻</Text>}
     </Pressable>
