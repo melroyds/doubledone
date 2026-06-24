@@ -1920,3 +1920,25 @@ primary mechanism.
 A TEMP "In 2 minutes (test)" nudge preset was added so firing can be tested in minutes rather than an hour,
 to be removed once firing is confirmed on device. Gate green (294 client + 140 server). All three are
 Android-only, so they are verified on the build by Melroy, not the preview.
+
+## 2026-06-24 Bloom pillar resolved: the scrim's compositing, not the pools (correcting today's earlier call)
+
+Closing the bloom pillar, confirmed fixed on Melroy's Samsung. The earlier entry today credited the fix to
+dropping the SVG light-pools on Android. That was WRONG, and the next build proved it (pools off, pillar
+still there). Recording the dead end honestly.
+
+Real cause, by elimination once the pools were ruled out: the band is NEUTRAL, full-height and centred, but
+the bloom's glow is a 290px warm SVG circle (cannot paint a full-height neutral band) and the band shows
+ONLY while the scrim is up (so the scrim generates it, not something behind). That leaves the scrim: a
+full-screen translucent Animated.View fading its opacity in, with elevation:100. On Android, animating
+opacity on a translucent elevated view with child content seams into a vertical hardware-compositing band.
+Fix (99c0137): needsOffscreenAlphaCompositing on the scrim plus dropping the unnecessary elevation:100 (the
+bloom mounts last, so zIndex keeps it on top). Verified clean on device.
+
+The pools stay guarded off Android: they were never the pillar, but they are imperceptible in normal Android
+use anyway, so the guard is harmless and re-enabling them is risk for no gain.
+
+The TEMP "In 2 minutes (test)" nudge preset is removed now that firing is confirmed. The real presets (1
+hour / 3 hours / this evening) are restored, and QA AND-06 reverted to a real preset. The lesson about how
+this was finally cracked (the paid build loop, a multi-agent skeptic, and reasoning by elimination over
+hunches) is banked in the session memory.
