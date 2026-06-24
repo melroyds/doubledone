@@ -68,10 +68,10 @@ requirements:
    form says "no IP logging" but the policy says otherwise) is an automatic rejection.
 
 The catch for DoubleDone: the web app is a **client-rendered SPA** (`output: "single"`), so `/privacy`
-renders in JavaScript. A reviewer in a browser sees it fine, but Google's automated policy crawler may not
-run JS and could see only the empty app shell. If that is the case, serve a **static, prerendered** privacy
-page at that URL (a plain HTML file, or a Cloudflare Pages/Worker route that returns the policy HTML
-server-side) so a non-JS fetch still returns the full text.
+renders in JavaScript, and a non-JS crawler sees only the empty app shell. **This is now fixed**
+(2026-06-24): `client/public/privacy.html` is a static copy of the policy, and a `_redirects` rule serves it
+at `/privacy`, so a non-JS fetch returns the full text. Keep it in step with the in-app `privacy.tsx`. Just
+confirm it is live after the deploy (the checklist item below).
 
 Also: update the "Last updated" date in the policy to the submission date before you submit, reviewers
 flag stale dates.

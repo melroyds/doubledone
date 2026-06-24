@@ -1,4 +1,8 @@
 # SPA fallback for Cloudflare Pages. With web.output "single" the app is one
 # index.html hydrated client-side; serve it for any path so deep links and
 # refreshes on routes like /sign-in resolve instead of 404ing.
+#
+# EXCEPTION (must stay first): /privacy serves the static, crawlable privacy.html, not the
+# SPA shell, so a non-JS crawler (Google Play's policy check) gets the real policy text.
+/privacy    /privacy.html   200
 /*    /index.html   200

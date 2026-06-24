@@ -9,6 +9,9 @@ import { useThemedStyles } from '@/lib/theme-provider';
 // privacy) for a store listing. Kept honest and calm, no legalese walls: it
 // states the real posture (local-first, email-only PII, AI egress + pseudonymous
 // retention, no selling) the way the rest of the app talks.
+//
+// SYNC NOTE: the public, crawlable copy is client/public/privacy.html (served at /privacy for
+// store listings and crawlers, since this screen renders client-side). Keep both in step.
 export default function PrivacyScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();

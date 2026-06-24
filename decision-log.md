@@ -2040,3 +2040,18 @@ Next is the Play Store listing: a production AAB via the eas.json production pro
 buildType app-bundle + autoIncrement), then eas submit. Researched separately so the steps are current.
 The USE_EXACT_ALARM permission, flagged when the nudges were fixed, is the one Play policy item to declare
 at submission, and DoubleDone qualifies as a reminder app.
+
+## 2026-06-24 Crawlable static privacy page at /privacy (Play Store prep)
+
+The researched + adversarially-verified Play Store guide (docs/play-store-release.md) flagged the one
+code-side blocker: doubledone.app/privacy is a client-rendered SPA route, so a non-JS crawler (Google Play's
+policy check) gets only the ~2KB app shell, not the policy. Confirmed by fetching it (no policy text in the
+raw HTML). A privacy policy the crawler cannot read is an automatic rejection.
+
+Fix: client/public/privacy.html, a static copy of the policy, plus a _redirects rule (`/privacy ->
+/privacy.html 200`, kept above the SPA catch-all) so a direct fetch returns the real text. The in-app
+privacy.tsx screen is unchanged (client-side nav never hits the server), only direct hits and reloads of
+/privacy now get the static page, which is the right surface for a legal doc and a crawler anyway. The two
+copies must stay in sync, noted in both files. Decided against a build-time generator or refactoring
+privacy.tsx to a shared source: the policy is short, legal, and rarely edited, so a mirrored file with a
+sync note is the lower-risk move right before launch.

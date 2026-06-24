@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<!--
+  Static, crawlable privacy policy, served at https://doubledone.app/privacy.
+
+  WHY THIS EXISTS: the web app is a client-rendered SPA, so a non-JS crawler (e.g. Google
+  Play's policy check) sees only the empty app shell at /privacy. This static file is the
+  public privacy URL for store listings and any crawler.
+
+  KEEP IN SYNC with client/src/app/privacy.tsx (the in-app screen). Same policy, two surfaces.
+  Update both together, and keep both consistent with the Play Console Data Safety form.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="index, follow" />
+    <title>Privacy · DoubleDone</title>
+    <style>
+      :root {
+        --bg: #faf6f1;
+        --ink: #2b2722;
+        --ink-soft: #5f574d;
+        --ink-faint: #8a7f73;
+        --accent: #9b6a7d;
+        --line: #ece4d8;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #1b1917;
+          --ink: #f2ebe0;
+          --ink-soft: #c9c0b4;
+          --ink-faint: #8a7f73;
+          --accent: #c68ba0;
+          --line: #322d28;
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; background: var(--bg); }
+      body {
+        color: var(--ink-soft);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.6;
+        font-size: 17px;
+        -webkit-font-smoothing: antialiased;
+      }
+      main { max-width: 640px; margin: 0 auto; padding: 48px 22px 96px; }
+      h1 { color: var(--ink); font-size: 40px; font-weight: 600; letter-spacing: -0.5px; margin: 0; font-family: Georgia, "Times New Roman", serif; }
+      .updated { color: var(--ink-faint); font-size: 14px; margin-top: 10px; }
+      .lead { color: var(--ink); font-size: 18px; margin-top: 28px; }
+      h2 { color: var(--ink); font-size: 20px; font-weight: 700; margin: 40px 0 8px; }
+      p { margin: 0 0 14px; }
+      a { color: var(--accent); }
+      .foot { color: var(--ink-faint); font-size: 14px; text-align: center; margin-top: 64px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Privacy</h1>
+      <p class="updated">Last updated 23 June 2026.</p>
+
+      <p class="lead">
+        DoubleDone is built to need almost nothing from you. It runs on your device, and nothing leaves it
+        unless you choose to sync across devices or use an AI feature. This is the plain version of what that
+        means.
+      </p>
+
+      <h2>On your device by default</h2>
+      <p>
+        Your tasks live on your device. You can use the whole app, capture, break things down, the Lookback,
+        all of it, with no account and nothing sent anywhere.
+      </p>
+
+      <h2>If you choose to sync</h2>
+      <p>
+        Syncing across devices is optional. If you turn it on, the only personal information held is your email
+        address, used to send a one-time sign-in code. There is no password. Your tasks are stored in rows only
+        you can read (row-level security scopes every row to your account). You can sign out, or stop syncing,
+        any time.
+      </p>
+
+      <h2>The AI features</h2>
+      <p>
+        Break it down, Strategise, and Sort for me send the text you typed to our server, which passes it to
+        Anthropic's Claude to do the work. Anthropic does not train their models on it, and does not keep your
+        text or the response by default. Anything flagged for safety or legal reasons can be held by Anthropic
+        for up to two years. Separately, we keep a copy on our side, without your name, account, or IP address,
+        to improve how the app breaks tasks down for everyone. It is pseudonymous and aggregate, never tied to
+        you and never sold.
+      </p>
+      <p>
+        And when you finish steps from a broken-down task, the app notes only that they got done, a random id
+        and a number of days, never the task text or anything about you, so it can learn how long things really
+        take. Prefer not to? Just don't use those features; the rest of the app works fully without them.
+      </p>
+
+      <h2>What we never do</h2>
+      <p>
+        No ads. No third-party trackers or analytics identities. No selling or sharing your data. We never ask
+        for your name, phone number, location, or contacts.
+      </p>
+
+      <h2>Your control</h2>
+      <p>
+        Work entirely offline and anonymous if you like. Sign out whenever you want, which stops syncing. You
+        can export all your data as a file at any time. And if you sync, you can permanently delete your account
+        and everything synced to it from Settings.
+      </p>
+
+      <h2>Questions</h2>
+      <p>
+        DoubleDone is an independent project. Questions or privacy requests can be sent to
+        <a href="mailto:support@doubledone.app">support@doubledone.app</a>.
+      </p>
+
+      <p class="foot">Privacy by architecture, not by promises.</p>
+    </main>
+  </body>
+</html>
