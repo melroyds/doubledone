@@ -1783,3 +1783,22 @@ so discoverability was the whole point, and a buried gesture would have repeated
 against re-introducing mauve on the secondary links to signal tappability, which would have undone the
 restraint that makes the screen calm. The underline buys the affordance without the colour. QA cases
 TOD-17 (pull) and TOD-18 (affordance) added.
+
+## 2026-06-24 Pull-to-today, take 2: tap-and-hold + "Move to ... Today", not a per-task button
+
+Melroy reviewed the "Bring to today" button live and called it right: a single-tap shortcut, but an
+eyesore, and inconsistent with how every other task move works. A Today task moves via tap-and-hold ->
+select -> "Move to...". A Later task should move the same way, not via a bespoke button. Consistency and
+agency over the one-tap shortcut.
+
+So the button (and its pullToToday handler and styles) is gone. The Later rows now take the same four
+selection props as the Today rows (onLongPress -> enterSelectWith, selecting, selected, onSelect), so
+tap-and-hold on a Later task opens the same action bar. The "Move to..." sheet gains a "Today" chip
+(bulkMoveTo(toISODate(today))) as the first option, so pulling a Later task forward is now just "Move
+to -> Today", the exact inverse of deferring, through the one consistent mechanism. The Later section
+was already rendered in select mode (no !selectMode guard), so no structural change was needed there.
+
+Decided against keeping both the button AND select-move: two ways to do one thing is the clutter the
+never-add-a-setting spine warns against, and Melroy preferred the agency of the deliberate path. The
+button shipped and came out within the hour, which is the decision log working as intended, a dead end
+caught at the first live look. QA TOD-17 rewritten to the select + Move-to flow.

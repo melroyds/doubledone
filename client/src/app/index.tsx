@@ -337,16 +337,6 @@ export default function TodayScreen() {
     track('task.deferred');
   }
 
-  // Pull a Later task forward into today: the mirror of deferTask. A calm 'actually,
-  // this one matters now', same date-move shape, no shame, no counter. deferTo with
-  // today's ISO sets the due to today, so tasksForToday surfaces it and it leaves Later.
-  function pullToToday(id: string) {
-    const now = nowMs();
-    commit(tasks.map((t) => (t.id === id ? clearNudgeIfAny({ ...deferTo(t, toISODate(today)), updatedAt: now }) : t)));
-    setConfirmingId(null);
-    track('task.pulledForward');
-  }
-
   // "Just this one" focus mode: complete the focused task fully (slices included) by
   // the same done/completedAt path, then the next unfinished one surfaces on its own.
   function focusComplete(id: string) {
@@ -1071,7 +1061,7 @@ export default function TodayScreen() {
                   title={task.title}
                   done={isDoneOn(task, today)}
                   onToggle={() => toggle(task.id)}
-                  onLongPress={() => setConfirmingId(task.id)}
+                  onLongPress={() => enterSelectWith(task.id)}
                   confirming={confirmingId === task.id}
                   onRemove={() => removeTask(task.id)}
                   onKeep={() => setConfirmingId(null)}
@@ -1082,16 +1072,10 @@ export default function TodayScreen() {
                   onBreakdown={() => breakdownExisting(task.title, task.id)}
                   onMakeTiny={() => makeTiny(task.id, task.title)}
                   onGoodEnough={() => goodEnough(task.id)}
+                  selecting={selectMode}
+                  selected={selected.includes(task.id)}
+                  onSelect={() => toggleSelect(task.id)}
                 />
-                <Pressable
-                  onPress={() => pullToToday(task.id)}
-                  hitSlop={6}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Bring ${task.title} into today`}
-                  style={({ pressed }) => [styles.bringForward, pressed && styles.pressed]}
-                >
-                  <Text style={styles.bringForwardText}>↑ Bring to today</Text>
-                </Pressable>
               </View>
             ))}
           </View>
@@ -1384,9 +1368,17 @@ export default function TodayScreen() {
           <Pressable style={styles.wrapCard} onPress={() => {}}>
             <Text style={styles.didTitle}>Move to…</Text>
             <Text style={styles.didHint}>
-              {`${selected.length} ${selected.length === 1 ? 'task' : 'tasks'} will wait calmly in Later until the day you pick.`}
+              {`${selected.length} ${selected.length === 1 ? 'task' : 'tasks'} move to the day you pick.`}
             </Text>
             <View style={styles.moveToPresets}>
+              <Pressable
+                onPress={() => bulkMoveTo(toISODate(today))}
+                style={({ pressed }) => [styles.moveChip, pressed && styles.pressed]} hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel="Today"
+              >
+                <Text style={styles.moveChipText}>Today</Text>
+              </Pressable>
               <Pressable
                 onPress={() => bulkMoveTo(presetDate(today, 'thisWeekend'))}
                 style={({ pressed }) => [styles.moveChip, pressed && styles.pressed]} hitSlop={6}
@@ -1664,10 +1656,6 @@ const makeStyles = (t: Theme) =>
     },
     laterItem: { gap: spacing.two },
     laterDate: { color: t.colors.inkSoft, fontSize: 13 * t.scale, marginTop: spacing.two, fontFamily: fonts.body },
-    // The quiet underlined 'secondary action' treatment: clearly tappable, calm, no mauve.
-    // Indented to sit under the task title (past the checkbox), so it reads as this task's.
-    bringForward: { alignSelf: 'flex-start', marginLeft: spacing.six, paddingVertical: spacing.one },
-    bringForwardText: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textDecorationLine: 'underline' },
     footer: {
       paddingHorizontal: spacing.five,
       paddingTop: spacing.three,
