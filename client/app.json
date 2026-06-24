@@ -63,11 +63,13 @@
       [
         "expo-font",
         {
-          "fonts": [
-            "./assets/fonts/Newsreader_600SemiBold.ttf",
-            "./assets/fonts/AtkinsonHyperlegible_400Regular.ttf",
-            "./assets/fonts/AtkinsonHyperlegible_700Bold.ttf"
-          ]
+          "android": {
+            "fonts": [
+              { "fontFamily": "Newsreader_600SemiBold", "fontDefinitions": [{ "path": "./assets/fonts/Newsreader_600SemiBold.ttf", "weight": 400 }, { "path": "./assets/fonts/Newsreader_600SemiBold.ttf", "weight": 700 }] },
+              { "fontFamily": "AtkinsonHyperlegible_400Regular", "fontDefinitions": [{ "path": "./assets/fonts/AtkinsonHyperlegible_400Regular.ttf", "weight": 400 }, { "path": "./assets/fonts/AtkinsonHyperlegible_400Regular.ttf", "weight": 700 }] },
+              { "fontFamily": "AtkinsonHyperlegible_700Bold", "fontDefinitions": [{ "path": "./assets/fonts/AtkinsonHyperlegible_700Bold.ttf", "weight": 400 }, { "path": "./assets/fonts/AtkinsonHyperlegible_700Bold.ttf", "weight": 700 }] }
+            ]
+          }
         }
       ]
     ],
