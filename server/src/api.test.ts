@@ -48,7 +48,10 @@ describe('toApiTask', () => {
 describe('request builders', () => {
   it('listRequest adds the today filters only when asked', () => {
     expect(listRequest(env, 'tok').url).not.toContain('due.lte');
-    expect(listRequest(env, 'tok', { today: true, todayIso: '2026-06-21' }).url).toContain('due.lte.2026-06-21');
+    expect(listRequest(env, 'tok').url).not.toContain('silent_parent');
+    const todayUrl = decodeURIComponent(listRequest(env, 'tok', { today: true, todayIso: '2026-06-21' }).url);
+    expect(todayUrl).toContain('due.lte.2026-06-21');
+    expect(todayUrl).toContain('silent_parent=not.is.true');
   });
 
   it('createRequest POSTs the user_id, title, and done:false', () => {

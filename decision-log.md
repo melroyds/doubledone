@@ -1848,3 +1848,30 @@ scrolling title is movement a calm-first, often motion-averse audience does not 
 the wrap is the better default for everyone, not a fallback. Decided against renaming the component
 (MarqueeText is now a misnomer) to keep the change small and low-risk, with a comment noting it. The
 scrolling marquee (decision-log 2026-06-18) is retired. QA TOD-19 reworded to expect a wrap.
+
+## 2026-06-24 Two device fixes: reminders that fire, and the decompose chain syncs
+
+Two bugs from Melroy's device testing, fixed in one pass.
+
+**Reminders never appeared (the bell showed, nothing fired).** The schedule was succeeding (the bell only
+renders when scheduleNudge returns an id), so it was a display problem, found by reading the SDK 56 docs,
+not reproducible in the headless preview. Two grounded gaps. First, no setNotificationHandler, so
+expo-notifications drops a notification that fires while the app is foregrounded, and Melroy was in the
+app at the reminder time. Second, the channel was created AFTER requesting permission, but on Android 13
+the permission prompt does not appear until a channel exists. Fix: a module-scope foreground handler
+(calm, banner-only, the SDK 56 shouldShowBanner + shouldShowList keys, shouldShowAlert is deprecated), and
+ensureChannel moved ahead of the permission request in both enableDailyReminder and scheduleNudge.
+
+**The decompose chain did not sync, and the MCP/API could surface a silent parent.** silentParent and
+parentId (Cluster B) were client-only, never in the schema or the sync mapping, because both the sync
+(2026-06-18) and the MCP (2026-06-20) predate the decompose feature (2026-06-22). Fix across four layers.
+Two nullable columns (silent_parent, parent_id) added to the tasks table by an additive migration Melroy
+ran manually. The sync mapping (TaskRow, taskToRow, rowToTask) now carries them, round-trip unit-tested.
+And both today-queries (the MCP's list_today and the REST API's ?today=true) exclude silent parents with
+silent_parent=not.is.true, which keeps false and null (a normal task) and drops only true. Contract-tested.
+
+Decided against shipping on auto-deploy. The sync write and the Worker filter both reference the new
+columns, so they would error until the migration ran, so the migration went first and the push plus the
+Worker deploy followed. Decided against a config plugin for expo-notifications: the docs confirm it is
+optional for local notifications and does not declare POST_NOTIFICATIONS (Android 13 auto-prompts), so it
+was never the cause.

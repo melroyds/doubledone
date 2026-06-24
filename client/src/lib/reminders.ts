@@ -15,6 +15,20 @@ const DAILY_CHANNEL_ID = 'daily-reminder';
 const NUDGE_CHANNEL_ID = 'task-nudge';
 const NUDGE_BODY = 'Whenever you are ready.';
 
+// Show notifications even when the app is foregrounded. Without this, expo-notifications
+// drops a notification that fires while the app is open (the default), so a reminder set
+// and then watched in-app never appears. Calm: a banner in the tray, no sound, no badge,
+// matching the offer-not-demand tone. Module scope so it runs once at startup (this is the
+// native variant, reminders.web.ts is the web no-op).
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
+
 // Android 8+ requires a notification channel; without one a scheduled notification can
 // silently fail to appear. Importance DEFAULT shows it calmly in the tray, not as a
 // heads-up pop, in keeping with offer-not-demand. No-op off Android.
@@ -29,9 +43,11 @@ async function ensureChannel(id: string, name: string): Promise<void> {
 /** Request permission and schedule a calm daily reminder at `hour`. Returns whether it is on. */
 export async function enableDailyReminder(hour = 9): Promise<boolean> {
   try {
+    // Channel first: on Android 13 the permission prompt does not appear until a channel
+    // exists, so creating it before requesting is what lets a first-time user grant.
+    await ensureChannel(DAILY_CHANNEL_ID, 'Daily reminder');
     const { status } = await Notifications.requestPermissionsAsync();
     if (status !== 'granted') return false;
-    await ensureChannel(DAILY_CHANNEL_ID, 'Daily reminder');
     await Notifications.cancelScheduledNotificationAsync(DAILY_ID);
     await Notifications.scheduleNotificationAsync({
       identifier: DAILY_ID,
@@ -66,10 +82,12 @@ export async function disableDailyReminder(): Promise<void> {
  */
 export async function scheduleNudge(taskId: string, title: string, at: Date): Promise<string | null> {
   try {
+    // Channel first (see enableDailyReminder): the Android 13 permission prompt needs a
+    // channel to exist before it will appear.
+    await ensureChannel(NUDGE_CHANNEL_ID, 'Task nudges');
     let { status } = await Notifications.getPermissionsAsync();
     if (status !== 'granted') ({ status } = await Notifications.requestPermissionsAsync());
     if (status !== 'granted') return null;
-    await ensureChannel(NUDGE_CHANNEL_ID, 'Task nudges');
     return await Notifications.scheduleNotificationAsync({
       content: { title, body: NUDGE_BODY, data: { taskId } },
       trigger: {

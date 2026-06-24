@@ -42,13 +42,14 @@ describe('supabase request builders', () => {
     expect(row).toMatchObject({ id: 't1', user_id: 'u1', title: 'Call mum', done: false });
   });
 
-  it('list_today filters to open, non-future, non-recurring, non-deleted', () => {
+  it('list_today filters to open, non-future, non-recurring, non-deleted, non-silent-parent', () => {
     const { url, init } = listTodayRequest(env, 'tok', '2026-06-20');
     expect(init.method).toBe('GET');
     expect(url).toContain('/rest/v1/tasks?');
     expect(decodeURIComponent(url)).toContain('done=is.false');
     expect(decodeURIComponent(url)).toContain('deleted_at=is.null');
     expect(decodeURIComponent(url)).toContain('recurrence=is.null');
+    expect(decodeURIComponent(url)).toContain('silent_parent=not.is.true');
     expect(decodeURIComponent(url)).toContain('due.lte.2026-06-20');
   });
 

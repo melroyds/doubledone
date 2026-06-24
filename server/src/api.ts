@@ -63,6 +63,7 @@ export function listRequest(
   if (opts.today && opts.todayIso) {
     q.set('done', 'is.false');
     q.set('recurrence', 'is.null');
+    q.set('silent_parent', 'not.is.true'); // exclude a decompose umbrella the app hides from Today
     q.set('or', `(due.is.null,due.lte.${opts.todayIso})`);
   }
   return { url: `${tasksUrl(env)}?${q.toString()}`, init: { method: 'GET', headers: headers(env, token, false) } };

@@ -124,13 +124,16 @@ export function addTaskRequest(
 }
 
 export function listTodayRequest(env: McpEnv, token: string, todayIso: string): { url: string; init: RequestInit } {
-  // One-off, open, not future-dated, not deleted, not recurring (recurrence's
-  // "due today" needs cadence logic PostgREST can't do; v1 lists one-offs).
+  // One-off, open, not future-dated, not deleted, not recurring, and not a silent parent (a
+  // decompose umbrella the app hides from Today). Recurrence's "due today" needs cadence
+  // logic PostgREST can't do, so v1 lists one-offs. silent_parent=not.is.true keeps rows that
+  // are false or null (a normal task), excluding only true (a silent parent).
   const q = new URLSearchParams({
     select: 'id,title',
     deleted_at: 'is.null',
     done: 'is.false',
     recurrence: 'is.null',
+    silent_parent: 'not.is.true',
     or: `(due.is.null,due.lte.${todayIso})`,
     order: 'created_at.asc',
   });

@@ -24,6 +24,8 @@ export type TaskRow = {
   completed_at: string | null;
   complexity: number | null;
   slices: Slices | null;
+  silent_parent: boolean | null;
+  parent_id: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -42,6 +44,8 @@ export function taskToRow(task: Task, userId: string): TaskRow {
     completed_at: task.completedAt ? new Date(task.completedAt).toISOString() : null,
     complexity: task.complexity ?? null,
     slices: task.slices ?? null,
+    silent_parent: task.silentParent ?? null,
+    parent_id: task.parentId ?? null,
     created_at: new Date(task.createdAt).toISOString(),
     updated_at: new Date(task.updatedAt).toISOString(),
     deleted_at: task.deletedAt ? new Date(task.deletedAt).toISOString() : null,
@@ -64,6 +68,8 @@ export function rowToTask(row: TaskRow): Task {
   if (row.completed_at != null) task.completedAt = Date.parse(row.completed_at);
   if (row.complexity != null) task.complexity = row.complexity;
   if (row.slices != null) task.slices = row.slices;
+  if (row.silent_parent) task.silentParent = true;
+  if (row.parent_id != null) task.parentId = row.parent_id;
   if (row.deleted_at != null) task.deletedAt = Date.parse(row.deleted_at);
   return task;
 }

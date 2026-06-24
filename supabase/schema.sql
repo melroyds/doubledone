@@ -25,6 +25,8 @@ create table if not exists public.tasks (
   completed_at timestamptz,       -- when a one-off was finished (the calendar/Lookback record)
   complexity integer,             -- effort signal (decomposition minutes); weights the celebration
   slices jsonb,                   -- { total, done } for a task tracked across parts; null = whole task
+  silent_parent boolean,          -- a decompose umbrella (Cluster B), hidden from Today/Later until its children finish
+  parent_id text,                 -- set when this task is a decomposition step / tiny-version of another task
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz          -- soft-delete tombstone; null = live
@@ -74,6 +76,13 @@ create index if not exists tasks_user_id_idx on public.tasks (user_id);
 -- Slices (task progress across parts) added the slices column (run once; idempotent):
 -- alter table public.tasks
 --   add column if not exists slices jsonb;
+--
+-- Cluster B (the decompose chain) added silent_parent + parent_id (run once; idempotent).
+-- Until this runs, the MCP / REST today views can surface a silent-parent umbrella the app
+-- hides, and the decompose structure does not sync across devices:
+-- alter table public.tasks
+--   add column if not exists silent_parent boolean,
+--   add column if not exists parent_id text;
 
 -- ---------------------------------------------------------------------------
 -- ai_calls: pseudonymous AI-call telemetry (the moat). The Worker writes one

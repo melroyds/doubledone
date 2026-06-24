@@ -67,6 +67,19 @@ describe('taskToRow / rowToTask', () => {
     expect(rowToTask(taskToRow(t, 'user-1'))).toEqual(t);
   });
 
+  it('round-trips the decompose chain (a silent parent and a child step)', () => {
+    const parent: Task = {
+      id: 'p', title: 'Plan the party', done: false, createdAt: 1718000000000, updatedAt: 1718000005000,
+      silentParent: true,
+    };
+    const child: Task = {
+      id: 'c', title: 'Book the venue', done: false, createdAt: 1718000000000, updatedAt: 1718000005000,
+      parentId: 'p',
+    };
+    expect(rowToTask(taskToRow(parent, 'user-1'))).toEqual(parent);
+    expect(rowToTask(taskToRow(child, 'user-1'))).toEqual(child);
+  });
+
   it('stamps user_id and nulls absent optionals on the row', () => {
     const row = taskToRow({ id: 'a', title: 'x', done: false, createdAt: 0, updatedAt: 0 }, 'u');
     expect(row.user_id).toBe('u');
@@ -76,6 +89,8 @@ describe('taskToRow / rowToTask', () => {
     expect(row.completed_at).toBeNull();
     expect(row.complexity).toBeNull();
     expect(row.slices).toBeNull();
+    expect(row.silent_parent).toBeNull();
+    expect(row.parent_id).toBeNull();
     expect(row.deleted_at).toBeNull();
   });
 
