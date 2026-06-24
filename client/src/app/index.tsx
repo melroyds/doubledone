@@ -366,9 +366,14 @@ export default function TodayScreen() {
   // Tap-and-hold a task to enter selection with that task already picked, then act
   // on one or several at once. This is the calm "clear a few quickly" path; it
   // replaces both the old long-press single-task menu and the Select-several button.
+  // Android carries the long-press through the row's re-render into select mode, so the
+  // thumb-lift then fires onSelect on the now-select row and would toggle the id straight
+  // back off. selectGuard remembers the just-selected id so toggleSelect swallows that one.
+  const selectGuard = useRef<{ id: string; at: number } | null>(null);
   function enterSelectWith(id: string) {
     setSelectMode(true);
     setSelected([id]);
+    selectGuard.current = { id, at: nowMs() };
     track('select.opened');
   }
   function exitSelect() {
@@ -376,6 +381,11 @@ export default function TodayScreen() {
     setSelected([]);
   }
   function toggleSelect(id: string) {
+    const g = selectGuard.current;
+    if (g && g.id === id && nowMs() - g.at < 800) {
+      selectGuard.current = null; // swallow the one spurious release right after a long-press
+      return;
+    }
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   }
   function bulkComplete() {

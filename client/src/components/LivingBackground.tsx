@@ -71,7 +71,7 @@ function Pool({
     >
       <Svg width={size} height={size}>
         <Defs>
-          <RadialGradient id={id} cx="50%" cy="50%" r="50%">
+          <RadialGradient id={id} cx={size / 2} cy={size / 2} r={size / 2} gradientUnits="userSpaceOnUse">
             <Stop offset="0%" stopColor={color} />
             <Stop offset="100%" stopColor={color} stopOpacity={0} />
           </RadialGradient>

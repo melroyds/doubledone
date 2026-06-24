@@ -77,7 +77,7 @@ export function Bloom({ data, onDone }: { data: BloomData | null; onDone: () => 
         <Animated.View style={[StyleSheet.absoluteFill, styles.center, { transform: [{ scale }] }]} pointerEvents="none">
           <Svg width={size} height={size}>
             <Defs>
-              <RadialGradient id="ddBloom" cx="50%" cy="50%" r="50%">
+              <RadialGradient id="ddBloom" cx={size / 2} cy={size / 2} r={size / 2} gradientUnits="userSpaceOnUse">
                 <Stop offset="0%" stopColor={BLOOM_WARM} stopOpacity={0.95} />
                 <Stop offset="45%" stopColor={BLOOM_MAUVE} stopOpacity={0.5} />
                 <Stop offset="100%" stopColor={BLOOM_MAUVE} stopOpacity={0} />
