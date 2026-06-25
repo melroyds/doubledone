@@ -29,6 +29,7 @@ export type TaskRow = {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  pinned_at: string | null;
 };
 
 /** Local Task -> remote row, stamped with the owner's id for RLS. */
@@ -49,6 +50,7 @@ export function taskToRow(task: Task, userId: string): TaskRow {
     created_at: new Date(task.createdAt).toISOString(),
     updated_at: new Date(task.updatedAt).toISOString(),
     deleted_at: task.deletedAt ? new Date(task.deletedAt).toISOString() : null,
+    pinned_at: task.pinnedAt ? new Date(task.pinnedAt).toISOString() : null,
   };
 }
 
@@ -71,6 +73,7 @@ export function rowToTask(row: TaskRow): Task {
   if (row.silent_parent) task.silentParent = true;
   if (row.parent_id != null) task.parentId = row.parent_id;
   if (row.deleted_at != null) task.deletedAt = Date.parse(row.deleted_at);
+  if (row.pinned_at != null) task.pinnedAt = Date.parse(row.pinned_at);
   return task;
 }
 

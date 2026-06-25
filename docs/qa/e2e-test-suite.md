@@ -237,3 +237,13 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | PREM-08 | P1 | Web | Manage subscription opens the billing portal | As premium: /premium -> Manage subscription. | Redirects to the Stripe Billing Portal (cancel / update card / invoices). |
 | PREM-09 | P1 | Web | Cancel reverts to free | In the portal, cancel immediately, then return to the app. | Entitlement flips to free; the scrapbook is monthly-gated again; tenure (started_at) is preserved. |
 | PREM-10 | P2 | Web | Premium screen shows the renew / cancel date | As premium, open /premium; then schedule a cancel-at-period-end in the portal and reopen. | Reads 'Renews <date>' when active, and 'Premium until <date>, then free' when a cancel is scheduled. |
+
+## Pin
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| PIN-01 | P1 | Both | Premium: pin a task as the day's one thing | As premium (or with the dev Premium override on), tap-and-hold a one-off task to select it, then tap 'Pin' in the select bar. | The task gets a calm mauve star and border and floats to the top of Today. 'Focus on one thing' then opens straight to it. |
+| PIN-02 | P1 | Both | Free: Pin routes to the upsell, never pins | As a free user, select a single one-off task and tap the dimmed 'Pin' action. | No task is pinned, and the Premium screen opens calmly (never a shaming wall). A 'premium.gate_hit' with reason 'pin' is logged. |
+| PIN-03 | P2 | Both | Only one task is pinned at a time | As premium, pin task A, then select task B and pin it. | Task B is now pinned (starred, floated to the top), and task A is no longer pinned. At most one pin ever exists. |
+| PIN-04 | P2 | Both | A pin syncs across devices | As premium and signed in, pin a task, then sign out and back in (or open a second device). | The task is still pinned after the sync round-trip (the star and float persist). Needs the pinned_at column applied in Supabase. |
+| PIN-05 | P3 | Both | Pin is offered only on one-off Today rows | Select a recurring task, then separately look at a task in the 'Later' list. | No 'Pin' action appears for a recurring task, and Later rows carry no pin affordance (pinning is Today-only and one-offs only). |

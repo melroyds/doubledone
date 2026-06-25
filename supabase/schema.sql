@@ -27,6 +27,7 @@ create table if not exists public.tasks (
   slices jsonb,                   -- { total, done } for a task tracked across parts; null = whole task
   silent_parent boolean,          -- a decompose umbrella (Cluster B), hidden from Today/Later until its children finish
   parent_id text,                 -- set when this task is a decomposition step / tiny-version of another task
+  pinned_at timestamptz,          -- when this one-off was pinned as the day's ONE priority (premium); null = not pinned
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz          -- soft-delete tombstone; null = live
@@ -83,6 +84,11 @@ create index if not exists tasks_user_id_idx on public.tasks (user_id);
 -- alter table public.tasks
 --   add column if not exists silent_parent boolean,
 --   add column if not exists parent_id text;
+--
+-- Prioritise / pin a task (premium) added pinned_at. Run once; idempotent. Until this runs,
+-- the pin works locally but does NOT sync across devices (an unknown column would fail the upsert):
+-- alter table public.tasks
+--   add column if not exists pinned_at timestamptz;
 
 -- ---------------------------------------------------------------------------
 -- ai_calls: pseudonymous AI-call telemetry (the moat). The Worker writes one

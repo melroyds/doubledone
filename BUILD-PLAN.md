@@ -46,7 +46,7 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 **Pre-launch, remaining (config and ops, not code):** flip Stripe to live mode for real charges, swap to a dedicated transactional email sender for the sign-in code (vs Supabase's shared sender), and let the crowd-pace estimate graduate to real cross-user data once there is volume.
 
-**Premium, in active development (the `premium` branch, not deployed).** Building the paid surface in isolation, and merging to main is the deploy. The premium **feature flag** is built (the gate every paid feature reads, with a dev override for local testing), and all three premium surfaces (Settings, Lookback's scrapbook gate, the Premium screen) now read it. Next: Prioritise / pin a task (the lowest-risk validator), then a small server-side entitlement guard, then OCR. The full stack-ranked roadmap, the engineering triggers, and the free-versus-premium wall are in [`docs/premium.md`](docs/premium.md).
+**Premium, in active development (the `premium` branch, not deployed).** Building the paid surface in isolation, and merging to main is the deploy. The premium **feature flag** is built (the gate every paid feature reads, with a dev override for local testing), and all three premium surfaces (Settings, Lookback's scrapbook gate, the Premium screen) now read it. Pin-a-task is built (one pin as the day's anchor, premium-gated, floated to the top, synced via a one-column migration). Next: the small server-side requirePremium guard, then OCR. The full stack-ranked roadmap, the engineering triggers, and the free-versus-premium wall are in [`docs/premium.md`](docs/premium.md).
 
 ---
 

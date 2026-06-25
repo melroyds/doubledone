@@ -46,7 +46,7 @@ The AI Scrapbook is the model every gate is held to: monetise the genuinely expe
 **Tier 1, ship first** (additive delight, nothing removed from free):
 1. **AI Scrapbook**, shipped, keep iterating. The flagship.
 2. **The premium feature flag**, shipped. The gate every paid feature reads, with a dev override to test premium and free locally without a subscription. The foundation everything below sits on, and all three premium surfaces (Settings, Lookback's scrapbook gate, the Premium screen) read it.
-3. **Prioritise / pin a task** (~8h, client-only). Visual only, free users lose nothing, and it lets them feel the premium polish. The lowest-risk validator of the flag-to-UI loop, so it comes first.
+3. **Prioritise / pin a task**, built. One pin (the day's "one thing"), a calm mauve star that floats it to the top of Today, premium-gated to set, and Focus opens straight to it. Client-only, zero server cost, the lowest-risk validator of the flag-to-UI loop. Gated to one-off tasks (recurring keeps its own cadence).
 4. **A server-side premium guard** (small, built BEFORE OCR). A reusable `requirePremium` on the Worker (bearer sub to the D1 entitlement to a 402). No AI route enforces entitlement today, which is fine while the gated things are free (scrapbook) or zero-cost (pin), but OCR is the first gate that spends real Anthropic money, so a client-only gate would be a free-money hole. Retro-hardens the scrapbook too.
 5. **OCR photo capture** (~40h). Photograph a post-it or printed list, and Claude vision turns it into tasks. Melroy's original ask and the headline. Camera plus a new vision endpoint, so device-tested, and it sits on the guard from step 4.
 

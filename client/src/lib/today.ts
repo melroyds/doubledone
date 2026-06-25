@@ -55,6 +55,27 @@ export function tasksForToday<T extends Scheduled>(tasks: T[], date: Date): T[] 
   });
 }
 
+/** A task that can be pinned as the day's one priority (premium). */
+export type Pinnable = { pinnedAt?: number };
+
+/**
+ * Float the single pinned task to the front of Today: a STABLE PARTITION, the pinned task first then
+ * everything else in its original order, nothing else reordered. Runs at render over the result of
+ * tasksForToday, so the pure ordering tasksForToday returns (load-bearing for sync diffing) is never
+ * mutated. The feature is ONE pin; if a two-device race ever leaves more than one pinned, the
+ * most-recently-pinned wins and the others fall back to their normal places, never a ranked block and
+ * never a crash. Returns the same array reference when nothing is pinned, so the caller can skip work.
+ */
+export function pinFirst<T extends Pinnable>(tasks: T[]): T[] {
+  let top: T | undefined;
+  for (const t of tasks) {
+    if (t.pinnedAt != null && (top === undefined || t.pinnedAt > (top.pinnedAt ?? 0))) top = t;
+  }
+  if (!top) return tasks;
+  const pinned = top;
+  return [pinned, ...tasks.filter((t) => t !== pinned)];
+}
+
 /**
  * Defer a one-off to tomorrow: set its due to the day after `date`, so it drops
  * off Today and returns tomorrow. A calm "not today", the single-task sibling of

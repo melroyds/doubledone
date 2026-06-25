@@ -29,6 +29,7 @@ type Props = {
   onSelect?: () => void;
   nudgeAt?: number | null;
   tinyParent?: string | null; // set when this row is a make-it-tiny pebble: the dreaded parent's title
+  pinned?: boolean; // the day's one pinned priority (premium): a quiet accent star + tint; it floats to the top
 };
 
 // A single row. Tap to complete (a soft sage check, gentle fade, never a shaming
@@ -62,6 +63,7 @@ export function TaskRow({
   onSelect,
   nudgeAt,
   tinyParent,
+  pinned,
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
@@ -185,7 +187,7 @@ export function TaskRow({
   // toggle and the prompt are siblings, never a Pressable nested in a Pressable.
   if (suggestBreakdown && !done) {
     return (
-      <View style={[styles.row, !recurring && styles.rowUnique, styles.suggestColumn]}>
+      <View style={[styles.row, !recurring && styles.rowUnique, pinned && styles.rowPinned, styles.suggestColumn]}>
         <Pressable
           onPress={onToggle}
           onLongPress={onLongPress}
@@ -193,7 +195,7 @@ export function TaskRow({
           style={({ pressed }) => [styles.suggestMain, pressed && styles.pressed]}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: done }}
-          accessibilityLabel={title}
+          accessibilityLabel={pinned ? `${title}, pinned as today's one thing` : title}
         >
           <View style={[styles.check, done && styles.checkDone]}>
             {done && <Text style={styles.tick}>✓</Text>}
@@ -201,6 +203,7 @@ export function TaskRow({
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
           {nudgeAt ? <Text style={styles.nudgeMark}>{`🔔 ${formatNudgeTime(nudgeAt)}`}</Text> : null}
           {recurring && <Text style={styles.repeatMark}>↻</Text>}
+          {pinned ? <Text style={styles.pinStar}>★</Text> : null}
         </Pressable>
         {onBreakdown && (
           <Pressable
@@ -246,10 +249,10 @@ export function TaskRow({
       onPress={onToggle}
       onLongPress={onLongPress}
       delayLongPress={400}
-      style={({ pressed }) => [styles.row, !recurring && styles.rowUnique, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.row, !recurring && styles.rowUnique, pinned && styles.rowPinned, pressed && styles.pressed]}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: done }}
-      accessibilityLabel={title}
+      accessibilityLabel={pinned ? `${title}, pinned as today's one thing` : title}
     >
       <View style={[styles.check, done && styles.checkDone]}>
         {done && <Text style={styles.tick}>✓</Text>}
@@ -257,6 +260,8 @@ export function TaskRow({
       <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
       {nudgeAt ? <Text style={styles.nudgeMark}>{`🔔 ${formatNudgeTime(nudgeAt)}`}</Text> : null}
       {recurring && <Text style={styles.repeatMark}>↻</Text>}
+      {/* the pin star sits last, at the extreme right, so it stays the clear cue beside any other mark */}
+      {pinned ? <Text style={styles.pinStar}>★</Text> : null}
     </Pressable>
   );
 }
@@ -276,6 +281,9 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     boxShadow: t.scheme === 'dark' ? '0px 6px 18px -10px rgba(0,0,0,0.5)' : '0px 6px 18px -10px rgba(43,39,34,0.18)',
   },
   rowUnique: { borderColor: t.colors.repeat, borderWidth: 2 },
+  // The day's one pinned priority: a calm accent border + faint tint, with the star beside the title.
+  rowPinned: { borderColor: t.colors.accent, borderWidth: 2, backgroundColor: t.colors.accentSoft },
+  pinStar: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
   pressed: { opacity: 0.7 },
   confirmRow: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accentSoft },
   confirmText: { flex: 1, color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body },

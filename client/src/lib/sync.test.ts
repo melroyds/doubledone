@@ -38,6 +38,13 @@ describe('taskToRow / rowToTask', () => {
     expect(rowToTask(taskToRow(t, 'user-1'))).toEqual(t);
   });
 
+  it('round-trips a pinned task, and an unpinned task never gains pinnedAt', () => {
+    const pinned: Task = { id: 'p', title: 'Call the dentist', done: false, createdAt: 0, updatedAt: 1000, pinnedAt: 1718000000000 };
+    expect(rowToTask(taskToRow(pinned, 'user-1'))).toEqual(pinned);
+    const plain: Task = { id: 'q', title: 'Buy milk', done: false, createdAt: 0, updatedAt: 1000 };
+    expect(rowToTask(taskToRow(plain, 'user-1'))).not.toHaveProperty('pinnedAt');
+  });
+
   it('round-trips a full task (due, recurrence, completedDates, tombstone)', () => {
     const t: Task = {
       id: 'b',

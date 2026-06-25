@@ -2168,3 +2168,35 @@ a gateToPremium telemetry helper, a CI grep for the dev env flag) is captured as
 Decided against gating premium.tsx and lookback on a second source (one provider, one effectiveEntitlement), against
 building a PremiumGate or the server guard speculatively now (deferred with triggers, the discipline of stopping),
 and against reordering the top three (the review confirmed pin-then-OCR is correct).
+
+## 2026-06-25 Prioritise / pin a task (premium, Tier 1): one pin, the day's one thing
+
+The first premium feature after the flag: pin a task as the day's ONE priority. Designed via a multi-agent
+scout-and-design pass (five scouts, three stances, a judge), then built and refined with Melroy.
+
+The defining decision: ONE pin, not a few. A capped multi-pin is still a priority system, the exact machinery
+this audience drowns in (another list to prune, another "did I pick right"). One pin has a capacity of one, so it
+cannot accumulate, cannot rot, cannot shame: the single slot IS the feature. It composes with Focus rather than
+competing: pin is the persistent, visible anchor (a star, floated to the top, decided once), Focus is the session
+that now opens straight to it instead of re-asking "which one". Melroy's own catch that Focus is also one-task
+sharpened this framing.
+
+Shape. A leaf field pinnedAt (epoch ms) on Task. The at-most-one invariant lives in the screen action (pinTask
+stamps the target and clears the pin off every other task, both bump updatedAt), not the type, so it rides
+serialize / sync / export untouched like silentParent and combinedFrom. A pure pinFirst() stable partition floats
+the one pin at RENDER, so tasksForToday stays untouched (its order is load-bearing for sync). Gated to one-offs
+only (recurring keeps its own cadence, and a pin would stick to it every day rather than be today's choice, which
+Melroy agreed). Premium-gated to SET, never hidden: a free tap routes calmly to /premium (track premium.gate_hit
+reason 'pin'), the scrapbook-gate template, never a wall, never shame. The row shows a calm mauve star (the theme
+accent) plus a faint accent tint, NOT the loud reserved priorityGradient (that moves to the /premium upsell,
+Melroy's call). The star sits at the extreme right, after any reminder bell or repeat mark, so it stays the clear
+cue beside other marks (Melroy's refinement). Synced as pinned_at (timestamptz, mapped like completed_at), which
+needs a one-column Supabase migration applied before the pin syncs (additive and idempotent, in
+supabase/schema.sql). Verified in the web preview (the pin floats, the star renders, a reminder plus a pin show
+bell-then-star). Gate green: 319 client + 146 server. Five E2E cases (PIN-01 to 05) added.
+
+Decided against a few-pins cap (re-creates a priority system, the spine veto), a separate app-level pinnedTaskId
+(field-on-task rides the existing plumbing), mutating tasksForToday to sort (the render-time partition keeps the
+pure order intact), the loud gradient on the row (too much for Dusk, reserved for the upsell), and pinning
+recurring tasks (a pin that never resets is not "today's one thing"). Server-side enforcement is not needed here
+(pin is zero-cost), so the requirePremium guard stays correctly sequenced before OCR.

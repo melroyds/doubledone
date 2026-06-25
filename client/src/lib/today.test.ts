@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { type Recurrence } from './recurrence';
-import { completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, resurfaceOpenParent, tinyParentTitle, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
+import { completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, pinFirst, resurfaceOpenParent, tinyParentTitle, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
 
 const today = new Date(2026, 5, 17);
 const iso = '2026-06-17';
@@ -23,6 +23,25 @@ describe('isDoneOn', () => {
     expect(isDoneOn({ done: false, recurrence: daily, completedDates: ['2026-06-16'] }, today)).toBe(
       false,
     );
+  });
+});
+
+describe('pinFirst', () => {
+  const t = (id: string, pinnedAt?: number) => ({ id, ...(pinnedAt != null ? { pinnedAt } : {}) });
+
+  it('returns the same array reference when nothing is pinned', () => {
+    const tasks = [t('a'), t('b'), t('c')];
+    expect(pinFirst(tasks)).toBe(tasks);
+  });
+
+  it('floats the single pinned task to the front, preserving the rest order', () => {
+    const tasks = [t('a'), t('b', 100), t('c')];
+    expect(pinFirst(tasks).map((x) => x.id)).toEqual(['b', 'a', 'c']);
+  });
+
+  it('floats the most-recently pinned when more than one is pinned, the rest unchanged', () => {
+    const tasks = [t('a', 100), t('b'), t('c', 200)];
+    expect(pinFirst(tasks).map((x) => x.id)).toEqual(['c', 'a', 'b']);
   });
 });
 
