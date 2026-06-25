@@ -2273,3 +2273,35 @@ Applied four:
 
 Deferred to the OCR wiring: the consumer must attach CORS to 401/403/503 (noted in the doc comment). Gate green:
 324 client + 157 server (11 guard tests).
+
+## 2026-06-25 OCR photo capture, the server slice: POST /ocr behind requirePremium
+
+The headline premium feature, built server-first so it is fully CI-testable before the camera (which needs an EAS
+build). Designed with a 9-agent Ultracode pass (scout the AI-endpoint + capture patterns, research Claude vision +
+Expo capture, a 3-stance design panel, a judge). The slice: a new POST /ocr (server/src/ocr.ts mirrors decompose.ts)
+that takes a base64 image, runs ONE Claude vision call with a forced record_tasks tool, and returns the task titles.
+The first costed route to call requirePremium in production.
+
+Decided:
+- Haiku 4.5 (claude-haiku-4-5-20251001), NOT Sonnet. OCR is transcription, not reasoning, so Haiku reads a list as
+  well at about a third the cost (~$0.0025 a capture, near 10,000/month under the shared $25 cap). Sonnet is a
+  one-line bump later, on data, if quality disappoints. Verify the id before deploy (model ids deprecate).
+- Validation (parse + image-required 400 + a 1.9MB size 413) runs BEFORE the gate, so a bad body is a clean 4xx and
+  the cases are testable offline. The gate runs before any vision call, so a non-premium user never spends a token.
+  requirePremium's denial (401/403/503) carries CORS, so the browser can tell upsell from re-auth from retry (a
+  CORS-less error reads as a network failure).
+- Telemetry logs ONLY the image size and the task COUNT, never the image or the titles. This departs from the other
+  endpoints (which log their text output pseudonymously): the image is never stored anywhere, and OCR titles are raw
+  transcription with low moat value and higher sensitivity than typed text, so they stay out of the pseudonymous
+  ai_calls log. The cost signal (size + tokens + latency) is preserved for budget watching.
+- A strict extract-do-not-invent prompt (a hallucinated task on someone's list erodes trust and reads as shame for
+  an RSD audience) and a 50-item parse cap (a pathological response cannot flood Today).
+
+Decided against: Sonnet (cost, with no quality need for transcription), logging the titles (a privacy call), and
+deciding the capture UX here (the endpoint is capture-agnostic, so the client slice picks picker vs viewfinder and
+the share-a-photo path rides the same seam). Cost is defended in layers: Haiku, the client downscale (slice 2), the
+413 backstop, the forced-tool output cap, the 50-item cap, one call no retry, the per-IP limiter, the gate.
+
+Gate green: 324 client + 168 server (7 contract tests in ocr.ts, 4 handler cases in index.test.ts for validation,
+the gate, the CORS-attached denial, and fail-closed 503). Next: the client slice (the camera button on the
+brain-dump box), which needs an EAS Android build to test.

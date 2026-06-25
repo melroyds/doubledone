@@ -72,6 +72,46 @@ describe('rate limit', () => {
   });
 });
 
+describe('OCR (premium-gated)', () => {
+  it('400 when no image is provided (validation runs before the gate)', async () => {
+    const res = await worker.fetch(req('POST', '/ocr', { origin: 'https://doubledone.app', body: {} }), makeEnv(), ctx);
+    expect(res.status).toBe(400);
+  });
+
+  it('413 when the image is too large (a server backstop on vision cost)', async () => {
+    const res = await worker.fetch(
+      req('POST', '/ocr', { origin: 'https://doubledone.app', body: { image: 'a'.repeat(2_000_000) } }),
+      makeEnv(),
+      ctx,
+    );
+    expect(res.status).toBe(413);
+  });
+
+  it('401 for a valid image with no token, and the denial carries CORS (not an opaque failure)', async () => {
+    const res = await worker.fetch(
+      req('POST', '/ocr', { origin: 'https://doubledone.app', body: { image: 'aGVsbG8=' } }),
+      makeEnv(),
+      ctx,
+    );
+    expect(res.status).toBe(401); // the premium gate is reached: no Bearer token
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://doubledone.app');
+  });
+
+  it('503 (fail closed) when a token is present but the entitlement store is unbound', async () => {
+    const r = new Request('https://doubledone-ai.example.dev/ocr', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        Origin: 'https://doubledone.app',
+        Authorization: 'Bearer some-token',
+      },
+      body: JSON.stringify({ image: 'aGVsbG8=' }),
+    });
+    const res = await worker.fetch(r, makeEnv(), ctx); // makeEnv binds no DB / SUPABASE_URL
+    expect(res.status).toBe(503);
+  });
+});
+
 describe('feedback', () => {
   it('400s when text is missing', async () => {
     const res = await worker.fetch(req('POST', '/feedback', { origin: 'https://doubledone.app', body: {} }), makeEnv(), ctx);

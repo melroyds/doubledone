@@ -9,7 +9,9 @@ import { buildDecomposeRequest, DECOMPOSE_MODEL, type DecomposeContext, parseDec
 import { buildFeedbackEmail, parseFeedback } from './feedback';
 import { parseLanguage } from './lang';
 import { handleMcp } from './mcp';
+import { buildOcrRequest, type ImageMediaType, OCR_MODEL, parseMediaType, parseOcrResponse } from './ocr';
 import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
+import { requirePremium } from './premium';
 import { deleteSub, parsePushSub, saveSub, sendDailyNudges } from './push';
 import { dataUrl, IMAGE_MODEL, imagePrompt, parseImage, parseScene, SCENE_MODEL, sceneMessages } from './scrapbook';
 import { buildSplitRequest, parseSplitResponse, SPLIT_MODEL } from './split';
@@ -92,7 +94,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:8081',
   'http://localhost:19006',
 ];
-const AI_ROUTES = new Set(['/clarify', '/combine', '/decompose', '/plan', '/split', '/tiny', '/strategise', '/triage', '/scrapbook']);
+const AI_ROUTES = new Set(['/clarify', '/combine', '/decompose', '/plan', '/split', '/tiny', '/strategise', '/triage', '/scrapbook', '/ocr']);
 
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
@@ -402,6 +404,69 @@ export default {
         }),
       );
       return Response.json({ steps }, { headers: cors });
+    }
+
+    // OCR photo capture (PREMIUM): a photo of a list in, the task titles out, for the user to
+    // review and edit in the brain-dump box before anything is committed. The FIRST costed route
+    // behind requirePremium (the money gate): it cryptographically verifies the Supabase JWT and
+    // reads the D1 entitlement, fail-closed. Validation (cheap, no AI) runs before the gate so a
+    // bad body is a clean 400/413; the gate runs before any vision call so non-premium never spends.
+    if (pathname === '/ocr' && request.method === 'POST') {
+      let imageBase64 = '';
+      let mediaType: ImageMediaType = 'image/jpeg';
+      let language: string | undefined;
+      try {
+        const body = (await request.json()) as { image?: unknown; mediaType?: unknown; language?: unknown };
+        imageBase64 = typeof body.image === 'string' ? body.image.trim() : '';
+        mediaType = parseMediaType(body.mediaType);
+        language = parseLanguage(body.language);
+      } catch {
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
+      }
+      if (!imageBase64) {
+        return Response.json({ error: 'image is required' }, { status: 400, headers: cors });
+      }
+      // ~1.9MB of base64 is roughly a 1.4MB image; the client downscales to ~1080px JPEG, far
+      // under this. A server backstop so a huge upload cannot run up vision tokens against the cap.
+      if (imageBase64.length > 1_900_000) {
+        return Response.json({ error: 'image too large' }, { status: 413, headers: cors });
+      }
+      // The money gate: verify the token and the premium entitlement before spending any tokens.
+      // CORS on ALL of 401 / 403 / 503 (a CORS-less error reads as a network failure in the browser).
+      const gate = await requirePremium(request, env);
+      if (!gate.ok) {
+        return Response.json({ error: 'premium required' }, { status: gate.status, headers: cors });
+      }
+      if (!env.ANTHROPIC_API_KEY) {
+        return Response.json({ error: 'server not configured' }, { status: 500, headers: cors });
+      }
+
+      const { url, init } = buildOcrRequest(imageBase64, mediaType, env.ANTHROPIC_API_KEY, language);
+      const started = Date.now();
+      const upstream = await fetch(url, init as RequestInit);
+      if (!upstream.ok) {
+        ctx.waitUntil(
+          logAiCall(env, {
+            endpoint: 'ocr', model: OCR_MODEL, input: { bytes: imageBase64.length }, output: null,
+            inputTokens: null, outputTokens: null, latencyMs: Date.now() - started,
+            ok: false, error: `upstream ${upstream.status}`,
+          }),
+        );
+        return Response.json({ error: 'upstream error' }, { status: 502, headers: cors });
+      }
+      const raw = await upstream.json();
+      const tasks = parseOcrResponse(raw);
+      const usage = extractUsage(raw);
+      // Privacy: log only the image SIZE and the task COUNT, never the image or the titles. The
+      // image is never stored anywhere; OCR titles are raw transcription with low moat value and
+      // higher sensitivity than typed text, so they stay out of the pseudonymous log.
+      ctx.waitUntil(
+        logAiCall(env, {
+          endpoint: 'ocr', model: OCR_MODEL, input: { bytes: imageBase64.length }, output: { count: tasks.length },
+          inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true,
+        }),
+      );
+      return Response.json({ tasks }, { headers: cors });
     }
 
     // Break it down (phased): a dreaded task (+ answers) in, a roadmap of phases
