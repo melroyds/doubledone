@@ -2252,3 +2252,24 @@ retro-gating /scrapbook now (free-tier Workers AI, no real money at risk, and re
 anonymous-first free monthly keepsake, fighting the spine), and its trigger is in docs/premium.md. Decided AGAINST
 a skip-verify shim (a money gate verifies, full stop, and the JWKS works today). The JWT signature is now verified
 on the entitlement path, closing the pre-existing decode-and-trust gap before any costed route ships.
+
+## 2026-06-25 requirePremium, security-reviewed (Ultracode): hardened, no bypass found
+
+Adversarial security review of the guard, three lenses (crypto-bypass, fail-closed, tests), 14 agents. Verdict: NO
+bypass. The crypto holds (the ES256/RS256 allow-list blocks alg:'none' and the HS256 public-key-as-secret confusion,
+verified against jose's source, exp/nbf enforced, the sub-to-entitlement model sound) and every path fails closed.
+All findings were hardening or test-pins, no blocker, no surviving major.
+
+Applied four:
+- Pinned the issuer (confirmed ${SUPABASE_URL}/auth/v1 against the project's OpenID config) + requiredClaims:['sub']
+  on jwtVerify, and made the sub strict (non-empty string, matching the old decodeJwtSub). Closes the "trusts any
+  same-issuer token with a string sub" defense-in-depth gap by construction.
+- Wrapped the D1 entitlement read so a bound-but-erroring store fails CLOSED to 503 inside the primitive, not via an
+  unwritten caller (mirrors how defaultVerifySub already catches).
+- Pinned the alg-allow-list in tests (alg:'none' + HS256 forgeries rejected, both offline because the alg check is
+  pre-fetch), plus a 503-on-DB-error test, an empty-sub-is-401 test, and a verify-before-read assertion.
+- Comments on the trusted-URL JWKS cache (a stale key fails closed) and the one case that must NOT be added (a
+  valid-shape wrong-key forgery hits the network).
+
+Deferred to the OCR wiring: the consumer must attach CORS to 401/403/503 (noted in the doc comment). Gate green:
+324 client + 157 server (11 guard tests).

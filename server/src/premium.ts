@@ -8,7 +8,7 @@
 
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
-import { bearer, type D1LikeDatabase, readEntitlement } from './stripe';
+import { bearer, type D1LikeDatabase, type EntitlementView, readEntitlement } from './stripe';
 
 export type PremiumOk = { ok: true; userId: string };
 export type PremiumDenied = { ok: false; status: 401 | 403 | 503 };
@@ -21,7 +21,9 @@ export type SubVerifier = (token: string, supabaseUrl: string) => Promise<string
 type PremiumEnv = { DB?: D1LikeDatabase; SUPABASE_URL?: string };
 
 // Cache the JWKS set per project URL across Worker invocations. jose fetches the keys lazily on first
-// verify and keeps its own short-lived cache, so this only re-creates the set if the URL ever changes.
+// verify and keeps its own short-lived cache (re-fetching on an unknown kid), so this only re-creates the
+// set if the URL changes. supabaseUrl is trusted env (never request-derived), so the cache key cannot be
+// poisoned, and a stale key after a rotation fails verification CLOSED (throw -> null -> 401), self-healing.
 let jwks: ReturnType<typeof createRemoteJWKSet> | undefined;
 let jwksFor: string | undefined;
 function jwksSet(supabaseUrl: string) {
@@ -39,8 +41,16 @@ function jwksSet(supabaseUrl: string) {
  */
 export const defaultVerifySub: SubVerifier = async (token, supabaseUrl) => {
   try {
-    const { payload } = await jwtVerify(token, jwksSet(supabaseUrl), { algorithms: ['ES256', 'RS256'] });
-    return typeof payload.sub === 'string' ? payload.sub : null;
+    // Pin the algorithm allow-list (blocks alg:'none' and the HS256 public-key-as-secret confusion), the
+    // issuer (Supabase GoTrue: ${SUPABASE_URL}/auth/v1, confirmed against the project's OpenID config), and
+    // require a sub. exp / nbf are enforced by jose by default. Any failure throws and is caught as null.
+    const { payload } = await jwtVerify(token, jwksSet(supabaseUrl), {
+      algorithms: ['ES256', 'RS256'],
+      issuer: `${supabaseUrl}/auth/v1`,
+      requiredClaims: ['sub'],
+    });
+    // A non-empty string sub only (match the old decodeJwtSub's strictness; an empty sub is no-auth).
+    return typeof payload.sub === 'string' && payload.sub.length > 0 ? payload.sub : null;
   } catch {
     return null;
   }
@@ -50,8 +60,9 @@ export const defaultVerifySub: SubVerifier = async (token, supabaseUrl) => {
  * Gate a costed route on a premium entitlement. 401 = no / forged / expired token (re-auth), 403 = a valid
  * token but the user is not premium (upsell), 503 = the entitlement store or project URL is unbound (fail
  * closed, never serve paid compute on a config error). The caller maps the status to a JSON body + CORS,
- * exactly like the existing handlers, so this stays transport-agnostic. On ok it returns the verified
- * userId for downstream attribution (telemetry / outcome).
+ * exactly like the existing handlers, so this stays transport-agnostic. The caller MUST attach CORS to ALL
+ * of 401 / 403 / 503 (a CORS-less error reads as a network failure in the browser, hiding the upsell vs
+ * re-auth vs retry distinction). On ok it returns the verified userId for downstream attribution.
  */
 export async function requirePremium(
   request: Request,
@@ -63,7 +74,12 @@ export async function requirePremium(
   if (!env.DB || !env.SUPABASE_URL) return { ok: false, status: 503 }; // cannot decide -> fail closed
   const userId = await verifySub(token, env.SUPABASE_URL);
   if (!userId) return { ok: false, status: 401 }; // forged / malformed / expired
-  const view = await readEntitlement(env.DB, userId);
+  let view: EntitlementView;
+  try {
+    view = await readEntitlement(env.DB, userId);
+  } catch {
+    return { ok: false, status: 503 }; // a store error fails CLOSED here; never serve paid compute on a throw
+  }
   if (!view.premium) return { ok: false, status: 403 }; // signed in, not premium
   return { ok: true, userId };
 }

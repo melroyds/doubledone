@@ -1,3 +1,4 @@
+import { SignJWT } from 'jose';
 import { describe, expect, it } from 'vitest';
 
 import { defaultVerifySub, requirePremium, type SubVerifier } from './premium';
@@ -50,13 +51,30 @@ function fakeDb(): D1LikeDatabase & { rows: Map<string, Record<string, unknown>>
   };
 }
 
+// A bound-but-erroring D1: the read throws, so the gate must fail CLOSED itself, not reject the promise.
+function throwingDb(): D1LikeDatabase {
+  const stmt = {
+    bind() {
+      return stmt;
+    },
+    async first() {
+      throw new Error('D1 unavailable');
+    },
+    async run() {},
+    async all() {
+      return { results: [] };
+    },
+  };
+  return { prepare: () => stmt } as unknown as D1LikeDatabase;
+}
+
 const SUPA = 'https://x.supabase.co';
 const req = (token?: string) =>
   new Request('https://api.doubledone.app/ocr', token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
 const env = (db?: D1LikeDatabase) => ({ DB: db, SUPABASE_URL: SUPA });
 
-// A stub verifier: pretends the token is valid and resolves to a fixed user, so cases 1-6 never touch
-// the network or crypto. Case 7 exercises the REAL verifier.
+// A stub verifier: pretends the token verified and resolves to a fixed sub, so cases that are not about
+// crypto run with no network. The defaultVerifySub block below exercises the real verifier.
 const verifiesTo = (sub: string | null): SubVerifier => async () => sub;
 
 describe('requirePremium', () => {
@@ -68,8 +86,24 @@ describe('requirePremium', () => {
     expect(await requirePremium(req('t'), { SUPABASE_URL: SUPA }, verifiesTo('user-1'))).toEqual({ ok: false, status: 503 });
   });
 
+  it('503 (fail closed) when the entitlement read throws (a bound but erroring store)', async () => {
+    expect(await requirePremium(req('t'), env(throwingDb()), verifiesTo('user-1'))).toEqual({ ok: false, status: 503 });
+  });
+
   it('401 when the verifier rejects the token (forged / bad signature)', async () => {
     expect(await requirePremium(req('forged'), env(fakeDb()), verifiesTo(null))).toEqual({ ok: false, status: 401 });
+  });
+
+  it('treats an empty-string sub as no-auth (401), never a valid user', async () => {
+    expect(await requirePremium(req('t'), env(fakeDb()), verifiesTo(''))).toEqual({ ok: false, status: 401 });
+  });
+
+  it('never reads the entitlement store for a forged token (verify before read)', async () => {
+    const db = fakeDb();
+    let reads = 0;
+    const spied = { ...db, prepare: (sql: string) => (reads++, db.prepare(sql)) } as unknown as D1LikeDatabase;
+    await requirePremium(req('forged'), env(spied), verifiesTo(null));
+    expect(reads).toBe(0);
   });
 
   it('403 when the user is verified but has no entitlement row', async () => {
@@ -87,11 +121,29 @@ describe('requirePremium', () => {
     await writeEntitlement(db, { userId: 'user-1', premium: true, status: 'active', currentPeriodEnd: 123, cancelAtPeriodEnd: false, customerId: 'cus_1' }, '2026-06-20T00:00:00Z');
     expect(await requirePremium(req('t'), env(db), verifiesTo('user-1'))).toEqual({ ok: true, userId: 'user-1' });
   });
+});
 
-  // THE LOAD-BEARING ONE: the real verifier must reject a forged / malformed token, not decode-and-trust
-  // it the way the old decodeJwtSub did. Both inputs fail before any JWKS fetch (not a JWS / bad header).
-  it('the real verifier rejects a forged or malformed token', async () => {
+describe('defaultVerifySub (the real verifier)', () => {
+  // These inputs fail at JWS parse or the algorithm allow-list, BEFORE any JWKS fetch, so they stay
+  // offline. A structurally-valid wrong-KEY forgery would instead reach the network
+  // (ERR_JWKS_NO_MATCHING_KEY) and must NOT be added here; cover that via requirePremium's injected stub.
+  it('rejects a malformed token (not decode-and-trust like the old decodeJwtSub)', async () => {
     expect(await defaultVerifySub('not-a-real-jwt', SUPA)).toBeNull();
     expect(await defaultVerifySub('aGVhZGVy.cGF5bG9hZA.sig', SUPA)).toBeNull();
+  });
+
+  it('rejects the classic forgeries via the algorithm allow-list (alg:none and HS256)', async () => {
+    const noneToken =
+      Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url') +
+      '.' +
+      Buffer.from(JSON.stringify({ sub: 'attacker', iss: `${SUPA}/auth/v1` })).toString('base64url') +
+      '.';
+    expect(await defaultVerifySub(noneToken, SUPA)).toBeNull();
+
+    const hsToken = await new SignJWT({ sub: 'attacker' })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuer(`${SUPA}/auth/v1`)
+      .sign(new TextEncoder().encode('attacker-secret'));
+    expect(await defaultVerifySub(hsToken, SUPA)).toBeNull();
   });
 });
