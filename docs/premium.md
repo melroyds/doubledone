@@ -50,11 +50,11 @@ The AI Scrapbook is the model every gate is held to: monetise the genuinely expe
 4. **A server-side premium guard**, built. A reusable `requirePremium` on the Worker that cryptographically verifies the Supabase JWT (jose JWKS, the project's ES256 keys), reads the D1 entitlement, and returns 401 / 403 / 503, fail-closed. The money-gate primitive OCR drops onto, not applied to a route yet (OCR is the first costed one). Decided against gating the free-tier, anonymous-first scrapbook.
 5. **OCR photo capture**, BUILT (server + client), device-test pending. Photograph a post-it or printed list, and Claude vision turns it into tasks. Melroy's original ask and the headline. A `/ocr` Worker route behind requirePremium (Haiku vision, the image never stored), plus an in-app camera on the brain-dump box with a gallery option. Verified on web (the bundle, the Scan pill, the gate, the modal); the native viewfinder and the capture round-trip await an EAS Android build.
 
-**Tier 2, power and expansion:**
-6. **Richer Lookback insights** (a stats and summary layer on top of the always-free calendar). Promoted ahead of Unlimited AI: pure abundance, zero proximity to the relief boundary, and it sells "more of what you love" in a single screenshot.
-7. **Unlimited AI** (generous free allowance, unlimited for premium). Held just below Lookback insights: its cap sits nearest the relief boundary (the spine's danger zone), so deferring it protects the spine and buys real usage data to set the free allowance honestly.
-8. **AI "chart a course"** (goal planning, token-heavy by design).
-9. **AI sequencing / energy matching** (propose-then-accept daily ordering).
+**Tier 2, power and expansion** (6, 8, 9 BUILT on the `premium` branch 2026-06-26 and staged for go-live; 7 HELD for a product decision):
+6. **Richer Lookback insights**, BUILT. A premium "Your patterns" card of calm client-side stats plus an optional warm AI weekly reflection (`/lookback-summary`, Haiku, behind requirePremium), layered below the always-free calendar. Shame-risky metrics (streaks, percent, scores, missed days) deliberately rejected. Melroy to eyeball a few real summaries before a subscriber sees one.
+7. **Unlimited AI**, HELD for Melroy. The spine guardian's call: building the free-tier cap overnight would bake an irreversible D1 schema plus a flag around an unanswered product question (which routes are abundance vs relief, and is there even enough non-relief AI to gate), for zero user-visible value. Pre-decide the metered routes and the allowance number with real usage data first; if anything ships, only the reversible pseudonymous would-block demand-logging.
+8. **AI "chart a course"**, BUILT. A `/chart` Sonnet route turns a goal into a calm ordered list of next steps, accepted as FLAT one-off tasks into the single Today/backlog (never a project). Gated at the moment of asking. Optional target-date pacing is a fast-follow.
+9. **AI sequencing / energy matching**, BUILT (sequencing; the energy chooser is a fast-follow). "Plan my order" proposes a calm in-place order for today's tasks via `/sequence`, accepted via a render-time, local-only `manualOrder` (cross-device order sync is a documented follow-up needing a Supabase column).
 
 **Tier 3, personalisation, guarded and later:**
 10. **Custom themes** (calm presets, not a WYSIWYG editor).
