@@ -1810,6 +1810,7 @@ export default function TodayScreen() {
         onRepeating={openDrawer}
         onRoutines={() => router.push('/routines')}
         onLookback={() => router.push('/lookback')}
+        onChart={() => router.push('/chart')}
         onSettings={() => router.push('/settings')}
       />
       <Bloom data={bloom} onDone={dismissBloom} />

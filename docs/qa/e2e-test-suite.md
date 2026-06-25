@@ -262,3 +262,12 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | OCR-05 | P2 | Both | An unreadable photo fails calmly | Scan a blank, blurry, or list-free image. | A calm line ('I couldn't read any tasks from that. Try again...'), the camera stays open, never a crash and never a shaming message. |
 | OCR-06 | P2 | Device | Camera denial is never a dead end | On a device, deny the camera permission when prompted. | A calm screen offers 'Allow camera' and 'Choose from photos instead', and the gallery path still reads a list. |
 | OCR-07 | P3 | Both | AI egress is disclosed at the point of use | Open the Scan screen (device or web). | The note 'Your photo is sent to the AI to read your list, then discarded. It is never stored.' is visible. The D1 'ocr' telemetry row holds only the image size and task count, never the image or the titles. |
+
+## Chart
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| CHART-01 | P1 | Both | Premium: chart a course toward a goal | As premium (or dev Premium override on), open Rooms, tap 'Chart a course', type a goal like 'get fit for a 10k', tap 'Suggest steps'. | A calm one-line heading plus 3-7 ticked next steps appear, and nothing is added yet. Tapping 'Add N tasks' lands them on Today (the first undated, later ones spread forward), each an ordinary task, and returns to Today. The 'chart.requested' then 'chart.added' events are logged. |
+| CHART-02 | P1 | Both | Free: charting routes to the upsell, never plans | As a free user, open Rooms, tap 'Chart a course', type a goal, tap 'Suggest steps'. | Routed to the Premium screen calmly (never a wall), and a 'premium.gate_hit' with reason 'chart' is logged. No plan is generated and nothing is added. |
+| CHART-03 | P2 | Both | Propose-then-accept: nothing auto-adds | As premium, generate a plan, untick two steps, then tap 'Add'. Separately, generate a plan and back out with 'Not these, start over' or Back. | Only the ticked steps are added as plain tasks, and backing out adds nothing. Today was unchanged before accepting. |
+| CHART-04 | P2 | Both | A goal that cannot be mapped fails calmly | Enter an empty goal (the button is disabled), then a nonsensical goal and submit. | The empty case cannot submit. A nonsensical goal shows one calm line ('I couldn't map that out just now'), the goal stays editable, never a crash or a shaming message. |

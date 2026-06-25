@@ -261,6 +261,43 @@ export async function lookbackSummary(titles: string[], language?: string): Prom
   }
 }
 
+export type CourseStep = { title: string; minutes: number };
+export type Course = { heading: string; steps: CourseStep[] };
+
+/** Pull the course out of the backend response, defensively (never throws). */
+export function parseCourse(data: unknown): Course {
+  const course = (data as { course?: unknown } | null)?.course as { heading?: unknown; steps?: unknown } | undefined;
+  const heading = typeof course?.heading === 'string' ? course.heading : '';
+  const steps = Array.isArray(course?.steps)
+    ? course.steps
+        .filter(
+          (s): s is CourseStep =>
+            s != null && typeof (s as CourseStep).title === 'string' && typeof (s as CourseStep).minutes === 'number',
+        )
+        .map((s) => ({ title: s.title, minutes: s.minutes }))
+    : [];
+  return { heading, steps };
+}
+
+/** Chart a course (PREMIUM): a goal in, a calm ordered list of next steps toward it out, for the user to
+ *  review and accept. Sends the user's token (the /chart route is premium-gated). Returns an empty course on
+ *  any failure or when signed out, so the screen shows one calm line and never a raw error. */
+export async function chart(goal: string, language?: string): Promise<Course> {
+  const auth = await authHeader();
+  if (!auth) return { heading: '', steps: [] };
+  try {
+    const res = await fetch(`${AI_URL}/chart`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...auth },
+      body: JSON.stringify({ goal, language }),
+    });
+    if (!res.ok) return { heading: '', steps: [] };
+    return parseCourse(await res.json());
+  } catch {
+    return { heading: '', steps: [] };
+  }
+}
+
 /** Shrink a dreaded task to its 2-minute version via the AI backend (the wall of awful,
  *  lowered). Throws on a failed call; the caller shows a calm error. */
 export async function tiny(task: string): Promise<string> {

@@ -2426,3 +2426,38 @@ Decided:
 
 Gate green: typecheck and lint clean, client 332 tests, server 183. QA cases PREM-12 (premium) and PREM-13
 (free) added. On the `premium` branch.
+
+## 2026-06-26 Tier 2: Chart a course (premium goal planning into flat tasks)
+
+Tier 2 feature 2. The user names a goal; a token-heavy Sonnet route proposes a calm ordered list of the next
+3 to 7 concrete steps toward it, which the user reviews and accepts. DISTINCT from Break-it-down (one task in,
+its steps out): this plans toward a GOAL over time. Built to the spine guardian's fixes.
+
+The shape:
+- A new premium Worker route POST /chart (server/src/chart.ts), behind requirePremium exactly like /ocr:
+  validate the goal first (400 if empty), gate before any spend, fail-closed 401/403/503 with CORS. A
+  record_course tool returns a heading plus { title, minutes } steps. Sonnet (it reasons about sequencing).
+- A new dedicated screen client/src/app/chart.tsx, reached by a calm "Chart a course" entry in the Rooms
+  sheet. The premium gate sits at the moment of asking for a plan (tapping "Suggest steps"), NOT on opening
+  the screen, so navigation is never a wall (gate_hit reason 'chart' routes free users to /premium).
+- The chart() client seam mirrors ocr() (sends the bearer, returns an empty course on any failure or when
+  signed out, so the screen shows one calm line, never a raw error).
+
+Decided:
+- Accepted steps are minted as FLAT one-off tasks (no parentId, no silentParent, no project/group field),
+  indistinguishable from any other task. It plans INTO the single Today/backlog and NEVER creates a project
+  or workspace (the spine rejects multiple projects). This is the load-bearing spine guardrail here.
+- Propose-then-accept: nothing is minted until "Add N tasks", and only the ticked steps. The AI never writes
+  to the task list. "Not these, start over" leaves everything untouched.
+- Today stays finite: the steps spread via the existing spreadDueDates('gradual'), so the first lands on Today
+  and the rest walk gently forward, never dumping seven tasks on Today.
+- v1 has NO target-date picker (a deadline-paced spread is a fast-follow); a goal with no deadline walks one
+  step per day. DEFERRED, noted, low risk. The /chart route + buildChartRequest already accept an optional
+  dueDate for when the picker lands.
+- The new expo-router route hit no TS2345 because the running dev server regenerated the typed routes; the
+  gotcha (CLAUDE.md) was anticipated and not "fixed" with a cast.
+- Prompt wording is a placeholder for Melroy (like plan/strategise/decompose). The goal text and the course
+  are logged pseudonymously to D1 ai_calls (endpoint 'chart'), consistent with /plan storing task text.
+
+Gate green: typecheck and lint clean, client 332 tests, server 190. QA cases CHART-01..04 added. Screen render
+verified in the web preview; the live AI happy-path awaits the Worker deploy. On the `premium` branch.

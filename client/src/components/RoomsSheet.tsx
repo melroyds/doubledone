@@ -15,10 +15,11 @@ type Props = {
   onRepeating: () => void;
   onRoutines: () => void;
   onLookback: () => void;
+  onChart: () => void;
   onSettings: () => void;
 };
 
-export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookback, onSettings }: Props) {
+export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookback, onChart, onSettings }: Props) {
   const styles = useThemedStyles(makeStyles);
   // Close first, then navigate, so the sheet is already gone when the destination arrives.
   const go = (fn: () => void) => () => {
@@ -29,6 +30,7 @@ export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookba
     { key: 'repeating', label: 'Repeating', hint: 'Tasks that come back', onPress: go(onRepeating) },
     { key: 'routines', label: 'Routines', hint: 'Gentle rituals, no streaks', onPress: go(onRoutines) },
     { key: 'lookback', label: 'Lookback', hint: 'Everything you finished', onPress: go(onLookback) },
+    { key: 'chart', label: 'Chart a course', hint: 'Plan toward a goal', onPress: go(onChart) },
     { key: 'settings', label: 'Settings', hint: 'Comfort, access, your data', onPress: go(onSettings) },
   ];
   return (

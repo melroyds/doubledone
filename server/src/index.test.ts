@@ -112,6 +112,37 @@ describe('OCR (premium-gated)', () => {
   });
 });
 
+describe('Chart a course (premium-gated)', () => {
+  it('400 when no goal is provided (validation runs before the gate)', async () => {
+    const res = await worker.fetch(req('POST', '/chart', { origin: 'https://doubledone.app', body: {} }), makeEnv(), ctx);
+    expect(res.status).toBe(400);
+  });
+
+  it('401 for a valid goal with no token, and the denial carries CORS (not an opaque failure)', async () => {
+    const res = await worker.fetch(
+      req('POST', '/chart', { origin: 'https://doubledone.app', body: { goal: 'run a half marathon' } }),
+      makeEnv(),
+      ctx,
+    );
+    expect(res.status).toBe(401); // the premium gate is reached: no Bearer token
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://doubledone.app');
+  });
+
+  it('503 (fail closed) when a token is present but the entitlement store is unbound', async () => {
+    const r = new Request('https://doubledone-ai.example.dev/chart', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        Origin: 'https://doubledone.app',
+        Authorization: 'Bearer some-token',
+      },
+      body: JSON.stringify({ goal: 'run a half marathon' }),
+    });
+    const res = await worker.fetch(r, makeEnv(), ctx); // makeEnv binds no DB / SUPABASE_URL
+    expect(res.status).toBe(503);
+  });
+});
+
 describe('feedback', () => {
   it('400s when text is missing', async () => {
     const res = await worker.fetch(req('POST', '/feedback', { origin: 'https://doubledone.app', body: {} }), makeEnv(), ctx);

@@ -3,6 +3,7 @@
 // Claude. The app talks to this, never to Anthropic directly.
 
 import { handleApi } from './api';
+import { buildChartRequest, CHART_MODEL, parseChartResponse } from './chart';
 import { buildClarifyRequest, CLARIFY_MODEL, parseClarifyResponse } from './clarify';
 import { buildCombineRequest, COMBINE_MODEL, parseCombineResponse } from './combine';
 import { buildDecomposeRequest, DECOMPOSE_MODEL, type DecomposeContext, parseDecomposeResponse } from './decompose';
@@ -95,7 +96,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:8081',
   'http://localhost:19006',
 ];
-const AI_ROUTES = new Set(['/clarify', '/combine', '/decompose', '/plan', '/split', '/tiny', '/strategise', '/triage', '/scrapbook', '/ocr', '/lookback-summary']);
+const AI_ROUTES = new Set(['/chart', '/clarify', '/combine', '/decompose', '/plan', '/split', '/tiny', '/strategise', '/triage', '/scrapbook', '/ocr', '/lookback-summary']);
 
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
@@ -518,6 +519,53 @@ export default {
         }),
       );
       return Response.json({ summary }, { headers: cors });
+    }
+
+    // Chart a course (PREMIUM): a goal in, a calm ordered list of the next steps toward it out. Behind
+    // requirePremium like /ocr: validate first, then the money gate before any (token-heavy Sonnet) spend.
+    if (pathname === '/chart' && request.method === 'POST') {
+      let goal = '';
+      let language: string | undefined;
+      try {
+        const body = (await request.json()) as { goal?: unknown; language?: unknown };
+        goal = typeof body.goal === 'string' ? body.goal.trim() : '';
+        language = parseLanguage(body.language);
+      } catch {
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
+      }
+      if (!goal) {
+        return Response.json({ error: 'goal is required' }, { status: 400, headers: cors });
+      }
+      const gate = await requirePremium(request, env);
+      if (!gate.ok) {
+        return Response.json({ error: 'premium required' }, { status: gate.status, headers: cors });
+      }
+      if (!env.ANTHROPIC_API_KEY) {
+        return Response.json({ error: 'server not configured' }, { status: 500, headers: cors });
+      }
+      const { url, init } = buildChartRequest(goal, env.ANTHROPIC_API_KEY, undefined, language);
+      const started = Date.now();
+      const upstream = await fetch(url, init as RequestInit);
+      if (!upstream.ok) {
+        ctx.waitUntil(
+          logAiCall(env, {
+            endpoint: 'chart', model: CHART_MODEL, input: { goal }, output: null,
+            inputTokens: null, outputTokens: null, latencyMs: Date.now() - started,
+            ok: false, error: `upstream ${upstream.status}`,
+          }),
+        );
+        return Response.json({ error: 'upstream error' }, { status: 502, headers: cors });
+      }
+      const raw = await upstream.json();
+      const course = parseChartResponse(raw);
+      const usage = extractUsage(raw);
+      ctx.waitUntil(
+        logAiCall(env, {
+          endpoint: 'chart', model: CHART_MODEL, input: { goal }, output: course,
+          inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true,
+        }),
+      );
+      return Response.json({ course }, { headers: cors });
     }
 
     // Break it down (phased): a dreaded task (+ answers) in, a roadmap of phases
