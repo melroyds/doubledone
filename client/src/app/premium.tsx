@@ -121,8 +121,8 @@ export default function PremiumScreen() {
           <View style={styles.panel}>
             <Text style={styles.panelHead}>You&apos;re Premium ✓</Text>
             <Text style={styles.body}>
-              You get {allowance} keepsake{allowance === 1 ? '' : 's'} a week{allowance < 4 ? ', and more the longer you stay.' : '.'} Thank you for keeping
-              DoubleDone independent.
+              Everything is unlocked: Scan, Chart a course, Plan my order, Your patterns, and {allowance} weekly keepsake{allowance === 1 ? '' : 's'}
+              {allowance < 4 ? ', more the longer you stay.' : '.'} Thank you for keeping DoubleDone independent.
             </Text>
             {effectiveEntitlement.cancelAtPeriodEnd && periodLabel ? (
               <Text style={styles.subStatus}>Premium until {periodLabel}, then back to the free monthly keepsake.</Text>

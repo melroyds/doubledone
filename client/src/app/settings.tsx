@@ -353,7 +353,7 @@ export default function SettingsScreen() {
             <View style={styles.premiumCardText}>
               <Text style={styles.premiumCardTitle}>DoubleDone Premium</Text>
               <Text style={styles.premiumCardSub}>
-                {premium ? 'Active. Your week, kept.' : 'Keep every finished week as a calm AI keepsake.'}
+                {premium ? 'Active. Every extra is yours.' : 'More of what you love: Scan a list, Chart a course, weekly keepsakes, and more.'}
               </Text>
             </View>
             <Text style={styles.premiumCardCue}>{premium ? 'Active ✓' : '›'}</Text>
