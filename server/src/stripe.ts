@@ -10,7 +10,8 @@
 // the client reads it from /entitlement. The server never trusts the client for
 // premium status; only a verified webhook grants it.
 
-import { decodeJwtSub } from './mcp';
+import { isCompEmail } from './comp';
+import { decodeJwtEmail, decodeJwtSub } from './mcp';
 import { type D1LikeDatabase } from './telemetry';
 
 export type StripeEnv = {
@@ -302,8 +303,19 @@ export async function handleWebhook(request: Request, env: FullEnv, nowISO: stri
 
 /** GET /entitlement — authed. The app asks "am I premium, and since when?". */
 export async function handleEntitlement(request: Request, env: FullEnv, cors: Record<string, string>): Promise<Response> {
-  const sub = decodeJwtSub(bearer(request));
+  const token = bearer(request);
+  const sub = decodeJwtSub(token);
   if (!sub) return new Response(JSON.stringify({ error: 'sign_in_required' }), { status: 401, headers: { ...JSON_HEADERS, ...cors } });
+  // Owner / comp: an allowlisted email is always premium, with no Stripe sub. This read is decode-only
+  // (like the sub above), so it grants only the CLIENT flag; the costed money gate (requirePremium) re-checks
+  // the same allowlist against a cryptographically verified token. The far-past `since` gives the comp the
+  // full tenure-based scrapbook allowance.
+  if (isCompEmail(decodeJwtEmail(token))) {
+    return new Response(
+      JSON.stringify({ premium: true, status: 'comp', since: '2025-01-01T00:00:00.000Z', currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null }),
+      { headers: { ...JSON_HEADERS, ...cors } },
+    );
+  }
   if (!env.DB) {
     return new Response(JSON.stringify({ premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null }), {
       headers: { ...JSON_HEADERS, ...cors },

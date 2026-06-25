@@ -2356,3 +2356,40 @@ graph (no module-scope crash), the Scan pill renders beside Speak, a free tap ro
 opens the modal's web fallback. Device-only, left for the EAS build: the native viewfinder and the real capture to
 downscale to ocr to seed round-trip. 7 OCR cases added to the QA suite (now 125). Gate green: 328 client + 168
 server.
+
+## 2026-06-26 Live Stripe go-live, and the owner comp allowlist
+
+Two things, the night DoubleDone started taking real money.
+
+**Go-live.** The Worker now runs LIVE Stripe: the live secret key and the live webhook signing secret are Worker
+secrets (set in the Cloudflare dashboard), and the live recurring price id `price_1TkHS3...` is committed as a
+non-secret var. A real A$5 checkout on doubledone.app was confirmed end-to-end. The live webhook fired and wrote a
+fresh premium row to D1 (user cf8c1653..., status active), and the screen flipped. The premium-never-updates bug is
+dead. Its root cause is recorded: a test/live mode mismatch. The Worker was pointed at the test price while Stripe
+had been switched to live, so the live webhook never reached the test-mode endpoint.
+
+**The comp allowlist.** An email can now be ALWAYS premium with no Stripe subscription, for the owner's own
+no-charge test path and (later) the feedback comp. A new `server/src/comp.ts` holds `isCompEmail` plus a small
+`COMP_EMAILS` set (the owner's Gmail). Two callers consume it:
+- `requirePremium` (the costed money gate): after the token's signature is cryptographically verified (verifySub
+  returns a non-null sub), it reads the email from the SAME verified token and short-circuits to ok if allowlisted,
+  before the D1 read. Secure by construction: a forged comp-email token is rejected at the verify step (401),
+  proven by a test.
+- `handleEntitlement` (GET /entitlement, the CLIENT flag): decode-only, like the sub it already trusts, returning a
+  comp premium view (premium true, status 'comp', a far-past `since` for full scrapbook allowance, no customerId).
+
+Decided:
+- Keyed by EMAIL, in CODE, not a D1 row keyed by user_id. Melroy asked for an email, and an email allowlist works
+  the instant he signs in with that Gmail (no pre-existing account or user_id needed), and survives forever because
+  no Stripe event can flip it. A D1 comp row would need his user_id first and could be raced by a webhook.
+- The /entitlement comp check is decode-only (not crypto-verified), matching that endpoint's existing decode-trust
+  posture. The blast radius of forging the comp email there is only the CLIENT flag (cosmetic: the pin and the Scan
+  button appear). The costed OCR gate re-checks the allowlist on a verified token, so no paid compute leaks.
+  Acceptable for an owner allowlist. Verifying /entitlement too is a separate, already-deferred hardening.
+- The owner comp has no customerId, so the "Manage subscription" button would 404 if tapped. Accepted as an
+  owner-only rough edge, not worth a client branch tonight.
+
+11 server tests added (the comp allowlist incl. near-miss and forged-email rejection, decodeJwtEmail, the
+requirePremium comp paths, the handleEntitlement comp view). Gate green: typecheck and lint clean, 179 server
+tests. QA case PREM-11 added. On the `premium` branch. The Worker deploy that makes the comp live is gated on
+Melroy's per-instance OK.

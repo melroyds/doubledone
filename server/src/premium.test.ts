@@ -77,6 +77,11 @@ const env = (db?: D1LikeDatabase) => ({ DB: db, SUPABASE_URL: SUPA });
 // crypto run with no network. The defaultVerifySub block below exercises the real verifier.
 const verifiesTo = (sub: string | null): SubVerifier => async () => sub;
 
+// The comp allowlist is keyed on the token's email claim. Build a token carrying sub + email; the comp
+// path reads the email only AFTER verifySub returns non-null, so these pair such a token with a stub.
+const COMP_EMAIL = 'melroyvivekdsouza@gmail.com';
+const tokenWith = (claims: object) => `h.${btoa(JSON.stringify(claims)).replace(/=/g, '')}.s`;
+
 describe('requirePremium', () => {
   it('401 when there is no token', async () => {
     expect(await requirePremium(req(), env(fakeDb()), verifiesTo('user-1'))).toEqual({ ok: false, status: 401 });
@@ -120,6 +125,29 @@ describe('requirePremium', () => {
     const db = fakeDb();
     await writeEntitlement(db, { userId: 'user-1', premium: true, status: 'active', currentPeriodEnd: 123, cancelAtPeriodEnd: false, customerId: 'cus_1' }, '2026-06-20T00:00:00Z');
     expect(await requirePremium(req('t'), env(db), verifiesTo('user-1'))).toEqual({ ok: true, userId: 'user-1' });
+  });
+
+  it('ok for an allowlisted comp email, even with no entitlement row (always premium)', async () => {
+    const token = tokenWith({ sub: 'comp-1', email: COMP_EMAIL });
+    expect(await requirePremium(req(token), env(fakeDb()), verifiesTo('comp-1'))).toEqual({ ok: true, userId: 'comp-1' });
+  });
+
+  it('the comp bypass short-circuits BEFORE the entitlement store is read', async () => {
+    const db = fakeDb();
+    let reads = 0;
+    const spied = { ...db, prepare: (sql: string) => (reads++, db.prepare(sql)) } as unknown as D1LikeDatabase;
+    await requirePremium(req(tokenWith({ sub: 'comp-1', email: COMP_EMAIL })), env(spied), verifiesTo('comp-1'));
+    expect(reads).toBe(0);
+  });
+
+  it('does NOT comp a non-allowlisted email (still 403 with no row)', async () => {
+    const token = tokenWith({ sub: 'user-1', email: 'someone@else.com' });
+    expect(await requirePremium(req(token), env(fakeDb()), verifiesTo('user-1'))).toEqual({ ok: false, status: 403 });
+  });
+
+  it('rejects a FORGED comp-email token (the comp check runs only after the signature verifies)', async () => {
+    const token = tokenWith({ sub: 'attacker', email: COMP_EMAIL });
+    expect(await requirePremium(req(token), env(fakeDb()), verifiesTo(null))).toEqual({ ok: false, status: 401 });
   });
 });
 

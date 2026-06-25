@@ -415,6 +415,9 @@ CASES = [
     ("PREM-10", "Premium", "P2", "Premium screen shows the renew / cancel date",
      "As premium, open /premium; then schedule a cancel-at-period-end in the portal and reopen.",
      "Reads 'Renews <date>' when active, and 'Premium until <date>, then free' when a cancel is scheduled.", "Web"),
+    ("PREM-11", "Premium", "P3", "Comp allowlist: the owner email is always premium",
+     "Sign in with the comp email (the owner account listed in server/src/comp.ts), without ever paying.",
+     "Premium is active immediately: Settings and the Lookback show the scrapbook unlocked and Scan works, with no Stripe charge. A non-allowlisted free account stays free. The allowlist is checked against a cryptographically verified token on the costed gate, so a forged token cannot claim premium compute.", "Both"),
 
     # --- Prioritise / pin a task (Premium) -----------------------------------
     ("PIN-01", "Pin", "P1", "Premium: pin a task as the day's one thing",

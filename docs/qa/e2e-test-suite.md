@@ -237,6 +237,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | PREM-08 | P1 | Web | Manage subscription opens the billing portal | As premium: /premium -> Manage subscription. | Redirects to the Stripe Billing Portal (cancel / update card / invoices). |
 | PREM-09 | P1 | Web | Cancel reverts to free | In the portal, cancel immediately, then return to the app. | Entitlement flips to free; the scrapbook is monthly-gated again; tenure (started_at) is preserved. |
 | PREM-10 | P2 | Web | Premium screen shows the renew / cancel date | As premium, open /premium; then schedule a cancel-at-period-end in the portal and reopen. | Reads 'Renews <date>' when active, and 'Premium until <date>, then free' when a cancel is scheduled. |
+| PREM-11 | P3 | Both | Comp allowlist: the owner email is always premium | Sign in with the comp email (the owner account listed in server/src/comp.ts), without ever paying. | Premium is active immediately: Settings and the Lookback show the scrapbook unlocked and Scan works, with no Stripe charge. A non-allowlisted free account stays free. The allowlist is checked against a cryptographically verified token on the costed gate, so a forged token cannot claim premium compute. |
 
 ## Pin
 

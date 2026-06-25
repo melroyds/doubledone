@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addTaskRequest,
   completeTaskRequest,
+  decodeJwtEmail,
   decodeJwtSub,
   handleMcp,
   initializeResult,
@@ -27,6 +28,16 @@ describe('decodeJwtSub', () => {
   it('returns null for a malformed token or missing sub', () => {
     expect(decodeJwtSub('not-a-jwt')).toBeNull();
     expect(decodeJwtSub(jwt({ role: 'authenticated' }))).toBeNull();
+  });
+});
+
+describe('decodeJwtEmail', () => {
+  it('reads the email claim from a bearer JWT', () => {
+    expect(decodeJwtEmail(jwt({ sub: 'user-123', email: 'a@b.co' }))).toBe('a@b.co');
+  });
+  it('returns null for a malformed token or missing email', () => {
+    expect(decodeJwtEmail('not-a-jwt')).toBeNull();
+    expect(decodeJwtEmail(jwt({ sub: 'user-123' }))).toBeNull();
   });
 });
 

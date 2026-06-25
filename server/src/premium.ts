@@ -8,6 +8,8 @@
 
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
+import { isCompEmail } from './comp';
+import { decodeJwtEmail } from './mcp';
 import { bearer, type D1LikeDatabase, type EntitlementView, readEntitlement } from './stripe';
 
 export type PremiumOk = { ok: true; userId: string };
@@ -74,6 +76,9 @@ export async function requirePremium(
   if (!env.DB || !env.SUPABASE_URL) return { ok: false, status: 503 }; // cannot decide -> fail closed
   const userId = await verifySub(token, env.SUPABASE_URL);
   if (!userId) return { ok: false, status: 401 }; // forged / malformed / expired
+  // Owner / comp: an allowlisted email is always premium, no Stripe sub. Reading the email here is safe
+  // because the token's signature was just verified (userId is non-null), so the email claim is trustworthy.
+  if (isCompEmail(decodeJwtEmail(token))) return { ok: true, userId };
   let view: EntitlementView;
   try {
     view = await readEntitlement(env.DB, userId);

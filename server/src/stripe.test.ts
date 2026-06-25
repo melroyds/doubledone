@@ -242,6 +242,17 @@ describe('Stripe HTTP handlers', () => {
     expect(await res.json()).toMatchObject({ premium: false });
   });
 
+  it('handleEntitlement returns a comp premium view for an allowlisted email (no DB needed)', async () => {
+    const compToken = `h.${btoa(JSON.stringify({ sub: 'u1', email: 'melroyvivekdsouza@gmail.com' })).replace(/=/g, '')}.s`;
+    const res = await handleEntitlement(
+      new Request('https://w/entitlement', { headers: { Authorization: `Bearer ${compToken}` } }),
+      {},
+      cors,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ premium: true, status: 'comp' });
+  });
+
   it('handleWebhook 503s when not configured', async () => {
     const res = await handleWebhook(req('stripe-webhook', undefined, {}), {}, '2026-06-20T00:00:00Z');
     expect(res.status).toBe(503);

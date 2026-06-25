@@ -90,6 +90,23 @@ export function decodeJwtSub(token: string): string | null {
   }
 }
 
+/** Decode the `email` claim from a JWT payload, WITHOUT verifying the signature. A caller that needs a
+ *  trustworthy email (the premium money gate) MUST verify the token first; the comp check reads this only
+ *  after requirePremium has cryptographically verified the same token. Mirrors decodeJwtSub's base64url. */
+export function decodeJwtEmail(token: string): string | null {
+  const parts = token.split('.');
+  if (parts.length < 2) return null;
+  try {
+    let b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const pad = b64.length % 4;
+    if (pad) b64 += '='.repeat(4 - pad);
+    const email = (JSON.parse(atob(b64)) as { email?: unknown }).email;
+    return typeof email === 'string' && email.length > 0 ? email : null;
+  } catch {
+    return null;
+  }
+}
+
 // --- Supabase REST request builders (pure, unit-tested) --------------------
 
 function supaHeaders(env: McpEnv, token: string, write: boolean): Record<string, string> {
