@@ -3,16 +3,9 @@
 // lib/entitlement; this is the thin network edge (a seam, like lib/ai).
 
 import { type Entitlement, FREE_ENTITLEMENT } from './entitlement';
-import { supabase } from './supabase';
+import { authHeader } from './supabase';
 
 const API_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
-
-async function authHeader(): Promise<Record<string, string> | null> {
-  if (!supabase) return null;
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  return token ? { Authorization: `Bearer ${token}` } : null;
-}
 
 export type CheckoutResult = { ok: true; url: string } | { ok: false; error: 'sign_in' | 'failed' };
 

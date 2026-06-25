@@ -3,6 +3,8 @@
 // hardcoded fallback keeps the deployed build working; EXPO_PUBLIC_AI_URL
 // overrides it for local dev.
 
+import { authHeader } from './supabase';
+
 const AI_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
 
 export type DecomposedStep = { title: string; minutes: number };
@@ -214,6 +216,29 @@ export async function split(text: string): Promise<string[]> {
   return Array.isArray(data.items)
     ? data.items.filter((s): s is string => typeof s === 'string' && s.trim().length > 0).map((s) => s.trim())
     : [];
+}
+
+/** OCR photo capture (PREMIUM): send a base64 photo of a list to the backend and get back the task
+ *  titles it read, for the brain-dump box to review. The first client AI call that sends the user's
+ *  token (the /ocr route is premium-gated server-side). Returns [] on any failure, an empty read, or
+ *  when signed out, so the caller shows one calm line and never a raw error. */
+export async function ocr(imageBase64: string, mediaType?: string, language?: string): Promise<string[]> {
+  const auth = await authHeader();
+  if (!auth) return []; // signed out: no token to gate with, so nothing to send
+  try {
+    const res = await fetch(`${AI_URL}/ocr`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...auth },
+      body: JSON.stringify({ image: imageBase64, mediaType, language }),
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { tasks?: unknown };
+    return Array.isArray(data.tasks)
+      ? data.tasks.filter((s): s is string => typeof s === 'string' && s.trim().length > 0).map((s) => s.trim())
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 /** Shrink a dreaded task to its 2-minute version via the AI backend (the wall of awful,

@@ -25,3 +25,12 @@ export const supabase: SupabaseClient | null =
 
 /** True when the keys are configured and cloud sync can be offered. */
 export const isSyncConfigured = supabase != null;
+
+/** The Authorization header for an authed Worker call, or null when signed out or sync is off. The
+ *  single client path that sends the user's token: the Stripe seams and OCR both read it. */
+export async function authHeader(): Promise<Record<string, string> | null> {
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : null;
+}

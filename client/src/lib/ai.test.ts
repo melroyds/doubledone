@@ -14,7 +14,13 @@ import {
   split,
   tiny,
   triage,
+  ocr,
 } from './ai';
+
+import { authHeader } from './supabase';
+
+vi.mock('./supabase', () => ({ authHeader: vi.fn(), supabase: null, isSyncConfigured: false }));
+const authHeaderMock = vi.mocked(authHeader);
 
 describe('parseSteps', () => {
   it('keeps well-formed steps', () => {
@@ -346,5 +352,53 @@ describe('tiny', () => {
   it('throws on a non-ok response', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502 }) as unknown as Response));
     await expect(tiny('x')).rejects.toThrow();
+  });
+});
+
+describe('ocr', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    authHeaderMock.mockReset();
+  });
+
+  it('POSTs the image with the Bearer token and returns the parsed task titles (mocked, no live call)', async () => {
+    authHeaderMock.mockResolvedValue({ Authorization: 'Bearer test-token' });
+    const fetchMock = vi.fn(
+      async (_url: string, _init: { method: string; headers: Record<string, string>; body: string }) =>
+        ({ ok: true, json: async () => ({ tasks: ['  Buy milk ', '', 'Call mum'] }) }) as unknown as Response,
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const tasks = await ocr('BASE64IMG', 'image/jpeg', 'en');
+    expect(tasks).toEqual(['Buy milk', 'Call mum']); // trimmed, blanks dropped
+
+    const url = fetchMock.mock.calls[0][0];
+    const init = fetchMock.mock.calls[0][1];
+    expect(url).toContain('/ocr');
+    expect(init.method).toBe('POST');
+    expect(init.headers.Authorization).toBe('Bearer test-token');
+    expect(JSON.parse(init.body)).toEqual({ image: 'BASE64IMG', mediaType: 'image/jpeg', language: 'en' });
+  });
+
+  it('returns [] without calling fetch when signed out (no token)', async () => {
+    authHeaderMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await ocr('IMG')).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('returns [] on a non-ok response (a calm fail, never a throw)', async () => {
+    authHeaderMock.mockResolvedValue({ Authorization: 'Bearer t' });
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 403 }) as unknown as Response));
+    expect(await ocr('IMG')).toEqual([]);
+  });
+
+  it('returns [] on a network throw', async () => {
+    authHeaderMock.mockResolvedValue({ Authorization: 'Bearer t' });
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new Error('network');
+    }));
+    expect(await ocr('IMG')).toEqual([]);
   });
 });

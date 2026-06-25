@@ -2305,3 +2305,23 @@ the share-a-photo path rides the same seam). Cost is defended in layers: Haiku, 
 Gate green: 324 client + 168 server (7 contract tests in ocr.ts, 4 handler cases in index.test.ts for validation,
 the gate, the CORS-attached denial, and fail-closed 503). Next: the client slice (the camera button on the
 brain-dump box), which needs an EAS Android build to test.
+
+## 2026-06-25 OCR client slice, part 1: the ocr() seam + a shared authHeader
+
+The client half of OCR, keystone first: the network seam, fully unit-testable, before the camera UI that needs an
+EAS build. Added ocr(imageBase64, mediaType?, language?) to lib/ai.ts: it POSTs the base64 image to /ocr with the
+user's Supabase token and returns the task titles, or [] on any failure.
+
+Decided:
+- Lifted authHeader() out of lib/stripe.ts into lib/supabase.ts (its natural home, next to the client) so the
+  Stripe seams AND the new ocr() share ONE copy. OCR is the first AI call to need the user's token, where the
+  others are anonymous, and a duplicated auth helper would drift. The client stripe.ts has no test of its own, so
+  the move was safe (typecheck and the gating tests stayed green).
+- ocr() returns [] on any failure, an empty read, or signed-out, never throws. The camera button is premium-gated
+  client-side (usePremium), so by the time ocr() runs the user is premium and signed in. [] then means "no tasks
+  read", and the caller shows one calm line. A stale-token 401 also lands as [] (a calm retry, which refreshes the
+  token); refine to a distinct re-auth path only if that edge bites in practice.
+
+Gate green: 328 client (4 ocr-seam tests: the bearer header + parse, []-when-signed-out without a fetch, []-on-
+non-ok, []-on-throw) + 168 server. Next: part 2, the in-app camera (CameraView + a gallery option) on the
+brain-dump box, device-tested via EAS.
