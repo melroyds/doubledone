@@ -2497,3 +2497,11 @@ Decided (the spine guardian's two key fixes):
 
 Gate green: typecheck and lint clean, client 338 tests, server 195. QA cases SEQ-01..05 added. On the
 `premium` branch.
+
+## 2026-06-26 Premium page: sell the whole suite, not just the scrapbook
+
+Melroy's ask after Tier 2: the paywall described only the scrapbook. Rewrote it to lead with "More of what
+you love" and a calm feature list (Scan a list, Pin the day's one thing, the weekly keepsake, Your patterns,
+Chart a course, Plan my order) plus an enticing "and more on the way", with the keepsake tenure tiers kept as
+a detail below. The free-stays-complete framing is preserved up top ("the whole calm daily loop stays free,
+forever"). Verified the render in the web preview. Copy is Melroy's to tune.

@@ -152,14 +152,31 @@ export default function PremiumScreen() {
               <Text style={styles.note}>No worries. Your free monthly keepsake is always here.</Text>
             ) : null}
 
-            <Text style={styles.panelHead}>Keep every week.</Text>
+            <Text style={styles.panelHead}>More of what you love.</Text>
             <Text style={styles.body}>
-              Premium turns each finished week into a calm AI keepsake, a still-life of everything you actually did. Free makes one a month; Premium makes it
-              weekly, and more often the longer you stay.
+              The whole calm daily loop stays free, forever, all the relief and your Lookback. Premium is the extras, never anything you need.
             </Text>
 
+            <View style={styles.featureList}>
+              {[
+                'Scan a photo of a list straight into tasks',
+                "Pin the day's one thing",
+                'A weekly AI keepsake of everything you finished',
+                'Your patterns, gentle stats and a warm weekly reflection',
+                'Chart a course, turn a goal into calm next steps',
+                'Plan my order, a calm sequence for today',
+              ].map((f) => (
+                <View key={f} style={styles.featureRow}>
+                  <View style={styles.featureDot} />
+                  <Text style={styles.feature}>{f}</Text>
+                </View>
+              ))}
+              <Text style={styles.featureMore}>and more on the way…</Text>
+            </View>
+
+            <Text style={styles.keepsakeNote}>The weekly keepsake grows the longer you stay:</Text>
             <View style={styles.tiers}>
-              <Text style={styles.tier}>1 a week now</Text>
+              <Text style={styles.tier}>1 a week</Text>
               <Text style={styles.tierArrow}>→</Text>
               <Text style={styles.tier}>2 after two months</Text>
               <Text style={styles.tierArrow}>→</Text>
@@ -213,6 +230,12 @@ const makeStyles = (t: Theme) =>
     panel: { marginTop: spacing.five, gap: spacing.three },
     panelHead: { color: t.colors.ink, fontSize: 24 * t.scale, fontFamily: fonts.sans, fontWeight: '400' },
     body: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 24 * t.scale },
+    featureList: { gap: spacing.two, marginTop: spacing.one },
+    featureRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
+    featureDot: { width: 6, height: 6, borderRadius: radius.pill, backgroundColor: t.colors.accent },
+    feature: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale, flex: 1 },
+    featureMore: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.one, marginLeft: spacing.four },
+    keepsakeNote: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.two },
     note: {
       color: t.colors.accent,
       fontSize: 15 * t.scale,
