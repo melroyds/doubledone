@@ -54,6 +54,9 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 The single home for consciously parked work. Nothing here is dropped; each item has a trigger for when it earns a place in the sequence. Premium-gated ideas live in [`docs/premium.md`](docs/premium.md).
 
+**Growth and monetisation**
+- **Comp a month of premium for feedback.** Grant a feedback-giver 30 days of premium on the house: a comp entitlement (premium with a 30-day current_period_end, no Stripe charge, marked so it does not auto-renew and reverts to free cleanly). Needs a grant path (a one-time redeemable code, or an owner action keyed to a user_id) plus the entitlement write, and a calm place to ask for the feedback. Doubles as the owner's own no-charge test path (comp yourself to exercise the live app without paying). Trigger: after the live-Stripe go-live, when the feedback loop is wanted.
+
 **AI, beyond the core**
 - **Honour an explicit step count in Break-it-down.** When the user says "just 3 parts", the breakdown ignores it. The spine-friendly fix is a one-line prompt instruction ("if the person names a number of steps, use exactly that many"), not a new control. Trigger: the next prompt-tuning pass.
 - **"Plan my day."** On request, arrange today's tasks into a calm suggested order and rough timing, propose-then-accept. Distinct from Strategise and Break-it-down. Trigger: pairs with energy-matching.
