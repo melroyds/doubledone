@@ -2105,3 +2105,33 @@ This is a narrow graduation from the strict direct-to-main discipline, for DEPLO
 review. Full branch-and-PR review stays deferred until a collaborator joins. Decided against a separate
 staging Pages project + Worker (more setup and upkeep than a solo dev needs) and against local-only
 development (loses the GitHub backup and the CI net that a pushed branch keeps).
+
+## 2026-06-25 The premium feature flag (the gate every paid feature reads)
+
+Before building any Premium feature, built the gate that hides or shows functionality by entitlement, so the
+wall is one switch and not a per-feature reinvention. The server entitlement stays the source of truth
+(Stripe -> the Worker's /entitlement -> loadEntitlement). This layer adds a provider, a hook, and a testable
+resolver on top.
+
+Shape: `lib/premium-flag.ts` is a pure `resolvePremium(serverPremium, devOverride, devAllowed)`, unit-tested
+across all four cases. `lib/premium-provider.tsx` (PremiumProvider + usePremium) loads the entitlement once,
+exposes the resolved `premium` app-wide, and a `refresh()` for after checkout. Wired into _layout below
+ThemeProvider. Settings now reads `premium` from the flag (one source) instead of its own loadEntitlement.
+
+The dev override is the key to TESTING premium without a live subscription: a stored 'on'/'off'/null
+(`doubledone.devPremium.v1`) plus a 3-way "Premium override" Choice in a Developer section of Settings.
+Critically, it is honoured ONLY where `DEV_PREMIUM_ALLOWED` is true (`__DEV__`, or a preview build with
+EXPO_PUBLIC_PREMIUM_DEV=true), NEVER production. So when `premium` merges to main the override is inert and no
+real user can flip themselves to Premium. The pure resolver makes that production-safety an explicit, tested
+property: with devAllowed=false the result is always exactly the server truth.
+
+Verified in the web preview: the free state shows the upsell card, and with the override on the Premium card
+flips to "Active. Your week, kept. ✓". Same flag, real UI, no subscription.
+
+No QA-suite case yet, on purpose: the flag is infrastructure plus a dev-only tool, with no NEW user-facing
+flow (the Developer section never ships). The first manual case lands with the first gated feature
+(Prioritise / pin), phrased as "a free user does not see it, a premium user does".
+
+Decided against rebuilding the entitlement (reused lib/entitlement + lib/stripe), against a build-time-only
+flag (the runtime dev override is what makes both states testable on one build), and against hiding the
+override behind a secret gesture (an env-flagged Developer section is clearer and just as inert in production).

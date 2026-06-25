@@ -10,10 +10,10 @@ import { purgeScrapbookImages } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
 import { toISODate } from '@/lib/day';
 import { buildExport } from '@/lib/export';
+import { usePremium } from '@/lib/premium-provider';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { type MotionPref, type TextSize, type ThemePref } from '@/lib/settings';
 import { loadReminderOn, loadScrapbooks, loadTasks, saveReminderOn, wipeLocalData } from '@/lib/storage';
-import { loadEntitlement } from '@/lib/stripe';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
 import { useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -26,6 +26,9 @@ const MCP_URL = `${process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app
 // Premium card. The Dusk spine stays calm everywhere else; this is the deliberate
 // exception: the special, paid surface gets to glow a little.
 const PREMIUM_GRADIENT = ['#8E5E72', '#B5798F', '#D6A77E'] as const;
+
+// The dev premium override exposed as a 3-way Choice; 'auto' defers to the real entitlement.
+type DevPremiumChoice = 'auto' | 'on' | 'off';
 
 // The one deliberate Settings surface. Scoped to comfort and access (theme, text
 // size, motion), never open-ended config: that is the line that keeps "remove
@@ -45,7 +48,7 @@ export default function SettingsScreen() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [mcpToken, setMcpToken] = useState<string | null>(null);
   const [mcpCopied, setMcpCopied] = useState(false);
-  const [premium, setPremium] = useState(false);
+  const { premium, devOverride, setDevOverride, devAllowed, refresh } = usePremium();
   const [exporting, setExporting] = useState(false);
   const [exportNote, setExportNote] = useState<string | null>(null);
   const [reminderOn, setReminderOn] = useState(false);
@@ -53,21 +56,20 @@ export default function SettingsScreen() {
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackState, setFeedbackState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
 
-  // Reflect the live entitlement so Settings shows a calm "Active" marker on
-  // Premium. Re-checks on focus, e.g. after returning from checkout.
+  // Re-check the entitlement on focus (e.g. after returning from checkout) so the Premium card's
+  // "Active" marker is current, and reflect the persisted daily-reminder toggle. The premium flag
+  // itself comes from usePremium (the provider), so the dev override is reflected here too.
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      void loadEntitlement().then((e) => {
-        if (active) setPremium(e.premium);
-      });
+      refresh();
       void loadReminderOn().then((on) => {
         if (active) setReminderOn(on);
       });
       return () => {
         active = false;
       };
-    }, []),
+    }, [refresh]),
   );
 
   // Toggle the opt-in daily reminder from Settings. Mirrors the Today footer and shares the
@@ -425,6 +427,24 @@ export default function SettingsScreen() {
         >
           <Text style={styles.welcomeAgainText}>See the welcome again</Text>
         </Pressable>
+        {devAllowed ? (
+          <View>
+            <Text style={styles.band}>Developer</Text>
+            <View style={styles.rows}>
+              <Choice<DevPremiumChoice>
+                label="Premium override"
+                hint="Local testing only. Forces the Premium or Free state without a live subscription. Never ships to production."
+                value={devOverride ?? 'auto'}
+                options={[
+                  { value: 'auto', label: 'Auto' },
+                  { value: 'on', label: 'Premium' },
+                  { value: 'off', label: 'Free' },
+                ]}
+                onChange={(v) => setDevOverride(v === 'auto' ? null : v)}
+              />
+            </View>
+          </View>
+        ) : null}
         <Text style={styles.footnote}>Saved to this device. Nothing here leaves it.</Text>
       </ScrollView>
     </View>

@@ -17,6 +17,7 @@ const LOWDAY_KEY = 'doubledone.lowday.v1';
 const LASTOPEN_KEY = 'doubledone.lastopen.v1';
 const ONBOARDED_KEY = 'doubledone.onboarded.v1';
 const ACCOUNT_KEY = 'doubledone.account.v1';
+const DEV_PREMIUM_KEY = 'doubledone.devPremium.v1'; // DEV/preview only: the premium-flag override (see premium-flag.ts)
 
 /**
  * Load Today's tasks. On a brand-new install (nothing ever stored) seed once so
@@ -60,6 +61,30 @@ export async function loadReminderOn(): Promise<boolean> {
 export async function saveReminderOn(on: boolean): Promise<void> {
   try {
     await AsyncStorage.setItem(REMINDER_KEY, on ? 'on' : 'off');
+  } catch {
+    // best effort
+  }
+}
+
+/**
+ * DEV / preview only: the premium-flag override ('on' / 'off'), or null to use the real
+ * entitlement. Lets the premium and free states be tested locally without a live subscription.
+ * Only takes effect where premium-flag's DEV_PREMIUM_ALLOWED is true, never in production.
+ */
+export async function loadDevPremium(): Promise<'on' | 'off' | null> {
+  try {
+    const v = await AsyncStorage.getItem(DEV_PREMIUM_KEY);
+    return v === 'on' || v === 'off' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Persist (or clear, when null) the dev premium override. Best effort. */
+export async function saveDevPremium(v: 'on' | 'off' | null): Promise<void> {
+  try {
+    if (v) await AsyncStorage.setItem(DEV_PREMIUM_KEY, v);
+    else await AsyncStorage.removeItem(DEV_PREMIUM_KEY);
   } catch {
     // best effort
   }

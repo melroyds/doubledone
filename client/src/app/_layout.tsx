@@ -15,6 +15,7 @@ import { Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { setInbound } from '@/lib/inbound';
+import { PremiumProvider } from '@/lib/premium-provider';
 import { useShareInbound } from '@/lib/share-intent';
 import { ThemeProvider, useTheme } from '@/lib/theme-provider';
 
@@ -45,7 +46,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <RootStack />
+        <PremiumProvider>
+          <RootStack />
+        </PremiumProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );
