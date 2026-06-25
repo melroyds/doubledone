@@ -271,3 +271,13 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | CHART-02 | P1 | Both | Free: charting routes to the upsell, never plans | As a free user, open Rooms, tap 'Chart a course', type a goal, tap 'Suggest steps'. | Routed to the Premium screen calmly (never a wall), and a 'premium.gate_hit' with reason 'chart' is logged. No plan is generated and nothing is added. |
 | CHART-03 | P2 | Both | Propose-then-accept: nothing auto-adds | As premium, generate a plan, untick two steps, then tap 'Add'. Separately, generate a plan and back out with 'Not these, start over' or Back. | Only the ticked steps are added as plain tasks, and backing out adds nothing. Today was unchanged before accepting. |
 | CHART-04 | P2 | Both | A goal that cannot be mapped fails calmly | Enter an empty goal (the button is disabled), then a nonsensical goal and submit. | The empty case cannot submit. A nonsensical goal shows one calm line ('I couldn't map that out just now'), the goal stays editable, never a crash or a shaming message. |
+
+## Sequence
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| SEQ-01 | P1 | Both | Premium: Plan my order suggests a calm sequence | As premium with 3+ open one-off tasks on Today, tap 'Plan my order'. | A proposal card lists today's tasks in a suggested order, each with a short calm reason. Nothing reorders until 'Use this order' is tapped, then the list re-sequences in place (no dates change, no task moves to another day). A 'sequence.accepted' event is logged. |
+| SEQ-02 | P1 | Both | Free: Plan my order routes to the upsell, never reorders | As a free user with 2+ tasks on Today, tap 'Plan my order'. | The Premium screen opens calmly (never a wall), a 'premium.gate_hit' with reason 'sequence' is logged, and the day's order is unchanged. |
+| SEQ-03 | P2 | Both | 'Not now' leaves the day untouched | As premium, open the proposal, then tap 'Not now' or the backdrop. | The order is exactly as before, nothing reordered, and no manualOrder is written. |
+| SEQ-04 | P2 | Both | An accepted order survives a reload (local-first) | As premium, accept an order, then fully reload the app. | Today still shows the accepted order after reload (manualOrder persists on-device). Note: the order does not yet sync across devices, which is a documented follow-up. |
+| SEQ-05 | P3 | Both | A pinned task still wins the very top | As premium, pin a task, then accept a 'Plan my order' sequence that puts a different task first. | The pinned task stays at the very top, and the accepted order applies to everything below it. |

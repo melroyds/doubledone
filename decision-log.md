@@ -2461,3 +2461,39 @@ Decided:
 
 Gate green: typecheck and lint clean, client 332 tests, server 190. QA cases CHART-01..04 added. Screen render
 verified in the web preview; the live AI happy-path awaits the Worker deploy. On the `premium` branch.
+
+## 2026-06-26 Tier 2: Plan my order (premium sequencing, local-first)
+
+Tier 2 feature 3. A calm "Plan my order" affordance on Today hands today's open one-offs to the AI and gets
+back a suggested SEQUENCE (each task with a short reason), which the user accepts or dismisses. DISTINCT from
+Strategise (which re-spreads an OVER-FULL day across days): this orders today's set IN PLACE and never moves a
+task to another day. Built to the spine guardian's fixes, with the sync trap resolved.
+
+The shape:
+- A new premium Worker route POST /sequence (server/src/sequence.ts), behind requirePremium like /ocr. A
+  record_order tool returns [{id, reason}] with NO dayOffset (order-in-place, never a day move). Sonnet. The
+  route accepts an optional energy level (low/medium/good) for a future chooser; v1 sends none.
+- Pure today.ts logic: applyManualOrder (a render-time stable float, same-reference when none, mirroring
+  pinFirst) and setSequence (stamp manualOrder = position, bump updatedAt, clear stale order). Composed at
+  render as pinFirst(applyManualOrder(tasksForToday(...))), so a pin still wins the very top and the
+  load-bearing pure tasksForToday order is never mutated.
+- A propose-then-accept Modal mirroring Strategise: nothing reorders until "Use this order", and "Not now"
+  leaves the day exactly as it was.
+
+Decided (the spine guardian's two key fixes):
+- THE SYNC TRAP. The guardian caught that manualOrder does NOT "ride sync for free": sync.ts maps every field
+  explicitly (taskToRow/rowToTask) and Supabase has one column per field. So manualOrder is a deliberately
+  LOCAL-ONLY leaf field, absent from taskToRow, which means it is never sent to Supabase (no column, no error,
+  no data loss) and persists in local storage. It survives a sync because setSequence bumps updatedAt, so the
+  local copy wins last-write-wins (verified against sync-merge.ts: local-newer keeps the full local object).
+  Cross-device order sync is a DOCUMENTED follow-up (needs a manual_order Supabase column + the mapper + a
+  round-trip test, an irreversible migration left for Melroy's OK). This avoids BOTH the silent-data-loss bug
+  AND a production schema change overnight.
+- Energy matching is DEFERRED to a fast-follow to keep the index.tsx surgery contained (the guardian flagged
+  index.tsx as preview-fragile). The /sequence route already accepts energy, so the chooser is a clean add.
+- Verified in the web preview by a REAL render check (not preview_click, per the gotcha): the button shows
+  with 2+ tasks, and seeding a reversed manualOrder reorders Today correctly (Charlie, Bravo, Alpha), proving
+  the render composition. The live AI proposal awaits the Worker deploy.
+
+Gate green: typecheck and lint clean, client 338 tests, server 195. QA cases SEQ-01..05 added. On the
+`premium` branch.

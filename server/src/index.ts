@@ -16,6 +16,7 @@ import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
 import { requirePremium } from './premium';
 import { deleteSub, parsePushSub, saveSub, sendDailyNudges } from './push';
 import { dataUrl, IMAGE_MODEL, imagePrompt, parseImage, parseScene, SCENE_MODEL, sceneMessages } from './scrapbook';
+import { buildSequenceRequest, parseEnergy, parseSequenceResponse, SEQUENCE_MODEL } from './sequence';
 import { buildSplitRequest, parseSplitResponse, SPLIT_MODEL } from './split';
 import { buildTinyRequest, parseTinyResponse, TINY_MODEL } from './tiny';
 import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
@@ -96,7 +97,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:8081',
   'http://localhost:19006',
 ];
-const AI_ROUTES = new Set(['/chart', '/clarify', '/combine', '/decompose', '/plan', '/split', '/tiny', '/strategise', '/triage', '/scrapbook', '/ocr', '/lookback-summary']);
+const AI_ROUTES = new Set(['/chart', '/clarify', '/combine', '/decompose', '/plan', '/sequence', '/split', '/tiny', '/strategise', '/triage', '/scrapbook', '/ocr', '/lookback-summary']);
 
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
@@ -566,6 +567,62 @@ export default {
         }),
       );
       return Response.json({ course }, { headers: cors });
+    }
+
+    // Plan my order (PREMIUM): today's tasks in, a calm suggested order out. Behind requirePremium like /ocr:
+    // validate first, then the money gate before any spend. Orders in place, it never moves a task to a day.
+    if (pathname === '/sequence' && request.method === 'POST') {
+      let seqTasks: { id: string; title: string }[] = [];
+      let energy: 'low' | 'medium' | 'good' | undefined;
+      let language: string | undefined;
+      try {
+        const body = (await request.json()) as { tasks?: unknown; energy?: unknown; language?: unknown };
+        seqTasks = Array.isArray(body.tasks)
+          ? body.tasks
+              .filter(
+                (t): t is { id: string; title: string } =>
+                  t != null && typeof (t as { id?: unknown }).id === 'string' && typeof (t as { title?: unknown }).title === 'string',
+              )
+              .map((t) => ({ id: t.id, title: t.title }))
+          : [];
+        energy = parseEnergy(body.energy);
+        language = parseLanguage(body.language);
+      } catch {
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
+      }
+      if (seqTasks.length === 0) {
+        return Response.json({ error: 'tasks are required' }, { status: 400, headers: cors });
+      }
+      const gate = await requirePremium(request, env);
+      if (!gate.ok) {
+        return Response.json({ error: 'premium required' }, { status: gate.status, headers: cors });
+      }
+      if (!env.ANTHROPIC_API_KEY) {
+        return Response.json({ error: 'server not configured' }, { status: 500, headers: cors });
+      }
+      const { url, init } = buildSequenceRequest(seqTasks, env.ANTHROPIC_API_KEY, energy, language);
+      const started = Date.now();
+      const upstream = await fetch(url, init as RequestInit);
+      if (!upstream.ok) {
+        ctx.waitUntil(
+          logAiCall(env, {
+            endpoint: 'sequence', model: SEQUENCE_MODEL, input: { count: seqTasks.length, energy: energy ?? null }, output: null,
+            inputTokens: null, outputTokens: null, latencyMs: Date.now() - started,
+            ok: false, error: `upstream ${upstream.status}`,
+          }),
+        );
+        return Response.json({ error: 'upstream error' }, { status: 502, headers: cors });
+      }
+      const raw = await upstream.json();
+      const order = parseSequenceResponse(raw);
+      const usage = extractUsage(raw);
+      ctx.waitUntil(
+        logAiCall(env, {
+          endpoint: 'sequence', model: SEQUENCE_MODEL, input: { count: seqTasks.length, energy: energy ?? null }, output: { order: order.length },
+          inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true,
+        }),
+      );
+      return Response.json({ order }, { headers: cors });
     }
 
     // Break it down (phased): a dreaded task (+ answers) in, a roadmap of phases

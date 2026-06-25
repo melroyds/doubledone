@@ -478,6 +478,23 @@ CASES = [
     ("CHART-04", "Chart", "P2", "A goal that cannot be mapped fails calmly",
      "Enter an empty goal (the button is disabled), then a nonsensical goal and submit.",
      "The empty case cannot submit. A nonsensical goal shows one calm line ('I couldn't map that out just now'), the goal stays editable, never a crash or a shaming message.", "Both"),
+
+    # --- Plan my order / sequencing (Premium) --------------------------------
+    ("SEQ-01", "Sequence", "P1", "Premium: Plan my order suggests a calm sequence",
+     "As premium with 3+ open one-off tasks on Today, tap 'Plan my order'.",
+     "A proposal card lists today's tasks in a suggested order, each with a short calm reason. Nothing reorders until 'Use this order' is tapped, then the list re-sequences in place (no dates change, no task moves to another day). A 'sequence.accepted' event is logged.", "Both"),
+    ("SEQ-02", "Sequence", "P1", "Free: Plan my order routes to the upsell, never reorders",
+     "As a free user with 2+ tasks on Today, tap 'Plan my order'.",
+     "The Premium screen opens calmly (never a wall), a 'premium.gate_hit' with reason 'sequence' is logged, and the day's order is unchanged.", "Both"),
+    ("SEQ-03", "Sequence", "P2", "'Not now' leaves the day untouched",
+     "As premium, open the proposal, then tap 'Not now' or the backdrop.",
+     "The order is exactly as before, nothing reordered, and no manualOrder is written.", "Both"),
+    ("SEQ-04", "Sequence", "P2", "An accepted order survives a reload (local-first)",
+     "As premium, accept an order, then fully reload the app.",
+     "Today still shows the accepted order after reload (manualOrder persists on-device). Note: the order does not yet sync across devices, which is a documented follow-up.", "Both"),
+    ("SEQ-05", "Sequence", "P3", "A pinned task still wins the very top",
+     "As premium, pin a task, then accept a 'Plan my order' sequence that puts a different task first.",
+     "The pinned task stays at the very top, and the accepted order applies to everything below it.", "Both"),
 ]
 
 HEADERS = ["ID", "Area", "Priority", "Test", "Steps", "Expected result",

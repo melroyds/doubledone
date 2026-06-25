@@ -23,9 +23,11 @@ import {
   plan as planBreakdown,
   purgeScrapbookImages,
   reportOutcome,
+  sequence,
   strategise,
   tiny,
   triage,
+  type OrderItem,
   type PlanItem,
   type Questions,
 } from '@/lib/ai';
@@ -55,7 +57,7 @@ import { track } from '@/lib/telemetry';
 import { updateWidget } from '@/widget/update';
 import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { usePremium } from '@/lib/premium-provider';
-import { completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, isRecurring, pinFirst, resurfaceOpenParent, setPin, tasksForToday, tinyParentTitle, toggleDoneOn, upcomingTasks } from '@/lib/today';
+import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, isRecurring, pinFirst, resurfaceOpenParent, setPin, setSequence, tasksForToday, tinyParentTitle, toggleDoneOn, upcomingTasks } from '@/lib/today';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
@@ -113,6 +115,9 @@ export default function TodayScreen() {
   const [strategising, setStrategising] = useState(false);
   const [plan, setPlan] = useState<PlanItem[] | null>(null);
   const [strategiseError, setStrategiseError] = useState<string | null>(null);
+  const [order, setOrder] = useState<OrderItem[] | null>(null);
+  const [sequencing, setSequencing] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
   const [reminderOn, setReminderOn] = useState(false);
   // Break it down, the two-call flow: qualify (questions) -> decompose (review).
   const [bdPhase, setBdPhase] = useState<'off' | 'questions' | 'review'>('off');
@@ -315,7 +320,7 @@ export default function TodayScreen() {
 
   useEffect(() => subscribeInbound(() => applyInbound(takeInbound())), [applyInbound]);
 
-  const visible = pinFirst(tasksForToday(tasks, today)); // the one pinned task floats to the top
+  const visible = pinFirst(applyManualOrder(tasksForToday(tasks, today))); // the pin floats to the very top, then any accepted manual order
   const upcoming = upcomingTasks(tasks, today);
   const allDone = loaded && visible.length > 0 && visible.every((t) => isDoneOn(t, today));
   // Closed when the stored close-date is today's; it self-clears when the date rolls over.
@@ -636,6 +641,37 @@ export default function TodayScreen() {
     commit(next);
     track('strategise.accepted', { moved: plan.filter((p) => p.dayOffset > 0).length });
     setPlan(null);
+  }
+
+  // Plan my order: hand today's one-offs to the AI, get a calm suggested SEQUENCE, then PROPOSE it (the user
+  // accepts). Never reorders the day on its own. Premium-gated at the moment of asking (abundance).
+  async function runSequence() {
+    if (sequencing || premiumLoading) return;
+    if (!premium) {
+      track('premium.gate_hit', { reason: 'sequence' });
+      router.push('/premium');
+      return;
+    }
+    setOrderError(null);
+    setSequencing(true);
+    try {
+      const result = await sequence(spreadable.map((t) => ({ id: t.id, title: t.title })), undefined, aiLanguage);
+      track('sequence.requested', { count: spreadable.length });
+      if (result.length > 0) setOrder(result);
+      else setOrderError('Could not plan an order just now. Try again.');
+    } catch {
+      setOrderError('Could not plan an order just now. Try again.');
+    } finally {
+      setSequencing(false);
+    }
+  }
+
+  function acceptOrder() {
+    if (!order) return;
+    commit(setSequence(tasks, order.map((o) => o.id), nowMs()));
+    track('sequence.accepted', { count: order.length });
+    affirm('A gentle order, top of the list when you are ready.');
+    setOrder(null);
   }
 
   // A brief, consistent reassurance after completing (Done-is-done / Good-enough). One
@@ -1197,6 +1233,16 @@ export default function TodayScreen() {
                   <Text style={styles.strategiseBtnText}>{strategising ? 'Strategising…' : 'Strategise'}</Text>
                 </Pressable>
                 {strategiseError && <Text style={styles.strategiseErr}>{strategiseError}</Text>}
+                <Pressable
+                  onPress={runSequence}
+                  disabled={sequencing}
+                  style={({ pressed }) => [styles.sequenceBtn, pressed && styles.pressed, sequencing && styles.disabledBtn]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Plan my order for today"
+                >
+                  <Text style={styles.sequenceBtnText}>{sequencing ? 'Planning…' : 'Plan my order'}</Text>
+                </Pressable>
+                {orderError && <Text style={styles.strategiseErr}>{orderError}</Text>}
               </>
             )}
             {windDown && !isClosed && (
@@ -1762,6 +1808,45 @@ export default function TodayScreen() {
         </Pressable>
       </Modal>
 
+      <Modal visible={order != null} transparent animationType="fade" onRequestClose={() => setOrder(null)}>
+        <Pressable style={styles.backdrop} onPress={() => setOrder(null)} accessibilityRole="button" accessibilityLabel="Dismiss">
+          <Pressable style={styles.wrapCard} onPress={() => {}}>
+            <Text style={styles.wrapTitle}>A gentle order</Text>
+            <Text style={styles.wrapLine}>{"Here's an order that might flow. Yours to take or leave."}</Text>
+            <View style={styles.wrapList}>
+              {(order ?? []).map((o, i) => {
+                const t = tasks.find((x) => x.id === o.id);
+                if (!t) return null;
+                return (
+                  <View key={o.id} style={styles.seqItem}>
+                    <Text style={styles.seqNum}>{i + 1}</Text>
+                    <View style={styles.seqText}>
+                      <Text style={styles.planTitle} numberOfLines={1}>
+                        {t.title}
+                      </Text>
+                      <Text style={styles.seqReason} numberOfLines={2}>
+                        {o.reason}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+            <Pressable
+              onPress={acceptOrder}
+              style={({ pressed }) => [styles.wrapBtn, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Use this order"
+            >
+              <Text style={styles.wrapBtnText}>Use this order</Text>
+            </Pressable>
+            <Pressable onPress={() => setOrder(null)} accessibilityRole="button" accessibilityLabel="Not now">
+              <Text style={styles.planDismiss}>Not now</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <CameraCapture
         visible={cameraOpen}
         onClose={() => setCameraOpen(false)}
@@ -1962,6 +2047,20 @@ const makeStyles = (t: Theme) =>
     planItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
     planTitle: { color: t.colors.ink, fontSize: 16 * t.scale, flexShrink: 1, fontFamily: fonts.body },
     planWhen: { color: t.colors.accent, fontSize: 14 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
+    // "Plan my order" (premium): a quiet outlined pill, deliberately lighter than the filled Strategise button.
+    sequenceBtn: {
+      alignSelf: 'center',
+      paddingHorizontal: spacing.five,
+      paddingVertical: spacing.two,
+      borderRadius: radius.pill,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.colors.line,
+    },
+    sequenceBtnText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    seqItem: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.three },
+    seqNum: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', minWidth: 16, textAlign: 'center', marginTop: 1 },
+    seqText: { flex: 1, gap: 1 },
+    seqReason: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale },
     planDismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two, fontFamily: fonts.body },
     pressed: { opacity: 0.85 },
     addBar: { borderWidth: 1, borderColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.four, alignItems: 'center' },

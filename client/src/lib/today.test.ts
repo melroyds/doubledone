@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { type Recurrence } from './recurrence';
-import { completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, pinFirst, resurfaceOpenParent, setPin, tinyParentTitle, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
+import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, pinFirst, resurfaceOpenParent, setPin, setSequence, tinyParentTitle, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
 
 const today = new Date(2026, 5, 17);
 const iso = '2026-06-17';
@@ -79,6 +79,50 @@ describe('setPin', () => {
   it('self-heals a two-pinned race: pinning one clears every other pin', () => {
     const out = setPin([mk('a', 100), mk('b', 200), mk('c')], 'c', 500);
     expect(out.filter((x) => x.pinnedAt != null).map((x) => x.id)).toEqual(['c']);
+  });
+});
+
+describe('applyManualOrder', () => {
+  const t = (id: string, manualOrder?: number) => ({ id, ...(manualOrder != null ? { manualOrder } : {}) });
+
+  it('returns the same array reference when nothing has a manual order', () => {
+    const tasks = [t('a'), t('b'), t('c')];
+    expect(applyManualOrder(tasks)).toBe(tasks);
+  });
+
+  it('floats ordered tasks ahead by ascending manualOrder, the rest keeping their order', () => {
+    const tasks = [t('a'), t('b', 1), t('c'), t('d', 0)];
+    expect(applyManualOrder(tasks).map((x) => x.id)).toEqual(['d', 'b', 'a', 'c']);
+  });
+
+  it('is a stable partition: un-ordered tasks keep their incoming relative order', () => {
+    const tasks = [t('a'), t('b'), t('c', 5)];
+    expect(applyManualOrder(tasks).map((x) => x.id)).toEqual(['c', 'a', 'b']);
+  });
+});
+
+describe('setSequence', () => {
+  const mk = (id: string, manualOrder?: number) => ({ id, updatedAt: 0, ...(manualOrder != null ? { manualOrder } : {}) });
+
+  it('stamps manualOrder = position for each id in the order and bumps updatedAt', () => {
+    const out = setSequence([mk('a'), mk('b'), mk('c')], ['c', 'a', 'b'], 500);
+    expect(out.find((x) => x.id === 'c')).toMatchObject({ manualOrder: 0, updatedAt: 500 });
+    expect(out.find((x) => x.id === 'a')).toMatchObject({ manualOrder: 1, updatedAt: 500 });
+    expect(out.find((x) => x.id === 'b')).toMatchObject({ manualOrder: 2, updatedAt: 500 });
+  });
+
+  it('clears a stale manualOrder off a task not in the new order, bumping its updatedAt', () => {
+    const out = setSequence([mk('a', 0), mk('b', 1)], ['b'], 500);
+    expect(out.find((x) => x.id === 'b')).toMatchObject({ manualOrder: 0, updatedAt: 500 });
+    const a = out.find((x) => x.id === 'a')!;
+    expect(a).not.toHaveProperty('manualOrder');
+    expect(a.updatedAt).toBe(500);
+  });
+
+  it('leaves an unrelated, never-ordered task untouched (the same reference, no churn)', () => {
+    const before = mk('a');
+    const out = setSequence([before, mk('b')], ['b'], 500);
+    expect(out.find((x) => x.id === 'a')).toBe(before);
   });
 });
 

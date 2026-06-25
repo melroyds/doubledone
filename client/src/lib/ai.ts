@@ -298,6 +298,37 @@ export async function chart(goal: string, language?: string): Promise<Course> {
   }
 }
 
+export type Energy = 'low' | 'medium' | 'good';
+export type OrderItem = { id: string; reason: string };
+
+/** Pull the suggested order out of the backend response, defensively (never throws). */
+export function parseOrder(data: unknown): OrderItem[] {
+  const order = (data as { order?: unknown } | null)?.order;
+  if (!Array.isArray(order)) return [];
+  return order
+    .filter((o): o is OrderItem => o != null && typeof (o as OrderItem).id === 'string' && typeof (o as OrderItem).reason === 'string')
+    .map((o) => ({ id: o.id, reason: o.reason }));
+}
+
+/** Plan my order (PREMIUM): today's tasks in, a calm suggested order out, optionally matched to an energy
+ *  level. Sends the user's token (the /sequence route is premium-gated). Returns [] on any failure or when
+ *  signed out, so the caller shows one calm line and never reorders on an error. */
+export async function sequence(tasks: { id: string; title: string }[], energy?: Energy, language?: string): Promise<OrderItem[]> {
+  const auth = await authHeader();
+  if (!auth) return [];
+  try {
+    const res = await fetch(`${AI_URL}/sequence`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...auth },
+      body: JSON.stringify({ tasks, energy, language }),
+    });
+    if (!res.ok) return [];
+    return parseOrder(await res.json());
+  } catch {
+    return [];
+  }
+}
+
 /** Shrink a dreaded task to its 2-minute version via the AI backend (the wall of awful,
  *  lowered). Throws on a failed call; the caller shows a calm error. */
 export async function tiny(task: string): Promise<string> {

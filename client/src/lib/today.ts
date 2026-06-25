@@ -103,6 +103,48 @@ export function setPin<T extends { id: string; pinnedAt?: number; updatedAt: num
   });
 }
 
+/** A task carrying an accepted manual-order slot (premium "Plan my order"). A LOCAL-ONLY leaf field. */
+export type Orderable = { id: string; manualOrder?: number };
+
+/**
+ * Apply an accepted manual order at RENDER: tasks with a manualOrder float ahead in ascending order, and
+ * everything else keeps its incoming relative order behind them. A STABLE sort that returns the SAME array
+ * reference when nothing has a manualOrder (so the render path can skip work). Composed OUTSIDE the pure
+ * tasksForToday (like pinFirst), so the load-bearing tasksForToday order is never mutated. Used as
+ * pinFirst(applyManualOrder(tasksForToday(...))), so a pin still wins the very top.
+ */
+export function applyManualOrder<T extends Orderable>(tasks: T[]): T[] {
+  if (!tasks.some((t) => t.manualOrder != null)) return tasks;
+  const ordered = tasks.filter((t) => t.manualOrder != null);
+  const rest = tasks.filter((t) => t.manualOrder == null);
+  ordered.sort((a, b) => (a.manualOrder ?? 0) - (b.manualOrder ?? 0)); // Array.sort is stable, so ties keep order
+  return [...ordered, ...rest];
+}
+
+/**
+ * Apply an accepted sequence: stamp manualOrder = position for each id in `orderedIds` and bump updatedAt
+ * (so the local copy wins last-write-wins and the order survives a sync), and CLEAR any stale manualOrder
+ * off tasks not in the new order. Pure and unit-tested. manualOrder is a LOCAL-ONLY leaf field (deliberately
+ * not mapped in sync.ts, so it needs no remote column; cross-device order sync is a documented follow-up).
+ */
+export function setSequence<T extends { id: string; manualOrder?: number; updatedAt: number }>(
+  tasks: T[],
+  orderedIds: string[],
+  now: number,
+): T[] {
+  const rank = new Map(orderedIds.map((id, i) => [id, i] as const));
+  return tasks.map((t) => {
+    const r = rank.get(t.id);
+    if (r != null) return { ...t, manualOrder: r, updatedAt: now };
+    if (t.manualOrder != null) {
+      const next = { ...t, updatedAt: now };
+      delete next.manualOrder;
+      return next;
+    }
+    return t;
+  });
+}
+
 /**
  * Defer a one-off to tomorrow: set its due to the day after `date`, so it drops
  * off Today and returns tomorrow. A calm "not today", the single-task sibling of

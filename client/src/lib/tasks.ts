@@ -34,6 +34,7 @@ export type Task = {
   nudgeAt?: number; // epoch ms a local "remind me" nudge will fire (today only); drives the row indicator
   nudgeId?: string; // the scheduled-notification id, so the nudge can be cancelled when the task is done / removed / deferred
   pinnedAt?: number; // epoch ms this task was pinned as the day's ONE priority (premium). The at-most-one invariant lives in the pin action, not here. A leaf field: never auto-cleared, so a pinned task that rolls forward unfinished just rolls. Floats to the top of Today via pinFirst.
+  manualOrder?: number; // LOCAL-ONLY (premium "Plan my order"): a render-time sort slot, floated by applyManualOrder. NOT synced (deliberately absent from sync.ts taskToRow/rowToTask), so it persists on-device and survives sync (local wins), but cross-device order is a documented follow-up needing a remote column.
 };
 
 // Shown once on a brand-new install so the first open is not an empty void.
