@@ -6,6 +6,8 @@
 // user can never flip themselves to Premium. Pure and tested; the provider (premium-provider.tsx)
 // supplies the live entitlement, the stored override, and the devAllowed value.
 
+import { type Entitlement } from './entitlement';
+
 /** The dev override: force premium on or off, or null to defer to the real entitlement. */
 export type DevPremium = 'on' | 'off' | null;
 
@@ -18,4 +20,14 @@ export function resolvePremium(serverPremium: boolean, devOverride: DevPremium, 
   if (devAllowed && devOverride === 'on') return true;
   if (devAllowed && devOverride === 'off') return false;
   return serverPremium;
+}
+
+/**
+ * The entitlement a gated feature should read: the real server entitlement (its tenure, period, and
+ * status) but with `premium` replaced by the resolved flag, so the DEV OVERRIDE drives every gate,
+ * not just a boolean. Tenure/period stay real, so allowance math (e.g. canMakeScrapbook's weekly
+ * allowance) stays meaningful even under a dev-forced premium. Inert in production, like resolvePremium.
+ */
+export function gateEntitlement(entitlement: Entitlement, devOverride: DevPremium, devAllowed: boolean): Entitlement {
+  return { ...entitlement, premium: resolvePremium(entitlement.premium, devOverride, devAllowed) };
 }

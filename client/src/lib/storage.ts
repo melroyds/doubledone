@@ -270,7 +270,7 @@ export async function wipeLocalData(): Promise<void> {
   await saveTasks([]);
   await saveSyncedOwner(null);
   try {
-    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, LASTOPEN_KEY]);
+    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY]);
   } catch {
     // best effort, like the per-key savers above
   }

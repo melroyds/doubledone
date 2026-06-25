@@ -1,7 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { FREE_ENTITLEMENT, type Entitlement } from './entitlement';
-import { type DevPremium, resolvePremium } from './premium-flag';
+import { type DevPremium, gateEntitlement } from './premium-flag';
 import { loadDevPremium, saveDevPremium } from './storage';
 import { loadEntitlement } from './stripe';
 
@@ -13,8 +13,9 @@ export const DEV_PREMIUM_ALLOWED =
 
 type PremiumValue = {
   premium: boolean; // the effective flag every gated feature reads
-  entitlement: Entitlement; // the raw server entitlement (the Premium card, tenure, period end)
-  loading: boolean;
+  entitlement: Entitlement; // the RAW server entitlement (its premium reflects the server, not the override)
+  effectiveEntitlement: Entitlement; // what to GATE on: real tenure/period, premium = the resolved flag
+  loading: boolean; // true until the first entitlement load resolves; `premium` is meaningful only once false
   devOverride: DevPremium; // null unless a dev forced it (dev / preview only)
   devAllowed: boolean; // whether the dev override is usable in this build (false in production)
   setDevOverride: (v: DevPremium) => void;
@@ -23,18 +24,33 @@ type PremiumValue = {
 
 const PremiumContext = createContext<PremiumValue | null>(null);
 
-// Holds the premium entitlement plus the dev override and exposes the resolved `premium` flag
-// app-wide. Wraps the router in _layout, below ThemeProvider. The server entitlement (lib/stripe
-// -> the Worker's /entitlement, fed by Stripe) is the real source of truth; the dev override only
-// bends it where DEV_PREMIUM_ALLOWED, for testing the premium and free states without a live sub.
+// The value for a consumer rendered OUTSIDE the provider: a stable, free, no-op default so a stray
+// consumer never crashes, never reads as premium, and never churns identity. Module-level so its
+// reference is stable, mirroring ThemeProvider's FALLBACK_THEME.
+const OUTSIDE_PROVIDER: PremiumValue = {
+  premium: false,
+  entitlement: FREE_ENTITLEMENT,
+  effectiveEntitlement: FREE_ENTITLEMENT,
+  loading: false,
+  devOverride: null,
+  devAllowed: false,
+  setDevOverride: () => {},
+  refresh: () => {},
+};
+
+// Holds the premium entitlement plus the dev override, and exposes the resolved `premium` flag and a
+// gate-ready `effectiveEntitlement` app-wide. Wraps the router in _layout, below ThemeProvider. The
+// server entitlement (lib/stripe -> the Worker /entitlement, fed by Stripe) is the real source of
+// truth; the dev override only bends it where DEV_PREMIUM_ALLOWED, for testing premium and free
+// without a live sub. EVERY gated feature reads this provider, so the override drives them all.
 export function PremiumProvider({ children }: { children: ReactNode }) {
   const [entitlement, setEntitlement] = useState<Entitlement>(FREE_ENTITLEMENT);
   const [loading, setLoading] = useState(true);
   const [devOverride, setDevOverrideState] = useState<DevPremium>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Load (and reload on refresh) the server entitlement. `loading` starts true and flips false
-  // after the first load; a refresh does not re-toggle it, so a re-fetch never blanks the UI.
+  // Load (and reload on refresh) the server entitlement. `loading` starts true and flips false after
+  // the first load; a refresh does not re-toggle it, so a re-fetch never blanks the UI.
   useEffect(() => {
     let active = true;
     void loadEntitlement().then((e) => {
@@ -65,29 +81,31 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
     void saveDevPremium(v);
   }, []);
 
-  const premium = resolvePremium(entitlement.premium, devOverride, DEV_PREMIUM_ALLOWED);
+  // Memoize the context value (like ThemeProvider) so consumers re-render only when a real input
+  // changes, not on every provider render. effectiveEntitlement is the single gate input: the real
+  // entitlement with `premium` resolved through the override, so tenure-aware gates honour it too.
+  const value = useMemo<PremiumValue>(() => {
+    const effectiveEntitlement = gateEntitlement(entitlement, devOverride, DEV_PREMIUM_ALLOWED);
+    return {
+      premium: effectiveEntitlement.premium,
+      entitlement,
+      effectiveEntitlement,
+      loading,
+      devOverride,
+      devAllowed: DEV_PREMIUM_ALLOWED,
+      setDevOverride,
+      refresh,
+    };
+  }, [entitlement, devOverride, loading, setDevOverride, refresh]);
 
-  return (
-    <PremiumContext.Provider
-      value={{ premium, entitlement, loading, devOverride, devAllowed: DEV_PREMIUM_ALLOWED, setDevOverride, refresh }}
-    >
-      {children}
-    </PremiumContext.Provider>
-  );
+  return <PremiumContext.Provider value={value}>{children}</PremiumContext.Provider>;
 }
 
-/** The effective premium flag plus the entitlement detail. Defaults to free outside the provider,
- *  so a stray consumer never crashes and never accidentally reads as premium. */
+/**
+ * The premium flag and the gate-ready entitlement. `premium` is the resolved switch every paid
+ * feature reads; `effectiveEntitlement` is what tenure-aware gates (e.g. canMakeScrapbook) pass.
+ * `premium` is only meaningful once `loading` is false. Defaults to free outside the provider.
+ */
 export function usePremium(): PremiumValue {
-  return (
-    useContext(PremiumContext) ?? {
-      premium: false,
-      entitlement: FREE_ENTITLEMENT,
-      loading: false,
-      devOverride: null,
-      devAllowed: false,
-      setDevOverride: () => {},
-      refresh: () => {},
-    }
-  );
+  return useContext(PremiumContext) ?? OUTSIDE_PROVIDER;
 }

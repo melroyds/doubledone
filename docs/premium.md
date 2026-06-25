@@ -45,20 +45,29 @@ The AI Scrapbook is the model every gate is held to: monetise the genuinely expe
 
 **Tier 1, ship first** (additive delight, nothing removed from free):
 1. **AI Scrapbook**, shipped, keep iterating. The flagship.
-2. **Prioritise / pin a task** (~8h). Visual only, free users lose nothing, and it lets them feel the premium polish.
-3. **OCR photo capture** (~40h). The natural paid expansion of capture, and Melroy's original ask. Honest cost basis (vision calls cost more).
+2. **The premium feature flag**, shipped. The gate every paid feature reads, with a dev override to test premium and free locally without a subscription. The foundation everything below sits on, and all three premium surfaces (Settings, Lookback's scrapbook gate, the Premium screen) read it.
+3. **Prioritise / pin a task** (~8h, client-only). Visual only, free users lose nothing, and it lets them feel the premium polish. The lowest-risk validator of the flag-to-UI loop, so it comes first.
+4. **A server-side premium guard** (small, built BEFORE OCR). A reusable `requirePremium` on the Worker (bearer sub to the D1 entitlement to a 402). No AI route enforces entitlement today, which is fine while the gated things are free (scrapbook) or zero-cost (pin), but OCR is the first gate that spends real Anthropic money, so a client-only gate would be a free-money hole. Retro-hardens the scrapbook too.
+5. **OCR photo capture** (~40h). Photograph a post-it or printed list, and Claude vision turns it into tasks. Melroy's original ask and the headline. Camera plus a new vision endpoint, so device-tested, and it sits on the guard from step 4.
 
 **Tier 2, power and expansion:**
-4. **Unlimited AI** (generous free allowance, unlimited for premium). Reframed away from a punitive cap.
-5. **Richer Lookback insights** (a stats and summary layer on top of the always-free calendar).
-6. **AI "chart a course"** (goal planning, token-heavy by design).
-7. **AI sequencing / energy matching** (propose-then-accept daily ordering).
+6. **Richer Lookback insights** (a stats and summary layer on top of the always-free calendar). Promoted ahead of Unlimited AI: pure abundance, zero proximity to the relief boundary, and it sells "more of what you love" in a single screenshot.
+7. **Unlimited AI** (generous free allowance, unlimited for premium). Held just below Lookback insights: its cap sits nearest the relief boundary (the spine's danger zone), so deferring it protects the spine and buys real usage data to set the free allowance honestly.
+8. **AI "chart a course"** (goal planning, token-heavy by design).
+9. **AI sequencing / energy matching** (propose-then-accept daily ordering).
 
 **Tier 3, personalisation, guarded and later:**
-8. **Custom themes** (calm presets, not a WYSIWYG editor).
-9. **Colour categories** (strict guard-rails, a quiet cue not a tagging system; requires a written decision-log entry on why it will not feed organising-as-avoidance before it ships).
-10. **Task notes** (ruthlessly minimal: text plus one voice memo, never a notes CRUD that spirals into mini-projects).
-11. **Two-way calendar sync** (OAuth-heavy, high support, the latest).
+10. **Custom themes** (calm presets, not a WYSIWYG editor).
+11. **Colour categories** (strict guard-rails, a quiet cue not a tagging system; requires a written decision-log entry on why it will not feed organising-as-avoidance before it ships).
+12. **Task notes** (ruthlessly minimal: text plus one voice memo, never a notes CRUD that spirals into mini-projects).
+13. **Two-way calendar sync** (OAuth-heavy, high support, the latest).
+
+**Engineering, deferred with triggers** (the gating plumbing, parked but not lost, from the multi-agent review of the feature flag):
+- **A server-side `requirePremium` guard** (the Tier-1 step 4 above): no Worker route checks entitlement today, so build it before OCR. Trigger: the start of the OCR build, at the latest.
+- **Verify the Supabase JWT signature** before any endpoint authorises spend off the decoded `sub` (the entitlement read trusts the `sub` today, which is safe for the RLS-forwarded MCP path but load-bearing once a costed route gates on it). Trigger: with the server guard, before OCR.
+- **The per-user AI usage counter** (for Unlimited AI's cap) lives server-side in a user-keyed store, NOT the pseudonymous `ai_calls` log, to preserve the moat's no-user-id property; a new pure `canUseAi()` mirrors `canMakeScrapbook`. Trigger: when Unlimited AI is picked up.
+- **A tiny `gateToPremium(feature, reason)` helper** (log the gate-hit with a consistent payload, then route to /premium), so the moat's gate-hit signal stays consistent. Not a heavyweight `<PremiumGate>`. Trigger: the second gated surface lands (pin or OCR).
+- **A CI grep** asserting the exported web bundle contains no `EXPO_PUBLIC_PREMIUM_DEV`, so an env-wiring mistake fails the build instead of shipping a live dev toggle. Trigger: cheap, do with the server guard.
 
 **Hold or reject:**
 - **Multiple projects / workspaces, REJECT** (spine veto, it would turn Today into an everything-bucket). If the need is real, solve with free "custom lists" that live outside Today, never a Today meta-choice.

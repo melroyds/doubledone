@@ -2135,3 +2135,36 @@ flow (the Developer section never ships). The first manual case lands with the f
 Decided against rebuilding the entitlement (reused lib/entitlement + lib/stripe), against a build-time-only
 flag (the runtime dev override is what makes both states testable on one build), and against hiding the
 override behind a secret gesture (an env-flagged Developer section is clearer and just as inert in production).
+
+## 2026-06-25 The premium flag, adversarially reviewed (Ultracode): finished the migration, refined the order
+
+Ran a multi-agent review of the feature flag: six dimension reviewers, a skeptic per finding, and a three-lens
+build-order panel, 26 agents in all. The core held: production-inertness verified four ways, resolvePremium
+correct across all 12 input combinations (zero correctness findings), the provider's React behaviour sound. But
+three dimensions converged on one real, confirmed miss: the migration was done only in settings.tsx. lookback.tsx
+and premium.tsx still read their own loadEntitlement(), so the "single switch every paid feature reads" claim was
+false on landing, and the dev override could not even test the one feature that gates today (the scrapbook cadence
+in Lookback). The override quietly lied: Settings flipped to "Active" while the real gate still metered Free.
+
+Fixed it. Added a pure gateEntitlement(entitlement, devOverride, devAllowed) = { ...entitlement, premium: resolved },
+so a gate reads the real tenure and period with premium resolved through the override (canMakeScrapbook needs
+ent.since for the weekly allowance, so a boolean alone could not gate it). The provider now exposes
+effectiveEntitlement, and lookback.tsx and premium.tsx both consume usePremium() (premium.tsx's post-checkout poll
+re-checks via refresh() instead of its own fetch). Folded in the cheap nits the review flagged while in the files:
+memoized the context value (like ThemeProvider), hoisted the out-of-provider fallback to a module constant,
+documented the loading contract, and added the dev key to wipeLocalData. Verified in the web preview: with the
+override on, /premium now shows "You're Premium" (it showed the upgrade panel before) and Lookback renders with its
+gate on the same source. Gate green: 315 client + 146 server tests.
+
+Build order: STANDS, all three lenses agreed pin-a-task is the right next build (the lowest-risk flag-to-UI
+validator). Two refinements adopted into docs/premium.md. (1) Slice a small server-side requirePremium guard out of
+OCR and build it BEFORE OCR, because no Worker route enforces entitlement today and OCR is the first gate that
+spends real money, so a client-only gate is a free-money hole. (2) Inside Tier 2, ship Richer Lookback insights
+before Unlimited AI, because the unlimited-AI cap sits nearest the relief boundary and is the least demoable, while
+Lookback insights is pure abundance and deferring the quota buys data to set the free cap honestly. The deferred
+engineering (the server guard, JWT signature verification before spend, a server-side usage counter for the quota,
+a gateToPremium telemetry helper, a CI grep for the dev env flag) is captured as triggers in docs/premium.md.
+
+Decided against gating premium.tsx and lookback on a second source (one provider, one effectiveEntitlement), against
+building a PremiumGate or the server guard speculatively now (deferred with triggers, the discipline of stopping),
+and against reordering the top three (the review confirmed pin-then-OCR is correct).

@@ -1,12 +1,13 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { useSession } from '@/lib/auth';
-import { type Entitlement, FREE_ENTITLEMENT, weeklyAllowance } from '@/lib/entitlement';
-import { loadEntitlement, startCheckout, startPortal } from '@/lib/stripe';
+import { weeklyAllowance } from '@/lib/entitlement';
+import { usePremium } from '@/lib/premium-provider';
+import { startCheckout, startPortal } from '@/lib/stripe';
 import { track } from '@/lib/telemetry';
 import { useThemedStyles } from '@/lib/theme-provider';
 
@@ -30,49 +31,38 @@ export default function PremiumScreen() {
   const styles = useThemedStyles(makeStyles);
   const session = useSession();
   const { status } = useLocalSearchParams<{ status?: string }>();
-  const [ent, setEnt] = useState<Entitlement>(FREE_ENTITLEMENT);
-  const [loading, setLoading] = useState(true);
+  const { premium, effectiveEntitlement, loading, refresh } = usePremium();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [allowance, setAllowance] = useState(1);
-  const [periodLabel, setPeriodLabel] = useState<string | null>(null);
 
+  // Premium status and the period/allowance copy come from the provider, the single source the dev
+  // override drives too. Derived, not stored. The gate-ready entitlement keeps the real tenure.
+  // `now` is captured once on mount (like Lookback's today): the allowance is tenure-based and
+  // changes by the month, so a per-render clock read is both unnecessary and impure in render.
+  const now = useMemo(() => new Date().getTime(), []);
+  const allowance = weeklyAllowance(effectiveEntitlement.since, now);
+  const periodLabel = formatPeriod(effectiveEntitlement.currentPeriodEnd);
+
+  // Re-check the entitlement when the screen gains focus, e.g. after returning from checkout.
   useFocusEffect(
     useCallback(() => {
-      let active = true;
-      let timer: ReturnType<typeof setInterval> | undefined;
-      let tries = 0;
       track('premium.viewed', { status: status ?? 'open' });
-
-      const load = async () => {
-        const e = await loadEntitlement();
-        if (!active) return false;
-        setEnt(e);
-        setAllowance(weeklyAllowance(e.since, Date.now()));
-        setPeriodLabel(formatPeriod(e.currentPeriodEnd));
-        setLoading(false);
-        return e.premium;
-      };
-
-      void load().then((isPremium) => {
-        // The webhook can lag a few seconds after returning from checkout, so poll
-        // briefly rather than leaving the screen on "updates in a moment" forever.
-        if (active && status === 'success' && !isPremium) {
-          timer = setInterval(() => {
-            tries += 1;
-            void load().then((ok) => {
-              if ((ok || tries >= 10) && timer) clearInterval(timer);
-            });
-          }, 2000);
-        }
-      });
-
-      return () => {
-        active = false;
-        if (timer) clearInterval(timer);
-      };
-    }, [status]),
+      refresh();
+    }, [status, refresh]),
   );
+
+  // The Stripe webhook can lag a few seconds after a successful checkout, so poll the provider
+  // until premium flips, or we give up. Watching `premium` clears the timer as soon as it lands.
+  useEffect(() => {
+    if (status !== 'success' || premium) return;
+    let tries = 0;
+    const timer = setInterval(() => {
+      tries += 1;
+      refresh();
+      if (tries >= 10) clearInterval(timer);
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [status, premium, refresh]);
 
   async function subscribe() {
     if (busy) return;
@@ -127,14 +117,14 @@ export default function PremiumScreen() {
 
         {loading ? (
           <ActivityIndicator color={styles.spinner.color} style={styles.loadingPad} />
-        ) : ent.premium ? (
+        ) : premium ? (
           <View style={styles.panel}>
             <Text style={styles.panelHead}>You&apos;re Premium ✓</Text>
             <Text style={styles.body}>
               You get {allowance} keepsake{allowance === 1 ? '' : 's'} a week{allowance < 4 ? ', and more the longer you stay.' : '.'} Thank you for keeping
               DoubleDone independent.
             </Text>
-            {ent.cancelAtPeriodEnd && periodLabel ? (
+            {effectiveEntitlement.cancelAtPeriodEnd && periodLabel ? (
               <Text style={styles.subStatus}>Premium until {periodLabel}, then back to the free monthly keepsake.</Text>
             ) : periodLabel ? (
               <Text style={styles.subStatus}>Renews {periodLabel}.</Text>

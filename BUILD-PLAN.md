@@ -2,7 +2,7 @@
 
 *The operational doc: what DoubleDone is, what has shipped, what is deliberately deferred, and what is next. A fresh working session reads [`CLAUDE.md`](CLAUDE.md), then this. A reader from outside gets the arc of the build and the product thinking behind it. The full chronological why-trail lives in [`decision-log.md`](decision-log.md); the what-and-why of the product in [`docs/product-spec.md`](docs/product-spec.md).*
 
-**Status (2026-06-25): v1.0.0.** Live at [doubledone.app](https://doubledone.app), Android sideloadable via EAS. The core product is complete and verified. The active work is the Google Play Store listing.
+**Status (2026-06-25): v1.0.0.** Live at [doubledone.app](https://doubledone.app), Android sideloadable via EAS. The core product is complete and verified. Active threads: the Google Play Store listing (Melroy's), and Premium development on the `premium` branch (built in isolation, nothing deploys until merged).
 
 ---
 
@@ -45,6 +45,8 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 **Pre-launch, already done:** Stripe Premium (test mode), account deletion (live-tested), web push (live), the AI-endpoint lockdown (CORS + origin gate + rate limit), and the privacy policy (in-app and crawlable).
 
 **Pre-launch, remaining (config and ops, not code):** flip Stripe to live mode for real charges, swap to a dedicated transactional email sender for the sign-in code (vs Supabase's shared sender), and let the crowd-pace estimate graduate to real cross-user data once there is volume.
+
+**Premium, in active development (the `premium` branch, not deployed).** Building the paid surface in isolation, and merging to main is the deploy. The premium **feature flag** is built (the gate every paid feature reads, with a dev override for local testing), and all three premium surfaces (Settings, Lookback's scrapbook gate, the Premium screen) now read it. Next: Prioritise / pin a task (the lowest-risk validator), then a small server-side entitlement guard, then OCR. The full stack-ranked roadmap, the engineering triggers, and the free-versus-premium wall are in [`docs/premium.md`](docs/premium.md).
 
 ---
 
