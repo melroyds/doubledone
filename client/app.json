@@ -43,6 +43,20 @@
       ],
       "expo-quick-actions",
       "expo-share-intent",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "DoubleDone uses the camera to read a to-do list from a photo.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "DoubleDone reads a to-do list from a photo you choose."
+        }
+      ],
       "./plugins/with-exact-alarm",
       [
         "expo-font",

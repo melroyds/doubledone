@@ -247,3 +247,15 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | PIN-03 | P2 | Both | Only one task is pinned at a time | As premium, pin task A, then select task B and pin it. | Task B is now pinned (starred, floated to the top), and task A is no longer pinned. At most one pin ever exists. |
 | PIN-04 | P2 | Both | A pin syncs across devices | As premium and signed in, pin a task, then sign out and back in (or open a second device). | The task is still pinned after the sync round-trip (the star and float persist). Needs the pinned_at column applied in Supabase. |
 | PIN-05 | P3 | Both | Pin is offered only on one-off Today rows | Select a recurring task, then separately look at a task in the 'Later' list. | No 'Pin' action appears for a recurring task, and Later rows carry no pin affordance (pinning is Today-only and one-offs only). |
+
+## Scan
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| OCR-01 | P1 | Both | Premium: the Scan button opens the camera | As premium, open the add panel and tap the Scan (camera) pill beside Speak. | The camera screen opens: a live viewfinder with a shutter and a Photos shortcut on a device, or a 'Choose a photo' prompt on web. No paywall. |
+| OCR-02 | P1 | Both | Free: Scan routes to the upsell, never opens the camera | As a free user, open the add panel and tap the Scan pill. | Routed to the Premium screen calmly (never a wall). A 'premium.gate_hit' with reason 'ocr' is logged. No camera opens. |
+| OCR-03 | P1 | Device | Photograph a list and the tasks land in the box | As premium on a device, tap Scan, photograph a short printed or handwritten list (fill the frame), wait for 'Reading your list...'. | The tasks it reads appear in the brain-dump box, one per line, editable. Nothing is auto-added to Today, and tapping Add commits them. An 'ocr.captured' event is logged. |
+| OCR-04 | P2 | Both | Gallery fallback reads an existing photo | Tap Scan, then 'Photos' (device) or 'Choose a photo' (web), and pick a photo of a list, a note, or a whiteboard. | Same result: the read tasks land in the box for review. Covers a screenshot of a texted list, or a photo taken earlier. |
+| OCR-05 | P2 | Both | An unreadable photo fails calmly | Scan a blank, blurry, or list-free image. | A calm line ('I couldn't read any tasks from that. Try again...'), the camera stays open, never a crash and never a shaming message. |
+| OCR-06 | P2 | Device | Camera denial is never a dead end | On a device, deny the camera permission when prompted. | A calm screen offers 'Allow camera' and 'Choose from photos instead', and the gallery path still reads a list. |
+| OCR-07 | P3 | Both | AI egress is disclosed at the point of use | Open the Scan screen (device or web). | The note 'Your photo is sent to the AI to read your list, then discarded. It is never stored.' is visible. The D1 'ocr' telemetry row holds only the image size and task count, never the image or the titles. |

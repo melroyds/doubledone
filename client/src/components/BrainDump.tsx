@@ -18,6 +18,9 @@ type Props = {
   onBiteElephant: (text: string) => Promise<void>;
   onSort: (text: string) => Promise<void>;
   today: Date;
+  // OCR (premium): open the photo-capture modal. The parent premium-gates the tap; this just shows the
+  // button as the upsell surface. Absent (undefined) hides the button entirely.
+  onCamera?: () => void;
 };
 
 // What a parent can do to the capture box via ref: drop in text (or null to just focus)
@@ -49,7 +52,7 @@ const ADD_LABEL: Record<Mode, string> = {
 // Capture, with a calm "when" (the chips, for adding) and a "break it down" path
 // (hand a dreaded task to the AI and get small steps into Today). Default is one
 // gesture; everything else is there only when wanted.
-export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({ onCapture, onBiteElephant, onSort, today }, ref) {
+export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({ onCapture, onBiteElephant, onSort, today, onCamera }, ref) {
   const [value, setValue] = useState('');
   const [mode, setMode] = useState<Mode>('today');
   const [weekdays, setWeekdays] = useState<number[]>([today.getDay()]);
@@ -254,6 +257,17 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
             <Text style={[styles.speakText, listening && styles.speakTextOn]}>
               {listening ? 'Listening…' : '🎤 Speak'}
             </Text>
+          </Pressable>
+        )}
+        {onCamera && (
+          <Pressable
+            onPress={onCamera}
+            disabled={busy}
+            style={({ pressed }) => [styles.speak, pressed && styles.pressed, busy && styles.disabled]}
+            accessibilityRole="button"
+            accessibilityLabel="Read a list from a photo"
+          >
+            <Text style={styles.speakText}>📷 Scan</Text>
           </Pressable>
         )}
       </View>

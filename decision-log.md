@@ -2325,3 +2325,34 @@ Decided:
 Gate green: 328 client (4 ocr-seam tests: the bearer header + parse, []-when-signed-out without a fetch, []-on-
 non-ok, []-on-throw) + 168 server. Next: part 2, the in-app camera (CameraView + a gallery option) on the
 brain-dump box, device-tested via EAS.
+
+## 2026-06-25 OCR client slice, part 2: the camera, wired and verified on web
+
+The headline feature's last build step: the in-app camera. A new CameraCapture modal (client/src/components/
+CameraCapture.tsx) plus a Scan pill on the brain-dump captureRow, premium-gated. Built from a 2-agent scout (the
+Expo SDK 56 capture APIs and the brain-dump / auth seam).
+
+How it works: the Scan pill (the upsell surface) is premium-gated on tap, so a free tap routes calmly to /premium.
+For a premium user it opens a full-screen modal. On a device: an expo-camera CameraView viewfinder with a shutter
+and a gallery shortcut. On web: a "choose a photo" gallery prompt (no viewfinder). The captured image is downscaled
+to <=1080px JPEG q0.6 (expo-image-manipulator's non-hook ImageManipulator.manipulate API, since the old
+manipulateAsync is deprecated), sent to ocr(), and the titles it reads seed the brain-dump box via the existing ref
+for review. Nothing auto-commits to Today.
+
+Decided:
+- Melroy chose the in-app viewfinder over the photo-picker (more demo polish, the extra native surface accepted),
+  and the quiet pill beside Speak over a louder entry (the calm spine). I added a gallery option alongside the
+  viewfinder anyway, because a pure live viewfinder cannot read a screenshot of a texted list or a whiteboard photo
+  taken earlier, which is a big slice of real OCR use. (Veto-able.) Share-a-photo-to-DoubleDone stays out of v1, a
+  fast-follow on the same seam.
+- authHeader was lifted to lib/supabase.ts in part 1, and the camera path reuses ocr(), which sends the token.
+- AI egress is disclosed at the point of use ("sent to the AI to read, then discarded, never stored") on every
+  path, web and native, per the spine.
+- expo-camera / expo-image-picker / expo-image-manipulator installed at the SDK-56-pinned versions, with the camera
+  and photo config plugins added to app.json (microphone off, since we only take stills).
+
+Verified in the web preview (the device camera cannot run headless): the bundle builds with expo-camera in the
+graph (no module-scope crash), the Scan pill renders beside Speak, a free tap routes to /premium, and a premium tap
+opens the modal's web fallback. Device-only, left for the EAS build: the native viewfinder and the real capture to
+downscale to ocr to seed round-trip. 7 OCR cases added to the QA suite (now 125). Gate green: 328 client + 168
+server.

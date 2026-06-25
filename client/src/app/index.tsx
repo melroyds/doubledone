@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Bloom, type BloomData } from '@/components/Bloom';
 import { BrainDump, type BrainDumpHandle } from '@/components/BrainDump';
+import { CameraCapture } from '@/components/CameraCapture';
 import { type BreakdownAnswers, BreakdownQuestions } from '@/components/BreakdownQuestions';
 import { BreakdownReview, type ReviewPhase, type ReviewStep } from '@/components/BreakdownReview';
 import { DatePicker } from '@/components/DatePicker';
@@ -101,6 +102,7 @@ export default function TodayScreen() {
   const { premium, loading: premiumLoading } = usePremium(); // gates Pin; a dev override drives it locally
   const brainDumpRef = useRef<BrainDumpHandle>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false); // the OCR photo-capture modal (premium)
   const { width: winW } = useWindowDimensions();
   const dockFooter = Platform.OS !== 'web' || winW < 700; // native + narrow web dock, wide web blends into the page
   const [selectMode, setSelectMode] = useState(false);
@@ -1338,7 +1340,22 @@ export default function TodayScreen() {
               >
                 <Text style={styles.optLink}>Done adding</Text>
               </Pressable>
-              <BrainDump ref={brainDumpRef} onCapture={capture} onBiteElephant={biteElephant} onSort={sortDump} today={today} />
+              <BrainDump
+                ref={brainDumpRef}
+                onCapture={capture}
+                onBiteElephant={biteElephant}
+                onSort={sortDump}
+                today={today}
+                onCamera={() => {
+                  if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
+                  if (!premium) {
+                    track('premium.gate_hit', { reason: 'ocr' });
+                    router.push('/premium');
+                    return;
+                  }
+                  setCameraOpen(true);
+                }}
+              />
             </View>
           ) : (
             <Pressable
@@ -1744,6 +1761,16 @@ export default function TodayScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <CameraCapture
+        visible={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onTasks={(scanned) => {
+          setCameraOpen(false);
+          setCaptureOpen(true);
+          brainDumpRef.current?.seed(scanned.join('\n'));
+        }}
+      />
 
       <RepeatingDrawer
         open={drawerOpen}
