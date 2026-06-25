@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { type Recurrence } from './recurrence';
-import { completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, pinFirst, resurfaceOpenParent, tinyParentTitle, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
+import { completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, pinFirst, resurfaceOpenParent, setPin, tinyParentTitle, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
 
 const today = new Date(2026, 5, 17);
 const iso = '2026-06-17';
@@ -42,6 +42,43 @@ describe('pinFirst', () => {
   it('floats the most-recently pinned when more than one is pinned, the rest unchanged', () => {
     const tasks = [t('a', 100), t('b'), t('c', 200)];
     expect(pinFirst(tasks).map((x) => x.id)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('does not float a completed pin, so a finished one thing recedes and the day re-centres', () => {
+    const tasks = [t('a'), { id: 'b', pinnedAt: 100, done: true }, t('c')];
+    expect(pinFirst(tasks).map((x) => x.id)).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('setPin', () => {
+  const mk = (id: string, pinnedAt?: number) => ({ id, updatedAt: 0, ...(pinnedAt != null ? { pinnedAt } : {}) });
+
+  it('pins a task: stamps pinnedAt and bumps updatedAt', () => {
+    const out = setPin([mk('a'), mk('b')], 'a', 500);
+    expect(out.find((x) => x.id === 'a')).toMatchObject({ pinnedAt: 500, updatedAt: 500 });
+    expect(out.find((x) => x.id === 'b')).not.toHaveProperty('pinnedAt');
+  });
+
+  it('pinning a second task clears the first pin and bumps both updatedAt, so the displacement syncs', () => {
+    const out = setPin([mk('a', 100), mk('b')], 'b', 500);
+    expect(out.find((x) => x.id === 'b')).toMatchObject({ pinnedAt: 500, updatedAt: 500 });
+    const a = out.find((x) => x.id === 'a')!;
+    expect(a).not.toHaveProperty('pinnedAt');
+    expect(a.updatedAt).toBe(500);
+    expect(out.filter((x) => x.pinnedAt != null)).toHaveLength(1);
+  });
+
+  it('acting on the current pin unpins it: clears pinnedAt, bumps updatedAt, none left pinned', () => {
+    const out = setPin([mk('a', 100), mk('b')], 'a', 500);
+    const a = out.find((x) => x.id === 'a')!;
+    expect(a).not.toHaveProperty('pinnedAt');
+    expect(a.updatedAt).toBe(500);
+    expect(out.filter((x) => x.pinnedAt != null)).toHaveLength(0);
+  });
+
+  it('self-heals a two-pinned race: pinning one clears every other pin', () => {
+    const out = setPin([mk('a', 100), mk('b', 200), mk('c')], 'c', 500);
+    expect(out.filter((x) => x.pinnedAt != null).map((x) => x.id)).toEqual(['c']);
   });
 });
 

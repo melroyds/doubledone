@@ -54,7 +54,7 @@ import { track } from '@/lib/telemetry';
 import { updateWidget } from '@/widget/update';
 import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { usePremium } from '@/lib/premium-provider';
-import { completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, isRecurring, pinFirst, resurfaceOpenParent, tasksForToday, tinyParentTitle, toggleDoneOn, upcomingTasks } from '@/lib/today';
+import { completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, isRecurring, pinFirst, resurfaceOpenParent, setPin, tasksForToday, tinyParentTitle, toggleDoneOn, upcomingTasks } from '@/lib/today';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
@@ -98,7 +98,7 @@ export default function TodayScreen() {
   const [nudgePresets, setNudgePresets] = useState<NudgePreset[]>([]);
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusPick, setFocusPick] = useState<string | null>(null);
-  const { premium } = usePremium(); // gates the Pin action; a dev override drives it locally
+  const { premium, loading: premiumLoading } = usePremium(); // gates Pin; a dev override drives it locally
   const brainDumpRef = useRef<BrainDumpHandle>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
   const { width: winW } = useWindowDimensions();
@@ -404,25 +404,10 @@ export default function TodayScreen() {
   // change syncs cleanly. A leaf field, so nothing else about the task moves. Tapping a pinned task's
   // Unpin just clears it. The premium gate lives in the button; this is the entitled path.
   function pinTask(id: string) {
-    const now = nowMs();
     const wasPinned = tasks.find((t) => t.id === id)?.pinnedAt != null;
-    commit(
-      tasks.map((t) => {
-        if (t.id === id) {
-          const next = { ...t, updatedAt: now };
-          if (wasPinned) delete next.pinnedAt;
-          else next.pinnedAt = now;
-          return next;
-        }
-        if (t.pinnedAt != null) {
-          const next = { ...t, updatedAt: now };
-          delete next.pinnedAt; // only one pin at a time
-          return next;
-        }
-        return t;
-      }),
-    );
+    commit(setPin(tasks, id, nowMs())); // the at-most-one invariant + the updatedAt bumps live in setPin (pure, tested)
     track(wasPinned ? 'task.unpinned' : 'task.pinned');
+    affirm(wasPinned ? 'Unpinned.' : 'Pinned. Your one thing for today.');
     exitSelect();
   }
 
@@ -1130,7 +1115,7 @@ export default function TodayScreen() {
               onSelect={() => toggleSelect(task.id)}
               nudgeAt={task.nudgeAt != null && task.nudgeAt > nowMs() ? task.nudgeAt : undefined}
               tinyParent={tinyParentTitle(tasks, task)}
-              pinned={task.pinnedAt != null}
+              pinned={task.pinnedAt != null && !isDoneOn(task, today)}
             />
           ))}
         </View>
@@ -1288,9 +1273,10 @@ export default function TodayScreen() {
                     onPress={() => {
                       const t = onlyTask;
                       if (!t) return;
-                      if (!premium) {
-                        // Premium-gated to SET, never hidden: a free tap routes calmly to the upsell,
-                        // never pins, never a wall (pinning is abundance, not relief).
+                      if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
+                      // Gate only SETTING a fresh pin (abundance). Clearing a pin you set is always free, so a
+                      // lapsed sub can still unpin. A free tap routes calmly to the upsell, never a wall.
+                      if (!t.pinnedAt && !premium) {
                         track('premium.gate_hit', { reason: 'pin' });
                         router.push('/premium');
                         return;
@@ -1301,7 +1287,7 @@ export default function TodayScreen() {
                     accessibilityLabel={onlyTask.pinnedAt ? 'Unpin this task' : "Pin this as today's one thing"}
                     hitSlop={6}
                   >
-                    <Text style={[styles.selectAction, !premium && styles.selectActionDim]}>{onlyTask.pinnedAt ? 'Unpin' : 'Pin'}</Text>
+                    <Text style={[styles.selectAction, !premium && !onlyTask.pinnedAt && styles.selectActionDim]}>{onlyTask.pinnedAt ? 'Unpin' : 'Pin'}</Text>
                   </Pressable>
                 )}
                 {selected.length === 1 && (

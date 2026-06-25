@@ -55,25 +55,52 @@ export function tasksForToday<T extends Scheduled>(tasks: T[], date: Date): T[] 
   });
 }
 
-/** A task that can be pinned as the day's one priority (premium). */
-export type Pinnable = { pinnedAt?: number };
+/** A task that can be pinned as the day's one priority (premium). `done` gates the float: a completed
+ *  pin recedes so the day re-centres on the open work (see pinFirst). */
+export type Pinnable = { pinnedAt?: number; done?: boolean };
 
 /**
- * Float the single pinned task to the front of Today: a STABLE PARTITION, the pinned task first then
- * everything else in its original order, nothing else reordered. Runs at render over the result of
+ * Float the single ACTIVE pinned task to the front of Today: a STABLE PARTITION, the pinned task first
+ * then everything else in its original order, nothing else reordered. Runs at render over the result of
  * tasksForToday, so the pure ordering tasksForToday returns (load-bearing for sync diffing) is never
- * mutated. The feature is ONE pin; if a two-device race ever leaves more than one pinned, the
- * most-recently-pinned wins and the others fall back to their normal places, never a ranked block and
- * never a crash. Returns the same array reference when nothing is pinned, so the caller can skip work.
+ * mutated. A COMPLETED pin does not float (it stays pinned underneath and floats again if reopened), so
+ * a finished "one thing" never sits struck-through above the work that is left. The feature is ONE pin;
+ * if a two-device race ever leaves more than one pinned, the highest pinnedAt wins, ties breaking to the
+ * earliest in the list, never a ranked block and never a crash. Returns the same array reference when
+ * nothing floats, so the caller can skip work.
  */
 export function pinFirst<T extends Pinnable>(tasks: T[]): T[] {
   let top: T | undefined;
   for (const t of tasks) {
-    if (t.pinnedAt != null && (top === undefined || t.pinnedAt > (top.pinnedAt ?? 0))) top = t;
+    if (t.pinnedAt != null && !t.done && (top === undefined || t.pinnedAt > (top.pinnedAt ?? 0))) top = t;
   }
   if (!top) return tasks;
   const pinned = top;
   return [pinned, ...tasks.filter((t) => t !== pinned)];
+}
+
+/**
+ * Pin a task as the day's ONE priority, or unpin it (acting on the current pin clears it). Stamps
+ * pinnedAt on the target, clears the pin off every OTHER task, and bumps updatedAt on each change so a
+ * displaced pin syncs and wins last-write-wins. The at-most-one invariant lives here, kept pure so it is
+ * unit-testable (the screen action just calls this, commits, and confirms).
+ */
+export function setPin<T extends { id: string; pinnedAt?: number; updatedAt: number }>(tasks: T[], id: string, now: number): T[] {
+  const wasPinned = tasks.find((t) => t.id === id)?.pinnedAt != null;
+  return tasks.map((t) => {
+    if (t.id === id) {
+      const next = { ...t, updatedAt: now };
+      if (wasPinned) delete next.pinnedAt;
+      else next.pinnedAt = now;
+      return next;
+    }
+    if (t.pinnedAt != null) {
+      const next = { ...t, updatedAt: now };
+      delete next.pinnedAt; // only one pin at a time
+      return next;
+    }
+    return t;
+  });
 }
 
 /**

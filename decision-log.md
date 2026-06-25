@@ -2200,3 +2200,25 @@ Decided against a few-pins cap (re-creates a priority system, the spine veto), a
 pure order intact), the loud gradient on the row (too much for Dusk, reserved for the upsell), and pinning
 recurring tasks (a pin that never resets is not "today's one thing"). Server-side enforcement is not needed here
 (pin is zero-cost), so the requirePremium guard stays correctly sequenced before OCR.
+
+## 2026-06-25 Pin, adversarially reviewed (Ultracode): fixes from the five-dimension pass
+
+Reviewed pin-a-task with a multi-agent pass (five dimensions, a skeptic per finding, 17 agents). The feature held,
+no blocker beyond the migration, which Melroy applied. Fixed five confirmed findings:
+- A completed pin kept floating struck-through above the open work all day (flagged by correctness, spine, AND
+  integration). Now a done pin does not float and drops its star: it stays pinned underneath and floats again if
+  reopened, so the day re-centres on what is left. Verified in preview. The inverse (an UNfinished pin rolling
+  forward and floating tomorrow) is correct and kept.
+- A premium user tapping Pin during the entitlement load window was bounced to /premium with a false gate-hit. Now
+  the tap is a no-op while loading (the premiumLoading guard), never a wrong bounce, never a polluted moat signal.
+- Unpinning is now always free (gate only the act of SETTING a fresh pin), so a lapsed sub can still clear a pin it
+  set: the gate never touches relief.
+- The at-most-one invariant was an inline component function with no test. Extracted a pure setPin() in today.ts
+  (stamp the target, clear every other pin, bump updatedAt on each change) and covered it (pin / displace / unpin /
+  two-pin self-heal). pinTask now calls it.
+- Added a calm one-line affirm on pin and unpin, matching the app's confirmation pattern, and reworded pinFirst's
+  tie-break comment (highest pinnedAt wins, ties to the earliest).
+
+Deferred intentionally: a DEFERRED pin persists and re-anchors when the task returns tomorrow (a standing "this
+matters" marker, not a bug), plus the pinned_at column-order cosmetic and an optional upsell-screen note. The
+pinned_at migration is APPLIED to live Supabase, so the sync blocker is closed. Gate green: 324 client + 146 server.
