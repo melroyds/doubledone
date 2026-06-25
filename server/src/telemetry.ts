@@ -29,7 +29,7 @@ export interface D1LikeDatabase {
 export type TelemetryEnv = { DB?: D1LikeDatabase };
 
 export type AiCallLog = {
-  endpoint: 'decompose' | 'strategise' | 'triage' | 'clarify' | 'combine' | 'plan' | 'split' | 'tiny' | 'scrapbook' | 'ocr';
+  endpoint: 'decompose' | 'strategise' | 'triage' | 'clarify' | 'combine' | 'plan' | 'split' | 'tiny' | 'scrapbook' | 'ocr' | 'lookbackSummary';
   model: string;
   input: unknown;
   output: unknown;

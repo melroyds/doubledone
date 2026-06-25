@@ -241,6 +241,26 @@ export async function ocr(imageBase64: string, mediaType?: string, language?: st
   }
 }
 
+/** Lookback weekly summary (PREMIUM): a finished week's titles in, one warm paragraph out, for the
+ *  Lookback to display. Sends the user's token (the /lookback-summary route is premium-gated). Returns
+ *  '' on any failure, an empty read, or when signed out, so the caller shows one calm line. */
+export async function lookbackSummary(titles: string[], language?: string): Promise<string> {
+  const auth = await authHeader();
+  if (!auth) return ''; // signed out: no token to gate with
+  try {
+    const res = await fetch(`${AI_URL}/lookback-summary`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...auth },
+      body: JSON.stringify({ titles, language }),
+    });
+    if (!res.ok) return '';
+    const data = (await res.json()) as { summary?: unknown };
+    return typeof data.summary === 'string' ? data.summary.trim() : '';
+  } catch {
+    return '';
+  }
+}
+
 /** Shrink a dreaded task to its 2-minute version via the AI backend (the wall of awful,
  *  lowered). Throws on a failed call; the caller shows a calm error. */
 export async function tiny(task: string): Promise<string> {

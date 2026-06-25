@@ -418,6 +418,12 @@ CASES = [
     ("PREM-11", "Premium", "P3", "Comp allowlist: the owner email is always premium",
      "Sign in with the comp email (the owner account listed in server/src/comp.ts), without ever paying.",
      "Premium is active immediately: Settings and the Lookback show the scrapbook unlocked and Scan works, with no Stripe charge. A non-allowlisted free account stays free. The allowlist is checked against a cryptographically verified token on the costed gate, so a forged token cannot claim premium compute.", "Both"),
+    ("PREM-12", "Premium", "P1", "Lookback insights: the premium 'Your patterns' card",
+     "As premium (or with the dev Premium override on), finish a few tasks across a couple of days this week including one big/dreaded one, then open the Lookback and scroll below the Scrapbook. Tap 'Reflect on this week'.",
+     "A calm 'Your patterns' card shows warm counts (finished this week, 'on N days', reclaimed old tasks named) with NO streak, score, percent, or 'missed' wording. 'Reflect on this week' returns one warm paragraph that only celebrates what was done (never a performance review) and changes nothing about your tasks. A 'lookback.summary.made' event is logged.", "Both"),
+    ("PREM-13", "Premium", "P1", "Lookback insights: free sees a calm upsell, not a wall",
+     "As a free user, open the Lookback and scroll below the Scrapbook, then tap the 'Your patterns' card.",
+     "A calm one-line invite ('See what your weeks and months add up to'), never a teased count and never a wall. Tapping routes to /premium and logs 'premium.gate_hit' with reason 'insights'. The free user's calendar and their one monthly scrapbook are completely untouched.", "Both"),
 
     # --- Prioritise / pin a task (Premium) -----------------------------------
     ("PIN-01", "Pin", "P1", "Premium: pin a task as the day's one thing",

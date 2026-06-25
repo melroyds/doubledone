@@ -8,6 +8,7 @@ import { buildCombineRequest, COMBINE_MODEL, parseCombineResponse } from './comb
 import { buildDecomposeRequest, DECOMPOSE_MODEL, type DecomposeContext, parseDecomposeResponse } from './decompose';
 import { buildFeedbackEmail, parseFeedback } from './feedback';
 import { parseLanguage } from './lang';
+import { buildLookbackSummaryRequest, LOOKBACK_SUMMARY_MODEL, parseLookbackSummaryResponse } from './lookbackSummary';
 import { handleMcp } from './mcp';
 import { buildOcrRequest, type ImageMediaType, OCR_MODEL, parseMediaType, parseOcrResponse } from './ocr';
 import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
@@ -94,7 +95,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:8081',
   'http://localhost:19006',
 ];
-const AI_ROUTES = new Set(['/clarify', '/combine', '/decompose', '/plan', '/split', '/tiny', '/strategise', '/triage', '/scrapbook', '/ocr']);
+const AI_ROUTES = new Set(['/clarify', '/combine', '/decompose', '/plan', '/split', '/tiny', '/strategise', '/triage', '/scrapbook', '/ocr', '/lookback-summary']);
 
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
@@ -467,6 +468,56 @@ export default {
         }),
       );
       return Response.json({ tasks }, { headers: cors });
+    }
+
+    // Lookback weekly summary (PREMIUM): a finished week's titles in, one warm display-only paragraph
+    // out. Behind requirePremium like /ocr: cheap validation first, then the money gate before any spend.
+    if (pathname === '/lookback-summary' && request.method === 'POST') {
+      let titles: string[] = [];
+      let language: string | undefined;
+      try {
+        const body = (await request.json()) as { titles?: unknown; language?: unknown };
+        titles = Array.isArray(body.titles)
+          ? body.titles.filter((s): s is string => typeof s === 'string' && s.trim().length > 0).map((s) => s.trim())
+          : [];
+        language = parseLanguage(body.language);
+      } catch {
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
+      }
+      if (titles.length === 0) {
+        return Response.json({ error: 'titles are required' }, { status: 400, headers: cors });
+      }
+      const gate = await requirePremium(request, env);
+      if (!gate.ok) {
+        return Response.json({ error: 'premium required' }, { status: gate.status, headers: cors });
+      }
+      if (!env.ANTHROPIC_API_KEY) {
+        return Response.json({ error: 'server not configured' }, { status: 500, headers: cors });
+      }
+      const { url, init } = buildLookbackSummaryRequest(titles, env.ANTHROPIC_API_KEY, language);
+      const started = Date.now();
+      const upstream = await fetch(url, init as RequestInit);
+      if (!upstream.ok) {
+        ctx.waitUntil(
+          logAiCall(env, {
+            endpoint: 'lookbackSummary', model: LOOKBACK_SUMMARY_MODEL, input: { count: titles.length }, output: null,
+            inputTokens: null, outputTokens: null, latencyMs: Date.now() - started,
+            ok: false, error: `upstream ${upstream.status}`,
+          }),
+        );
+        return Response.json({ error: 'upstream error' }, { status: 502, headers: cors });
+      }
+      const raw = await upstream.json();
+      const summary = parseLookbackSummaryResponse(raw);
+      const usage = extractUsage(raw);
+      // Privacy: log only the title COUNT and the summary LENGTH, never the titles or the paragraph.
+      ctx.waitUntil(
+        logAiCall(env, {
+          endpoint: 'lookbackSummary', model: LOOKBACK_SUMMARY_MODEL, input: { count: titles.length }, output: { chars: summary.length },
+          inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: true,
+        }),
+      );
+      return Response.json({ summary }, { headers: cors });
     }
 
     // Break it down (phased): a dreaded task (+ answers) in, a roadmap of phases

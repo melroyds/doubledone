@@ -4,11 +4,12 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
-import { makeScrapbook } from '@/lib/ai';
+import { lookbackSummary, makeScrapbook } from '@/lib/ai';
 import { addMonths, completionsByDay, monthLabel, monthMatrix, scheduledByDay, WEEKDAY_LABELS } from '@/lib/calendar';
 import { formatTodayLabel, fromISODate, toISODate } from '@/lib/day';
 import { canMakeScrapbook } from '@/lib/entitlement';
 import { scrapbookReady } from '@/lib/haptics';
+import { lookbackStats } from '@/lib/insights';
 import { usePremium } from '@/lib/premium-provider';
 import { findScrapbook, type Scrapbook, upsertScrapbook, weekCompletions, weekLabel, weekStartISO } from '@/lib/scrapbook';
 import { loadScrapbooks, loadTasks, saveScrapbooks } from '@/lib/storage';
@@ -30,9 +31,13 @@ export default function LookbackScreen() {
   const [scrapbooks, setScrapbooks] = useState<Scrapbook[]>([]);
   const [bookBusy, setBookBusy] = useState(false);
   const [bookError, setBookError] = useState<string | null>(null);
+  const [summary, setSummary] = useState('');
+  const [summaryWeek, setSummaryWeek] = useState<string | null>(null);
+  const [summaryBusy, setSummaryBusy] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   // The premium flag's gate-ready entitlement: real tenure, premium resolved through the dev
   // override, so the scrapbook cadence below is exactly what the Settings override drives.
-  const { effectiveEntitlement } = usePremium();
+  const { effectiveEntitlement, premium, loading: premiumLoading } = usePremium();
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
 
@@ -74,6 +79,9 @@ export default function LookbackScreen() {
   const weekStart = weekStartISO(fromISODate(selected));
   const weekList = useMemo(() => weekCompletions(byDay, weekStart), [byDay, weekStart]);
   const existingBook = findScrapbook(scrapbooks, weekStart);
+  // Premium insights: calm current-period stats (from `today`). The per-week AI reflection is tagged with
+  // the week it belongs to (summaryWeek), so it shows only on its own week and never lingers on another.
+  const stats = useMemo(() => lookbackStats(byDay, today), [byDay, today]);
 
   async function makeWeekScrapbook() {
     const titles = weekList.map((c) => c.title);
@@ -109,6 +117,28 @@ export default function LookbackScreen() {
       setBookError('Could not make a scrapbook just now. Try again.');
     } finally {
       setBookBusy(false);
+    }
+  }
+
+  // The premium weekly reflection: the selected week's finished titles in, one warm paragraph out.
+  // Display-only, it changes no tasks, so there is no propose-then-accept. lookbackSummary never throws
+  // (returns '' on any failure), so an empty result is the one calm error path.
+  async function reflectOnWeek() {
+    const titles = weekList.map((c) => c.title);
+    if (summaryBusy || titles.length === 0) return;
+    setSummaryBusy(true);
+    setSummaryError(null);
+    setSummaryWeek(weekStart);
+    try {
+      const text = await lookbackSummary(titles);
+      if (text) {
+        setSummary(text);
+        track('lookback.summary.made', { titles: titles.length });
+      } else {
+        setSummaryError('Could not reflect on the week just now. Try again.');
+      }
+    } finally {
+      setSummaryBusy(false);
     }
   }
 
@@ -293,6 +323,74 @@ export default function LookbackScreen() {
           </View>
         )}
       </View>
+
+      {/* Premium "Your patterns": pure additive abundance BELOW the always-free calendar and scrapbook.
+          Free users see a calm one-line invite (never a teased-then-locked number). Premium users see
+          calm celebratory stats and an optional display-only AI weekly reflection. */}
+      {!premiumLoading &&
+        (premium ? (
+          <View style={styles.insightsCard}>
+            <Text style={styles.insightsHead}>Your patterns</Text>
+            {stats.finishedThisMonth === 0 ? (
+              <Text style={styles.insightsStat}>As you finish things, your weeks and months will gather here.</Text>
+            ) : (
+              <>
+                {stats.finishedThisWeek > 0 && (
+                  <Text style={styles.insightsStat}>This week you finished {stats.finishedThisWeek}.</Text>
+                )}
+                <Text style={styles.insightsStat}>
+                  This month, you finished things on {stats.activeDaysThisMonth} {stats.activeDaysThisMonth === 1 ? 'day' : 'days'}.
+                </Text>
+                {stats.bigWinsThisMonth > 0 && (
+                  <Text style={styles.insightsStat}>
+                    You reclaimed {stats.bigWinsThisMonth} {stats.bigWinsThisMonth === 1 ? 'thing' : 'things'} that had been waiting
+                    {stats.bigWinTitle ? `, like ${stats.bigWinTitle}` : ''}.
+                  </Text>
+                )}
+              </>
+            )}
+            {weekList.length > 0 && (
+              <View style={styles.summarySection}>
+                {summaryWeek === weekStart && summary ? (
+                  <Text style={styles.summaryText}>{summary}</Text>
+                ) : summaryWeek === weekStart && summaryBusy ? (
+                  <View style={styles.summaryBusyRow}>
+                    <ActivityIndicator size="small" color={theme.colors.accent} />
+                    <Text style={styles.insightsStat}>Looking back over your week…</Text>
+                  </View>
+                ) : (
+                  <>
+                    <Pressable
+                      onPress={reflectOnWeek}
+                      style={({ pressed }) => [styles.summaryBtn, pressed && styles.pressed]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Reflect on this week with AI"
+                    >
+                      <Text style={styles.summaryBtnText}>Reflect on this week</Text>
+                    </Pressable>
+                    <Text style={styles.scrapbookNote}>
+                      Your week&apos;s finished tasks are sent to an AI to write this, then discarded. No names are kept.
+                    </Text>
+                  </>
+                )}
+                {summaryWeek === weekStart && summaryError && <Text style={styles.scrapbookError}>{summaryError}</Text>}
+              </View>
+            )}
+          </View>
+        ) : (
+          <Pressable
+            style={styles.insightsCard}
+            onPress={() => {
+              track('premium.gate_hit', { reason: 'insights' });
+              router.push('/premium');
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="See your patterns with Premium"
+          >
+            <Text style={styles.insightsHead}>Your patterns</Text>
+            <Text style={styles.insightsUpsell}>See what your weeks and months add up to, with Premium.</Text>
+          </Pressable>
+        ))}
     </ScrollView>
   );
 }
@@ -437,4 +535,13 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     marginBottom: spacing.one,
   },
   pressed: { opacity: 0.85 },
+  insightsCard: { marginTop: spacing.six, backgroundColor: t.colors.surface, borderRadius: radius.md, padding: spacing.four, gap: spacing.two },
+  insightsHead: { color: t.colors.ink, fontSize: 20 * t.scale, fontFamily: fonts.sans, fontWeight: '600', marginBottom: spacing.one },
+  insightsStat: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale },
+  insightsUpsell: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale },
+  summarySection: { marginTop: spacing.three, gap: spacing.two },
+  summaryBusyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
+  summaryText: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', lineHeight: 22 * t.scale },
+  summaryBtn: { alignSelf: 'flex-start', backgroundColor: t.colors.accentSoft, borderRadius: radius.pill, paddingHorizontal: spacing.five, paddingVertical: spacing.three },
+  summaryBtnText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
 });

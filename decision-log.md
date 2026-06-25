@@ -2393,3 +2393,36 @@ Decided:
 requirePremium comp paths, the handleEntitlement comp view). Gate green: typecheck and lint clean, 179 server
 tests. QA case PREM-11 added. On the `premium` branch. The Worker deploy that makes the comp live is gated on
 Melroy's per-instance OK.
+
+## 2026-06-26 Tier 2: Richer Lookback insights (premium stats + a warm weekly reflection)
+
+The first Tier 2 premium feature, designed by a multi-agent workflow (four feature plans plus an adversarial
+spine review) and built to the spine guardian's fixes. Pure additive abundance, layered BELOW the always-free
+Lookback calendar and the free monthly scrapbook.
+
+Two halves:
+- A "Your patterns" card with CALM, client-side stats from the local completion history (zero server cost, no
+  identity): things finished this week and this month, the distinct DAYS something got finished ("on N days",
+  never N-of-30, never a denominator), dreaded/old tasks reclaimed (the existing big-win signal), and one
+  reclaimed title named warmly. Pure and unit-tested in `client/src/lib/insights.ts`.
+- An optional, display-only AI weekly reflection: the selected week's finished titles in, one warm paragraph
+  out, from a new premium Worker route POST /lookback-summary (Haiku, behind requirePremium exactly like /ocr,
+  logging only the title count and the summary length, never the titles or the paragraph).
+
+Decided:
+- The stat set is deliberately constrained to celebratory counts. Explicitly REJECTED as shame-risky for an
+  RSD audience: streaks, percent-complete, productivity scores, overdue or "missed" days, any target compare.
+- Free degrades to a calm one-line "Your patterns" invite that routes to /premium on tap (gate_hit reason
+  'insights'), NEVER a teased-then-locked number and never a wall. The free calendar and monthly scrapbook are
+  untouched. Both paths verified in the web preview (premium shows 5/4/1 stats + the reflect button, free
+  shows only the invite, no teased number).
+- The AI reflection is display-only, so it changes NO tasks and needs no propose-then-accept. It is tagged
+  with the week it belongs to (summaryWeek) and shown only on that week, which also avoids a setState-in-effect
+  the React Compiler lint (react-hooks/set-state-in-effect) rightly forbids.
+- The summary system prompt forbids counting/grading, second-person performance framing, and naming what was
+  not done. Per the spine guardian, Melroy should read a handful of real summaries before this reaches a paying
+  subscriber (the generative paragraph's only guardrail is the prompt, like strategise/decompose). FLAGGED.
+- No new setting. The Haiku model is pinned to the dated id (ids deprecate on a date).
+
+Gate green: typecheck and lint clean, client 332 tests, server 183. QA cases PREM-12 (premium) and PREM-13
+(free) added. On the `premium` branch.
