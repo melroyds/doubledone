@@ -2088,3 +2088,20 @@ every other gate is measured against.
 (grouped by theme), now and next, the deferred backlog (with triggers, shipped items removed), the
 discipline of stopping, principles, and a tight privacy posture. The full chronological detail stays here in
 the decision-log. Monetisation in BUILD-PLAN now points to docs/premium.md.
+
+## 2026-06-25 A `premium` dev branch, so Premium is built without auto-deploying
+
+Now that v1.0.0 is live, Melroy wants to develop Premium (and future features) in peace, with nothing
+reaching doubledone.app until he is happy to ship. The setup makes this easy: deploy-web.yml deploys only on
+push to main, and the Worker deploys only by hand, so any other branch is invisible to the live site.
+
+Adopted a long-lived `premium` dev branch. main stays the live v1.0.0. Premium work is committed and pushed
+to `premium` (the local pre-commit gate keeps it green on every commit, and GitHub CI runs on main and on
+PRs into main, so the branch is covered by the local gate and re-checked at the merge). Preview is local
+(npm run dev plus wrangler dev for any new backend endpoint). Merging `premium` into main is the single
+deploy moment. CLAUDE.md now records this so no session pushes premium work to main by accident.
+
+This is a narrow graduation from the strict direct-to-main discipline, for DEPLOY ISOLATION, not code
+review. Full branch-and-PR review stays deferred until a collaborator joins. Decided against a separate
+staging Pages project + Worker (more setup and upkeep than a solo dev needs) and against local-only
+development (loses the GitHub backup and the CI net that a pushed branch keeps).
