@@ -2222,3 +2222,33 @@ no blocker beyond the migration, which Melroy applied. Fixed five confirmed find
 Deferred intentionally: a DEFERRED pin persists and re-anchors when the task returns tomorrow (a standing "this
 matters" marker, not a bug), plus the pinned_at column-order cosmetic and an optional upsell-screen note. The
 pinned_at migration is APPLIED to live Supabase, so the sync blocker is closed. Gate green: 324 client + 146 server.
+
+## 2026-06-25 Server-side requirePremium: a trustworthy premium gate for costed routes (before OCR)
+
+Built the server half of Premium before OCR: a reusable requirePremium so a costed route (OCR vision, future
+premium AI) can never be unlocked by a forged token. Designed via a scout + research + synthesize pass, the scout
+mapped the existing Worker auth and the research confirmed the current Supabase JWT verification practice.
+
+The security crux: the existing decodeJwtSub (mcp.ts) DECODES the token but does not verify its signature. That is
+safe for the MCP path (the token is forwarded to Supabase, which verifies it under RLS), but unsafe for a gate that
+reads entitlement and authorises spend off the decoded sub alone, where a forged token with an arbitrary sub would
+unlock paid compute. So requirePremium verifies the signature CRYPTOGRAPHICALLY. I probed the live project's JWKS
+endpoint and confirmed it issues ES256 (asymmetric) tokens, so local JWKS verification works: defaultVerifySub uses
+jose's createRemoteJWKSet + jwtVerify (ES256/RS256) against SUPABASE_URL/auth/v1/.well-known/jwks.json (already a
+Worker secret), returns the verified sub, and fails closed (null) on any error.
+
+Shape: requirePremium(request, env, verifySub = defaultVerifySub) -> { ok: true, userId } | { ok: false, status:
+401 | 403 | 503 }. 401 = no/forged/expired token, 403 = signed in but not premium, 503 = store or URL unbound (fail
+closed). The verifier is INJECTABLE, so the seven unit tests run with no network or crypto (a stub for cases 1-6,
+the real verifier rejecting a forged/malformed token for case 7, the load-bearing regression). Reuses the existing
+bearer() (now exported) and readEntitlement. In server/src/premium.ts + premium.test.ts, with jose added to the
+server workspace.
+
+NOT applied to a route yet, on purpose: OCR is the first costed route and does not exist, so the guard is the
+tested primitive that OCR drops onto (call it as the first step after origin + rate-limit, before reading the body).
+Decided AGAINST the Supabase getUser round-trip (rejected for the 50-200ms per-request latency on a costed route
+and the hard dependency on auth being up, where local JWKS is stateless and edge-cached). Decided AGAINST
+retro-gating /scrapbook now (free-tier Workers AI, no real money at risk, and requirePremium would 401 the
+anonymous-first free monthly keepsake, fighting the spine), and its trigger is in docs/premium.md. Decided AGAINST
+a skip-verify shim (a money gate verifies, full stop, and the JWKS works today). The JWT signature is now verified
+on the entitlement path, closing the pre-existing decode-and-trust gap before any costed route ships.

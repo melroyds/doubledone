@@ -234,7 +234,7 @@ export async function readEntitlement(db: D1LikeDatabase, userId: string): Promi
 
 type FullEnv = StripeEnv & { DB?: D1LikeDatabase };
 
-function bearer(request: Request): string {
+export function bearer(request: Request): string {
   const auth = request.headers.get('Authorization') ?? '';
   return auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
 }
