@@ -16,7 +16,7 @@ import { RepeatingDrawer } from '@/components/RepeatingDrawer';
 import { RoomsSheet } from '@/components/RoomsSheet';
 import { RotatingPhrase } from '@/components/RotatingPhrase';
 import { TaskRow } from '@/components/TaskRow';
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import {
   clarify,
   combine,
@@ -1973,7 +1973,7 @@ const makeStyles = (t: Theme) =>
     content: {
       paddingHorizontal: spacing.five,
       paddingBottom: spacing.six,
-      maxWidth: 560,
+      maxWidth: layout.maxContentWidth,
       width: '100%',
       alignSelf: 'center',
     },
@@ -2022,7 +2022,7 @@ const makeStyles = (t: Theme) =>
     footer: {
       paddingHorizontal: spacing.five,
       paddingTop: spacing.three,
-      maxWidth: 560,
+      maxWidth: layout.maxContentWidth,
       width: '100%',
       alignSelf: 'center',
     },

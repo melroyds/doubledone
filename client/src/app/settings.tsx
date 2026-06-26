@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { fonts, PREMIUM_GRADIENT, radius, spacing, type Theme } from '@/constants/theme';
+import { fonts, layout, PREMIUM_GRADIENT, radius, spacing, type Theme } from '@/constants/theme';
 import { deleteAccount } from '@/lib/account';
 import { purgeScrapbookImages } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
@@ -493,7 +493,7 @@ const makeStyles = (t: Theme) =>
     content: {
       paddingHorizontal: spacing.five,
       paddingBottom: spacing.six,
-      maxWidth: 560,
+      maxWidth: layout.maxContentWidth,
       width: '100%',
       alignSelf: 'center',
       flexGrow: 1, // fills the height so the footnote can sit at the bottom

@@ -7,7 +7,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { fonts, PREMIUM_GRADIENT, radius, spacing, type Theme } from '@/constants/theme';
+import { fonts, layout, PREMIUM_GRADIENT, radius, spacing, type Theme } from '@/constants/theme';
 import { useThemedStyles } from '@/lib/theme-provider';
 
 type Props = {
@@ -78,7 +78,7 @@ const makeStyles = (t: Theme) =>
       // beside "Chart a course" instead of being flung to the far edge. On a phone, 560 exceeds the viewport
       // so width:'100%' wins and the sheet stays full-bleed (the look that already reads well on mobile).
       width: '100%',
-      maxWidth: 560,
+      maxWidth: layout.maxContentWidth,
       alignSelf: 'center',
       borderTopLeftRadius: radius.lg,
       borderTopRightRadius: radius.lg,

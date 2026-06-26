@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -199,7 +199,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   content: {
     flex: 1,
     width: '100%',
-    maxWidth: 560,
+    maxWidth: layout.maxContentWidth,
     alignSelf: 'center',
     paddingHorizontal: spacing.five,
   },

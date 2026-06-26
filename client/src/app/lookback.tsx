@@ -4,7 +4,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PremiumButton } from '@/components/PremiumButton';
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { lookbackSummary, makeScrapbook } from '@/lib/ai';
 import { addMonths, completionsByDay, monthLabel, monthMatrix, scheduledByDay, WEEKDAY_LABELS } from '@/lib/calendar';
 import { formatTodayLabel, fromISODate, toISODate } from '@/lib/day';
@@ -410,7 +410,7 @@ export default function LookbackScreen() {
 
 const makeStyles = (t: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: t.colors.bg },
-  content: { paddingHorizontal: spacing.five, maxWidth: 560, width: '100%', alignSelf: 'center' },
+  content: { paddingHorizontal: spacing.five, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
   back: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, marginBottom: spacing.five },
   title: { color: t.colors.ink, fontSize: 34 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.5 },
   sub: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, marginTop: spacing.two, marginBottom: spacing.six },

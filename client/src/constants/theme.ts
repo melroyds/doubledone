@@ -96,6 +96,13 @@ export const radius = {
   pill: 999,
 } as const;
 
+// Layout caps shared across screens. `maxContentWidth` is the page-content column width every full-screen
+// route (and the Rooms sheet) centres its content at, so wide-desktop layouts stay a calm centred column
+// instead of stretching edge-to-edge. One source of truth, previously a 560 literal repeated per screen.
+export const layout = {
+  maxContentWidth: 560,
+} as const;
+
 // Motion language (the redesign) lives in its own pure module so non-UI code can import it
 // under the test runner. Re-exported here so components keep importing it from the theme
 // alongside spacing / radius.

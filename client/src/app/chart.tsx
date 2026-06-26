@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PremiumButton } from '@/components/PremiumButton';
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { chart, type CourseStep } from '@/lib/ai';
 import { toISODate } from '@/lib/day';
 import { usePremium } from '@/lib/premium-provider';
@@ -229,7 +229,7 @@ const makeStyles = (t: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: t.colors.bg },
     scroll: { flex: 1 },
-    content: { paddingHorizontal: spacing.five, paddingBottom: spacing.seven, maxWidth: 560, width: '100%', alignSelf: 'center' },
+    content: { paddingHorizontal: spacing.five, paddingBottom: spacing.seven, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
     back: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     title: { color: t.colors.ink, fontSize: 34 * t.scale, fontWeight: '400', fontFamily: fonts.sans, marginTop: spacing.three },
     intro: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 24 * t.scale, marginTop: spacing.two },
