@@ -162,7 +162,7 @@ export function parsePlan(data: unknown): PlanItem[] {
 }
 
 /** Ask the AI to re-spread an over-full day across the next few days. Throws on failure. */
-export async function strategise(tasks: { id: string; title: string }[], language?: string): Promise<PlanItem[]> {
+export async function strategise(tasks: { id: string; title: string; big?: boolean }[], language?: string): Promise<PlanItem[]> {
   const res = await fetch(`${AI_URL}/strategise`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },

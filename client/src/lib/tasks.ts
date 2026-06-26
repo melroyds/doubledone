@@ -35,6 +35,7 @@ export type Task = {
   nudgeId?: string; // the scheduled-notification id, so the nudge can be cancelled when the task is done / removed / deferred
   pinnedAt?: number; // epoch ms this task was pinned as the day's ONE priority (premium). The at-most-one invariant lives in the pin action, not here. A leaf field: never auto-cleared, so a pinned task that rolls forward unfinished just rolls. Floats to the top of Today via pinFirst.
   manualOrder?: number; // LOCAL-ONLY (premium "Plan my order"): a render-time sort slot, floated by applyManualOrder. NOT synced (deliberately absent from sync.ts taskToRow/rowToTask), so it persists on-device and survives sync (local wins), but cross-device order is a documented follow-up needing a remote column.
+  big?: boolean; // user-marked "this one is a lot": weights the day's gauge (counts as BIG_WEIGHT normal tasks, with a floor so one lone big still reads at least "full") and the heavy-day signal, and makes finishing it a big-win (reward.isBigWin). A leaf field, never auto-cleared. LOCAL-ONLY for now (absent from sync.ts like manualOrder) until the Supabase `big` column is added; see BUILD-PLAN Backlog.
 };
 
 // Shown once on a brand-new install so the first open is not an empty void.

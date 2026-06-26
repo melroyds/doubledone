@@ -146,6 +146,28 @@ export function setSequence<T extends { id: string; manualOrder?: number; update
 }
 
 /**
+ * Mark (or unmark) tasks as "big": the user saying this one thing is a lot. Multi-select, so it stamps
+ * `big` on every given id at once, or clears it when `on` is false (deleting the key so the field stays
+ * absent, not false, mirroring setPin). Bumps updatedAt; untouched tasks are returned by reference.
+ * LOCAL-ONLY for now (big is not mapped in sync.ts), so it persists on-device; cross-device is a follow-up.
+ */
+export function setBig<T extends { id: string; big?: boolean; updatedAt: number }>(
+  tasks: T[],
+  ids: string[],
+  on: boolean,
+  now: number,
+): T[] {
+  const set = new Set(ids);
+  return tasks.map((t) => {
+    if (!set.has(t.id)) return t;
+    const next = { ...t, updatedAt: now };
+    if (on) next.big = true;
+    else delete next.big;
+    return next;
+  });
+}
+
+/**
  * Defer a one-off to tomorrow: set its due to the day after `date`, so it drops
  * off Today and returns tomorrow. A calm "not today", the single-task sibling of
  * close-the-day's roll forward, with no counter and no penalty (the never-shame

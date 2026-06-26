@@ -47,23 +47,46 @@ export function describePace(days: number): string {
 
 export type DayWeight = { level: 'clear' | 'light' | 'full' | 'heavy'; label: string; fill: number };
 
+// A big task weighs more than a normal one toward the day's load. Each big counts as BIG_WEIGHT normal
+// tasks, so even one big thing is felt. One tunable const (real use will tell if 2 is the right multiplier).
+export const BIG_WEIGHT = 2;
+
+/** The day's load with big tasks counting heavier: each big adds (BIG_WEIGHT - 1) on top of its own 1. */
+export function weightedLoad(count: number, bigCount = 0): number {
+  return count + bigCount * (BIG_WEIGHT - 1);
+}
+
 /**
  * A calm, honest read on how full Today is, from the count of unfinished one-off
  * tasks (recurring habits are routine, not load). `fill` is 0..1 for a slim gauge;
  * the label describes the day, it never scolds, so Today can't silently overfill.
  * On a low-capacity day (Cluster C) the same load reads as fuller: capacity is
- * roughly halved and the label gives explicit permission to do little.
+ * roughly halved and the label gives explicit permission to do little. A big task
+ * (bigCount) weighs heavier via weightedLoad, and a lone big task is floored to at
+ * least "full" so even one heavy thing registers, never sinking to "room to breathe".
  */
-export function dayWeight(count: number, lowDay = false): DayWeight {
+export function dayWeight(count: number, lowDay = false, bigCount = 0): DayWeight {
   if (count <= 0) return { level: 'clear', label: lowDay ? 'A clear day. Rest up.' : 'A clear day', fill: 0 };
+  const load = weightedLoad(count, bigCount);
+  let base: DayWeight;
   if (lowDay) {
-    const fill = Math.min(count / 4, 1);
-    if (count <= 2) return { level: 'light', label: 'A low day. A couple of things is plenty.', fill };
-    if (count <= 4) return { level: 'full', label: 'A low day. Be gentle, the rest can wait.', fill };
-    return { level: 'heavy', label: 'A low day with a lot on. Just pick one, the rest waits.', fill: 1 };
+    const fill = Math.min(load / 4, 1);
+    if (load <= 2) base = { level: 'light', label: 'A low day. A couple of things is plenty.', fill };
+    else if (load <= 4) base = { level: 'full', label: 'A low day. Be gentle, the rest can wait.', fill };
+    else base = { level: 'heavy', label: 'A low day with a lot on. Just pick one, the rest waits.', fill: 1 };
+  } else {
+    const fill = Math.min(load / 8, 1);
+    if (load <= 4) base = { level: 'light', label: 'A gentle day. Room to breathe.', fill };
+    else if (load <= 7) base = { level: 'full', label: 'A full day, but doable.', fill };
+    else base = { level: 'heavy', label: 'A lot on. Be gentle with yourself.', fill: 1 };
   }
-  const fill = Math.min(count / 8, 1);
-  if (count <= 4) return { level: 'light', label: 'A gentle day. Room to breathe.', fill };
-  if (count <= 7) return { level: 'full', label: 'A full day, but doable.', fill };
-  return { level: 'heavy', label: 'A lot on. Be gentle with yourself.', fill: 1 };
+  // A lone big task should be felt: if anything is marked big, never read lighter than "full".
+  if (bigCount > 0 && base.level === 'light') {
+    return {
+      level: 'full',
+      label: lowDay ? 'A low day. Be gentle, the rest can wait.' : 'A full day, but doable.',
+      fill: Math.max(base.fill, 0.5),
+    };
+  }
+  return base;
 }

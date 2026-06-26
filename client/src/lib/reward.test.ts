@@ -28,4 +28,9 @@ describe('isBigWin', () => {
     const t = day(2026, 5, 18);
     expect(isBigWin({ createdAt: t, completedAt: t, complexity: 5 })).toBe(false);
   });
+
+  it('is big when the user marked it big, even fresh and zero-complexity', () => {
+    const t = day(2026, 5, 18);
+    expect(isBigWin({ createdAt: t, completedAt: t, complexity: 0, big: true })).toBe(true);
+  });
 });

@@ -23,6 +23,20 @@ describe('buildStrategiseRequest', () => {
     expect(body.messages[0].content).toContain('t1');
     expect(body.messages[0].content).toContain('File the report');
   });
+
+  it('tags a big task in its listed line and the system prompt mentions big tasks', () => {
+    const { init } = buildStrategiseRequest(
+      [
+        { id: 't1', title: 'File the report', big: true },
+        { id: 't2', title: 'Call the dentist' },
+      ],
+      'sk-test-key',
+    );
+    const body = JSON.parse(init.body);
+    expect(body.messages[0].content).toContain('File the report (a big one, weighs heavily)');
+    expect(body.messages[0].content).not.toContain('Call the dentist (a big one');
+    expect(body.system).toContain('big one');
+  });
 });
 
 describe('parseStrategiseResponse', () => {

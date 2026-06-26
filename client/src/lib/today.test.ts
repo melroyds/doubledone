@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { type Recurrence } from './recurrence';
-import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, pinFirst, resurfaceOpenParent, setPin, setSequence, tinyParentTitle, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
+import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, pinFirst, resurfaceOpenParent, setBig, setPin, setSequence, tinyParentTitle, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
 
 const today = new Date(2026, 5, 17);
 const iso = '2026-06-17';
@@ -123,6 +123,26 @@ describe('setSequence', () => {
     const before = mk('a');
     const out = setSequence([before, mk('b')], ['b'], 500);
     expect(out.find((x) => x.id === 'a')).toBe(before);
+  });
+});
+
+describe('setBig', () => {
+  const mk = (id: string, big?: boolean) => ({ id, updatedAt: 0, ...(big ? { big } : {}) });
+
+  it('marks every given id big and bumps updatedAt, leaving others untouched by reference', () => {
+    const c = mk('c');
+    const out = setBig([mk('a'), mk('b'), c], ['a', 'b'], true, 500);
+    expect(out.find((x) => x.id === 'a')).toMatchObject({ big: true, updatedAt: 500 });
+    expect(out.find((x) => x.id === 'b')).toMatchObject({ big: true, updatedAt: 500 });
+    expect(out.find((x) => x.id === 'c')).toBe(c);
+  });
+
+  it('clears big by deleting the key (absent, not false) and bumps updatedAt', () => {
+    const out = setBig([mk('a', true), mk('b', true)], ['a'], false, 500);
+    const a = out.find((x) => x.id === 'a')!;
+    expect(a).not.toHaveProperty('big');
+    expect(a.updatedAt).toBe(500);
+    expect(out.find((x) => x.id === 'b')).toMatchObject({ big: true }); // untouched
   });
 });
 

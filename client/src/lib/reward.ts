@@ -9,7 +9,7 @@ import { daysBetween } from './day';
 export const BIG_WIN_AGE_DAYS = 7; // a task that sat a week or more before you closed it
 export const BIG_WIN_COMPLEXITY = 25; // a genuinely chunky step (~25+ estimated minutes)
 
-type Weighable = { createdAt: number; completedAt?: number | null; complexity?: number | null };
+type Weighable = { createdAt: number; completedAt?: number | null; complexity?: number | null; big?: boolean };
 
 /** Whole days a one-off lingered between created and finished (0 if not yet finished). */
 export function ageInDays(t: Weighable): number {
@@ -18,9 +18,9 @@ export function ageInDays(t: Weighable): number {
 }
 
 /**
- * A "big win": a long-dreaded task finally closed, or a genuinely chunky one.
- * Drives a bigger calendar dot and a warmer line, nothing punitive.
+ * A "big win": a task the user marked big, a long-dreaded task finally closed, or a
+ * genuinely chunky one. Drives a bigger calendar dot and a warmer line, nothing punitive.
  */
 export function isBigWin(t: Weighable): boolean {
-  return ageInDays(t) >= BIG_WIN_AGE_DAYS || (t.complexity ?? 0) >= BIG_WIN_COMPLEXITY;
+  return Boolean(t.big) || ageInDays(t) >= BIG_WIN_AGE_DAYS || (t.complexity ?? 0) >= BIG_WIN_COMPLEXITY;
 }

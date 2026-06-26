@@ -30,6 +30,7 @@ type Props = {
   nudgeAt?: number | null;
   tinyParent?: string | null; // set when this row is a make-it-tiny pebble: the dreaded parent's title
   pinned?: boolean; // the day's one pinned priority (premium): a quiet accent star + tint; it floats to the top
+  big?: boolean; // user-marked "a lot": a quiet accent tag beside the title (never a warning), honouring the weight
 };
 
 // A single row. Tap to complete (a soft sage check, gentle fade, never a shaming
@@ -64,9 +65,13 @@ export function TaskRow({
   nudgeAt,
   tinyParent,
   pinned,
+  big,
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
+  // The default + suggest rows share an accessibility label that names the pin and the big mark, so a
+  // screen reader hears "marked as a big task" as validation (suppressed in select mode, like the marks).
+  const rowLabel = (pinned ? `${title}, pinned as today's one thing` : title) + (big ? ', marked as a big task' : '');
 
   // Multi-select mode: every row becomes a checkbox (tap to pick), and the calm
   // tap-to-complete / long-press menu are suspended until the user leaves select mode.
@@ -195,11 +200,12 @@ export function TaskRow({
           style={({ pressed }) => [styles.suggestMain, pressed && styles.pressed]}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: done }}
-          accessibilityLabel={pinned ? `${title}, pinned as today's one thing` : title}
+          accessibilityLabel={rowLabel}
         >
           <View style={[styles.check, done && styles.checkDone]}>
             {done && <Text style={styles.tick}>✓</Text>}
           </View>
+          {big ? <Text style={styles.bigMark}>Big</Text> : null}
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
           {nudgeAt ? <Text style={styles.nudgeMark}>{`🔔 ${formatNudgeTime(nudgeAt)}`}</Text> : null}
           {recurring && <Text style={styles.repeatMark}>↻</Text>}
@@ -252,11 +258,12 @@ export function TaskRow({
       style={({ pressed }) => [styles.row, !recurring && styles.rowUnique, pinned && styles.rowPinned, pressed && styles.pressed]}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: done }}
-      accessibilityLabel={pinned ? `${title}, pinned as today's one thing` : title}
+      accessibilityLabel={rowLabel}
     >
       <View style={[styles.check, done && styles.checkDone]}>
         {done && <Text style={styles.tick}>✓</Text>}
       </View>
+      {big ? <Text style={styles.bigMark}>Big</Text> : null}
       <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
       {nudgeAt ? <Text style={styles.nudgeMark}>{`🔔 ${formatNudgeTime(nudgeAt)}`}</Text> : null}
       {recurring && <Text style={styles.repeatMark}>↻</Text>}
@@ -284,6 +291,19 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   // The day's one pinned priority: a calm accent border + faint tint, with the star beside the title.
   rowPinned: { borderColor: t.colors.accent, borderWidth: 2, backgroundColor: t.colors.accentSoft },
   pinStar: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+  // A quiet accent tag (never danger red): the app agreeing this task is a lot, sized small so it never scolds.
+  bigMark: {
+    color: t.colors.accent,
+    backgroundColor: t.colors.accentSoft,
+    fontSize: 11 * t.scale,
+    fontFamily: fonts.bodyBold,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    paddingHorizontal: spacing.two,
+    paddingVertical: 1,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+  },
   pressed: { opacity: 0.7 },
   confirmRow: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accentSoft },
   confirmText: { flex: 1, color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body },

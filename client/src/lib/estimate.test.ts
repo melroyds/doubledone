@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { dayWeight, describePace, paceDays } from './estimate';
+import { dayWeight, describePace, paceDays, weightedLoad } from './estimate';
 
 describe('dayWeight', () => {
   it('reads clear at zero, scaling up to heavy, never below clear', () => {
@@ -30,6 +30,39 @@ describe('dayWeight (low-capacity day)', () => {
   it('fills faster than a normal day (capacity ~halved)', () => {
     expect(dayWeight(4, true).fill).toBe(1); // 4 fills the low-day gauge
     expect(dayWeight(4, false).fill).toBeCloseTo(0.5); // same count, normal day
+  });
+});
+
+describe('weightedLoad', () => {
+  it('counts a big task as heavier than a normal one (each big adds one extra)', () => {
+    expect(weightedLoad(3, 0)).toBe(3);
+    expect(weightedLoad(3, 1)).toBe(4);
+    expect(weightedLoad(3, 2)).toBe(5);
+  });
+});
+
+describe('dayWeight (big tasks)', () => {
+  it('floors a lone big task to at least "full" so one heavy thing is felt, never "room to breathe"', () => {
+    const lone = dayWeight(1, false, 1);
+    expect(lone.level).toBe('full');
+    expect(lone.fill).toBeGreaterThanOrEqual(0.5);
+    expect(lone.label).toBe('A full day, but doable.');
+    expect(dayWeight(1, false, 0).level).toBe('light'); // same single task, unmarked, reads light
+  });
+
+  it('lets big tasks push a piled day into heavy via the weighted load', () => {
+    expect(dayWeight(5, false, 1).level).toBe('full'); // weighted 6
+    expect(dayWeight(7, false, 1).level).toBe('heavy'); // weighted 8
+  });
+
+  it('floors a lone big task on a low day too, with the low-day full label', () => {
+    const lone = dayWeight(1, true, 1);
+    expect(lone.level).toBe('full');
+    expect(lone.label).toBe('A low day. Be gentle, the rest can wait.');
+  });
+
+  it('keeps the clear-day guard: no tasks is still clear', () => {
+    expect(dayWeight(0, false, 0).level).toBe('clear');
   });
 });
 

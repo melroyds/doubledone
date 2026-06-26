@@ -677,7 +677,7 @@ export default {
 
     // Strategise: an over-full day in, a calm re-spread plan out.
     if (pathname === '/strategise' && request.method === 'POST') {
-      let tasks: { id: string; title: string }[] = [];
+      let tasks: { id: string; title: string; big?: boolean }[] = [];
       let language: string | undefined;
       try {
         const body = (await request.json()) as { tasks?: unknown; language?: unknown };
@@ -685,12 +685,12 @@ export default {
         if (Array.isArray(body.tasks)) {
           tasks = body.tasks
             .filter(
-              (t): t is { id: string; title: string } =>
+              (t): t is { id: string; title: string; big?: boolean } =>
                 t != null &&
                 typeof (t as { id?: unknown }).id === 'string' &&
                 typeof (t as { title?: unknown }).title === 'string',
             )
-            .map((t) => ({ id: t.id, title: t.title }));
+            .map((t) => ({ id: t.id, title: t.title, big: (t as { big?: unknown }).big === true }));
         }
       } catch {
         return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });

@@ -2593,3 +2593,43 @@ Renamed every user-facing surface: the Today buttons, the premium page (paywall 
 continuity. Gate green: typecheck and lint clean, client 338, server 196. QA: AI-06 rewritten, SEQ-06 added,
 suite regenerated (140 cases). Verified in preview: heavy day shows both buttons + the nudge, calm day shows
 only Plan my day, old names gone.
+
+## 2026-06-26 "Big task": a free flag that lets one heavy thing weigh on the day
+
+Melroy's ask: let the user mark a task "Big", because even one task can weigh onerously, and have that lend
+credence to the weight bar and to Lighten today. Free, all tiers. Tap-and-hold (the existing select mode),
+multi-select. Designed with a two-agent panel (an implementation plan plus a spine/UX critic); where they
+split, the critic's calmer calibration won.
+
+What shipped:
+- **A `big?` leaf flag** on Task, set via a new free "Big" action in the tap-and-hold select bar (multi-select,
+  toggling to "Not big" when every selected task is already big). A calm accent "Big" pill on the row, never
+  danger-red: the app agreeing this one is a lot, not a warning.
+- **Weight: a big task counts as 2 normal tasks** (weightedLoad in estimate.ts), not 3. Plus a floor: a lone
+  big task reads at least "A full day, but doable.", so one heavy thing is felt without the gauge dropping to
+  "room to breathe".
+- **The heavy gate is keyed off the weighted load**, so a big task plus a real pile (weighted 6+) surfaces the
+  nudge and "Lighten today", but a LONE big task does NOT. Re-spreading cannot dissolve one big rock, and Break
+  it down is the right tool there. This was the critic's catch, and it keeps the relief signal honest (no
+  crying wolf).
+- **Finishing a marked-big task is a big-win** (a one-line change to reward.isBigWin), so it earns the warmer
+  Lookback acknowledgment. The flag is INERT on the downside: an unfinished big task is never a bigger failure.
+- **Lighten today (the AI re-spread) now weighs big tasks**: the /strategise request carries each task's
+  big-ness and the prompt gives big tasks room and never stacks two together.
+
+Decided against:
+- **Weight 3x plus a single-big override that trips Lighten today** (the plan's first proposal). Too
+  trigger-happy: ordinary days would read "heavy" too easily and the relief signal would go numb. Weight 2 plus
+  a bar-only floor is the honest calibration.
+- **Syncing the flag now.** It ships LOCAL-ONLY (like manualOrder), because adding `big` to the sync payload
+  before the Supabase `big` column exists would break every task upsert, and the column needs the dashboard (no
+  service_role in this build). The 4-line sync wiring plus the one-line migration are parked in the BUILD-PLAN
+  Backlog. The feature works fully on-device meanwhile.
+- **A new colour, a warning glyph, or "hard / difficult / scary" wording.** All would localise blame and breach
+  the never-shame spine. "Big" honours the size of the thing, in the calm accent token.
+
+Gate green: client 346, server 197, lint and typecheck clean. QA: BIG-01 to BIG-04 added, suite regenerated.
+Verified in preview: the row tag renders, one big task floors the bar to "full" and does not offer Lighten
+today, and a big task tips a 5-task day (weighted 6) into heavy where 5 normal tasks stay calm. The server
+prompt change is committed but the Worker is NOT yet deployed (needs Melroy's per-instance OK); until then
+big-ness is sent and harmlessly ignored by the live Worker, so the AI weighting is dormant, not broken.

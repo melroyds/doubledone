@@ -15,6 +15,7 @@ export const SYSTEM_PROMPT = [
   'Keep only a small handful on today (day offset 0), the few things most worth doing now.',
   'Move everything else to the soonest sensible later day, but do not pile it all onto one day. Spread it so no later day becomes the new wall.',
   'Keep anything genuinely time-sensitive as early as it needs to be.',
+  'A task marked "(a big one, weighs heavily)" is a lot for this person: give it room, prefer it land on a day with little else, and never stack two big ones on the same day.',
   'Every task you were given must appear in the plan exactly once. Do not drop, merge, or invent tasks.',
   'Return the plan with the record_plan tool: for each task, its day offset from today (0 = today, 1 = tomorrow, and so on) and a short, plain reason for where it landed.',
   'Keep reasons calm and matter-of-fact. No pep talk, no shame, no exclamation marks.',
@@ -44,7 +45,7 @@ const PLAN_TOOL = {
 } as const;
 
 export type PlanItem = { id: string; dayOffset: number; reason: string };
-export type StrategiseTask = { id: string; title: string };
+export type StrategiseTask = { id: string; title: string; big?: boolean };
 
 export type StrategiseRequest = {
   url: string;
@@ -57,7 +58,7 @@ export function buildStrategiseRequest(
   apiKey: string,
   language?: string,
 ): StrategiseRequest {
-  const list = tasks.map((t) => `- [${t.id}] ${t.title}`).join('\n');
+  const list = tasks.map((t) => `- [${t.id}] ${t.title}${t.big ? ' (a big one, weighs heavily)' : ''}`).join('\n');
   const body = {
     model: STRATEGISE_MODEL,
     max_tokens: 1024,

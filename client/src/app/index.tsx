@@ -39,7 +39,7 @@ import { combineTasks, eligibleForCombine } from '@/lib/combine';
 import { ageInDays, isBigWin } from '@/lib/reward';
 import { phaseGreeting } from '@/lib/phase';
 import { addDaysISO, formatTodayLabel, friendlyDate, isReentry, presetDate, toISODate } from '@/lib/day';
-import { dayWeight } from '@/lib/estimate';
+import { dayWeight, weightedLoad } from '@/lib/estimate';
 import { dayCleared, dayClosed, stepsLanded, taskDone } from '@/lib/haptics';
 import { type Inbound, subscribeInbound, takeInbound } from '@/lib/inbound';
 import { aiLanguage } from '@/lib/locale';
@@ -58,7 +58,7 @@ import { track } from '@/lib/telemetry';
 import { updateWidget } from '@/widget/update';
 import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { usePremium } from '@/lib/premium-provider';
-import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, isRecurring, pinFirst, resurfaceOpenParent, setPin, setSequence, tasksForToday, tinyParentTitle, toggleDoneOn, upcomingTasks } from '@/lib/today';
+import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, isRecurring, pinFirst, resurfaceOpenParent, setBig, setPin, setSequence, tasksForToday, tinyParentTitle, toggleDoneOn, upcomingTasks } from '@/lib/today';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
@@ -333,6 +333,9 @@ export default function TodayScreen() {
   // One-off, undone tasks on Today: the ones Strategise can re-spread (recurring stay by cadence).
   const spreadable = visible.filter((t) => !isRecurring(t) && !isDoneOn(t, today));
   const onlyTask = selected.length === 1 ? visible.find((t) => t.id === selected[0]) : undefined;
+  // For the multi-select "Big" toggle: true when every selected task is already big, so the action flips to
+  // "Not big" (clear); a mixed or empty selection marks all big (the additive, validating default).
+  const allBig = selected.length > 0 && selected.every((id) => tasks.find((t) => t.id === id)?.big);
   // The selected tasks eligible to combine (open one-offs); the Combine action shows at 2+.
   const combinable = selected.filter((id) => {
     const t = tasks.find((x) => x.id === id);
@@ -341,11 +344,14 @@ export default function TodayScreen() {
   // Focus mode shows one unfinished one-off at a time (recurring habits are not the
   // wall-of-awful). The first not-yet-skipped one; completing or skipping advances it.
   const focusTask = focusOpen && focusPick ? (spreadable.find((t) => t.id === focusPick) ?? null) : null;
-  const weightOfDay = dayWeight(spreadable.length, isLowDay);
-  // Heavy enough that lightening the day is worth offering: the same signal as the "Today's looking full"
-  // line, made capacity-aware so a low-energy day counts as heavy sooner. Gates the "Lighten today" button
-  // and the post-order "push a few out?" offer, so neither clutters a calm day.
-  const dayIsHeavy = spreadable.length >= 6 || (isLowDay && spreadable.length >= 4);
+  const bigCount = spreadable.filter((t) => t.big).length;
+  const weightOfDay = dayWeight(spreadable.length, isLowDay, bigCount);
+  // A big task weighs more than its count: weightedLoad makes each big count as BIG_WEIGHT normal tasks, so a
+  // genuinely piled day (or one big task plus a real pile) reads heavy and offers the relief tools. A LONE big
+  // task lifts the gauge (the floor inside dayWeight) but does NOT trip this: re-spreading cannot dissolve one
+  // big rock, Break it down is the tool for that. Heavy (and low-day capacity) gates the nudge + "Lighten today".
+  const weighted = weightedLoad(spreadable.length, bigCount);
+  const dayIsHeavy = weighted >= 6 || (isLowDay && weighted >= 4);
 
   // When a task leaves the active-today state (done, removed, deferred), cancel any pending
   // nudge and strip its fields, so you are never poked about something already handled.
@@ -480,6 +486,17 @@ export default function TodayScreen() {
     commit(tasks.map((t) => (set.has(t.id) && !isRecurring(t) ? clearNudgeIfAny({ ...deferTo(t, iso), updatedAt: now }) : t)));
     track('bulk.moved', { count: selected.length });
     setMoveToOpen(false);
+    exitSelect();
+  }
+
+  // Mark (or unmark) the selected tasks as big: the user saying these weigh heavily. Free, multi-select,
+  // and validating, never a scold. Lifts the weight gauge + the heavy-day signal, and makes finishing one a
+  // big-win. The toggle direction (allBig) is decided at the call site, so a second tap reverses it.
+  function markBig(ids: string[], on: boolean) {
+    if (ids.length === 0) return;
+    commit(setBig(tasks, ids, on, nowMs()));
+    track('bulk.big', { count: ids.length, on });
+    affirm(on ? "Marked as a lot. The day knows it's heavier." : 'Eased off. No longer marked.');
     exitSelect();
   }
 
@@ -624,7 +641,7 @@ export default function TodayScreen() {
     setStrategiseError(null);
     setStrategising(true);
     try {
-      const result = await strategise(spreadable.map((t) => ({ id: t.id, title: t.title })), aiLanguage);
+      const result = await strategise(spreadable.map((t) => ({ id: t.id, title: t.title, big: t.big })), aiLanguage);
       track('strategise.requested', { count: spreadable.length });
       setPlan(result);
     } catch {
@@ -1163,6 +1180,7 @@ export default function TodayScreen() {
               nudgeAt={task.nudgeAt != null && task.nudgeAt > nowMs() ? task.nudgeAt : undefined}
               tinyParent={tinyParentTitle(tasks, task)}
               pinned={task.pinnedAt != null && !isDoneOn(task, today)}
+              big={task.big}
             />
           ))}
         </View>
@@ -1222,6 +1240,7 @@ export default function TodayScreen() {
                   selecting={selectMode}
                   selected={selected.includes(task.id)}
                   onSelect={() => toggleSelect(task.id)}
+                  big={task.big}
                 />
               </View>
             ))}
@@ -1303,6 +1322,9 @@ export default function TodayScreen() {
                 )}
                 <Pressable onPress={() => setMoveToOpen(true)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Move selected to a date" hitSlop={6}>
                   <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>Move to…</Text>
+                </Pressable>
+                <Pressable onPress={() => markBig(selected, !allBig)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={allBig ? 'Unmark the selected tasks as big' : 'Mark the selected tasks as big'} hitSlop={6}>
+                  <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>{allBig ? 'Not big' : 'Big'}</Text>
                 </Pressable>
                 {Platform.OS !== 'web' && onlyTask && !isDoneOn(onlyTask, today) && (
                   <Pressable onPress={openNudge} accessibilityRole="button" accessibilityLabel="Remind me about this task" hitSlop={6}>
