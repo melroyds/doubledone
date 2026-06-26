@@ -2840,3 +2840,31 @@ literals routed to the scale (paddingVertical 8 to spacing.two, several marginTo
 off-scale nudges and the native TodayWidget left alone. Bloom's split typography folded into makeStyles and
 the type scale (the eyebrow step), the bespoke celebration sizes kept. Gate green: client 346, server 197. On
 premium, holding the merge. The stack-ranked design burn-down is now 100% complete (items 1 through 25).
+
+## 2026-06-26 Robustness + security audit: sync data-loss fixed, money/PII items flagged
+
+The 7-lens adversarial robustness + security audit ([`docs/robustness-review.md`](docs/robustness-review.md)).
+Posture is solid: no critical breach, no auth bypass, no forgeable premium, no data leak. The Stripe signature
+verification, the fail-closed premium gate, the comp allowlist, and the RLS path all held under scrutiny. The
+real findings are data-integrity and cost.
+
+Fixed (data-integrity, the spine one): the sync merge (client/src/lib/sync-merge.ts) was whole-row
+last-write-wins, so an offline recurring completion (completedDates) or slices progress made on one device was
+silently ERASED when another device made a newer unrelated edit. That is the never-lose-a-task,
+never-shame-by-disappearance failure the app exists to prevent. reconcileConflict now makes the synced
+completion data monotonic on top of the LWW winner (completedDates unioned grow-only, slices.done max), and
+carries the local-only big / manualOrder that were also being dropped when the remote row won. The reconciled
+row is pushed when the union grows the server's copy, so devices converge. Three tests added. The fix is
+conservative: it only ever preserves data, never loses, so it cannot make sync worse.
+
+Flagged for Melroy, NOT applied (sensitive: money, schema, his PII):
+- HIGH: the Stripe webhook has no idempotency or ordering guard, so a retried or out-of-order event can flip a
+  real subscriber's entitlement. Needs a processed_events D1 table plus an ordering guard.
+- HIGH: the AI routes accept unbounded input forwarded to Claude against the shared budget (a cost/abuse path
+  via the no-auth routes). Fix is a small capStrings/capText helper per route.
+- MEDIUM: checkout grants premium on status='complete' even without captured payment (a 100%-off promo code is
+  a live path). One-line tighten to payment_status==='paid', after confirming the trial flow.
+- MEDIUM (PII): the owner's personal Gmail is hardcoded in comp.ts in the PUBLIC repo. Move to a Worker secret
+  or an alias.
+The input caps and the webhook idempotency are server changes needing a Worker deploy anyway, so they wait for
+Melroy. Gate green. On premium, holding the merge.
