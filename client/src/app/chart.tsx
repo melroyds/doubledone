@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PremiumButton } from '@/components/PremiumButton';
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { chart, type CourseStep } from '@/lib/ai';
+import { toISODate } from '@/lib/day';
 import { usePremium } from '@/lib/premium-provider';
 import { spreadDueDates } from '@/lib/spread';
 import { loadTasks, saveTasks } from '@/lib/storage';
@@ -42,6 +43,19 @@ export default function ChartScreen() {
   const [error, setError] = useState<string | null>(null);
   const [heading, setHeading] = useState('');
   const [steps, setSteps] = useState<Proposed[]>([]);
+  const [dueDate, setDueDate] = useState<string | null>(null);
+  // "By when?" relative chips. A goal is a timeframe ("within 2 months"), so chips beat a calendar here: the
+  // chosen date paces the AI's steps AND spreads the accepted tasks from today to it (see addTasks).
+  const dateChips = useMemo(
+    () => [
+      { label: 'No deadline', iso: null as string | null },
+      { label: 'In 2 weeks', iso: toISODate(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 14)) },
+      { label: 'In a month', iso: toISODate(new Date(today.getFullYear(), today.getMonth() + 1, today.getDate())) },
+      { label: 'In 2 months', iso: toISODate(new Date(today.getFullYear(), today.getMonth() + 2, today.getDate())) },
+      { label: 'In 3 months', iso: toISODate(new Date(today.getFullYear(), today.getMonth() + 3, today.getDate())) },
+    ],
+    [today],
+  );
 
   async function suggest() {
     const g = goal.trim();
@@ -56,7 +70,7 @@ export default function ChartScreen() {
     setError(null);
     track('chart.requested');
     try {
-      const course = await chart(g);
+      const course = await chart(g, dueDate ? { dueDate } : undefined);
       if (course.steps.length === 0) {
         setError("I couldn't map that out just now. Try rephrasing the goal?");
         setSteps([]);
@@ -81,7 +95,7 @@ export default function ChartScreen() {
     if (selected.length === 0) return;
     const tasks = await loadTasks();
     const now = nowMs();
-    const dates = spreadDueDates(selected.length, today, null, 'gradual');
+    const dates = spreadDueDates(selected.length, today, dueDate, 'gradual');
     const minted: Task[] = selected.map((s, i) => ({
       id: makeId(),
       title: `${s.title} (${s.minutes} min)`,
@@ -124,6 +138,29 @@ export default function ChartScreen() {
           accessibilityLabel="Your goal"
           editable={!busy}
         />
+
+        {steps.length === 0 && (
+          <View style={styles.byWhen}>
+            <Text style={styles.byWhenLabel}>By when?</Text>
+            <View style={styles.chips}>
+              {dateChips.map((c) => {
+                const on = dueDate === c.iso;
+                return (
+                  <Pressable
+                    key={c.label}
+                    onPress={() => setDueDate(c.iso)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    accessibilityLabel={c.label}
+                    style={[styles.chip, on && styles.chipOn]}
+                  >
+                    <Text style={[styles.chipText, on && styles.chipTextOn]}>{c.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
         {steps.length === 0 && (
           <PremiumButton
@@ -176,7 +213,9 @@ export default function ChartScreen() {
             >
               <Text style={styles.startOverText}>Not these, start over</Text>
             </Pressable>
-            <Text style={styles.note}>The first step lands on Today, the rest spread gently over the next days. They become ordinary tasks.</Text>
+            <Text style={styles.note}>
+              The first step lands on Today, the rest spread gently {dueDate ? 'toward your deadline' : 'over the next days'}. They become ordinary tasks.
+            </Text>
           </View>
         )}
 
@@ -208,6 +247,13 @@ const makeStyles = (t: Theme) =>
     },
     cta: { backgroundColor: t.colors.accent, borderRadius: radius.lg, paddingVertical: spacing.four, alignItems: 'center', marginTop: spacing.four },
     suggestBtn: { marginTop: spacing.four },
+    byWhen: { marginTop: spacing.four, gap: spacing.two },
+    byWhenLabel: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },
+    chip: { borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, borderColor: t.colors.line, paddingHorizontal: spacing.four, paddingVertical: spacing.two },
+    chipOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
+    chipText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+    chipTextOn: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '600' },
     ctaDim: { opacity: 0.5 },
     ctaText: { color: '#FFFFFF', fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     pressed: { opacity: 0.8 },

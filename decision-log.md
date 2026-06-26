@@ -2543,3 +2543,16 @@ sets the Settings premium card apart is now THE signal that an action is premium
 The gradient stays the one deliberate glow against the calm Dusk palette, now applied consistently to the
 premium ACTION buttons rather than only the Settings card. Verified the render in the web preview (the
 gradient draws correctly on Plan my order). Gate green: typecheck and lint clean.
+
+## 2026-06-26 Chart a course: a "by when?" so steps span the real timeframe
+
+Melroy's feedback from the live launch: his goal "become better at bass within 2 months" produced six steps
+that crammed into the next five days, because v1 had no deadline input (it spread one step per day). Added a
+"By when?" question to the chart screen: relative chips (No deadline, In 2 weeks, In a month, In 2 months, In
+3 months), since a goal is a timeframe, not a calendar date. The chosen date does two things: it rides to the
+AI (buildChartRequest already folds it into the prompt, so the steps are paced for the horizon), and it feeds
+spreadDueDates on accept, so the tasks spread from Today out to the date instead of one-per-day. The /chart
+route now parses an optional context.dueDate (parseChartContext, ISO-validated), and the client chart() seam
+sends it. "No deadline" keeps the gentle one-per-day default.
+
+Gate green: typecheck and lint clean, client 338 tests, server 196. QA case CHART-05. Chips verified in preview.

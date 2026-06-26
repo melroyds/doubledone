@@ -114,3 +114,13 @@ export function parseChartResponse(data: unknown): Course {
   }
   return empty;
 }
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Parse the optional chart context from the request body, defensively. Keeps a valid ISO dueDate, else null. */
+export function parseChartContext(value: unknown): ChartContext | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const o = value as Record<string, unknown>;
+  const dueDate = typeof o.dueDate === 'string' && ISO_DATE.test(o.dueDate) ? o.dueDate : null;
+  return { dueDate };
+}

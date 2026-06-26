@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildChartRequest, CHART_MODEL, parseChartResponse } from './chart';
+import { buildChartRequest, CHART_MODEL, parseChartContext, parseChartResponse } from './chart';
 
 describe('buildChartRequest', () => {
   it('targets the messages API, forces the record_course tool, and includes the goal', () => {
@@ -45,5 +45,15 @@ describe('parseChartResponse', () => {
         content: [{ type: 'tool_use', name: 'record_course', input: { heading: 'x', steps: [{ title: 'ok', minutes: 5 }, { title: 'no minutes' }] } }],
       }),
     ).toEqual({ heading: 'x', steps: [{ title: 'ok', minutes: 5 }] });
+  });
+});
+
+describe('parseChartContext', () => {
+  it('keeps a valid ISO dueDate and rejects anything else', () => {
+    expect(parseChartContext({ dueDate: '2026-08-01' })).toEqual({ dueDate: '2026-08-01' });
+    expect(parseChartContext({ dueDate: 'soon' })).toEqual({ dueDate: null });
+    expect(parseChartContext({})).toEqual({ dueDate: null });
+    expect(parseChartContext(null)).toBeUndefined();
+    expect(parseChartContext('x')).toBeUndefined();
   });
 });

@@ -272,6 +272,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | CHART-02 | P1 | Both | Free: charting routes to the upsell, never plans | As a free user, open Rooms, tap 'Chart a course', type a goal, tap 'Suggest steps'. | Routed to the Premium screen calmly (never a wall), and a 'premium.gate_hit' with reason 'chart' is logged. No plan is generated and nothing is added. |
 | CHART-03 | P2 | Both | Propose-then-accept: nothing auto-adds | As premium, generate a plan, untick two steps, then tap 'Add'. Separately, generate a plan and back out with 'Not these, start over' or Back. | Only the ticked steps are added as plain tasks, and backing out adds nothing. Today was unchanged before accepting. |
 | CHART-04 | P2 | Both | A goal that cannot be mapped fails calmly | Enter an empty goal (the button is disabled), then a nonsensical goal and submit. | The empty case cannot submit. A nonsensical goal shows one calm line ('I couldn't map that out just now'), the goal stays editable, never a crash or a shaming message. |
+| CHART-05 | P2 | Both | A deadline spreads the steps across the timeframe | As premium, type a goal, tap a 'By when?' chip (e.g. 'In 2 months'), then Suggest steps and Add. | The steps are paced for that timeframe, and the accepted tasks spread from Today out to the chosen date (not crammed into the next few days). 'No deadline' keeps the gentle one-per-day default. |
 
 ## Sequence
 

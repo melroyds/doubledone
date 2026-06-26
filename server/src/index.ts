@@ -3,7 +3,7 @@
 // Claude. The app talks to this, never to Anthropic directly.
 
 import { handleApi } from './api';
-import { buildChartRequest, CHART_MODEL, parseChartResponse } from './chart';
+import { buildChartRequest, type ChartContext, CHART_MODEL, parseChartContext, parseChartResponse } from './chart';
 import { buildClarifyRequest, CLARIFY_MODEL, parseClarifyResponse } from './clarify';
 import { buildCombineRequest, COMBINE_MODEL, parseCombineResponse } from './combine';
 import { buildDecomposeRequest, DECOMPOSE_MODEL, type DecomposeContext, parseDecomposeResponse } from './decompose';
@@ -526,10 +526,12 @@ export default {
     // requirePremium like /ocr: validate first, then the money gate before any (token-heavy Sonnet) spend.
     if (pathname === '/chart' && request.method === 'POST') {
       let goal = '';
+      let context: ChartContext | undefined;
       let language: string | undefined;
       try {
-        const body = (await request.json()) as { goal?: unknown; language?: unknown };
+        const body = (await request.json()) as { goal?: unknown; context?: unknown; language?: unknown };
         goal = typeof body.goal === 'string' ? body.goal.trim() : '';
+        context = parseChartContext(body.context);
         language = parseLanguage(body.language);
       } catch {
         return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
@@ -544,7 +546,7 @@ export default {
       if (!env.ANTHROPIC_API_KEY) {
         return Response.json({ error: 'server not configured' }, { status: 500, headers: cors });
       }
-      const { url, init } = buildChartRequest(goal, env.ANTHROPIC_API_KEY, undefined, language);
+      const { url, init } = buildChartRequest(goal, env.ANTHROPIC_API_KEY, context, language);
       const started = Date.now();
       const upstream = await fetch(url, init as RequestInit);
       if (!upstream.ok) {

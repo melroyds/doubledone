@@ -481,6 +481,9 @@ CASES = [
     ("CHART-04", "Chart", "P2", "A goal that cannot be mapped fails calmly",
      "Enter an empty goal (the button is disabled), then a nonsensical goal and submit.",
      "The empty case cannot submit. A nonsensical goal shows one calm line ('I couldn't map that out just now'), the goal stays editable, never a crash or a shaming message.", "Both"),
+    ("CHART-05", "Chart", "P2", "A deadline spreads the steps across the timeframe",
+     "As premium, type a goal, tap a 'By when?' chip (e.g. 'In 2 months'), then Suggest steps and Add.",
+     "The steps are paced for that timeframe, and the accepted tasks spread from Today out to the chosen date (not crammed into the next few days). 'No deadline' keeps the gentle one-per-day default.", "Both"),
 
     # --- Plan my order / sequencing (Premium) --------------------------------
     ("SEQ-01", "Sequence", "P1", "Premium: Plan my order suggests a calm sequence",
