@@ -150,7 +150,11 @@ export function entitlementFromEvent(event: unknown): Entitlement | null {
   if (type === 'checkout.session.completed') {
     const userId = (obj.client_reference_id as string) || meta.user_id || '';
     if (!userId) return null;
-    const paid = obj.payment_status === 'paid' || obj.status === 'complete';
+    // Require a genuinely-settled payment. `status === 'complete'` can be true while payment_status is
+    // 'unpaid' (async methods, misconfig), so it must NOT grant premium. 'no_payment_required' covers the
+    // legitimate free starts (a 100%-off promo or a trial). The customer.subscription.* events that follow
+    // are the authoritative source either way; this is the initial grant, kept strict.
+    const paid = obj.payment_status === 'paid' || obj.payment_status === 'no_payment_required';
     return { userId, premium: paid, status: paid ? 'active' : 'incomplete', currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId };
   }
 
@@ -292,10 +296,30 @@ export async function handleWebhook(request: Request, env: FullEnv, nowISO: stri
   }
   const ent = entitlementFromEvent(event);
   if (ent) {
+    // Idempotency: Stripe delivers at-least-once (automatic retries, occasional duplicates), so the same
+    // event id can arrive twice. Skip one we have already applied. Fail OPEN on any dedup-store error or a
+    // not-yet-created table: the entitlement write below is an idempotent upsert, so re-processing is
+    // harmless, and a real billing event must never be dropped because the dedup store hiccuped.
+    const eventId = typeof (event as { id?: unknown }).id === 'string' ? (event as { id: string }).id : '';
+    if (eventId) {
+      try {
+        const seen = await env.DB.prepare('SELECT 1 FROM processed_events WHERE event_id = ?1').bind(eventId).first();
+        if (seen) return new Response(JSON.stringify({ received: true, duplicate: true }), { headers: JSON_HEADERS });
+      } catch {
+        // fail open: missing table or transient error, proceed to process
+      }
+    }
     try {
       await writeEntitlement(env.DB, ent, nowISO);
     } catch {
       return new Response('store error', { status: 500 });
+    }
+    if (eventId) {
+      try {
+        await env.DB.prepare('INSERT OR IGNORE INTO processed_events (event_id, created_at) VALUES (?1, ?2)').bind(eventId, nowISO).run();
+      } catch {
+        // best effort: the write already succeeded, the dedup record is non-critical
+      }
     }
   }
   return new Response(JSON.stringify({ received: true }), { headers: JSON_HEADERS });

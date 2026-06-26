@@ -2946,3 +2946,32 @@ seeing them rendered in a before/after visual.
   confirmed kept. **"Plan my day" stays** (Melroy overrode the audit's suggestion to revert it to "Plan my order").
 
 Verified live in the web preview: the Menu pill + sheet render, no "Rooms" visible anywhere, gate green. On premium.
+
+## 2026-06-27 Billing + cost hardening: payment_status, webhook idempotency, AI input cap
+
+The three money / cost items the robustness audit flagged (no critical breach was found; this is defence-in-depth
+on the paid surface). All server-side, on premium.
+
+- **Checkout payment_status strictness** (stripe.ts entitlementFromEvent). The initial grant on
+  checkout.session.completed accepted `status === 'complete'`, which can be true while payment_status is
+  'unpaid'. It now grants only on payment_status 'paid' or 'no_payment_required' (the latter covers trials and
+  100%-off promos). The customer.subscription.* events remain the authoritative source.
+- **Webhook idempotency** (stripe.ts handleWebhook + a new processed_events D1 table). Stripe delivers
+  at-least-once; a redelivered event id is now a no-op. Fails OPEN: any dedup-store error, or a not-yet-applied
+  table, falls through to processing, because the entitlement write is an idempotent upsert, so a real billing
+  event is never dropped. The Worker can therefore deploy before the table is applied.
+- **AI input size cap** (index.ts, MAX_TEXT_AI_BODY = 100 KB). The rate limiter bounds frequency, not size; one
+  giant text payload could still run up the Anthropic bill. The text AI routes now reject a body over 100 KB,
+  read via a request CLONE (so the handler still reads it) and measured by real length (a content-length header
+  can be absent or lie, the first attempt at a header check was a no-op in tests for exactly that reason). /ocr
+  is exempt: it carries a photo and enforces its own larger limit downstream.
+
+Tests: unpaid-but-complete denied, no_payment_required granted, a redelivered event writes once (duplicate:true),
+an oversized text body 413s, /ocr stays exempt. Gate green: server 204.
+
+Infra note: processed_events must be applied to the live D1 (fail-open makes the deploy order safe):
+`npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --file d1/schema.sql`. Flagged for
+Melroy's OK like any live change, alongside the Worker deploy.
+
+Deferred follow-up: webhook event ORDERING (a stale subscription.* event clobbering newer state) is a deeper,
+rarer edge not addressed here; noted for later.

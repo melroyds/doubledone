@@ -99,6 +99,10 @@ const ALLOWED_ORIGINS = [
   'http://localhost:19006',
 ];
 const AI_ROUTES = new Set(['/chart', '/clarify', '/combine', '/decompose', '/plan', '/sequence', '/split', '/tiny', '/strategise', '/triage', '/scrapbook', '/ocr', '/lookback-summary']);
+// Max request-body size (bytes) on the TEXT AI routes, so one giant payload cannot run up the Anthropic
+// bill (the rate limiter bounds frequency, this bounds size). 100 KB is far above any real brain-dump or
+// goal. /ocr is exempt below: it legitimately carries a photo.
+const MAX_TEXT_AI_BODY = 100_000;
 
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
@@ -273,6 +277,15 @@ export default {
         const { success } = await env.AI_LIMITER.limit({ key: ip });
         if (!success) {
           return Response.json({ error: 'rate limited, try again shortly' }, { status: 429, headers: cors });
+        }
+      }
+      // Size cap on the text routes (see MAX_TEXT_AI_BODY). Read a CLONE so the handler can still read the
+      // body, and measure the real length (a content-length header can be absent or lie). /ocr is exempt: it
+      // carries a real photo and enforces its own larger limit downstream.
+      if (pathname !== '/ocr') {
+        const probeBody = await request.clone().text();
+        if (probeBody.length > MAX_TEXT_AI_BODY) {
+          return Response.json({ error: 'request too large' }, { status: 413, headers: cors });
         }
       }
     }

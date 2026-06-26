@@ -60,6 +60,22 @@ describe('entitlementFromEvent', () => {
     expect(ent).toEqual({ userId: 'u1', premium: true, status: 'active', currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: 'cus_1' });
   });
 
+  it('does NOT grant premium on a complete-but-unpaid checkout session', () => {
+    const ent = entitlementFromEvent({
+      type: 'checkout.session.completed',
+      data: { object: { client_reference_id: 'u1', payment_status: 'unpaid', status: 'complete', customer: 'cus_1' } },
+    });
+    expect(ent).toMatchObject({ userId: 'u1', premium: false, status: 'incomplete' });
+  });
+
+  it('grants premium when no payment is required (a trial or 100%-off promo)', () => {
+    const ent = entitlementFromEvent({
+      type: 'checkout.session.completed',
+      data: { object: { client_reference_id: 'u1', payment_status: 'no_payment_required' } },
+    });
+    expect(ent).toMatchObject({ userId: 'u1', premium: true, status: 'active' });
+  });
+
   it('tracks subscription status changes by metadata user id', () => {
     const active = entitlementFromEvent({
       type: 'customer.subscription.updated',
@@ -304,6 +320,50 @@ describe('Stripe handler flows (mocked fetch / signed webhook)', () => {
     );
     expect(res.status).toBe(200);
     expect((await readEntitlement(db, 'u9')).premium).toBe(true);
+  });
+
+  it('handleWebhook dedups a redelivered event id (writes the entitlement once)', async () => {
+    // A SQL-aware fake: entitlements upsert plus processed_events dedup, so a duplicate is observable.
+    const ents = new Map<string, unknown>();
+    const seen = new Set<string>();
+    let entWrites = 0;
+    const db = {
+      prepare(sql: string) {
+        let args: unknown[] = [];
+        const stmt = {
+          bind(...a: unknown[]) {
+            args = a;
+            return stmt;
+          },
+          async first<T>() {
+            if (sql.includes('processed_events')) return (seen.has(args[0] as string) ? { ok: 1 } : null) as T | null;
+            return (ents.get(args[0] as string) ?? null) as T | null;
+          },
+          async run() {
+            if (sql.includes('processed_events')) seen.add(args[0] as string);
+            else {
+              entWrites += 1;
+              ents.set(args[0] as string, { premium: args[1] });
+            }
+          },
+          async all<T>() {
+            return { results: [] as T[] };
+          },
+        };
+        return stmt;
+      },
+    } as unknown as D1LikeDatabase;
+    const now = 1_750_000_000;
+    const event = JSON.stringify({ id: 'evt_dup1', type: 'checkout.session.completed', data: { object: { client_reference_id: 'u1', payment_status: 'paid' } } });
+    const sig = await signPayload(event, WH, now);
+    const mk = () => new Request('https://w/stripe-webhook', { method: 'POST', headers: { 'Stripe-Signature': sig }, body: event });
+    const wenv = { STRIPE_WEBHOOK_SECRET: WH, DB: db };
+    const first = await handleWebhook(mk(), wenv, 'now', now);
+    const second = await handleWebhook(mk(), wenv, 'now', now);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(await second.json()).toMatchObject({ duplicate: true });
+    expect(entWrites).toBe(1); // the redelivery did not write the entitlement a second time
   });
 
   it('handleWebhook rejects a bad signature and unparseable json', async () => {

@@ -72,6 +72,18 @@ describe('rate limit', () => {
   });
 });
 
+describe('text AI route size cap', () => {
+  it('413 when a text route body exceeds the cap (a cost backstop on top of the rate limit)', async () => {
+    const res = await worker.fetch(req('POST', '/clarify', { origin: 'https://doubledone.app', body: { task: 'a'.repeat(120_000) } }), makeEnv(), ctx);
+    expect(res.status).toBe(413);
+  });
+
+  it('exempts /ocr from the text cap (a photo is legitimately large; OCR has its own limit)', async () => {
+    const res = await worker.fetch(req('POST', '/ocr', { origin: 'https://doubledone.app', body: { image: 'a'.repeat(120_000) } }), makeEnv(), ctx);
+    expect(res.status).not.toBe(413); // not caught by the text cap; OCR's own larger limit governs
+  });
+});
+
 describe('OCR (premium-gated)', () => {
   it('400 when no image is provided (validation runs before the gate)', async () => {
     const res = await worker.fetch(req('POST', '/ocr', { origin: 'https://doubledone.app', body: {} }), makeEnv(), ctx);

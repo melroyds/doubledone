@@ -72,3 +72,13 @@ create table if not exists push_subs (
   tz_offset integer not null default 0, -- minutes from UTC (Date.getTimezoneOffset; positive = behind UTC)
   created_at text not null default (datetime('now'))
 );
+
+-- Stripe webhook idempotency: the set of event ids already applied to entitlements, so an at-least-once
+-- redelivery (Stripe retries, occasional duplicates) is a no-op. Written ONLY by the verified webhook
+-- handler, which fails OPEN if this table is absent (the entitlement write is an idempotent upsert), so
+-- the Worker can deploy before this is applied. Apply once (idempotent):
+--   npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --file d1/schema.sql
+create table if not exists processed_events (
+  event_id text primary key,            -- Stripe event id (evt_...)
+  created_at text not null default (datetime('now'))
+);
