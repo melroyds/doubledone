@@ -347,7 +347,7 @@ export default function SettingsScreen() {
             <View style={styles.premiumCardText}>
               <Text style={styles.premiumCardTitle}>DoubleDone Premium</Text>
               <Text style={styles.premiumCardSub}>
-                {premium ? 'Active. Every extra is yours.' : 'More of what you love: Scan a list, Chart a course, weekly keepsakes, and more.'}
+                {premium ? 'Active. Every extra is yours.' : 'More of what you love: Scan a list, Chart a course, weekly scrapbooks, and more.'}
               </Text>
             </View>
             <Text style={styles.premiumCardCue}>{premium ? 'Active ✓' : '›'}</Text>

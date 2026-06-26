@@ -116,15 +116,15 @@ export default function PremiumScreen() {
           <View style={styles.panel}>
             <Text style={styles.panelHead}>You&apos;re Premium ✓</Text>
             <Text style={styles.body}>
-              Everything is unlocked: Scan, Chart a course, Plan my day, Your patterns, and {allowance} weekly keepsake{allowance === 1 ? '' : 's'}
+              Everything is unlocked: Scan, Chart a course, Plan my day, Your patterns, and {allowance} weekly scrapbook{allowance === 1 ? '' : 's'}
               {allowance < 4 ? ', more the longer you stay.' : '.'} Thank you for keeping DoubleDone independent.
             </Text>
             {effectiveEntitlement.cancelAtPeriodEnd && periodLabel ? (
-              <Text style={styles.subStatus}>Premium until {periodLabel}, then back to the free monthly keepsake.</Text>
+              <Text style={styles.subStatus}>Premium until {periodLabel}, then back to the free monthly scrapbook.</Text>
             ) : periodLabel ? (
               <Text style={styles.subStatus}>Renews {periodLabel}.</Text>
             ) : null}
-            <Text style={styles.foot}>The free monthly keepsake is always yours, even if you cancel.</Text>
+            <Text style={styles.foot}>The free monthly scrapbook is always yours, even if you cancel.</Text>
             <PrimaryButton
               label={busy ? 'Opening…' : 'Manage subscription'}
               onPress={manage}
@@ -142,7 +142,7 @@ export default function PremiumScreen() {
             {status === 'success' ? (
               <Text style={styles.note}>Thanks. Setting up your Premium, this updates in a moment.</Text>
             ) : status === 'cancelled' ? (
-              <Text style={styles.note}>No worries. Your free monthly keepsake is always here.</Text>
+              <Text style={styles.note}>No worries. Your free monthly scrapbook is always here.</Text>
             ) : null}
 
             <Text style={styles.panelHead}>More of what you love.</Text>
@@ -154,7 +154,7 @@ export default function PremiumScreen() {
               {[
                 'Scan a photo of a list straight into tasks',
                 "Pin the day's one thing",
-                'A weekly AI keepsake of everything you finished',
+                'A weekly AI scrapbook of everything you finished',
                 'Your patterns, gentle stats and a warm weekly reflection',
                 'Chart a course, turn a goal into calm next steps',
                 'Plan my day, a calm order for today',
@@ -167,7 +167,7 @@ export default function PremiumScreen() {
               <Text style={styles.featureMore}>and more on the way…</Text>
             </View>
 
-            <Text style={styles.keepsakeNote}>The weekly keepsake grows the longer you stay:</Text>
+            <Text style={styles.keepsakeNote}>The weekly scrapbook grows the longer you stay:</Text>
             <View style={styles.tiers}>
               <Text style={styles.tier}>1 a week</Text>
               <Text style={styles.tierArrow}>→</Text>
@@ -196,8 +196,8 @@ export default function PremiumScreen() {
             )}
             <Text style={styles.foot}>
               {session
-                ? 'The free monthly keepsake is always yours, even if you never upgrade.'
-                : 'Premium attaches to your account, so it follows you across devices. The free monthly keepsake is always yours.'}
+                ? 'The free monthly scrapbook is always yours, even if you never upgrade.'
+                : 'Premium attaches to your account, so it follows you across devices. The free monthly scrapbook is always yours.'}
             </Text>
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </View>

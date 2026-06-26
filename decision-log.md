@@ -2926,3 +2926,23 @@ adaptation emoji never had), and `aria-hidden` so the Pressable's accessibilityL
 A stray React warning was caught and fixed in the same pass: `accessibilityElementsHidden` /
 `importantForAccessibility` on the Svg leaked through react-native-svg onto the DOM on web; switched to
 `aria-hidden`, confirmed the svg now carries only width/height/viewBox/aria-hidden. Gate green. On premium.
+
+## 2026-06-27 Copy decisions applied: Rooms to Menu, keepsake to scrapbook, Start fresh to See today
+
+Melroy's calls on the deferred copy-review items ([`docs/copy-review.md`](docs/copy-review.md)), made after
+seeing them rendered in a before/after visual.
+
+- **Rooms to Menu.** The header pill, its a11y label, the bottom-sheet title, and the "Close menu" scrim label
+  all move to Menu ("Rooms never made sense" was his read). This goes one step beyond the copy-review, which
+  suggested keeping "Rooms" as the open-sheet title for charm: a Menu pill opening a Rooms-titled sheet read as
+  a mismatch, so the sheet title is Menu too. Trivial to restore the charm if he misses it. Internal names
+  (the RoomsSheet component, roomsOpen state, roomsLabel style) stay; only user-facing strings changed.
+- **keepsake to scrapbook**, as the feature name, everywhere it was user-facing (the premium paywall x8, the
+  settings card, the lookback over-quota line + image a11y + the within-card hint). "keepsake" now survives only
+  in code comments and the internal keepsakeNote style key. Plurals checked per sentence.
+- **Start fresh to See today**, on the shame-free re-entry card. "Start fresh" read as wipe/reset two lines under
+  "nothing's lost"; "See today" names the actual action (reveal today).
+- The three design ratify defaults (page titles unified to 34, chips soft-tint, emoji to the Mark glyphs) were
+  confirmed kept. **"Plan my day" stays** (Melroy overrode the audit's suggestion to revert it to "Plan my order").
+
+Verified live in the web preview: the Menu pill + sheet render, no "Rooms" visible anywhere, gate green. On premium.

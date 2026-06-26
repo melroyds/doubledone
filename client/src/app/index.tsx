@@ -1063,7 +1063,7 @@ export default function TodayScreen() {
           <Pressable
             onPress={() => setRoomsOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel="Rooms: Repeating, Routines, Lookback, Chart a course, Settings"
+            accessibilityLabel="Menu: Repeating, Routines, Lookback, Chart a course, Settings"
             hitSlop={8}
             style={({ pressed }) => [styles.roomsPill, pressed && styles.pressed]}
           >
@@ -1072,7 +1072,7 @@ export default function TodayScreen() {
               <View style={styles.roomsDot} />
               <View style={styles.roomsDot} />
             </View>
-            <Text style={styles.roomsLabel}>Rooms</Text>
+            <Text style={styles.roomsLabel}>Menu</Text>
           </Pressable>
         </View>
         {reentry && !isClosed && (
@@ -1082,9 +1082,9 @@ export default function TodayScreen() {
               {"However long it's been, the past is fine. Nothing's overdue, nothing's lost. Here's just today, when you're ready."}
             </Text>
             <PrimaryButton
-              label="Start fresh"
+              label="See today"
               onPress={() => setReentry(false)}
-              accessibilityLabel="Start fresh"
+              accessibilityLabel="See today"
               style={styles.reentryBtn}
             />
           </View>

@@ -116,7 +116,7 @@ export default function LookbackScreen() {
         return;
       }
       const days = Math.max(1, Math.ceil((gate.resetAt - Date.now()) / 86_400_000));
-      setBookError(`That's this week's keepsakes. The next is ready in ${days} day${days === 1 ? '' : 's'}.`);
+      setBookError(`That's this week's scrapbooks. The next is ready in ${days} day${days === 1 ? '' : 's'}.`);
       return;
     }
     setBookBusy(true);
@@ -301,7 +301,7 @@ export default function LookbackScreen() {
                 resizeMode="cover"
                 onError={() => setBrokenImages((prev) => new Set(prev).add(weekStart))}
                 accessible
-                accessibilityLabel={`A keepsake still-life for the ${weekLabel(weekStart)}: ${existingBook.caption}`}
+                accessibilityLabel={`A scrapbook still-life for the ${weekLabel(weekStart)}: ${existingBook.caption}`}
               />
               {existingBook.caption.length > 0 && <Text style={styles.scrapbookCaption}>{existingBook.caption}</Text>}
             </View>
@@ -315,7 +315,7 @@ export default function LookbackScreen() {
               </View>
             </View>
             <Text style={styles.scrapbookHint}>
-              {existingBook ? "That keepsake's picture isn't available anymore. Make a new one?" : 'Turn this week into a keepsake'}
+              {existingBook ? "That scrapbook's picture isn't available anymore. Make a new one?" : 'Turn this week into a scrapbook'}
             </Text>
             <PrimaryButton
               label="Make a scrapbook"

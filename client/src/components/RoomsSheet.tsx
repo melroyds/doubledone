@@ -36,10 +36,10 @@ export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookba
   ];
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.scrim} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close rooms">
+      <Pressable style={styles.scrim} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close menu">
         {/* Absorb taps on the sheet itself so only the scrim closes it. */}
         <View style={styles.sheet} onStartShouldSetResponder={() => true}>
-          <Text style={styles.title}>Rooms</Text>
+          <Text style={styles.title}>Menu</Text>
           {rooms.map((r) => (
             <Pressable
               key={r.key}
