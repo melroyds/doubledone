@@ -13,6 +13,7 @@ import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 import { Chip } from './Chip';
 import { DatePicker } from './DatePicker';
+import { Mark } from './Mark';
 import { PrimaryButton } from './PrimaryButton';
 
 type Props = {
@@ -255,7 +256,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
             accessibilityState={{ selected: listening }}
             accessibilityLabel={listening ? 'Listening. Tap to stop.' : 'Speak your tasks instead of typing'}
           >
-            {listening && <View style={styles.liveDot} />}
+            {listening ? <View style={styles.liveDot} /> : <Mark name="mic" size={16} color={theme.colors.inkSoft} />}
             <Text style={[styles.speakText, listening && styles.speakTextOn]}>
               {listening ? 'Listening…' : 'Speak'}
             </Text>
@@ -269,6 +270,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
             accessibilityRole="button"
             accessibilityLabel="Read a list from a photo"
           >
+            <Mark name="camera" size={16} color={theme.colors.inkSoft} />
             <Text style={styles.speakText}>Scan</Text>
           </Pressable>
         )}

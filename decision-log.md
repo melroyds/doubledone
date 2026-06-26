@@ -2905,3 +2905,24 @@ history rewrite, offered, Melroy's call, and the public repo means it may alread
 restore the owner comp: set the COMP_EMAILS secret (wrangler secret put, or the Cloudflare dashboard) then
 deploy the Worker. Until that deploy the live Worker runs the old hardcoded code, so the comp keeps working
 meanwhile. Gate green: client 350, server 199.
+
+## 2026-06-27 The Mark SVG icon set: Speak / Scan get real glyphs (wave 5 follow-on)
+
+Design wave 5 dropped the raster emoji (the reminder bell, the Speak mic, the Scan camera) and noted a
+proper SVG icon set as a follow-on "if iconography is wanted later". Melroy wanted the marks back, done
+right. Added `<Mark name="mic" | "camera">` ([`client/src/components/Mark.tsx`](client/src/components/Mark.tsx)):
+single-weight thin-line glyphs (Feather / Lucide lineage, MIT) on react-native-svg, tinted via a `color`
+prop so ONE icon serves light, dark, and the Dusk palette, the exact thing emoji could not do. Wired into
+BrainDump's Speak (mic when idle; the live dot still shows while listening) and Scan (camera), each at the
+speakText colour (inkSoft) so the glyph always matches its label.
+
+Considered and rejected AI-generated raster icons (nano-banana) for these inline UI marks: raster
+reintroduces the emoji problem (fixed colour, no dark-mode adapt, fuzzy at small sizes). That route was
+kept only as an option for distinctive / marketing art, with prompts handed over, not for the buttons.
+
+Verified live in the web preview (dark mode): both glyphs render with the right shapes (mic = 2 paths + 2
+lines, camera = path + lens circle), stroke `#8A7F73` matching the dark-mode label exactly (the dark-mode
+adaptation emoji never had), and `aria-hidden` so the Pressable's accessibilityLabel stays authoritative.
+A stray React warning was caught and fixed in the same pass: `accessibilityElementsHidden` /
+`importantForAccessibility` on the Svg leaked through react-native-svg onto the DOM on web; switched to
+`aria-hidden`, confirmed the svg now carries only width/height/viewBox/aria-hidden. Gate green. On premium.
