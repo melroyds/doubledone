@@ -216,13 +216,13 @@ CASES = [
      "Finish the LAST step of a broken-down task. Try it on a long-lingering or chunky task, and separately on a small same-day one. Then repeat with Reduce Motion on.",
      "A warm radial bloom rises over a dimming scrim: 'You finished the whole thing', the task name in Newsreader italic, and a warm context line ('... since you first wrote it down. N small steps. All done.'). It holds longer and blooms larger for a long-dreaded or chunky task than for a quick same-day one. A tap dismisses it early, otherwise it auto-settles. Never confetti, points, or a number on screen. On Android the dimmed scrim is clean, with NO vertical pillar or banding behind it (the SVG background pools are disabled on Android, where they mis-render at large size). With Reduce Motion on, the held title and warm colour still show, only the movement is removed.", "Both"),
 
-    # --- AI: Sort-for-me & Strategise ----------------------------------------
+    # --- AI: Sort-for-me & Lighten today -------------------------------------
     ("AI-05", "AI triage", "P2", "Sort-for-me (triage + feedback)",
      "In the brain-dump type a MIXED pile, one per line (a couple of quick things, one that can wait, one big/vague). At one line a hint nudges 'one per line'; at two, 'Break it down' becomes 'Sort for me'. Run it.",
      "Shows a summary line ('Sorted: N for today, M for tomorrow, K to break down.'). Quick items stay on Today, can-waits move to tomorrow, big ones get an inline 'Looks big, break it down?' prompt. Calm, never scolding.", "Both"),
-    ("AI-06", "AI strategise", "P2", "Strategise (chart a course)",
-     "When the list feels heavy, run Strategise.",
-     "Returns a weighted, ordered plan of action. No overwhelm.", "Both"),
+    ("AI-06", "AI lighten", "P2", "Lighten today (re-spread a full day)",
+     "When today is heavy (6+ tasks, or 4+ on a low day), tap 'Lighten today'.",
+     "The button only appears on a heavy day. It proposes re-spreading a few tasks to later days so today becomes doable, propose-then-accept. Free and ungated for everyone, never scolding.", "Both"),
 
     # --- Lookback -------------------------------------------------------------
     ("LB-01", "Lookback", "P1", "Open the calendar",
@@ -485,12 +485,12 @@ CASES = [
      "As premium, type a goal, tap a 'By when?' chip (e.g. 'In 2 months'), then Suggest steps and Add.",
      "The steps are paced for that timeframe, and the accepted tasks spread from Today out to the chosen date (not crammed into the next few days). 'No deadline' keeps the gentle one-per-day default.", "Both"),
 
-    # --- Plan my order / sequencing (Premium) --------------------------------
-    ("SEQ-01", "Sequence", "P1", "Premium: Plan my order suggests a calm sequence",
-     "As premium with 3+ open one-off tasks on Today, tap 'Plan my order'.",
+    # --- Plan my day / sequencing (Premium) --------------------------------
+    ("SEQ-01", "Sequence", "P1", "Premium: Plan my day suggests a calm sequence",
+     "As premium with 3+ open one-off tasks on Today, tap 'Plan my day'.",
      "A proposal card lists today's tasks in a suggested order, each with a short calm reason. Nothing reorders until 'Use this order' is tapped, then the list re-sequences in place (no dates change, no task moves to another day). A 'sequence.accepted' event is logged.", "Both"),
-    ("SEQ-02", "Sequence", "P1", "Free: Plan my order routes to the upsell, never reorders",
-     "As a free user with 2+ tasks on Today, tap 'Plan my order'.",
+    ("SEQ-02", "Sequence", "P1", "Free: Plan my day routes to the upsell, never reorders",
+     "As a free user with 2+ tasks on Today, tap 'Plan my day'.",
      "The Premium screen opens calmly (never a wall), a 'premium.gate_hit' with reason 'sequence' is logged, and the day's order is unchanged.", "Both"),
     ("SEQ-03", "Sequence", "P2", "'Not now' leaves the day untouched",
      "As premium, open the proposal, then tap 'Not now' or the backdrop.",
@@ -499,8 +499,11 @@ CASES = [
      "As premium, accept an order, then fully reload the app.",
      "Today still shows the accepted order after reload (manualOrder persists on-device). Note: the order does not yet sync across devices, which is a documented follow-up.", "Both"),
     ("SEQ-05", "Sequence", "P3", "A pinned task still wins the very top",
-     "As premium, pin a task, then accept a 'Plan my order' sequence that puts a different task first.",
+     "As premium, pin a task, then accept a 'Plan my day' sequence that puts a different task first.",
      "The pinned task stays at the very top, and the accepted order applies to everything below it.", "Both"),
+    ("SEQ-06", "Sequence", "P2", "Plan my day offers to lighten a heavy day",
+     "As premium on a heavy day (6+ tasks), tap 'Plan my day', accept the order.",
+     "After the order applies, a 'Still a full day?' card offers to push a few tasks out to later days. Yes runs the re-spread (propose-then-accept), No leaves it ordered. On a calm day the offer never appears.", "Both"),
 ]
 
 HEADERS = ["ID", "Area", "Priority", "Test", "Steps", "Expected result",

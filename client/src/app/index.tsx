@@ -116,6 +116,7 @@ export default function TodayScreen() {
   const [strategising, setStrategising] = useState(false);
   const [plan, setPlan] = useState<PlanItem[] | null>(null);
   const [strategiseError, setStrategiseError] = useState<string | null>(null);
+  const [offerDefer, setOfferDefer] = useState(false); // after "Plan my day" orders a heavy day, offer to lighten it
   const [order, setOrder] = useState<OrderItem[] | null>(null);
   const [sequencing, setSequencing] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
@@ -341,6 +342,10 @@ export default function TodayScreen() {
   // wall-of-awful). The first not-yet-skipped one; completing or skipping advances it.
   const focusTask = focusOpen && focusPick ? (spreadable.find((t) => t.id === focusPick) ?? null) : null;
   const weightOfDay = dayWeight(spreadable.length, isLowDay);
+  // Heavy enough that lightening the day is worth offering: the same signal as the "Today's looking full"
+  // line, made capacity-aware so a low-energy day counts as heavy sooner. Gates the "Lighten today" button
+  // and the post-order "push a few out?" offer, so neither clutters a calm day.
+  const dayIsHeavy = spreadable.length >= 6 || (isLowDay && spreadable.length >= 4);
 
   // When a task leaves the active-today state (done, removed, deferred), cancel any pending
   // nudge and strip its fields, so you are never poked about something already handled.
@@ -671,8 +676,11 @@ export default function TodayScreen() {
     if (!order) return;
     commit(setSequence(tasks, order.map((o) => o.id), nowMs()));
     track('sequence.accepted', { count: order.length });
-    affirm('A gentle order, top of the list when you are ready.');
     setOrder(null);
+    // Once the day is ordered, if it is still heavy, offer to lighten it (the re-spread). On a calm day
+    // there is nothing to push out, so just affirm and stay out of the way.
+    if (dayIsHeavy) setOfferDefer(true);
+    else affirm('A gentle order, top of the list when you are ready.');
   }
 
   // A brief, consistent reassurance after completing (Done-is-done / Good-enough). One
@@ -1223,22 +1231,24 @@ export default function TodayScreen() {
           <View style={styles.dayActions}>
             {spreadable.length >= 2 && (
               <>
-                {spreadable.length >= 6 && <Text style={styles.strategiseNudge}>{"Today's looking full."}</Text>}
-                <Pressable
-                  onPress={runStrategise}
-                  disabled={strategising}
-                  style={({ pressed }) => [styles.strategiseBtn, pressed && styles.pressed, strategising && styles.disabledBtn]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Strategise the day"
-                >
-                  <Text style={styles.strategiseBtnText}>{strategising ? 'Strategising…' : 'Strategise'}</Text>
-                </Pressable>
+                {dayIsHeavy && <Text style={styles.strategiseNudge}>{"Today's looking full."}</Text>}
+                {dayIsHeavy && (
+                  <Pressable
+                    onPress={runStrategise}
+                    disabled={strategising}
+                    style={({ pressed }) => [styles.strategiseBtn, pressed && styles.pressed, strategising && styles.disabledBtn]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Lighten today by moving some tasks to later days"
+                  >
+                    <Text style={styles.strategiseBtnText}>{strategising ? 'Lightening…' : 'Lighten today'}</Text>
+                  </Pressable>
+                )}
                 {strategiseError && <Text style={styles.strategiseErr}>{strategiseError}</Text>}
                 <PremiumButton
-                  label={sequencing ? 'Planning…' : 'Plan my order'}
+                  label={sequencing ? 'Planning…' : 'Plan my day'}
                   onPress={runSequence}
                   disabled={sequencing}
-                  accessibilityLabel="Plan my order for today"
+                  accessibilityLabel="Plan my day, order today's tasks"
                   style={styles.sequenceBtn}
                 />
                 {orderError && <Text style={styles.strategiseErr}>{orderError}</Text>}
@@ -1841,6 +1851,38 @@ export default function TodayScreen() {
             </Pressable>
             <Pressable onPress={() => setOrder(null)} accessibilityRole="button" accessibilityLabel="Not now">
               <Text style={styles.planDismiss}>Not now</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* After "Plan my day" orders a heavy day, offer the Lighten-today re-spread (Melroy's "push a few
+          out?" follow-up). Only on a heavy day, and only after ordering, so it never nags a calm day. */}
+      <Modal visible={offerDefer} transparent animationType="fade" onRequestClose={() => setOfferDefer(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setOfferDefer(false)} accessibilityRole="button" accessibilityLabel="Dismiss">
+          <Pressable style={styles.wrapCard} onPress={() => {}}>
+            <Text style={styles.wrapTitle}>Still a full day?</Text>
+            <Text style={styles.wrapLine}>Today is ordered. Want to push a few tasks out to later days, to lighten it?</Text>
+            <Pressable
+              onPress={() => {
+                setOfferDefer(false);
+                runStrategise();
+              }}
+              style={({ pressed }) => [styles.wrapBtn, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Yes, lighten today by moving some out"
+            >
+              <Text style={styles.wrapBtnText}>Yes, lighten today</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setOfferDefer(false);
+                affirm('A gentle order, top of the list when you are ready.');
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="No, this is good"
+            >
+              <Text style={styles.planDismiss}>No, this is good</Text>
             </Pressable>
           </Pressable>
         </Pressable>

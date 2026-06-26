@@ -116,11 +116,11 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 |---|---|---|---|---|---|
 | AI-05 | P2 | Both | Sort-for-me (triage + feedback) | In the brain-dump type a MIXED pile, one per line (a couple of quick things, one that can wait, one big/vague). At one line a hint nudges 'one per line'; at two, 'Break it down' becomes 'Sort for me'. Run it. | Shows a summary line ('Sorted: N for today, M for tomorrow, K to break down.'). Quick items stay on Today, can-waits move to tomorrow, big ones get an inline 'Looks big, break it down?' prompt. Calm, never scolding. |
 
-## AI strategise
+## AI lighten
 
 | ID | Pri | Platform | Test | Steps | Expected |
 |---|---|---|---|---|---|
-| AI-06 | P2 | Both | Strategise (chart a course) | When the list feels heavy, run Strategise. | Returns a weighted, ordered plan of action. No overwhelm. |
+| AI-06 | P2 | Both | Lighten today (re-spread a full day) | When today is heavy (6+ tasks, or 4+ on a low day), tap 'Lighten today'. | The button only appears on a heavy day. It proposes re-spreading a few tasks to later days so today becomes doable, propose-then-accept. Free and ungated for everyone, never scolding. |
 
 ## Lookback
 
@@ -278,8 +278,9 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 
 | ID | Pri | Platform | Test | Steps | Expected |
 |---|---|---|---|---|---|
-| SEQ-01 | P1 | Both | Premium: Plan my order suggests a calm sequence | As premium with 3+ open one-off tasks on Today, tap 'Plan my order'. | A proposal card lists today's tasks in a suggested order, each with a short calm reason. Nothing reorders until 'Use this order' is tapped, then the list re-sequences in place (no dates change, no task moves to another day). A 'sequence.accepted' event is logged. |
-| SEQ-02 | P1 | Both | Free: Plan my order routes to the upsell, never reorders | As a free user with 2+ tasks on Today, tap 'Plan my order'. | The Premium screen opens calmly (never a wall), a 'premium.gate_hit' with reason 'sequence' is logged, and the day's order is unchanged. |
+| SEQ-01 | P1 | Both | Premium: Plan my day suggests a calm sequence | As premium with 3+ open one-off tasks on Today, tap 'Plan my day'. | A proposal card lists today's tasks in a suggested order, each with a short calm reason. Nothing reorders until 'Use this order' is tapped, then the list re-sequences in place (no dates change, no task moves to another day). A 'sequence.accepted' event is logged. |
+| SEQ-02 | P1 | Both | Free: Plan my day routes to the upsell, never reorders | As a free user with 2+ tasks on Today, tap 'Plan my day'. | The Premium screen opens calmly (never a wall), a 'premium.gate_hit' with reason 'sequence' is logged, and the day's order is unchanged. |
 | SEQ-03 | P2 | Both | 'Not now' leaves the day untouched | As premium, open the proposal, then tap 'Not now' or the backdrop. | The order is exactly as before, nothing reordered, and no manualOrder is written. |
 | SEQ-04 | P2 | Both | An accepted order survives a reload (local-first) | As premium, accept an order, then fully reload the app. | Today still shows the accepted order after reload (manualOrder persists on-device). Note: the order does not yet sync across devices, which is a documented follow-up. |
-| SEQ-05 | P3 | Both | A pinned task still wins the very top | As premium, pin a task, then accept a 'Plan my order' sequence that puts a different task first. | The pinned task stays at the very top, and the accepted order applies to everything below it. |
+| SEQ-05 | P3 | Both | A pinned task still wins the very top | As premium, pin a task, then accept a 'Plan my day' sequence that puts a different task first. | The pinned task stays at the very top, and the accepted order applies to everything below it. |
+| SEQ-06 | P2 | Both | Plan my day offers to lighten a heavy day | As premium on a heavy day (6+ tasks), tap 'Plan my day', accept the order. | After the order applies, a 'Still a full day?' card offers to push a few tasks out to later days. Yes runs the re-spread (propose-then-accept), No leaves it ordered. On a calm day the offer never appears. |

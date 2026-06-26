@@ -2564,3 +2564,32 @@ PREMIUM_GRADIENT) to the Chart a course row in the Rooms sheet, so a free user s
 tapping in. The gate still fires at the moment of asking (tapping Suggest steps), this just signals premium
 earlier and more honestly. Chart a course is the only premium-gated Rooms destination, so the only one
 tagged. Verified the gradient renders on the tag in preview. Gate green: typecheck and lint clean.
+
+## 2026-06-26 Rename: Strategise to "Lighten today", Plan my order to "Plan my day", plus a follow-up
+
+The follow-up to the Plan-my-Day adversarial review. Melroy's real complaint was the vague naming
+("Strategise" says nothing), and fixing the names dissolves the review's conversion-collision concern. The
+review's verdict (keep both tools, never hide the free relief, do not fork Today by tier) holds. Only the
+labels change, plus the agreed "push a few out?" follow-up.
+
+- **Strategise becomes "Lighten today."** Names the benefit (today gets lighter), pairs with the existing
+  "Today's looking full" line. Stays FREE and ungated for everyone (the spine: relief is never gated).
+  Internal identifiers (runStrategise, the /strategise route, the strategise.* telemetry) keep their names.
+- **Plan my order becomes "Plan my day."** Melroy's preferred name, now usable: with "Lighten today" as its
+  neighbour the two no longer read as synonyms (one lightens, one plans). Premium, unchanged mechanics.
+- **"Lighten today" now appears only on a heavy day** (spreadable >= 6, or >= 4 on a low-capacity day), the
+  same signal as the "Today's looking full" nudge. A calm day shows only "Plan my day", which declutters Today
+  exactly when fewer buttons is right. The decluttering Melroy wanted, without hiding the rescue.
+- **The "push a few out?" follow-up:** after "Plan my day" applies an order on a heavy day, a calm "Still a
+  full day?" card offers to push a few tasks to later days (Yes runs the existing re-spread as a
+  propose-then-accept, No leaves it ordered). Only on a heavy day, so it never nags a calm one.
+
+NOT done, per the review: "Lighten today" is NOT hidden for premium, Today is NOT forked by tier, and ordering
+never precedes relief on the crisis path. The one-tap "Lighten today" button is the crisis door for all tiers;
+the order-then-offer flow is the deliberate premium path.
+
+Renamed every user-facing surface: the Today buttons, the premium page (paywall + active view), onboarding
+(welcome.tsx), and the privacy policy (in-app + the crawlable privacy.html). Internal code identifiers kept for
+continuity. Gate green: typecheck and lint clean, client 338, server 196. QA: AI-06 rewritten, SEQ-06 added,
+suite regenerated (140 cases). Verified in preview: heavy day shows both buttons + the nudge, calm day shows
+only Plan my day, old names gone.

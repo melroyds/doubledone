@@ -121,7 +121,7 @@ export default function PremiumScreen() {
           <View style={styles.panel}>
             <Text style={styles.panelHead}>You&apos;re Premium ✓</Text>
             <Text style={styles.body}>
-              Everything is unlocked: Scan, Chart a course, Plan my order, Your patterns, and {allowance} weekly keepsake{allowance === 1 ? '' : 's'}
+              Everything is unlocked: Scan, Chart a course, Plan my day, Your patterns, and {allowance} weekly keepsake{allowance === 1 ? '' : 's'}
               {allowance < 4 ? ', more the longer you stay.' : '.'} Thank you for keeping DoubleDone independent.
             </Text>
             {effectiveEntitlement.cancelAtPeriodEnd && periodLabel ? (
@@ -164,7 +164,7 @@ export default function PremiumScreen() {
                 'A weekly AI keepsake of everything you finished',
                 'Your patterns, gentle stats and a warm weekly reflection',
                 'Chart a course, turn a goal into calm next steps',
-                'Plan my order, a calm sequence for today',
+                'Plan my day, a calm order for today',
               ].map((f) => (
                 <View key={f} style={styles.featureRow}>
                   <View style={styles.featureDot} />

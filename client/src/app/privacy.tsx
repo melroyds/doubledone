@@ -51,7 +51,7 @@ export default function PrivacyScreen() {
         <View style={styles.section}>
           <Text style={styles.heading}>The AI features</Text>
           <Text style={styles.body}>
-            Break it down, Strategise, and Sort for me send the text you typed to our server, which passes it to
+            Break it down, Lighten today, and Sort for me send the text you typed to our server, which passes it to
             Anthropic&apos;s Claude to do the work. Anthropic does not train their models on it, and does not keep your
             text or the response by default. Anything flagged for safety or legal reasons can be held by Anthropic for
             up to two years. Separately, we keep a copy on our side, without your name, account, or IP address, to

@@ -46,7 +46,7 @@ const TRIAGE_TIMEOUT_MS = 8000;
 const SAFETY_NET: { name: string; what: string }[] = [
   { name: 'Break it down', what: 'into small, time-boxed steps.' },
   { name: 'Make it tiny', what: 'a two-minute version, just to begin.' },
-  { name: 'Strategise', what: 'a too-full day, re-spread calmly across the week.' },
+  { name: 'Lighten today', what: 'a too-full day, eased by moving a few tasks to later days.' },
 ];
 
 export default function WelcomeScreen() {
