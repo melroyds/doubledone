@@ -31,6 +31,10 @@ export default function LookbackScreen() {
   const [scrapbooks, setScrapbooks] = useState<Scrapbook[]>([]);
   const [bookBusy, setBookBusy] = useState(false);
   const [bookError, setBookError] = useState<string | null>(null);
+  // Week-starts whose stored keepsake image failed to load (e.g. the R2 object was purged on an account
+  // delete, leaving a local entry that points at a now-missing image). Such a week falls back to the calm
+  // "make one" invite instead of a blank polaroid.
+  const [brokenImages, setBrokenImages] = useState<Set<string>>(new Set());
   const [summary, setSummary] = useState('');
   const [summaryWeek, setSummaryWeek] = useState<string | null>(null);
   const [summaryBusy, setSummaryBusy] = useState(false);
@@ -111,6 +115,13 @@ export default function LookbackScreen() {
       const next = upsertScrapbook(scrapbooks, { weekStart, image, caption, createdAt: Date.now() });
       setScrapbooks(next);
       void saveScrapbooks(next);
+      // A remade week has a fresh image, so clear any stale broken-image flag for it.
+      setBrokenImages((prev) => {
+        if (!prev.has(weekStart)) return prev;
+        const cleared = new Set(prev);
+        cleared.delete(weekStart);
+        return cleared;
+      });
       scrapbookReady(reduced); // the keepsake landed: the payoff flourish, at the reveal
       track('scrapbook.made', { titles: titles.length });
     } catch {
@@ -271,13 +282,14 @@ export default function LookbackScreen() {
             </View>
             <Text style={styles.scrapbookCaption}>Making your scrapbook…</Text>
           </View>
-        ) : existingBook ? (
+        ) : existingBook && !brokenImages.has(weekStart) ? (
           <>
             <View style={styles.polaroid}>
               <Image
                 source={{ uri: existingBook.image }}
                 style={styles.scrapbookImage}
                 resizeMode="cover"
+                onError={() => setBrokenImages((prev) => new Set(prev).add(weekStart))}
                 accessible
                 accessibilityLabel={`A keepsake still-life for the ${weekLabel(weekStart)}: ${existingBook.caption}`}
               />
@@ -292,7 +304,9 @@ export default function LookbackScreen() {
                 <Text style={styles.invitePlusText}>+</Text>
               </View>
             </View>
-            <Text style={styles.scrapbookHint}>Turn this week into a keepsake</Text>
+            <Text style={styles.scrapbookHint}>
+              {existingBook ? "That keepsake's picture isn't available anymore. Make a new one?" : 'Turn this week into a keepsake'}
+            </Text>
             <Pressable
               onPress={makeWeekScrapbook}
               style={({ pressed }) => [styles.scrapbookBtn, pressed && styles.pressed]}

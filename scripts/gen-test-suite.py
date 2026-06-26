@@ -257,6 +257,9 @@ CASES = [
     ("SB-06", "Scrapbook", "P2", "Scrapbook persists",
      "Make a scrapbook, restart the app.",
      "It is still there (device-local).", "Both"),
+    ("SB-07", "Scrapbook", "P2", "A missing keepsake image degrades gracefully",
+     "Open a week whose scrapbook image is gone (e.g. the R2 object was purged on an account delete while the local entry survived, or the stored image is corrupt).",
+     "No blank polaroid. The week falls back to the calm 'That keepsake's picture isn't available anymore. Make a new one?' invite, and remaking overwrites it with a fresh image. Never a broken frame.", "Both"),
 
     # --- Auth & sync ----------------------------------------------------------
     ("AUTH-01", "Auth & sync", "P1", "Email sign-in (OTP)",

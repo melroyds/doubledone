@@ -141,6 +141,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | SB-04 | P2 | Both | Invite state | Open a week that has completions but no scrapbook yet. | Dashed frame + mauve '+', 'Turn this week into a keepsake', and the finished list still shows. |
 | SB-05 | P2 | Web | Free-tier limit is graceful | Generate a few scrapbooks in one day (free tier ~1-2/day). | When exhausted, a calm wait/error. No crash, the holder stays intact. |
 | SB-06 | P2 | Both | Scrapbook persists | Make a scrapbook, restart the app. | It is still there (device-local). |
+| SB-07 | P2 | Both | A missing keepsake image degrades gracefully | Open a week whose scrapbook image is gone (e.g. the R2 object was purged on an account delete while the local entry survived, or the stored image is corrupt). | No blank polaroid. The week falls back to the calm 'That keepsake's picture isn't available anymore. Make a new one?' invite, and remaking overwrites it with a fresh image. Never a broken frame. |
 
 ## Auth & sync
 

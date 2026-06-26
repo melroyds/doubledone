@@ -2505,3 +2505,25 @@ you love" and a calm feature list (Scan a list, Pin the day's one thing, the wee
 Chart a course, Plan my order) plus an enticing "and more on the way", with the keepsake tenure tiers kept as
 a detail below. The free-stays-complete framing is preserved up top ("the whole calm daily loop stays free,
 forever"). Verified the render in the web preview. Copy is Melroy's to tune.
+
+## 2026-06-26 Live-test fixes: resilient scrapbook image + a warmer Lookback reflection
+
+Two fixes from Melroy's live testing of the Tier 2 launch.
+
+1. **A missing keepsake image no longer shows a blank polaroid.** After an account delete the R2 image (or
+an oversized / corrupted local data-URL) can go missing while the local scrapbook entry survives, leaving a
+blank card. The Lookback scrapbook now tracks which weeks' images failed to load (an Image onError) and
+degrades that week to the calm "make a new one?" invite, never a blank frame. Remaking clears the flag and
+overwrites the entry. The in-app delete flow is already correct: it purges R2 AND wipes local
+(wipeLocalData + purgeScrapbookImages). So this handles a stale entry from an out-of-band delete or a corrupt
+image, no matter the cause. Verified in preview with a dead image URL.
+
+2. **The Lookback weekly reflection read cookie-cutter.** The live output sounded like a creative-writing
+exercise ("a steadiness to this week, bookended by the simpler anchors of...") and even used an em-dash. The
+prompt now forbids metaphors, clichés, and narrating "the shape of the week", names the exact words the model
+reached for (steadiness, rhythm, anchors, bookended, journey, balance) as banned, bans em-dashes and
+semicolons, and pushes "a kind friend who noticed, not a report". The model also moves from Haiku to Sonnet
+(claude-sonnet-4-6), which writes genuinely warmer, more specific prose, for a negligible per-call cost on a
+short weekly paragraph. Wording stays Melroy's to tune from the live result.
+
+Gate green: typecheck and lint clean, client 338 tests, server 195. QA case SB-07 added.
