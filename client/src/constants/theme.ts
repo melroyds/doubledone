@@ -67,6 +67,11 @@ const dark = {
 
 export const Colors = { light, dark } as const;
 
+// The DoubleDone Premium gradient (mauve -> rose -> honey): the shared visual signal that a surface or action
+// is premium. The one deliberate glow against the calm Dusk palette. Used by the Settings premium card and the
+// PremiumButton (Plan my order, Chart a course, Reflect on this week).
+export const PREMIUM_GRADIENT = ['#8E5E72', '#B5798F', '#D6A77E'] as const;
+
 // The launch-resolved palette (system-following), kept as the default and as the
 // ThemeProvider's fallback. Live switching (theme + text size) flows through the
 // provider via useTheme / useThemedStyles; this static export stays for any

@@ -2527,3 +2527,19 @@ semicolons, and pushes "a kind friend who noticed, not a report". The model also
 short weekly paragraph. Wording stays Melroy's to tune from the live result.
 
 Gate green: typecheck and lint clean, client 338 tests, server 195. QA case SB-07 added.
+
+## 2026-06-26 The DoubleDone Premium gradient as the shared premium signal
+
+Melroy's direction after the Tier 2 launch: "Plan my order needs to be a big premium button using the
+gradient... all premium features ideally have that gradient." The mauve -> rose -> honey glow that already
+sets the Settings premium card apart is now THE signal that an action is premium.
+
+- The gradient moved to a shared `PREMIUM_GRADIENT` in constants/theme (Settings now imports it, no longer a
+  local const).
+- A new `PremiumButton` component (LinearGradient + label) is the one gradient button, reused by the premium
+  AI actions: Plan my order (Today), Suggest steps (Chart a course), and Reflect on this week (Lookback).
+- "Plan my order" went from a quiet outlined pill to a big gradient button, the premium pop on Today.
+
+The gradient stays the one deliberate glow against the calm Dusk palette, now applied consistently to the
+premium ACTION buttons rather than only the Settings card. Verified the render in the web preview (the
+gradient draws correctly on Plan my order). Gate green: typecheck and lint clean.

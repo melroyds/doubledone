@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { fonts, PREMIUM_GRADIENT, radius, spacing, type Theme } from '@/constants/theme';
 import { deleteAccount } from '@/lib/account';
 import { purgeScrapbookImages } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
@@ -22,10 +22,8 @@ import { useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 // Worker; falls back to the deployed Worker when EXPO_PUBLIC_AI_URL is unset.
 const MCP_URL = `${process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app'}/mcp`;
 
-// A warm, "flowery" mauve → rose → honey gradient for the one decorative cell, the
-// Premium card. The Dusk spine stays calm everywhere else; this is the deliberate
-// exception: the special, paid surface gets to glow a little.
-const PREMIUM_GRADIENT = ['#8E5E72', '#B5798F', '#D6A77E'] as const;
+// The DoubleDone Premium gradient now lives in constants/theme (PREMIUM_GRADIENT), shared with the
+// PremiumButton so the same glow signals "premium" on the Settings card and on every premium action.
 
 // The dev premium override exposed as a 3-way Choice; 'auto' defers to the real entitlement.
 type DevPremiumChoice = 'auto' | 'on' | 'off';

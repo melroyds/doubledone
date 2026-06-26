@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PremiumButton } from '@/components/PremiumButton';
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { chart, type CourseStep } from '@/lib/ai';
 import { usePremium } from '@/lib/premium-provider';
@@ -125,15 +126,13 @@ export default function ChartScreen() {
         />
 
         {steps.length === 0 && (
-          <Pressable
+          <PremiumButton
+            label={busy ? 'Charting…' : 'Suggest steps'}
             onPress={suggest}
             disabled={busy || goal.trim().length === 0}
-            accessibilityRole="button"
             accessibilityLabel="Suggest steps toward this goal"
-            style={({ pressed }) => [styles.cta, pressed && styles.pressed, (busy || goal.trim().length === 0) && styles.ctaDim]}
-          >
-            <Text style={styles.ctaText}>{busy ? 'Charting…' : 'Suggest steps'}</Text>
-          </Pressable>
+            style={styles.suggestBtn}
+          />
         )}
 
         {busy && steps.length === 0 && <ActivityIndicator color={theme.colors.accent} style={styles.spinner} />}
@@ -208,6 +207,7 @@ const makeStyles = (t: Theme) =>
       textAlignVertical: 'top',
     },
     cta: { backgroundColor: t.colors.accent, borderRadius: radius.lg, paddingVertical: spacing.four, alignItems: 'center', marginTop: spacing.four },
+    suggestBtn: { marginTop: spacing.four },
     ctaDim: { opacity: 0.5 },
     ctaText: { color: '#FFFFFF', fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     pressed: { opacity: 0.8 },

@@ -11,6 +11,7 @@ import { type BreakdownAnswers, BreakdownQuestions } from '@/components/Breakdow
 import { BreakdownReview, type ReviewPhase, type ReviewStep } from '@/components/BreakdownReview';
 import { DatePicker } from '@/components/DatePicker';
 import { LivingBackground } from '@/components/LivingBackground';
+import { PremiumButton } from '@/components/PremiumButton';
 import { RepeatingDrawer } from '@/components/RepeatingDrawer';
 import { RoomsSheet } from '@/components/RoomsSheet';
 import { RotatingPhrase } from '@/components/RotatingPhrase';
@@ -1233,15 +1234,13 @@ export default function TodayScreen() {
                   <Text style={styles.strategiseBtnText}>{strategising ? 'Strategising…' : 'Strategise'}</Text>
                 </Pressable>
                 {strategiseError && <Text style={styles.strategiseErr}>{strategiseError}</Text>}
-                <Pressable
+                <PremiumButton
+                  label={sequencing ? 'Planning…' : 'Plan my order'}
                   onPress={runSequence}
                   disabled={sequencing}
-                  style={({ pressed }) => [styles.sequenceBtn, pressed && styles.pressed, sequencing && styles.disabledBtn]}
-                  accessibilityRole="button"
                   accessibilityLabel="Plan my order for today"
-                >
-                  <Text style={styles.sequenceBtnText}>{sequencing ? 'Planning…' : 'Plan my order'}</Text>
-                </Pressable>
+                  style={styles.sequenceBtn}
+                />
                 {orderError && <Text style={styles.strategiseErr}>{orderError}</Text>}
               </>
             )}
@@ -2047,16 +2046,8 @@ const makeStyles = (t: Theme) =>
     planItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
     planTitle: { color: t.colors.ink, fontSize: 16 * t.scale, flexShrink: 1, fontFamily: fonts.body },
     planWhen: { color: t.colors.accent, fontSize: 14 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
-    // "Plan my order" (premium): a quiet outlined pill, deliberately lighter than the filled Strategise button.
-    sequenceBtn: {
-      alignSelf: 'center',
-      paddingHorizontal: spacing.five,
-      paddingVertical: spacing.two,
-      borderRadius: radius.pill,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: t.colors.line,
-    },
-    sequenceBtnText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    // "Plan my order" (premium): the big PremiumButton (the DoubleDone Premium gradient), the premium signal on Today.
+    sequenceBtn: { alignSelf: 'stretch', marginTop: spacing.three },
     seqItem: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.three },
     seqNum: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', minWidth: 16, textAlign: 'center', marginTop: 1 },
     seqText: { flex: 1, gap: 1 },

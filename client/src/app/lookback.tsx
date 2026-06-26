@@ -3,6 +3,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PremiumButton } from '@/components/PremiumButton';
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { lookbackSummary, makeScrapbook } from '@/lib/ai';
 import { addMonths, completionsByDay, monthLabel, monthMatrix, scheduledByDay, WEEKDAY_LABELS } from '@/lib/calendar';
@@ -374,14 +375,12 @@ export default function LookbackScreen() {
                   </View>
                 ) : (
                   <>
-                    <Pressable
+                    <PremiumButton
+                      label="Reflect on this week"
                       onPress={reflectOnWeek}
-                      style={({ pressed }) => [styles.summaryBtn, pressed && styles.pressed]}
-                      accessibilityRole="button"
                       accessibilityLabel="Reflect on this week with AI"
-                    >
-                      <Text style={styles.summaryBtnText}>Reflect on this week</Text>
-                    </Pressable>
+                      style={styles.summaryBtn}
+                    />
                     <Text style={styles.scrapbookNote}>
                       Your week&apos;s finished tasks are sent to an AI to write this, then discarded. No names are kept.
                     </Text>
@@ -556,6 +555,5 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   summarySection: { marginTop: spacing.three, gap: spacing.two },
   summaryBusyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
   summaryText: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', lineHeight: 22 * t.scale },
-  summaryBtn: { alignSelf: 'flex-start', backgroundColor: t.colors.accentSoft, borderRadius: radius.pill, paddingHorizontal: spacing.five, paddingVertical: spacing.three },
-  summaryBtnText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+  summaryBtn: { alignSelf: 'flex-start' },
 });
