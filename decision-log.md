@@ -2556,3 +2556,11 @@ route now parses an optional context.dueDate (parseChartContext, ISO-validated),
 sends it. "No deadline" keeps the gentle one-per-day default.
 
 Gate green: typecheck and lint clean, client 338 tests, server 196. QA case CHART-05. Chips verified in preview.
+
+## 2026-06-26 A Premium tag on the Chart a course room
+
+Melroy's ask: Chart a course needs a premium indicator. Added a small gradient "Premium" pill (the shared
+PREMIUM_GRADIENT) to the Chart a course row in the Rooms sheet, so a free user sees it is premium before
+tapping in. The gate still fires at the moment of asking (tapping Suggest steps), this just signals premium
+earlier and more honestly. Chart a course is the only premium-gated Rooms destination, so the only one
+tagged. Verified the gradient renders on the tag in preview. Gate green: typecheck and lint clean.

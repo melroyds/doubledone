@@ -4,9 +4,10 @@
 // this calm bottom sheet. A gentle fade, tap a room to go, tap the scrim to close. No new
 // destinations, just a tidier door to the existing ones.
 
+import { LinearGradient } from 'expo-linear-gradient';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { fonts, PREMIUM_GRADIENT, radius, spacing, type Theme } from '@/constants/theme';
 import { useThemedStyles } from '@/lib/theme-provider';
 
 type Props = {
@@ -26,11 +27,11 @@ export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookba
     onClose();
     fn();
   };
-  const rooms = [
+  const rooms: { key: string; label: string; hint: string; onPress: () => void; premium?: boolean }[] = [
     { key: 'repeating', label: 'Repeating', hint: 'Tasks that come back', onPress: go(onRepeating) },
     { key: 'routines', label: 'Routines', hint: 'Gentle rituals, no streaks', onPress: go(onRoutines) },
     { key: 'lookback', label: 'Lookback', hint: 'Everything you finished', onPress: go(onLookback) },
-    { key: 'chart', label: 'Chart a course', hint: 'Plan toward a goal', onPress: go(onChart) },
+    { key: 'chart', label: 'Chart a course', hint: 'Plan toward a goal', onPress: go(onChart), premium: true },
     { key: 'settings', label: 'Settings', hint: 'Comfort, access, your data', onPress: go(onSettings) },
   ];
   return (
@@ -52,6 +53,13 @@ export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookba
                 <Text style={styles.roomLabel}>{r.label}</Text>
                 <Text style={styles.roomHint}>{r.hint}</Text>
               </View>
+              {r.premium && (
+                <View style={styles.premiumTag}>
+                  <LinearGradient colors={PREMIUM_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premiumTagGrad}>
+                    <Text style={styles.premiumTagText}>Premium</Text>
+                  </LinearGradient>
+                </View>
+              )}
             </Pressable>
           ))}
         </View>
@@ -78,4 +86,7 @@ const makeStyles = (t: Theme) =>
     roomText: { flex: 1 },
     roomLabel: { fontFamily: fonts.body, fontSize: 17 * t.scale, color: t.colors.ink },
     roomHint: { fontFamily: fonts.body, fontSize: 13 * t.scale, color: t.colors.inkSoft, marginTop: 2 },
+    premiumTag: { borderRadius: radius.pill, overflow: 'hidden' },
+    premiumTagGrad: { paddingHorizontal: spacing.three, paddingVertical: 3 },
+    premiumTagText: { fontFamily: fonts.bodyBold, fontWeight: '700', fontSize: 11 * t.scale, color: '#FFFFFF', letterSpacing: 0.3 },
   });
