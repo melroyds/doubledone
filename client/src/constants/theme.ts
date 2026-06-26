@@ -138,6 +138,36 @@ export const fonts = {
   bodyBold: Platform.OS === 'web' ? 'var(--font-body), ui-sans-serif, system-ui, sans-serif' : 'AtkinsonHyperlegible_700Bold',
 } as const;
 
+// The named type scale. Font sizes were inline literals scattered across every screen, which
+// let title and eyebrow sizes drift apart over time. A step is a ready-to-spread style object
+// carrying fontSize, lineHeight, fontFamily, fontWeight (and letterSpacing where the step needs
+// it). The text-size accessibility multiplier `scale` is baked into the size + lineHeight here,
+// so a component spreads `t.type.title` and gets the accessible size with no `* t.scale` at the
+// call site. A site keeps its own colour, margins and textAlign; the token supplies the metrics.
+export type TypeStep = {
+  fontSize: number;
+  lineHeight: number;
+  fontFamily: string;
+  fontWeight: '400' | '600' | '700';
+  letterSpacing?: number;
+};
+
+export function makeTypeScale(scale: number) {
+  return {
+    display: { fontSize: 40 * scale, lineHeight: 46 * scale, fontFamily: fonts.sans, fontWeight: '600' },
+    title: { fontSize: 34 * scale, lineHeight: 40 * scale, fontFamily: fonts.sans, fontWeight: '600' },
+    heading: { fontSize: 24 * scale, lineHeight: 30 * scale, fontFamily: fonts.sans, fontWeight: '600' },
+    subheading: { fontSize: 22 * scale, lineHeight: 28 * scale, fontFamily: fonts.sans, fontWeight: '600' },
+    body: { fontSize: 17 * scale, lineHeight: 23 * scale, fontFamily: fonts.body, fontWeight: '400' },
+    bodyStrong: { fontSize: 17 * scale, lineHeight: 23 * scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    label: { fontSize: 15 * scale, lineHeight: 20 * scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    eyebrow: { fontSize: 12 * scale, lineHeight: 16 * scale, fontFamily: fonts.bodyBold, fontWeight: '700', letterSpacing: 0.5 },
+    caption: { fontSize: 13 * scale, lineHeight: 18 * scale, fontFamily: fonts.body, fontWeight: '400' },
+  } satisfies Record<string, TypeStep>;
+}
+
+export type TypeScale = ReturnType<typeof makeTypeScale>;
+
 // The resolved, swappable theme the app renders against. The colours come from
 // the active scheme; `scale` multiplies every font size (the text-size setting);
 // `reduceMotion` is the resolved motion preference. Built by the ThemeProvider.
@@ -147,6 +177,7 @@ export type Theme = {
   fonts: typeof fonts;
   spacing: typeof spacing;
   radius: typeof radius;
+  type: TypeScale;
   scale: number;
   reduceMotion: boolean;
 };
@@ -158,6 +189,7 @@ export function buildTheme(scheme: 'light' | 'dark', scale: number, reduceMotion
     fonts,
     spacing,
     radius,
+    type: makeTypeScale(scale),
     scale,
     reduceMotion,
   };

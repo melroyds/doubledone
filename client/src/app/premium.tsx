@@ -224,7 +224,7 @@ const makeStyles = (t: Theme) =>
     scroll: { flex: 1 },
     content: { paddingHorizontal: spacing.five, paddingBottom: spacing.six, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
     back: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    title: { color: t.colors.ink, fontSize: 42 * t.scale, fontWeight: '400', fontFamily: fonts.sans, marginTop: spacing.three },
+    title: { ...t.type.title, color: t.colors.ink, marginTop: spacing.three },
     spinner: { color: t.colors.accent },
     loadingPad: { marginTop: spacing.six },
     panel: { marginTop: spacing.five, gap: spacing.three },

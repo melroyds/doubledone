@@ -137,7 +137,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   card: { backgroundColor: t.colors.bg, borderRadius: radius.lg, width: '100%', maxWidth: 440, maxHeight: '88%' },
   scroll: { padding: spacing.six, gap: spacing.three },
-  title: { color: t.colors.ink, fontSize: 24 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.3 },
+  title: { ...t.type.heading, color: t.colors.ink, letterSpacing: -0.3 },
   sub: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
   hint: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body },
   list: { gap: spacing.two, marginTop: spacing.one },
@@ -169,12 +169,9 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   meta: { color: t.colors.inkSoft, fontSize: 13 * t.scale, marginTop: 2, fontFamily: fonts.body },
   phases: { gap: spacing.two, marginTop: spacing.three },
   phasesHead: {
+    ...t.type.eyebrow,
     color: t.colors.inkFaint,
-    fontSize: 13 * t.scale,
-    fontWeight: '600',
-    letterSpacing: 0.4,
     textTransform: 'uppercase',
-    fontFamily: fonts.bodyBold,
   },
   phaseRow: {
     flexDirection: 'row',

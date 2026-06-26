@@ -93,7 +93,7 @@ export function Bloom({ data, onDone }: { data: BloomData | null; onDone: () => 
           </Svg>
         </Animated.View>
         <View style={styles.caption}>
-          <Text style={[styles.eyebrow, { fontFamily: t.fonts.body, fontSize: 13 * t.scale }]}>You finished the whole thing</Text>
+          <Text style={[styles.eyebrow, t.type.eyebrow]}>You finished the whole thing</Text>
           <Text style={[styles.title, { fontFamily: t.fonts.sans, fontSize: 30 * t.scale, lineHeight: 38 * t.scale }]}>{data.title}</Text>
           {data.context ? (
             <Text style={[styles.context, { fontFamily: t.fonts.body, fontSize: 15 * t.scale, lineHeight: 22 * t.scale }]}>{data.context}</Text>
@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   center: { alignItems: 'center', justifyContent: 'center' },
   caption: { alignItems: 'center', maxWidth: 320 },
-  eyebrow: { color: SOFT_INK, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10, textAlign: 'center' },
+  eyebrow: { color: SOFT_INK, textTransform: 'uppercase', marginBottom: 10, textAlign: 'center' },
   title: { color: TITLE_INK, fontStyle: 'italic', textAlign: 'center' },
   context: { color: SOFT_INK, textAlign: 'center', marginTop: 12 },
 });

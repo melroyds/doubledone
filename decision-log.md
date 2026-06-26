@@ -2662,3 +2662,25 @@ directly.
 
 Gate green: client 346, server 197, lint + typecheck clean. On the premium branch, not yet deployed (the
 whole burn-down merges to main as one reviewed batch).
+
+## 2026-06-26 Design polish wave 2: a named type scale
+
+Introduced `makeTypeScale(scale)` in theme.ts: nine named steps (display / title / heading / subheading /
+body / bodyStrong / label / eyebrow / caption), each bundling fontSize + lineHeight + family + weight (and
+letterSpacing for the eyebrow), with `t.scale` baked in, exposed as `t.type.X`. Font sizes were inline
+literals spanning ~18 steps across every screen, so the typographic voice could not be tuned in one place.
+This wave routed only the title-tier and eyebrow-tier styles through it (the audit's named drifts); body,
+labels, captions, and button labels keep their inline sizes for now (button labels arrive with the
+PrimaryButton extraction next, the rest is a noted follow-on).
+
+THE judgment call to eyeball: **the page titles unified to 34/600.** settings, privacy, premium, and routines
+were a large airy 42/weight-400 editorial title; they now match Today/Lookback/Chart at 34/600. Rationale:
+the 42-vs-34 seam between adjacent screens was real drift, 600 is the brand's stated editorial-heading weight
+(the comment in theme.ts calls Newsreader 600 "a calm editorial heading", so the 400 was the outlier), and 34
+is the calmer size. This is the single most visible change in the burn-down. If the airy 42/400 was loved, it
+is a one-line change to the `title` token (size and/or weight). Other normalisations: modal titles 26 to 24,
+a 21 to 22, the sign-in title 30 to 24, and the 8-way section eyebrow (sizes 11/12/13, weight 600/700,
+letterSpacing 0.3 to 1) collapsed to one 12/700/0.5 step.
+
+Gate green: client 346, server 197, lint + typecheck clean. Sizes live-verified in the preview (settings
+title 34/600, premium card title 24/600, eyebrows 12/700/0.5). On premium, holding the merge.

@@ -205,10 +205,8 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   cancel: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, marginBottom: spacing.six },
   title: {
+    ...t.type.heading,
     color: t.colors.ink,
-    fontSize: 30 * t.scale,
-    fontWeight: '600',
-    fontFamily: fonts.sans,
     letterSpacing: -0.5,
   },
   sub: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale, marginTop: spacing.three },

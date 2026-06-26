@@ -205,7 +205,7 @@ const makeStyles = (t: Theme) =>
     headerTitle: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
     headerSpacer: { width: 52 },
     prompt: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.four, paddingHorizontal: spacing.five },
-    promptTitle: { color: t.colors.ink, fontSize: 22 * t.scale, fontFamily: fonts.sans, fontWeight: '600', textAlign: 'center' },
+    promptTitle: { ...t.type.subheading, color: t.colors.ink, textAlign: 'center' },
     promptHint: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', lineHeight: 22 * t.scale },
     primaryBtn: {
       backgroundColor: t.colors.accent,

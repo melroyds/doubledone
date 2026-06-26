@@ -241,7 +241,7 @@ const makeStyles = (t: Theme) =>
     scroll: { flex: 1 },
     content: { paddingHorizontal: spacing.five, paddingBottom: spacing.seven, gap: spacing.three, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
     back: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', marginBottom: spacing.two },
-    title: { color: t.colors.ink, fontSize: 42 * t.scale, fontWeight: '400', fontFamily: fonts.sans, marginTop: spacing.two },
+    title: { ...t.type.title, color: t.colors.ink, marginTop: spacing.two },
     subtitle: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, marginBottom: spacing.three },
     undoBar: {
       flexDirection: 'row',
@@ -258,7 +258,7 @@ const makeStyles = (t: Theme) =>
     undoAction: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
     empty: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale, marginTop: spacing.four },
     group: { gap: spacing.two, marginTop: spacing.two },
-    groupHeading: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, textTransform: 'uppercase', letterSpacing: 1 },
+    groupHeading: { ...t.type.eyebrow, color: t.colors.inkSoft, textTransform: 'uppercase' },
     card: {
       backgroundColor: t.colors.surfaceCard,
       borderRadius: radius.lg,

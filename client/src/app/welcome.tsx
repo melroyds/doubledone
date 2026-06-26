@@ -319,7 +319,7 @@ const makeStyles = (t: Theme) =>
     block: { gap: spacing.three },
     banner: { width: '100%', aspectRatio: 16 / 9, borderRadius: radius.lg, overflow: 'hidden', marginBottom: spacing.two },
     bannerImg: { position: 'absolute', width: '100%', height: '100%' },
-    brand: { color: t.colors.ink, fontSize: 40 * t.scale, fontFamily: fonts.sans, fontWeight: '400', letterSpacing: -0.5 },
+    brand: { ...t.type.display, color: t.colors.ink, letterSpacing: -0.5 },
     tagline: { color: t.colors.accent, fontSize: 20 * t.scale, fontFamily: fonts.sans, fontWeight: '400' },
     h1: { color: t.colors.ink, fontSize: 30 * t.scale, fontFamily: fonts.sans, fontWeight: '400', letterSpacing: -0.3, lineHeight: 36 * t.scale },
     lead: { color: t.colors.inkSoft, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 26 * t.scale },

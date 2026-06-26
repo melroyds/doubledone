@@ -109,7 +109,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     gap: spacing.three,
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { color: t.colors.ink, fontSize: 26 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.3 },
+  title: { ...t.type.heading, color: t.colors.ink, letterSpacing: -0.3 },
   done: { color: t.colors.accent, fontSize: 16 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
   sub: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body },
   list: { marginTop: spacing.two },

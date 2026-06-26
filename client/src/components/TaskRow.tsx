@@ -347,7 +347,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   suggestHint: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   tinyColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
   tinyMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
-  tinyEyebrow: { color: t.colors.repeat, fontSize: 12 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', letterSpacing: 0.5 },
+  tinyEyebrow: { ...t.type.eyebrow, color: t.colors.repeat },
   sliceColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
   sliceTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
   sliceCount: { color: t.colors.repeat, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },

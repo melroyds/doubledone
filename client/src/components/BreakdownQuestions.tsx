@@ -189,7 +189,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   card: { backgroundColor: t.colors.bg, borderRadius: radius.lg, width: '100%', maxWidth: 440, maxHeight: '88%' },
   scroll: { padding: spacing.six, gap: spacing.three },
-  title: { color: t.colors.ink, fontSize: 24 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.3 },
+  title: { ...t.type.heading, color: t.colors.ink, letterSpacing: -0.3 },
   task: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two },
   q: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.two },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },

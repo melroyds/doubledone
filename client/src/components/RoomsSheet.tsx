@@ -86,7 +86,7 @@ const makeStyles = (t: Theme) =>
       paddingTop: spacing.five,
       paddingBottom: spacing.seven,
     },
-    title: { fontFamily: fonts.sans, fontSize: 22 * t.scale, color: t.colors.ink, marginBottom: spacing.three },
+    title: { ...t.type.subheading, color: t.colors.ink, marginBottom: spacing.three },
     room: { flexDirection: 'row', alignItems: 'center', gap: spacing.four, paddingVertical: spacing.three },
     roomPressed: { opacity: 0.6 },
     dot: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: t.colors.accent },
