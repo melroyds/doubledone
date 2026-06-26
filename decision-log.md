@@ -3001,3 +3001,20 @@ With this the copy review is fully APPLIED bar the i18n layer (the t() extractio
 (thing(s) on reflective surfaces, big, scrapbook) now hold across the app, which is also step zero of i18n.
 Watch-item for Melroy's morning: "Mark as a lot" is longer than its select-bar siblings, check it doesn't
 crowd the bar on a narrow phone. On premium.
+
+## 2026-06-27 Onboarding: a Premium close, plus Speak + Combine surfaced
+
+Melroy's call: the intro never sold Premium, nor mentioned talk-to-capture or Combine. He wanted them in,
+Premium as a late screen ("I know it's not best practice, but we need to sell the idea"). Done economically,
+bending the deliberate "curate, don't catalogue" onboarding ethos by exactly one screen plus two light hints:
+- A new "premium" step before the handoff: the calm loop is free, then the suite (lead with the weekly
+  scrapbook, the emotional payoff; then Chart a course, Plan my day, Your patterns, Scan). It SELLS by the hook
+  and the copy, not by a paywall: it points to Settings rather than interrupting first use with a checkout,
+  which is both on-brand (never pushy) and better for conversion (don't ask for money before they've felt the
+  value). I made that call deliberately over a hard in-onboarding upsell; flagging it so Melroy can overrule.
+- Speak: the capture screen's faint "On web, you can just speak it" became "Prefer to talk? On web, tap Speak
+  and say them out loud" (names the button, invites).
+- Combine: a light hint on the reveal screen ("A few tasks that go together? You can combine them into one").
+Reuses the safetynet list styling, no new components. Onboarding is now 7 steps, skippable throughout. Gate
+green. On premium. MORNING FOLLOW-UPS: eyeball the new Premium onboarding screen live, and the E2E suite
+(scripts/gen-test-suite.py) wants a case for the added step before the eventual merge.

@@ -27,7 +27,7 @@ function makeId(): string {
 // calm pass at the AI safety net and what-you-keep, then hands off to Today. Skippable on
 // every screen but the last; the rest of the app's features are left for in-context discovery
 // (curate, don't catalogue). The Today screen redirects here once, when onboarded is unset.
-const STEPS = ['welcome', 'capture', 'reveal', 'safetynet', 'keep', 'handoff'] as const;
+const STEPS = ['welcome', 'capture', 'reveal', 'safetynet', 'keep', 'premium', 'handoff'] as const;
 type Step = (typeof STEPS)[number];
 
 const PRIMARY: Record<Step, string> = {
@@ -36,6 +36,7 @@ const PRIMARY: Record<Step, string> = {
   reveal: 'Looks good, next',
   safetynet: 'Got it',
   keep: 'Continue',
+  premium: 'Continue',
   handoff: 'Open Today',
 };
 
@@ -48,6 +49,17 @@ const SAFETY_NET: { name: string; what: string }[] = [
   { name: 'Break it down', what: 'into small, time-boxed steps.' },
   { name: 'Make it tiny', what: 'a two-minute version, just to begin.' },
   { name: 'Lighten today', what: 'a too-full day, eased by moving a few tasks to later days.' },
+];
+
+// The Premium suite, introduced once at the end of onboarding. The calm loop is free; this is the
+// "when you want more" close. Lead with the scrapbook (the emotional payoff), and never a hard sell:
+// it plants the idea and points to Settings, rather than interrupting first use with a paywall.
+const PREMIUM_FEATURES: { name: string; what: string }[] = [
+  { name: 'A weekly scrapbook', what: 'an AI keepsake of everything you finished that week.' },
+  { name: 'Chart a course', what: 'turn a goal into calm, ordered steps.' },
+  { name: 'Plan my day', what: "a gentle order for today's tasks, in one tap." },
+  { name: 'Your patterns', what: 'quiet stats and a warm weekly reflection.' },
+  { name: 'Scan a list', what: 'a photo of a written list, straight into tasks.' },
 ];
 
 export default function WelcomeScreen() {
@@ -141,6 +153,9 @@ export default function WelcomeScreen() {
         setStep('keep');
         break;
       case 'keep':
+        setStep('premium');
+        break;
+      case 'premium':
         setStep('handoff');
         break;
       case 'handoff':
@@ -211,7 +226,7 @@ export default function WelcomeScreen() {
               autoFocus
               accessibilityLabel="Your brain-dump, one thing per line"
             />
-            <Text style={styles.speak}>On web, you can just speak it.</Text>
+            <Text style={styles.speak}>Prefer to talk? On web, tap Speak and say them out loud.</Text>
           </View>
         )}
 
@@ -233,6 +248,7 @@ export default function WelcomeScreen() {
               ))}
             </View>
             {laterCount > 0 ? <Text style={styles.laterLine}>Later · {laterCount} waiting</Text> : null}
+            <Text style={styles.speak}>A few tasks that go together? You can combine them into one.</Text>
           </View>
         )}
 
@@ -270,6 +286,24 @@ export default function WelcomeScreen() {
               tell you that you did nothing.
             </Text>
             <Text style={styles.lead}>Each evening, close the day. It honours what you did, never what you didn&apos;t.</Text>
+          </View>
+        )}
+
+        {step === 'premium' && (
+          <View style={styles.block}>
+            <Text style={styles.h1}>And when you want a little more.</Text>
+            <Text style={styles.lead}>
+              Everything you&apos;ve just seen is free, forever. Premium adds a few extras, never anything you need.
+            </Text>
+            <View style={styles.netList}>
+              {PREMIUM_FEATURES.map((row) => (
+                <View key={row.name} style={styles.netRow}>
+                  <Text style={styles.netName}>{row.name}</Text>
+                  <Text style={styles.netWhat}>{row.what}</Text>
+                </View>
+              ))}
+            </View>
+            <Text style={styles.fine}>A$5 a month, cancel anytime. It&apos;s in Settings whenever you&apos;re curious. No ads, ever.</Text>
           </View>
         )}
 
