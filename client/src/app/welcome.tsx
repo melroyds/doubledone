@@ -264,6 +264,7 @@ export default function WelcomeScreen() {
                 </View>
               ))}
             </View>
+            <View style={styles.inscriptionRule} />
             <Text style={styles.inscription}>you&apos;re allowed to go slowly</Text>
           </View>
         )}
@@ -395,7 +396,19 @@ const makeStyles = (t: Theme) =>
     },
     netName: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic' },
     netWhat: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, flexShrink: 1 },
-    inscription: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', marginTop: spacing.three },
+    // The closing benediction: lifted out of the list with real breathing room and a small centred accent
+    // rule, then the line itself centred and at the tagline's 20px (no longer the smallest thing on the page).
+    inscriptionRule: { width: 32, height: 2, borderRadius: radius.pill, backgroundColor: t.colors.accent, opacity: 0.5, alignSelf: 'center', marginTop: spacing.six },
+    inscription: {
+      color: t.colors.accent,
+      fontSize: 20 * t.scale,
+      lineHeight: 28 * t.scale,
+      fontFamily: fonts.sans,
+      fontStyle: 'italic',
+      textAlign: 'center',
+      alignSelf: 'center',
+      marginBottom: spacing.two,
+    },
     check: { width: 44, height: 44, borderRadius: radius.pill, backgroundColor: t.colors.done, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.one },
     checkMark: { color: t.colors.onDone, fontSize: 24 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     ethos: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', marginTop: spacing.two },
