@@ -2975,3 +2975,10 @@ Melroy's OK like any live change, alongside the Worker deploy.
 
 Deferred follow-up: webhook event ORDERING (a stale subscription.* event clobbering newer state) is a deeper,
 rarer edge not addressed here; noted for later.
+
+Adversarial review pass (two independent skeptics) cleared the grant/deny logic (no way to grant a non-payer
+or deny a payer, the dedup cannot drop a real event, no AI-cap bypass, no broken handler) and surfaced one
+real minor gap: the AI cap measured `.length` (UTF-16 code units), not bytes, so a multibyte body (CJK,
+Cyrillic, emoji) could carry ~3x the stated 100 KB before tripping. Bounded by the pre-existing 2 MB ceiling
+so not exploitable, but fixed to measure real UTF-8 bytes (TextEncoder), with a test locking the byte
+semantics. Server 205.

@@ -280,11 +280,12 @@ export default {
         }
       }
       // Size cap on the text routes (see MAX_TEXT_AI_BODY). Read a CLONE so the handler can still read the
-      // body, and measure the real length (a content-length header can be absent or lie). /ocr is exempt: it
-      // carries a real photo and enforces its own larger limit downstream.
+      // body, and measure the real UTF-8 BYTE length: a content-length header can be absent or lie, and a
+      // plain .length (UTF-16 code units) undercounts multibyte scripts (CJK, Cyrillic, emoji) by up to ~3x.
+      // /ocr is exempt: it carries a real photo and enforces its own larger limit downstream.
       if (pathname !== '/ocr') {
-        const probeBody = await request.clone().text();
-        if (probeBody.length > MAX_TEXT_AI_BODY) {
+        const probeBytes = new TextEncoder().encode(await request.clone().text()).length;
+        if (probeBytes > MAX_TEXT_AI_BODY) {
           return Response.json({ error: 'request too large' }, { status: 413, headers: cors });
         }
       }
