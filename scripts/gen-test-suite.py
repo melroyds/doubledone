@@ -518,6 +518,11 @@ CASES = [
     ("BIG-04", "Big task", "P2", "Finishing a big task is a big-win in the Lookback",
      "Mark a task big, complete it, then open the Lookback to its day.",
      "The completed task carries the warmer 'a big one' treatment on its day, the same payoff a long-dreaded or chunky task earns. The big flag never adds disappointment if the task is left unfinished.", "Both"),
+
+    # --- Navigation / responsive ---------------------------------------------
+    ("NAV-01", "Rooms", "P3", "Rooms sheet caps its width on wide web",
+     "On a wide desktop browser, open Rooms (the header pill).",
+     "The sheet is a centred column (about 560px, matching the page content), not full-bleed, so the 'Premium' gradient pill on 'Chart a course' sits beside its label rather than at the far screen edge. On a phone the sheet stays full-width with the pill at the row's edge.", "Web"),
 ]
 
 HEADERS = ["ID", "Area", "Priority", "Test", "Steps", "Expected result",

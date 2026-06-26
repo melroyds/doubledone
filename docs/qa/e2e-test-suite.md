@@ -293,3 +293,9 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | BIG-02 | P2 | Both | Big is a multi-select toggle | Select two or more tasks and tap 'Big'; then re-select tasks that are all big and tap the action again (it now reads 'Not big'). | The first tap marks every selected task big at once. When all selected tasks are already big the action reads 'Not big' and clears the mark off all of them. A mixed selection marks all big (the additive default). |
 | BIG-03 | P2 | Both | A lone big task lifts the bar but is not a re-spread problem | Have just one or two tasks on Today, one marked big. | The weight gauge reads at least 'A full day, but doable.' (the big task is felt), but 'Today's looking full' and 'Lighten today' do NOT appear for a lone big task (re-spreading cannot dissolve one big rock; Break it down is the tool). A big task plus a real pile (weighted load 6+) does surface Lighten today. |
 | BIG-04 | P2 | Both | Finishing a big task is a big-win in the Lookback | Mark a task big, complete it, then open the Lookback to its day. | The completed task carries the warmer 'a big one' treatment on its day, the same payoff a long-dreaded or chunky task earns. The big flag never adds disappointment if the task is left unfinished. |
+
+## Rooms
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| NAV-01 | P3 | Web | Rooms sheet caps its width on wide web | On a wide desktop browser, open Rooms (the header pill). | The sheet is a centred column (about 560px, matching the page content), not full-bleed, so the 'Premium' gradient pill on 'Chart a course' sits beside its label rather than at the far screen edge. On a phone the sheet stays full-width with the pill at the row's edge. |

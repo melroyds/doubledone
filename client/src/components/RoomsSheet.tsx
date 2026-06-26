@@ -70,9 +70,16 @@ export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookba
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
-    scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.28)', justifyContent: 'flex-end' },
+    scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.28)', justifyContent: 'flex-end', alignItems: 'center' },
     sheet: {
       backgroundColor: t.colors.surface,
+      // Cap the sheet to the app's canonical content width (560, like Today / Settings / Premium) and centre
+      // it, so on a wide desktop the rows stop stretching edge-to-edge and the trailing "Premium" pill sits
+      // beside "Chart a course" instead of being flung to the far edge. On a phone, 560 exceeds the viewport
+      // so width:'100%' wins and the sheet stays full-bleed (the look that already reads well on mobile).
+      width: '100%',
+      maxWidth: 560,
+      alignSelf: 'center',
       borderTopLeftRadius: radius.lg,
       borderTopRightRadius: radius.lg,
       paddingHorizontal: spacing.five,
