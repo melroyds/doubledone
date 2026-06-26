@@ -8,6 +8,49 @@
 
 DoubleDone's design system is in good shape on the things that are easy to see and quietly broken on the things that only show up in dark mode or under a screen reader. The light-mode surface reads coherent, the token file already carries spacing, radius, motion and layout, and the reduced-motion contract is honoured almost everywhere. The drift is concentrated in three places: a missing per-scheme `onAccent`/`onDone` colour that lets every white CTA label and completion tick fall to 2.1 to 2.8:1 in dark mode (a real WCAG failure on the most-used buttons, invisible in the light preview), a missing type scale that has let title and label sizes splinter into ~18 hand-tuned literals, and a pile of copy-pasted primitives (the modal card, the accent button, the scrim, the pressed state) that have each already drifted because no component owns them. The three highest-leverage moves, in order: add the `onAccent`/`onDone`/`scrim` colour tokens and fix dark-mode contrast, add the named type scale, and extract the four shared components (`ModalCard`, `PrimaryButton`, `Chip`/`Segmented`, `BackLink`). Do those and most of the punch-list below collapses on its own.
 
+## Burn-down order (stack rank)
+
+The tiers further down say what each item is; this is the order to DO them in. Ranked by live-defect urgency first, then leverage (a token or component that dissolves many items ranks above its dependents), then standalone polish, then judgment calls. Tightly-coupled work is merged into one numbered unit, with the doc items it absorbs noted in brackets. One deliberate deviation from tier order: the emoji-as-icons item is a Tier 1 but sits in Wave 5, because it is a judgment call needing a small icon system, not a quick fix. Tier 4 stays skipped.
+
+**Wave 1, live defects (real bugs, do first):**
+1. Dark-mode contrast: add `onAccent` + `onDone` tokens, route the ~20 white-on-accent labels and the 2 ticks. [Tier 1: white CTA labels + white tick]
+2. Today title weight 700 to 600 (Newsreader cannot render 700). [Tier 2]
+3. RepeatingDrawer honours reduced-motion (snap to end-state). [Tier 1]
+4. RepeatingDrawer rows announce as checkbox, not button. [Tier 1]
+5. `scrim` token, fix the cold-black Rooms scrim and the 5-file duplication. [Tier 1 + Tier 2]
+6. Routines width cap, behind a shared `<Screen>` wrapper so no route can ship uncapped. [Tier 1]
+
+**Wave 2, the type scale (highest leverage, collapses 5 items):**
+7. Introduce the `typeScale` token (size + lineHeight + family + weight, `t.scale` baked in). [Tier 2]
+8. Route titles, eyebrows, labels through it, collapsing the 42-vs-34 titles, the 8-way eyebrow, the 21/22 and 24/26 near-dupes, and the 600/700 CTA weight drift. [Tier 2 x4]
+
+**Wave 3, extract the shared components (kills the duplication class, bakes in a11y):**
+9. `PrimaryButton` (one radius, label size, pressed, onAccent), ~12 sites. [Tier 2]
+10. `ModalCard` scaffold (scrim + centred card + width token), fold ~13 modals. [Tier 2]
+11. `Chip` + `Segmented` (one base, soft active, a11y by construction). [Tier 2 x2]
+12. `BackLink` (chevron + `canGoBack` fallback + a11y), forces Lookback onto the safe nav. [Tier 2]
+
+**Wave 4, small tokens + the touch/a11y sweep:**
+13. `pressed` opacity token (0.7), route ~15 sites, give RepeatingDrawer rows feedback. [Tier 2 + Tier 3]
+14. `layout.modalWidth` / `cardMediaWidth` / `maxCalendarWidth`, reconcile 420/440/360 and the DatePicker inflation. [Tier 2 + Tier 3]
+15. `control` size + border-width families, unify the 26/24/22 checkbox and the 1.5/2 selected border. [Tier 2 x2]
+16. hitSlop sweep to a 44pt floor: date chips, slice steppers, weekday circles, when-pills, the TaskRow confirm row. [Tier 2 x3]
+17. a11y labels and roles: fold repeat/nudge into the row label and hide the glyphs, `role='button'` on the three scrims, label the Routines when-pills. [Tier 2 x2 + Tier 3]
+
+**Wave 5, icons + brand judgment calls (your sign-off):**
+18. Replace emoji-as-icons (bell / mic / camera) with tinted glyph or SVG marks via a `Mark` component. [Tier 1, judgment]
+19. The premium gradient's honey end as a second accent on Today: a mauve-only inline button with a small Premium tag. [Tier 2, judgment]
+20. Periwinkle doing double duty (slice counts and the tiny eyebrow). [Tier 3, judgment]
+
+**Wave 6, Tier 3 motion + hygiene:**
+21. Motion tokens: route the 320/200 magic numbers, the closeRise and drawer easing, RotatingPhrase 500ms, and the `useNativeDriver:false`. [Tier 3 x4]
+22. `cardShadow` helper, de-dupe the boxShadow. [Tier 3]
+23. `CheckCircle` for the shared sage check, one diameter. [Tier 3]
+24. Spacing hygiene, exact-match raw values to tokens. [Tier 3]
+25. Bloom typography into `makeStyles`. [Tier 3]
+
+**Skipped (Tier 4):** "Big" to "a big one" (a copy tweak for when TaskRow is next open), the Lookback blob density, the footer 700px breakpoint.
+
 ## Tokens and components to introduce
 
 Ranked by leverage. Each kills a whole class of drift at once.
