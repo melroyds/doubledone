@@ -1441,7 +1441,7 @@ export default function TodayScreen() {
               accessibilityLabel="Add a task to today"
               style={({ pressed }) => [styles.addBar, pressed && styles.pressed]}
             >
-              <Text style={styles.focusEntryText}>+  Add to today</Text>
+              <Text style={styles.focusEntryText}>+  Add to Today</Text>
             </Pressable>
           ))}
         <View style={styles.ethos}>

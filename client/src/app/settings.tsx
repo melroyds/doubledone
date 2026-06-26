@@ -107,13 +107,13 @@ export default function SettingsScreen() {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        setExportNote('Downloaded.');
+        setExportNote("Downloaded. It's yours to keep.");
       } else {
         await Share.share({ message: json, title: name });
       }
       track('data.exported', { count: tasks.length });
     } catch {
-      setExportNote('Could not export just now.');
+      setExportNote('Could not export just now. Try again?');
     } finally {
       setExporting(false);
     }

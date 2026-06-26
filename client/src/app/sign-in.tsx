@@ -155,7 +155,7 @@ export default function SignInScreen() {
         <View style={styles.form}>
           <Text style={styles.success}>Signed in</Text>
           <Text style={styles.sub}>You&apos;re synced as {email.trim()}. Taking you back to today.</Text>
-          <PrimaryButton label="Back to today" onPress={goBack} accessibilityLabel="Back to today" />
+          <PrimaryButton label="Back to Today" onPress={goBack} accessibilityLabel="Back to Today" />
         </View>
       )}
 

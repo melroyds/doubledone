@@ -209,7 +209,7 @@ export function TaskRow({
           accessibilityLabel={rowLabel}
         >
           <CheckCircle done={done} />
-          {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">Big</Text> : null}
+          {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">big</Text> : null}
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
           {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
           {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
@@ -265,7 +265,7 @@ export function TaskRow({
       accessibilityLabel={rowLabel}
     >
       <CheckCircle done={done} />
-      {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">Big</Text> : null}
+      {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">big</Text> : null}
       <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
       {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
       {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
