@@ -3018,3 +3018,24 @@ bending the deliberate "curate, don't catalogue" onboarding ethos by exactly one
 Reuses the safetynet list styling, no new components. Onboarding is now 7 steps, skippable throughout. Gate
 green. On premium. MORNING FOLLOW-UPS: eyeball the new Premium onboarding screen live, and the E2E suite
 (scripts/gen-test-suite.py) wants a case for the added step before the eventual merge.
+
+## 2026-06-27 i18n foundation: the typed t() + Intl layer (the translatable architecture)
+
+Phase 3 of the overnight run, and the i18n plan's "concrete next code step", now that the copy is settled.
+Built ADDITIVELY (no screen rewired yet, so rendered English is unchanged, zero behaviour risk):
+- catalogs/en.ts: the English source-of-truth catalog, by namespace, with a starter set. Per-locale TRANSLATED
+  catalogs land later (native-reviewed); translate() falls back to en per key, so a partial translation never
+  blanks.
+- lib/i18n.ts: translate(loc, key, params) with {name} interpolation + en fallback; pluralize() via
+  Intl.PluralRules (kills the hand-built two-form English plurals, verified against French CLDR categories);
+  formatRelativeDay / MonthDay / Weekday / Time / Number via Intl (the replacements for the hardcoded en-AU
+  date machinery the copy review flagged).
+- lib/locale.ts: a session-locale-bound `t` and `fmt`, the screen-facing entry points (no React hook needed,
+  the locale resolves once at startup like aiLanguage).
+- 11 i18n tests (was 5), including locale-aware plurals and the date/number helpers.
+
+Deliberately NOT done tonight (the discipline of stopping): the per-screen string EXTRACTION. It is the large
+mechanical job, and it has real subtleties (e.g. Intl's relative-day is lowercase "tomorrow" vs the current
+capitalised "Tomorrow", so each migrated site must preserve its exact English), which makes a blind unattended
+sweep across ~28 files the wrong call to run while Melroy sleeps. It is now unblocked and batchable per screen,
+English-preserving, with the gate as the safety net. Gate green. On premium.
