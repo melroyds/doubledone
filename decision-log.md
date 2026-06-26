@@ -2726,3 +2726,21 @@ weekday picker and action buttons were correctly left alone. Gate green (client 
 holding the merge.
 
 Noted for later: a pre-existing RoomsSheet nested-Pressable hydration warning (untouched by this work).
+
+## 2026-06-26 Design polish wave 3d: ModalCard (completes wave 3)
+
+Extracted the centred modal-card scaffold (Modal + scrim backdrop + tap-absorbing centred card) into one
+<ModalCard visible onClose maxWidth? animationType? scroll? maxHeight?>. The card matches the DOMINANT existing
+scaffold byte-for-byte (t.colors.bg, radius lg, padding spacing.six), so migrations are pixel-identical
+(verified on the open didOpen modal: scrim rgba(10,8,6,0.6), padding 24/32, radius 20, maxWidth 420).
+Conservative by design.
+
+Migrated 9 plain centred-card modals (the two Break-it-down modals as scroll hosts at maxWidth 440, and the
+seven index.tsx wrapCard modals: didOpen, combine, moveTo, nudge, plan, order, offerDefer), each keeping its
+exact visible condition and dismiss handler (now onClose). LEFT 5 correctly: the close-the-day modal (animated
+rise entrance, folding would lose the motion), focus mode (full-screen, no scaffold), CameraCapture (slide),
+the Rooms bottom sheet, and the BrainDump date picker (different padding, folding would be a visible change).
+The animated-entrance modals are a follow-on for if ModalCard later gains an Animated variant.
+
+Gate green: client 346, server 197, lint + typecheck clean. On premium, holding the merge. This completes wave
+3 (PrimaryButton, BackLink, Chip/Segmented, ModalCard), the shared-component extraction.

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { ModalCard } from '@/components/ModalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { friendlyDate } from '@/lib/day';
@@ -49,10 +50,8 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
   }
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable style={styles.backdrop} onPress={onCancel} accessibilityLabel="Dismiss">
-        <Pressable style={styles.card} onPress={() => {}}>
-          <ScrollView contentContainerStyle={styles.scroll}>
+    <ModalCard visible onClose={onCancel} maxWidth={440} maxHeight="88%" scroll>
+      <ScrollView contentContainerStyle={styles.scroll}>
             <Text style={styles.title}>{"Here's the plan"}</Text>
             <Text style={styles.sub} numberOfLines={2}>
               {task}
@@ -113,22 +112,12 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
             <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel="Not now">
               <Text style={styles.dismiss}>Not now</Text>
             </Pressable>
-          </ScrollView>
-        </Pressable>
-      </Pressable>
-    </Modal>
+      </ScrollView>
+    </ModalCard>
   );
 }
 
 const makeStyles = (t: Theme) => StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: t.colors.scrim,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.five,
-  },
-  card: { backgroundColor: t.colors.bg, borderRadius: radius.lg, width: '100%', maxWidth: 440, maxHeight: '88%' },
   scroll: { padding: spacing.six, gap: spacing.three },
   title: { ...t.type.heading, color: t.colors.ink, letterSpacing: -0.3 },
   sub: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },

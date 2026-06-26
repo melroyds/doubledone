@@ -11,6 +11,7 @@ import { type BreakdownAnswers, BreakdownQuestions } from '@/components/Breakdow
 import { BreakdownReview, type ReviewPhase, type ReviewStep } from '@/components/BreakdownReview';
 import { DatePicker } from '@/components/DatePicker';
 import { LivingBackground } from '@/components/LivingBackground';
+import { ModalCard } from '@/components/ModalCard';
 import { PremiumButton } from '@/components/PremiumButton';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { RepeatingDrawer } from '@/components/RepeatingDrawer';
@@ -1536,9 +1537,7 @@ export default function TodayScreen() {
         </View>
       </Modal>
 
-      <Modal visible={didOpen} transparent animationType="fade" onRequestClose={() => setDidOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setDidOpen(false)} accessibilityRole="button" accessibilityLabel="Dismiss">
-          <Pressable style={styles.wrapCard} onPress={() => {}}>
+      <ModalCard visible={didOpen} onClose={() => setDidOpen(false)}>
             <Text style={styles.didTitle}>What did you do?</Text>
             <Text style={styles.didHint}>{"Something you got done that was never on the list. It still counts."}</Text>
             <TextInput
@@ -1566,13 +1565,9 @@ export default function TodayScreen() {
               </Pressable>
               <PrimaryButton label="Add it" onPress={() => logDidIt(didText)} accessibilityLabel="Add it" />
             </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      </ModalCard>
 
-      <Modal visible={combineOpen} transparent animationType="fade" onRequestClose={() => setCombineOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setCombineOpen(false)} accessibilityRole="button" accessibilityLabel="Dismiss">
-          <Pressable style={styles.wrapCard} onPress={() => {}}>
+      <ModalCard visible={combineOpen} onClose={() => setCombineOpen(false)}>
             <Text style={styles.didTitle}>Combine into one</Text>
             <Text style={styles.didHint}>
               {`${beingCombined.length} tasks become one. Edit the name, or keep the suggestion. It lands on the earliest of their dates.`}
@@ -1618,13 +1613,9 @@ export default function TodayScreen() {
                 accessibilityLabel="Combine into one task"
               />
             </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      </ModalCard>
 
-      <Modal visible={moveToOpen} transparent animationType="fade" onRequestClose={() => setMoveToOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setMoveToOpen(false)} accessibilityRole="button" accessibilityLabel="Dismiss">
-          <Pressable style={styles.wrapCard} onPress={() => {}}>
+      <ModalCard visible={moveToOpen} onClose={() => setMoveToOpen(false)}>
             <Text style={styles.didTitle}>Move to…</Text>
             <Text style={styles.didHint}>
               {`${selected.length} ${selected.length === 1 ? 'task' : 'tasks'} move to the day you pick.`}
@@ -1665,13 +1656,9 @@ export default function TodayScreen() {
             >
               <Text style={styles.didCancel}>Cancel</Text>
             </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      </ModalCard>
 
-      <Modal visible={nudgeOpen} transparent animationType="fade" onRequestClose={() => setNudgeOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setNudgeOpen(false)} accessibilityRole="button" accessibilityLabel="Dismiss">
-          <Pressable style={styles.wrapCard} onPress={() => {}}>
+      <ModalCard visible={nudgeOpen} onClose={() => setNudgeOpen(false)}>
             <Text style={styles.didTitle}>Remind me…</Text>
             <Text style={styles.didHint}>A gentle poke about this later today, never a deadline.</Text>
             {nudgePresets.length === 0 ? (
@@ -1700,9 +1687,7 @@ export default function TodayScreen() {
             >
               <Text style={styles.didCancel}>Not now</Text>
             </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      </ModalCard>
 
       <Modal visible={closing} transparent animationType="fade" onRequestClose={() => setClosing(false)}>
         <Pressable style={styles.backdrop} onPress={() => setClosing(false)} accessibilityRole="button" accessibilityLabel="Dismiss">
@@ -1780,9 +1765,7 @@ export default function TodayScreen() {
         </Pressable>
       </Modal>
 
-      <Modal visible={plan != null} transparent animationType="fade" onRequestClose={() => setPlan(null)}>
-        <Pressable style={styles.backdrop} onPress={() => setPlan(null)} accessibilityRole="button" accessibilityLabel="Dismiss">
-          <Pressable style={styles.wrapCard} onPress={() => {}}>
+      <ModalCard visible={plan != null} onClose={() => setPlan(null)}>
             <Text style={styles.wrapTitle}>A calmer spread</Text>
             <Text style={styles.wrapLine}>{"Keep today lighter. Here's where the rest could go."}</Text>
             <View style={styles.wrapList}>
@@ -1809,13 +1792,9 @@ export default function TodayScreen() {
             <Pressable onPress={() => setPlan(null)} accessibilityRole="button" accessibilityLabel="Not now">
               <Text style={styles.planDismiss}>Not now</Text>
             </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      </ModalCard>
 
-      <Modal visible={order != null} transparent animationType="fade" onRequestClose={() => setOrder(null)}>
-        <Pressable style={styles.backdrop} onPress={() => setOrder(null)} accessibilityRole="button" accessibilityLabel="Dismiss">
-          <Pressable style={styles.wrapCard} onPress={() => {}}>
+      <ModalCard visible={order != null} onClose={() => setOrder(null)}>
             <Text style={styles.wrapTitle}>A gentle order</Text>
             <Text style={styles.wrapLine}>{"Here's an order that might flow. Yours to take or leave."}</Text>
             <View style={styles.wrapList}>
@@ -1846,15 +1825,11 @@ export default function TodayScreen() {
             <Pressable onPress={() => setOrder(null)} accessibilityRole="button" accessibilityLabel="Not now">
               <Text style={styles.planDismiss}>Not now</Text>
             </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      </ModalCard>
 
       {/* After "Plan my day" orders a heavy day, offer the Lighten-today re-spread (Melroy's "push a few
           out?" follow-up). Only on a heavy day, and only after ordering, so it never nags a calm day. */}
-      <Modal visible={offerDefer} transparent animationType="fade" onRequestClose={() => setOfferDefer(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setOfferDefer(false)} accessibilityRole="button" accessibilityLabel="Dismiss">
-          <Pressable style={styles.wrapCard} onPress={() => {}}>
+      <ModalCard visible={offerDefer} onClose={() => setOfferDefer(false)}>
             <Text style={styles.wrapTitle}>Still a full day?</Text>
             <Text style={styles.wrapLine}>Today is ordered. Want to push a few tasks out to later days, to lighten it?</Text>
             <PrimaryButton
@@ -1876,9 +1851,7 @@ export default function TodayScreen() {
             >
               <Text style={styles.planDismiss}>No, this is good</Text>
             </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      </ModalCard>
 
       <CameraCapture
         visible={cameraOpen}

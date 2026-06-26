@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { type Questions } from '@/lib/ai';
@@ -8,6 +8,7 @@ import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 import { Chip } from './Chip';
 import { DatePicker } from './DatePicker';
+import { ModalCard } from './ModalCard';
 import { PrimaryButton } from './PrimaryButton';
 import { Segmented } from './Segmented';
 
@@ -55,10 +56,8 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
   }
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable style={styles.backdrop} onPress={onCancel} accessibilityLabel="Dismiss">
-        <Pressable style={styles.card} onPress={() => {}}>
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
+    <ModalCard visible onClose={onCancel} maxWidth={440} maxHeight="88%" scroll>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
             <Text style={styles.title}>A few quick questions</Text>
             <Text style={styles.task} numberOfLines={2}>
               {task}
@@ -145,22 +144,12 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
             <Text style={styles.disclosure} accessibilityRole="text">
               Your task is sent to an AI to suggest the steps, and kept anonymously (no name, no account) to improve them.
             </Text>
-          </ScrollView>
-        </Pressable>
-      </Pressable>
-    </Modal>
+      </ScrollView>
+    </ModalCard>
   );
 }
 
 const makeStyles = (t: Theme) => StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: t.colors.scrim,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.five,
-  },
-  card: { backgroundColor: t.colors.bg, borderRadius: radius.lg, width: '100%', maxWidth: 440, maxHeight: '88%' },
   scroll: { padding: spacing.six, gap: spacing.three },
   title: { ...t.type.heading, color: t.colors.ink, letterSpacing: -0.3 },
   task: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two },
