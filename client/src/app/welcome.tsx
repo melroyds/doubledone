@@ -347,7 +347,7 @@ const makeStyles = (t: Theme) =>
     revealCheck: { width: 22, height: 22, borderRadius: radius.pill, borderWidth: border.thick, borderColor: t.colors.inkFaint, marginTop: 1 },
     revealText: { flexShrink: 1 },
     revealTitle: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 24 * t.scale },
-    revealHint: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: 2 },
+    revealHint: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.half },
     laterLine: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.three },
     netList: { marginTop: spacing.two },
     netRow: {

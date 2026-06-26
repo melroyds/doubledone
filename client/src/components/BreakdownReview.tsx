@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { CheckCircle } from '@/components/CheckCircle';
 import { ModalCard } from '@/components/ModalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { border, control, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { friendlyDate } from '@/lib/day';
 import { describePace, paceDays } from '@/lib/estimate';
 import { track } from '@/lib/telemetry';
@@ -70,7 +71,7 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
                     accessibilityState={{ checked: on }}
                     accessibilityLabel={`${s.title}, ${s.minutes} minutes, ${s.date == null ? 'Today' : friendlyDate(s.date, today)}`}
                   >
-                    <View style={[styles.check, on && styles.checkOn]}>{on && <Text style={styles.tick}>✓</Text>}</View>
+                    <CheckCircle done={on} />
                     <View style={styles.rowText}>
                       <Text style={[styles.stepTitle, !on && styles.stepOff]}>{s.title}</Text>
                       <Text style={styles.meta}>
@@ -134,21 +135,10 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     borderWidth: border.hair,
     borderColor: t.colors.line,
   },
-  check: {
-    width: control.check,
-    height: control.check,
-    borderRadius: radius.pill,
-    borderWidth: border.thick,
-    borderColor: t.colors.inkFaint,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkOn: { backgroundColor: t.colors.done, borderColor: t.colors.done },
-  tick: { color: t.colors.onDone, fontSize: 14 * t.scale, fontWeight: '700', lineHeight: 16 * t.scale, fontFamily: fonts.bodyBold },
   rowText: { flex: 1 },
   stepTitle: { color: t.colors.ink, fontSize: 16 * t.scale, lineHeight: 21 * t.scale, fontFamily: fonts.body },
   stepOff: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
-  meta: { color: t.colors.inkSoft, fontSize: 13 * t.scale, marginTop: 2, fontFamily: fonts.body },
+  meta: { color: t.colors.inkSoft, fontSize: 13 * t.scale, marginTop: spacing.half, fontFamily: fonts.body },
   phases: { gap: spacing.two, marginTop: spacing.three },
   phasesHead: {
     ...t.type.eyebrow,

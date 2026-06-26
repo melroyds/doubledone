@@ -439,7 +439,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   dot: { width: 5, height: 5, borderRadius: radius.pill, backgroundColor: t.colors.done, marginTop: 3 },
   dotBig: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: t.colors.done, marginTop: 1 },
   dotSpacer: { width: 5, height: 5, marginTop: 3 },
-  dotScheduled: { width: 6, height: 6, borderRadius: radius.pill, borderWidth: border.thin, borderColor: t.colors.accent, marginTop: 2 },
+  dotScheduled: { width: 6, height: 6, borderRadius: radius.pill, borderWidth: border.thin, borderColor: t.colors.accent, marginTop: spacing.half },
   legend: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: spacing.four, marginTop: spacing.four },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.one },
   legendDot: { width: 6, height: 6, borderRadius: radius.pill, backgroundColor: t.colors.done },

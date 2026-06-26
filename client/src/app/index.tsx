@@ -1930,7 +1930,7 @@ const makeStyles = (t: Theme) =>
       borderColor: t.scheme === 'dark' ? 'rgba(242,235,224,0.14)' : 'rgba(43,39,34,0.10)',
       backgroundColor: t.scheme === 'dark' ? 'rgba(37,33,25,0.6)' : 'rgba(255,255,255,0.6)',
       borderRadius: radius.pill,
-      paddingVertical: 8,
+      paddingVertical: spacing.two,
       paddingHorizontal: 13,
     },
     roomsDots: { flexDirection: 'row', gap: 3 },

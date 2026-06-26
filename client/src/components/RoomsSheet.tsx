@@ -92,7 +92,7 @@ const makeStyles = (t: Theme) =>
     dot: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: t.colors.accent },
     roomText: { flex: 1 },
     roomLabel: { fontFamily: fonts.body, fontSize: 17 * t.scale, color: t.colors.ink },
-    roomHint: { fontFamily: fonts.body, fontSize: 13 * t.scale, color: t.colors.inkSoft, marginTop: 2 },
+    roomHint: { fontFamily: fonts.body, fontSize: 13 * t.scale, color: t.colors.inkSoft, marginTop: spacing.half },
     premiumTag: { borderRadius: radius.pill, overflow: 'hidden' },
     premiumTagGrad: { paddingHorizontal: spacing.three, paddingVertical: 3 },
     premiumTagText: { fontFamily: fonts.bodyBold, fontWeight: '700', fontSize: 11 * t.scale, color: '#FFFFFF', letterSpacing: 0.3 },

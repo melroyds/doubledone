@@ -2830,3 +2830,13 @@ Deferred, flagged for Melroy in docs/copy-review.md (his calls):
   hand-built plurals) are in the doc as the t()-layer backbone.
 
 Gate green. On premium, holding the merge (the whole design + copy batch goes to a preview for Melroy first).
+
+## 2026-06-26 Design polish items 23-25: CheckCircle, spacing hygiene, Bloom (burn-down 100% complete)
+
+The Tier-3 tail, finished autonomously after item 22. <CheckCircle done size?> extracted (the round sage
+completion check, shared by TaskRow's four rows and BreakdownReview). BreakdownReview's tick converges 14/16
+to the canonical 15/17 (the intended 1px unification, the whole point of the item). Exact-match spacing
+literals routed to the scale (paddingVertical 8 to spacing.two, several marginTop 2 to spacing.half), with
+off-scale nudges and the native TodayWidget left alone. Bloom's split typography folded into makeStyles and
+the type scale (the eyebrow step), the bespoke celebration sizes kept. Gate green: client 346, server 197. On
+premium, holding the merge. The stack-ranked design burn-down is now 100% complete (items 1 through 25).

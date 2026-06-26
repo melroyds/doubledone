@@ -1,10 +1,11 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { border, cardShadow, control, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
+import { border, cardShadow, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { formatNudgeTime } from '@/lib/nudge';
 import { type Slices } from '@/lib/tasks';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
+import { CheckCircle } from './CheckCircle';
 import { MarqueeText } from './MarqueeText';
 
 type Props = {
@@ -178,9 +179,7 @@ export function TaskRow({
         accessibilityLabel={`${title}, ${slices.done} of ${slices.total} done${complete ? ', complete' : ', tap to advance, hold to adjust'}`}
       >
         <View style={styles.sliceTop}>
-          <View style={[styles.check, complete && styles.checkDone]}>
-            {complete && <Text style={styles.tick}>✓</Text>}
-          </View>
+          <CheckCircle done={complete} />
           <MarqueeText text={title} style={[styles.text, complete && styles.textDone]} />
           <Text style={styles.sliceCount}>
             {slices.done} / {slices.total}
@@ -209,9 +208,7 @@ export function TaskRow({
           accessibilityState={{ checked: done }}
           accessibilityLabel={rowLabel}
         >
-          <View style={[styles.check, done && styles.checkDone]}>
-            {done && <Text style={styles.tick}>✓</Text>}
-          </View>
+          <CheckCircle done={done} />
           {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">Big</Text> : null}
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
           {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
@@ -250,7 +247,7 @@ export function TaskRow({
           accessibilityState={{ checked: done }}
           accessibilityLabel={`${title}, a tiny step toward ${tinyParent}`}
         >
-          <View style={[styles.check, done && styles.checkDone]}>{done && <Text style={styles.tick}>✓</Text>}</View>
+          <CheckCircle done={done} />
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
         </Pressable>
       </View>
@@ -267,9 +264,7 @@ export function TaskRow({
       accessibilityState={{ checked: done }}
       accessibilityLabel={rowLabel}
     >
-      <View style={[styles.check, done && styles.checkDone]}>
-        {done && <Text style={styles.tick}>✓</Text>}
-      </View>
+      <CheckCircle done={done} />
       {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">Big</Text> : null}
       <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
       {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
@@ -322,16 +317,6 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   controlOff: { color: t.colors.inkFaint },
   close: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', paddingHorizontal: spacing.two },
   remove: { color: t.colors.danger, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', paddingHorizontal: spacing.two },
-  check: {
-    width: control.check,
-    height: control.check,
-    borderRadius: radius.pill,
-    borderWidth: border.thick,
-    borderColor: t.colors.inkFaint,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkDone: { backgroundColor: t.colors.done, borderColor: t.colors.done },
   rowSelected: { borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
   selectDot: {
     width: 26,
