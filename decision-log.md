@@ -3093,3 +3093,14 @@ never-shame promise appear in ZERO user-facing copy, only the spec and comments.
 (onboarding, positioning, empty / first-run, errors / edges, discoverability, orientation), each tiered. The
 through-line: the cheapest high-leverage work left is not features, it is making the product say what it
 already quietly is. On premium. DECISION PENDING: which gaps to fix before the premium->main merge.
+
+## 2026-06-27 Audit fix: the daily reminder says WHY it didn't turn on
+
+The completeness audit's Tier-1 errors-edges gap: the reminder toggle silently sprang back to Off when
+permission was denied or push unsupported, with no word, for the one feature that fights the week-three
+retention cliff and an RSD audience that reads an unexplained refusal as rejection. enableDailyReminder (both
+the native and the web variant) now returns a ReminderResult ({ ok } | { ok: false, reason:
+denied | unsupported | error }) instead of a bare boolean, and a shared reminderReasonLine() gives one calm line
+per case. Today surfaces it through the existing affirm line; Settings shows it under the control. Tested (the
+three reasons read distinct and calm, and a denied user is pointed at their settings, not at themselves). On
+premium.

@@ -1,6 +1,10 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+import { type ReminderResult } from './reminders-types';
+
+export type { ReminderReason, ReminderResult } from './reminders-types';
+
 // The retention lever, kept gentle: a daily reminder that OFFERS the day, plus per-task
 // "remind me in X hours" nudges (a poke, never a deadline). A thin seam over
 // expo-notifications; every call is guarded so the web build (no scheduled local
@@ -43,14 +47,14 @@ async function ensureChannel(
   await Notifications.setNotificationChannelAsync(id, { name, importance });
 }
 
-/** Request permission and schedule a calm daily reminder at `hour`. Returns whether it is on. */
-export async function enableDailyReminder(hour = 9): Promise<boolean> {
+/** Request permission and schedule a calm daily reminder at `hour`. Returns ok, or a reason it didn't. */
+export async function enableDailyReminder(hour = 9): Promise<ReminderResult> {
   try {
     // Channel first: on Android 13 the permission prompt does not appear until a channel
     // exists, so creating it before requesting is what lets a first-time user grant.
     await ensureChannel(DAILY_CHANNEL_ID, 'Daily reminder');
     const { status } = await Notifications.requestPermissionsAsync();
-    if (status !== 'granted') return false;
+    if (status !== 'granted') return { ok: false, reason: 'denied' };
     await Notifications.cancelScheduledNotificationAsync(DAILY_ID);
     await Notifications.scheduleNotificationAsync({
       identifier: DAILY_ID,
@@ -62,9 +66,9 @@ export async function enableDailyReminder(hour = 9): Promise<boolean> {
         channelId: DAILY_CHANNEL_ID,
       },
     });
-    return true;
+    return { ok: true };
   } catch {
-    return false;
+    return { ok: false, reason: 'error' };
   }
 }
 

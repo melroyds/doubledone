@@ -49,6 +49,7 @@ import { buildOutcome } from '@/lib/outcome';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { availableNudgePresets, isWindDownTime, type NudgePreset, nudgeTargetFor } from '@/lib/nudge';
 import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge } from '@/lib/reminders';
+import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
 import { loadClosedDate, loadLastOpen, loadLowDayDate, loadOnboarded, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveLastOpen, saveLowDayDate, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData } from '@/lib/storage';
@@ -630,10 +631,11 @@ export default function TodayScreen() {
       void saveReminderOn(false);
       track('reminder.disabled');
     } else {
-      const ok = await enableDailyReminder();
-      setReminderOn(ok);
-      void saveReminderOn(ok);
-      track('reminder.enabled', { granted: ok });
+      const result = await enableDailyReminder();
+      setReminderOn(result.ok);
+      void saveReminderOn(result.ok);
+      track('reminder.enabled', { granted: result.ok });
+      if (!result.ok) affirm(reminderReasonLine(result.reason)); // never a silent bounce-back
     }
   }
 

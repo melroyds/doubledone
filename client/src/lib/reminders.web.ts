@@ -4,6 +4,10 @@
 // task content ever reaches the browser). Native uses reminders.ts (local scheduling);
 // Metro resolves this .web.ts on web. Per-task nudges stay native-only (no-op here).
 
+import { type ReminderResult } from './reminders-types';
+
+export type { ReminderReason, ReminderResult } from './reminders-types';
+
 const AI_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
 // Baked in as a fallback so the deployed web build always has it; EXPO_PUBLIC_VAPID_KEY
 // overrides it (e.g. for key rotation). This is the PUBLIC key, designed to be exposed
@@ -23,9 +27,9 @@ function urlB64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
 }
 
 /** Subscribe this browser to the daily web-push nudge: register the service worker, ask
- *  permission, subscribe, and store the subscription on the Worker. Returns whether it is
- *  on. False (and a no-op) when web push is unconfigured or unsupported, or denied. */
-export async function enableDailyReminder(hour = 9): Promise<boolean> {
+ *  permission, subscribe, and store the subscription on the Worker. Returns ok, or a reason
+ *  it didn't: unsupported (no push here), denied (permission), or error (transient). */
+export async function enableDailyReminder(hour = 9): Promise<ReminderResult> {
   try {
     if (
       !VAPID_PUBLIC ||
@@ -34,9 +38,9 @@ export async function enableDailyReminder(hour = 9): Promise<boolean> {
       typeof window === 'undefined' ||
       !('PushManager' in window)
     ) {
-      return false;
+      return { ok: false, reason: 'unsupported' };
     }
-    if ((await Notification.requestPermission()) !== 'granted') return false;
+    if ((await Notification.requestPermission()) !== 'granted') return { ok: false, reason: 'denied' };
     const reg = await navigator.serviceWorker.register('/sw.js');
     await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.subscribe({
@@ -48,9 +52,9 @@ export async function enableDailyReminder(hour = 9): Promise<boolean> {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ subscription: sub.toJSON(), hour, tzOffset: new Date().getTimezoneOffset() }),
     });
-    return res.ok;
+    return res.ok ? { ok: true } : { ok: false, reason: 'error' };
   } catch {
-    return false;
+    return { ok: false, reason: 'error' };
   }
 }
 

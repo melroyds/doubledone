@@ -15,6 +15,7 @@ import { toISODate } from '@/lib/day';
 import { buildExport } from '@/lib/export';
 import { usePremium } from '@/lib/premium-provider';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
+import { reminderReasonLine } from '@/lib/reminders-types';
 import { type MotionPref, type TextSize, type ThemePref } from '@/lib/settings';
 import { loadReminderOn, loadScrapbooks, loadTasks, saveReminderOn, wipeLocalData } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
@@ -53,6 +54,7 @@ export default function SettingsScreen() {
   const [exporting, setExporting] = useState(false);
   const [exportNote, setExportNote] = useState<string | null>(null);
   const [reminderOn, setReminderOn] = useState(false);
+  const [reminderNote, setReminderNote] = useState<string | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackState, setFeedbackState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -77,14 +79,16 @@ export default function SettingsScreen() {
   // same lib + persisted flag, so the two stay in sync.
   async function setReminder(on: boolean) {
     if (on) {
-      const ok = await enableDailyReminder();
-      setReminderOn(ok);
-      void saveReminderOn(ok);
-      track('reminder.enabled', { granted: ok });
+      const result = await enableDailyReminder();
+      setReminderOn(result.ok);
+      void saveReminderOn(result.ok);
+      track('reminder.enabled', { granted: result.ok });
+      setReminderNote(result.ok ? null : reminderReasonLine(result.reason)); // never a silent bounce-back
     } else {
       await disableDailyReminder();
       setReminderOn(false);
       void saveReminderOn(false);
+      setReminderNote(null);
       track('reminder.disabled');
     }
   }
@@ -238,6 +242,7 @@ export default function SettingsScreen() {
             ]}
             onChange={(v) => setReminder(v === 'on')}
           />
+          {reminderNote && <Text style={styles.rowHint}>{reminderNote}</Text>}
         </View>
 
         <Text style={styles.band}>Access & data</Text>
