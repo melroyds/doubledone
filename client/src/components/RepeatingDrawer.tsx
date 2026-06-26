@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { describeRecurrence } from '@/lib/recurrence';
 import { type Task } from '@/lib/tasks';
 import { useReducedMotion, useThemedStyles } from '@/lib/theme-provider';
@@ -120,7 +120,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: radius.sm,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
     alignItems: 'center',
     justifyContent: 'center',

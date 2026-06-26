@@ -2744,3 +2744,18 @@ The animated-entrance modals are a follow-on for if ModalCard later gains an Ani
 
 Gate green: client 346, server 197, lint + typecheck clean. On premium, holding the merge. This completes wave
 3 (PrimaryButton, BackLink, Chip/Segmented, ModalCard), the shared-component extraction.
+
+## 2026-06-26 Design polish wave 4a: pressed / media / control tokens
+
+Three token families in theme.ts. PRESSED_OPACITY (0.7, the canonical pressed dim, with PremiumButton's
+gradient 0.9 the one documented exception, all 10 pressed sites routed). cardMediaWidth (360) and
+maxCalendarWidth (340) added to layout, the latter with a real fix: the DatePicker grid is now capped and
+centred so it stops inflating taller in wider host cards. control.check (26) and a border family
+(hair 1, thin 1.5, thick 2).
+
+Small deliberate unifications, logged: the completion checks in BreakdownReview and chart enlarge 24 to 26 to
+match TaskRow's hero check. Border widths were tokenized at their current values (no visual change). NOT
+reconciled, flagged for Melroy: the selected-emphasis border is 1.5 in Segmented but 2 in TaskRow's
+pinned/unique rows, the same "this is special" signal drawn at two weights. The 420/440 modal widths were left
+as-is (ModalCard already centralises modal width). Gate green: client 346, server 197. On premium, holding the
+merge.

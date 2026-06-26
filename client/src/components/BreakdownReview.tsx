@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ModalCard } from '@/components/ModalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { border, control, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { friendlyDate } from '@/lib/day';
 import { describePace, paceDays } from '@/lib/estimate';
 import { track } from '@/lib/telemetry';
@@ -131,14 +131,14 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingHorizontal: spacing.four,
     backgroundColor: t.colors.surface,
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
   },
   check: {
-    width: 24,
-    height: 24,
+    width: control.check,
+    height: control.check,
     borderRadius: radius.pill,
-    borderWidth: 2,
+    borderWidth: border.thick,
     borderColor: t.colors.inkFaint,
     alignItems: 'center',
     justifyContent: 'center',
@@ -163,7 +163,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingVertical: spacing.three,
     paddingHorizontal: spacing.four,
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
     borderStyle: 'dashed',
   },
@@ -183,6 +183,6 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     borderRadius: radius.md,
   },
   btn: { marginTop: spacing.three },
-  pressed: { opacity: 0.85 },
+  pressed: { opacity: PRESSED_OPACITY },
   dismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two, fontFamily: fonts.body },
 });

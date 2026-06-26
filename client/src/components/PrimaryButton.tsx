@@ -1,6 +1,6 @@
 import { ActivityIndicator, Pressable, type StyleProp, StyleSheet, Text, type ViewStyle } from 'react-native';
 
-import { radius, spacing, type Theme } from '@/constants/theme';
+import { PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 type Props = {
@@ -63,6 +63,6 @@ const makeStyles = (t: Theme) =>
       justifyContent: 'center',
     },
     pill: { borderRadius: radius.pill },
-    pressed: { opacity: 0.85 },
+    pressed: { opacity: PRESSED_OPACITY },
     disabled: { opacity: 0.5 },
   });

@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { border, control, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { formatNudgeTime } from '@/lib/nudge';
 import { type Slices } from '@/lib/tasks';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -282,14 +282,14 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingHorizontal: spacing.four,
     backgroundColor: t.colors.surfaceCard,
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
     // Soft elevation: rows float a hair above the living background (the redesign).
     boxShadow: t.scheme === 'dark' ? '0px 6px 18px -10px rgba(0,0,0,0.5)' : '0px 6px 18px -10px rgba(43,39,34,0.18)',
   },
-  rowUnique: { borderColor: t.colors.repeat, borderWidth: 2 },
+  rowUnique: { borderColor: t.colors.repeat, borderWidth: border.thick },
   // The day's one pinned priority: a calm accent border + faint tint, with the star beside the title.
-  rowPinned: { borderColor: t.colors.accent, borderWidth: 2, backgroundColor: t.colors.accentSoft },
+  rowPinned: { borderColor: t.colors.accent, borderWidth: border.thick, backgroundColor: t.colors.accentSoft },
   pinStar: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
   // A quiet accent tag (never danger red): the app agreeing this task is a lot, sized small so it never scolds.
   bigMark: {
@@ -304,7 +304,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     borderRadius: radius.pill,
     overflow: 'hidden',
   },
-  pressed: { opacity: 0.7 },
+  pressed: { opacity: PRESSED_OPACITY },
   confirmRow: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accentSoft },
   confirmText: { flex: 1, color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body },
   confirmColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.three },
@@ -316,10 +316,10 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   close: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', paddingHorizontal: spacing.two },
   remove: { color: t.colors.danger, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', paddingHorizontal: spacing.two },
   check: {
-    width: 26,
-    height: 26,
+    width: control.check,
+    height: control.check,
     borderRadius: radius.pill,
-    borderWidth: 2,
+    borderWidth: border.thick,
     borderColor: t.colors.inkFaint,
     alignItems: 'center',
     justifyContent: 'center',
@@ -330,7 +330,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: radius.pill,
-    borderWidth: 2,
+    borderWidth: border.thick,
     borderColor: t.colors.inkFaint,
     alignItems: 'center',
     justifyContent: 'center',

@@ -37,6 +37,8 @@ const makeStyles = (t: Theme) =>
     wrap: { borderRadius: radius.lg, overflow: 'hidden' },
     grad: { paddingVertical: spacing.four, paddingHorizontal: spacing.five, alignItems: 'center' },
     text: { color: '#FFFFFF', fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    // The one documented exception to PRESSED_OPACITY (0.7): the premium gradient dims to 0.9 on press,
+    // a gentler dim that reads right against the gradient fill rather than the canonical flat-fill value.
     pressed: { opacity: 0.9 },
     disabled: { opacity: 0.5 },
   });

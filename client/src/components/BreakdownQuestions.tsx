@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { type Questions } from '@/lib/ai';
 import { fromISODate, presetDate } from '@/lib/day';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -160,7 +160,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     minHeight: 44,
     maxHeight: 120,
     backgroundColor: t.colors.surface,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
     borderRadius: radius.md,
     paddingHorizontal: spacing.four,

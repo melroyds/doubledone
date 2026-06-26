@@ -7,7 +7,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { fonts, layout, PREMIUM_GRADIENT, radius, spacing, type Theme } from '@/constants/theme';
+import { fonts, layout, PREMIUM_GRADIENT, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { useThemedStyles } from '@/lib/theme-provider';
 
 type Props = {
@@ -88,7 +88,7 @@ const makeStyles = (t: Theme) =>
     },
     title: { ...t.type.subheading, color: t.colors.ink, marginBottom: spacing.three },
     room: { flexDirection: 'row', alignItems: 'center', gap: spacing.four, paddingVertical: spacing.three },
-    roomPressed: { opacity: 0.6 },
+    roomPressed: { opacity: PRESSED_OPACITY },
     dot: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: t.colors.accent },
     roomText: { flex: 1 },
     roomLabel: { fontFamily: fonts.body, fontSize: 17 * t.scale, color: t.colors.ink },

@@ -18,7 +18,7 @@ import { RepeatingDrawer } from '@/components/RepeatingDrawer';
 import { RoomsSheet } from '@/components/RoomsSheet';
 import { RotatingPhrase } from '@/components/RotatingPhrase';
 import { TaskRow } from '@/components/TaskRow';
-import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import {
   clarify,
   combine,
@@ -1926,7 +1926,7 @@ const makeStyles = (t: Theme) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.two,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.scheme === 'dark' ? 'rgba(242,235,224,0.14)' : 'rgba(43,39,34,0.10)',
       backgroundColor: t.scheme === 'dark' ? 'rgba(37,33,25,0.6)' : 'rgba(255,255,255,0.6)',
       borderRadius: radius.pill,
@@ -2011,7 +2011,7 @@ const makeStyles = (t: Theme) =>
       paddingVertical: spacing.three,
       paddingHorizontal: spacing.five,
       borderRadius: radius.md,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
     },
     closeDayText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
@@ -2031,7 +2031,7 @@ const makeStyles = (t: Theme) =>
     strategiseNudge: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     strategiseBtn: {
       borderRadius: radius.md,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.accent,
       paddingVertical: spacing.three,
       paddingHorizontal: spacing.five,
@@ -2049,15 +2049,15 @@ const makeStyles = (t: Theme) =>
     seqText: { flex: 1, gap: 1 },
     seqReason: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale },
     planDismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two, fontFamily: fonts.body },
-    pressed: { opacity: 0.85 },
-    addBar: { borderWidth: 1, borderColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.four, alignItems: 'center' },
+    pressed: { opacity: PRESSED_OPACITY },
+    addBar: { borderWidth: border.hair, borderColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.four, alignItems: 'center' },
     capturePanel: { gap: spacing.two },
     captureHandle: { alignSelf: 'center', paddingVertical: spacing.two },
     alsoDidLink: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     didTitle: { ...t.type.subheading, color: t.colors.ink, letterSpacing: -0.3 },
     didHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body },
     didInput: {
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       borderRadius: radius.md,
       paddingVertical: spacing.three,
@@ -2071,7 +2071,7 @@ const makeStyles = (t: Theme) =>
     didActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.five, marginTop: spacing.two },
     didCancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     focusEntry: {
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.accent,
       borderRadius: radius.md,
       paddingVertical: spacing.three,
@@ -2084,7 +2084,7 @@ const makeStyles = (t: Theme) =>
     selectTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four, marginBottom: spacing.two },
     selectAllText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, textDecorationLine: 'underline' },
     moveToPresets: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two, justifyContent: 'center', marginBottom: spacing.three },
-    moveChip: { borderWidth: 1, borderColor: t.colors.line, borderRadius: radius.pill, paddingVertical: spacing.three, paddingHorizontal: spacing.three },
+    moveChip: { borderWidth: border.hair, borderColor: t.colors.line, borderRadius: radius.pill, paddingVertical: spacing.three, paddingHorizontal: spacing.three },
     moveChipText: { color: t.colors.ink, fontFamily: fonts.body, fontSize: 14 * t.scale },
     moveCancelWrap: { marginTop: spacing.three, alignItems: 'center' },
     combineList: { gap: spacing.one, marginTop: spacing.one, marginBottom: spacing.one },

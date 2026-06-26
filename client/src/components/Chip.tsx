@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, type ViewStyle } from 'react-native';
 
-import { radius, spacing, type Theme } from '@/constants/theme';
+import { border, radius, spacing, type Theme } from '@/constants/theme';
 import { useThemedStyles } from '@/lib/theme-provider';
 
 type Props = {
@@ -39,7 +39,7 @@ const makeStyles = (t: Theme) =>
   StyleSheet.create({
     chip: {
       borderRadius: radius.pill,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       paddingVertical: spacing.two,
       paddingHorizontal: spacing.four,

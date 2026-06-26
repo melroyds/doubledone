@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackLink } from '@/components/BackLink';
 import { PremiumButton } from '@/components/PremiumButton';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { lookbackSummary, makeScrapbook } from '@/lib/ai';
 import { addMonths, completionsByDay, monthLabel, monthMatrix, scheduledByDay, WEEKDAY_LABELS } from '@/lib/calendar';
 import { formatTodayLabel, fromISODate, toISODate } from '@/lib/day';
@@ -432,19 +432,19 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   cell: { flex: 1, alignItems: 'center', paddingVertical: spacing.one },
   dayBlob: { width: 34, height: 34, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
-  dayToday: { borderWidth: 1, borderColor: t.colors.line },
+  dayToday: { borderWidth: border.hair, borderColor: t.colors.line },
   daySelected: { backgroundColor: t.colors.accent },
   dayNum: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body },
   dayNumSelected: { color: t.colors.onAccent, fontWeight: '700' },
   dot: { width: 5, height: 5, borderRadius: radius.pill, backgroundColor: t.colors.done, marginTop: 3 },
   dotBig: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: t.colors.done, marginTop: 1 },
   dotSpacer: { width: 5, height: 5, marginTop: 3 },
-  dotScheduled: { width: 6, height: 6, borderRadius: radius.pill, borderWidth: 1.5, borderColor: t.colors.accent, marginTop: 2 },
+  dotScheduled: { width: 6, height: 6, borderRadius: radius.pill, borderWidth: border.thin, borderColor: t.colors.accent, marginTop: 2 },
   legend: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: spacing.four, marginTop: spacing.four },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.one },
   legendDot: { width: 6, height: 6, borderRadius: radius.pill, backgroundColor: t.colors.done },
   legendDotBig: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: t.colors.done },
-  legendDotScheduled: { width: 7, height: 7, borderRadius: radius.pill, borderWidth: 1.5, borderColor: t.colors.accent },
+  legendDotScheduled: { width: 7, height: 7, borderRadius: radius.pill, borderWidth: border.thin, borderColor: t.colors.accent },
   legendText: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body },
   monthEmpty: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.five },
   detail: { marginTop: spacing.six, gap: spacing.two },
@@ -476,7 +476,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'center',
     width: '100%',
-    maxWidth: 360,
+    maxWidth: layout.cardMediaWidth,
     shadowColor: '#000',
     shadowOpacity: 0.12,
     shadowRadius: 16,
@@ -506,10 +506,10 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   inviteWrap: { gap: spacing.three, alignItems: 'center' },
   inviteFrame: {
     width: '100%',
-    maxWidth: 360,
+    maxWidth: layout.cardMediaWidth,
     aspectRatio: 1,
     borderRadius: radius.md,
-    borderWidth: 1.5,
+    borderWidth: border.thin,
     borderColor: t.colors.line,
     borderStyle: 'dashed',
     alignItems: 'center',

@@ -4,7 +4,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { triage } from '@/lib/ai';
 import { loadTasks, saveOnboarded, saveTasks } from '@/lib/storage';
 import { type Task } from '@/lib/tasks';
@@ -321,7 +321,7 @@ const makeStyles = (t: Theme) =>
     input: {
       minHeight: 150,
       backgroundColor: t.colors.surface,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       borderRadius: radius.md,
       padding: spacing.four,
@@ -337,14 +337,14 @@ const makeStyles = (t: Theme) =>
       flexDirection: 'row',
       alignItems: 'flex-start',
       gap: spacing.three,
-      borderWidth: 1.5,
+      borderWidth: border.thin,
       borderColor: t.colors.repeat,
       borderRadius: radius.md,
       paddingVertical: spacing.three,
       paddingHorizontal: spacing.four,
       backgroundColor: t.colors.surface,
     },
-    revealCheck: { width: 22, height: 22, borderRadius: radius.pill, borderWidth: 2, borderColor: t.colors.inkFaint, marginTop: 1 },
+    revealCheck: { width: 22, height: 22, borderRadius: radius.pill, borderWidth: border.thick, borderColor: t.colors.inkFaint, marginTop: 1 },
     revealText: { flexShrink: 1 },
     revealTitle: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 24 * t.scale },
     revealHint: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: 2 },

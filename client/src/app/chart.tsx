@@ -7,7 +7,7 @@ import { BackLink } from '@/components/BackLink';
 import { Chip } from '@/components/Chip';
 import { PremiumButton } from '@/components/PremiumButton';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
+import { border, control, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { chart, type CourseStep } from '@/lib/ai';
 import { toISODate } from '@/lib/day';
 import { usePremium } from '@/lib/premium-provider';
@@ -237,10 +237,10 @@ const makeStyles = (t: Theme) =>
     heading: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', lineHeight: 26 * t.scale, marginBottom: spacing.two },
     stepRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three, paddingVertical: spacing.three },
     check: {
-      width: 24,
-      height: 24,
+      width: control.check,
+      height: control.check,
       borderRadius: radius.sm,
-      borderWidth: 1.5,
+      borderWidth: border.thin,
       borderColor: t.colors.line,
       alignItems: 'center',
       justifyContent: 'center',

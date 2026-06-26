@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
-import { radius, spacing, type Theme } from '@/constants/theme';
+import { border, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { useThemedStyles } from '@/lib/theme-provider';
 
 type Option<T> = { value: T; label: string };
@@ -47,15 +47,15 @@ const makeStyles = (t: Theme) =>
       paddingVertical: spacing.three,
       paddingHorizontal: spacing.two,
       borderRadius: radius.md,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       backgroundColor: t.colors.surface,
       alignItems: 'center',
       justifyContent: 'center',
     } as ViewStyle,
     // The one active treatment: border lifts to 1.5, the mauve tint fills, the label goes mauve at weight 600.
-    segOn: { borderWidth: 1.5, borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
-    pressed: { opacity: 0.7 },
+    segOn: { borderWidth: border.thin, borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
+    pressed: { opacity: PRESSED_OPACITY },
     segText: { ...t.type.label, color: t.colors.inkSoft },
     segTextOn: { color: t.colors.accent },
   });

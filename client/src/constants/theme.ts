@@ -107,10 +107,28 @@ export const radius = {
 
 // Layout caps shared across screens. `maxContentWidth` is the page-content column width every full-screen
 // route (and the Rooms sheet) centres its content at, so wide-desktop layouts stay a calm centred column
-// instead of stretching edge-to-edge. One source of truth, previously a 560 literal repeated per screen.
+// instead of stretching edge-to-edge. `cardMediaWidth` caps a card's media (the Lookback polaroid, the
+// scrapbook image, the date-picker card) so it never balloons on wide hosts. `maxCalendarWidth` caps the
+// month-grid date picker so its square day-cells stay a comfortable size regardless of host-card width.
+// One source of truth, previously per-screen literals.
 export const layout = {
   maxContentWidth: 560,
+  cardMediaWidth: 360,
+  maxCalendarWidth: 340,
 } as const;
+
+// The canonical pressed-state dim: one opacity for the "you're pressing this" feedback, instead of the
+// 0.6/0.7/0.8/0.85/0.9 spread that had crept across the app. The one documented exception is PremiumButton's
+// gradient, which stays at 0.9 (a gradient dims differently than a flat fill).
+export const PRESSED_OPACITY = 0.7;
+
+// Control sizes shared across components. `check` is the round sage completion-check diameter (TaskRow's hero
+// size), unified so the breakdown and chart checks match it.
+export const control = { check: 26 } as const;
+
+// Border-width family. `hair` is the default hairline, `thin` and `thick` the two heavier emphases. Literals
+// routed here at their current values (no reconciliation of the 1.5-vs-2 selected-emphasis split yet).
+export const border = { hair: 1, thin: 1.5, thick: 2 } as const;
 
 // Motion language (the redesign) lives in its own pure module so non-UI code can import it
 // under the test runner. Re-exported here so components keep importing it from the theme

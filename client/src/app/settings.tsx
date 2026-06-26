@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackLink } from '@/components/BackLink';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Segmented } from '@/components/Segmented';
-import { fonts, layout, PREMIUM_GRADIENT, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, layout, PREMIUM_GRADIENT, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { deleteAccount } from '@/lib/account';
 import { purgeScrapbookImages } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
@@ -488,7 +488,7 @@ const makeStyles = (t: Theme) =>
     rowLabel: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     rowHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale, marginTop: spacing.one },
     segment: { marginTop: spacing.three },
-    pressed: { opacity: 0.7 },
+    pressed: { opacity: PRESSED_OPACITY },
     privacyLink: { marginTop: spacing.two },
     privacyLinkText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     premiumCardWrap: { marginTop: 'auto', paddingTop: spacing.six }, // pin to the bottom of the page
@@ -521,7 +521,7 @@ const makeStyles = (t: Theme) =>
       gap: spacing.three,
       padding: spacing.four,
       borderRadius: radius.md,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       backgroundColor: t.colors.surface,
     },
@@ -536,7 +536,7 @@ const makeStyles = (t: Theme) =>
       fontSize: 13 * t.scale,
       fontFamily: fonts.body,
       backgroundColor: t.colors.surface,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       borderRadius: radius.md,
       paddingVertical: spacing.two,
@@ -559,7 +559,7 @@ const makeStyles = (t: Theme) =>
     feedbackForm: { paddingTop: spacing.six, gap: spacing.three },
     feedbackInput: {
       minHeight: 96,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       borderRadius: radius.md,
       padding: spacing.three,

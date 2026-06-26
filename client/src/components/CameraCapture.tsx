@@ -13,7 +13,7 @@ import { useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { ocr } from '@/lib/ai';
 import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -217,7 +217,7 @@ const makeStyles = (t: Theme) =>
       width: 64,
       paddingVertical: spacing.two,
       borderRadius: radius.pill,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       alignItems: 'center',
     },
@@ -249,7 +249,7 @@ const makeStyles = (t: Theme) =>
       paddingHorizontal: spacing.five,
       paddingBottom: spacing.four,
     },
-    pressed: { opacity: 0.8 },
+    pressed: { opacity: PRESSED_OPACITY },
     disabled: { opacity: 0.5 },
     busyOverlay: {
       position: 'absolute',

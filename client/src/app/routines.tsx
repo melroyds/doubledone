@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { toISODate } from '@/lib/day';
 import { isStepDoneToday, type Routine, routineProgress, type RoutineWhen, toggleStep } from '@/lib/routines';
 import { loadRoutines, saveRoutines } from '@/lib/storage';
@@ -240,7 +240,7 @@ const makeStyles = (t: Theme) =>
       alignItems: 'center',
       backgroundColor: t.colors.surface,
       borderRadius: radius.md,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       paddingHorizontal: spacing.four,
       paddingVertical: spacing.three,
@@ -255,7 +255,7 @@ const makeStyles = (t: Theme) =>
       borderRadius: radius.lg,
       padding: spacing.four,
       gap: spacing.one,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       boxShadow: t.scheme === 'dark' ? '0px 6px 18px -10px rgba(0,0,0,0.5)' : '0px 6px 18px -10px rgba(43,39,34,0.18)',
     },
@@ -267,7 +267,7 @@ const makeStyles = (t: Theme) =>
       width: 22,
       height: 22,
       borderRadius: radius.sm,
-      borderWidth: 1.5,
+      borderWidth: border.thin,
       borderColor: t.colors.line,
       alignItems: 'center',
       justifyContent: 'center',
@@ -282,7 +282,7 @@ const makeStyles = (t: Theme) =>
       borderRadius: radius.lg,
       padding: spacing.four,
       gap: spacing.three,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       marginTop: spacing.two,
     },
@@ -290,7 +290,7 @@ const makeStyles = (t: Theme) =>
       color: t.colors.ink,
       fontSize: 16 * t.scale,
       fontFamily: fonts.body,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       borderRadius: radius.md,
       paddingHorizontal: spacing.three,
@@ -306,7 +306,7 @@ const makeStyles = (t: Theme) =>
       paddingHorizontal: spacing.three,
       paddingVertical: spacing.three,
       borderRadius: radius.pill,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       overflow: 'hidden',
     },
@@ -314,7 +314,7 @@ const makeStyles = (t: Theme) =>
     formActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.four, marginTop: spacing.one },
     cancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
     newBtn: {
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       borderRadius: radius.pill,
       paddingVertical: spacing.three,

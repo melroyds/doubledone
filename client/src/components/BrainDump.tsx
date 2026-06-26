@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { split } from '@/lib/ai';
 import { friendlyDate, toISODate } from '@/lib/day';
 import { appendPhrase } from '@/lib/dictation';
@@ -489,7 +489,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     minHeight: 64,
     maxHeight: 160,
     backgroundColor: t.colors.surface,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
     borderRadius: radius.md,
     paddingHorizontal: spacing.four,
@@ -505,7 +505,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: radius.pill,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
     backgroundColor: t.colors.surface,
     alignItems: 'center',
@@ -519,7 +519,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: radius.pill,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
     backgroundColor: t.colors.surface,
     alignItems: 'center',
@@ -536,7 +536,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingHorizontal: spacing.three,
     paddingVertical: spacing.one,
     borderRadius: radius.pill,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.accent,
     backgroundColor: t.colors.accentSoft,
   },
@@ -553,7 +553,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.five,
     width: '100%',
-    maxWidth: 360,
+    maxWidth: layout.cardMediaWidth,
     gap: spacing.three,
   },
   pickerTitle: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
@@ -561,14 +561,14 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
   bite: {
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.accent,
     paddingHorizontal: spacing.four,
     paddingVertical: spacing.three,
   },
   biteBusy: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
   biteText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  pressed: { opacity: 0.8 },
+  pressed: { opacity: PRESSED_OPACITY },
   disabled: { opacity: 0.5 },
   error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body },
   captureRow: { flexDirection: 'row', gap: spacing.two, alignItems: 'flex-start' },
@@ -581,7 +581,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingHorizontal: spacing.three,
     paddingVertical: spacing.two,
     borderRadius: radius.pill,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
     backgroundColor: t.colors.surface,
   },
