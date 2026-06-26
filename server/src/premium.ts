@@ -20,7 +20,7 @@ export type PremiumResult = PremiumOk | PremiumDenied;
  *  expired, or malformed token. Injectable so unit tests pass a stub and never touch the network. */
 export type SubVerifier = (token: string, supabaseUrl: string) => Promise<string | null>;
 
-type PremiumEnv = { DB?: D1LikeDatabase; SUPABASE_URL?: string };
+type PremiumEnv = { DB?: D1LikeDatabase; SUPABASE_URL?: string; COMP_EMAILS?: string };
 
 // Cache the JWKS set per project URL across Worker invocations. jose fetches the keys lazily on first
 // verify and keeps its own short-lived cache (re-fetching on an unknown kid), so this only re-creates the
@@ -78,7 +78,7 @@ export async function requirePremium(
   if (!userId) return { ok: false, status: 401 }; // forged / malformed / expired
   // Owner / comp: an allowlisted email is always premium, no Stripe sub. Reading the email here is safe
   // because the token's signature was just verified (userId is non-null), so the email claim is trustworthy.
-  if (isCompEmail(decodeJwtEmail(token))) return { ok: true, userId };
+  if (isCompEmail(decodeJwtEmail(token), env.COMP_EMAILS)) return { ok: true, userId };
   let view: EntitlementView;
   try {
     view = await readEntitlement(env.DB, userId);

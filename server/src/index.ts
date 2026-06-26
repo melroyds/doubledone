@@ -52,6 +52,7 @@ interface SendEmailBinding {
 
 export interface Env {
   ANTHROPIC_API_KEY: string;
+  COMP_EMAILS?: string; // comma-separated always-premium comp allowlist (owner + feedback grants). A Worker secret, NOT in source.
   // Supabase project URL + public anon key. Used by the MCP server to proxy a
   // user's tasks (with the user's own bearer token) under row-level security. The
   // anon key is public/safe; both are Worker secrets (see CLAUDE.md), never committed.
