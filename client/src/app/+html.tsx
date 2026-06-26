@@ -1,0 +1,46 @@
+import { ScrollViewStyleReset } from 'expo-router/html';
+import { type PropsWithChildren } from 'react';
+
+// The web HTML shell: Expo Router renders every web page inside this, so the document <head> lives here, and
+// so does the SEO / social meta. Without it every shared or pasted doubledone.app link unfurled title-only
+// (a bare <title>, no description, no Open Graph), and for a commercialising product the funnel leaked before
+// it started. A route may still set its own <Head>; this is the crawlable DEFAULT for the front door.
+// A proper 1200x630 og:image social card is a noted follow-on; the summary card (title + description) already
+// turns a blank unfurl into a real one.
+
+const TITLE = 'DoubleDone — a calmer kind of to-do';
+const DESCRIPTION =
+  'A calm, never-shame daily to-do app. It shows you only what today needs and quietly keeps everything you finish. Made for ADHD, autism, and OCD. Nothing is ever overdue.';
+const URL = 'https://doubledone.app';
+
+export default function Root({ children }: PropsWithChildren) {
+  return (
+    <html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+        <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+
+        <title>{TITLE}</title>
+        <meta name="description" content={DESCRIPTION} />
+        <meta name="theme-color" content="#FAF6F1" />
+
+        {/* Open Graph (iMessage, Slack, LinkedIn, Facebook, ...) */}
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content={URL} />
+        <meta property="og:site_name" content="DoubleDone" />
+        <meta property="og:title" content={TITLE} />
+        <meta property="og:description" content={DESCRIPTION} />
+
+        {/* Twitter / X */}
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content={TITLE} />
+        <meta name="twitter:description" content={DESCRIPTION} />
+
+        {/* Disable body scrolling on web so ScrollView components behave like native. */}
+        <ScrollViewStyleReset />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
+}
