@@ -233,7 +233,7 @@ export async function readEntitlement(db: D1LikeDatabase, userId: string): Promi
 
 // --- HTTP handlers ---------------------------------------------------------
 
-type FullEnv = StripeEnv & { DB?: D1LikeDatabase };
+type FullEnv = StripeEnv & { DB?: D1LikeDatabase; COMP_EMAILS?: string };
 
 export function bearer(request: Request): string {
   const auth = request.headers.get('Authorization') ?? '';
@@ -310,7 +310,7 @@ export async function handleEntitlement(request: Request, env: FullEnv, cors: Re
   // (like the sub above), so it grants only the CLIENT flag; the costed money gate (requirePremium) re-checks
   // the same allowlist against a cryptographically verified token. The far-past `since` gives the comp the
   // full tenure-based scrapbook allowance.
-  if (isCompEmail(decodeJwtEmail(token))) {
+  if (isCompEmail(decodeJwtEmail(token), env.COMP_EMAILS)) {
     return new Response(
       JSON.stringify({ premium: true, status: 'comp', since: '2025-01-01T00:00:00.000Z', currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null }),
       { headers: { ...JSON_HEADERS, ...cors } },

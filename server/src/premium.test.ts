@@ -69,9 +69,11 @@ function throwingDb(): D1LikeDatabase {
 }
 
 const SUPA = 'https://x.supabase.co';
+// A fake comp email for the tests; the owner's real address lives only in the COMP_EMAILS secret, never in source.
+const COMP_EMAIL = 'owner@example.test';
 const req = (token?: string) =>
   new Request('https://api.doubledone.app/ocr', token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
-const env = (db?: D1LikeDatabase) => ({ DB: db, SUPABASE_URL: SUPA });
+const env = (db?: D1LikeDatabase) => ({ DB: db, SUPABASE_URL: SUPA, COMP_EMAILS: COMP_EMAIL });
 
 // A stub verifier: pretends the token verified and resolves to a fixed sub, so cases that are not about
 // crypto run with no network. The defaultVerifySub block below exercises the real verifier.
@@ -79,7 +81,6 @@ const verifiesTo = (sub: string | null): SubVerifier => async () => sub;
 
 // The comp allowlist is keyed on the token's email claim. Build a token carrying sub + email; the comp
 // path reads the email only AFTER verifySub returns non-null, so these pair such a token with a stub.
-const COMP_EMAIL = 'melroyvivekdsouza@gmail.com';
 const tokenWith = (claims: object) => `h.${btoa(JSON.stringify(claims)).replace(/=/g, '')}.s`;
 
 describe('requirePremium', () => {

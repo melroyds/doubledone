@@ -243,10 +243,10 @@ describe('Stripe HTTP handlers', () => {
   });
 
   it('handleEntitlement returns a comp premium view for an allowlisted email (no DB needed)', async () => {
-    const compToken = `h.${btoa(JSON.stringify({ sub: 'u1', email: 'melroyvivekdsouza@gmail.com' })).replace(/=/g, '')}.s`;
+    const compToken = `h.${btoa(JSON.stringify({ sub: 'u1', email: 'owner@example.test' })).replace(/=/g, '')}.s`;
     const res = await handleEntitlement(
       new Request('https://w/entitlement', { headers: { Authorization: `Bearer ${compToken}` } }),
-      {},
+      { COMP_EMAILS: 'owner@example.test' },
       cors,
     );
     expect(res.status).toBe(200);
