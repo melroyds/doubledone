@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BackLink } from '@/components/BackLink';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { fonts, layout, PREMIUM_GRADIENT, radius, spacing, type Theme } from '@/constants/theme';
 import { deleteAccount } from '@/lib/account';
@@ -188,14 +189,7 @@ export default function SettingsScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.six }]}>
-        <Pressable
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
-          accessibilityRole="button"
-          accessibilityLabel="Back to Today"
-          hitSlop={8}
-        >
-          <Text style={styles.back}>‹ Today</Text>
-        </Pressable>
+        <BackLink label="Today" />
 
         <Text style={styles.title}>Settings</Text>
         <Text style={styles.subtitle}>Make it comfortable. These follow you across the app.</Text>
@@ -491,7 +485,6 @@ const makeStyles = (t: Theme) =>
       alignSelf: 'center',
       flexGrow: 1, // fills the height so the footnote can sit at the bottom
     },
-    back: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     // Editorial serif header at weight 400, the calm counterpoint to bold "Today".
     title: { ...t.type.title, color: t.colors.ink, marginTop: spacing.three },
     subtitle: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale, marginTop: spacing.two },

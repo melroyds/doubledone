@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BackLink } from '@/components/BackLink';
 import { PremiumButton } from '@/components/PremiumButton';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
@@ -116,14 +117,7 @@ export default function ChartScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top + spacing.three }]}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Pressable
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          hitSlop={8}
-        >
-          <Text style={styles.back}>‹ Back</Text>
-        </Pressable>
+        <BackLink />
         <Text style={styles.title}>Chart a course</Text>
         <Text style={styles.intro}>
           Name something you are working toward. You will get a calm list of the next few steps, yours to take or leave.
@@ -229,7 +223,6 @@ const makeStyles = (t: Theme) =>
     screen: { flex: 1, backgroundColor: t.colors.bg },
     scroll: { flex: 1 },
     content: { paddingHorizontal: spacing.five, paddingBottom: spacing.seven, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
-    back: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     title: { color: t.colors.ink, fontSize: 34 * t.scale, fontWeight: '400', fontFamily: fonts.sans, marginTop: spacing.three },
     intro: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 24 * t.scale, marginTop: spacing.two },
     input: {

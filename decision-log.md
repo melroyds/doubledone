@@ -2699,3 +2699,13 @@ dark-mode bug: the routines add-routine label used colors.surface instead of onA
 
 Gate green: client 346, server 197, lint + typecheck clean (lint confirms no dead styles remain). Verified a
 button in a dark preview: bg #C68BA0, label #2B2722, radius 14, 17/700. On premium, holding the merge.
+
+## 2026-06-26 Design polish wave 3b: BackLink
+
+Extracted the "‹ Back" link (copy-pasted into 6 sub-screens) into one <BackLink label? fallback?>, accent
+style, role + a11y, hitSlop. Fixes a latent bug: Lookback's back link used a bare router.back() with no
+fallback, so a deep-linked Lookback (no in-app back stack) dead-ended. BackLink uses
+router.canGoBack() ? back() : replace(fallback), verified live (a deep-link back now routes to Today).
+Lookback also had drifted style (inkSoft / 16 / regular) now unified to the accent standard.
+settings / routines / lookback pass label "Today", privacy keeps fallback "/settings". Dead back styles and
+two now-unused router imports removed. Gate green. On premium, holding the merge.

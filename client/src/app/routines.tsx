@@ -1,8 +1,9 @@
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BackLink } from '@/components/BackLink';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { toISODate } from '@/lib/day';
@@ -32,7 +33,6 @@ const WHENS: { value: RoutineWhen; label: string }[] = [
 // "you missed it", the never-shame spine holds. The pure model lives in lib/routines.
 export default function RoutinesScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
   const today = useMemo(() => toISODate(new Date()), []);
@@ -111,14 +111,7 @@ export default function RoutinesScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.six }]}>
-        <Pressable
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
-          accessibilityRole="button"
-          accessibilityLabel="Back to Today"
-          hitSlop={8}
-        >
-          <Text style={styles.back}>‹ Today</Text>
-        </Pressable>
+        <BackLink label="Today" />
 
         <Text style={styles.title}>Routines</Text>
         <Text style={styles.subtitle}>Gentle rituals. No streaks, no pressure, just today.</Text>
@@ -239,7 +232,6 @@ const makeStyles = (t: Theme) =>
     screen: { flex: 1, backgroundColor: t.colors.bg },
     scroll: { flex: 1 },
     content: { paddingHorizontal: spacing.five, paddingBottom: spacing.seven, gap: spacing.three, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
-    back: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', marginBottom: spacing.two },
     title: { ...t.type.title, color: t.colors.ink, marginTop: spacing.two },
     subtitle: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, marginBottom: spacing.three },
     undoBar: {
