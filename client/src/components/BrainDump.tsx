@@ -521,7 +521,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   chipOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
   chipText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, fontWeight: '500' },
-  chipTextOn: { color: '#FFFFFF' },
+  chipTextOn: { color: t.colors.onAccent },
   weekdays: { flexDirection: 'row', gap: spacing.two },
   day: {
     width: 34,
@@ -565,7 +565,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   startBtnText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(43,39,34,0.45)',
+    backgroundColor: t.colors.scrim,
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.five,
@@ -598,7 +598,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   pressed: { opacity: 0.8 },
   disabled: { opacity: 0.5 },
-  addText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+  addText: { color: t.colors.onAccent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body },
   captureRow: { flexDirection: 'row', gap: spacing.two, alignItems: 'flex-start' },
   inputFlex: { flex: 1 },

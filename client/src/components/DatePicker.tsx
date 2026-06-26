@@ -103,5 +103,5 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   cellOn: { backgroundColor: t.colors.accent },
   day: { color: t.colors.ink, fontFamily: fonts.body, fontSize: 14 * t.scale },
   dayPast: { color: t.colors.inkFaint, opacity: 0.5 },
-  dayOn: { color: '#FFFFFF', fontWeight: '700' },
+  dayOn: { color: t.colors.onAccent, fontWeight: '700' },
 });

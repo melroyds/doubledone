@@ -300,7 +300,7 @@ export default function WelcomeScreen() {
               accessibilityRole="button"
               accessibilityLabel={PRIMARY[step]}
             >
-              {busy ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.primaryText}>{PRIMARY[step]}</Text>}
+              {busy ? <ActivityIndicator size="small" color={theme.colors.onAccent} /> : <Text style={styles.primaryText}>{PRIMARY[step]}</Text>}
             </Pressable>
           )}
         </View>
@@ -370,14 +370,14 @@ const makeStyles = (t: Theme) =>
     netWhat: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, flexShrink: 1 },
     inscription: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', marginTop: spacing.three },
     check: { width: 44, height: 44, borderRadius: radius.pill, backgroundColor: t.colors.done, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.one },
-    checkMark: { color: '#FFFFFF', fontSize: 24 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    checkMark: { color: t.colors.onDone, fontSize: 24 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     ethos: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', marginTop: spacing.two },
     footer: { marginTop: spacing.five, gap: spacing.four },
     dots: { flexDirection: 'row', justifyContent: 'center', gap: spacing.two },
     dot: { width: 7, height: 7, borderRadius: radius.pill, backgroundColor: t.scheme === 'dark' ? '#4A443C' : '#D8CFC4' },
     dotOn: { backgroundColor: t.colors.accent },
     primary: { backgroundColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.four, alignItems: 'center' },
-    primaryText: { color: '#FFFFFF', fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    primaryText: { color: t.colors.onAccent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     disabled: { opacity: 0.6 },
     pressed: { opacity: 0.85 },
   });

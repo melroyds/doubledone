@@ -4,7 +4,7 @@ import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions,
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { describeRecurrence } from '@/lib/recurrence';
 import { type Task } from '@/lib/tasks';
-import { useThemedStyles } from '@/lib/theme-provider';
+import { useReducedMotion, useThemedStyles } from '@/lib/theme-provider';
 import { isDoneOn, isRecurring } from '@/lib/today';
 
 type Props = {
@@ -22,17 +22,27 @@ type Props = {
 // a ref or a mount-time setState, both of which the render rules forbid.
 export function RepeatingDrawer({ open, onClose, tasks, today, onToggle }: Props) {
   const styles = useThemedStyles(makeStyles);
+  const reduced = useReducedMotion();
   const [anim] = useState(() => new Animated.Value(open ? 1 : 0));
   const { width } = useWindowDimensions();
   const panelWidth = Math.min(360, width * 0.86);
 
+  // Reduced motion shows the drawer (and its backdrop) snap to the open/closed end
+  // state instantly, never sliding or fading, mirroring how index.tsx settles its
+  // close-the-day card for users who opt out of motion.
   useEffect(() => {
-    Animated.timing(anim, {
+    if (reduced) {
+      anim.setValue(open ? 1 : 0);
+      return;
+    }
+    const animation = Animated.timing(anim, {
       toValue: open ? 1 : 0,
       duration: open ? 220 : 200,
       useNativeDriver: false,
-    }).start();
-  }, [open, anim]);
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [open, reduced, anim]);
 
   const recurring = tasks.filter((t) => !t.deletedAt && isRecurring(t));
   const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [panelWidth, 0] });
@@ -63,7 +73,7 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle }: Props
                   key={t.id}
                   onPress={() => onToggle(t.id)}
                   style={styles.row}
-                  accessibilityRole="button"
+                  accessibilityRole="checkbox"
                   accessibilityState={{ checked: done }}
                   accessibilityLabel={t.title}
                 >
@@ -85,7 +95,7 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle }: Props
 }
 
 const makeStyles = (t: Theme) => StyleSheet.create({
-  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(43,39,34,0.45)' },
+  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: t.colors.scrim },
   panel: {
     position: 'absolute',
     top: 0,

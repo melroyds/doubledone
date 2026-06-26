@@ -2633,3 +2633,32 @@ Verified in preview: the row tag renders, one big task floors the bar to "full" 
 today, and a big task tips a 5-task day (weighted 6) into heavy where 5 normal tasks stay calm. The server
 prompt change is committed but the Worker is NOT yet deployed (needs Melroy's per-instance OK); until then
 big-ness is sent and harmlessly ignored by the live Worker, so the AI weighting is dormant, not broken.
+
+## 2026-06-26 Design polish wave 1: dark-mode contrast, reduced-motion, scrim/onAccent tokens
+
+First wave of the stack-ranked design-review burn-down ([`docs/design-review.md`](docs/design-review.md)). The live defects.
+
+- **onAccent + onDone colour tokens (the dark-mode WCAG fix).** White CTA labels sat at 2.76:1 on the dark
+  accent and the completion tick at 2.16:1 on the dark sage fill, both failing AA, invisible in the light
+  preview we test in. Added per-scheme onAccent/onDone (light = #FFFFFF unchanged, dark = warm ink #2B2722).
+  Routed every white-on-accent label and the two sage ticks through them, and left every #FFFFFF on the
+  premium gradient untouched (white-on-gradient is intentional). Verified in a dark-scheme preview: the
+  accent button label now renders rgb(43,39,34), about 5.37:1.
+- **scrim colour token.** The modal backdrop rgba(43,39,34,0.45) was duplicated across 5 files and the Rooms
+  sheet had drifted to a cold pure-black rgba(0,0,0,0.28), against the warm-not-black rule. One scrim token
+  now: light rgba(43,39,34,0.45), dark rgba(10,8,6,0.6) (heavier so it actually dims the dark surface, still
+  a warm wash). All six backdrops routed through it.
+- **Today title weight 700 to 600.** Newsreader's heaviest loaded weight is 600, so the 700 title clamped
+  and rendered inconsistently. One-line fix.
+- **RepeatingDrawer honours reduced-motion** (it was the one animated surface that always ran the slide, a
+  broken promise for the motion-averse audience) and its **toggle rows announce as checkbox**, not button.
+
+Judgment calls (mine, per Melroy's "do it without interference, log it to challenge later"): the dark
+onAccent/onDone shade is the warm ink #2B2722 (a clean 5.37:1, keeps the palette warm). The dark scrim
+opacity is 0.6 (0.45 barely dimmed the dark background). The CameraCapture busy overlay (rgba(43,39,34,0.7))
+was left OUT of the scrim token: it is a camera-busy block, not a modal dim, and its heavier opacity is by
+design. The shared <Screen> wrapper was deferred to the component wave, so routines.tsx got the width cap
+directly.
+
+Gate green: client 346, server 197, lint + typecheck clean. On the premium branch, not yet deployed (the
+whole burn-down merges to main as one reviewed batch).

@@ -70,7 +70,7 @@ export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookba
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
-    scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.28)', justifyContent: 'flex-end', alignItems: 'center' },
+    scrim: { flex: 1, backgroundColor: t.colors.scrim, justifyContent: 'flex-end', alignItems: 'center' },
     sheet: {
       backgroundColor: t.colors.surface,
       // Cap the sheet to the app's canonical content width (560, like Today / Settings / Premium) and centre

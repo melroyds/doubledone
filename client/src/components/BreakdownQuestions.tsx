@@ -154,7 +154,7 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
             >
               {busy ? (
                 <View style={styles.btnBusy}>
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <ActivityIndicator size="small" color={theme.colors.onAccent} />
                   <Text style={styles.btnText}>Breaking it down…</Text>
                 </View>
               ) : (
@@ -182,7 +182,7 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
 const makeStyles = (t: Theme) => StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(43,39,34,0.45)',
+    backgroundColor: t.colors.scrim,
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.five,
@@ -203,7 +203,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   chipOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
   chipText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, fontWeight: '500' },
-  chipTextOn: { color: '#FFFFFF' },
+  chipTextOn: { color: t.colors.onAccent },
   selected: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
   toggle: { flexDirection: 'row', gap: spacing.two },
   seg: {
@@ -239,7 +239,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     marginTop: spacing.three,
   },
   btnBusy: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-  btnText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+  btnText: { color: t.colors.onAccent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   pressed: { opacity: 0.85 },
   disabled: { opacity: 0.6 },
   dismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.two },

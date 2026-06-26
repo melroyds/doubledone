@@ -119,7 +119,7 @@ export default function SignInScreen() {
             accessibilityLabel="Email me a code"
           >
             {busy ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <ActivityIndicator size="small" color={theme.colors.onAccent} />
             ) : (
               <Text style={styles.primaryText}>Email me a code</Text>
             )}
@@ -150,7 +150,7 @@ export default function SignInScreen() {
             accessibilityLabel="Sign in"
           >
             {busy ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <ActivityIndicator size="small" color={theme.colors.onAccent} />
             ) : (
               <Text style={styles.primaryText}>Sign in</Text>
             )}
@@ -232,7 +232,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingVertical: spacing.four,
     alignItems: 'center',
   },
-  primaryText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+  primaryText: { color: t.colors.onAccent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   pressed: { opacity: 0.8 },
   disabled: { opacity: 0.5 },
   link: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.two },

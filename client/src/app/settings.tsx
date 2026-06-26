@@ -614,7 +614,7 @@ const makeStyles = (t: Theme) =>
     feedbackActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.five },
     feedbackCancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
     feedbackSend: { backgroundColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.three, paddingHorizontal: spacing.five },
-    feedbackSendText: { color: '#FFFFFF', fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    feedbackSendText: { color: t.colors.onAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     feedbackThanks: { color: t.colors.done, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', paddingTop: spacing.six },
     footnote: {
       color: t.colors.inkFaint,

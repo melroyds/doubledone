@@ -213,7 +213,7 @@ const makeStyles = (t: Theme) =>
       paddingHorizontal: spacing.five,
       paddingVertical: spacing.three,
     },
-    primaryBtnText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    primaryBtnText: { color: t.colors.onAccent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     linkBtnText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     cameraWrap: { flex: 1 },
     camera: { flex: 1 },

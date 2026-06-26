@@ -5,7 +5,7 @@ import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { friendlyDate } from '@/lib/day';
 import { describePace, paceDays } from '@/lib/estimate';
 import { track } from '@/lib/telemetry';
-import { useThemedStyles } from '@/lib/theme-provider';
+import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 export type ReviewStep = { title: string; minutes: number; date: string | null };
 export type ReviewPhase = { title: string; date: string | null };
@@ -26,6 +26,7 @@ type Props = {
 // Nothing lands on your day until you accept; the dates came from your answers.
 export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCancel, today }: Props) {
   const styles = useThemedStyles(makeStyles);
+  const theme = useTheme();
   const [selected, setSelected] = useState<boolean[]>(() => steps.map(() => true));
   const phaseCount = laterPhases?.length ?? 0;
   const count = selected.filter(Boolean).length + phaseCount;
@@ -109,7 +110,7 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
               accessibilityLabel={`Add ${count} ${count === 1 ? 'task' : 'tasks'}`}
             >
               {busy ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <ActivityIndicator size="small" color={theme.colors.onAccent} />
               ) : (
                 <Text style={styles.btnText}>
                   Add {count} {count === 1 ? 'task' : 'tasks'}
@@ -129,7 +130,7 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
 const makeStyles = (t: Theme) => StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(43,39,34,0.45)',
+    backgroundColor: t.colors.scrim,
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.five,
@@ -161,7 +162,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     justifyContent: 'center',
   },
   checkOn: { backgroundColor: t.colors.done, borderColor: t.colors.done },
-  tick: { color: '#FFFFFF', fontSize: 14 * t.scale, fontWeight: '700', lineHeight: 16 * t.scale, fontFamily: fonts.bodyBold },
+  tick: { color: t.colors.onDone, fontSize: 14 * t.scale, fontWeight: '700', lineHeight: 16 * t.scale, fontFamily: fonts.bodyBold },
   rowText: { flex: 1 },
   stepTitle: { color: t.colors.ink, fontSize: 16 * t.scale, lineHeight: 21 * t.scale, fontFamily: fonts.body },
   stepOff: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
@@ -209,7 +210,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.three,
   },
-  btnText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
+  btnText: { color: t.colors.onAccent, fontSize: 16 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
   pressed: { opacity: 0.85 },
   disabled: { opacity: 0.6 },
   dismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two, fontFamily: fonts.body },

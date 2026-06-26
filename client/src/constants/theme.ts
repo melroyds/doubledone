@@ -20,10 +20,13 @@ export type Palette = {
   line: string;
   accent: string;
   accentSoft: string;
+  onAccent: string;
   done: string;
   doneSoft: string;
+  onDone: string;
   repeat: string;
   danger: string;
+  scrim: string;
   priorityGradient: readonly string[];
   accents: readonly string[];
 };
@@ -38,10 +41,13 @@ const light = {
   line: '#ECE4D8', // hairline borders
   accent: '#9B6A7D', // dusky mauve, the single accent, used sparingly
   accentSoft: '#F1E7EC', // mauve tint
+  onAccent: '#FFFFFF', // foreground (labels, glyphs) on the accent fill; white reads fine on the light accent
   done: '#7E9B6B', // sage, completion, calm not alarming
   doneSoft: '#E9EFE2',
+  onDone: '#FFFFFF', // foreground (the completion tick) on the done fill; white reads fine on the light sage
   repeat: '#6E72A0', // dusk periwinkle, marks repeating tasks
   danger: '#A1554C', // muted brick, the calm stand-in for "red" on destructive actions (Remove)
+  scrim: 'rgba(43,39,34,0.45)', // warm-ink backdrop behind modals and sheets
   priorityGradient: ['#3B82F6', '#8B5CF6'], // saved loud blue->violet, for the premium "Prioritise a task" feature
   // A small, calm set of accent hues (e.g. for per-task dots). Desaturated by design.
   accents: ['#9B6A7D', '#4E8C86', '#C19A4F', '#6E72A0', '#BE7F84'], // mauve, teal, gold, periwinkle, rose
@@ -57,10 +63,13 @@ const dark = {
   line: '#34302A',
   accent: '#C68BA0', // lifted mauve
   accentSoft: '#352C32',
+  onAccent: '#2B2722', // warm ink on the lifted accent (~5.37:1); white here was only ~2.2-2.8:1
   done: '#9DB98A',
   doneSoft: '#2A3024',
+  onDone: '#2B2722', // warm ink on the lifted done fill (~6.88:1); white here failed AA
   repeat: '#8E97C8', // lifted periwinkle
   danger: '#D2887E', // lifted brick for dark mode
+  scrim: 'rgba(10,8,6,0.6)', // deeper warm wash so it actually dims the dark surface, never cold black
   priorityGradient: ['#5B8DEF', '#9B6CF0'],
   accents: ['#C68BA0', '#6FB0A8', '#D6B36A', '#8E97C8', '#D6979C'],
 } satisfies Palette;

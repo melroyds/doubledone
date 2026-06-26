@@ -1996,7 +1996,7 @@ const makeStyles = (t: Theme) =>
     title: {
       color: t.colors.ink,
       fontSize: 34 * t.scale,
-      fontWeight: '700',
+      fontWeight: '600',
       fontFamily: fonts.sans,
       letterSpacing: -0.5,
     },
@@ -2067,7 +2067,7 @@ const makeStyles = (t: Theme) =>
       backgroundColor: t.colors.accent,
       marginTop: spacing.one,
     },
-    reentryBtnText: { color: '#FFFFFF', fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    reentryBtnText: { color: t.colors.onAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     weight: { marginTop: spacing.two, marginBottom: spacing.four, gap: spacing.two },
     weightTrack: { flexDirection: 'row', height: 6, borderRadius: radius.pill, backgroundColor: t.colors.line, overflow: 'hidden' },
     weightFill: { backgroundColor: t.colors.accent },
@@ -2139,7 +2139,7 @@ const makeStyles = (t: Theme) =>
     didActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.five, marginTop: spacing.two },
     didCancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     didAddBtn: { paddingVertical: spacing.two, paddingHorizontal: spacing.five, borderRadius: radius.md, backgroundColor: t.colors.accent },
-    didAddText: { color: '#FFFFFF', fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    didAddText: { color: t.colors.onAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     focusEntry: {
       borderWidth: 1,
       borderColor: t.colors.accent,
@@ -2174,10 +2174,10 @@ const makeStyles = (t: Theme) =>
     focusActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.six, marginTop: spacing.four },
     focusSkipText: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     focusDoneBtn: { paddingVertical: spacing.three, paddingHorizontal: spacing.seven, borderRadius: radius.md, backgroundColor: t.colors.accent },
-    focusDoneText: { color: '#FFFFFF', fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    focusDoneText: { color: t.colors.onAccent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     backdrop: {
       flex: 1,
-      backgroundColor: 'rgba(43,39,34,0.45)',
+      backgroundColor: t.colors.scrim,
       alignItems: 'center',
       justifyContent: 'center',
       padding: spacing.five,
@@ -2200,5 +2200,5 @@ const makeStyles = (t: Theme) =>
     wrapItemText: { color: t.colors.inkSoft, fontSize: 16 * t.scale, flexShrink: 1, fontFamily: fonts.body },
     wrapRoll: { color: t.colors.inkFaint, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, marginTop: spacing.two, fontFamily: fonts.body },
     wrapBtn: { backgroundColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.four, alignItems: 'center', marginTop: spacing.three },
-    wrapBtnText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
+    wrapBtnText: { color: t.colors.onAccent, fontSize: 16 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
   });
