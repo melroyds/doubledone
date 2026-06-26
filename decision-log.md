@@ -2804,3 +2804,29 @@ exported easing convention to route to) and RepeatingDrawer's 220ms open duratio
 Gate green: client 346, server 197. On premium, holding the merge. This completes the stack-ranked design
 burn-down, items 1 through 22. Tier 4 and items 23-25 (CheckCircle, spacing hygiene, Bloom typography) are
 deliberately out of scope per Melroy's "until 22".
+
+## 2026-06-26 Copy audit: mechanical fixes applied, voice calls deferred to Melroy
+
+The 7-lens adversarial copy/microcopy audit ([`docs/copy-review.md`](docs/copy-review.md)), the i18n-prep. The
+verdict: the voice is strongly authored, so violations stand out as anomalies. Applied the safe mechanical
+fixes now, left every feature-naming and voice call for Melroy (his taste, like Strategise to Plan my day).
+
+Applied (mechanical, plus one spine fix):
+- **Raw provider error leak fixed (the spine one).** sign-in.tsx interpolated the raw Supabase err.message
+  onto the most anxiety-prone screen, a never-alarm breach and a small info leak. Both the send and verify
+  catches now show a calm fixed line only, never the raw detail.
+- Stray exclamation removed (premium "Thanks!" to "Thanks."), two prose semicolons to full stops (privacy.tsx
+  and the crawlable privacy.html, kept in sync), the brain-dump a11y label de-hyphenated to match the launcher,
+  and the Rooms pill's stale a11y list corrected (it omitted "Chart a course").
+
+Deferred, flagged for Melroy in docs/copy-review.md (his calls):
+- Tier 1: rename the "Rooms" pill (a first-timer cannot read the house metaphor), "Start fresh" to "See today"
+  on the welcome-back card (it reads as wipe/reset, contradicting "nothing's lost"), and the within-card
+  scrapbook vs keepsake collision.
+- Tier 2: unify scrapbook/keepsake across the paywall and Settings, the "Big" pill casing, "Sort it for me" vs
+  "Sort for me", and notably a suggestion to revisit "Plan my day" back toward "Plan my order" (the audit
+  argues it does not distinguish from "Lighten today"), which directly touches a recent call of his.
+- A terminology glossary (the canonical word per concept) and the i18n notes (concatenation, idioms,
+  hand-built plurals) are in the doc as the t()-layer backbone.
+
+Gate green. On premium, holding the merge (the whole design + copy batch goes to a preview for Melroy first).

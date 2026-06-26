@@ -244,7 +244,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
           style={[styles.input, styles.inputFlex]}
           multiline
           textAlignVertical="top"
-          accessibilityLabel="Brain-dump. Add one or more things, one per line"
+          accessibilityLabel="Brain dump. Add one or more things, one per line"
         />
         {canDictate && (
           <Pressable

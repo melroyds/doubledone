@@ -1062,7 +1062,7 @@ export default function TodayScreen() {
           <Pressable
             onPress={() => setRoomsOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel="Rooms: Repeating, Routines, Lookback, Settings"
+            accessibilityLabel="Rooms: Repeating, Routines, Lookback, Chart a course, Settings"
             hitSlop={8}
             style={({ pressed }) => [styles.roomsPill, pressed && styles.pressed]}
           >

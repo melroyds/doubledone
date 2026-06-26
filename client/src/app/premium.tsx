@@ -140,7 +140,7 @@ export default function PremiumScreen() {
         ) : (
           <View style={styles.panel}>
             {status === 'success' ? (
-              <Text style={styles.note}>Thanks! Setting up your Premium, this updates in a moment.</Text>
+              <Text style={styles.note}>Thanks. Setting up your Premium, this updates in a moment.</Text>
             ) : status === 'cancelled' ? (
               <Text style={styles.note}>No worries. Your free monthly keepsake is always here.</Text>
             ) : null}

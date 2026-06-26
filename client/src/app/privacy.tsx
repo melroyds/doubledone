@@ -53,7 +53,7 @@ export default function PrivacyScreen() {
           <Text style={styles.body}>
             And when you finish steps from a broken-down task, the app notes only that they got done, a random id and
             a number of days, never the task text or anything about you, so it can learn how long things really take.
-            Prefer not to? Just don&apos;t use those features; the rest of the app works fully without them.
+            Prefer not to? Just don&apos;t use those features. The rest of the app works fully without them.
           </Text>
         </View>
 
