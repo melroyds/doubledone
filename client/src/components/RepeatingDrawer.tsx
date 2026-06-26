@@ -50,7 +50,7 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle }: Props
   return (
     <View style={[StyleSheet.absoluteFill, { overflow: 'hidden', pointerEvents: open ? 'auto' : 'none' }]}>
       <Animated.View style={[styles.backdrop, { opacity: anim }]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close repeating tasks" />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close repeating tasks" />
       </Animated.View>
       <Animated.View style={[styles.panel, { width: panelWidth, transform: [{ translateX }] }]}>
         <View style={styles.header}>

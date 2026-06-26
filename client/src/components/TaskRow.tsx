@@ -71,7 +71,13 @@ export function TaskRow({
   const theme = useTheme();
   // The default + suggest rows share an accessibility label that names the pin and the big mark, so a
   // screen reader hears "marked as a big task" as validation (suppressed in select mode, like the marks).
-  const rowLabel = (pinned ? `${title}, pinned as today's one thing` : title) + (big ? ', marked as a big task' : '');
+  // The repeat and reminder state are folded in too, so a recurring task or one with a nudge no longer
+  // reads identically to a plain one (their decorative glyphs are then hidden from the reader, below).
+  const rowLabel =
+    (pinned ? `${title}, pinned as today's one thing` : title) +
+    (big ? ', marked as a big task' : '') +
+    (recurring ? ', repeating' : '') +
+    (nudgeAt ? `, reminder at ${formatNudgeTime(nudgeAt)}` : '');
 
   // Multi-select mode: every row becomes a checkbox (tap to pick), and the calm
   // tap-to-complete / long-press menu are suspended until the user leaves select mode.
@@ -104,13 +110,14 @@ export function TaskRow({
             disabled={slices.done <= 0}
             accessibilityRole="button"
             accessibilityLabel={`Step ${title} back one`}
+            hitSlop={{ top: 12, bottom: 12 }}
           >
             <Text style={[styles.keep, slices.done <= 0 && styles.controlOff]}>Step back</Text>
           </Pressable>
-          <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${title}`}>
+          <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${title}`} hitSlop={{ top: 12, bottom: 12 }}>
             <Text style={styles.remove}>Remove</Text>
           </Pressable>
-          <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel="Close">
+          <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel="Close" hitSlop={{ top: 12, bottom: 12 }}>
             <Text style={styles.close}>Close</Text>
           </Pressable>
         </View>
@@ -125,29 +132,29 @@ export function TaskRow({
         </Text>
         <View style={styles.confirmActions}>
           {onGoodEnough && !recurring && !done && (
-            <Pressable onPress={onGoodEnough} accessibilityRole="button" accessibilityLabel={`Mark ${title} good enough and done`}>
+            <Pressable onPress={onGoodEnough} accessibilityRole="button" accessibilityLabel={`Mark ${title} good enough and done`} hitSlop={{ top: 12, bottom: 12 }}>
               <Text style={styles.goodEnough}>Good enough</Text>
             </Pressable>
           )}
           {onDefer && !recurring && (
-            <Pressable onPress={onDefer} accessibilityRole="button" accessibilityLabel={`Move ${title} to tomorrow`}>
+            <Pressable onPress={onDefer} accessibilityRole="button" accessibilityLabel={`Move ${title} to tomorrow`} hitSlop={{ top: 12, bottom: 12 }}>
               <Text style={styles.keep}>Tomorrow</Text>
             </Pressable>
           )}
           {onMakeTiny && !recurring && (
-            <Pressable onPress={onMakeTiny} accessibilityRole="button" accessibilityLabel={`Make ${title} tiny`}>
+            <Pressable onPress={onMakeTiny} accessibilityRole="button" accessibilityLabel={`Make ${title} tiny`} hitSlop={{ top: 12, bottom: 12 }}>
               <Text style={styles.keep}>Make it tiny</Text>
             </Pressable>
           )}
           {onBreakdown && !recurring && (
-            <Pressable onPress={onBreakdown} accessibilityRole="button" accessibilityLabel={`Break down ${title}`}>
+            <Pressable onPress={onBreakdown} accessibilityRole="button" accessibilityLabel={`Break down ${title}`} hitSlop={{ top: 12, bottom: 12 }}>
               <Text style={styles.keep}>Break down</Text>
             </Pressable>
           )}
-          <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${title}`}>
+          <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${title}`} hitSlop={{ top: 12, bottom: 12 }}>
             <Text style={styles.remove}>Remove</Text>
           </Pressable>
-          <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel="Close">
+          <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel="Close" hitSlop={{ top: 12, bottom: 12 }}>
             <Text style={styles.close}>Close</Text>
           </Pressable>
         </View>
@@ -205,11 +212,11 @@ export function TaskRow({
           <View style={[styles.check, done && styles.checkDone]}>
             {done && <Text style={styles.tick}>✓</Text>}
           </View>
-          {big ? <Text style={styles.bigMark}>Big</Text> : null}
+          {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">Big</Text> : null}
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
-          {nudgeAt ? <Text style={styles.nudgeMark}>{`🔔 ${formatNudgeTime(nudgeAt)}`}</Text> : null}
-          {recurring && <Text style={styles.repeatMark}>↻</Text>}
-          {pinned ? <Text style={styles.pinStar}>★</Text> : null}
+          {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{`🔔 ${formatNudgeTime(nudgeAt)}`}</Text> : null}
+          {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
+          {pinned ? <Text style={styles.pinStar} accessible={false} importantForAccessibility="no">★</Text> : null}
         </Pressable>
         {onBreakdown && (
           <Pressable
@@ -263,12 +270,12 @@ export function TaskRow({
       <View style={[styles.check, done && styles.checkDone]}>
         {done && <Text style={styles.tick}>✓</Text>}
       </View>
-      {big ? <Text style={styles.bigMark}>Big</Text> : null}
+      {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">Big</Text> : null}
       <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
-      {nudgeAt ? <Text style={styles.nudgeMark}>{`🔔 ${formatNudgeTime(nudgeAt)}`}</Text> : null}
-      {recurring && <Text style={styles.repeatMark}>↻</Text>}
+      {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{`🔔 ${formatNudgeTime(nudgeAt)}`}</Text> : null}
+      {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
       {/* the pin star sits last, at the extreme right, so it stays the clear cue beside any other mark */}
-      {pinned ? <Text style={styles.pinStar}>★</Text> : null}
+      {pinned ? <Text style={styles.pinStar} accessible={false} importantForAccessibility="no">★</Text> : null}
     </Pressable>
   );
 }

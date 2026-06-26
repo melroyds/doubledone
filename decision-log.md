@@ -2759,3 +2759,14 @@ reconciled, flagged for Melroy: the selected-emphasis border is 1.5 in Segmented
 pinned/unique rows, the same "this is special" signal drawn at two weights. The 420/440 modal widths were left
 as-is (ModalCard already centralises modal width). Gate green: client 346, server 197. On premium, holding the
 merge.
+
+## 2026-06-26 Design polish wave 4b: hitSlop + a11y sweep (completes wave 4)
+
+The accessibility pass, no visual change beyond larger tap targets. hitSlop to a ~44pt floor on the
+sub-target controls the components had not already covered: the BrainDump slice steppers and weekday circles,
+the routines cadence pills, and the TaskRow confirm-row actions (vertical-only, since they wrap on a narrow
+phone). a11y: the TaskRow row label now folds in the repeating and reminder state (a recurring or reminder
+task used to read identically to a plain one), the decorative glyphs (the repeat arrow, the bell, the pin
+star, the Big pill) are hidden from screen readers so they are not double-announced, the RepeatingDrawer
+scrim gained role=button, and the routines when-pills gained explicit labels. Gate green: client 346, server
+197. On premium, holding the merge. Wave 4 complete.

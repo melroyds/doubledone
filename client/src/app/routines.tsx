@@ -194,7 +194,8 @@ export default function RoutinesScreen() {
                     onPress={() => setWhen(w.value)}
                     accessibilityRole="button"
                     accessibilityState={{ selected: active }}
-                    hitSlop={4}
+                    accessibilityLabel={w.label}
+                    hitSlop={8}
                   >
                     <Text style={[styles.whenPill, active && styles.whenPillActive]}>{w.label}</Text>
                   </Pressable>

@@ -295,7 +295,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
               key={d}
               onPress={() => toggleWeekday(d)}
               style={[styles.day, weekdays.includes(d) && styles.dayOn]}
-              hitSlop={{ top: 8, bottom: 8 }}
+              hitSlop={8}
               accessibilityRole="button"
               accessibilityState={{ selected: weekdays.includes(d) }}
               accessibilityLabel={`Repeat on ${label}`}
@@ -369,6 +369,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
             <Pressable
               onPress={() => setSliceCount((n) => (n <= MIN_SLICES ? 0 : n - 1))}
               style={styles.stepBtn}
+              hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="Fewer steps"
             >
@@ -378,6 +379,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
             <Pressable
               onPress={() => setSliceCount((n) => (n === 0 ? MIN_SLICES : Math.min(MAX_SLICES, n + 1)))}
               style={styles.stepBtn}
+              hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="More steps"
             >
