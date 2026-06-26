@@ -3074,3 +3074,22 @@ RoomsSheet (the Menu), and the inline close-the-day + BrainDump date-picker moda
 used a self-closing sibling scrim, and the Focus + CameraCapture takeovers wrap a View, so those were already
 fine. Verified live: the Menu scrim now has zero nested buttons and the rooms render as its siblings, the
 sheet still opens, dims, and closes on a scrim tap. Gate green. On premium.
+
+## 2026-06-27 Completeness audit: 25 gaps (the inverse-lens audit a copy review can't do)
+
+Ran a 6-lens adversarial COMPLETENESS audit ([`docs/completeness-review.md`](docs/completeness-review.md)):
+the inverse of the design / copy / robustness audits, hunting ABSENCE, what the product should surface, sell,
+or explain but does NOT. Prompted by Melroy's fair critique that the copy audit (quality-only) missed the
+intro-doesn't-sell-Premium gap. 25 gaps confirmed against the code (not the spec). Note: a mid-run API
+rate-limit killed ~16 verifier agents, mostly on the onboarding lens, so 25 is a FLOOR; the doc still covers
+all six surfaces, the dropped items were almost certainly duplicates of surviving gaps, so it reads complete.
+
+Headline: the build is good; what's missing is everything that CONNECTS a person to it. DoubleDone
+consistently ENACTS its principles and consistently FAILS TO STATE them. Top 3 by leverage
+(activation / conversion / positioning): (1) the long-press is the only door to half the product (Break-it-down,
+Make-it-tiny, Pin, Combine, Remind, bulk) and nothing teaches it; (2) the web front door is mute (no landing
+page, no meta / OG tags) so every shared or interview link renders blank; (3) the ADHD / OCD audience and the
+never-shame promise appear in ZERO user-facing copy, only the spec and comments. The other 22 group by surface
+(onboarding, positioning, empty / first-run, errors / edges, discoverability, orientation), each tiered. The
+through-line: the cheapest high-leverage work left is not features, it is making the product say what it
+already quietly is. On premium. DECISION PENDING: which gaps to fix before the premium->main merge.
