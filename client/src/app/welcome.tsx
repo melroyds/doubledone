@@ -206,6 +206,7 @@ export default function WelcomeScreen() {
             <Text style={styles.tagline}>A calmer kind of to-do.</Text>
             <Text style={styles.lead}>It shows you only what today needs, and quietly keeps everything you finish.</Text>
             <Text style={styles.lead}>Nothing is ever overdue. It just waits.</Text>
+            <Text style={styles.lead}>Made for ADHD, autism, OCD, and anyone whose list has ever felt like too much. Nothing here will ever shame you for a task just existing.</Text>
           </View>
         )}
 

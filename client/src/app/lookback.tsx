@@ -74,6 +74,7 @@ export default function LookbackScreen() {
   );
 
   const byDay = useMemo(() => completionsByDay(tasks), [tasks]);
+  const isFirstRun = byDay.size === 0; // no completion ever recorded: a fresh account, show one warm line, not stacked empties
   const scheduled = useMemo(() => scheduledByDay(tasks, today), [tasks, today]);
   const weeks = useMemo(() => monthMatrix(view.year, view.month), [view]);
   const todayIso = toISODate(today);
@@ -253,8 +254,12 @@ export default function LookbackScreen() {
         </View>
       </View>
 
-      {!monthHasCompletions && (
-        <Text style={styles.monthEmpty}>A quiet month so far. What you finish will appear here.</Text>
+      {isFirstRun ? (
+        // First run: one warm line in place of the stacked month-empty + day-empty, so the payoff screen
+        // never greets a brand-new user with "you have done nothing".
+        <Text style={styles.monthEmpty}>This is where everything you finish will gather. Nothing yet, and that&apos;s a fine place to start.</Text>
+      ) : (
+        !monthHasCompletions && <Text style={styles.monthEmpty}>A quiet month so far. What you finish will appear here.</Text>
       )}
 
       <View style={styles.detail}>
@@ -277,7 +282,7 @@ export default function LookbackScreen() {
               </View>
             ))}
           </>
-        ) : (
+        ) : isFirstRun ? null : (
           <Text style={styles.detailEmpty}>Nothing logged this day.</Text>
         )}
       </View>
