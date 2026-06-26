@@ -321,6 +321,16 @@ export async function handleEntitlement(request: Request, env: FullEnv, cors: Re
       headers: { ...JSON_HEADERS, ...cors },
     });
   }
-  const view = await readEntitlement(env.DB, sub);
+  // A transient D1 throw must not hard-500 the Premium/Settings screen (it would brush the never-alarm
+  // spine). This is the cosmetic client flag, not the money gate (requirePremium stays fail-closed), so a
+  // store error reports the calm FREE shape rather than an error.
+  let view: EntitlementView;
+  try {
+    view = await readEntitlement(env.DB, sub);
+  } catch {
+    return new Response(JSON.stringify({ premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null }), {
+      headers: { ...JSON_HEADERS, ...cors },
+    });
+  }
   return new Response(JSON.stringify(view), { headers: { ...JSON_HEADERS, ...cors } });
 }

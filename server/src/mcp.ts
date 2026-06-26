@@ -182,13 +182,14 @@ async function runTool(env: McpEnv, token: string, name: string, args: Record<st
     const taskId = `mcp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const { url, init } = addTaskRequest(env, token, { id: taskId, userId: sub, title, now });
     const res = await fetch(url, init);
-    return res.ok ? toolText(`Added "${title}" to today.`) : toolText(`Could not add it (${res.status}).`, true);
+    // Don't echo the raw upstream HTTP status (minor backend-topology leak); give a plain line, like api.ts.
+    return res.ok ? toolText(`Added "${title}" to today.`) : toolText('Could not add it just now. Try again.', true);
   }
 
   if (name === 'list_today') {
     const { url, init } = listTodayRequest(env, token, now.slice(0, 10));
     const res = await fetch(url, init);
-    if (!res.ok) return toolText(`Could not list tasks (${res.status}).`, true);
+    if (!res.ok) return toolText('Could not list tasks just now. Try again.', true);
     const rows = (await res.json()) as unknown;
     const tasks = Array.isArray(rows)
       ? rows.filter(
@@ -205,7 +206,7 @@ async function runTool(env: McpEnv, token: string, name: string, args: Record<st
     if (!taskId) return toolText('A task id is required (use list_today first).', true);
     const { url, init } = completeTaskRequest(env, token, taskId, now);
     const res = await fetch(url, init);
-    if (!res.ok) return toolText(`Could not complete it (${res.status}).`, true);
+    if (!res.ok) return toolText('Could not complete it just now. Try again.', true);
     const rows = (await res.json()) as unknown;
     return Array.isArray(rows) && rows.length > 0 ? toolText('Marked it done. Nice.') : toolText('No matching task found.', true);
   }

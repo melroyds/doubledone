@@ -36,7 +36,7 @@ export function mergeTasks(local: Task[], remote: Task[]): MergeResult {
       // synced data beyond the server's remote copy, so the server converges to the union too.
       const reconciled = reconcileConflict(l, r);
       merged.push(reconciled);
-      const localNewer = l.updatedAt > r.updatedAt;
+      const localNewer = rank(l.updatedAt) > rank(r.updatedAt);
       const grewBeyondRemote =
         (reconciled.completedDates?.length ?? 0) > (r.completedDates?.length ?? 0) ||
         (reconciled.slices?.done ?? 0) > (r.slices?.done ?? 0);
@@ -61,7 +61,7 @@ export function mergeTasks(local: Task[], remote: Task[]): MergeResult {
 // manualOrder, never sent to the server) are carried from the local copy instead of being dropped when the
 // remote row wins. This is the never-lose-a-task, never-shame-by-disappearance guarantee, made real in sync.
 function reconcileConflict(l: Task, r: Task): Task {
-  const out: Task = l.updatedAt > r.updatedAt ? { ...l } : { ...r };
+  const out: Task = rank(l.updatedAt) > rank(r.updatedAt) ? { ...l } : { ...r };
 
   const dates = new Set([...(l.completedDates ?? []), ...(r.completedDates ?? [])]);
   if (dates.size > 0) out.completedDates = [...dates].sort();
@@ -77,4 +77,12 @@ function reconcileConflict(l: Task, r: Task): Task {
   else delete out.manualOrder;
 
   return out;
+}
+
+/** LWW rank of an updatedAt: a non-finite value (a corrupt remote row that parsed to NaN, say)
+ *  ranks as -Infinity, so it always loses the comparison rather than winning it. A NaN compared
+ *  directly makes every `>` false, which would silently adopt the corrupt row and pin the task to
+ *  it; mapping to -Infinity makes the good copy win instead. */
+function rank(updatedAt: number): number {
+  return Number.isFinite(updatedAt) ? updatedAt : -Infinity;
 }

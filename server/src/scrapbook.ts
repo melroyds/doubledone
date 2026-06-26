@@ -40,7 +40,9 @@ export const FALLBACK_SCENE =
 export function parseScene(result: unknown): string {
   const text = (result as { response?: unknown } | null)?.response;
   const scene = typeof text === 'string' ? text.trim().replace(/^["']+|["']+$/g, '').trim() : '';
-  return scene.length >= 4 ? scene : FALLBACK_SCENE;
+  // Clamp the length: a runaway model string would bloat the stored blob and distort the polaroid caption
+  // layout. Not a security issue (RN <Text> renders no HTML), purely a size/layout bound.
+  return scene.length >= 4 ? scene.slice(0, 200) : FALLBACK_SCENE;
 }
 
 /** The full image prompt: the scene rendered in the Dusk palette and a calm style. */

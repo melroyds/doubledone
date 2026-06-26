@@ -43,6 +43,7 @@ export default function ChartScreen() {
   const today = useMemo(() => new Date(), []);
   const [goal, setGoal] = useState('');
   const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [heading, setHeading] = useState('');
   const [steps, setSteps] = useState<Proposed[]>([]);
@@ -82,6 +83,12 @@ export default function ChartScreen() {
         setHeading(course.heading);
         setSteps(course.steps.map((s) => ({ ...s, checked: true })));
       }
+    } catch {
+      // chart() swallows its own errors today, but decouple this screen from that
+      // implicit never-throws contract: show the same calm empty-course line.
+      setError("I couldn't map that out just now. Try rephrasing the goal?");
+      setSteps([]);
+      setHeading('');
     } finally {
       setBusy(false);
     }
@@ -95,22 +102,30 @@ export default function ChartScreen() {
   // tasks (no parentId, no project field), spread gently so the first lands on Today and Today stays small.
   async function addTasks() {
     const selected = steps.filter((s) => s.checked);
-    if (selected.length === 0) return;
-    const tasks = await loadTasks();
-    const now = nowMs();
-    const dates = spreadDueDates(selected.length, today, dueDate, 'gradual');
-    const minted: Task[] = selected.map((s, i) => ({
-      id: makeId(),
-      title: `${s.title} (${s.minutes} min)`,
-      done: false,
-      createdAt: now + i,
-      updatedAt: now + i,
-      complexity: s.minutes,
-      ...(dates[i] ? { due: dates[i] } : {}),
-    }));
-    await saveTasks([...tasks, ...minted]);
-    track('chart.added', { added: minted.length, offered: steps.length });
-    router.replace('/');
+    // Busy guard mirroring suggest(): the await below yields the loop, so without it a genuine
+    // double-tap mints two task sets from the same on-disk store and the second saveTasks (full
+    // overwrite) drops one set. Block the second call before any await.
+    if (adding || selected.length === 0) return;
+    setAdding(true);
+    try {
+      const tasks = await loadTasks();
+      const now = nowMs();
+      const dates = spreadDueDates(selected.length, today, dueDate, 'gradual');
+      const minted: Task[] = selected.map((s, i) => ({
+        id: makeId(),
+        title: `${s.title} (${s.minutes} min)`,
+        done: false,
+        createdAt: now + i,
+        updatedAt: now + i,
+        complexity: s.minutes,
+        ...(dates[i] ? { due: dates[i] } : {}),
+      }));
+      await saveTasks([...tasks, ...minted]);
+      track('chart.added', { added: minted.length, offered: steps.length });
+      router.replace('/');
+    } finally {
+      setAdding(false);
+    }
   }
 
   const selectedCount = steps.filter((s) => s.checked).length;
@@ -179,7 +194,7 @@ export default function ChartScreen() {
             <PrimaryButton
               label={selectedCount === 0 ? 'Pick a step to add' : `Add ${selectedCount} ${selectedCount === 1 ? 'task' : 'tasks'}`}
               onPress={addTasks}
-              disabled={selectedCount === 0}
+              disabled={adding || selectedCount === 0}
               accessibilityLabel={`Add ${selectedCount} tasks to Today`}
               style={styles.ctaSpace}
             />

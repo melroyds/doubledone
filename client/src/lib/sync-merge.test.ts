@@ -102,6 +102,18 @@ describe('mergeTasks', () => {
     expect(ids(res.toPush)).toEqual(['s']); // progress grew beyond remote, so push
   });
 
+  it('a corrupt remote row with a non-finite updatedAt loses to the good local copy', () => {
+    // A NaN updatedAt (an unparseable remote timestamp) would make every `>` comparison false and
+    // silently adopt the corrupt row, pinning the task to it. Treating non-finite as -Infinity makes
+    // the good local copy win instead. NaN is the realistic value Date.parse returns on a bad string.
+    const local = [task('x', 50, { title: 'good local' })];
+    const remote = [task('x', NaN, { title: 'corrupt remote' })];
+    const res = mergeTasks(local, remote);
+    expect(res.merged).toHaveLength(1);
+    expect(res.merged[0].title).toBe('good local'); // the corrupt row did NOT win
+    expect(ids(res.toPush)).toEqual(['x']); // local won, so push so the server is corrected
+  });
+
   it('preserves local-only big and manualOrder when the remote row wins', () => {
     const local = [task('x', 10, { big: true, manualOrder: 2 })];
     const remote = [task('x', 20, { title: 'remote' })];

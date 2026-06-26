@@ -2868,3 +2868,25 @@ Flagged for Melroy, NOT applied (sensitive: money, schema, his PII):
   or an alias.
 The input caps and the webhook idempotency are server changes needing a Worker deploy anyway, so they wait for
 Melroy. Gate green. On premium, holding the merge.
+
+## 2026-06-26 Robustness clear-fix batch: double-submit guards + defensive hardening
+
+Applied the (clear-fix)-tagged findings from docs/robustness-review.md (the safe ones the verifier vetted),
+leaving the needs-judgment money/PII items for Melroy.
+
+- Double-submit guards on billable AI calls: the scrapbook "Make a scrapbook" button now has a synchronous ref
+  guard plus disabled (each image gen is roughly the whole daily Workers-AI budget), chart's addTasks got a
+  busy guard plus disabled (it was minting and dropping task sets on a double-tap), "Reflect on this week" and
+  the other PremiumButton AI calls now pass disabled, and biteElephant got a re-entry guard (the unguarded
+  TaskRow "Break down" path).
+- Defensive crash and loss guards: authHeader wraps getSession in try/catch (no unhandled rejection on a
+  storage error), handleEntitlement returns FREE on a D1 throw instead of a 500 (the cosmetic flag, never the
+  money gate), chart's suggest() got an explicit catch, the server stopped echoing the raw upstream HTTP status
+  to MCP callers, parseScene clamps the caption to 200 chars, and a shared 2MB body-size backstop (413) sits at
+  the top of the Worker fetch.
+- A NaN / corrupt-timestamp sync guard: rowToTask guards Date.parse with Number.isFinite, and the merge ranks a
+  non-finite updatedAt as -Infinity so a corrupt remote row can never win LWW and pin a task to it. One test
+  added (client 349 to 350).
+
+The server fixes (handleEntitlement, mcp, parseScene, the body-size guard) need a Worker deploy to take effect,
+so they ride on premium for Melroy's deploy. Gate green: client 350, server 197. On premium.

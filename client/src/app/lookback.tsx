@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -33,6 +33,10 @@ export default function LookbackScreen() {
   const [selected, setSelected] = useState(toISODate(today));
   const [scrapbooks, setScrapbooks] = useState<Scrapbook[]>([]);
   const [bookBusy, setBookBusy] = useState(false);
+  // A synchronous mirror of bookBusy: each Workers-AI image is ~the whole daily neuron budget, so a
+  // same-frame double-tap must be rejected before the React re-render lands. The state drives the UI
+  // (and the button's disabled), the ref is the real concurrency guard checked at the top of the call.
+  const bookBusyRef = useRef(false);
   const [bookError, setBookError] = useState<string | null>(null);
   // Week-starts whose stored keepsake image failed to load (e.g. the R2 object was purged on an account
   // delete, leaving a local entry that points at a now-missing image). Such a week falls back to the calm
@@ -92,7 +96,10 @@ export default function LookbackScreen() {
 
   async function makeWeekScrapbook() {
     const titles = weekList.map((c) => c.title);
-    if (bookBusy || titles.length === 0) return;
+    // Synchronous re-entry guard: reject a same-frame second tap before any re-render, then mirror
+    // into state for the UI. bookBusy alone would let two taps both read false in the same frame.
+    if (bookBusyRef.current || titles.length === 0) return;
+    bookBusyRef.current = true;
     // Cadence gate: free is one a month (tapping past it is the paywall moment);
     // premium is the weekly allowance (a calm wait, never a wall). Entitlement is
     // server-verified; the count is the user's own local scrapbook history.
@@ -102,6 +109,7 @@ export default function LookbackScreen() {
       Date.now(),
     );
     if (!gate.allowed) {
+      bookBusyRef.current = false; // gate blocked, no billable call: free the guard so the user can retry
       if (gate.reason === 'free_monthly') {
         track('premium.gate_hit', { reason: 'free_monthly' });
         router.push('/premium');
@@ -131,6 +139,7 @@ export default function LookbackScreen() {
       setBookError('Could not make a scrapbook just now. Try again.');
     } finally {
       setBookBusy(false);
+      bookBusyRef.current = false;
     }
   }
 
@@ -311,6 +320,7 @@ export default function LookbackScreen() {
             <PrimaryButton
               label="Make a scrapbook"
               onPress={makeWeekScrapbook}
+              disabled={bookBusy}
               pill
               accessibilityLabel={`Make a scrapbook of the ${weekLabel(weekStart)}`}
               style={styles.scrapbookBtn}
@@ -377,6 +387,7 @@ export default function LookbackScreen() {
                     <PremiumButton
                       label="Reflect on this week"
                       onPress={reflectOnWeek}
+                      disabled={summaryBusy}
                       accessibilityLabel="Reflect on this week with AI"
                       style={styles.summaryBtn}
                     />

@@ -133,6 +133,15 @@ export default {
     const origin = request.headers.get('Origin');
     const cors = corsFor(origin);
 
+    // Defence-in-depth body ceiling for EVERY route. The per-route field caps are the real backstop, but a
+    // declared Content-Length over ~2MB (a multi-megabyte JSON body that would be materialised in Worker
+    // memory before any validation) is rejected here first. Content-Length can be absent or spoofed, so this
+    // is a backstop, not the only check. ~1.9MB matches the existing /ocr budget.
+    const declaredLen = Number(request.headers.get('Content-Length'));
+    if (Number.isFinite(declaredLen) && declaredLen > 2_000_000) {
+      return new Response('payload too large', { status: 413, headers: cors });
+    }
+
     // MCP server: token-authed and not origin-gated (so browser-based MCP clients
     // like the Inspector reach it). It carries its own permissive CORS.
     if (pathname === '/mcp') {

@@ -868,6 +868,7 @@ export default function TodayScreen() {
   // them. Clarify is best-effort, so a failure falls back to default questions
   // and the flow never blocks.
   async function biteElephant(text: string, parentId?: string) {
+    if (bdBusy) return; // re-entry guard: breakdownExisting (TaskRow "Break down") calls this unguarded
     const task = text.trim();
     if (!task) return;
     setBdTask(task);
