@@ -214,7 +214,7 @@ export function TaskRow({
           </View>
           {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">Big</Text> : null}
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
-          {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{`🔔 ${formatNudgeTime(nudgeAt)}`}</Text> : null}
+          {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
           {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
           {pinned ? <Text style={styles.pinStar} accessible={false} importantForAccessibility="no">★</Text> : null}
         </Pressable>
@@ -272,7 +272,7 @@ export function TaskRow({
       </View>
       {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">Big</Text> : null}
       <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
-      {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{`🔔 ${formatNudgeTime(nudgeAt)}`}</Text> : null}
+      {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
       {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
       {/* the pin star sits last, at the extreme right, so it stays the clear cue beside any other mark */}
       {pinned ? <Text style={styles.pinStar} accessible={false} importantForAccessibility="no">★</Text> : null}

@@ -45,7 +45,7 @@ const light = {
   done: '#7E9B6B', // sage, completion, calm not alarming
   doneSoft: '#E9EFE2',
   onDone: '#FFFFFF', // foreground (the completion tick) on the done fill; white reads fine on the light sage
-  repeat: '#6E72A0', // dusk periwinkle, marks repeating tasks
+  repeat: '#6E72A0', // dusk periwinkle, the structured / multi-part accent: recurring tasks, the one-off task border, slice progress counts, the make-it-tiny chain eyebrow
   danger: '#A1554C', // muted brick, the calm stand-in for "red" on destructive actions (Remove)
   scrim: 'rgba(43,39,34,0.45)', // warm-ink backdrop behind modals and sheets
   priorityGradient: ['#3B82F6', '#8B5CF6'], // saved loud blue->violet, for the premium "Prioritise a task" feature

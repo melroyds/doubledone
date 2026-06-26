@@ -257,7 +257,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
           >
             {listening && <View style={styles.liveDot} />}
             <Text style={[styles.speakText, listening && styles.speakTextOn]}>
-              {listening ? 'Listening…' : '🎤 Speak'}
+              {listening ? 'Listening…' : 'Speak'}
             </Text>
           </Pressable>
         )}
@@ -269,7 +269,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
             accessibilityRole="button"
             accessibilityLabel="Read a list from a photo"
           >
-            <Text style={styles.speakText}>📷 Scan</Text>
+            <Text style={styles.speakText}>Scan</Text>
           </Pressable>
         )}
       </View>

@@ -2770,3 +2770,23 @@ task used to read identically to a plain one), the decorative glyphs (the repeat
 star, the Big pill) are hidden from screen readers so they are not double-announced, the RepeatingDrawer
 scrim gained role=button, and the routines when-pills gained explicit labels. Gate green: client 346, server
 197. On premium, holding the merge. Wave 4 complete.
+
+## 2026-06-26 Design polish wave 5: emoji-as-icons removed, periwinkle documented (item 19 deferred)
+
+The brand-vocabulary items.
+
+- Emoji-as-icons removed (item 18). The bell beside a reminder time, and the mic/camera on the Speak/Scan
+  buttons, rendered as raster multicolour, ignored t.colors, did not adapt to dark mode, and the inline bell
+  leaned toward the notification/alarm cue the never-alarm brand forbids. Dropped all three: the reminder now
+  shows the accent-coloured time alone (the a11y label already says "reminder at the time"), and the buttons
+  read "Speak" / "Scan". A proper SVG icon set is a noted follow-on if iconography is wanted later.
+- Periwinkle documented (item 20). The repeat colour comment now names its real, wider role (the
+  structured / multi-part accent: recurring tasks, the one-off task border, slice counts, the make-it-tiny
+  chain), which dissolves the apparent overload by naming the semantics. No colour change.
+
+DEFERRED, flagged for Melroy (item 19): the audit recommended giving the Today "Plan my day" PremiumButton a
+mauve-only fill instead of the full mauve-to-honey gradient, on single-accent grounds (the honey reads as a
+second accent on the protected Today screen). This directly conflicts with Melroy's explicit instruction that
+all premium features should carry the gradient, so it was NOT changed. The tension is his to resolve.
+
+Gate green: client 346, server 197. On premium, holding the merge.
