@@ -52,7 +52,7 @@ import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge }
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadClosedDate, loadLastOpen, loadLowDayDate, loadOnboarded, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveLastOpen, saveLowDayDate, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData } from '@/lib/storage';
+import { loadClosedDate, loadHoldHintSeen, loadLastOpen, loadLowDayDate, loadOnboarded, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveHoldHintSeen, saveLastOpen, saveLowDayDate, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { isAccountGone, localBelongsToAnother, syncOnce } from '@/lib/sync';
 import { parseDump, sweepElapsedNudges, type Task } from '@/lib/tasks';
@@ -125,6 +125,7 @@ export default function TodayScreen() {
   const [sequencing, setSequencing] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [reminderOn, setReminderOn] = useState(false);
+  const [holdHintSeen, setHoldHintSeen] = useState(true); // default true: don't flash the coachmark before it loads
   // Break it down, the two-call flow: qualify (questions) -> decompose (review).
   const [bdPhase, setBdPhase] = useState<'off' | 'questions' | 'review'>('off');
   const [bdTask, setBdTask] = useState('');
@@ -207,6 +208,9 @@ export default function TodayScreen() {
     let active = true;
     void loadReminderOn().then((on) => {
       if (active) setReminderOn(on);
+    });
+    void loadHoldHintSeen().then((seen) => {
+      if (active) setHoldHintSeen(seen);
     });
     return () => {
       active = false;
@@ -1155,6 +1159,22 @@ export default function TodayScreen() {
             <Text style={styles.focusEntryText}>Focus on one thing</Text>
           </Pressable>
         )}
+        {!holdHintSeen && visible.length > 0 && (
+          // The long-press is the only door to half the app (pin / remind / combine / make-it-tiny / bulk).
+          // A one-time, dismissible coachmark teaches it, so a first-timer never misses the rescue tools.
+          <Pressable
+            onPress={() => {
+              setHoldHintSeen(true);
+              void saveHoldHintSeen();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Got it, hide this tip"
+            style={styles.holdHint}
+          >
+            <Text style={styles.holdHintText}>Hold a task for more, pin it, set a reminder, combine, or make it tiny.</Text>
+            <Text style={styles.holdHintDismiss}>Got it</Text>
+          </Pressable>
+        )}
         <View style={styles.list}>
           {visible.map((task) => (
             <TaskRow
@@ -1978,6 +1998,18 @@ const makeStyles = (t: Theme) =>
     selectCancel: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     sortSummary: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginBottom: spacing.two },
     affirmation: { color: t.colors.done, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', marginBottom: spacing.two },
+    holdHint: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.three,
+      backgroundColor: t.colors.accentSoft,
+      borderRadius: radius.md,
+      paddingVertical: spacing.three,
+      paddingHorizontal: spacing.four,
+      marginBottom: spacing.three,
+    },
+    holdHintText: { flex: 1, color: t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },
+    holdHintDismiss: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     reentry: {
       backgroundColor: t.colors.accentSoft,
       borderRadius: radius.lg,

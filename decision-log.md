@@ -3113,3 +3113,12 @@ money disappear" panic this audience is most sensitive to. The poll now sets a `
 the success screen swaps to a calm recovery: "This is taking longer than usual. Your payment went through, give
 it a minute, then tap Refresh", a Refresh button (re-checks the entitlement), and a pointer to send a note from
 Settings if it persists. On premium.
+
+## 2026-06-27 Audit fix: a one-time coachmark teaches the long-press (the #1 activation gap)
+
+The completeness audit's single highest-leverage gap: the long-press was the only door to half the product
+(pin, remind, combine, make-it-tiny, bulk select), and nothing taught it. For a demand-avoidant audience that
+will not fish for invisible gestures, an untaught gesture is a feature that does not exist. Today now shows a
+one-time, dismissible coachmark above the task list, when there are tasks and the hint has not been seen,
+"Hold a task for more, pin it, set a reminder, combine, or make it tiny", keyed off a doubledone.holdhint.v1
+flag (loadHoldHintSeen / saveHoldHintSeen). Tap "Got it" to retire it forever. On premium.

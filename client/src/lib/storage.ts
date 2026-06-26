@@ -16,6 +16,7 @@ const CLOSED_KEY = 'doubledone.closed.v1';
 const LOWDAY_KEY = 'doubledone.lowday.v1';
 const LASTOPEN_KEY = 'doubledone.lastopen.v1';
 const ONBOARDED_KEY = 'doubledone.onboarded.v1';
+const HOLDHINT_KEY = 'doubledone.holdhint.v1'; // one-time "hold a task for more" coachmark
 const ACCOUNT_KEY = 'doubledone.account.v1';
 const DEV_PREMIUM_KEY = 'doubledone.devPremium.v1'; // DEV/preview only: the premium-flag override (see premium-flag.ts)
 
@@ -165,6 +166,25 @@ export async function saveOnboarded(done: boolean): Promise<void> {
   try {
     if (done) await AsyncStorage.setItem(ONBOARDED_KEY, 'yes');
     else await AsyncStorage.removeItem(ONBOARDED_KEY);
+  } catch {
+    // best effort
+  }
+}
+
+/** Whether the one-time "hold a task for more" coachmark has been seen / dismissed. The long-press is the
+ *  only door to half the app (pin, remind, combine, make-it-tiny, bulk), so a first-timer needs telling. */
+export async function loadHoldHintSeen(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(HOLDHINT_KEY)) === 'yes';
+  } catch {
+    return false;
+  }
+}
+
+/** Mark the hold coachmark seen, so it never shows again. Best effort. */
+export async function saveHoldHintSeen(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(HOLDHINT_KEY, 'yes');
   } catch {
     // best effort
   }
