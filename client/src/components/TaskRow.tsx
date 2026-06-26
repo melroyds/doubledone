@@ -113,7 +113,7 @@ export function TaskRow({
             accessibilityLabel={`Step ${title} back one`}
             hitSlop={{ top: 12, bottom: 12 }}
           >
-            <Text style={[styles.keep, slices.done <= 0 && styles.controlOff]}>Step back</Text>
+            <Text style={[styles.keep, slices.done <= 0 && styles.controlOff]}>Undo a step</Text>
           </Pressable>
           <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${title}`} hitSlop={{ top: 12, bottom: 12 }}>
             <Text style={styles.remove}>Remove</Text>

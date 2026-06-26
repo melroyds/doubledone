@@ -41,7 +41,7 @@ export default function SignInScreen() {
     const addr = email.trim();
     if (!addr || busy) return;
     if (!supabase) {
-      setError('Sync is not set up on this build.');
+      setError("Syncing isn't available here. Your tasks are safe on this device.");
       return;
     }
     setError(null);

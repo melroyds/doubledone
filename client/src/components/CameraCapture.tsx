@@ -59,7 +59,7 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
       track('ocr.captured', { count: tasks.length });
       onTasks(tasks);
     } catch {
-      setError('Something went wrong reading that. Try again.');
+      setError("Couldn't read that photo just now. Try again?");
     } finally {
       setBusy(false);
     }

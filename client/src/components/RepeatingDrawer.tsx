@@ -56,7 +56,7 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle }: Props
         <View style={styles.header}>
           <Text style={styles.title}>Repeating</Text>
           <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-            <Text style={styles.done}>Done</Text>
+            <Text style={styles.done}>Close</Text>
           </Pressable>
         </View>
         <Text style={styles.sub}>Your daily and repeating tasks. Today&apos;s due ones also show on Today.</Text>

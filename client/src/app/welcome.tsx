@@ -32,10 +32,10 @@ type Step = (typeof STEPS)[number];
 
 const PRIMARY: Record<Step, string> = {
   welcome: 'Begin',
-  capture: 'Sort it for me',
-  reveal: 'This looks right',
+  capture: 'Sort for me',
+  reveal: 'Looks good, next',
   safetynet: 'Got it',
-  keep: 'Almost there',
+  keep: 'Continue',
   handoff: 'Open Today',
 };
 

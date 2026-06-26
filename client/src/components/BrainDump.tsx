@@ -38,7 +38,7 @@ const MODES: { mode: Mode; label: string }[] = [
   { mode: 'date', label: 'Date…' },
   { mode: 'daily', label: 'Daily' },
   { mode: 'weekly', label: 'Weekly' },
-  { mode: 'everyN', label: 'Custom' },
+  { mode: 'everyN', label: 'Every few days' },
 ];
 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']; // index 0=Sun .. 6=Sat

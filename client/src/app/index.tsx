@@ -1324,7 +1324,7 @@ export default function TodayScreen() {
                   <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>Move to…</Text>
                 </Pressable>
                 <Pressable onPress={() => markBig(selected, !allBig)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={allBig ? 'Unmark the selected tasks as big' : 'Mark the selected tasks as big'} hitSlop={6}>
-                  <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>{allBig ? 'Not big' : 'Big'}</Text>
+                  <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>{allBig ? 'Not a lot' : 'Mark as a lot'}</Text>
                 </Pressable>
                 {Platform.OS !== 'web' && onlyTask && !isDoneOn(onlyTask, today) && (
                   <Pressable onPress={openNudge} accessibilityRole="button" accessibilityLabel="Remind me about this task" hitSlop={6}>
@@ -1415,7 +1415,7 @@ export default function TodayScreen() {
                 hitSlop={8}
                 style={styles.captureHandle}
               >
-                <Text style={styles.optLink}>Done adding</Text>
+                <Text style={styles.optLink}>Close</Text>
               </Pressable>
               <BrainDump
                 ref={brainDumpRef}

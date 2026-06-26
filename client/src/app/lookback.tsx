@@ -327,7 +327,7 @@ export default function LookbackScreen() {
             />
             {bookError && <Text style={styles.scrapbookError}>{bookError}</Text>}
             <Text style={styles.scrapbookNote}>
-              Your week&apos;s finished tasks are sent to an AI to imagine the still-life. No names are kept.
+              Your week&apos;s finished things are sent to an AI to imagine the still-life. No names are kept.
             </Text>
           </View>
         ) : (
@@ -392,7 +392,7 @@ export default function LookbackScreen() {
                       style={styles.summaryBtn}
                     />
                     <Text style={styles.scrapbookNote}>
-                      Your week&apos;s finished tasks are sent to an AI to write this, then discarded. No names are kept.
+                      Your week&apos;s finished things are sent to an AI to write this, then discarded. No names are kept.
                     </Text>
                   </>
                 )}

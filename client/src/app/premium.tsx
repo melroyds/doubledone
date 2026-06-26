@@ -142,7 +142,7 @@ export default function PremiumScreen() {
             {status === 'success' ? (
               <Text style={styles.note}>Thanks. Setting up your Premium, this updates in a moment.</Text>
             ) : status === 'cancelled' ? (
-              <Text style={styles.note}>No worries. Your free monthly scrapbook is always here.</Text>
+              <Text style={styles.note}>That&apos;s alright. Your free monthly scrapbook is always here.</Text>
             ) : null}
 
             <Text style={styles.panelHead}>More of what you love.</Text>

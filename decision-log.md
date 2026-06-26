@@ -2982,3 +2982,22 @@ real minor gap: the AI cap measured `.length` (UTF-16 code units), not bytes, so
 Cyrillic, emoji) could carry ~3x the stated 100 KB before tripping. Bounded by the pre-existing 2 MB ceiling
 so not exploitable, but fixed to measure real UTF-8 bytes (TextEncoder), with a test locking the byte
 semantics. Server 205.
+
+## 2026-06-27 Copy audit closed out: the 5 mechanical + 10 voice calls applied
+
+The remaining copy-review tail, after the design + copy forks. The 5 mechanical fixes (casing plus two
+reassurance tails) went first (c4b4ae4). Then Melroy approved all 10 voice / wording calls in one decision
+round (the same shape as Plan my day), now applied:
+- Sort it for me -> Sort for me; This looks right -> Looks good, next; Almost there -> Continue (welcome).
+- No worries -> That's alright (premium cancel note).
+- Custom -> Every few days (cadence chip).
+- Step back -> Undo a step (a sliced task's hold menu).
+- Big / Not big -> Mark as a lot / Not a lot (the select-bar toggle; ties to the "Marked as a lot" affirmation).
+- finished tasks -> finished things (the Lookback scrapbook notes, the reflective register).
+- Done adding -> Close, and RepeatingDrawer's "Done" -> Close (the "Done" overload, now reserved for completing).
+- The camera-read and sync-unavailable errors reworded to name what happened, plainly.
+
+With this the copy review is fully APPLIED bar the i18n layer (the t() extraction, next). The glossary terms
+(thing(s) on reflective surfaces, big, scrapbook) now hold across the app, which is also step zero of i18n.
+Watch-item for Melroy's morning: "Mark as a lot" is longer than its select-bar siblings, check it doesn't
+crowd the bar on a narrow phone. On premium.
