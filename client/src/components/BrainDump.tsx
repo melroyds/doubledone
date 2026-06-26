@@ -11,6 +11,7 @@ import { type Dictation, isDictationSupported, startDictation } from '@/lib/spee
 import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
+import { Chip } from './Chip';
 import { DatePicker } from './DatePicker';
 import { PrimaryButton } from './PrimaryButton';
 
@@ -275,20 +276,15 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
 
       <View style={styles.chips}>
         {MODES.map(({ mode: m, label }) => (
-          <Pressable
+          <Chip
             key={m}
+            label={label}
+            selected={mode === m}
             onPress={() => {
               setMode(m);
               if (m === 'date') setPickerFor('due');
             }}
-            style={[styles.chip, mode === m && styles.chipOn]}
-            hitSlop={{ top: 8, bottom: 8 }}
-            accessibilityRole="button"
-            accessibilityState={{ selected: mode === m }}
-            accessibilityLabel={label}
-          >
-            <Text style={[styles.chipText, mode === m && styles.chipTextOn]}>{label}</Text>
-          </Pressable>
+          />
         ))}
       </View>
 
@@ -504,17 +500,6 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     color: t.colors.ink,
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },
-  chip: {
-    paddingHorizontal: spacing.four,
-    paddingVertical: spacing.two,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: t.colors.line,
-    backgroundColor: t.colors.surface,
-  },
-  chipOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
-  chipText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, fontWeight: '500' },
-  chipTextOn: { color: t.colors.onAccent },
   weekdays: { flexDirection: 'row', gap: spacing.two },
   day: {
     width: 34,

@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
+import { Chip } from '@/components/Chip';
 import { PremiumButton } from '@/components/PremiumButton';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
@@ -138,21 +139,9 @@ export default function ChartScreen() {
           <View style={styles.byWhen}>
             <Text style={styles.byWhenLabel}>By when?</Text>
             <View style={styles.chips}>
-              {dateChips.map((c) => {
-                const on = dueDate === c.iso;
-                return (
-                  <Pressable
-                    key={c.label}
-                    onPress={() => setDueDate(c.iso)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: on }}
-                    accessibilityLabel={c.label}
-                    style={[styles.chip, on && styles.chipOn]}
-                  >
-                    <Text style={[styles.chipText, on && styles.chipTextOn]}>{c.label}</Text>
-                  </Pressable>
-                );
-              })}
+              {dateChips.map((c) => (
+                <Chip key={c.label} label={c.label} selected={dueDate === c.iso} onPress={() => setDueDate(c.iso)} />
+              ))}
             </View>
           </View>
         )}
@@ -242,10 +231,6 @@ const makeStyles = (t: Theme) =>
     byWhen: { marginTop: spacing.four, gap: spacing.two },
     byWhenLabel: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },
-    chip: { borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, borderColor: t.colors.line, paddingHorizontal: spacing.four, paddingVertical: spacing.two },
-    chipOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
-    chipText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
-    chipTextOn: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '600' },
     spinner: { marginTop: spacing.five },
     error: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, marginTop: spacing.four, lineHeight: 22 * t.scale },
     result: { marginTop: spacing.five, gap: spacing.two },

@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { Segmented } from '@/components/Segmented';
 import { fonts, layout, PREMIUM_GRADIENT, radius, spacing, type Theme } from '@/constants/theme';
 import { deleteAccount } from '@/lib/account';
 import { purgeScrapbookImages } from '@/lib/ai';
@@ -444,8 +445,10 @@ type ChoiceProps<T extends string> = {
   onChange: (v: T) => void;
 };
 
-// A calm segmented control: the options as equal pills, the active one filled with
-// the mauve tint and a slightly bolder mauve border. No switch to find.
+// A calm settings row: the label and optional hint, then a shared Segmented toggle
+// (the active option filled with the mauve tint and a bolder mauve border). No
+// switch to find. The segmented row is the shared Segmented component, so the
+// settings toggles and the breakdown gradual/same-day toggle stay one shape.
 function Choice<T extends string>({ label, hint, value, options, onChange }: ChoiceProps<T>) {
   const styles = useThemedStyles(makeStyles);
   return (
@@ -453,21 +456,7 @@ function Choice<T extends string>({ label, hint, value, options, onChange }: Cho
       <Text style={styles.rowLabel}>{label}</Text>
       {hint ? <Text style={styles.rowHint}>{hint}</Text> : null}
       <View style={styles.segment}>
-        {options.map((o) => {
-          const active = o.value === value;
-          return (
-            <Pressable
-              key={o.value}
-              onPress={() => onChange(o.value)}
-              style={({ pressed }) => [styles.seg, active && styles.segOn, pressed && styles.pressed]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={`${label}: ${o.label}`}
-            >
-              <Text style={[styles.segText, active && styles.segTextOn]}>{o.label}</Text>
-            </Pressable>
-          );
-        })}
+        <Segmented value={value} options={options} onChange={onChange} accessibilityLabel={label} />
       </View>
     </View>
   );
@@ -498,20 +487,7 @@ const makeStyles = (t: Theme) =>
     rows: { marginTop: spacing.two, gap: spacing.six },
     rowLabel: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     rowHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale, marginTop: spacing.one },
-    segment: { flexDirection: 'row', gap: spacing.two, marginTop: spacing.three },
-    seg: {
-      flex: 1,
-      paddingVertical: spacing.three,
-      paddingHorizontal: spacing.two,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: t.colors.line,
-      backgroundColor: t.colors.surface,
-      alignItems: 'center',
-    },
-    segOn: { borderWidth: 1.5, borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
-    segText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    segTextOn: { color: t.colors.accent },
+    segment: { marginTop: spacing.three },
     pressed: { opacity: 0.7 },
     privacyLink: { marginTop: spacing.two },
     privacyLinkText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },

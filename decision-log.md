@@ -2709,3 +2709,20 @@ router.canGoBack() ? back() : replace(fallback), verified live (a deep-link back
 Lookback also had drifted style (inkSoft / 16 / regular) now unified to the accent standard.
 settings / routines / lookback pass label "Today", privacy keeps fallback "/settings". Dead back styles and
 two now-unused router imports removed. Gate green. On premium, holding the merge.
+
+## 2026-06-26 Design polish wave 3c: Chip + Segmented
+
+Extracted two duplicated controls. <Chip> (selectable pill, soft default = accentSoft tint + accent text,
+solid variant available) and <Segmented> (generic mutually-exclusive toggle, one active treatment: border
+1.5 + accentSoft + accent + weight 600). Both carry role + selected state + a label by construction, so a
+pill can no longer ship label-less.
+
+Judgment call, logged: the BrainDump and BreakdownQuestions chips moved from a solid mauve fill with white
+text to the calmer soft tint (matching chart), the audit's "default to soft" recommendation,
+accent-used-sparingly. Reversible by passing variant="solid" or flipping the default. The Segmented 1.5/600
+unification resolves the settings (1.5/700) vs breakdown (1/600) drift. Migrated the chart / BrainDump /
+BreakdownQuestions chips and the settings + breakdown segmented toggles, dead styles removed. The multi-select
+weekday picker and action buttons were correctly left alone. Gate green (client 346, server 197). On premium,
+holding the merge.
+
+Noted for later: a pre-existing RoomsSheet nested-Pressable hydration warning (untouched by this work).

@@ -6,8 +6,10 @@ import { type Questions } from '@/lib/ai';
 import { fromISODate, presetDate } from '@/lib/day';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
+import { Chip } from './Chip';
 import { DatePicker } from './DatePicker';
 import { PrimaryButton } from './PrimaryButton';
+import { Segmented } from './Segmented';
 
 export type BreakdownAnswers = {
   dueDate: string | null; // ISO or null = no deadline
@@ -64,33 +66,22 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
 
             <Text style={styles.q}>{questions.dueDate}</Text>
             <View style={styles.chips}>
-              {presets.map((o) => {
-                const on = !calOpen && o.iso === dueISO;
-                return (
-                  <Pressable
-                    key={o.label}
-                    onPress={() => {
-                      setDueISO(o.iso);
-                      setCalOpen(false);
-                    }}
-                    style={[styles.chip, on && styles.chipOn]}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: on }}
-                    accessibilityLabel={o.label}
-                  >
-                    <Text style={[styles.chipText, on && styles.chipTextOn]}>{o.label}</Text>
-                  </Pressable>
-                );
-              })}
-              <Pressable
+              {presets.map((o) => (
+                <Chip
+                  key={o.label}
+                  label={o.label}
+                  selected={!calOpen && o.iso === dueISO}
+                  onPress={() => {
+                    setDueISO(o.iso);
+                    setCalOpen(false);
+                  }}
+                />
+              ))}
+              <Chip
+                label="Pick a date"
+                selected={calOpen || isCustom}
                 onPress={() => setCalOpen((v) => !v)}
-                style={[styles.chip, (calOpen || isCustom) && styles.chipOn]}
-                accessibilityRole="button"
-                accessibilityState={{ selected: calOpen || isCustom }}
-                accessibilityLabel="Pick a date"
-              >
-                <Text style={[styles.chipText, (calOpen || isCustom) && styles.chipTextOn]}>Pick a date</Text>
-              </Pressable>
+              />
             </View>
             <Text style={styles.selected}>
               {dueISO == null
@@ -114,25 +105,15 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
             )}
 
             <Text style={styles.q}>{questions.spread}</Text>
-            <View style={styles.toggle}>
-              {(['gradual', 'sameday'] as const).map((s) => {
-                const on = spread === s;
-                return (
-                  <Pressable
-                    key={s}
-                    onPress={() => setSpread(s)}
-                    style={[styles.seg, on && styles.segOn]}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: on }}
-                    accessibilityLabel={s === 'gradual' ? 'Gradual' : 'Same day'}
-                  >
-                    <Text style={[styles.segText, on && styles.segTextOn]}>
-                      {s === 'gradual' ? 'Gradual' : 'Same day'}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <Segmented<'gradual' | 'sameday'>
+              value={spread}
+              options={[
+                { value: 'gradual', label: 'Gradual' },
+                { value: 'sameday', label: 'Same day' },
+              ]}
+              onChange={setSpread}
+              accessibilityLabel={questions.spread}
+            />
 
             <Text style={styles.q}>{questions.custom}</Text>
             <TextInput
@@ -185,31 +166,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   task: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two },
   q: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.two },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },
-  chip: {
-    paddingHorizontal: spacing.four,
-    paddingVertical: spacing.two,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: t.colors.line,
-    backgroundColor: t.colors.surface,
-  },
-  chipOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
-  chipText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, fontWeight: '500' },
-  chipTextOn: { color: t.colors.onAccent },
   selected: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
-  toggle: { flexDirection: 'row', gap: spacing.two },
-  seg: {
-    flex: 1,
-    paddingVertical: spacing.three,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: t.colors.line,
-    backgroundColor: t.colors.surface,
-    alignItems: 'center',
-  },
-  segOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
-  segText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  segTextOn: { color: t.colors.accent },
   input: {
     minHeight: 44,
     maxHeight: 120,
