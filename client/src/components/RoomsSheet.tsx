@@ -36,9 +36,12 @@ export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookba
   ];
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.scrim} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close menu">
-        {/* Absorb taps on the sheet itself so only the scrim closes it. */}
-        <View style={styles.sheet} onStartShouldSetResponder={() => true}>
+      <View style={styles.root}>
+        {/* The scrim is a SIBLING of the sheet (an absolute-fill dismiss layer behind it), never its parent,
+            so the room buttons are not <button>s nested inside the scrim <button> (invalid HTML on web). The
+            sheet sits on top, so taps on it don't reach the scrim. */}
+        <Pressable style={styles.scrim} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close menu" />
+        <View style={styles.sheet}>
           <Text style={styles.title}>Menu</Text>
           {rooms.map((r) => (
             <Pressable
@@ -63,14 +66,15 @@ export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookba
             </Pressable>
           ))}
         </View>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
-    scrim: { flex: 1, backgroundColor: t.colors.scrim, justifyContent: 'flex-end', alignItems: 'center' },
+    root: { flex: 1, justifyContent: 'flex-end', alignItems: 'center' },
+    scrim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: t.colors.scrim },
     sheet: {
       backgroundColor: t.colors.surface,
       // Cap the sheet to the app's canonical content width (560, like Today / Settings / Premium) and centre

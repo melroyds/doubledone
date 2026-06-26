@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, type ViewStyle } from 'react-native';
+import { Modal, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { radius, spacing, type Theme } from '@/constants/theme';
 import { useThemedStyles } from '@/lib/theme-provider';
@@ -41,27 +41,29 @@ export function ModalCard({
   const styles = useThemedStyles(makeStyles);
   return (
     <Modal transparent visible={visible} animationType={animationType} onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel={dismissLabel}>
-        <Pressable
-          style={[scroll ? styles.cardScroll : styles.card, { maxWidth }, maxHeight != null ? { maxHeight } : null]}
-          onPress={() => {}}
-        >
+      <View style={styles.root}>
+        {/* The scrim is a SIBLING of the card (an absolute-fill dismiss layer BEHIND it), never its parent,
+            so the card's interactive content is not a <button> nested inside the scrim <button> (invalid HTML
+            and a hydration error on web). The card sits on top, so taps on it don't reach the scrim, no
+            tap-absorbing inner Pressable needed. */}
+        <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel={dismissLabel} />
+        <View style={[scroll ? styles.cardScroll : styles.card, { maxWidth }, maxHeight != null ? { maxHeight } : null]}>
           {children}
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
-    backdrop: {
+    root: {
       flex: 1,
-      backgroundColor: t.colors.scrim,
       alignItems: 'center',
       justifyContent: 'center',
       padding: spacing.five,
     },
+    backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: t.colors.scrim },
     card: {
       backgroundColor: t.colors.bg,
       borderRadius: radius.lg,

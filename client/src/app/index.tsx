@@ -1674,7 +1674,10 @@ export default function TodayScreen() {
       </ModalCard>
 
       <Modal visible={closing} transparent animationType="fade" onRequestClose={() => setClosing(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setClosing(false)} accessibilityRole="button" accessibilityLabel="Dismiss">
+        <View style={styles.closeRoot}>
+          {/* The scrim is a SIBLING of the card (an absolute-fill dismiss layer behind it), so the card's
+              buttons are never nested inside the scrim <button> (invalid HTML on web). */}
+          <Pressable style={styles.backdrop} onPress={() => setClosing(false)} accessibilityRole="button" accessibilityLabel="Dismiss" />
           <Animated.View
             style={[
               styles.wrapAnim,
@@ -1684,7 +1687,7 @@ export default function TodayScreen() {
               },
             ]}
           >
-            <Pressable style={styles.wrapCard} onPress={() => {}}>
+            <View style={styles.wrapCard}>
               <View style={styles.wrapArt}>
                 <Image
                   source={closeDayArt}
@@ -1744,9 +1747,9 @@ export default function TodayScreen() {
                 accessibilityLabel="Goodnight"
                 style={styles.wrapBtn}
               />
-            </Pressable>
+            </View>
           </Animated.View>
-        </Pressable>
+        </View>
       </Modal>
 
       <ModalCard visible={plan != null} onClose={() => setPlan(null)}>
@@ -2087,13 +2090,13 @@ const makeStyles = (t: Theme) =>
     focusEmptyNote: { color: t.colors.inkSoft, fontSize: 16 * t.scale, lineHeight: 24 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     focusActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.six, marginTop: spacing.four },
     focusSkipText: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    backdrop: {
+    closeRoot: {
       flex: 1,
-      backgroundColor: t.colors.scrim,
       alignItems: 'center',
       justifyContent: 'center',
       padding: spacing.five,
     },
+    backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: t.colors.scrim },
     wrapAnim: { width: '100%', maxWidth: 420 },
     wrapCard: {
       backgroundColor: t.colors.bg,

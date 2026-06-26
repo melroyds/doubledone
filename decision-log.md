@@ -3059,3 +3059,18 @@ Melroy's review of the overnight work, three calls:
 Gate green. On premium. Noted while verifying (PRE-EXISTING, not from this change): the Menu sheet
 (RoomsSheet) logs "a button cannot be nested in a button" on web, the scrim Pressable wraps the room
 Pressables; worth a separate small fix.
+
+## 2026-06-27 Fixed "button nested in button": scrims are now siblings of their cards
+
+The console error surfaced while verifying the Menu was a whole class. A scrim / backdrop Pressable
+(accessibilityRole="button", which react-native-web renders as a real <button>) WRAPPED the card content, so
+every control inside it (the room buttons, the Goodnight button, the date-picker days) was a <button> nested
+inside a <button>: invalid HTML and a hydration error on web.
+
+Fixed the pattern everywhere by making the scrim a SIBLING of the card, an absolute-fill dismiss layer BEHIND
+it, never its parent. The card sits on top, so taps on it don't reach the scrim, which also drops the
+tap-absorbing no-op inner Pressable each had. Touched: the shared ModalCard (covering ~13 modals at once),
+RoomsSheet (the Menu), and the inline close-the-day + BrainDump date-picker modals. RepeatingDrawer already
+used a self-closing sibling scrim, and the Focus + CameraCapture takeovers wrap a View, so those were already
+fine. Verified live: the Menu scrim now has zero nested buttons and the rooms render as its siblings, the
+sheet still opens, dims, and closes on a scrim tap. Gate green. On premium.

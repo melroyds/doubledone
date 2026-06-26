@@ -456,8 +456,11 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
       {error && <Text style={styles.error}>{error}</Text>}
 
       <Modal visible={pickerFor !== null} transparent animationType="fade" onRequestClose={() => setPickerFor(null)}>
-        <Pressable style={styles.backdrop} onPress={() => setPickerFor(null)} accessibilityRole="button" accessibilityLabel="Dismiss">
-          <Pressable style={styles.pickerCard} onPress={() => {}}>
+        <View style={styles.pickerRoot}>
+          {/* The scrim is a SIBLING of the card (an absolute-fill dismiss layer behind it), so the picker's
+              day buttons are never nested inside the scrim <button> (invalid HTML on web). */}
+          <Pressable style={styles.backdrop} onPress={() => setPickerFor(null)} accessibilityRole="button" accessibilityLabel="Dismiss" />
+          <View style={styles.pickerCard}>
             <Text style={styles.pickerTitle}>{pickerFor === 'due' ? 'On which day' : 'Starting from'}</Text>
             <DatePicker
               value={pickerFor === 'due' ? dueDate : start}
@@ -480,8 +483,8 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                 <Text style={styles.pickerToday}>Start today</Text>
               </Pressable>
             )}
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -545,13 +548,13 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     backgroundColor: t.colors.accentSoft,
   },
   startBtnText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  backdrop: {
+  pickerRoot: {
     flex: 1,
-    backgroundColor: t.colors.scrim,
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.five,
   },
+  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: t.colors.scrim },
   pickerCard: {
     backgroundColor: t.colors.bg,
     borderRadius: radius.lg,
