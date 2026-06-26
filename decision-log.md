@@ -2890,3 +2890,18 @@ leaving the needs-judgment money/PII items for Melroy.
 
 The server fixes (handleEntitlement, mcp, parseScene, the body-size guard) need a Worker deploy to take effect,
 so they ride on premium for Melroy's deploy. Gate green: client 350, server 197. On premium.
+
+## 2026-06-27 Security: owner email out of source into the COMP_EMAILS secret
+
+The robustness audit's PII finding, fixed at Melroy's urgent request. His personal Gmail was hardcoded in
+server/src/comp.ts (the always-premium comp allowlist) and referenced in three test files, all public on
+GitHub. isCompEmail now takes the allowlist from the COMP_EMAILS Worker secret (comma-separated, lowercased),
+so no personal address is in source. The Env / PremiumEnv / FullEnv types carry the optional secret, the tests
+use a fake address (owner@example.test), and the robustness-review.md finding was redacted.
+
+The server code fix is on BOTH premium and main (cherry-picked clean, main 8199613), so the email is gone from
+both public branches' current code, confirmed by grep. Git HISTORY still holds the old value (a separate
+history rewrite, offered, Melroy's call, and the public repo means it may already be cached elsewhere). To
+restore the owner comp: set the COMP_EMAILS secret (wrangler secret put, or the Cloudflare dashboard) then
+deploy the Worker. Until that deploy the live Worker runs the old hardcoded code, so the comp keeps working
+meanwhile. Gate green: client 350, server 199.
