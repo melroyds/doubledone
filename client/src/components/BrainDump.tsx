@@ -12,6 +12,7 @@ import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 import { DatePicker } from './DatePicker';
+import { PrimaryButton } from './PrimaryButton';
 
 type Props = {
   onCapture: (text: string, schedule: CaptureSchedule, slices?: number) => void;
@@ -449,15 +450,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
           </Pressable>
         )}
 
-        <Pressable
-          onPress={add}
-          disabled={busy}
-          style={({ pressed }) => [styles.add, pressed && styles.pressed, busy && styles.disabled]}
-          accessibilityRole="button"
-          accessibilityLabel={addLabel}
-        >
-          <Text style={styles.addText}>{addLabel}</Text>
-        </Pressable>
+        <PrimaryButton label={addLabel} onPress={add} disabled={busy} accessibilityLabel={addLabel} />
       </View>
 
       {error && <Text style={styles.error}>{error}</Text>}
@@ -590,15 +583,8 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   biteBusy: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
   biteText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  add: {
-    backgroundColor: t.colors.accent,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.five,
-    paddingVertical: spacing.three,
-  },
   pressed: { opacity: 0.8 },
   disabled: { opacity: 0.5 },
-  addText: { color: t.colors.onAccent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body },
   captureRow: { flexDirection: 'row', gap: spacing.two, alignItems: 'flex-start' },
   inputFlex: { flex: 1 },

@@ -3,6 +3,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PrimaryButton } from '@/components/PrimaryButton';
 import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { toISODate } from '@/lib/day';
 import { isStepDoneToday, type Routine, routineProgress, type RoutineWhen, toggleStep } from '@/lib/routines';
@@ -220,9 +221,7 @@ export default function RoutinesScreen() {
               <Pressable onPress={cancelAdd} accessibilityRole="button" hitSlop={6}>
                 <Text style={styles.cancel}>Cancel</Text>
               </Pressable>
-              <Pressable onPress={addRoutine} accessibilityRole="button" style={styles.addBtn} hitSlop={6}>
-                <Text style={styles.addBtnText}>Add routine</Text>
-              </Pressable>
+              <PrimaryButton label="Add routine" onPress={addRoutine} pill accessibilityLabel="Add routine" />
             </View>
           </View>
         ) : (
@@ -322,8 +321,6 @@ const makeStyles = (t: Theme) =>
     whenPillActive: { color: t.colors.surface, backgroundColor: t.colors.accent, borderColor: t.colors.accent },
     formActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.four, marginTop: spacing.one },
     cancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    addBtn: { backgroundColor: t.colors.accent, borderRadius: radius.pill, paddingHorizontal: spacing.five, paddingVertical: spacing.three },
-    addBtnText: { color: t.colors.surface, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold },
     newBtn: {
       borderWidth: 1,
       borderColor: t.colors.line,

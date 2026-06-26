@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PrimaryButton } from '@/components/PrimaryButton';
 import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { useSession } from '@/lib/auth';
 import { weeklyAllowance } from '@/lib/entitlement';
@@ -130,15 +131,13 @@ export default function PremiumScreen() {
               <Text style={styles.subStatus}>Renews {periodLabel}.</Text>
             ) : null}
             <Text style={styles.foot}>The free monthly keepsake is always yours, even if you cancel.</Text>
-            <Pressable
+            <PrimaryButton
+              label={busy ? 'Opening…' : 'Manage subscription'}
               onPress={manage}
               disabled={busy}
-              accessibilityRole="button"
               accessibilityLabel="Manage or cancel your subscription"
-              style={({ pressed }) => [styles.cta, pressed && styles.pressed, busy && styles.ctaBusy]}
-            >
-              <Text style={styles.ctaText}>{busy ? 'Opening…' : 'Manage subscription'}</Text>
-            </Pressable>
+              style={styles.ctaSpace}
+            />
             <Pressable onPress={() => router.replace('/')} accessibilityRole="button" accessibilityLabel="Back to Today" hitSlop={8} style={styles.backLink}>
               <Text style={styles.backLinkText}>Back to Today</Text>
             </Pressable>
@@ -186,24 +185,20 @@ export default function PremiumScreen() {
             <Text style={styles.price}>A$5 / month. Cancel anytime. No ads, ever.</Text>
 
             {session ? (
-              <Pressable
+              <PrimaryButton
+                label={busy ? 'Opening checkout…' : 'Go Premium'}
                 onPress={subscribe}
                 disabled={busy}
-                accessibilityRole="button"
                 accessibilityLabel="Subscribe to Premium, five dollars a month"
-                style={({ pressed }) => [styles.cta, pressed && styles.pressed, busy && styles.ctaBusy]}
-              >
-                <Text style={styles.ctaText}>{busy ? 'Opening checkout…' : 'Go Premium'}</Text>
-              </Pressable>
+                style={styles.ctaSpace}
+              />
             ) : (
-              <Pressable
+              <PrimaryButton
+                label="Sign in to go Premium"
                 onPress={() => router.push('/sign-in')}
-                accessibilityRole="button"
                 accessibilityLabel="Sign in to go Premium"
-                style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
-              >
-                <Text style={styles.ctaText}>Sign in to go Premium</Text>
-              </Pressable>
+                style={styles.ctaSpace}
+              />
             )}
             <Text style={styles.foot}>
               {session
@@ -259,10 +254,7 @@ const makeStyles = (t: Theme) =>
     },
     tierArrow: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body },
     price: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', marginTop: spacing.two },
-    cta: { backgroundColor: t.colors.accent, borderRadius: radius.lg, paddingVertical: spacing.four, alignItems: 'center', marginTop: spacing.two },
-    ctaBusy: { opacity: 0.7 },
-    ctaText: { color: t.colors.onAccent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    pressed: { opacity: 0.8 },
+    ctaSpace: { marginTop: spacing.two },
     foot: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },
     subStatus: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale },
     error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body },

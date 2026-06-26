@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PrimaryButton } from '@/components/PrimaryButton';
 import { fonts, layout, PREMIUM_GRADIENT, radius, spacing, type Theme } from '@/constants/theme';
 import { deleteAccount } from '@/lib/account';
 import { purgeScrapbookImages } from '@/lib/ai';
@@ -389,20 +390,12 @@ export default function SettingsScreen() {
               >
                 <Text style={styles.feedbackCancel}>Cancel</Text>
               </Pressable>
-              <Pressable
+              <PrimaryButton
+                label={feedbackState === 'sending' ? 'Sending…' : 'Send'}
                 onPress={sendFeedback}
                 disabled={!feedbackText.trim() || feedbackState === 'sending'}
-                accessibilityRole="button"
                 accessibilityLabel="Send feedback"
-                hitSlop={8}
-                style={({ pressed }) => [
-                  styles.feedbackSend,
-                  pressed && { opacity: 0.85 },
-                  (!feedbackText.trim() || feedbackState === 'sending') && { opacity: 0.5 },
-                ]}
-              >
-                <Text style={styles.feedbackSendText}>{feedbackState === 'sending' ? 'Sending…' : 'Send'}</Text>
-              </Pressable>
+              />
             </View>
           </View>
         ) : (
@@ -610,8 +603,6 @@ const makeStyles = (t: Theme) =>
     feedbackError: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body },
     feedbackActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.five },
     feedbackCancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    feedbackSend: { backgroundColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.three, paddingHorizontal: spacing.five },
-    feedbackSendText: { color: t.colors.onAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     feedbackThanks: { color: t.colors.done, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', paddingTop: spacing.six },
     footnote: {
       color: t.colors.inkFaint,

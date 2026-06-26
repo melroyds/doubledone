@@ -4,6 +4,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PremiumButton } from '@/components/PremiumButton';
+import { PrimaryButton } from '@/components/PrimaryButton';
 import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { lookbackSummary, makeScrapbook } from '@/lib/ai';
 import { addMonths, completionsByDay, monthLabel, monthMatrix, scheduledByDay, WEEKDAY_LABELS } from '@/lib/calendar';
@@ -308,14 +309,13 @@ export default function LookbackScreen() {
             <Text style={styles.scrapbookHint}>
               {existingBook ? "That keepsake's picture isn't available anymore. Make a new one?" : 'Turn this week into a keepsake'}
             </Text>
-            <Pressable
+            <PrimaryButton
+              label="Make a scrapbook"
               onPress={makeWeekScrapbook}
-              style={({ pressed }) => [styles.scrapbookBtn, pressed && styles.pressed]}
-              accessibilityRole="button"
+              pill
               accessibilityLabel={`Make a scrapbook of the ${weekLabel(weekStart)}`}
-            >
-              <Text style={styles.scrapbookBtnText}>Make a scrapbook</Text>
-            </Pressable>
+              style={styles.scrapbookBtn}
+            />
             {bookError && <Text style={styles.scrapbookError}>{bookError}</Text>}
             <Text style={styles.scrapbookNote}>
               Your week&apos;s finished tasks are sent to an AI to imagine the still-life. No names are kept.
@@ -527,14 +527,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   invitePlusText: { color: t.colors.accent, fontSize: 28 * t.scale, fontFamily: fonts.body, lineHeight: 32 * t.scale },
   scrapbookHint: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
-  scrapbookBtn: {
-    alignSelf: 'center',
-    backgroundColor: t.colors.accent,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.six,
-    paddingVertical: spacing.three,
-  },
-  scrapbookBtnText: { color: t.colors.onAccent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+  scrapbookBtn: { alignSelf: 'center' },
   scrapbookError: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
   scrapbookNote: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, lineHeight: 17 * t.scale, textAlign: 'center' },
   weekList: { marginTop: spacing.four, gap: spacing.two },
@@ -547,7 +540,6 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: spacing.one,
   },
-  pressed: { opacity: 0.85 },
   insightsCard: { marginTop: spacing.six, backgroundColor: t.colors.surface, borderRadius: radius.md, padding: spacing.four, gap: spacing.two },
   insightsHead: { color: t.colors.ink, fontSize: 20 * t.scale, fontFamily: fonts.sans, fontWeight: '600', marginBottom: spacing.one },
   insightsStat: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale },

@@ -1,8 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PrimaryButton } from '@/components/PrimaryButton';
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { triage } from '@/lib/ai';
 import { loadTasks, saveOnboarded, saveTasks } from '@/lib/storage';
@@ -293,15 +294,7 @@ export default function WelcomeScreen() {
             ))}
           </View>
           {!captureEmpty && (
-            <Pressable
-              onPress={onPrimary}
-              disabled={busy}
-              style={({ pressed }) => [styles.primary, pressed && styles.pressed, busy && styles.disabled]}
-              accessibilityRole="button"
-              accessibilityLabel={PRIMARY[step]}
-            >
-              {busy ? <ActivityIndicator size="small" color={theme.colors.onAccent} /> : <Text style={styles.primaryText}>{PRIMARY[step]}</Text>}
-            </Pressable>
+            <PrimaryButton label={PRIMARY[step]} onPress={onPrimary} loading={busy} accessibilityLabel={PRIMARY[step]} />
           )}
         </View>
       </ScrollView>
@@ -376,8 +369,4 @@ const makeStyles = (t: Theme) =>
     dots: { flexDirection: 'row', justifyContent: 'center', gap: spacing.two },
     dot: { width: 7, height: 7, borderRadius: radius.pill, backgroundColor: t.scheme === 'dark' ? '#4A443C' : '#D8CFC4' },
     dotOn: { backgroundColor: t.colors.accent },
-    primary: { backgroundColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.four, alignItems: 'center' },
-    primaryText: { color: t.colors.onAccent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    disabled: { opacity: 0.6 },
-    pressed: { opacity: 0.85 },
   });

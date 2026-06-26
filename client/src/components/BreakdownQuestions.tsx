@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { type Questions } from '@/lib/ai';
@@ -7,6 +7,7 @@ import { fromISODate, presetDate } from '@/lib/day';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 import { DatePicker } from './DatePicker';
+import { PrimaryButton } from './PrimaryButton';
 
 export type BreakdownAnswers = {
   dueDate: string | null; // ISO or null = no deadline
@@ -145,22 +146,13 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
               accessibilityLabel="Answer to the question"
             />
 
-            <Pressable
+            <PrimaryButton
+              label="Break it down"
               onPress={submit}
-              disabled={busy}
-              style={({ pressed }) => [styles.btn, pressed && styles.pressed, busy && styles.disabled]}
-              accessibilityRole="button"
+              loading={busy}
               accessibilityLabel="Break it down"
-            >
-              {busy ? (
-                <View style={styles.btnBusy}>
-                  <ActivityIndicator size="small" color={theme.colors.onAccent} />
-                  <Text style={styles.btnText}>Breaking it down…</Text>
-                </View>
-              ) : (
-                <Text style={styles.btnText}>Break it down</Text>
-              )}
-            </Pressable>
+              style={styles.btn}
+            />
             {busy && (
               <Text style={styles.waitNote}>Working out a few small steps. This takes a moment, no need to wait here.</Text>
             )}
@@ -231,17 +223,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     fontFamily: fonts.body,
     color: t.colors.ink,
   },
-  btn: {
-    backgroundColor: t.colors.accent,
-    borderRadius: radius.md,
-    paddingVertical: spacing.four,
-    alignItems: 'center',
-    marginTop: spacing.three,
-  },
-  btnBusy: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-  btnText: { color: t.colors.onAccent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  pressed: { opacity: 0.85 },
-  disabled: { opacity: 0.6 },
+  btn: { marginTop: spacing.three },
   dismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.two },
   waitNote: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', lineHeight: 20 * t.scale, marginTop: spacing.two },
   errorNote: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', lineHeight: 20 * t.scale, marginTop: spacing.two },

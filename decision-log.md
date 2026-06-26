@@ -2684,3 +2684,18 @@ letterSpacing 0.3 to 1) collapsed to one 12/700/0.5 step.
 
 Gate green: client 346, server 197, lint + typecheck clean. Sizes live-verified in the preview (settings
 title 34/600, premium card title 24/600, eyebrows 12/700/0.5). On premium, holding the merge.
+
+## 2026-06-26 Design polish wave 3a: PrimaryButton
+
+Extracted the solid-accent CTA (reimplemented ~12 times, actually 21 buttons across 11 files) into one
+<PrimaryButton> with label / onPress / disabled / loading / pill / style props, reading t.colors.accent, the
+Wave-1 onAccent label colour, and the Wave-2 bodyStrong type. The gradient PremiumButton was left untouched,
+and non-CTA accent elements (calendar day blobs, chips, dots) were correctly left alone.
+
+Consolidations, logged: one radius (md, the premium/chart buttons were lg and fold in), one label (bodyStrong
+17/700, the 16/600 sites unify up), one pressed (0.85), and a `pill` prop that keeps the two genuinely-pill
+buttons (the lookback scrapbook button, the routines add button). The agent also caught and fixed a latent
+dark-mode bug: the routines add-routine label used colors.surface instead of onAccent.
+
+Gate green: client 346, server 197, lint + typecheck clean (lint confirms no dead styles remain). Verified a
+button in a dark preview: bg #C68BA0, label #2B2722, radius 14, 17/700. On premium, holding the merge.

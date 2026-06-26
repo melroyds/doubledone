@@ -12,6 +12,7 @@ import { BreakdownReview, type ReviewPhase, type ReviewStep } from '@/components
 import { DatePicker } from '@/components/DatePicker';
 import { LivingBackground } from '@/components/LivingBackground';
 import { PremiumButton } from '@/components/PremiumButton';
+import { PrimaryButton } from '@/components/PrimaryButton';
 import { RepeatingDrawer } from '@/components/RepeatingDrawer';
 import { RoomsSheet } from '@/components/RoomsSheet';
 import { RotatingPhrase } from '@/components/RotatingPhrase';
@@ -1078,15 +1079,12 @@ export default function TodayScreen() {
             <Text style={styles.reentryBody}>
               {"However long it's been, the past is fine. Nothing's overdue, nothing's lost. Here's just today, when you're ready."}
             </Text>
-            <Pressable
+            <PrimaryButton
+              label="Start fresh"
               onPress={() => setReentry(false)}
-              accessibilityRole="button"
               accessibilityLabel="Start fresh"
-              hitSlop={8}
-              style={({ pressed }) => [styles.reentryBtn, pressed && styles.pressed]}
-            >
-              <Text style={styles.reentryBtnText}>Start fresh</Text>
-            </Pressable>
+              style={styles.reentryBtn}
+            />
           </View>
         )}
         <Text style={styles.title}>Today</Text>
@@ -1503,14 +1501,11 @@ export default function TodayScreen() {
                 >
                   <Text style={styles.focusSkipText}>Choose another</Text>
                 </Pressable>
-                <Pressable
+                <PrimaryButton
+                  label="Done"
                   onPress={() => focusComplete(focusTask.id)}
-                  accessibilityRole="button"
                   accessibilityLabel={`Done with ${focusTask.title}`}
-                  style={({ pressed }) => [styles.focusDoneBtn, pressed && styles.pressed]}
-                >
-                  <Text style={styles.focusDoneText}>Done</Text>
-                </Pressable>
+                />
               </View>
             </View>
           ) : spreadable.length > 0 ? (
@@ -1535,14 +1530,7 @@ export default function TodayScreen() {
             <View style={styles.focusBody}>
               <Text style={styles.focusTitle}>{"That's everything for now."}</Text>
               <Text style={styles.focusEmptyNote}>{"Nothing left to focus on. Rest, or add something when you're ready."}</Text>
-              <Pressable
-                onPress={closeFocus}
-                accessibilityRole="button"
-                accessibilityLabel="Back to Today"
-                style={({ pressed }) => [styles.focusDoneBtn, pressed && styles.pressed]}
-              >
-                <Text style={styles.focusDoneText}>Back to Today</Text>
-              </Pressable>
+              <PrimaryButton label="Back to Today" onPress={closeFocus} accessibilityLabel="Back to Today" />
             </View>
           )}
         </View>
@@ -1576,14 +1564,7 @@ export default function TodayScreen() {
               >
                 <Text style={styles.didCancel}>Cancel</Text>
               </Pressable>
-              <Pressable
-                onPress={() => logDidIt(didText)}
-                accessibilityRole="button"
-                accessibilityLabel="Add it"
-                style={({ pressed }) => [styles.didAddBtn, pressed && styles.pressed]}
-              >
-                <Text style={styles.didAddText}>Add it</Text>
-              </Pressable>
+              <PrimaryButton label="Add it" onPress={() => logDidIt(didText)} accessibilityLabel="Add it" />
             </View>
           </Pressable>
         </Pressable>
@@ -1630,15 +1611,12 @@ export default function TodayScreen() {
               >
                 <Text style={styles.didCancel}>Cancel</Text>
               </Pressable>
-              <Pressable
+              <PrimaryButton
+                label="Combine"
                 onPress={combineAccept}
                 disabled={!combineTitle.trim()}
-                accessibilityRole="button"
                 accessibilityLabel="Combine into one task"
-                style={({ pressed }) => [styles.didAddBtn, pressed && styles.pressed, !combineTitle.trim() && styles.disabledBtn]}
-              >
-                <Text style={styles.didAddText}>Combine</Text>
-              </Pressable>
+              />
             </View>
           </Pressable>
         </Pressable>
@@ -1778,7 +1756,8 @@ export default function TodayScreen() {
                 returnKeyType="done"
                 accessibilityLabel="Anything else you did today"
               />
-              <Pressable
+              <PrimaryButton
+                label="Goodnight"
                 onPress={() => {
                   const note = closeNote.trim();
                   if (note) {
@@ -1793,12 +1772,9 @@ export default function TodayScreen() {
                   void saveClosedDate(toISODate(today));
                   dayClosed(reduced); // the gentle close: a warm, soft confirmation
                 }}
-                style={({ pressed }) => [styles.wrapBtn, pressed && styles.pressed]}
-                accessibilityRole="button"
                 accessibilityLabel="Goodnight"
-              >
-                <Text style={styles.wrapBtnText}>Goodnight</Text>
-              </Pressable>
+                style={styles.wrapBtn}
+              />
             </Pressable>
           </Animated.View>
         </Pressable>
@@ -1824,14 +1800,12 @@ export default function TodayScreen() {
                 );
               })}
             </View>
-            <Pressable
+            <PrimaryButton
+              label="Use this spread"
               onPress={acceptPlan}
-              style={({ pressed }) => [styles.wrapBtn, pressed && styles.pressed]}
-              accessibilityRole="button"
               accessibilityLabel="Use this spread"
-            >
-              <Text style={styles.wrapBtnText}>Use this spread</Text>
-            </Pressable>
+              style={styles.wrapBtn}
+            />
             <Pressable onPress={() => setPlan(null)} accessibilityRole="button" accessibilityLabel="Not now">
               <Text style={styles.planDismiss}>Not now</Text>
             </Pressable>
@@ -1863,14 +1837,12 @@ export default function TodayScreen() {
                 );
               })}
             </View>
-            <Pressable
+            <PrimaryButton
+              label="Use this order"
               onPress={acceptOrder}
-              style={({ pressed }) => [styles.wrapBtn, pressed && styles.pressed]}
-              accessibilityRole="button"
               accessibilityLabel="Use this order"
-            >
-              <Text style={styles.wrapBtnText}>Use this order</Text>
-            </Pressable>
+              style={styles.wrapBtn}
+            />
             <Pressable onPress={() => setOrder(null)} accessibilityRole="button" accessibilityLabel="Not now">
               <Text style={styles.planDismiss}>Not now</Text>
             </Pressable>
@@ -1885,17 +1857,15 @@ export default function TodayScreen() {
           <Pressable style={styles.wrapCard} onPress={() => {}}>
             <Text style={styles.wrapTitle}>Still a full day?</Text>
             <Text style={styles.wrapLine}>Today is ordered. Want to push a few tasks out to later days, to lighten it?</Text>
-            <Pressable
+            <PrimaryButton
+              label="Yes, lighten today"
               onPress={() => {
                 setOfferDefer(false);
                 runStrategise();
               }}
-              style={({ pressed }) => [styles.wrapBtn, pressed && styles.pressed]}
-              accessibilityRole="button"
               accessibilityLabel="Yes, lighten today by moving some out"
-            >
-              <Text style={styles.wrapBtnText}>Yes, lighten today</Text>
-            </Pressable>
+              style={styles.wrapBtn}
+            />
             <Pressable
               onPress={() => {
                 setOfferDefer(false);
@@ -2056,15 +2026,7 @@ const makeStyles = (t: Theme) =>
     },
     reentryTitle: { ...t.type.subheading, color: t.colors.ink, letterSpacing: -0.3 },
     reentryBody: { color: t.colors.ink, fontSize: 16 * t.scale, lineHeight: 24 * t.scale, fontFamily: fonts.body },
-    reentryBtn: {
-      alignSelf: 'flex-start',
-      paddingVertical: spacing.two,
-      paddingHorizontal: spacing.five,
-      borderRadius: radius.md,
-      backgroundColor: t.colors.accent,
-      marginTop: spacing.one,
-    },
-    reentryBtnText: { color: t.colors.onAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    reentryBtn: { alignSelf: 'flex-start', marginTop: spacing.one },
     weight: { marginTop: spacing.two, marginBottom: spacing.four, gap: spacing.two },
     weightTrack: { flexDirection: 'row', height: 6, borderRadius: radius.pill, backgroundColor: t.colors.line, overflow: 'hidden' },
     weightFill: { backgroundColor: t.colors.accent },
@@ -2135,8 +2097,6 @@ const makeStyles = (t: Theme) =>
     },
     didActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.five, marginTop: spacing.two },
     didCancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    didAddBtn: { paddingVertical: spacing.two, paddingHorizontal: spacing.five, borderRadius: radius.md, backgroundColor: t.colors.accent },
-    didAddText: { color: t.colors.onAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     focusEntry: {
       borderWidth: 1,
       borderColor: t.colors.accent,
@@ -2170,8 +2130,6 @@ const makeStyles = (t: Theme) =>
     focusEmptyNote: { color: t.colors.inkSoft, fontSize: 16 * t.scale, lineHeight: 24 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     focusActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.six, marginTop: spacing.four },
     focusSkipText: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    focusDoneBtn: { paddingVertical: spacing.three, paddingHorizontal: spacing.seven, borderRadius: radius.md, backgroundColor: t.colors.accent },
-    focusDoneText: { color: t.colors.onAccent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     backdrop: {
       flex: 1,
       backgroundColor: t.colors.scrim,
@@ -2196,6 +2154,5 @@ const makeStyles = (t: Theme) =>
     wrapCheck: { color: t.colors.done, fontSize: 16 * t.scale, fontWeight: '700', fontFamily: fonts.bodyBold },
     wrapItemText: { color: t.colors.inkSoft, fontSize: 16 * t.scale, flexShrink: 1, fontFamily: fonts.body },
     wrapRoll: { color: t.colors.inkFaint, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, marginTop: spacing.two, fontFamily: fonts.body },
-    wrapBtn: { backgroundColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.four, alignItems: 'center', marginTop: spacing.three },
-    wrapBtnText: { color: t.colors.onAccent, fontSize: 16 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
+    wrapBtn: { marginTop: spacing.three },
   });

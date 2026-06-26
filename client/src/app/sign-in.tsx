@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PrimaryButton } from '@/components/PrimaryButton';
 import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
@@ -111,19 +112,12 @@ export default function SignInScreen() {
             inputMode="email"
             accessibilityLabel="Email address"
           />
-          <Pressable
+          <PrimaryButton
+            label="Email me a code"
             onPress={sendCode}
-            disabled={busy}
-            style={({ pressed }) => [styles.primary, pressed && styles.pressed, busy && styles.disabled]}
-            accessibilityRole="button"
+            loading={busy}
             accessibilityLabel="Email me a code"
-          >
-            {busy ? (
-              <ActivityIndicator size="small" color={theme.colors.onAccent} />
-            ) : (
-              <Text style={styles.primaryText}>Email me a code</Text>
-            )}
-          </Pressable>
+          />
         </View>
       )}
 
@@ -142,19 +136,7 @@ export default function SignInScreen() {
             maxLength={6}
             accessibilityLabel="Code from your email"
           />
-          <Pressable
-            onPress={verify}
-            disabled={busy}
-            style={({ pressed }) => [styles.primary, pressed && styles.pressed, busy && styles.disabled]}
-            accessibilityRole="button"
-            accessibilityLabel="Sign in"
-          >
-            {busy ? (
-              <ActivityIndicator size="small" color={theme.colors.onAccent} />
-            ) : (
-              <Text style={styles.primaryText}>Sign in</Text>
-            )}
-          </Pressable>
+          <PrimaryButton label="Sign in" onPress={verify} loading={busy} accessibilityLabel="Sign in" />
           <Pressable
             onPress={() => {
               setPhase('email');
@@ -174,14 +156,7 @@ export default function SignInScreen() {
         <View style={styles.form}>
           <Text style={styles.success}>Signed in</Text>
           <Text style={styles.sub}>You&apos;re synced as {email.trim()}. Taking you back to today.</Text>
-          <Pressable
-            onPress={goBack}
-            style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel="Back to today"
-          >
-            <Text style={styles.primaryText}>Back to today</Text>
-          </Pressable>
+          <PrimaryButton label="Back to today" onPress={goBack} accessibilityLabel="Back to today" />
         </View>
       )}
 
@@ -224,15 +199,6 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     fontFamily: fonts.body,
     color: t.colors.ink,
   },
-  primary: {
-    backgroundColor: t.colors.accent,
-    borderRadius: radius.md,
-    paddingVertical: spacing.four,
-    alignItems: 'center',
-  },
-  primaryText: { color: t.colors.onAccent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  pressed: { opacity: 0.8 },
-  disabled: { opacity: 0.5 },
   link: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.two },
   error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.four },
 });

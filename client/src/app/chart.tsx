@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PremiumButton } from '@/components/PremiumButton';
+import { PrimaryButton } from '@/components/PrimaryButton';
 import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { chart, type CourseStep } from '@/lib/ai';
 import { toISODate } from '@/lib/day';
@@ -192,15 +193,13 @@ export default function ChartScreen() {
                 <Text style={styles.stepMin}>{s.minutes} min</Text>
               </Pressable>
             ))}
-            <Pressable
+            <PrimaryButton
+              label={selectedCount === 0 ? 'Pick a step to add' : `Add ${selectedCount} ${selectedCount === 1 ? 'task' : 'tasks'}`}
               onPress={addTasks}
               disabled={selectedCount === 0}
-              accessibilityRole="button"
               accessibilityLabel={`Add ${selectedCount} tasks to Today`}
-              style={({ pressed }) => [styles.cta, pressed && styles.pressed, selectedCount === 0 && styles.ctaDim]}
-            >
-              <Text style={styles.ctaText}>{selectedCount === 0 ? 'Pick a step to add' : `Add ${selectedCount} ${selectedCount === 1 ? 'task' : 'tasks'}`}</Text>
-            </Pressable>
+              style={styles.ctaSpace}
+            />
             <Pressable
               onPress={() => {
                 setSteps([]);
@@ -245,7 +244,7 @@ const makeStyles = (t: Theme) =>
       lineHeight: 24 * t.scale,
       textAlignVertical: 'top',
     },
-    cta: { backgroundColor: t.colors.accent, borderRadius: radius.lg, paddingVertical: spacing.four, alignItems: 'center', marginTop: spacing.four },
+    ctaSpace: { marginTop: spacing.four },
     suggestBtn: { marginTop: spacing.four },
     byWhen: { marginTop: spacing.four, gap: spacing.two },
     byWhenLabel: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
@@ -254,9 +253,6 @@ const makeStyles = (t: Theme) =>
     chipOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
     chipText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     chipTextOn: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    ctaDim: { opacity: 0.5 },
-    ctaText: { color: t.colors.onAccent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    pressed: { opacity: 0.8 },
     spinner: { marginTop: spacing.five },
     error: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, marginTop: spacing.four, lineHeight: 22 * t.scale },
     result: { marginTop: spacing.five, gap: spacing.two },

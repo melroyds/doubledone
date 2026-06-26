@@ -12,6 +12,7 @@ import { launchImageLibraryAsync } from 'expo-image-picker';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { PrimaryButton } from '@/components/PrimaryButton';
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { ocr } from '@/lib/ai';
 import { track } from '@/lib/telemetry';
@@ -94,15 +95,12 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
         <View style={styles.prompt}>
           <Text style={styles.promptTitle}>Photograph your list</Text>
           <Text style={styles.promptHint}>Choose a photo of a list, a note, or a whiteboard.</Text>
-          <Pressable
+          <PrimaryButton
+            label="Choose a photo"
             onPress={pickFromGallery}
             disabled={busy}
-            style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed, busy && styles.disabled]}
-            accessibilityRole="button"
             accessibilityLabel="Choose a photo of your list"
-          >
-            <Text style={styles.primaryBtnText}>Choose a photo</Text>
-          </Pressable>
+          />
         </View>
       );
     }
@@ -120,14 +118,11 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
         <View style={styles.prompt}>
           <Text style={styles.promptTitle}>Read a list from a photo</Text>
           <Text style={styles.promptHint}>{EGRESS_NOTE}</Text>
-          <Pressable
+          <PrimaryButton
+            label="Allow camera"
             onPress={requestPermission}
-            style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
-            accessibilityRole="button"
             accessibilityLabel="Allow the camera"
-          >
-            <Text style={styles.primaryBtnText}>Allow camera</Text>
-          </Pressable>
+          />
           <Pressable onPress={pickFromGallery} accessibilityRole="button" accessibilityLabel="Choose from your photos instead">
             <Text style={styles.linkBtnText}>Choose from photos instead</Text>
           </Pressable>
@@ -207,13 +202,6 @@ const makeStyles = (t: Theme) =>
     prompt: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.four, paddingHorizontal: spacing.five },
     promptTitle: { ...t.type.subheading, color: t.colors.ink, textAlign: 'center' },
     promptHint: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', lineHeight: 22 * t.scale },
-    primaryBtn: {
-      backgroundColor: t.colors.accent,
-      borderRadius: radius.md,
-      paddingHorizontal: spacing.five,
-      paddingVertical: spacing.three,
-    },
-    primaryBtnText: { color: t.colors.onAccent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     linkBtnText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     cameraWrap: { flex: 1 },
     camera: { flex: 1 },

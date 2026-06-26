@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { PrimaryButton } from '@/components/PrimaryButton';
 import { fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { friendlyDate } from '@/lib/day';
 import { describePace, paceDays } from '@/lib/estimate';
 import { track } from '@/lib/telemetry';
-import { useTheme, useThemedStyles } from '@/lib/theme-provider';
+import { useThemedStyles } from '@/lib/theme-provider';
 
 export type ReviewStep = { title: string; minutes: number; date: string | null };
 export type ReviewPhase = { title: string; date: string | null };
@@ -26,7 +27,6 @@ type Props = {
 // Nothing lands on your day until you accept; the dates came from your answers.
 export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCancel, today }: Props) {
   const styles = useThemedStyles(makeStyles);
-  const theme = useTheme();
   const [selected, setSelected] = useState<boolean[]>(() => steps.map(() => true));
   const phaseCount = laterPhases?.length ?? 0;
   const count = selected.filter(Boolean).length + phaseCount;
@@ -102,21 +102,14 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
               {describePace(days)}
             </Text>
 
-            <Pressable
+            <PrimaryButton
+              label={`Add ${count} ${count === 1 ? 'task' : 'tasks'}`}
               onPress={add}
-              disabled={busy || count === 0}
-              style={({ pressed }) => [styles.btn, pressed && styles.pressed, (busy || count === 0) && styles.disabled]}
-              accessibilityRole="button"
+              loading={busy}
+              disabled={count === 0}
               accessibilityLabel={`Add ${count} ${count === 1 ? 'task' : 'tasks'}`}
-            >
-              {busy ? (
-                <ActivityIndicator size="small" color={theme.colors.onAccent} />
-              ) : (
-                <Text style={styles.btnText}>
-                  Add {count} {count === 1 ? 'task' : 'tasks'}
-                </Text>
-              )}
-            </Pressable>
+              style={styles.btn}
+            />
             <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel="Not now">
               <Text style={styles.dismiss}>Not now</Text>
             </Pressable>
@@ -200,15 +193,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingHorizontal: spacing.four,
     borderRadius: radius.md,
   },
-  btn: {
-    backgroundColor: t.colors.accent,
-    borderRadius: radius.md,
-    paddingVertical: spacing.four,
-    alignItems: 'center',
-    marginTop: spacing.three,
-  },
-  btnText: { color: t.colors.onAccent, fontSize: 16 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
+  btn: { marginTop: spacing.three },
   pressed: { opacity: 0.85 },
-  disabled: { opacity: 0.6 },
   dismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two, fontFamily: fonts.body },
 });
