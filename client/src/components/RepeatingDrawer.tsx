@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, motion, radius, spacing, type Theme } from '@/constants/theme';
 import { describeRecurrence } from '@/lib/recurrence';
 import { type Task } from '@/lib/tasks';
 import { useReducedMotion, useThemedStyles } from '@/lib/theme-provider';
@@ -37,8 +37,8 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle }: Props
     }
     const animation = Animated.timing(anim, {
       toValue: open ? 1 : 0,
-      duration: open ? 220 : 200,
-      useNativeDriver: false,
+      duration: open ? 220 : motion.standard,
+      useNativeDriver: Platform.OS !== 'web',
     });
     animation.start();
     return () => animation.stop();

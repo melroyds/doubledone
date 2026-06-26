@@ -2790,3 +2790,17 @@ second accent on the protected Today screen). This directly conflicts with Melro
 all premium features should carry the gradient, so it was NOT changed. The tension is his to resolve.
 
 Gate green: client 346, server 197. On premium, holding the merge.
+
+## 2026-06-26 Design polish wave 6: motion tokens + cardShadow (completes the burn-down, through item 22)
+
+The final wave. Motion durations tokenized: index.tsx closeRise 320 to motion.gentle, RepeatingDrawer 200 to
+motion.standard, and RotatingPhrase's intentional slow 500ms cross-fade got a named motion.crossfade (500)
+rather than being forced into a faster tier. RepeatingDrawer's useNativeDriver:false became
+Platform.OS !== 'web' (a perf win on Android, the target, since it only animates opacity + translateX, both
+native-driver-safe, and web is unchanged). A cardShadow(t) helper was extracted and used in TaskRow + routines
+(the byte-identical per-scheme boxShadow had been duplicated). Left as-is: the easings (motion.ts has no
+exported easing convention to route to) and RepeatingDrawer's 220ms open duration (matches no token, flagged).
+
+Gate green: client 346, server 197. On premium, holding the merge. This completes the stack-ranked design
+burn-down, items 1 through 22. Tier 4 and items 23-25 (CheckCircle, spacing hygiene, Bloom typography) are
+deliberately out of scope per Melroy's "until 22".

@@ -212,3 +212,10 @@ export function buildTheme(scheme: 'light' | 'dark', scale: number, reduceMotion
     reduceMotion,
   };
 }
+
+// The soft card elevation shared by TaskRow and the routines list. One recipe, two
+// per-scheme strings (a deeper shadow on dark, a warm-ink one on light), so the two
+// call sites can't drift apart.
+export function cardShadow(t: Theme): string {
+  return t.scheme === 'dark' ? '0px 6px 18px -10px rgba(0,0,0,0.5)' : '0px 6px 18px -10px rgba(43,39,34,0.18)';
+}

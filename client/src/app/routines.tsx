@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
+import { border, cardShadow, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { toISODate } from '@/lib/day';
 import { isStepDoneToday, type Routine, routineProgress, type RoutineWhen, toggleStep } from '@/lib/routines';
 import { loadRoutines, saveRoutines } from '@/lib/storage';
@@ -258,7 +258,7 @@ const makeStyles = (t: Theme) =>
       gap: spacing.one,
       borderWidth: border.hair,
       borderColor: t.colors.line,
-      boxShadow: t.scheme === 'dark' ? '0px 6px 18px -10px rgba(0,0,0,0.5)' : '0px 6px 18px -10px rgba(43,39,34,0.18)',
+      boxShadow: cardShadow(t),
     },
     cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: spacing.one },
     cardName: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, flex: 1 },

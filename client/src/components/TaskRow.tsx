@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { border, control, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
+import { border, cardShadow, control, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { formatNudgeTime } from '@/lib/nudge';
 import { type Slices } from '@/lib/tasks';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -292,7 +292,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     borderWidth: border.hair,
     borderColor: t.colors.line,
     // Soft elevation: rows float a hair above the living background (the redesign).
-    boxShadow: t.scheme === 'dark' ? '0px 6px 18px -10px rgba(0,0,0,0.5)' : '0px 6px 18px -10px rgba(43,39,34,0.18)',
+    boxShadow: cardShadow(t),
   },
   rowUnique: { borderColor: t.colors.repeat, borderWidth: border.thick },
   // The day's one pinned priority: a calm accent border + faint tint, with the star beside the title.

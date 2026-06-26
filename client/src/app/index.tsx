@@ -18,7 +18,7 @@ import { RepeatingDrawer } from '@/components/RepeatingDrawer';
 import { RoomsSheet } from '@/components/RoomsSheet';
 import { RotatingPhrase } from '@/components/RotatingPhrase';
 import { TaskRow } from '@/components/TaskRow';
-import { border, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, layout, motion, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import {
   clarify,
   combine,
@@ -288,7 +288,7 @@ export default function TodayScreen() {
     }
     const anim = Animated.timing(closeRise, {
       toValue: 1,
-      duration: 320,
+      duration: motion.gentle,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: Platform.OS !== 'web',
     });

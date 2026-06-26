@@ -9,6 +9,7 @@ export const motion = {
   micro: 120, // tick fill, chip select
   standard: 200, // state change, action bar, row settle
   gentle: 320, // modal / sheet fade, progress fill
+  crossfade: 500, // slow ambient cross-fade (RotatingPhrase); intentionally below no tier
   celebration: { quick: 1200, real: 1800, dreaded: 2400 }, // whole-task finish bloom, scaled
   ambient: 50000, // living-background drift loop (40-60s)
 } as const;
