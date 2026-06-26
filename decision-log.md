@@ -3104,3 +3104,12 @@ denied | unsupported | error }) instead of a bare boolean, and a shared reminder
 per case. Today surfaces it through the existing affirm line; Settings shows it under the control. Tested (the
 three reasons read distinct and calm, and a denied user is pointed at their settings, not at themselves). On
 premium.
+
+## 2026-06-27 Audit fix: a post-payment recovery, never strand a user who just paid
+
+The completeness audit's other Tier-1 money gap: after a successful checkout the entitlement poll gave up after
+~20s and left the user on "Setting up your Premium" forever, with no Refresh and no recourse, the exact "did my
+money disappear" panic this audience is most sensitive to. The poll now sets a `stuck` flag on exhaustion, and
+the success screen swaps to a calm recovery: "This is taking longer than usual. Your payment went through, give
+it a minute, then tap Refresh", a Refresh button (re-checks the entitlement), and a pointer to send a note from
+Settings if it persists. On premium.

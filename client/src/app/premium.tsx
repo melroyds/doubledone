@@ -53,15 +53,20 @@ export default function PremiumScreen() {
     }, [status, refresh]),
   );
 
-  // The Stripe webhook can lag a few seconds after a successful checkout, so poll the provider
-  // until premium flips, or we give up. Watching `premium` clears the timer as soon as it lands.
+  // After a successful checkout the Stripe webhook can lag. Poll the provider until premium flips, then give
+  // up after ~20s, but DON'T strand the user on "setting up": set `stuck` so the UI offers a Refresh and a
+  // reassurance ("your payment went through"). The worst place to dead-end is right after taking money.
+  const [stuck, setStuck] = useState(false);
   useEffect(() => {
     if (status !== 'success' || premium) return;
     let tries = 0;
     const timer = setInterval(() => {
       tries += 1;
       refresh();
-      if (tries >= 10) clearInterval(timer);
+      if (tries >= 10) {
+        clearInterval(timer);
+        setStuck(true);
+      }
     }, 2000);
     return () => clearInterval(timer);
   }, [status, premium, refresh]);
@@ -140,7 +145,15 @@ export default function PremiumScreen() {
         ) : (
           <View style={styles.panel}>
             {status === 'success' ? (
-              <Text style={styles.note}>Thanks. Setting up your Premium, this updates in a moment.</Text>
+              stuck ? (
+                <>
+                  <Text style={styles.note}>This is taking longer than usual. Your payment went through, give it a minute, then tap Refresh.</Text>
+                  <PrimaryButton label="Refresh" onPress={refresh} accessibilityLabel="Refresh your Premium status" style={styles.ctaSpace} />
+                  <Text style={styles.foot}>Still nothing after a minute? Send us a note from Settings and we&apos;ll sort it.</Text>
+                </>
+              ) : (
+                <Text style={styles.note}>Thanks. Setting up your Premium, this updates in a moment.</Text>
+              )
             ) : status === 'cancelled' ? (
               <Text style={styles.note}>That&apos;s alright. Your free monthly scrapbook is always here.</Text>
             ) : null}
