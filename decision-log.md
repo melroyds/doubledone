@@ -3039,3 +3039,23 @@ mechanical job, and it has real subtleties (e.g. Intl's relative-day is lowercas
 capitalised "Tomorrow", so each migrated site must preserve its exact English), which makes a blind unattended
 sweep across ~28 files the wrong call to run while Melroy sleeps. It is now unblocked and batchable per screen,
 English-preserving, with the gate as the safety net. Gate green. On premium.
+
+## 2026-06-27 "Good enough" removed; the completion line now rotates; onboarding lists made symmetric
+
+Melroy's review of the overnight work, three calls:
+- **"Good enough" cut entirely.** It never made sense to him, and in the multi-select bar it sat confusingly
+  beside "Done" (it only appeared for a single selection and did the same completion, just with a gentler
+  affirmation). Removed from the select bar, the per-task hold menu, the goodEnough handler, and the
+  onGoodEnough prop. Its purpose, the OCD / perfectionism release, now lives in the next item.
+- **A rotating completion line.** Completing a task (single or bulk) now cycles through a small pool
+  (DONE_AFFIRMATIONS in lib/celebrate: "Done is done. Recorded.", "Filed. You can stop checking it now.",
+  "Good enough is done. Let it go.", and more), so the reassurance never feels canned and still carries the
+  gentle release. Pure + tested (doneAffirmation rotates and wraps; every line calm, no exclamation); the
+  counter is a ref on the screen.
+- **Onboarding list symmetry** (screens 4 + 6). The netRow flex-wrapped name + description inline, so a short
+  pair ("Chart a course", "Lighten today") sat on one line while longer ones wrapped, an asymmetry Melroy
+  disliked. Now a column: name on its own line, description beneath, every item identical.
+
+Gate green. On premium. Noted while verifying (PRE-EXISTING, not from this change): the Menu sheet
+(RoomsSheet) logs "a button cannot be nested in a button" on web, the scrim Pressable wraps the room
+Pressables; worth a separate small fix.

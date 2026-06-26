@@ -36,7 +36,7 @@ import {
 } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
-import { celebrationTier, finishContext } from '@/lib/celebrate';
+import { celebrationTier, doneAffirmation, finishContext } from '@/lib/celebrate';
 import { combineTasks, eligibleForCombine } from '@/lib/combine';
 import { ageInDays, isBigWin } from '@/lib/reward';
 import { phaseGreeting } from '@/lib/phase';
@@ -90,6 +90,7 @@ export default function TodayScreen() {
   const [bloom, setBloom] = useState<BloomData | null>(null); // the held whole-task-finish celebration
   const [roomsOpen, setRoomsOpen] = useState(false); // the Rooms navigation sheet (collapses the 4 header links)
   const affirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const affirmCount = useRef(0); // rotates the completion affirmation through the pool (lib/celebrate)
   const tinyBusy = useRef(false); // guards the make-it-tiny AI call from a double-fire
   const [reentry, setReentry] = useState(false);
   const [didOpen, setDidOpen] = useState(false);
@@ -470,7 +471,7 @@ export default function TodayScreen() {
       }),
     );
     track('bulk.completed', { count: selected.length });
-    affirm('Done is done. Recorded.');
+    doneAffirm();
     exitSelect();
   }
   function bulkRemove() {
@@ -702,12 +703,19 @@ export default function TodayScreen() {
     else affirm('A gentle order, top of the list when you are ready.');
   }
 
-  // A brief, consistent reassurance after completing (Done-is-done / Good-enough). One
-  // timer at a time, so a fresh completion is never cut short by an older one's clear.
+  // A brief, consistent reassurance after completing. One timer at a time, so a fresh completion is
+  // never cut short by an older one's clear.
   function affirm(line: string) {
     setAffirmation(line);
     if (affirmTimer.current) clearTimeout(affirmTimer.current);
     affirmTimer.current = setTimeout(() => setAffirmation(null), 3500);
+  }
+
+  // A completed task rotates through the calm completion pool (lib/celebrate), so the reassurance never
+  // feels canned and it carries the OCD / perfectionism release ("good enough, let it go") that used to be
+  // a separate "Good enough" button.
+  function doneAffirm() {
+    affirm(doneAffirmation(affirmCount.current++));
   }
 
   // Stable so the Bloom's hold timer is not reset on every re-render of Today.
@@ -771,24 +779,15 @@ export default function TodayScreen() {
     if (bloomData) {
       setBloom(bloomData);
     } else {
-      const message = parentBack
-        ? `You started, that's the hard part. ${parentBack} is back when you're ready.`
-        : done && !cleared
-          ? 'Done is done. Recorded.' // OCD reassurance: it is filed, you can stop checking
-          : null;
-      if (message) affirm(message);
+      if (parentBack) {
+        affirm(`You started, that's the hard part. ${parentBack} is back when you're ready.`);
+      } else if (done && !cleared) {
+        doneAffirm(); // a rotating completion line (carries the old "good enough" release)
+      }
     }
     commit(finalTasks);
   }
 
-  // Good enough: complete a task you are stuck perfecting, with explicit permission to
-  // release it. Reuses toggle, then overrides the affirmation to the gentler line.
-  function goodEnough(id: string) {
-    setConfirmingId(null);
-    toggle(id);
-    affirm('Good enough is done. Let it go.');
-    track('goodenough.used');
-  }
 
   function capture(text: string, schedule: CaptureSchedule, sliceCount?: number) {
     const titles = parseDump(text);
@@ -1172,7 +1171,6 @@ export default function TodayScreen() {
               onBreakdown={() => breakdownExisting(task.title, task.id)}
               onMakeTiny={() => makeTiny(task.id, task.title)}
               onDefer={() => deferTask(task.id)}
-              onGoodEnough={() => goodEnough(task.id)}
               suggestBreakdown={task.suggestBreakdown}
               selecting={selectMode}
               selected={selected.includes(task.id)}
@@ -1236,7 +1234,6 @@ export default function TodayScreen() {
                   onRetreat={() => step(task.id, -1)}
                   onBreakdown={() => breakdownExisting(task.title, task.id)}
                   onMakeTiny={() => makeTiny(task.id, task.title)}
-                  onGoodEnough={() => goodEnough(task.id)}
                   selecting={selectMode}
                   selected={selected.includes(task.id)}
                   onSelect={() => toggleSelect(task.id)}
@@ -1306,20 +1303,6 @@ export default function TodayScreen() {
                 <Pressable onPress={bulkComplete} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Mark selected done" hitSlop={6}>
                   <Text style={[styles.selectDone, selected.length === 0 && styles.selectActionOff]}>Done</Text>
                 </Pressable>
-                {selected.length === 1 && (
-                  <Pressable
-                    onPress={() => {
-                      const one = selected[0];
-                      if (one) goodEnough(one);
-                      exitSelect();
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel="Mark the selected task good enough and done"
-                    hitSlop={6}
-                  >
-                    <Text style={styles.selectAction}>Good enough</Text>
-                  </Pressable>
-                )}
                 <Pressable onPress={() => setMoveToOpen(true)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Move selected to a date" hitSlop={6}>
                   <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>Move to…</Text>
                 </Pressable>

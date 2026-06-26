@@ -22,7 +22,6 @@ type Props = {
   onRetreat?: () => void;
   onBreakdown?: () => void;
   onDefer?: () => void;
-  onGoodEnough?: () => void;
   onMakeTiny?: () => void;
   suggestBreakdown?: boolean;
   selecting?: boolean;
@@ -57,7 +56,6 @@ export function TaskRow({
   onRetreat,
   onBreakdown,
   onDefer,
-  onGoodEnough,
   onMakeTiny,
   suggestBreakdown,
   selecting,
@@ -132,11 +130,6 @@ export function TaskRow({
           {title}
         </Text>
         <View style={styles.confirmActions}>
-          {onGoodEnough && !recurring && !done && (
-            <Pressable onPress={onGoodEnough} accessibilityRole="button" accessibilityLabel={`Mark ${title} good enough and done`} hitSlop={{ top: 12, bottom: 12 }}>
-              <Text style={styles.goodEnough}>Good enough</Text>
-            </Pressable>
-          )}
           {onDefer && !recurring && (
             <Pressable onPress={onDefer} accessibilityRole="button" accessibilityLabel={`Move ${title} to tomorrow`} hitSlop={{ top: 12, bottom: 12 }}>
               <Text style={styles.keep}>Tomorrow</Text>
@@ -313,7 +306,6 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   confirmTitle: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body },
   confirmActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.three },
   keep: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', paddingHorizontal: spacing.two },
-  goodEnough: { color: t.colors.done, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', paddingHorizontal: spacing.two },
   controlOff: { color: t.colors.inkFaint },
   close: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', paddingHorizontal: spacing.two },
   remove: { color: t.colors.danger, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', paddingHorizontal: spacing.two },

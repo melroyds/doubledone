@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { celebrationTier, finishContext } from './celebrate';
+import { celebrationTier, DONE_AFFIRMATIONS, doneAffirmation, finishContext } from './celebrate';
 
 describe('celebrationTier', () => {
   it('floors a modest same-day whole-task finish at real, never the feeble quick tier', () => {
@@ -44,5 +44,21 @@ describe('finishContext', () => {
 
   it('singularises a one-step finish', () => {
     expect(finishContext({ lingerDays: 0, stepCount: 1 })).toBe('One small step. All done.');
+  });
+});
+
+describe('doneAffirmation (the rotating completion line)', () => {
+  it('rotates through the pool in order and wraps', () => {
+    expect(doneAffirmation(0)).toBe(DONE_AFFIRMATIONS[0]);
+    expect(doneAffirmation(1)).toBe(DONE_AFFIRMATIONS[1]);
+    expect(doneAffirmation(DONE_AFFIRMATIONS.length)).toBe(DONE_AFFIRMATIONS[0]); // wraps round
+    expect(doneAffirmation(DONE_AFFIRMATIONS.length + 2)).toBe(DONE_AFFIRMATIONS[2]);
+  });
+
+  it('keeps every line calm: non-empty and no exclamation', () => {
+    for (const line of DONE_AFFIRMATIONS) {
+      expect(line.length).toBeGreaterThan(0);
+      expect(line).not.toContain('!');
+    }
   });
 });

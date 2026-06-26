@@ -385,10 +385,10 @@ const makeStyles = (t: Theme) =>
     laterLine: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.three },
     netList: { marginTop: spacing.two },
     netRow: {
-      flexDirection: 'row',
-      alignItems: 'baseline',
-      gap: spacing.three,
-      flexWrap: 'wrap',
+      // Column, not a wrapping row: the name on its own line, the description beneath, so every item is
+      // laid out identically (no "this one fits on the line, that one wraps" asymmetry). Used by the
+      // safety-net list and the Premium-suite list.
+      gap: spacing.one,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: t.colors.line,
       paddingVertical: spacing.three,
