@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -15,9 +15,9 @@ import { toISODate } from '@/lib/day';
 import { buildExport } from '@/lib/export';
 import { usePremium } from '@/lib/premium-provider';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
-import { reminderReasonLine } from '@/lib/reminders-types';
+import { clampHour, formatReminderHour, reminderReasonLine } from '@/lib/reminders-types';
 import { type MotionPref, type TextSize, THEME_NAMES, type ThemePref } from '@/lib/settings';
-import { loadLastSyncOk, loadReminderOn, loadScrapbooks, loadTasks, saveReminderOn, wipeLocalData } from '@/lib/storage';
+import { loadLastSyncOk, loadReminderHour, loadReminderOn, loadScrapbooks, loadTasks, saveReminderHour, saveReminderOn, wipeLocalData } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
 import { useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -56,6 +56,8 @@ export default function SettingsScreen() {
   const [exportNote, setExportNote] = useState<string | null>(null);
   const [reminderOn, setReminderOn] = useState(false);
   const [reminderNote, setReminderNote] = useState<string | null>(null);
+  const [reminderHour, setReminderHour] = useState(9); // the hour the daily nudge fires (free for all, an access need)
+  const reminderHourTimer = useRef<ReturnType<typeof setTimeout> | null>(null); // debounce the re-subscribe on +/-
   const [syncOk, setSyncOk] = useState<boolean | null>(null); // last sync result; false = saved local-only
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
@@ -71,6 +73,9 @@ export default function SettingsScreen() {
       void loadReminderOn().then((on) => {
         if (active) setReminderOn(on);
       });
+      void loadReminderHour().then((h) => {
+        if (active) setReminderHour(h);
+      });
       void loadLastSyncOk().then((v) => {
         if (active) setSyncOk(v);
       });
@@ -84,7 +89,7 @@ export default function SettingsScreen() {
   // same lib + persisted flag, so the two stay in sync.
   async function setReminder(on: boolean) {
     if (on) {
-      const result = await enableDailyReminder();
+      const result = await enableDailyReminder(reminderHour);
       setReminderOn(result.ok);
       void saveReminderOn(result.ok);
       track('reminder.enabled', { granted: result.ok });
@@ -96,6 +101,20 @@ export default function SettingsScreen() {
       setReminderNote(null);
       track('reminder.disabled');
     }
+  }
+
+  // Change the hour the daily reminder fires. The displayed time and the saved value update instantly; the
+  // actual re-subscribe (web push) / re-schedule (native) is debounced so a flurry of +/- taps makes ONE
+  // re-apply at the final hour, never a burst, and the last write is the one that lands.
+  function changeReminderHour(next: number) {
+    const h = clampHour(next);
+    if (h === reminderHour) return;
+    setReminderHour(h);
+    void saveReminderHour(h);
+    if (reminderHourTimer.current) clearTimeout(reminderHourTimer.current);
+    reminderHourTimer.current = setTimeout(() => {
+      void enableDailyReminder(h);
+    }, 600);
   }
 
   // "Your stuff is yours": download (web) or share (native) a JSON of the user's
@@ -254,6 +273,39 @@ export default function SettingsScreen() {
             onChange={(v) => setReminder(v === 'on')}
           />
           {reminderNote && <Text style={styles.rowHint}>{reminderNote}</Text>}
+          {reminderOn && (
+            <View style={styles.reminderTimeRow}>
+              <Text style={styles.reminderTimeLabel}>Remind me at</Text>
+              <View style={styles.stepper}>
+                <Pressable
+                  onPress={() => changeReminderHour(reminderHour - 1)}
+                  disabled={reminderHour <= 0}
+                  accessibilityRole="button"
+                  accessibilityLabel="Earlier"
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.stepBtn, reminderHour <= 0 && styles.stepBtnOff, pressed && styles.pressed]}
+                >
+                  <Text style={styles.stepGlyph}>−</Text>
+                </Pressable>
+                <Text
+                  style={styles.stepValue}
+                  accessibilityLabel={`Daily reminder at ${formatReminderHour(reminderHour)}`}
+                >
+                  {formatReminderHour(reminderHour)}
+                </Text>
+                <Pressable
+                  onPress={() => changeReminderHour(reminderHour + 1)}
+                  disabled={reminderHour >= 23}
+                  accessibilityRole="button"
+                  accessibilityLabel="Later"
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.stepBtn, reminderHour >= 23 && styles.stepBtnOff, pressed && styles.pressed]}
+                >
+                  <Text style={styles.stepGlyph}>+</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
           <View style={styles.accentBlock}>
             <View style={styles.accentHead}>
               <Text style={styles.accentLabel}>Colour theme</Text>
@@ -571,6 +623,13 @@ const makeStyles = (t: Theme) =>
     swatchRingOn: { borderColor: t.colors.ink },
     swatch: { width: 30 * t.scale, height: 30 * t.scale, borderRadius: radius.pill },
     swatchName: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.sans },
+    reminderTimeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.three, gap: spacing.three },
+    reminderTimeLabel: { ...t.type.body, color: t.colors.ink },
+    stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
+    stepBtn: { width: 36, height: 36, borderRadius: radius.pill, borderWidth: border.hair, borderColor: t.colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: t.colors.surface },
+    stepBtnOff: { opacity: 0.4 },
+    stepGlyph: { fontSize: 22 * t.scale, lineHeight: 26 * t.scale, color: t.colors.accent, fontFamily: fonts.body },
+    stepValue: { ...t.type.bodyStrong, color: t.colors.ink, minWidth: 88, textAlign: 'center' },
     segment: { marginTop: spacing.three },
     pressed: { opacity: PRESSED_OPACITY },
     privacyLink: { marginTop: spacing.two },

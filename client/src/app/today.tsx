@@ -53,7 +53,7 @@ import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge }
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadClosedDate, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderOfferMade, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOfferMade, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData } from '@/lib/storage';
+import { loadClosedDate, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderHour, loadReminderOfferMade, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOfferMade, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { isAccountGone, localBelongsToAnother, syncOnce } from '@/lib/sync';
 import { parseDump, sweepElapsedNudges, type Task } from '@/lib/tasks';
@@ -650,7 +650,7 @@ export default function TodayScreen() {
       void saveReminderOn(false);
       track('reminder.disabled');
     } else {
-      const result = await enableDailyReminder();
+      const result = await enableDailyReminder(await loadReminderHour());
       setReminderOn(result.ok);
       void saveReminderOn(result.ok);
       track('reminder.enabled', { granted: result.ok });
@@ -664,7 +664,7 @@ export default function TodayScreen() {
   async function acceptReminderOffer() {
     setReminderOfferMade(true);
     void saveReminderOfferMade();
-    const result = await enableDailyReminder();
+    const result = await enableDailyReminder(await loadReminderHour());
     setReminderOn(result.ok);
     void saveReminderOn(result.ok);
     track('reminder.enabled', { granted: result.ok, via: 'closeday_offer' });

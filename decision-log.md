@@ -3328,3 +3328,17 @@ THEME_PRESETS + toPalette in constants/theme.ts, ThemeName/themePreset replacing
 lib/settings.ts, the Settings "Colour theme" picker. Verified light and dark in-preview (Sage plus all seven
 swatches repaint correctly in both schemes). Decided against translated theme names for now (the names are
 evocative English; a later i18n pass can localise them).
+
+## 2026-06-27 Reminder time is the user's to choose
+
+The daily nudge fired at a hardcoded 9am, wrong for anyone whose day does not start at nine, and a reminder at
+the wrong time is worse than none (it trains the user to dismiss it). Added a persisted reminder hour (0-23,
+default 9am) and a calm minus/plus stepper in Settings that shows ONLY when the reminder is on, so it stays
+contextual, never a standing knob (the spine holds: no new setting for someone who has not opted in). The hour is
+an access need, not a Premium lever, so it is free for everyone. The displayed time and the saved value update
+instantly; the actual re-apply (web-push re-subscribe / native re-schedule) is debounced 600ms so a flurry of
+taps makes ONE network call at the final hour, never a burst, and avoids a race where an earlier POST lands last.
+All three enable sites (the Settings toggle, the Today footer, the close-day offer) now read the saved hour, so
+the time is consistent wherever the reminder is switched on. New: reminderHour in storage, clampHour +
+formatReminderHour (pure, unit-tested) in reminders-types, the Settings stepper. Verified in-preview: the stepper
+renders only when on, steps the hour, updates the 12-hour label, and persists.

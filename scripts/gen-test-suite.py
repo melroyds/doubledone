@@ -351,6 +351,9 @@ CASES = [
     ("SET-07", "Settings", "P2", "Daily reminder explains why it can't turn on",
      "In Settings, set 'Daily reminder' to On in a context where it can't be granted: deny the browser notification prompt on web, or have notifications blocked.",
      "The toggle returns to Off and a calm one-line reason appears under it (e.g. 'Notifications are off for DoubleDone. Turn them on in your settings, then try again.'), never a silent failure and never a raw error. Granting permission and retrying turns it On.", "Both"),
+    ("SET-08", "Settings", "P2", "Daily reminder time picker",
+     "Turn 'Daily reminder' On, then use the - / + stepper that appears under it to change the time. Step down toward 12:00 AM and up toward 11:00 PM (the ends disable). Reload and re-open Settings; also turn the reminder on from the Today footer and confirm it uses the chosen time.",
+     "A '- TIME +' stepper shows ONLY while the reminder is On, with a calm 12-hour label (e.g. '9:00 AM'). Each tap moves the hour by one and the label updates instantly; the minus disables at 12:00 AM, the plus at 11:00 PM. The chosen time survives reload and the daily nudge fires at that hour (not a fixed 9am), consistently wherever the reminder is switched on. Free for everyone, no upsell.", "Both"),
 
     # --- Accessibility --------------------------------------------------------
     ("A11Y-01", "Accessibility", "P2", "Screen reader (TalkBack)",
