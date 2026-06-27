@@ -41,6 +41,10 @@
   "vars": {
     "STRIPE_PRICE_ID": "price_1TkHS3JmzIqjJFzqnTgI99Rt",
     "STRIPE_PRICE_ID_ANNUAL": "price_1Tmod5JmzIqjJFzqVa1VRRM6",
-    "APP_URL": "https://doubledone.app"
+    "APP_URL": "https://doubledone.app",
+    // The hard Anthropic monthly cap in dollars, the control centre's spend alarm baseline
+    // (see server/src/monitor.ts). Non-secret. The dead-man's-switch ping URL is the
+    // optional HEARTBEAT_URL Worker secret (npx wrangler secret put HEARTBEAT_URL).
+    "ANTHROPIC_MONTHLY_CAP_USD": "25"
   }
 }

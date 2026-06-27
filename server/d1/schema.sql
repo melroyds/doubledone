@@ -107,3 +107,15 @@ create table if not exists scrapbook_log (
   created_at integer not null           -- epoch ms the keepsake was generated
 );
 create index if not exists scrapbook_log_ip on scrapbook_log (ip, created_at);
+
+-- Control-centre alert dedup (see server/src/monitor.ts): the last-sent time per alarm
+-- KIND, so the hourly health sweep does not re-send the same alarm every tick. NO user
+-- data of any kind: just a kind label and a timestamp. Worker-bound, written only by the
+-- monitor (which also CREATEs it defensively, so the sweep works before this is applied).
+-- Apply once (idempotent):
+--   npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --file d1/schema.sql
+create table if not exists alerts_sent (
+  kind text not null,             -- 'spend' | 'error' | 'scrapbook-budget' | 'scrapbook-abuse' | 'volume' | 'digest'
+  created_at integer not null     -- epoch ms the alert was sent
+);
+create index if not exists alerts_sent_kind on alerts_sent (kind, created_at);

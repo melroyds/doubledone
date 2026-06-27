@@ -15,6 +15,7 @@ import { buildOcrRequest, type ImageMediaType, OCR_MODEL, parseMediaType, parseO
 import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
 import { handleTrial, requirePremium } from './premium';
 import { deleteSub, parsePushSub, saveSub, sendDailyNudges } from './push';
+import { runMonitor } from './monitor';
 import { dataUrl, IMAGE_MODEL, imagePrompt, overDailyCap, parseImage, parseScene, SCENE_MODEL, sceneMessages } from './scrapbook';
 import { buildSequenceRequest, parseEnergy, parseSequenceResponse, SEQUENCE_MODEL } from './sequence';
 import { buildSplitRequest, parseSplitResponse, SPLIT_MODEL } from './split';
@@ -85,6 +86,11 @@ export interface Env {
   // Both optional so the app + tests run with feedback unconfigured.
   SEND_EMAIL?: SendEmailBinding;
   FEEDBACK_TO?: string;
+  // The launch control centre (see monitor.ts): the hard Anthropic cap in dollars (a
+  // non-secret var, default 25) and an optional dead-man's-switch ping URL (a Worker
+  // secret). Both drive the hourly health sweep + daily pulse on the cron below.
+  ANTHROPIC_MONTHLY_CAP_USD?: string;
+  HEARTBEAT_URL?: string;
 }
 
 // The app's own origins. A browser request from anywhere else is refused before
@@ -1033,5 +1039,9 @@ export default {
   // payloadless push to each subscription whose local hour matches now. See push.ts.
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(sendDailyNudges(env, Date.now()));
+    // The control centre rides the same hourly tick: ping the dead-man's-switch, sweep
+    // D1 for trouble (spend / errors / abuse), and once a day send the pulse. Isolated
+    // from the nudge above so a failure in one never blocks the other. See monitor.ts.
+    ctx.waitUntil(runMonitor(env, Date.now()));
   },
 } satisfies ExportedHandler<Env>;

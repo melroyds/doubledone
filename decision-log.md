@@ -3441,3 +3441,55 @@ the mock: the "Today" card's completion ticks use the app's dark-ink-on-sage tic
 contrast sweep), not the mock's white check, so the front door matches the product and clears AA. Verified
 in-preview, light and dark: all copy plus the Today mock and the deepened accent button render in both schemes.
 Still web-only (native and onboarded web skip to /today).
+
+## 2026-06-27 The launch control centre (monitoring + alarms + the dead-man's-switch)
+
+For a proper Monday launch a solo founder needs to KNOW within minutes if something breaks, spikes, or gets
+abused, without staring at a dashboard. Designed it first across four expert lenses (reliability, cost, growth,
+abuse), which converged on one shape: a control centre that taps the shoulder on trouble and stays silent
+otherwise. Built `server/src/monitor.ts`, riding the EXISTING hourly cron (`scheduled()`) and reusing the proven
+`SEND_EMAIL` + `FEEDBACK_TO` path, so the whole thing is wiring, not new infrastructure.
+
+What shipped:
+- **An hourly health sweep over D1** that emails the owner ONLY on a breach: AI **$-spend vs the $25 cap** (real
+  dollars from the `input_tokens`/`output_tokens` columns x per-model prices, Haiku $1/$5, Sonnet $3/$15, Opus
+  $15/$75, alarming at 50% of the cap AND on a linear month-end projection, because the cap is a kill switch that
+  presents as a total outage); an **error spike** (a low absolute floor of 5/hr AND a >30% rate, OR a hard 10/hr,
+  so a 2-of-2 blip is never read as 100%); the **scrapbook neuron-budget** (the GLOBAL daily image count, the wall
+  the dollar query cannot see) and **per-source abuse** (an IP near the 20/24h backstop); and an **hourly volume
+  spike**. De-duped via an `alerts_sent` table (6h per kind), so it never becomes noise you learn to ignore.
+- **A once-a-day digest** (06:00 Melbourne) as the pulse, whose mere arrival is a soft proof the cron + email path
+  is alive.
+- **A dead-man's-switch**: the cron pings an external watcher (`HEARTBEAT_URL`, a Worker secret, e.g.
+  Healthchecks.io) every tick, FIRST and unconditionally, so silence provably means healthy rather than "the alarm
+  itself died". This was the four-lens design's highest-leverage insight (the alarm-on-the-alarm): a self-hosted
+  alarm cannot detect its own death.
+
+Decisions that shaped it:
+- **Privacy by construction.** The alert email is a NEW egress path out of the pseudonymous store into an inbox,
+  so it is deliberately information-poor: counts, endpoints, error STRINGS ("upstream 529") and dollar amounts
+  only. It never reads `ai_calls.input/output` (the task text), never a raw IP, never a `user_id`. A unit test
+  asserts no IPv4 can appear in a body.
+- **Fail-open everywhere.** Every step is isolated in try/catch; the heartbeat fires even if D1/email is down; the
+  dedup read fails open (alert rather than suppress). The sweep can never break the app or the daily nudge it
+  shares the tick with.
+- **The cap is a non-secret var** (`ANTHROPIC_MONTHLY_CAP_USD=25` in wrangler.jsonc), tunable without a code edit.
+  The thresholds are named consts in one place, set deliberately low for tiny launch numbers with the intent to
+  retune after real traffic.
+
+Decided against (the discipline of stopping):
+- **A custom Stripe-webhook fraud branch** (dispute / refund / failed-payment alerts) was DEFERRED. Stripe's own
+  native email alerts cover it, and touching the money path's `handleWebhook` for mere redundancy is not worth the
+  launch risk. Backlogged.
+- **An in-app owner analytics screen** was deferred. The CLI (`npm run stats`) plus the daily digest cover the
+  at-a-glance need; a screen adds a route and an owner-gated endpoint for marginal gain.
+- **Signups / activation-rate in the digest** were left out. They need Supabase `auth.users`, which needs the
+  service-role key we never use, so the digest stays D1-only. Noted as a real measurement gap: the anonymous-first
+  majority is invisible to every per-user metric, the single biggest blind spot the growth lens raised.
+- **Cloudflare Health Checks** (a paid load-balancing feature) for uptime were replaced by free external monitors
+  (UptimeRobot for HTTP liveness on `/health`, Healthchecks.io for the cron heartbeat), set up by Melroy, on a
+  DIFFERENT channel than the custom path so the two do not share a single point of failure.
+
+Activation still pending (Melroy's parallel setup): the native Cloudflare/Stripe alerts, the UptimeRobot monitor,
+the Healthchecks.io account that provides `HEARTBEAT_URL`, then one Worker redeploy (his per-instance OK) plus
+applying the `alerts_sent` table (the monitor also creates it defensively).
