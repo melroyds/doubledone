@@ -3120,7 +3120,7 @@ The completeness audit's single highest-leverage gap: the long-press was the onl
 (pin, remind, combine, make-it-tiny, bulk select), and nothing taught it. For a demand-avoidant audience that
 will not fish for invisible gestures, an untaught gesture is a feature that does not exist. Today now shows a
 one-time, dismissible coachmark above the task list, when there are tasks and the hint has not been seen,
-"Hold a task for more, pin it, set a reminder, break it down, or make it tiny", keyed off a doubledone.holdhint.v1
+"Hold a task for more: pin it, set a reminder, break it down, or make it tiny", keyed off a doubledone.holdhint.v1
 flag (loadHoldHintSeen / saveHoldHintSeen). Tap "Got it" to retire it forever. On premium.
 
 ## 2026-06-27 Premium: custom accent colour (a curated four)
