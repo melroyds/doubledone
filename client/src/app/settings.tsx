@@ -356,6 +356,14 @@ export default function SettingsScreen() {
         >
           <Text style={styles.privacyLinkText}>Privacy & data ›</Text>
         </Pressable>
+        <Pressable
+          onPress={() => router.push('/terms')}
+          accessibilityRole="button"
+          accessibilityLabel="Terms of service"
+          style={styles.privacyLink}
+        >
+          <Text style={styles.privacyLinkText}>Terms ›</Text>
+        </Pressable>
 
         <View style={styles.account}>
           <Text style={styles.accountLabel}>Your data</Text>

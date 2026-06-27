@@ -3499,3 +3499,30 @@ Still decided against (the discipline of stopping):
 Activation still pending (Melroy's parallel setup): the native Cloudflare/Stripe alerts, the UptimeRobot monitor,
 the Healthchecks.io account that provides `HEARTBEAT_URL`, then one Worker redeploy (his per-instance OK) plus
 applying the `alerts_sent` table (the monitor also creates it defensively).
+
+## 2026-06-27 Legal and privacy for a live paid product (Terms, refunds, ACL)
+
+The v1 documentation audit's biggest find: DoubleDone went commercial (live Stripe, real subscribers) with NO Terms
+of Service, no refund policy, no entity disclosure, and a privacy policy that predated both the control centre and
+Stripe. For a paid product under Australian law that is a real gap, so we closed it as part of the v1 line in the
+sand.
+
+Shipped:
+- A plain-English **Terms of Service + refund policy**, using the same dual-surface pattern as the privacy policy: a
+  static `client/public/terms.html` (the crawlable `/terms` URL a store listing needs) mirrored by an in-app
+  `client/src/app/terms.tsx` screen, linked from Settings. It covers who operates it, acceptable use + suspension,
+  Premium billing (A$5/mo or A$50/yr, auto-renew, the 30-day trial, cancel via the Stripe portal), the refund policy
+  (full refund within 7 days if Premium does not work as described, otherwise cancel-anytime with no current-period
+  refund), an as-is warranty with a liability cap at fees paid, governing law Victoria, and an explicit line that
+  nothing limits Australian Consumer Law rights.
+- The **privacy policy brought current** (both `privacy.html` and `privacy.tsx`, kept identical): it now discloses
+  the control-centre owner alerts (counts and error strings only, never task text, IP, or user_id), the Stripe
+  payment events (Stripe processes payments; we receive event-type / amount / id notifications), an Australian-privacy
+  section (Privacy Act 1988 + ACL, the right to access / correct / delete, the OAIC), and a clear operator line. Date
+  moved to 27 June.
+
+Decided / assumed, flagged for Melroy to confirm: operated as a sole trader under his own name, no ABN or company;
+the refund window is 7 days; governing law Victoria; the annual saving left as the existing on-screen "17%" so the
+number cannot drift across surfaces. This is a reasonable, ACL-aware DRAFT, explicitly not legal advice, with a clear
+in-file note that a lawyer's once-over is cheap insurance now that real money moves. Decided AGAINST blocking the v1
+docs pass on that review: terms being live beats the bigger risk of nothing at all, and they are trivially updated.

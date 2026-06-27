@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<!--
+  Static, crawlable Terms of Service, served at https://doubledone.app/terms.
+
+  WHY THIS EXISTS: the web app is a client-rendered SPA, so a non-JS crawler (e.g. a store
+  listing's terms-URL check) sees only the empty app shell. This static file is the public
+  terms URL. Mirror of the in-app screen client/src/app/terms.tsx.
+
+  KEEP IN SYNC with client/src/app/terms.tsx. Same terms, two surfaces. Update both together.
+
+  NOTE: this is a plain-English draft written to be reasonable and Australian-Consumer-Law
+  aware, not legal advice. Have it reviewed before relying on it for the business.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="index, follow" />
+    <title>Terms · DoubleDone</title>
+    <style>
+      :root {
+        --bg: #faf6f1;
+        --ink: #2b2722;
+        --ink-soft: #5f574d;
+        --ink-faint: #8a7f73;
+        --accent: #9b6a7d;
+        --line: #ece4d8;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #1b1917;
+          --ink: #f2ebe0;
+          --ink-soft: #c9c0b4;
+          --ink-faint: #8a7f73;
+          --accent: #c68ba0;
+          --line: #322d28;
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; background: var(--bg); }
+      body {
+        color: var(--ink-soft);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.6;
+        font-size: 17px;
+        -webkit-font-smoothing: antialiased;
+      }
+      main { max-width: 640px; margin: 0 auto; padding: 48px 22px 96px; }
+      h1 { color: var(--ink); font-size: 40px; font-weight: 600; letter-spacing: -0.5px; margin: 0; font-family: Georgia, "Times New Roman", serif; }
+      .updated { color: var(--ink-faint); font-size: 14px; margin-top: 10px; }
+      .lead { color: var(--ink); font-size: 18px; margin-top: 28px; }
+      h2 { color: var(--ink); font-size: 20px; font-weight: 700; margin: 40px 0 8px; }
+      p { margin: 0 0 14px; }
+      a { color: var(--accent); }
+      .foot { color: var(--ink-faint); font-size: 14px; text-align: center; margin-top: 64px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Terms</h1>
+      <p class="updated">Last updated 27 June 2026.</p>
+
+      <p class="lead">
+        These are the plain terms for using DoubleDone. No wall of legalese, just what you can expect from us and
+        what we expect from you.
+      </p>
+
+      <h2>Who we are</h2>
+      <p>
+        DoubleDone is a calm daily to-do app operated by Melroy D'Souza, an independent developer based in
+        Melbourne, Victoria, Australia. You can reach us any time at
+        <a href="mailto:support@doubledone.app">support@doubledone.app</a>.
+      </p>
+
+      <h2>Using DoubleDone</h2>
+      <p>
+        You can use the free app on your own device, with or without an account, for your own personal task
+        management. Please do not misuse the service, for example by scripting or overloading it, or trying to break
+        or abuse the AI features. We may suspend access we reasonably believe is abusive or harmful, to keep the
+        service fair for everyone. The app is provided as it is and as available. We work to keep it running, but we
+        cannot promise it will never be down.
+      </p>
+
+      <h2>Premium and billing</h2>
+      <p>
+        Premium is optional. It costs A$5 per month or A$50 per year, charged through Stripe, and it renews
+        automatically until you cancel. New accounts get a 30-day trial with no card required. You can cancel any
+        time in the Stripe billing portal, reachable from the app, and you keep Premium until the end of the period
+        you have already paid for. We will give reasonable notice of any price change.
+      </p>
+
+      <h2>Refunds</h2>
+      <p>
+        If Premium does not work as described, email
+        <a href="mailto:support@doubledone.app">support@doubledone.app</a> within 7 days of the charge and we will
+        refund it in full, back through Stripe, usually within 5 to 10 business days. Outside that window we do not
+        refund the current period once it has started, but you can cancel any time to stop future charges. None of
+        this limits your rights under the Australian Consumer Law, which always apply.
+      </p>
+
+      <h2>Your tasks are yours</h2>
+      <p>
+        You own what you create in DoubleDone. We claim no ownership of your tasks or content. How we handle data is
+        set out in our <a href="/privacy">Privacy policy</a>.
+      </p>
+
+      <h2>Our liability</h2>
+      <p>
+        DoubleDone is provided as it is and as available, without warranties beyond those that cannot be excluded by
+        law. To the extent the law allows, we are not liable for indirect or consequential loss, and our total
+        liability to you is limited to the amount you have paid us in the 12 months before a claim. Nothing here
+        excludes the consumer guarantees under the Australian Consumer Law.
+      </p>
+
+      <h2>Changes to these terms</h2>
+      <p>
+        We may update these terms as the app evolves. If we make a material change, we will update the date above
+        and, where it matters, let you know in the app. Continuing to use DoubleDone after a change means you accept
+        the updated terms.
+      </p>
+
+      <h2>Governing law</h2>
+      <p>
+        These terms are governed by the laws of Victoria, Australia, and we each submit to the courts of that state.
+        Nothing in them limits any rights you have under the Australian Consumer Law.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        Questions about these terms? Email <a href="mailto:support@doubledone.app">support@doubledone.app</a>.
+      </p>
+
+      <p class="foot">Plain terms for a calm app.</p>
+    </main>
+  </body>
+</html>

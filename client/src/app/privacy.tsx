@@ -22,7 +22,7 @@ export default function PrivacyScreen() {
         <BackLink fallback="/settings" />
 
         <Text style={styles.title}>Privacy</Text>
-        <Text style={styles.updated}>Last updated 23 June 2026.</Text>
+        <Text style={styles.updated}>Last updated 27 June 2026.</Text>
 
         <Text style={styles.lead}>
           DoubleDone is built to need almost nothing from you. It runs on your device, and nothing leaves it unless you
@@ -57,6 +57,20 @@ export default function PrivacyScreen() {
           </Text>
         </View>
 
+        <Section styles={styles} heading="Payment events">
+          Payments for Premium are processed by Stripe, not by us. We never see or store your card details. When a
+          payment event happens on your subscription, a payment succeeding or failing, a refund, or a chargeback,
+          Stripe sends us an automated note of the event type, the amount, and a Stripe event id, so we can keep your
+          Premium status correct. We never sell or share it.
+        </Section>
+
+        <Section styles={styles} heading="Keeping the service running">
+          To keep DoubleDone up and within budget, our systems alert the owner when something needs attention, for
+          example AI spending nearing its cap, an unusual spike in errors, or signs of abuse. These alerts hold only
+          numbers, error messages, and the names of the parts of the system involved. They never contain your tasks,
+          your email, your account, or your IP address.
+        </Section>
+
         <Section styles={styles} heading="What we never do">
           No ads. No third-party trackers or analytics identities. No selling or sharing your data. We never ask for
           your name, phone number, location, or contacts.
@@ -68,8 +82,16 @@ export default function PrivacyScreen() {
           everything synced to it from Settings.
         </Section>
 
-        <Section styles={styles} heading="Questions">
-          DoubleDone is an independent project. Questions or privacy requests can be sent to support@doubledone.app.
+        <Section styles={styles} heading="Your privacy under Australian law">
+          We handle any personal information in line with the Privacy Act 1988 and the Australian Consumer Law. You can
+          ask to access the personal information we hold about you, or to correct or delete it, by emailing
+          support@doubledone.app, and we respond within 30 days. If you are ever unhappy with how we have handled your
+          information, you can contact the Office of the Australian Information Commissioner at oaic.gov.au.
+        </Section>
+
+        <Section styles={styles} heading="Who runs DoubleDone, and questions">
+          DoubleDone is operated by Melroy D&apos;Souza, an independent developer in Melbourne, Australia. Questions,
+          privacy requests, and refund requests can be sent to support@doubledone.app.
         </Section>
 
         <Text style={styles.footnote}>Privacy by architecture, not by promises.</Text>
