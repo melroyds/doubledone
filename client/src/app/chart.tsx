@@ -196,7 +196,7 @@ export default function ChartScreen() {
               label={selectedCount === 0 ? 'Pick a step to add' : `Add ${selectedCount} ${selectedCount === 1 ? 'task' : 'tasks'}`}
               onPress={addTasks}
               disabled={adding || selectedCount === 0}
-              accessibilityLabel={`Add ${selectedCount} tasks to Today`}
+              accessibilityLabel={`Add ${selectedCount} ${selectedCount === 1 ? 'task' : 'tasks'} to Today`}
               style={styles.ctaSpace}
             />
             <Pressable

@@ -269,7 +269,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
             disabled={busy}
             style={({ pressed }) => [styles.speak, pressed && styles.pressed, busy && styles.disabled]}
             accessibilityRole="button"
-            accessibilityLabel="Read a list from a photo"
+            accessibilityLabel="Scan a photo of your list"
           >
             <Mark name="camera" size={16} color={theme.colors.inkSoft} />
             <Text style={styles.speakText}>Scan</Text>

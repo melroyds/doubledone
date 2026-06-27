@@ -1739,7 +1739,7 @@ export default function TodayScreen() {
       <ModalCard visible={moveToOpen} onClose={() => setMoveToOpen(false)}>
             <Text style={styles.didTitle}>Move to…</Text>
             <Text style={styles.didHint}>
-              {`${selected.length} ${selected.length === 1 ? 'task' : 'tasks'} move to the day you pick.`}
+              {selected.length === 1 ? 'One task moves to the day you pick.' : `${selected.length} tasks move to the day you pick.`}
             </Text>
             <View style={styles.moveToPresets}>
               <Pressable
