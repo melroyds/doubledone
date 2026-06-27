@@ -85,10 +85,22 @@ So the product went *deep* on the failure modes rather than wide on new ones. Fo
 
 - **Crossing the start line** got two more answers. Break-it-down stopped flattening the task: the original is kept as a silent background parent, so you only ever hold one small pebble and the boulder never looms, yet finishing the pebbles still finishes the real thing. And "Make it tiny" shrinks a stuck task to a literal two-minute version, because sometimes the work is just getting unstuck.
 - **The day itself** got gentler. A one-tap "low day" recalibrates Today to a smaller target when you have less to give, and a quiet evening wind-down invites you to close the day instead of nagging you about it.
-- **The OCD and perfectionism overlap**, which the product had always named in its audience but never actually served, finally got features. "Done is done" reassures that a finished task is filed and you can stop checking, and "Good enough" gives permission to release a task you are over-polishing.
+- **The OCD and perfectionism overlap**, which the product had always named in its audience but never actually served, finally got a feature. "Done is done" reassures that a finished task is filed and you can stop checking, a calm, consistent line that meets the checking loop without feeding it.
 - **Structure without a streak.** Routines are a calm morning or evening checklist that keeps no streak and no history, so there is nothing to break. It is the one piece of this seam most apps get wrong, and getting it right is the entire point.
 
 This is the move from "a calm to-do app with some ADHD touches" to a system organised around how these brains actually fail. It is also the part hardest to copy: a competitor can clone a screen in a weekend, but not the accumulated judgment about which thin spot to deepen next.
+
+## Going live: the rigour that is not features
+
+Feature-complete is not launch-ready, and the gap between them is what separates a finished prototype from a business. The last stretch was almost entirely rigour, not new features.
+
+- **Monetisation, built so the server never trusts the client.** Premium is a Stripe subscription (A$5/mo or A$50/yr) with a 30-day card-free trial. The client never decides its own premium status: a signature-verified, idempotent webhook writes an entitlement to the database, and a server guard re-checks it on every paid call. The free tier stays genuinely good on purpose, because for an RSD-prone audience a crippled free tier reads as bait-and-switch.
+- **Hardening the money path before it saw volume.** A per-IP backstop so a script cannot drain the shared image budget, a double-subscription guard so a user cannot double-charge themselves, and the webhook taught to alert on disputes, refunds, and failed payments. None of it can crash a request; all of it fails open or defensive.
+- **Instrumenting operations before scale, not after an incident.** A launch control centre watches spend against a hard cap, error rates, and abuse, hourly, and emails only on a breach, with a daily pulse and a dead-man's-switch so silence provably means healthy. A solo founder cannot watch a dashboard, so the system has to tap the shoulder. The sharpest call, the alarm-on-the-alarm, came from designing it across four independent expert lenses rather than one.
+- **Measure the claim, then make it.** When the design system claimed AA contrast, the honest move was to compute the ratios and put the numbers in a test, not to assert it in a doc. A contrast sweep deepened a handful of tokens until the claim was true, then proved it.
+- **A real front door.** The marketing landing was redesigned to be calm and editorial rather than loud, empathy first, showing the product rather than shouting a headline, and rebuilt on the live theme so it follows light and dark for free.
+
+**The proof.** Going commercial closed the loop the whole thesis rested on: this audience does pay for a tool that respects how their brains work. There are real paying subscribers, the completion-data flywheel is live and logging what a competitor cannot buy, and the control centre's daily digest now tracks the things that actually matter, activation, spend, and the first signs of whether people stay. The week-six bar is still the bar, but for the first time there is a real curve forming against it, not a hypothesis.
 
 ## What this is meant to show
 
@@ -100,8 +112,9 @@ A product manager who:
 - holds one non-negotiable rule and lets it override good ideas;
 - builds a defensible data moat and resolves its privacy tension by architecture;
 - and keeps a reasoning trail honest enough to reconstruct every call, including the roads not taken;
-- and knows when polish is the highest-leverage work, scoping a redesign by auditing each surface rather than rebuilding on reflex.
+- knows when polish is the highest-leverage work, scoping a redesign by auditing each surface rather than rebuilding on reflex;
+- and takes a product the last mile from feature-complete to commercially live, hardening the money paths and instrumenting operations before they meet real volume, then proving the thesis with real paying users.
 
 ## Status
 
-Core loop shipped on web ([doubledone.app](https://doubledone.app)) and Android, then a full design pass, a guided replayable first-run, and a deep ADHD product seam: the silent-parent chain, Make-it-tiny, the low-capacity day, the wind-down, never-streak Routines, and OCD reassurance, plus talk-to-capture and a public REST API beside the agent MCP server. The completion-outcome half of the moat is now instrumented too. Next: multi-language. The full sequence and the parked-with-triggers backlog are in [`BUILD-PLAN.md`](../BUILD-PLAN.md).
+**v1.0.0, live and commercial.** The core loop shipped on web ([doubledone.app](https://doubledone.app)) and Android, then a full design pass and a marketing landing, a guided replayable first-run, and a deep ADHD product seam (the silent-parent chain, Make-it-tiny, the low-capacity day, the wind-down, never-streak Routines, OCD reassurance), beside the agent MCP server and a public REST API. Then the commercial half: Stripe Premium live with real subscribers (the 30-day trial, the annual plan), the money-path hardening, and the launch control centre. In progress: the Google Play listing, and the in-app language picker over the shipped i18n foundation. The full sequence and the parked-with-triggers backlog are in [`BUILD-PLAN.md`](../BUILD-PLAN.md).
