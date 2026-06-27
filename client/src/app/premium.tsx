@@ -9,7 +9,7 @@ import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { useSession } from '@/lib/auth';
 import { weeklyAllowance } from '@/lib/entitlement';
 import { usePremium } from '@/lib/premium-provider';
-import { startCheckout, startPortal } from '@/lib/stripe';
+import { startCheckout, startPortal, startTrial } from '@/lib/stripe';
 import { track } from '@/lib/telemetry';
 import { useThemedStyles } from '@/lib/theme-provider';
 
@@ -58,6 +58,7 @@ export default function PremiumScreen() {
   // reassurance ("your payment went through"). The worst place to dead-end is right after taking money.
   const [stuck, setStuck] = useState(false);
   const [plan, setPlan] = useState<'monthly' | 'annual'>('monthly'); // which price the checkout opens
+  const [trialNote, setTrialNote] = useState<string | null>(null); // gentle note after a trial tap (e.g. already used)
   useEffect(() => {
     if (status !== 'success' || premium) return;
     let tries = 0;
@@ -91,6 +92,28 @@ export default function PremiumScreen() {
     }
   }
 
+  // The card-free one-month trial: no checkout, the server grants 30 days of Premium to this account once.
+  // 'already' is gentle (never shame), and on success we refresh so the page flips to the Premium state.
+  async function startFreeTrial() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    setTrialNote(null);
+    track('premium.trial_tapped');
+    const res = await startTrial();
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error === 'sign_in' ? 'Sign in first, so the trial attaches to your account.' : 'Could not start the trial just now. Try again.');
+      return;
+    }
+    if (res.result === 'already') {
+      setTrialNote("You've already had your free month. Go Premium any time to keep it.");
+      return;
+    }
+    track('premium.trial_started');
+    refresh();
+  }
+
   async function manage() {
     if (busy) return;
     setBusy(true);
@@ -120,24 +143,36 @@ export default function PremiumScreen() {
           <ActivityIndicator color={styles.spinner.color} style={styles.loadingPad} />
         ) : premium ? (
           <View style={styles.panel}>
-            <Text style={styles.panelHead}>You&apos;re Premium ✓</Text>
+            <Text style={styles.panelHead}>{status === 'trial' ? 'Your free month ✓' : "You're Premium ✓"}</Text>
             <Text style={styles.body}>
               Everything is unlocked: Scan, Chart a course, Plan my day, Your patterns, and {allowance} weekly scrapbook{allowance === 1 ? '' : 's'}
               {allowance < 4 ? ', more the longer you stay.' : '.'} Thank you for keeping DoubleDone independent.
             </Text>
-            {effectiveEntitlement.cancelAtPeriodEnd && periodLabel ? (
+            {status === 'trial' && periodLabel ? (
+              <Text style={styles.subStatus}>Free until {periodLabel}, then back to the free monthly scrapbook. No charge, ever, unless you choose to keep it.</Text>
+            ) : effectiveEntitlement.cancelAtPeriodEnd && periodLabel ? (
               <Text style={styles.subStatus}>Premium until {periodLabel}, then back to the free monthly scrapbook.</Text>
             ) : periodLabel ? (
               <Text style={styles.subStatus}>Renews {periodLabel}.</Text>
             ) : null}
             <Text style={styles.foot}>The free monthly scrapbook is always yours, even if you cancel.</Text>
-            <PrimaryButton
-              label={busy ? 'Opening…' : 'Manage subscription'}
-              onPress={manage}
-              disabled={busy}
-              accessibilityLabel="Manage or cancel your subscription"
-              style={styles.ctaSpace}
-            />
+            {status === 'trial' ? (
+              <PrimaryButton
+                label={busy ? 'Opening checkout…' : 'Go Premium to keep it'}
+                onPress={subscribe}
+                disabled={busy}
+                accessibilityLabel="Go Premium to keep it after your free month"
+                style={styles.ctaSpace}
+              />
+            ) : (
+              <PrimaryButton
+                label={busy ? 'Opening…' : 'Manage subscription'}
+                onPress={manage}
+                disabled={busy}
+                accessibilityLabel="Manage or cancel your subscription"
+                style={styles.ctaSpace}
+              />
+            )}
             <Pressable onPress={() => router.replace('/today')} accessibilityRole="button" accessibilityLabel="Back to Today" hitSlop={8} style={styles.backLink}>
               <Text style={styles.backLinkText}>Back to Today</Text>
             </Pressable>
@@ -234,6 +269,19 @@ export default function PremiumScreen() {
                 style={styles.ctaSpace}
               />
             )}
+            {session && (
+              <Pressable
+                onPress={startFreeTrial}
+                disabled={busy}
+                accessibilityRole="button"
+                accessibilityLabel="Try Premium free for a month, no card needed"
+                hitSlop={6}
+                style={styles.trialLink}
+              >
+                <Text style={styles.trialLinkText}>Or try Premium free for a month</Text>
+              </Pressable>
+            )}
+            {trialNote ? <Text style={styles.trialNoteText}>{trialNote}</Text> : null}
             <Text style={styles.foot}>
               {session
                 ? 'The free monthly scrapbook is always yours, even if you never upgrade.'
@@ -292,6 +340,9 @@ const makeStyles = (t: Theme) =>
     planPillOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
     planPillText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     planPillTextOn: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    trialLink: { marginTop: spacing.three, alignSelf: 'center' },
+    trialLinkText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    trialNoteText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.two },
     ctaSpace: { marginTop: spacing.two },
     foot: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },
     subStatus: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale },

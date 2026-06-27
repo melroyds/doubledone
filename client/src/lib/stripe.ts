@@ -37,6 +37,22 @@ export async function startPortal(): Promise<CheckoutResult> {
   }
 }
 
+export type TrialResult = { ok: true; result: 'started' | 'already' } | { ok: false; error: 'sign_in' | 'failed' };
+
+/** Start the one-time, card-free 30-day trial. 'started' = now Premium; 'already' = this account used it. */
+export async function startTrial(): Promise<TrialResult> {
+  const auth = await authHeader();
+  if (!auth) return { ok: false, error: 'sign_in' };
+  try {
+    const res = await fetch(`${API_URL}/trial/start`, { method: 'POST', headers: { 'content-type': 'application/json', ...auth }, body: '{}' });
+    if (!res.ok) return { ok: false, error: 'failed' };
+    const { result } = (await res.json()) as { result?: unknown };
+    return result === 'started' || result === 'already' ? { ok: true, result } : { ok: false, error: 'failed' };
+  } catch {
+    return { ok: false, error: 'failed' };
+  }
+}
+
 /** Read the current entitlement from the server (the source of truth). Defaults to free. */
 export async function loadEntitlement(): Promise<Entitlement> {
   const auth = await authHeader();
