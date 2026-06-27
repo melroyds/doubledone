@@ -3291,3 +3291,18 @@ the annual price only when the caller asked for it AND it is configured, otherwi
 degrades safely to the existing flow. Client: the Premium page gains a Monthly / Annual toggle ("save 17%",
 about two months free) that passes the plan to startCheckout. Unit-tested the price-pick. Goes live on the next
 Worker redeploy (Melroy's per-instance OK) and the premium->main merge; the card-free trial follows next.
+
+## 2026-06-27 Premium: card-free "Try Premium" one-month trial (server)
+
+A 30-day Premium giveaway with NO card and NO Stripe, gated against gaming by a synced (email) account plus a
+write-once D1 record. Decided card-free over a Stripe trial (Melroy's call): a surprise auto-charge is exactly
+the trap an RSD-prone audience fears, so this just reverts to free, no charge ever unless they choose to
+subscribe. One-per-ACCOUNT: /trial/start CRYPTOGRAPHICALLY verifies the Supabase JWT (reuses requirePremium's
+defaultVerifySub, not a decode, since it grants Premium), and the trials table is write-once on the user_id
+primary key, so a prior trial (active OR expired) blocks a re-trial. It reverts on its own: the read checks
+expires_at against the clock (no cron), and both the client flag (handleEntitlement, status 'trial') and the
+costed money gate (requirePremium) honor an active trial, the gate failing CLOSED on any trials-store error so a
+hiccup never serves paid compute for free. The honest, accepted limit: a determined person with throwaway emails
+can re-trial, which is the right level for a A$5 product (no device fingerprinting, off-brand). New: D1 `trials`
+table, server/src/trials.ts (activeTrial / startTrial, unit-tested), the /trial/start route. The client entry
+("Try Premium free for a month", signed-in only) and the trial-state Premium page follow in the next commit.

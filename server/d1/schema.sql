@@ -82,3 +82,15 @@ create table if not exists processed_events (
   event_id text primary key,            -- Stripe event id (evt_...)
   created_at text not null default (datetime('now'))
 );
+
+-- Card-free "Try Premium" trial: a one-time 30-day Premium grant per ACCOUNT, no card, no Stripe. Write-once on
+-- the user_id primary key, so one account gets one trial EVER (active or expired both block a re-trial). The
+-- entitlement read checks expires_at against the clock, so it reverts to free on its own with no cron. Gated on
+-- a synced (email) account, because an anonymous user has no identity to enforce one-per-person against. Apply
+-- once (idempotent):
+--   npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --file d1/schema.sql
+create table if not exists trials (
+  user_id text primary key,             -- the verified Supabase auth uid (JWT sub)
+  started_at integer not null,          -- epoch seconds the trial began
+  expires_at integer not null           -- epoch seconds the trial ends (Premium until then)
+);

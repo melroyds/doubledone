@@ -13,6 +13,7 @@
 import { isCompEmail } from './comp';
 import { decodeJwtEmail, decodeJwtSub } from './mcp';
 import { type D1LikeDatabase } from './telemetry';
+import { activeTrial } from './trials';
 
 export type StripeEnv = {
   STRIPE_SECRET_KEY?: string;
@@ -361,6 +362,15 @@ export async function handleEntitlement(request: Request, env: FullEnv, cors: Re
     return new Response(JSON.stringify({ premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null }), {
       headers: { ...JSON_HEADERS, ...cors },
     });
+  }
+  // A card-free trial also reports premium to the client (status 'trial') until it expires, with no Stripe
+  // customer (so the manage portal correctly 404s and the UI can offer "keep Premium" instead of "manage").
+  if (!view.premium) {
+    const nowSec = Math.floor(Date.now() / 1000);
+    const trial = await activeTrial(env.DB, sub, nowSec);
+    if (trial.active) {
+      view = { premium: true, status: 'trial', since: new Date(nowSec * 1000).toISOString(), currentPeriodEnd: trial.expiresAt, cancelAtPeriodEnd: true, customerId: null };
+    }
   }
   return new Response(JSON.stringify(view), { headers: { ...JSON_HEADERS, ...cors } });
 }

@@ -11,6 +11,7 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { isCompEmail } from './comp';
 import { decodeJwtEmail } from './mcp';
 import { bearer, type D1LikeDatabase, type EntitlementView, readEntitlement } from './stripe';
+import { activeTrial, startTrial } from './trials';
 
 export type PremiumOk = { ok: true; userId: string };
 export type PremiumDenied = { ok: false; status: 401 | 403 | 503 };
@@ -85,6 +86,33 @@ export async function requirePremium(
   } catch {
     return { ok: false, status: 503 }; // a store error fails CLOSED here; never serve paid compute on a throw
   }
-  if (!view.premium) return { ok: false, status: 403 }; // signed in, not premium
-  return { ok: true, userId };
+  if (view.premium) return { ok: true, userId };
+  // Not premium via Stripe: an active card-free trial also unlocks the costed features. activeTrial fails
+  // closed (any store error -> inactive -> 403), so a trials-table hiccup never serves paid compute for free.
+  const trial = await activeTrial(env.DB, userId, Math.floor(Date.now() / 1000));
+  return trial.active ? { ok: true, userId } : { ok: false, status: 403 };
+}
+
+/**
+ * POST /trial/start — authed and CRYPTOGRAPHICALLY verified (it grants Premium, so a decode-only check would
+ * let a forged token claim a trial). Starts the one-time, card-free 30-day trial for this account, and is
+ * gated on a real synced account by construction (a verified sub). Returns { result: 'started' | 'already',
+ * expiresAt }.
+ */
+export async function handleTrial(
+  request: Request,
+  env: PremiumEnv,
+  cors: Record<string, string>,
+  verifySub: SubVerifier = defaultVerifySub,
+): Promise<Response> {
+  const json = (body: unknown, status: number) =>
+    new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...cors } });
+  const token = bearer(request);
+  if (!token) return json({ error: 'sign_in_required' }, 401);
+  if (!env.DB || !env.SUPABASE_URL) return json({ error: 'not_configured' }, 503);
+  const userId = await verifySub(token, env.SUPABASE_URL);
+  if (!userId) return json({ error: 'sign_in_required' }, 401); // forged / expired / malformed
+  const { result, expiresAt } = await startTrial(env.DB, userId, Math.floor(Date.now() / 1000));
+  if (result === 'error') return json({ error: 'store_error' }, 503);
+  return json({ result, expiresAt }, 200);
 }

@@ -13,7 +13,7 @@ import { buildLookbackSummaryRequest, LOOKBACK_SUMMARY_MODEL, parseLookbackSumma
 import { handleMcp } from './mcp';
 import { buildOcrRequest, type ImageMediaType, OCR_MODEL, parseMediaType, parseOcrResponse } from './ocr';
 import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
-import { requirePremium } from './premium';
+import { handleTrial, requirePremium } from './premium';
 import { deleteSub, parsePushSub, saveSub, sendDailyNudges } from './push';
 import { dataUrl, IMAGE_MODEL, imagePrompt, parseImage, parseScene, SCENE_MODEL, sceneMessages } from './scrapbook';
 import { buildSequenceRequest, parseEnergy, parseSequenceResponse, SEQUENCE_MODEL } from './sequence';
@@ -226,6 +226,9 @@ export default {
     }
     if (pathname === '/entitlement' && request.method === 'GET') {
       return handleEntitlement(request, env, cors);
+    }
+    if (pathname === '/trial/start' && request.method === 'POST') {
+      return handleTrial(request, env, cors);
     }
 
     // Web Push (Phase 2 reminders): store / remove a browser subscription for the daily
