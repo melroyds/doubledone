@@ -3267,3 +3267,17 @@ navigations (welcome, settings, premium, chart) and the screenshot harness's Tod
 start_url stays / (the onboarded-redirect carries an installed user through to /today); a dedicated start_url
 is a noted minor follow-up. Verified in-preview: / shows the Landing for a fresh visitor, /today shows Today,
 and an onboarded visit to / redirects to Today.
+
+## 2026-06-27 Decision (to build): keep + expose Slices, split at the user's discretion
+
+Resolved the completeness audit's Slices question (Tier 3 #9): KEEP and properly EXPOSE Slices, do NOT cut it
+and do NOT fold it into Break-it-down. They are different mechanisms, not redundant: Slices is a progress
+counter on ONE task (10 episodes, 200 pages, 5 reps), Break-it-down splits a task into SEPARATE sub-tasks. The
+audit's only real flaw is discoverability (set at capture only, never taught, unreachable afterwards).
+
+The expose work (to build in the Tier 3 batch): teach it once, sharpen the capture hint, AND allow adding /
+editing the slice count on an EXISTING task. Governing principle, from Melroy's own work style: the split is
+entirely AT THE USER'S DISCRETION, grown manually over time (a 2-part task can become a 20-part task as he
+discovers the parts), never auto-decomposed by the app. Slices is the MANUAL counterpart to AI Break-it-down,
+the user owns the count and the app never imposes one. Decided 2026-06-27; noted now, built as part of the
+Tier 3 "actions 1 to 9" batch.
