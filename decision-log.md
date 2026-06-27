@@ -3281,3 +3281,13 @@ entirely AT THE USER'S DISCRETION, grown manually over time (a 2-part task can b
 discovers the parts), never auto-decomposed by the app. Slices is the MANUAL counterpart to AI Break-it-down,
 the user owns the count and the app never imposes one. Decided 2026-06-27; noted now, built as part of the
 Tier 3 "actions 1 to 9" batch.
+
+## 2026-06-27 Premium: annual plan (A$50/yr) alongside monthly
+
+The first monetisation lever of the Tier 3 batch: a yearly price as a second checkout option. An annual plan
+recovers most of Stripe's flat per-charge fee and lifts margin. Server: STRIPE_PRICE_ID_ANNUAL (a non-secret
+wrangler var, Melroy's live price price_1Tmod5...) plus a `plan` param on /checkout; checkoutSessionForm picks
+the annual price only when the caller asked for it AND it is configured, otherwise monthly, so a missing var
+degrades safely to the existing flow. Client: the Premium page gains a Monthly / Annual toggle ("save 17%",
+about two months free) that passes the plan to startCheckout. Unit-tested the price-pick. Goes live on the next
+Worker redeploy (Melroy's per-instance OK) and the premium->main merge; the card-free trial follows next.

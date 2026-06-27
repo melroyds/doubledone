@@ -9,12 +9,12 @@ const API_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
 
 export type CheckoutResult = { ok: true; url: string } | { ok: false; error: 'sign_in' | 'failed' };
 
-/** Ask the Worker to create a Checkout Session; returns its hosted URL to open. */
-export async function startCheckout(): Promise<CheckoutResult> {
+/** Ask the Worker to create a Checkout Session for the chosen plan; returns its hosted URL to open. */
+export async function startCheckout(plan: 'monthly' | 'annual' = 'monthly'): Promise<CheckoutResult> {
   const auth = await authHeader();
   if (!auth) return { ok: false, error: 'sign_in' };
   try {
-    const res = await fetch(`${API_URL}/checkout`, { method: 'POST', headers: { 'content-type': 'application/json', ...auth }, body: '{}' });
+    const res = await fetch(`${API_URL}/checkout`, { method: 'POST', headers: { 'content-type': 'application/json', ...auth }, body: JSON.stringify({ plan }) });
     if (!res.ok) return { ok: false, error: 'failed' };
     const { url } = (await res.json()) as { url?: unknown };
     return typeof url === 'string' ? { ok: true, url } : { ok: false, error: 'failed' };

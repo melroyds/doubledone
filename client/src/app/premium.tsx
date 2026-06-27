@@ -57,6 +57,7 @@ export default function PremiumScreen() {
   // up after ~20s, but DON'T strand the user on "setting up": set `stuck` so the UI offers a Refresh and a
   // reassurance ("your payment went through"). The worst place to dead-end is right after taking money.
   const [stuck, setStuck] = useState(false);
+  const [plan, setPlan] = useState<'monthly' | 'annual'>('monthly'); // which price the checkout opens
   useEffect(() => {
     if (status !== 'success' || premium) return;
     let tries = 0;
@@ -75,8 +76,8 @@ export default function PremiumScreen() {
     if (busy) return;
     setBusy(true);
     setError(null);
-    track('premium.checkout_started');
-    const res = await startCheckout();
+    track('premium.checkout_started', { plan });
+    const res = await startCheckout(plan);
     if (!res.ok) {
       setError(res.error === 'sign_in' ? 'Sign in first, so Premium attaches to your account.' : 'Could not start checkout. Please try again.');
       setBusy(false);
@@ -189,14 +190,40 @@ export default function PremiumScreen() {
               <Text style={styles.tier}>4 after six months</Text>
             </View>
 
-            <Text style={styles.price}>A$5 / month. Cancel anytime. No ads, ever.</Text>
+            {session && (
+              <View style={styles.planToggle}>
+                <Pressable
+                  onPress={() => setPlan('monthly')}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: plan === 'monthly' }}
+                  accessibilityLabel="Monthly, five dollars a month"
+                  style={[styles.planPill, plan === 'monthly' && styles.planPillOn]}
+                >
+                  <Text style={[styles.planPillText, plan === 'monthly' && styles.planPillTextOn]}>Monthly</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setPlan('annual')}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: plan === 'annual' }}
+                  accessibilityLabel="Annual, fifty dollars a year, save about seventeen percent"
+                  style={[styles.planPill, plan === 'annual' && styles.planPillOn]}
+                >
+                  <Text style={[styles.planPillText, plan === 'annual' && styles.planPillTextOn]}>Annual · save 17%</Text>
+                </Pressable>
+              </View>
+            )}
+            <Text style={styles.price}>
+              {plan === 'annual'
+                ? 'A$50 / year, about two months free. Cancel anytime.'
+                : 'A$5 / month. Cancel anytime. No ads, ever.'}
+            </Text>
 
             {session ? (
               <PrimaryButton
                 label={busy ? 'Opening checkout…' : 'Go Premium'}
                 onPress={subscribe}
                 disabled={busy}
-                accessibilityLabel="Subscribe to Premium, five dollars a month"
+                accessibilityLabel={plan === 'annual' ? 'Subscribe to Premium, fifty dollars a year' : 'Subscribe to Premium, five dollars a month'}
                 style={styles.ctaSpace}
               />
             ) : (
@@ -260,6 +287,11 @@ const makeStyles = (t: Theme) =>
     },
     tierArrow: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body },
     price: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', marginTop: spacing.two },
+    planToggle: { flexDirection: 'row', gap: spacing.two, marginTop: spacing.four, alignSelf: 'center' },
+    planPill: { paddingVertical: spacing.two, paddingHorizontal: spacing.four, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, borderColor: t.colors.line },
+    planPillOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
+    planPillText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+    planPillTextOn: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '700' },
     ctaSpace: { marginTop: spacing.two },
     foot: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },
     subStatus: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale },

@@ -30,6 +30,16 @@ describe('checkoutSessionForm', () => {
     expect(f.get('success_url')).toBe('https://doubledone.app/premium?status=success');
     expect(f.get('customer_email')).toBe('a@b.co');
   });
+
+  it('uses the annual price when plan is annual and it is configured', () => {
+    const annualEnv = { ...env, STRIPE_PRICE_ID_ANNUAL: 'price_year' };
+    expect(checkoutSessionForm(annualEnv, 'user-1', undefined, 'annual').get('line_items[0][price]')).toBe('price_year');
+    expect(checkoutSessionForm(annualEnv, 'user-1', undefined, 'monthly').get('line_items[0][price]')).toBe('price_123');
+  });
+
+  it('falls back to monthly when annual is asked for but not configured', () => {
+    expect(checkoutSessionForm(env, 'user-1', undefined, 'annual').get('line_items[0][price]')).toBe('price_123');
+  });
 });
 
 describe('webhook signature', () => {
