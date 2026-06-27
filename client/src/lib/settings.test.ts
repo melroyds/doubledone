@@ -64,6 +64,7 @@ describe('parseSettings', () => {
       theme: 'dark',
       textSize: 'default',
       motion: 'system',
+      accent: 'mauve',
     });
   });
 
@@ -74,7 +75,12 @@ describe('parseSettings', () => {
   });
 
   it('preserves a fully valid blob', () => {
-    const s: Settings = { theme: 'light', textSize: 'large', motion: 'reduce' };
+    const s: Settings = { theme: 'light', textSize: 'large', motion: 'reduce', accent: 'rose' };
     expect(parseSettings(serializeSettings(s))).toEqual(s);
+  });
+
+  it('validates the accent, falling back to mauve for an unknown one', () => {
+    expect(parseSettings(JSON.stringify({ accent: 'teal' })).accent).toBe('teal');
+    expect(parseSettings(JSON.stringify({ accent: 'neon' })).accent).toBe('mauve');
   });
 });

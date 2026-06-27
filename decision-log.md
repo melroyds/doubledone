@@ -3122,3 +3122,27 @@ will not fish for invisible gestures, an untaught gesture is a feature that does
 one-time, dismissible coachmark above the task list, when there are tasks and the hint has not been seen,
 "Hold a task for more, pin it, set a reminder, combine, or make it tiny", keyed off a doubledone.holdhint.v1
 flag (loadHoldHintSeen / saveHoldHintSeen). Tap "Got it" to retire it forever. On premium.
+
+## 2026-06-27 Premium: custom accent colour (a curated four)
+
+The first paid-suite expansion beyond the launch premium features. Premium picks the app's single accent from
+four curated, calm hues: Mauve (the unchanged default and the free state), Teal, Rose, and a deepened Gold.
+
+Decided FOR a curated four over the five brand hues shown in the picker mock. Periwinkle is already the app's
+repeat / structured colour, so making it the accent would collide two meanings; it was dropped. Raw gold
+(#C19A4F) failed white-label contrast, so it was deepened to #B0863A (light) to sit at the same bar as the
+others. Decided FOR theming ONLY the `accent` and `accentSoft` tokens, the premium gradient, the per-task dot
+palette and the periwinkle repeat colour are deliberately NOT themed, so the swap is one clean change app-wide.
+onAccent stays the scheme default (white on the light accents, warm ink on the lifted dark ones, the contrast
+the dark-palette audit settled).
+
+Architecture: AccentName + ACCENT_NAMES live in the pure settings model and reach constants/theme as a
+TYPE-ONLY import, so the settings unit tests stay RN-free and there is no runtime cycle. The ACCENTS colour
+table and a fourth `accent` arg to buildTheme live in constants/theme; ThemeProvider threads settings.accent
+through the same useMemo that already re-paints on a theme / text-size change. The picker is a premium-gated
+swatch row in Settings; a free tap routes to the paywall (the conversion path the completeness audit wanted),
+a premium tap sets the accent and logs accent.set telemetry. Decided that a lapsed subscriber KEEPS their
+chosen accent (the gate is on the picker, not the paint), in keeping with never-punish.
+
+Verified in-preview: selecting Teal persisted accent:teal and repainted the whole app teal (14 themed elements
+on Today, zero mauve remaining), with the dark-mode variants resolving correctly.

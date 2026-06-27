@@ -2,6 +2,8 @@ import '@/global.css';
 
 import { Appearance, Platform } from 'react-native';
 
+import { type AccentName } from '@/lib/settings';
+
 // DoubleDone's "Dusk" palette: calm and warm, the opposite of an "epic"
 // productivity app. Soft paper background, warm ink, a single dusky-mauve accent
 // used sparingly, sage for "done" (never an alarming green), and periwinkle for
@@ -80,6 +82,19 @@ export const Colors = { light, dark } as const;
 // is premium. The one deliberate glow against the calm Dusk palette. Used by the Settings premium card and the
 // PremiumButton (Plan my order, Chart a course, Reflect on this week).
 export const PREMIUM_GRADIENT = ['#8E5E72', '#B5798F', '#D6A77E'] as const;
+
+// The Premium custom-accent palette: a curated four. Each overrides ONLY the single `accent` token and its
+// soft tint, for both schemes; onAccent stays the scheme default (white on the light accents, warm ink on the
+// lifted dark ones, the contrast the design audit settled). The premium gradient, the per-task `accents` dots
+// and the periwinkle `repeat` colour are deliberately NOT themed. Gold is deepened from the raw #C19A4F so
+// white labels clear contrast, in line with the other accents. Mauve is the unchanged default and free state.
+type AccentTokens = { accent: string; accentSoft: string };
+export const ACCENTS: Record<AccentName, { light: AccentTokens; dark: AccentTokens }> = {
+  mauve: { light: { accent: '#9B6A7D', accentSoft: '#F1E7EC' }, dark: { accent: '#C68BA0', accentSoft: '#352C32' } },
+  teal: { light: { accent: '#4E8C86', accentSoft: '#E4EFED' }, dark: { accent: '#6FB0A8', accentSoft: '#26322F' } },
+  rose: { light: { accent: '#BE7F84', accentSoft: '#F4E8E9' }, dark: { accent: '#D6979C', accentSoft: '#352B2C' } },
+  gold: { light: { accent: '#B0863A', accentSoft: '#F0E8D5' }, dark: { accent: '#D6B36A', accentSoft: '#322D20' } },
+};
 
 // The launch-resolved palette (system-following), kept as the default and as the
 // ThemeProvider's fallback. Live switching (theme + text size) flows through the
@@ -200,10 +215,12 @@ export type Theme = {
   reduceMotion: boolean;
 };
 
-export function buildTheme(scheme: 'light' | 'dark', scale: number, reduceMotion: boolean): Theme {
+export function buildTheme(scheme: 'light' | 'dark', scale: number, reduceMotion: boolean, accent: AccentName = 'mauve'): Theme {
+  const base = scheme === 'dark' ? dark : light;
+  const a = ACCENTS[accent][scheme];
   return {
     scheme,
-    colors: scheme === 'dark' ? dark : light,
+    colors: { ...base, accent: a.accent, accentSoft: a.accentSoft },
     fonts,
     spacing,
     radius,

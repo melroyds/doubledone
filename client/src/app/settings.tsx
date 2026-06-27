@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackLink } from '@/components/BackLink';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Segmented } from '@/components/Segmented';
-import { border, fonts, layout, PREMIUM_GRADIENT, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
+import { ACCENTS, border, fonts, layout, PREMIUM_GRADIENT, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { deleteAccount } from '@/lib/account';
 import { purgeScrapbookImages } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
@@ -16,7 +16,7 @@ import { buildExport } from '@/lib/export';
 import { usePremium } from '@/lib/premium-provider';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { reminderReasonLine } from '@/lib/reminders-types';
-import { type MotionPref, type TextSize, type ThemePref } from '@/lib/settings';
+import { ACCENT_NAMES, type AccentName, type MotionPref, type TextSize, type ThemePref } from '@/lib/settings';
 import { loadReminderOn, loadScrapbooks, loadTasks, saveReminderOn, wipeLocalData } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
@@ -31,6 +31,9 @@ const MCP_URL = `${process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app
 
 // The dev premium override exposed as a 3-way Choice; 'auto' defers to the real entitlement.
 type DevPremiumChoice = 'auto' | 'on' | 'off';
+
+// Display names for the four Premium accents (the colour table itself lives in constants/theme).
+const ACCENT_LABELS: Record<AccentName, string> = { mauve: 'Mauve', teal: 'Teal', rose: 'Rose', gold: 'Gold' };
 
 // The one deliberate Settings surface. Scoped to comfort and access (theme, text
 // size, motion), never open-ended config: that is the line that keeps "remove
@@ -243,6 +246,44 @@ export default function SettingsScreen() {
             onChange={(v) => setReminder(v === 'on')}
           />
           {reminderNote && <Text style={styles.rowHint}>{reminderNote}</Text>}
+          <View style={styles.accentBlock}>
+            <View style={styles.accentHead}>
+              <Text style={styles.accentLabel}>Accent colour</Text>
+              {!premium && <Text style={styles.accentTag}>Premium</Text>}
+            </View>
+            <Text style={styles.rowHint}>
+              {premium ? 'The colour that runs through your app. Choose what feels calm.' : 'Make the app yours. A Premium touch.'}
+            </Text>
+            <View style={styles.swatchRow}>
+              {ACCENT_NAMES.map((name) => {
+                const selected = settings.accent === name;
+                return (
+                  <Pressable
+                    key={name}
+                    onPress={() => {
+                      if (premium) {
+                        setSettings({ accent: name });
+                        track('accent.set', { accent: name });
+                      } else {
+                        track('accent.locked');
+                        router.push('/premium');
+                      }
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={`${ACCENT_LABELS[name]}${selected ? ', selected' : ''}${premium ? '' : ', Premium'}`}
+                    style={styles.swatchHit}
+                    hitSlop={6}
+                  >
+                    <View style={[styles.swatchRing, selected && styles.swatchRingOn]}>
+                      <View style={[styles.swatch, { backgroundColor: ACCENTS[name][theme.scheme].accent }]} />
+                    </View>
+                    <Text style={styles.swatchName}>{ACCENT_LABELS[name]}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
         </View>
 
         <Text style={styles.band}>Access & data</Text>
@@ -492,6 +533,23 @@ const makeStyles = (t: Theme) =>
     rows: { marginTop: spacing.two, gap: spacing.six },
     rowLabel: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     rowHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale, marginTop: spacing.one },
+    accentBlock: {},
+    accentHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
+    accentLabel: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
+    accentTag: {
+      color: t.colors.accent,
+      fontSize: 11 * t.scale,
+      fontFamily: fonts.sans,
+      fontWeight: '700',
+      letterSpacing: 0.4,
+      textTransform: 'uppercase',
+    },
+    swatchRow: { flexDirection: 'row', gap: spacing.four, marginTop: spacing.three },
+    swatchHit: { alignItems: 'center', gap: spacing.one },
+    swatchRing: { padding: 3, borderRadius: radius.pill, borderWidth: 2, borderColor: 'transparent' },
+    swatchRingOn: { borderColor: t.colors.ink },
+    swatch: { width: 30 * t.scale, height: 30 * t.scale, borderRadius: radius.pill },
+    swatchName: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.sans },
     segment: { marginTop: spacing.three },
     pressed: { opacity: PRESSED_OPACITY },
     privacyLink: { marginTop: spacing.two },
