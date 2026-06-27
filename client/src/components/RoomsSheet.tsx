@@ -7,7 +7,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { fonts, layout, PREMIUM_GRADIENT, radius, spacing, type Theme } from '@/constants/theme';
+import { fonts, layout, PREMIUM_GRADIENT, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { useThemedStyles } from '@/lib/theme-provider';
 
 type Props = {
@@ -17,29 +17,44 @@ type Props = {
   onRoutines: () => void;
   onLookback: () => void;
   onChart: () => void;
+  onPremium: () => void;
   onSettings: () => void;
+  premium: boolean;
 };
 
-export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookback, onChart, onSettings }: Props) {
+export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookback, onChart, onPremium, onSettings, premium }: Props) {
   const styles = useThemedStyles(makeStyles);
   // Close first, then navigate, so the sheet is already gone when the destination arrives.
   const go = (fn: () => void) => () => {
     onClose();
     fn();
   };
-  const rooms: { key: string; label: string; hint: string; onPress: () => void; premium?: boolean }[] = [
+  // A persistent door to the Premium offer (the audit gap: a willing buyer could only find it at the bottom of
+  // Settings). A gradient dot marks it as the one special row; it routes to /premium, which itself shows the
+  // offer to a free user and a manage view to a subscriber. Never a hard sell, just findable.
+  const rooms: { key: string; label: string; hint: string; onPress: () => void; premium?: boolean; gradient?: boolean }[] = [
     { key: 'repeating', label: 'Repeating', hint: 'Tasks that come back', onPress: go(onRepeating) },
     { key: 'routines', label: 'Routines', hint: 'Gentle rituals, no streaks', onPress: go(onRoutines) },
     { key: 'lookback', label: 'Lookback', hint: 'Everything you finished', onPress: go(onLookback) },
     { key: 'chart', label: 'Chart a course', hint: 'Plan toward a goal', onPress: go(onChart), premium: true },
+    {
+      key: 'premium',
+      label: 'Premium',
+      hint: premium ? 'Manage your subscription' : 'Keepsakes, more AI, your colour',
+      onPress: go(onPremium),
+      gradient: true,
+    },
     { key: 'settings', label: 'Settings', hint: 'Comfort, access, your data', onPress: go(onSettings) },
   ];
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.scrim} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close rooms">
-        {/* Absorb taps on the sheet itself so only the scrim closes it. */}
-        <View style={styles.sheet} onStartShouldSetResponder={() => true}>
-          <Text style={styles.title}>Rooms</Text>
+      <View style={styles.root}>
+        {/* The scrim is a SIBLING of the sheet (an absolute-fill dismiss layer behind it), never its parent,
+            so the room buttons are not <button>s nested inside the scrim <button> (invalid HTML on web). The
+            sheet sits on top, so taps on it don't reach the scrim. */}
+        <Pressable style={styles.scrim} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close menu" />
+        <View style={styles.sheet}>
+          <Text style={styles.title}>Menu</Text>
           {rooms.map((r) => (
             <Pressable
               key={r.key}
@@ -48,7 +63,11 @@ export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookba
               accessibilityLabel={r.label}
               style={({ pressed }) => [styles.room, pressed && styles.roomPressed]}
             >
-              <View style={styles.dot} />
+              {r.gradient ? (
+                <LinearGradient colors={PREMIUM_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.dot} />
+              ) : (
+                <View style={styles.dot} />
+              )}
               <View style={styles.roomText}>
                 <Text style={styles.roomLabel}>{r.label}</Text>
                 <Text style={styles.roomHint}>{r.hint}</Text>
@@ -63,14 +82,15 @@ export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookba
             </Pressable>
           ))}
         </View>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
-    scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.28)', justifyContent: 'flex-end', alignItems: 'center' },
+    root: { flex: 1, justifyContent: 'flex-end', alignItems: 'center' },
+    scrim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: t.colors.scrim },
     sheet: {
       backgroundColor: t.colors.surface,
       // Cap the sheet to the app's canonical content width (560, like Today / Settings / Premium) and centre
@@ -86,13 +106,13 @@ const makeStyles = (t: Theme) =>
       paddingTop: spacing.five,
       paddingBottom: spacing.seven,
     },
-    title: { fontFamily: fonts.sans, fontSize: 22 * t.scale, color: t.colors.ink, marginBottom: spacing.three },
+    title: { ...t.type.subheading, color: t.colors.ink, marginBottom: spacing.three },
     room: { flexDirection: 'row', alignItems: 'center', gap: spacing.four, paddingVertical: spacing.three },
-    roomPressed: { opacity: 0.6 },
+    roomPressed: { opacity: PRESSED_OPACITY },
     dot: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: t.colors.accent },
     roomText: { flex: 1 },
     roomLabel: { fontFamily: fonts.body, fontSize: 17 * t.scale, color: t.colors.ink },
-    roomHint: { fontFamily: fonts.body, fontSize: 13 * t.scale, color: t.colors.inkSoft, marginTop: 2 },
+    roomHint: { fontFamily: fonts.body, fontSize: 13 * t.scale, color: t.colors.inkSoft, marginTop: spacing.half },
     premiumTag: { borderRadius: radius.pill, overflow: 'hidden' },
     premiumTagGrad: { paddingHorizontal: spacing.three, paddingVertical: 3 },
     premiumTagText: { fontFamily: fonts.bodyBold, fontWeight: '700', fontSize: 11 * t.scale, color: '#FFFFFF', letterSpacing: 0.3 },

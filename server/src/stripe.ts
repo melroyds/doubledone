@@ -13,11 +13,13 @@
 import { isCompEmail } from './comp';
 import { decodeJwtEmail, decodeJwtSub } from './mcp';
 import { type D1LikeDatabase } from './telemetry';
+import { activeTrial } from './trials';
 
 export type StripeEnv = {
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
-  STRIPE_PRICE_ID?: string;
+  STRIPE_PRICE_ID?: string; // the monthly recurring price (the default)
+  STRIPE_PRICE_ID_ANNUAL?: string; // the yearly price; when unset, the annual option simply falls back to monthly
   APP_URL?: string; // where Checkout returns to (default the deployed web app)
 };
 
@@ -28,11 +30,13 @@ const DEFAULT_APP_URL = 'https://doubledone.app';
 
 /** The form body for Create-Checkout-Session. Pure and unit-tested: the user id
  *  rides on both the session and the subscription so the webhook can attribute it. */
-export function checkoutSessionForm(env: StripeEnv, userId: string, email?: string): URLSearchParams {
+export function checkoutSessionForm(env: StripeEnv, userId: string, email?: string, plan?: 'monthly' | 'annual'): URLSearchParams {
   const appUrl = env.APP_URL ?? DEFAULT_APP_URL;
   const form = new URLSearchParams();
   form.set('mode', 'subscription');
-  form.set('line_items[0][price]', env.STRIPE_PRICE_ID ?? '');
+  // Annual only when the caller asked for it AND the annual price is configured; otherwise monthly.
+  const price = plan === 'annual' && env.STRIPE_PRICE_ID_ANNUAL ? env.STRIPE_PRICE_ID_ANNUAL : env.STRIPE_PRICE_ID;
+  form.set('line_items[0][price]', price ?? '');
   form.set('line_items[0][quantity]', '1');
   form.set('client_reference_id', userId);
   form.set('metadata[user_id]', userId);
@@ -45,12 +49,12 @@ export function checkoutSessionForm(env: StripeEnv, userId: string, email?: stri
 }
 
 /** Create a Checkout Session and return its hosted URL, or null on any failure. */
-export async function createCheckoutSession(env: StripeEnv, userId: string, email?: string): Promise<string | null> {
+export async function createCheckoutSession(env: StripeEnv, userId: string, email?: string, plan?: 'monthly' | 'annual'): Promise<string | null> {
   if (!env.STRIPE_SECRET_KEY || !env.STRIPE_PRICE_ID) return null;
   const res = await fetch(`${STRIPE_API}/checkout/sessions`, {
     method: 'POST',
     headers: { authorization: `Bearer ${env.STRIPE_SECRET_KEY}`, 'content-type': 'application/x-www-form-urlencoded' },
-    body: checkoutSessionForm(env, userId, email).toString(),
+    body: checkoutSessionForm(env, userId, email, plan).toString(),
   });
   if (!res.ok) return null;
   const session = (await res.json()) as { url?: unknown };
@@ -150,7 +154,11 @@ export function entitlementFromEvent(event: unknown): Entitlement | null {
   if (type === 'checkout.session.completed') {
     const userId = (obj.client_reference_id as string) || meta.user_id || '';
     if (!userId) return null;
-    const paid = obj.payment_status === 'paid' || obj.status === 'complete';
+    // Require a genuinely-settled payment. `status === 'complete'` can be true while payment_status is
+    // 'unpaid' (async methods, misconfig), so it must NOT grant premium. 'no_payment_required' covers the
+    // legitimate free starts (a 100%-off promo or a trial). The customer.subscription.* events that follow
+    // are the authoritative source either way; this is the initial grant, kept strict.
+    const paid = obj.payment_status === 'paid' || obj.payment_status === 'no_payment_required';
     return { userId, premium: paid, status: paid ? 'active' : 'incomplete', currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId };
   }
 
@@ -249,13 +257,30 @@ export async function handleCheckout(request: Request, env: FullEnv, cors: Recor
   if (!env.STRIPE_SECRET_KEY || !env.STRIPE_PRICE_ID) {
     return new Response(JSON.stringify({ error: 'not_configured' }), { status: 503, headers: { ...JSON_HEADERS, ...cors } });
   }
+  // Defence-in-depth: an already-subscribed user must not open a SECOND Checkout (a duplicate active
+  // subscription is a real double charge). The UI already routes active subscribers to "Manage", so this only
+  // fires on a direct hit or a race. A trial user (premium, but no Stripe customer yet) is intentionally allowed
+  // to convert, so the guard keys on an existing Stripe customer, not merely on the premium flag.
+  if (env.DB) {
+    try {
+      const existing = await readEntitlement(env.DB, sub);
+      if (existing.premium && existing.customerId) {
+        return new Response(JSON.stringify({ error: 'already_subscribed' }), { status: 409, headers: { ...JSON_HEADERS, ...cors } });
+      }
+    } catch {
+      // a transient read must never block a legitimate new checkout; fall through and create the session
+    }
+  }
   let email: string | undefined;
+  let plan: 'monthly' | 'annual' | undefined;
   try {
-    email = ((await request.json()) as { email?: unknown })?.email as string | undefined;
+    const body = (await request.json()) as { email?: unknown; plan?: unknown };
+    email = typeof body?.email === 'string' ? body.email : undefined;
+    plan = body?.plan === 'annual' ? 'annual' : undefined;
   } catch {
     email = undefined;
   }
-  const url = await createCheckoutSession(env, sub, typeof email === 'string' ? email : undefined);
+  const url = await createCheckoutSession(env, sub, email, plan);
   if (!url) return new Response(JSON.stringify({ error: 'checkout_failed' }), { status: 502, headers: { ...JSON_HEADERS, ...cors } });
   return new Response(JSON.stringify({ url }), { headers: { ...JSON_HEADERS, ...cors } });
 }
@@ -292,10 +317,30 @@ export async function handleWebhook(request: Request, env: FullEnv, nowISO: stri
   }
   const ent = entitlementFromEvent(event);
   if (ent) {
+    // Idempotency: Stripe delivers at-least-once (automatic retries, occasional duplicates), so the same
+    // event id can arrive twice. Skip one we have already applied. Fail OPEN on any dedup-store error or a
+    // not-yet-created table: the entitlement write below is an idempotent upsert, so re-processing is
+    // harmless, and a real billing event must never be dropped because the dedup store hiccuped.
+    const eventId = typeof (event as { id?: unknown }).id === 'string' ? (event as { id: string }).id : '';
+    if (eventId) {
+      try {
+        const seen = await env.DB.prepare('SELECT 1 FROM processed_events WHERE event_id = ?1').bind(eventId).first();
+        if (seen) return new Response(JSON.stringify({ received: true, duplicate: true }), { headers: JSON_HEADERS });
+      } catch {
+        // fail open: missing table or transient error, proceed to process
+      }
+    }
     try {
       await writeEntitlement(env.DB, ent, nowISO);
     } catch {
       return new Response('store error', { status: 500 });
+    }
+    if (eventId) {
+      try {
+        await env.DB.prepare('INSERT OR IGNORE INTO processed_events (event_id, created_at) VALUES (?1, ?2)').bind(eventId, nowISO).run();
+      } catch {
+        // best effort: the write already succeeded, the dedup record is non-critical
+      }
     }
   }
   return new Response(JSON.stringify({ received: true }), { headers: JSON_HEADERS });
@@ -321,6 +366,25 @@ export async function handleEntitlement(request: Request, env: FullEnv, cors: Re
       headers: { ...JSON_HEADERS, ...cors },
     });
   }
-  const view = await readEntitlement(env.DB, sub);
+  // A transient D1 throw must not hard-500 the Premium/Settings screen (it would brush the never-alarm
+  // spine). This is the cosmetic client flag, not the money gate (requirePremium stays fail-closed), so a
+  // store error reports the calm FREE shape rather than an error.
+  let view: EntitlementView;
+  try {
+    view = await readEntitlement(env.DB, sub);
+  } catch {
+    return new Response(JSON.stringify({ premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null }), {
+      headers: { ...JSON_HEADERS, ...cors },
+    });
+  }
+  // A card-free trial also reports premium to the client (status 'trial') until it expires, with no Stripe
+  // customer (so the manage portal correctly 404s and the UI can offer "keep Premium" instead of "manage").
+  if (!view.premium) {
+    const nowSec = Math.floor(Date.now() / 1000);
+    const trial = await activeTrial(env.DB, sub, nowSec);
+    if (trial.active) {
+      view = { premium: true, status: 'trial', since: new Date(nowSec * 1000).toISOString(), currentPeriodEnd: trial.expiresAt, cancelAtPeriodEnd: true, customerId: null };
+    }
+  }
   return new Response(JSON.stringify(view), { headers: { ...JSON_HEADERS, ...cors } });
 }

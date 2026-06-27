@@ -84,4 +84,43 @@ describe('mergeTasks', () => {
     const remote = [task('m', 1, { createdAt: 200 })];
     expect(ids(mergeTasks(local, remote).merged)).toEqual(['z', 'm', 'a']);
   });
+
+  it('unions completedDates so an offline recurring tick survives a remote-newer edit', () => {
+    const local = [task('r', 10, { completedDates: ['2026-06-25'] })];
+    const remote = [task('r', 20, { title: 'edited', completedDates: [] })];
+    const res = mergeTasks(local, remote);
+    expect(res.merged[0].title).toBe('edited'); // remote won LWW
+    expect(res.merged[0].completedDates).toEqual(['2026-06-25']); // but the tick is never erased
+    expect(ids(res.toPush)).toEqual(['r']); // and pushed so the server converges to the union
+  });
+
+  it('keeps the max slices.done across a conflict (progress is monotonic)', () => {
+    const local = [task('s', 10, { slices: { total: 5, done: 3 } })];
+    const remote = [task('s', 20, { slices: { total: 5, done: 1 } })];
+    const res = mergeTasks(local, remote);
+    expect(res.merged[0].slices).toEqual({ total: 5, done: 3 });
+    expect(ids(res.toPush)).toEqual(['s']); // progress grew beyond remote, so push
+  });
+
+  it('a corrupt remote row with a non-finite updatedAt loses to the good local copy', () => {
+    // A NaN updatedAt (an unparseable remote timestamp) would make every `>` comparison false and
+    // silently adopt the corrupt row, pinning the task to it. Treating non-finite as -Infinity makes
+    // the good local copy win instead. NaN is the realistic value Date.parse returns on a bad string.
+    const local = [task('x', 50, { title: 'good local' })];
+    const remote = [task('x', NaN, { title: 'corrupt remote' })];
+    const res = mergeTasks(local, remote);
+    expect(res.merged).toHaveLength(1);
+    expect(res.merged[0].title).toBe('good local'); // the corrupt row did NOT win
+    expect(ids(res.toPush)).toEqual(['x']); // local won, so push so the server is corrected
+  });
+
+  it('preserves local-only big and manualOrder when the remote row wins', () => {
+    const local = [task('x', 10, { big: true, manualOrder: 2 })];
+    const remote = [task('x', 20, { title: 'remote' })];
+    const res = mergeTasks(local, remote);
+    expect(res.merged[0].title).toBe('remote'); // remote won LWW
+    expect(res.merged[0].big).toBe(true); // local-only field carried, not dropped
+    expect(res.merged[0].manualOrder).toBe(2);
+    expect(res.toPush).toEqual([]); // local-only fields are not synced, so nothing to push
+  });
 });

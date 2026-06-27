@@ -40,7 +40,9 @@ export const FALLBACK_SCENE =
 export function parseScene(result: unknown): string {
   const text = (result as { response?: unknown } | null)?.response;
   const scene = typeof text === 'string' ? text.trim().replace(/^["']+|["']+$/g, '').trim() : '';
-  return scene.length >= 4 ? scene : FALLBACK_SCENE;
+  // Clamp the length: a runaway model string would bloat the stored blob and distort the polaroid caption
+  // layout. Not a security issue (RN <Text> renders no HTML), purely a size/layout bound.
+  return scene.length >= 4 ? scene.slice(0, 200) : FALLBACK_SCENE;
 }
 
 /** The full image prompt: the scene rendered in the Dusk palette and a calm style. */
@@ -61,4 +63,15 @@ export function parseImage(result: unknown): string | null {
 /** Wrap a base64 JPEG as a data URL the client can render and persist directly. */
 export function dataUrl(base64: string): string {
   return `data:image/jpeg;base64,${base64}`;
+}
+
+// Abuse backstop for the costed image route. Generous enough that no legitimate user (free 1/month, premium up
+// to 4/week) ever comes close; tight enough that a scripted caller cannot mint unlimited keepsakes off one IP
+// and drain the shared Workers AI budget. The per-user cadence stays the client's job (and the paywall); this
+// is only the server-side ceiling on raw abuse. Tunable.
+export const SCRAPBOOK_DAILY_CAP = 20;
+
+/** Whether a client (by its rolling-24h scrapbook count) is over the per-IP daily ceiling. */
+export function overDailyCap(recentCount: number, cap = SCRAPBOOK_DAILY_CAP): boolean {
+  return recentCount >= cap;
 }

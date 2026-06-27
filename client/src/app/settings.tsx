@@ -1,10 +1,13 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { fonts, layout, PREMIUM_GRADIENT, radius, spacing, type Theme } from '@/constants/theme';
+import { BackLink } from '@/components/BackLink';
+import { PrimaryButton } from '@/components/PrimaryButton';
+import { Segmented } from '@/components/Segmented';
+import { border, fonts, layout, PREMIUM_GRADIENT, PRESSED_OPACITY, radius, spacing, THEME_PRESETS, type Theme } from '@/constants/theme';
 import { deleteAccount } from '@/lib/account';
 import { purgeScrapbookImages } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
@@ -12,8 +15,9 @@ import { toISODate } from '@/lib/day';
 import { buildExport } from '@/lib/export';
 import { usePremium } from '@/lib/premium-provider';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
-import { type MotionPref, type TextSize, type ThemePref } from '@/lib/settings';
-import { loadReminderOn, loadScrapbooks, loadTasks, saveReminderOn, wipeLocalData } from '@/lib/storage';
+import { clampHour, formatReminderHour, reminderReasonLine } from '@/lib/reminders-types';
+import { type MotionPref, type TextSize, THEME_NAMES, type ThemePref } from '@/lib/settings';
+import { loadLastSyncOk, loadReminderHour, loadReminderOn, loadScrapbooks, loadTasks, saveReminderHour, saveReminderOn, wipeLocalData } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
 import { useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -46,10 +50,15 @@ export default function SettingsScreen() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [mcpToken, setMcpToken] = useState<string | null>(null);
   const [mcpCopied, setMcpCopied] = useState(false);
+  const [mcpExpired, setMcpExpired] = useState(false); // the access token couldn't be fetched (expired session)
   const { premium, devOverride, setDevOverride, devAllowed, refresh } = usePremium();
   const [exporting, setExporting] = useState(false);
   const [exportNote, setExportNote] = useState<string | null>(null);
   const [reminderOn, setReminderOn] = useState(false);
+  const [reminderNote, setReminderNote] = useState<string | null>(null);
+  const [reminderHour, setReminderHour] = useState(9); // the hour the daily nudge fires (free for all, an access need)
+  const reminderHourTimer = useRef<ReturnType<typeof setTimeout> | null>(null); // debounce the re-subscribe on +/-
+  const [syncOk, setSyncOk] = useState<boolean | null>(null); // last sync result; false = saved local-only
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackState, setFeedbackState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -64,6 +73,12 @@ export default function SettingsScreen() {
       void loadReminderOn().then((on) => {
         if (active) setReminderOn(on);
       });
+      void loadReminderHour().then((h) => {
+        if (active) setReminderHour(h);
+      });
+      void loadLastSyncOk().then((v) => {
+        if (active) setSyncOk(v);
+      });
       return () => {
         active = false;
       };
@@ -74,16 +89,32 @@ export default function SettingsScreen() {
   // same lib + persisted flag, so the two stay in sync.
   async function setReminder(on: boolean) {
     if (on) {
-      const ok = await enableDailyReminder();
-      setReminderOn(ok);
-      void saveReminderOn(ok);
-      track('reminder.enabled', { granted: ok });
+      const result = await enableDailyReminder(reminderHour);
+      setReminderOn(result.ok);
+      void saveReminderOn(result.ok);
+      track('reminder.enabled', { granted: result.ok });
+      setReminderNote(result.ok ? null : reminderReasonLine(result.reason)); // never a silent bounce-back
     } else {
       await disableDailyReminder();
       setReminderOn(false);
       void saveReminderOn(false);
+      setReminderNote(null);
       track('reminder.disabled');
     }
+  }
+
+  // Change the hour the daily reminder fires. The displayed time and the saved value update instantly; the
+  // actual re-subscribe (web push) / re-schedule (native) is debounced so a flurry of +/- taps makes ONE
+  // re-apply at the final hour, never a burst, and the last write is the one that lands.
+  function changeReminderHour(next: number) {
+    const h = clampHour(next);
+    if (h === reminderHour) return;
+    setReminderHour(h);
+    void saveReminderHour(h);
+    if (reminderHourTimer.current) clearTimeout(reminderHourTimer.current);
+    reminderHourTimer.current = setTimeout(() => {
+      void enableDailyReminder(h);
+    }, 600);
   }
 
   // "Your stuff is yours": download (web) or share (native) a JSON of the user's
@@ -104,13 +135,13 @@ export default function SettingsScreen() {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        setExportNote('Downloaded.');
+        setExportNote("Downloaded. It's yours to keep.");
       } else {
         await Share.share({ message: json, title: name });
       }
       track('data.exported', { count: tasks.length });
     } catch {
-      setExportNote('Could not export just now.');
+      setExportNote('Could not export just now. Try again?');
     } finally {
       setExporting(false);
     }
@@ -135,7 +166,7 @@ export default function SettingsScreen() {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.location.assign('/'); // a clean reload to an empty, signed-out Today
     } else {
-      router.replace('/');
+      router.replace('/today');
     }
   }
 
@@ -146,7 +177,13 @@ export default function SettingsScreen() {
     if (!supabase) return;
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token ?? null;
-    if (!token) return;
+    if (!token) {
+      // The access token expired and could not refresh: point at re-sign-in instead of dead-ending silently
+      // (the footnote tells users to re-copy when their agent stops, so the expired case is the common one).
+      setMcpExpired(true);
+      return;
+    }
+    setMcpExpired(false);
     setMcpToken(token);
     if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
       try {
@@ -187,14 +224,7 @@ export default function SettingsScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.six }]}>
-        <Pressable
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
-          accessibilityRole="button"
-          accessibilityLabel="Back to Today"
-          hitSlop={8}
-        >
-          <Text style={styles.back}>‹ Today</Text>
-        </Pressable>
+        <BackLink label="Today" />
 
         <Text style={styles.title}>Settings</Text>
         <Text style={styles.subtitle}>Make it comfortable. These follow you across the app.</Text>
@@ -242,6 +272,79 @@ export default function SettingsScreen() {
             ]}
             onChange={(v) => setReminder(v === 'on')}
           />
+          {reminderNote && <Text style={styles.rowHint}>{reminderNote}</Text>}
+          {reminderOn && (
+            <View style={styles.reminderTimeRow}>
+              <Text style={styles.reminderTimeLabel}>Remind me at</Text>
+              <View style={styles.stepper}>
+                <Pressable
+                  onPress={() => changeReminderHour(reminderHour - 1)}
+                  disabled={reminderHour <= 0}
+                  accessibilityRole="button"
+                  accessibilityLabel="Earlier"
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.stepBtn, reminderHour <= 0 && styles.stepBtnOff, pressed && styles.pressed]}
+                >
+                  <Text style={styles.stepGlyph}>−</Text>
+                </Pressable>
+                <Text
+                  style={styles.stepValue}
+                  accessibilityLabel={`Daily reminder at ${formatReminderHour(reminderHour)}`}
+                >
+                  {formatReminderHour(reminderHour)}
+                </Text>
+                <Pressable
+                  onPress={() => changeReminderHour(reminderHour + 1)}
+                  disabled={reminderHour >= 23}
+                  accessibilityRole="button"
+                  accessibilityLabel="Later"
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.stepBtn, reminderHour >= 23 && styles.stepBtnOff, pressed && styles.pressed]}
+                >
+                  <Text style={styles.stepGlyph}>+</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+          <View style={styles.accentBlock}>
+            <View style={styles.accentHead}>
+              <Text style={styles.accentLabel}>Colour theme</Text>
+              {!premium && <Text style={styles.accentTag}>Premium</Text>}
+            </View>
+            <Text style={styles.rowHint}>
+              {premium ? 'A calm palette for the whole app. Dusk is the default.' : "Seven calm palettes, a Premium touch. You're on Dusk."}
+            </Text>
+            <View style={styles.swatchRow}>
+              {THEME_NAMES.map((name) => {
+                const selected = settings.themePreset === name;
+                const preset = THEME_PRESETS[name];
+                return (
+                  <Pressable
+                    key={name}
+                    onPress={() => {
+                      if (premium) {
+                        setSettings({ themePreset: name });
+                        track('theme.set', { theme: name });
+                      } else {
+                        track('theme.locked');
+                        router.push('/premium');
+                      }
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={`${preset.name}${selected ? ', selected' : ''}${premium ? '' : ', Premium'}`}
+                    style={styles.swatchHit}
+                    hitSlop={6}
+                  >
+                    <View style={[styles.swatchRing, selected && styles.swatchRingOn]}>
+                      <View style={[styles.swatch, { backgroundColor: preset[theme.scheme].accent }]} />
+                    </View>
+                    <Text style={styles.swatchName}>{preset.name}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
         </View>
 
         <Text style={styles.band}>Access & data</Text>
@@ -272,8 +375,10 @@ export default function SettingsScreen() {
         {session ? (
           <View style={styles.account}>
             <Text style={styles.accountLabel}>Account</Text>
-            <Text style={styles.accountEmail} numberOfLines={1}>
-              Synced to {session.user.email ?? 'your account'}
+            <Text style={styles.accountEmail} numberOfLines={syncOk === false ? 2 : 1}>
+              {syncOk === false
+                ? "Saved on this device. It'll sync when it can reach your account."
+                : `Synced to ${session.user.email ?? 'your account'}`}
             </Text>
             {confirming ? (
               <View style={styles.confirmBox}>
@@ -337,6 +442,16 @@ export default function SettingsScreen() {
                 {mcpToken}
               </Text>
             ) : null}
+            {mcpExpired && (
+              <Pressable
+                onPress={() => router.push('/sign-in')}
+                accessibilityRole="button"
+                accessibilityLabel="Sign in again to get a fresh token"
+                hitSlop={6}
+              >
+                <Text style={styles.mcpExpired}>Your session expired. Sign in again to get a fresh token.</Text>
+              </Pressable>
+            )}
             <Text style={styles.mcpFoot}>The token refreshes about hourly. Re-copy it if your agent stops connecting.</Text>
           </View>
         ) : null}
@@ -351,7 +466,7 @@ export default function SettingsScreen() {
             <View style={styles.premiumCardText}>
               <Text style={styles.premiumCardTitle}>DoubleDone Premium</Text>
               <Text style={styles.premiumCardSub}>
-                {premium ? 'Active. Every extra is yours.' : 'More of what you love: Scan a list, Chart a course, weekly keepsakes, and more.'}
+                {premium ? 'Active. Every extra is yours.' : 'More of what you love: Scan a list, Chart a course, weekly scrapbooks, and more.'}
               </Text>
             </View>
             <Text style={styles.premiumCardCue}>{premium ? 'Active ✓' : '›'}</Text>
@@ -389,20 +504,12 @@ export default function SettingsScreen() {
               >
                 <Text style={styles.feedbackCancel}>Cancel</Text>
               </Pressable>
-              <Pressable
+              <PrimaryButton
+                label={feedbackState === 'sending' ? 'Sending…' : 'Send'}
                 onPress={sendFeedback}
                 disabled={!feedbackText.trim() || feedbackState === 'sending'}
-                accessibilityRole="button"
                 accessibilityLabel="Send feedback"
-                hitSlop={8}
-                style={({ pressed }) => [
-                  styles.feedbackSend,
-                  pressed && { opacity: 0.85 },
-                  (!feedbackText.trim() || feedbackState === 'sending') && { opacity: 0.5 },
-                ]}
-              >
-                <Text style={styles.feedbackSendText}>{feedbackState === 'sending' ? 'Sending…' : 'Send'}</Text>
-              </Pressable>
+              />
             </View>
           </View>
         ) : (
@@ -457,8 +564,10 @@ type ChoiceProps<T extends string> = {
   onChange: (v: T) => void;
 };
 
-// A calm segmented control: the options as equal pills, the active one filled with
-// the mauve tint and a slightly bolder mauve border. No switch to find.
+// A calm settings row: the label and optional hint, then a shared Segmented toggle
+// (the active option filled with the mauve tint and a bolder mauve border). No
+// switch to find. The segmented row is the shared Segmented component, so the
+// settings toggles and the breakdown gradual/same-day toggle stay one shape.
 function Choice<T extends string>({ label, hint, value, options, onChange }: ChoiceProps<T>) {
   const styles = useThemedStyles(makeStyles);
   return (
@@ -466,21 +575,7 @@ function Choice<T extends string>({ label, hint, value, options, onChange }: Cho
       <Text style={styles.rowLabel}>{label}</Text>
       {hint ? <Text style={styles.rowHint}>{hint}</Text> : null}
       <View style={styles.segment}>
-        {options.map((o) => {
-          const active = o.value === value;
-          return (
-            <Pressable
-              key={o.value}
-              onPress={() => onChange(o.value)}
-              style={({ pressed }) => [styles.seg, active && styles.segOn, pressed && styles.pressed]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={`${label}: ${o.label}`}
-            >
-              <Text style={[styles.segText, active && styles.segTextOn]}>{o.label}</Text>
-            </Pressable>
-          );
-        })}
+        <Segmented value={value} options={options} onChange={onChange} accessibilityLabel={label} />
       </View>
     </View>
   );
@@ -498,38 +593,45 @@ const makeStyles = (t: Theme) =>
       alignSelf: 'center',
       flexGrow: 1, // fills the height so the footnote can sit at the bottom
     },
-    back: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     // Editorial serif header at weight 400, the calm counterpoint to bold "Today".
-    title: { color: t.colors.ink, fontSize: 42 * t.scale, fontWeight: '400', fontFamily: fonts.sans, marginTop: spacing.three },
+    title: { ...t.type.title, color: t.colors.ink, marginTop: spacing.three },
     subtitle: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale, marginTop: spacing.two },
     band: {
+      ...t.type.eyebrow,
       color: t.colors.inkFaint,
-      fontSize: 12 * t.scale,
-      fontFamily: fonts.bodyBold,
-      fontWeight: '700',
       textTransform: 'uppercase',
-      letterSpacing: 0.8,
       marginTop: spacing.six,
       marginBottom: spacing.two,
     },
     rows: { marginTop: spacing.two, gap: spacing.six },
     rowLabel: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     rowHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale, marginTop: spacing.one },
-    segment: { flexDirection: 'row', gap: spacing.two, marginTop: spacing.three },
-    seg: {
-      flex: 1,
-      paddingVertical: spacing.three,
-      paddingHorizontal: spacing.two,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: t.colors.line,
-      backgroundColor: t.colors.surface,
-      alignItems: 'center',
+    accentBlock: {},
+    accentHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
+    accentLabel: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
+    accentTag: {
+      color: t.colors.accent,
+      fontSize: 11 * t.scale,
+      fontFamily: fonts.sans,
+      fontWeight: '700',
+      letterSpacing: 0.4,
+      textTransform: 'uppercase',
     },
-    segOn: { borderWidth: 1.5, borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
-    segText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    segTextOn: { color: t.colors.accent },
-    pressed: { opacity: 0.7 },
+    swatchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.four, marginTop: spacing.three },
+    swatchHit: { alignItems: 'center', gap: spacing.one },
+    swatchRing: { padding: 3, borderRadius: radius.pill, borderWidth: 2, borderColor: 'transparent' },
+    swatchRingOn: { borderColor: t.colors.ink },
+    swatch: { width: 30 * t.scale, height: 30 * t.scale, borderRadius: radius.pill },
+    swatchName: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.sans },
+    reminderTimeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.three, gap: spacing.three },
+    reminderTimeLabel: { ...t.type.body, color: t.colors.ink },
+    stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
+    stepBtn: { width: 36, height: 36, borderRadius: radius.pill, borderWidth: border.hair, borderColor: t.colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: t.colors.surface },
+    stepBtnOff: { opacity: 0.4 },
+    stepGlyph: { fontSize: 22 * t.scale, lineHeight: 26 * t.scale, color: t.colors.accent, fontFamily: fonts.body },
+    stepValue: { ...t.type.bodyStrong, color: t.colors.ink, minWidth: 88, textAlign: 'center' },
+    segment: { marginTop: spacing.three },
+    pressed: { opacity: PRESSED_OPACITY },
     privacyLink: { marginTop: spacing.two },
     privacyLinkText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     premiumCardWrap: { marginTop: 'auto', paddingTop: spacing.six }, // pin to the bottom of the page
@@ -547,7 +649,7 @@ const makeStyles = (t: Theme) =>
       elevation: 5,
     },
     premiumCardText: { flex: 1, gap: spacing.one },
-    premiumCardTitle: { color: '#FFFFFF', fontSize: 22 * t.scale, fontFamily: fonts.sans, fontWeight: '400' },
+    premiumCardTitle: { ...t.type.heading, color: '#FFFFFF' },
     premiumCardSub: { color: 'rgba(255,255,255,0.9)', fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },
     premiumCardCue: { color: '#FFFFFF', fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     account: { marginTop: spacing.six, gap: spacing.two },
@@ -562,7 +664,7 @@ const makeStyles = (t: Theme) =>
       gap: spacing.three,
       padding: spacing.four,
       borderRadius: radius.md,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       backgroundColor: t.colors.surface,
     },
@@ -577,7 +679,7 @@ const makeStyles = (t: Theme) =>
       fontSize: 13 * t.scale,
       fontFamily: fonts.body,
       backgroundColor: t.colors.surface,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       borderRadius: radius.md,
       paddingVertical: spacing.two,
@@ -585,6 +687,7 @@ const makeStyles = (t: Theme) =>
       marginTop: spacing.one,
     },
     mcpAction: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.one },
+    mcpExpired: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.two },
     mcpToken: {
       color: t.colors.inkSoft,
       fontSize: 12 * t.scale,
@@ -600,7 +703,7 @@ const makeStyles = (t: Theme) =>
     feedbackForm: { paddingTop: spacing.six, gap: spacing.three },
     feedbackInput: {
       minHeight: 96,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       borderRadius: radius.md,
       padding: spacing.three,
@@ -613,9 +716,7 @@ const makeStyles = (t: Theme) =>
     feedbackError: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body },
     feedbackActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.five },
     feedbackCancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    feedbackSend: { backgroundColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.three, paddingHorizontal: spacing.five },
-    feedbackSendText: { color: '#FFFFFF', fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    feedbackThanks: { color: t.colors.done, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', paddingTop: spacing.six },
+    feedbackThanks: { color: t.colors.doneText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', paddingTop: spacing.six },
     footnote: {
       color: t.colors.inkFaint,
       fontSize: 13 * t.scale,

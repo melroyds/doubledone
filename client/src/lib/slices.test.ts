@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { applySliceDelta, hasSlices, sliceComplete, sliceFraction } from './slices';
+import { applySliceDelta, clearSlices, hasSlices, setSliceTotal, sliceComplete, sliceFraction } from './slices';
 import { type Task } from './tasks';
 
 function sliced(total: number, done: number): Task {
@@ -64,5 +64,42 @@ describe('applySliceDelta', () => {
   it('leaves a non-sliced task untouched', () => {
     const whole: Task = { id: 'b', title: 'x', done: false, createdAt: 0, updatedAt: 0 };
     expect(applySliceDelta(whole, +1)).toBe(whole);
+  });
+});
+
+describe('setSliceTotal', () => {
+  it('splits a whole task into N parts at zero progress', () => {
+    const whole: Task = { id: 'b', title: 'x', done: false, createdAt: 0, updatedAt: 0 };
+    const next = setSliceTotal(whole, 5);
+    expect(next.slices).toEqual({ total: 5, done: 0 });
+    expect(next.done).toBe(false);
+  });
+
+  it('clamps the count to [MIN_SLICES, MAX_SLICES]', () => {
+    expect(setSliceTotal(sliced(5, 0), 1).slices).toEqual({ total: 2, done: 0 });
+    expect(setSliceTotal(sliced(5, 0), 999).slices).toEqual({ total: 50, done: 0 });
+  });
+
+  it('carries progress over and snaps done down when shrinking below it', () => {
+    const next = setSliceTotal(sliced(10, 8), 5);
+    expect(next.slices).toEqual({ total: 5, done: 5 });
+    expect(next.done).toBe(true); // 5 of 5 -> complete
+  });
+
+  it('reopens a finished task when growing the count past its done', () => {
+    const next = setSliceTotal(sliced(3, 3), 6);
+    expect(next.slices).toEqual({ total: 6, done: 3 });
+    expect(next.done).toBe(false);
+  });
+});
+
+describe('clearSlices', () => {
+  it('drops the parts, leaving a whole task', () => {
+    expect(clearSlices(sliced(5, 2)).slices).toBeNull();
+  });
+
+  it('leaves an already-whole task untouched', () => {
+    const whole: Task = { id: 'b', title: 'x', done: false, createdAt: 0, updatedAt: 0 };
+    expect(clearSlices(whole)).toBe(whole);
   });
 });

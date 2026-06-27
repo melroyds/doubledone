@@ -1,14 +1,25 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
+import { PrimaryButton } from '@/components/PrimaryButton';
+import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
+import { aiErrorLine } from '@/lib/connection';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 type Phase = 'email' | 'code' | 'done';
+
+const RESEND_COOLDOWN = 30; // seconds before the code can be re-sent, so taps don't trip the provider's rate limit
+
+// A send failure that is really "you just asked" (a 429, or a "wait N seconds" message), told apart so a user
+// whose correct address was fine is never told to doubt it.
+function isRateLimit(e: unknown): boolean {
+  const err = e as { status?: number; message?: string } | null;
+  return err?.status === 429 || /rate|too many|seconds|security purposes/i.test(err?.message ?? '');
+}
 
 // Optional cloud sync sign-in. Passwordless: we email a 6-digit code and verify
 // it. Calm and skippable, the app works fully without ever coming here. The live
@@ -23,10 +34,18 @@ export default function SignInScreen() {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(0); // seconds left before "Resend code" re-enables
 
   function goBack() {
     router.back();
   }
+
+  // Tick the resend cooldown down to zero.
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
 
   // After a successful sign-in, hold the "Signed in" beat briefly, then return to
   // Today on its own. The button is there for anyone who would rather not wait.
@@ -40,7 +59,7 @@ export default function SignInScreen() {
     const addr = email.trim();
     if (!addr || busy) return;
     if (!supabase) {
-      setError('Sync is not set up on this build.');
+      setError("Syncing isn't available here. Your tasks are safe on this device.");
       return;
     }
     setError(null);
@@ -53,9 +72,13 @@ export default function SignInScreen() {
       if (err) throw err;
       track('auth.code_sent');
       setPhase('code');
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : '';
-      setError(detail ? `Could not send the code: ${detail}` : 'Could not send the code. Check the address and try again.');
+      setCooldown(RESEND_COOLDOWN);
+    } catch (e) {
+      // Never leak a raw provider error onto this anxiety-prone screen (the never-alarm spine): a calm line only.
+      // Tell apart offline, a rate-limit ("you just asked"), and everything else, so a user whose correct
+      // address was fine is never told to suspect it.
+      if (isRateLimit(e)) setError('Just sent one. Give it a minute, then try again.');
+      else setError(aiErrorLine('Could not send the code. Check the address and try again.'));
     } finally {
       setBusy(false);
     }
@@ -75,9 +98,8 @@ export default function SignInScreen() {
       if (err) throw err;
       track('auth.signed_in');
       setPhase('done');
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : '';
-      setError(detail ? `That code did not work: ${detail}` : 'That code did not work. Check it, or send a new one.');
+    } catch {
+      setError('That code did not work. Check it, or send a new one.');
     } finally {
       setBusy(false);
     }
@@ -111,19 +133,12 @@ export default function SignInScreen() {
             inputMode="email"
             accessibilityLabel="Email address"
           />
-          <Pressable
+          <PrimaryButton
+            label="Email me a code"
             onPress={sendCode}
-            disabled={busy}
-            style={({ pressed }) => [styles.primary, pressed && styles.pressed, busy && styles.disabled]}
-            accessibilityRole="button"
+            loading={busy}
             accessibilityLabel="Email me a code"
-          >
-            {busy ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={styles.primaryText}>Email me a code</Text>
-            )}
-          </Pressable>
+          />
         </View>
       )}
 
@@ -142,18 +157,16 @@ export default function SignInScreen() {
             maxLength={6}
             accessibilityLabel="Code from your email"
           />
+          <PrimaryButton label="Sign in" onPress={verify} loading={busy} accessibilityLabel="Sign in" />
           <Pressable
-            onPress={verify}
-            disabled={busy}
-            style={({ pressed }) => [styles.primary, pressed && styles.pressed, busy && styles.disabled]}
+            onPress={sendCode}
+            disabled={busy || cooldown > 0}
             accessibilityRole="button"
-            accessibilityLabel="Sign in"
+            accessibilityLabel={cooldown > 0 ? `Resend code in ${cooldown} seconds` : 'Resend code'}
           >
-            {busy ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={styles.primaryText}>Sign in</Text>
-            )}
+            <Text style={[styles.link, (busy || cooldown > 0) && styles.linkDim]}>
+              {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
+            </Text>
           </Pressable>
           <Pressable
             onPress={() => {
@@ -174,14 +187,7 @@ export default function SignInScreen() {
         <View style={styles.form}>
           <Text style={styles.success}>Signed in</Text>
           <Text style={styles.sub}>You&apos;re synced as {email.trim()}. Taking you back to today.</Text>
-          <Pressable
-            onPress={goBack}
-            style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel="Back to today"
-          >
-            <Text style={styles.primaryText}>Back to today</Text>
-          </Pressable>
+          <PrimaryButton label="Back to Today" onPress={goBack} accessibilityLabel="Back to Today" />
         </View>
       )}
 
@@ -205,19 +211,17 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   cancel: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, marginBottom: spacing.six },
   title: {
+    ...t.type.heading,
     color: t.colors.ink,
-    fontSize: 30 * t.scale,
-    fontWeight: '600',
-    fontFamily: fonts.sans,
     letterSpacing: -0.5,
   },
   sub: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale, marginTop: spacing.three },
   form: { gap: spacing.three, marginTop: spacing.six },
   sentTo: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-  success: { color: t.colors.done, fontSize: 26 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.3 },
+  success: { color: t.colors.doneText, fontSize: 26 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.3 },
   input: {
     backgroundColor: t.colors.surface,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
     borderRadius: radius.md,
     paddingHorizontal: spacing.four,
@@ -226,15 +230,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     fontFamily: fonts.body,
     color: t.colors.ink,
   },
-  primary: {
-    backgroundColor: t.colors.accent,
-    borderRadius: radius.md,
-    paddingVertical: spacing.four,
-    alignItems: 'center',
-  },
-  primaryText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  pressed: { opacity: 0.8 },
-  disabled: { opacity: 0.5 },
   link: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.two },
+  linkDim: { opacity: 0.5 },
   error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.four },
 });

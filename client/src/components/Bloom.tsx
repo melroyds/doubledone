@@ -10,8 +10,9 @@ import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'r
 import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { motion } from '@/constants/motion';
+import { spacing, type Theme } from '@/constants/theme';
 import type { CelebrationTier } from '@/lib/celebrate';
-import { useReducedMotion, useTheme } from '@/lib/theme-provider';
+import { useReducedMotion, useThemedStyles } from '@/lib/theme-provider';
 
 export type BloomData = {
   title: string;
@@ -32,7 +33,7 @@ const SOFT_INK = '#CBB6A6';
 const TIER_SIZE: Record<CelebrationTier, number> = { quick: 210, real: 290, dreaded: 360 };
 
 export function Bloom({ data, onDone }: { data: BloomData | null; onDone: () => void }) {
-  const t = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const reduce = useReducedMotion();
   const [anim] = useState(() => new Animated.Value(0)); // 0 hidden -> 1 fully shown
 
@@ -93,23 +94,38 @@ export function Bloom({ data, onDone }: { data: BloomData | null; onDone: () => 
           </Svg>
         </Animated.View>
         <View style={styles.caption}>
-          <Text style={[styles.eyebrow, { fontFamily: t.fonts.body, fontSize: 13 * t.scale }]}>You finished the whole thing</Text>
-          <Text style={[styles.title, { fontFamily: t.fonts.sans, fontSize: 30 * t.scale, lineHeight: 38 * t.scale }]}>{data.title}</Text>
-          {data.context ? (
-            <Text style={[styles.context, { fontFamily: t.fonts.body, fontSize: 15 * t.scale, lineHeight: 22 * t.scale }]}>{data.context}</Text>
-          ) : null}
+          <Text style={styles.eyebrow}>You finished the whole thing</Text>
+          <Text style={styles.title}>{data.title}</Text>
+          {data.context ? <Text style={styles.context}>{data.context}</Text> : null}
         </View>
       </Pressable>
     </Animated.View>
   );
 }
 
-const styles = StyleSheet.create({
-  scrim: { backgroundColor: SCRIM, zIndex: 100 }, // elevation removed: a translucent elevated view animating opacity seamed into a vertical band on Android, and the bloom mounts last so zIndex alone keeps it on top
-  fill: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
-  center: { alignItems: 'center', justifyContent: 'center' },
-  caption: { alignItems: 'center', maxWidth: 320 },
-  eyebrow: { color: SOFT_INK, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10, textAlign: 'center' },
-  title: { color: TITLE_INK, fontStyle: 'italic', textAlign: 'center' },
-  context: { color: SOFT_INK, textAlign: 'center', marginTop: 12 },
-});
+const makeStyles = (t: Theme) =>
+  StyleSheet.create({
+    scrim: { backgroundColor: SCRIM, zIndex: 100 }, // elevation removed: a translucent elevated view animating opacity seamed into a vertical band on Android, and the bloom mounts last so zIndex alone keeps it on top
+    fill: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.six },
+    center: { alignItems: 'center', justifyContent: 'center' },
+    caption: { alignItems: 'center', maxWidth: 320 },
+    // The eyebrow rides the shared eyebrow type step; only its celebration colour, centring and bottom gap are local.
+    eyebrow: { ...t.type.eyebrow, color: SOFT_INK, textTransform: 'uppercase', marginBottom: 10, textAlign: 'center' },
+    // The title and context keep their bespoke celebration sizes (no type step is 30/38 or 15/22), scaled by t.scale.
+    title: {
+      color: TITLE_INK,
+      fontFamily: t.fonts.sans,
+      fontSize: 30 * t.scale,
+      lineHeight: 38 * t.scale,
+      fontStyle: 'italic',
+      textAlign: 'center',
+    },
+    context: {
+      color: SOFT_INK,
+      fontFamily: t.fonts.body,
+      fontSize: 15 * t.scale,
+      lineHeight: 22 * t.scale,
+      textAlign: 'center',
+      marginTop: spacing.three,
+    },
+  });

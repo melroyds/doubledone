@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { dataUrl, FALLBACK_SCENE, imagePrompt, parseImage, parseScene, sceneMessages } from './scrapbook';
+import { dataUrl, FALLBACK_SCENE, imagePrompt, overDailyCap, parseImage, parseScene, SCRAPBOOK_DAILY_CAP, sceneMessages } from './scrapbook';
 
 describe('sceneMessages', () => {
   it('lists the week and asks for one calm still-life that surfaces it', () => {
@@ -48,5 +48,19 @@ describe('parseImage / dataUrl', () => {
   });
   it('wraps base64 as a jpeg data url', () => {
     expect(dataUrl('BASE64')).toBe('data:image/jpeg;base64,BASE64');
+  });
+});
+
+describe('overDailyCap (per-IP abuse backstop)', () => {
+  it('allows usage below the ceiling and blocks at or above it', () => {
+    expect(overDailyCap(0)).toBe(false);
+    expect(overDailyCap(SCRAPBOOK_DAILY_CAP - 1)).toBe(false);
+    expect(overDailyCap(SCRAPBOOK_DAILY_CAP)).toBe(true);
+    expect(overDailyCap(SCRAPBOOK_DAILY_CAP + 50)).toBe(true);
+  });
+
+  it('stays far above any legitimate use (a premium user front-loading a week is 4, well under the cap)', () => {
+    expect(overDailyCap(4)).toBe(false);
+    expect(SCRAPBOOK_DAILY_CAP).toBeGreaterThanOrEqual(8);
   });
 });

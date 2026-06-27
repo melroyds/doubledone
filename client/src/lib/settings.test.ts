@@ -64,6 +64,7 @@ describe('parseSettings', () => {
       theme: 'dark',
       textSize: 'default',
       motion: 'system',
+      themePreset: 'dusk',
     });
   });
 
@@ -74,7 +75,12 @@ describe('parseSettings', () => {
   });
 
   it('preserves a fully valid blob', () => {
-    const s: Settings = { theme: 'light', textSize: 'large', motion: 'reduce' };
+    const s: Settings = { theme: 'light', textSize: 'large', motion: 'reduce', themePreset: 'rose' };
     expect(parseSettings(serializeSettings(s))).toEqual(s);
+  });
+
+  it('validates the theme preset, falling back to dusk for an unknown one', () => {
+    expect(parseSettings(JSON.stringify({ themePreset: 'sage' })).themePreset).toBe('sage');
+    expect(parseSettings(JSON.stringify({ themePreset: 'neon' })).themePreset).toBe('dusk');
   });
 });

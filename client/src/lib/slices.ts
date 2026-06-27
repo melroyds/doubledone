@@ -47,3 +47,23 @@ export function applySliceDelta<T extends { slices?: Slices | null; done: boolea
   if (done === s.done) return task;
   return { ...task, slices: { total: s.total, done }, done: sliceComplete({ total: s.total, done }) };
 }
+
+/**
+ * Set (or change) a task's slice count, clamped to [MIN_SLICES, MAX_SLICES]. Progress carries over, clamped
+ * to the new total (shrinking below what is already done snaps `done` down to it), and the boolean done flag
+ * is reconciled so the calendar / close-the-day / reward need no special-casing. This is the discretionary
+ * "split this into N parts" the user drives: any whole task can become sliced, and a sliced task can be
+ * re-sized at will. Pure: the caller stamps updatedAt.
+ */
+export function setSliceTotal<T extends { slices?: Slices | null; done: boolean }>(task: T, total: number): T {
+  const t = Math.min(MAX_SLICES, Math.max(MIN_SLICES, Math.round(total)));
+  const prevDone = task.slices?.done ?? 0;
+  const done = Math.min(t, Math.max(0, prevDone));
+  return { ...task, slices: { total: t, done }, done: sliceComplete({ total: t, done }) };
+}
+
+/** Turn a sliced task back into a whole one (drops the parts). The done flag is left as-is. Pure. */
+export function clearSlices<T extends { slices?: Slices | null }>(task: T): T {
+  if (task.slices == null) return task;
+  return { ...task, slices: null };
+}

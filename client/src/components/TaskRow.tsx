@@ -1,10 +1,11 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { border, cardShadow, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { formatNudgeTime } from '@/lib/nudge';
 import { type Slices } from '@/lib/tasks';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
+import { CheckCircle } from './CheckCircle';
 import { MarqueeText } from './MarqueeText';
 
 type Props = {
@@ -21,7 +22,6 @@ type Props = {
   onRetreat?: () => void;
   onBreakdown?: () => void;
   onDefer?: () => void;
-  onGoodEnough?: () => void;
   onMakeTiny?: () => void;
   suggestBreakdown?: boolean;
   selecting?: boolean;
@@ -56,7 +56,6 @@ export function TaskRow({
   onRetreat,
   onBreakdown,
   onDefer,
-  onGoodEnough,
   onMakeTiny,
   suggestBreakdown,
   selecting,
@@ -71,7 +70,13 @@ export function TaskRow({
   const theme = useTheme();
   // The default + suggest rows share an accessibility label that names the pin and the big mark, so a
   // screen reader hears "marked as a big task" as validation (suppressed in select mode, like the marks).
-  const rowLabel = (pinned ? `${title}, pinned as today's one thing` : title) + (big ? ', marked as a big task' : '');
+  // The repeat and reminder state are folded in too, so a recurring task or one with a nudge no longer
+  // reads identically to a plain one (their decorative glyphs are then hidden from the reader, below).
+  const rowLabel =
+    (pinned ? `${title}, pinned as today's one thing` : title) +
+    (big ? ', marked as a big task' : '') +
+    (recurring ? ', repeating' : '') +
+    (nudgeAt ? `, reminder at ${formatNudgeTime(nudgeAt)}` : '');
 
   // Multi-select mode: every row becomes a checkbox (tap to pick), and the calm
   // tap-to-complete / long-press menu are suspended until the user leaves select mode.
@@ -104,13 +109,14 @@ export function TaskRow({
             disabled={slices.done <= 0}
             accessibilityRole="button"
             accessibilityLabel={`Step ${title} back one`}
+            hitSlop={{ top: 12, bottom: 12 }}
           >
-            <Text style={[styles.keep, slices.done <= 0 && styles.controlOff]}>Step back</Text>
+            <Text style={[styles.keep, slices.done <= 0 && styles.controlOff]}>Undo a step</Text>
           </Pressable>
-          <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${title}`}>
+          <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${title}`} hitSlop={{ top: 12, bottom: 12 }}>
             <Text style={styles.remove}>Remove</Text>
           </Pressable>
-          <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel="Close">
+          <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel="Close" hitSlop={{ top: 12, bottom: 12 }}>
             <Text style={styles.close}>Close</Text>
           </Pressable>
         </View>
@@ -124,30 +130,25 @@ export function TaskRow({
           {title}
         </Text>
         <View style={styles.confirmActions}>
-          {onGoodEnough && !recurring && !done && (
-            <Pressable onPress={onGoodEnough} accessibilityRole="button" accessibilityLabel={`Mark ${title} good enough and done`}>
-              <Text style={styles.goodEnough}>Good enough</Text>
-            </Pressable>
-          )}
           {onDefer && !recurring && (
-            <Pressable onPress={onDefer} accessibilityRole="button" accessibilityLabel={`Move ${title} to tomorrow`}>
+            <Pressable onPress={onDefer} accessibilityRole="button" accessibilityLabel={`Move ${title} to tomorrow`} hitSlop={{ top: 12, bottom: 12 }}>
               <Text style={styles.keep}>Tomorrow</Text>
             </Pressable>
           )}
           {onMakeTiny && !recurring && (
-            <Pressable onPress={onMakeTiny} accessibilityRole="button" accessibilityLabel={`Make ${title} tiny`}>
+            <Pressable onPress={onMakeTiny} accessibilityRole="button" accessibilityLabel={`Make ${title} tiny`} hitSlop={{ top: 12, bottom: 12 }}>
               <Text style={styles.keep}>Make it tiny</Text>
             </Pressable>
           )}
           {onBreakdown && !recurring && (
-            <Pressable onPress={onBreakdown} accessibilityRole="button" accessibilityLabel={`Break down ${title}`}>
+            <Pressable onPress={onBreakdown} accessibilityRole="button" accessibilityLabel={`Break down ${title}`} hitSlop={{ top: 12, bottom: 12 }}>
               <Text style={styles.keep}>Break down</Text>
             </Pressable>
           )}
-          <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${title}`}>
+          <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${title}`} hitSlop={{ top: 12, bottom: 12 }}>
             <Text style={styles.remove}>Remove</Text>
           </Pressable>
-          <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel="Close">
+          <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel="Close" hitSlop={{ top: 12, bottom: 12 }}>
             <Text style={styles.close}>Close</Text>
           </Pressable>
         </View>
@@ -171,9 +172,7 @@ export function TaskRow({
         accessibilityLabel={`${title}, ${slices.done} of ${slices.total} done${complete ? ', complete' : ', tap to advance, hold to adjust'}`}
       >
         <View style={styles.sliceTop}>
-          <View style={[styles.check, complete && styles.checkDone]}>
-            {complete && <Text style={styles.tick}>✓</Text>}
-          </View>
+          <CheckCircle done={complete} />
           <MarqueeText text={title} style={[styles.text, complete && styles.textDone]} />
           <Text style={styles.sliceCount}>
             {slices.done} / {slices.total}
@@ -183,6 +182,9 @@ export function TaskRow({
           <View style={{ flex: slices.done, backgroundColor: theme.colors.done }} />
           <View style={{ flex: rest }} />
         </View>
+        {/* A quiet sighted cue for the hold-to-adjust gesture, restoring parity with the spoken hint the screen
+            reader already gives. Without it a mis-tapped slice has no visible way back. Incomplete rows only. */}
+        {!complete && <Text style={styles.sliceAdjustHint}>Hold to adjust</Text>}
       </Pressable>
     );
   }
@@ -202,14 +204,12 @@ export function TaskRow({
           accessibilityState={{ checked: done }}
           accessibilityLabel={rowLabel}
         >
-          <View style={[styles.check, done && styles.checkDone]}>
-            {done && <Text style={styles.tick}>✓</Text>}
-          </View>
-          {big ? <Text style={styles.bigMark}>Big</Text> : null}
+          <CheckCircle done={done} />
+          {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">big</Text> : null}
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
-          {nudgeAt ? <Text style={styles.nudgeMark}>{`🔔 ${formatNudgeTime(nudgeAt)}`}</Text> : null}
-          {recurring && <Text style={styles.repeatMark}>↻</Text>}
-          {pinned ? <Text style={styles.pinStar}>★</Text> : null}
+          {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
+          {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
+          {pinned ? <Text style={styles.pinStar} accessible={false} importantForAccessibility="no">★</Text> : null}
         </Pressable>
         {onBreakdown && (
           <Pressable
@@ -243,7 +243,7 @@ export function TaskRow({
           accessibilityState={{ checked: done }}
           accessibilityLabel={`${title}, a tiny step toward ${tinyParent}`}
         >
-          <View style={[styles.check, done && styles.checkDone]}>{done && <Text style={styles.tick}>✓</Text>}</View>
+          <CheckCircle done={done} />
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
         </Pressable>
       </View>
@@ -260,15 +260,13 @@ export function TaskRow({
       accessibilityState={{ checked: done }}
       accessibilityLabel={rowLabel}
     >
-      <View style={[styles.check, done && styles.checkDone]}>
-        {done && <Text style={styles.tick}>✓</Text>}
-      </View>
-      {big ? <Text style={styles.bigMark}>Big</Text> : null}
+      <CheckCircle done={done} />
+      {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">big</Text> : null}
       <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
-      {nudgeAt ? <Text style={styles.nudgeMark}>{`🔔 ${formatNudgeTime(nudgeAt)}`}</Text> : null}
-      {recurring && <Text style={styles.repeatMark}>↻</Text>}
+      {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
+      {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
       {/* the pin star sits last, at the extreme right, so it stays the clear cue beside any other mark */}
-      {pinned ? <Text style={styles.pinStar}>★</Text> : null}
+      {pinned ? <Text style={styles.pinStar} accessible={false} importantForAccessibility="no">★</Text> : null}
     </Pressable>
   );
 }
@@ -282,14 +280,14 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingHorizontal: spacing.four,
     backgroundColor: t.colors.surfaceCard,
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
     // Soft elevation: rows float a hair above the living background (the redesign).
-    boxShadow: t.scheme === 'dark' ? '0px 6px 18px -10px rgba(0,0,0,0.5)' : '0px 6px 18px -10px rgba(43,39,34,0.18)',
+    boxShadow: cardShadow(t),
   },
-  rowUnique: { borderColor: t.colors.repeat, borderWidth: 2 },
+  rowUnique: { borderColor: t.colors.repeat, borderWidth: border.thick },
   // The day's one pinned priority: a calm accent border + faint tint, with the star beside the title.
-  rowPinned: { borderColor: t.colors.accent, borderWidth: 2, backgroundColor: t.colors.accentSoft },
+  rowPinned: { borderColor: t.colors.accent, borderWidth: border.thick, backgroundColor: t.colors.accentSoft },
   pinStar: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
   // A quiet accent tag (never danger red): the app agreeing this task is a lot, sized small so it never scolds.
   bigMark: {
@@ -304,39 +302,28 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     borderRadius: radius.pill,
     overflow: 'hidden',
   },
-  pressed: { opacity: 0.7 },
+  pressed: { opacity: PRESSED_OPACITY },
   confirmRow: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accentSoft },
   confirmText: { flex: 1, color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body },
   confirmColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.three },
   confirmTitle: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body },
   confirmActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.three },
   keep: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', paddingHorizontal: spacing.two },
-  goodEnough: { color: t.colors.done, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', paddingHorizontal: spacing.two },
   controlOff: { color: t.colors.inkFaint },
   close: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', paddingHorizontal: spacing.two },
   remove: { color: t.colors.danger, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', paddingHorizontal: spacing.two },
-  check: {
-    width: 26,
-    height: 26,
-    borderRadius: radius.pill,
-    borderWidth: 2,
-    borderColor: t.colors.inkFaint,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkDone: { backgroundColor: t.colors.done, borderColor: t.colors.done },
   rowSelected: { borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
   selectDot: {
     width: 26,
     height: 26,
     borderRadius: radius.pill,
-    borderWidth: 2,
+    borderWidth: border.thick,
     borderColor: t.colors.inkFaint,
     alignItems: 'center',
     justifyContent: 'center',
   },
   selectDotOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
-  tick: { color: '#FFFFFF', fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', lineHeight: 17 * t.scale },
+  tick: { color: t.colors.onAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', lineHeight: 17 * t.scale },
   text: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale },
   textDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
   repeatMark: { color: t.colors.repeat, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
@@ -347,10 +334,11 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   suggestHint: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   tinyColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
   tinyMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
-  tinyEyebrow: { color: t.colors.repeat, fontSize: 12 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', letterSpacing: 0.5 },
+  tinyEyebrow: { ...t.type.eyebrow, color: t.colors.repeat },
   sliceColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
   sliceTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
   sliceCount: { color: t.colors.repeat, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+  sliceAdjustHint: { color: t.colors.inkFaint, fontSize: 11 * t.scale, fontFamily: fonts.body, marginTop: spacing.half },
   track: {
     flexDirection: 'row',
     height: 4,

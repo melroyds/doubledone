@@ -1,9 +1,11 @@
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { BackLink } from '@/components/BackLink';
+import { PrimaryButton } from '@/components/PrimaryButton';
+import { border, cardShadow, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { toISODate } from '@/lib/day';
 import { isStepDoneToday, type Routine, routineProgress, type RoutineWhen, toggleStep } from '@/lib/routines';
 import { loadRoutines, saveRoutines } from '@/lib/storage';
@@ -31,7 +33,6 @@ const WHENS: { value: RoutineWhen; label: string }[] = [
 // "you missed it", the never-shame spine holds. The pure model lives in lib/routines.
 export default function RoutinesScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
   const today = useMemo(() => toISODate(new Date()), []);
@@ -75,6 +76,16 @@ export default function RoutinesScreen() {
     cancelAdd();
   }
 
+  // A one-tap starter for the blank-slate problem: prefill a sensible Morning routine and open the form,
+  // editable before save. One example beats a paragraph for a task-initiation audience.
+  function startMorningExample() {
+    setName('Morning');
+    setWhen('morning');
+    setStepsText("Drink a glass of water\nTake any medication\nA few minutes of movement\nWrite down today's one thing");
+    setAdding(true);
+    track('routine.starter_opened');
+  }
+
   function cancelAdd() {
     setAdding(false);
     setName('');
@@ -110,14 +121,7 @@ export default function RoutinesScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.six }]}>
-        <Pressable
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
-          accessibilityRole="button"
-          accessibilityLabel="Back to Today"
-          hitSlop={8}
-        >
-          <Text style={styles.back}>‹ Today</Text>
-        </Pressable>
+        <BackLink label="Today" />
 
         <Text style={styles.title}>Routines</Text>
         <Text style={styles.subtitle}>Gentle rituals. No streaks, no pressure, just today.</Text>
@@ -132,9 +136,20 @@ export default function RoutinesScreen() {
         )}
 
         {routines.length === 0 && !adding && (
-          <Text style={styles.empty}>
-            {'No routines yet. A routine is a few small steps you do together, like a morning start or an evening wind-down.'}
-          </Text>
+          <View>
+            <Text style={styles.empty}>
+              {'No routines yet. A routine is a few small steps you do together, like a morning start or an evening wind-down. Tick them off as you go; tomorrow they start fresh, with no streak to keep up.'}
+            </Text>
+            <Pressable
+              onPress={startMorningExample}
+              accessibilityRole="button"
+              accessibilityLabel="Try a Morning routine, prefilled and editable"
+              style={styles.starterBtn}
+              hitSlop={6}
+            >
+              <Text style={styles.starterBtnText}>Try a Morning routine</Text>
+            </Pressable>
+          </View>
         )}
 
         {groups.map((g) => (
@@ -200,7 +215,8 @@ export default function RoutinesScreen() {
                     onPress={() => setWhen(w.value)}
                     accessibilityRole="button"
                     accessibilityState={{ selected: active }}
-                    hitSlop={4}
+                    accessibilityLabel={w.label}
+                    hitSlop={8}
                   >
                     <Text style={[styles.whenPill, active && styles.whenPillActive]}>{w.label}</Text>
                   </Pressable>
@@ -220,9 +236,7 @@ export default function RoutinesScreen() {
               <Pressable onPress={cancelAdd} accessibilityRole="button" hitSlop={6}>
                 <Text style={styles.cancel}>Cancel</Text>
               </Pressable>
-              <Pressable onPress={addRoutine} accessibilityRole="button" style={styles.addBtn} hitSlop={6}>
-                <Text style={styles.addBtnText}>Add routine</Text>
-              </Pressable>
+              <PrimaryButton label="Add routine" onPress={addRoutine} pill accessibilityLabel="Add routine" />
             </View>
           </View>
         ) : (
@@ -239,9 +253,8 @@ const makeStyles = (t: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: t.colors.bg },
     scroll: { flex: 1 },
-    content: { paddingHorizontal: spacing.five, paddingBottom: spacing.seven, gap: spacing.three },
-    back: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', marginBottom: spacing.two },
-    title: { color: t.colors.ink, fontSize: 42 * t.scale, fontWeight: '400', fontFamily: fonts.sans, marginTop: spacing.two },
+    content: { paddingHorizontal: spacing.five, paddingBottom: spacing.seven, gap: spacing.three, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
+    title: { ...t.type.title, color: t.colors.ink, marginTop: spacing.two },
     subtitle: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, marginBottom: spacing.three },
     undoBar: {
       flexDirection: 'row',
@@ -249,7 +262,7 @@ const makeStyles = (t: Theme) =>
       alignItems: 'center',
       backgroundColor: t.colors.surface,
       borderRadius: radius.md,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       paddingHorizontal: spacing.four,
       paddingVertical: spacing.three,
@@ -257,16 +270,18 @@ const makeStyles = (t: Theme) =>
     undoText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     undoAction: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
     empty: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale, marginTop: spacing.four },
+    starterBtn: { marginTop: spacing.four, alignSelf: 'flex-start' },
+    starterBtnText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     group: { gap: spacing.two, marginTop: spacing.two },
-    groupHeading: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, textTransform: 'uppercase', letterSpacing: 1 },
+    groupHeading: { ...t.type.eyebrow, color: t.colors.inkSoft, textTransform: 'uppercase' },
     card: {
       backgroundColor: t.colors.surfaceCard,
       borderRadius: radius.lg,
       padding: spacing.four,
       gap: spacing.one,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
-      boxShadow: t.scheme === 'dark' ? '0px 6px 18px -10px rgba(0,0,0,0.5)' : '0px 6px 18px -10px rgba(43,39,34,0.18)',
+      boxShadow: cardShadow(t),
     },
     cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: spacing.one },
     cardName: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, flex: 1 },
@@ -276,13 +291,13 @@ const makeStyles = (t: Theme) =>
       width: 22,
       height: 22,
       borderRadius: radius.sm,
-      borderWidth: 1.5,
+      borderWidth: border.thin,
       borderColor: t.colors.line,
       alignItems: 'center',
       justifyContent: 'center',
     },
     stepBoxDone: { backgroundColor: t.colors.done, borderColor: t.colors.done },
-    stepTick: { color: t.colors.surface, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
+    stepTick: { color: t.colors.onDone, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
     stepTitle: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.body, flex: 1 },
     stepTitleDone: { color: t.colors.inkSoft, textDecorationLine: 'line-through' },
     remove: { color: t.colors.danger, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.two },
@@ -291,7 +306,7 @@ const makeStyles = (t: Theme) =>
       borderRadius: radius.lg,
       padding: spacing.four,
       gap: spacing.three,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       marginTop: spacing.two,
     },
@@ -299,7 +314,7 @@ const makeStyles = (t: Theme) =>
       color: t.colors.ink,
       fontSize: 16 * t.scale,
       fontFamily: fonts.body,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       borderRadius: radius.md,
       paddingHorizontal: spacing.three,
@@ -315,17 +330,15 @@ const makeStyles = (t: Theme) =>
       paddingHorizontal: spacing.three,
       paddingVertical: spacing.three,
       borderRadius: radius.pill,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       overflow: 'hidden',
     },
-    whenPillActive: { color: t.colors.surface, backgroundColor: t.colors.accent, borderColor: t.colors.accent },
+    whenPillActive: { color: t.colors.onAccent, backgroundColor: t.colors.accent, borderColor: t.colors.accent },
     formActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.four, marginTop: spacing.one },
     cancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    addBtn: { backgroundColor: t.colors.accent, borderRadius: radius.pill, paddingHorizontal: spacing.five, paddingVertical: spacing.three },
-    addBtnText: { color: t.colors.surface, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold },
     newBtn: {
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       borderRadius: radius.pill,
       paddingVertical: spacing.three,

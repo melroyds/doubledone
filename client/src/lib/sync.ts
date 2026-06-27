@@ -55,26 +55,38 @@ export function taskToRow(task: Task, userId: string): TaskRow {
 }
 
 /** Remote row -> local Task. Optional fields are only set when present, so a
- *  round-trip with taskToRow is exact and nothing is polluted with undefined. */
+ *  round-trip with taskToRow is exact and nothing is polluted with undefined.
+ *
+ *  Timestamps are parsed defensively: a corrupt or unparseable remote value would
+ *  otherwise become NaN, and a NaN updatedAt loses every LWW comparison (NaN > x is
+ *  always false) and poisons the byCreated sort, silently pinning the task to the
+ *  bad row. Each parse falls back to created_at, then Date.now(), so a finite
+ *  timestamp always lands. */
 export function rowToTask(row: TaskRow): Task {
+  const createdAt = finiteOr(Date.parse(row.created_at), Date.now());
   const task: Task = {
     id: row.id,
     title: row.title,
     done: row.done,
-    createdAt: Date.parse(row.created_at),
-    updatedAt: Date.parse(row.updated_at),
+    createdAt,
+    updatedAt: finiteOr(Date.parse(row.updated_at), createdAt),
   };
   if (row.due != null) task.due = row.due;
   if (row.recurrence != null) task.recurrence = row.recurrence;
   if (row.completed_dates != null) task.completedDates = row.completed_dates;
-  if (row.completed_at != null) task.completedAt = Date.parse(row.completed_at);
+  if (row.completed_at != null) task.completedAt = finiteOr(Date.parse(row.completed_at), createdAt);
   if (row.complexity != null) task.complexity = row.complexity;
   if (row.slices != null) task.slices = row.slices;
   if (row.silent_parent) task.silentParent = true;
   if (row.parent_id != null) task.parentId = row.parent_id;
-  if (row.deleted_at != null) task.deletedAt = Date.parse(row.deleted_at);
-  if (row.pinned_at != null) task.pinnedAt = Date.parse(row.pinned_at);
+  if (row.deleted_at != null) task.deletedAt = finiteOr(Date.parse(row.deleted_at), createdAt);
+  if (row.pinned_at != null) task.pinnedAt = finiteOr(Date.parse(row.pinned_at), createdAt);
   return task;
+}
+
+/** A finite epoch-ms value, or the fallback when the parse produced NaN/Infinity. */
+function finiteOr(value: number, fallback: number): number {
+  return Number.isFinite(value) ? value : fallback;
 }
 
 /** Pull every row the signed-in user can see (RLS-scoped), tombstones included. */

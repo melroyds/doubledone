@@ -1,12 +1,15 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BackLink } from '@/components/BackLink';
 import { PremiumButton } from '@/components/PremiumButton';
-import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
+import { PrimaryButton } from '@/components/PrimaryButton';
+import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { lookbackSummary, makeScrapbook } from '@/lib/ai';
 import { addMonths, completionsByDay, monthLabel, monthMatrix, scheduledByDay, WEEKDAY_LABELS } from '@/lib/calendar';
+import { aiErrorLine } from '@/lib/connection';
 import { formatTodayLabel, fromISODate, toISODate } from '@/lib/day';
 import { canMakeScrapbook } from '@/lib/entitlement';
 import { scrapbookReady } from '@/lib/haptics';
@@ -31,6 +34,10 @@ export default function LookbackScreen() {
   const [selected, setSelected] = useState(toISODate(today));
   const [scrapbooks, setScrapbooks] = useState<Scrapbook[]>([]);
   const [bookBusy, setBookBusy] = useState(false);
+  // A synchronous mirror of bookBusy: each Workers-AI image is ~the whole daily neuron budget, so a
+  // same-frame double-tap must be rejected before the React re-render lands. The state drives the UI
+  // (and the button's disabled), the ref is the real concurrency guard checked at the top of the call.
+  const bookBusyRef = useRef(false);
   const [bookError, setBookError] = useState<string | null>(null);
   // Week-starts whose stored keepsake image failed to load (e.g. the R2 object was purged on an account
   // delete, leaving a local entry that points at a now-missing image). Such a week falls back to the calm
@@ -68,6 +75,7 @@ export default function LookbackScreen() {
   );
 
   const byDay = useMemo(() => completionsByDay(tasks), [tasks]);
+  const isFirstRun = byDay.size === 0; // no completion ever recorded: a fresh account, show one warm line, not stacked empties
   const scheduled = useMemo(() => scheduledByDay(tasks, today), [tasks, today]);
   const weeks = useMemo(() => monthMatrix(view.year, view.month), [view]);
   const todayIso = toISODate(today);
@@ -90,7 +98,10 @@ export default function LookbackScreen() {
 
   async function makeWeekScrapbook() {
     const titles = weekList.map((c) => c.title);
-    if (bookBusy || titles.length === 0) return;
+    // Synchronous re-entry guard: reject a same-frame second tap before any re-render, then mirror
+    // into state for the UI. bookBusy alone would let two taps both read false in the same frame.
+    if (bookBusyRef.current || titles.length === 0) return;
+    bookBusyRef.current = true;
     // Cadence gate: free is one a month (tapping past it is the paywall moment);
     // premium is the weekly allowance (a calm wait, never a wall). Entitlement is
     // server-verified; the count is the user's own local scrapbook history.
@@ -100,13 +111,14 @@ export default function LookbackScreen() {
       Date.now(),
     );
     if (!gate.allowed) {
+      bookBusyRef.current = false; // gate blocked, no billable call: free the guard so the user can retry
       if (gate.reason === 'free_monthly') {
         track('premium.gate_hit', { reason: 'free_monthly' });
         router.push('/premium');
         return;
       }
       const days = Math.max(1, Math.ceil((gate.resetAt - Date.now()) / 86_400_000));
-      setBookError(`That's this week's keepsakes. The next is ready in ${days} day${days === 1 ? '' : 's'}.`);
+      setBookError(`That's this week's scrapbook. The next is ready in ${days} day${days === 1 ? '' : 's'}.`);
       return;
     }
     setBookBusy(true);
@@ -126,9 +138,10 @@ export default function LookbackScreen() {
       scrapbookReady(reduced); // the keepsake landed: the payoff flourish, at the reveal
       track('scrapbook.made', { titles: titles.length });
     } catch {
-      setBookError('Could not make a scrapbook just now. Try again.');
+      setBookError(aiErrorLine('Could not make a scrapbook just now. Try again.'));
     } finally {
       setBookBusy(false);
+      bookBusyRef.current = false;
     }
   }
 
@@ -147,7 +160,7 @@ export default function LookbackScreen() {
         setSummary(text);
         track('lookback.summary.made', { titles: titles.length });
       } else {
-        setSummaryError('Could not reflect on the week just now. Try again.');
+        setSummaryError(aiErrorLine('Could not reflect on the week just now. Try again.'));
       }
     } finally {
       setSummaryBusy(false);
@@ -168,9 +181,7 @@ export default function LookbackScreen() {
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.six, paddingBottom: insets.bottom + spacing.six }]}
     >
-      <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back to today" hitSlop={8}>
-        <Text style={styles.back}>‹ Today</Text>
-      </Pressable>
+      <BackLink label="Today" />
 
       <Text style={styles.title}>Lookback</Text>
       <Text style={styles.sub}>Everything you have actually finished.</Text>
@@ -244,8 +255,12 @@ export default function LookbackScreen() {
         </View>
       </View>
 
-      {!monthHasCompletions && (
-        <Text style={styles.monthEmpty}>A quiet month so far. What you finish will appear here.</Text>
+      {isFirstRun ? (
+        // First run: one warm line in place of the stacked month-empty + day-empty, so the payoff screen
+        // never greets a brand-new user with "you have done nothing".
+        <Text style={styles.monthEmpty}>This is where everything you finish will gather. Nothing yet, and that&apos;s a fine place to start.</Text>
+      ) : (
+        !monthHasCompletions && <Text style={styles.monthEmpty}>A quiet month so far. What you finish will appear here.</Text>
       )}
 
       <View style={styles.detail}>
@@ -268,7 +283,7 @@ export default function LookbackScreen() {
               </View>
             ))}
           </>
-        ) : (
+        ) : isFirstRun ? null : (
           <Text style={styles.detailEmpty}>Nothing logged this day.</Text>
         )}
       </View>
@@ -292,7 +307,7 @@ export default function LookbackScreen() {
                 resizeMode="cover"
                 onError={() => setBrokenImages((prev) => new Set(prev).add(weekStart))}
                 accessible
-                accessibilityLabel={`A keepsake still-life for the ${weekLabel(weekStart)}: ${existingBook.caption}`}
+                accessibilityLabel={`A scrapbook still-life for the ${weekLabel(weekStart)}: ${existingBook.caption}`}
               />
               {existingBook.caption.length > 0 && <Text style={styles.scrapbookCaption}>{existingBook.caption}</Text>}
             </View>
@@ -306,19 +321,22 @@ export default function LookbackScreen() {
               </View>
             </View>
             <Text style={styles.scrapbookHint}>
-              {existingBook ? "That keepsake's picture isn't available anymore. Make a new one?" : 'Turn this week into a keepsake'}
+              {existingBook ? "That scrapbook's picture isn't available anymore. Make a new one?" : 'Turn this week into a scrapbook'}
             </Text>
-            <Pressable
+            {/* State the free cadence up front, so a free user knows the keepsake is monthly before they tap,
+                rather than meeting the cap as a surprise bounce at the emotional-payoff moment. */}
+            {!premium && <Text style={styles.scrapbookCadence}>Your free keepsake for this month.</Text>}
+            <PrimaryButton
+              label="Make a scrapbook"
               onPress={makeWeekScrapbook}
-              style={({ pressed }) => [styles.scrapbookBtn, pressed && styles.pressed]}
-              accessibilityRole="button"
+              disabled={bookBusy}
+              pill
               accessibilityLabel={`Make a scrapbook of the ${weekLabel(weekStart)}`}
-            >
-              <Text style={styles.scrapbookBtnText}>Make a scrapbook</Text>
-            </Pressable>
+              style={styles.scrapbookBtn}
+            />
             {bookError && <Text style={styles.scrapbookError}>{bookError}</Text>}
             <Text style={styles.scrapbookNote}>
-              Your week&apos;s finished tasks are sent to an AI to imagine the still-life. No names are kept.
+              Your week&apos;s finished things are sent to an AI to imagine the still-life. No names are kept.
             </Text>
           </View>
         ) : (
@@ -378,11 +396,12 @@ export default function LookbackScreen() {
                     <PremiumButton
                       label="Reflect on this week"
                       onPress={reflectOnWeek}
+                      disabled={summaryBusy}
                       accessibilityLabel="Reflect on this week with AI"
                       style={styles.summaryBtn}
                     />
                     <Text style={styles.scrapbookNote}>
-                      Your week&apos;s finished tasks are sent to an AI to write this, then discarded. No names are kept.
+                      Your week&apos;s finished things are sent to an AI to write this, then discarded. No names are kept.
                     </Text>
                   </>
                 )}
@@ -411,8 +430,7 @@ export default function LookbackScreen() {
 const makeStyles = (t: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: t.colors.bg },
   content: { paddingHorizontal: spacing.five, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
-  back: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, marginBottom: spacing.five },
-  title: { color: t.colors.ink, fontSize: 34 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.5 },
+  title: { color: t.colors.ink, fontSize: 34 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.5, marginTop: spacing.five },
   sub: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, marginTop: spacing.two, marginBottom: spacing.six },
   monthBar: {
     flexDirection: 'row',
@@ -434,26 +452,26 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   cell: { flex: 1, alignItems: 'center', paddingVertical: spacing.one },
   dayBlob: { width: 34, height: 34, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
-  dayToday: { borderWidth: 1, borderColor: t.colors.line },
+  dayToday: { borderWidth: border.hair, borderColor: t.colors.line },
   daySelected: { backgroundColor: t.colors.accent },
   dayNum: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body },
-  dayNumSelected: { color: '#FFFFFF', fontWeight: '700' },
+  dayNumSelected: { color: t.colors.onAccent, fontWeight: '700' },
   dot: { width: 5, height: 5, borderRadius: radius.pill, backgroundColor: t.colors.done, marginTop: 3 },
   dotBig: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: t.colors.done, marginTop: 1 },
   dotSpacer: { width: 5, height: 5, marginTop: 3 },
-  dotScheduled: { width: 6, height: 6, borderRadius: radius.pill, borderWidth: 1.5, borderColor: t.colors.accent, marginTop: 2 },
+  dotScheduled: { width: 6, height: 6, borderRadius: radius.pill, borderWidth: border.thin, borderColor: t.colors.accent, marginTop: spacing.half },
   legend: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: spacing.four, marginTop: spacing.four },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.one },
   legendDot: { width: 6, height: 6, borderRadius: radius.pill, backgroundColor: t.colors.done },
   legendDotBig: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: t.colors.done },
-  legendDotScheduled: { width: 7, height: 7, borderRadius: radius.pill, borderWidth: 1.5, borderColor: t.colors.accent },
+  legendDotScheduled: { width: 7, height: 7, borderRadius: radius.pill, borderWidth: border.thin, borderColor: t.colors.accent },
   legendText: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body },
   monthEmpty: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.five },
   detail: { marginTop: spacing.six, gap: spacing.two },
   detailDate: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginBottom: spacing.one },
   detailEmpty: { color: t.colors.inkFaint, fontSize: 15 * t.scale, fontFamily: fonts.body },
   item: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-  itemMark: { color: t.colors.done, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+  itemMark: { color: t.colors.doneText, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
   itemMarkScheduled: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
   detailScheduledHead: {
     color: t.colors.accent,
@@ -465,7 +483,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     marginBottom: spacing.one,
   },
   itemTitle: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, flexShrink: 1 },
-  itemBig: { color: t.colors.done, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+  itemBig: { color: t.colors.doneText, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   scrapbook: { marginTop: spacing.six, gap: spacing.three },
   scrapbookHead: { color: t.colors.ink, fontSize: 20 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
   // The keepsake polaroid: a soft mat around the square image with a gentle
@@ -478,7 +496,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'center',
     width: '100%',
-    maxWidth: 360,
+    maxWidth: layout.cardMediaWidth,
     shadowColor: '#000',
     shadowOpacity: 0.12,
     shadowRadius: 16,
@@ -508,10 +526,10 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   inviteWrap: { gap: spacing.three, alignItems: 'center' },
   inviteFrame: {
     width: '100%',
-    maxWidth: 360,
+    maxWidth: layout.cardMediaWidth,
     aspectRatio: 1,
     borderRadius: radius.md,
-    borderWidth: 1.5,
+    borderWidth: border.thin,
     borderColor: t.colors.line,
     borderStyle: 'dashed',
     alignItems: 'center',
@@ -527,16 +545,10 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   invitePlusText: { color: t.colors.accent, fontSize: 28 * t.scale, fontFamily: fonts.body, lineHeight: 32 * t.scale },
   scrapbookHint: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
-  scrapbookBtn: {
-    alignSelf: 'center',
-    backgroundColor: t.colors.accent,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.six,
-    paddingVertical: spacing.three,
-  },
-  scrapbookBtnText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+  scrapbookBtn: { alignSelf: 'center' },
   scrapbookError: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
   scrapbookNote: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, lineHeight: 17 * t.scale, textAlign: 'center' },
+  scrapbookCadence: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.one },
   weekList: { marginTop: spacing.four, gap: spacing.two },
   weekListHead: {
     color: t.colors.inkSoft,
@@ -547,7 +559,6 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: spacing.one,
   },
-  pressed: { opacity: 0.85 },
   insightsCard: { marginTop: spacing.six, backgroundColor: t.colors.surface, borderRadius: radius.md, padding: spacing.four, gap: spacing.two },
   insightsHead: { color: t.colors.ink, fontSize: 20 * t.scale, fontFamily: fonts.sans, fontWeight: '600', marginBottom: spacing.one },
   insightsStat: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale },

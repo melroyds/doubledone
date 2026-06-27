@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { addMonths, monthLabel, monthMatrix, WEEKDAY_LABELS } from '@/lib/calendar';
 import { fromISODate, toISODate } from '@/lib/day';
 import { useThemedStyles } from '@/lib/theme-provider';
@@ -86,12 +86,17 @@ export function DatePicker({ value, onChange, today }: Props) {
 
 const makeStyles = (t: Theme) => StyleSheet.create({
   wrap: {
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
     borderRadius: radius.md,
     padding: spacing.three,
     gap: spacing.one,
     backgroundColor: t.colors.surface,
+    // The day-cells are flex:1 / aspectRatio:1, so a wider host card would stretch them and the whole
+    // picker would grow taller. Cap the picker and centre it so the grid stays a fixed comfortable size.
+    maxWidth: layout.maxCalendarWidth,
+    alignSelf: 'center',
+    width: '100%',
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   nav: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill },
@@ -103,5 +108,5 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   cellOn: { backgroundColor: t.colors.accent },
   day: { color: t.colors.ink, fontFamily: fonts.body, fontSize: 14 * t.scale },
   dayPast: { color: t.colors.inkFaint, opacity: 0.5 },
-  dayOn: { color: '#FFFFFF', fontWeight: '700' },
+  dayOn: { color: t.colors.onAccent, fontWeight: '700' },
 });

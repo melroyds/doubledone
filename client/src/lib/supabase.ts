@@ -30,7 +30,14 @@ export const isSyncConfigured = supabase != null;
  *  single client path that sends the user's token: the Stripe seams and OCR both read it. */
 export async function authHeader(): Promise<Record<string, string> | null> {
   if (!supabase) return null;
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  return token ? { Authorization: `Bearer ${token}` } : null;
+  // getSession() reads AsyncStorage; a native-bridge or storage-corruption rejection here must not escape
+  // as an unhandled promise (it would strand a caller's busy state). Return null and let every caller's
+  // existing `if (!auth)` fallback take the calm signed-out path.
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    return token ? { Authorization: `Bearer ${token}` } : null;
+  } catch {
+    return null;
+  }
 }

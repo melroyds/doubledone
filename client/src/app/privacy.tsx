@@ -1,7 +1,7 @@
-import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BackLink } from '@/components/BackLink';
 import { fonts, spacing, type Theme } from '@/constants/theme';
 import { useThemedStyles } from '@/lib/theme-provider';
 
@@ -14,20 +14,12 @@ import { useThemedStyles } from '@/lib/theme-provider';
 // store listings and crawlers, since this screen renders client-side). Keep both in step.
 export default function PrivacyScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const styles = useThemedStyles(makeStyles);
 
   return (
     <View style={styles.screen}>
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.six }]}>
-        <Pressable
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/settings'))}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          hitSlop={8}
-        >
-          <Text style={styles.back}>‹ Back</Text>
-        </Pressable>
+        <BackLink fallback="/settings" />
 
         <Text style={styles.title}>Privacy</Text>
         <Text style={styles.updated}>Last updated 23 June 2026.</Text>
@@ -61,7 +53,7 @@ export default function PrivacyScreen() {
           <Text style={styles.body}>
             And when you finish steps from a broken-down task, the app notes only that they got done, a random id and
             a number of days, never the task text or anything about you, so it can learn how long things really take.
-            Prefer not to? Just don&apos;t use those features; the rest of the app works fully without them.
+            Prefer not to? Just don&apos;t use those features. The rest of the app works fully without them.
           </Text>
         </View>
 
@@ -100,8 +92,7 @@ const makeStyles = (t: Theme) =>
     screen: { flex: 1, backgroundColor: t.colors.bg },
     scroll: { flex: 1 },
     content: { paddingHorizontal: spacing.five, paddingBottom: spacing.seven, maxWidth: 640, width: '100%', alignSelf: 'center' },
-    back: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    title: { color: t.colors.ink, fontSize: 42 * t.scale, fontWeight: '400', fontFamily: fonts.sans, marginTop: spacing.three },
+    title: { ...t.type.title, color: t.colors.ink, marginTop: spacing.three },
     updated: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.two },
     lead: { color: t.colors.ink, fontSize: 16 * t.scale, lineHeight: 24 * t.scale, fontFamily: fonts.body, marginTop: spacing.five },
     section: { marginTop: spacing.five, gap: spacing.two },

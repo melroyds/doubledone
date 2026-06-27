@@ -16,7 +16,11 @@ const CLOSED_KEY = 'doubledone.closed.v1';
 const LOWDAY_KEY = 'doubledone.lowday.v1';
 const LASTOPEN_KEY = 'doubledone.lastopen.v1';
 const ONBOARDED_KEY = 'doubledone.onboarded.v1';
+const HOLDHINT_KEY = 'doubledone.holdhint.v1'; // one-time "hold a task for more" coachmark
 const ACCOUNT_KEY = 'doubledone.account.v1';
+const SYNCOK_KEY = 'doubledone.syncok.v1'; // result of the last sync attempt, so the footer can tell the truth
+const REMINDEROFFER_KEY = 'doubledone.reminderoffer.v1'; // one-time "offer the reminder after the first close-day"
+const REMINDERHOUR_KEY = 'doubledone.reminderhour.v1'; // the hour (0-23) the daily reminder fires; default 9am
 const DEV_PREMIUM_KEY = 'doubledone.devPremium.v1'; // DEV/preview only: the premium-flag override (see premium-flag.ts)
 
 /**
@@ -61,6 +65,26 @@ export async function loadReminderOn(): Promise<boolean> {
 export async function saveReminderOn(on: boolean): Promise<void> {
   try {
     await AsyncStorage.setItem(REMINDER_KEY, on ? 'on' : 'off');
+  } catch {
+    // best effort
+  }
+}
+
+/** The hour (0-23) the daily reminder fires. Defaults to 9am; clamped so a corrupt value never schedules nonsense. */
+export async function loadReminderHour(): Promise<number> {
+  try {
+    const raw = await AsyncStorage.getItem(REMINDERHOUR_KEY);
+    const n = raw == null ? 9 : parseInt(raw, 10);
+    return Number.isFinite(n) ? Math.max(0, Math.min(23, n)) : 9;
+  } catch {
+    return 9;
+  }
+}
+
+/** Persist the daily-reminder hour (0-23). Best effort. */
+export async function saveReminderHour(hour: number): Promise<void> {
+  try {
+    await AsyncStorage.setItem(REMINDERHOUR_KEY, String(Math.max(0, Math.min(23, Math.round(hour)))));
   } catch {
     // best effort
   }
@@ -170,6 +194,25 @@ export async function saveOnboarded(done: boolean): Promise<void> {
   }
 }
 
+/** Whether the one-time "hold a task for more" coachmark has been seen / dismissed. The long-press is the
+ *  only door to half the app (pin, remind, combine, make-it-tiny, bulk), so a first-timer needs telling. */
+export async function loadHoldHintSeen(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(HOLDHINT_KEY)) === 'yes';
+  } catch {
+    return false;
+  }
+}
+
+/** Mark the hold coachmark seen, so it never shows again. Best effort. */
+export async function saveHoldHintSeen(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(HOLDHINT_KEY, 'yes');
+  } catch {
+    // best effort
+  }
+}
+
 /** Load the user's settings (theme / text size / motion). Defaults on any failure. */
 export async function loadSettings(): Promise<Settings> {
   try {
@@ -256,6 +299,46 @@ export async function saveSyncedOwner(userId: string | null): Promise<void> {
   }
 }
 
+/** The result of the last sync attempt: true (reached the account), false (a non-fatal failure, the tasks are
+ *  saved on this device only), or null (never synced / unknown). Lets the UI stop claiming "Synced" when it
+ *  could not reach the account, which would be a false promise of cross-device safety. */
+export async function loadLastSyncOk(): Promise<boolean | null> {
+  try {
+    const v = await AsyncStorage.getItem(SYNCOK_KEY);
+    return v === 'yes' ? true : v === 'no' ? false : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Record whether the last sync attempt reached the account. Best effort. */
+export async function saveLastSyncOk(ok: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(SYNCOK_KEY, ok ? 'yes' : 'no');
+  } catch {
+    // best effort
+  }
+}
+
+/** Whether the one-time daily-reminder offer (shown after the first close-the-day) has been made. The reminder
+ *  is the named lever against the week-three retention cliff, so it is offered once at a concrete moment. */
+export async function loadReminderOfferMade(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(REMINDEROFFER_KEY)) === 'yes';
+  } catch {
+    return false;
+  }
+}
+
+/** Mark the one-time reminder offer as made (accepted or declined), so it never shows again. Best effort. */
+export async function saveReminderOfferMade(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(REMINDEROFFER_KEY, 'yes');
+  } catch {
+    // best effort
+  }
+}
+
 /**
  * Erase everything tied to the person from this device, for account deletion: both the
  * explicit in-app delete and the detected remote-deletion path call this. One key list,
@@ -270,7 +353,7 @@ export async function wipeLocalData(): Promise<void> {
   await saveTasks([]);
   await saveSyncedOwner(null);
   try {
-    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY]);
+    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY, SYNCOK_KEY]);
   } catch {
     // best effort, like the per-key savers above
   }

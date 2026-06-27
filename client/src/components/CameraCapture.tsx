@@ -12,8 +12,10 @@ import { launchImageLibraryAsync } from 'expo-image-picker';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { PrimaryButton } from '@/components/PrimaryButton';
+import { border, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { ocr } from '@/lib/ai';
+import { aiErrorLine } from '@/lib/connection';
 import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
@@ -58,7 +60,7 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
       track('ocr.captured', { count: tasks.length });
       onTasks(tasks);
     } catch {
-      setError('Something went wrong reading that. Try again.');
+      setError(aiErrorLine("Couldn't read that photo just now. Try again?"));
     } finally {
       setBusy(false);
     }
@@ -92,17 +94,14 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
     if (isWeb) {
       return (
         <View style={styles.prompt}>
-          <Text style={styles.promptTitle}>Photograph your list</Text>
+          <Text style={styles.promptTitle}>Scan a photo of your list</Text>
           <Text style={styles.promptHint}>Choose a photo of a list, a note, or a whiteboard.</Text>
-          <Pressable
+          <PrimaryButton
+            label="Choose a photo"
             onPress={pickFromGallery}
             disabled={busy}
-            style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed, busy && styles.disabled]}
-            accessibilityRole="button"
             accessibilityLabel="Choose a photo of your list"
-          >
-            <Text style={styles.primaryBtnText}>Choose a photo</Text>
-          </Pressable>
+          />
         </View>
       );
     }
@@ -118,16 +117,13 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
     if (!permission.granted) {
       return (
         <View style={styles.prompt}>
-          <Text style={styles.promptTitle}>Read a list from a photo</Text>
+          <Text style={styles.promptTitle}>Scan a photo of your list</Text>
           <Text style={styles.promptHint}>{EGRESS_NOTE}</Text>
-          <Pressable
+          <PrimaryButton
+            label="Allow camera"
             onPress={requestPermission}
-            style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
-            accessibilityRole="button"
             accessibilityLabel="Allow the camera"
-          >
-            <Text style={styles.primaryBtnText}>Allow camera</Text>
-          </Pressable>
+          />
           <Pressable onPress={pickFromGallery} accessibilityRole="button" accessibilityLabel="Choose from your photos instead">
             <Text style={styles.linkBtnText}>Choose from photos instead</Text>
           </Pressable>
@@ -170,7 +166,7 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
           <Pressable onPress={onClose} disabled={busy} accessibilityRole="button" accessibilityLabel="Close" hitSlop={8}>
             <Text style={[styles.headerLink, busy && styles.disabled]}>Close</Text>
           </Pressable>
-          <Text style={styles.headerTitle}>Snap your list</Text>
+          <Text style={styles.headerTitle}>Scan a list</Text>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -205,15 +201,8 @@ const makeStyles = (t: Theme) =>
     headerTitle: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
     headerSpacer: { width: 52 },
     prompt: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.four, paddingHorizontal: spacing.five },
-    promptTitle: { color: t.colors.ink, fontSize: 22 * t.scale, fontFamily: fonts.sans, fontWeight: '600', textAlign: 'center' },
+    promptTitle: { ...t.type.subheading, color: t.colors.ink, textAlign: 'center' },
     promptHint: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', lineHeight: 22 * t.scale },
-    primaryBtn: {
-      backgroundColor: t.colors.accent,
-      borderRadius: radius.md,
-      paddingHorizontal: spacing.five,
-      paddingVertical: spacing.three,
-    },
-    primaryBtnText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     linkBtnText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     cameraWrap: { flex: 1 },
     camera: { flex: 1 },
@@ -229,7 +218,7 @@ const makeStyles = (t: Theme) =>
       width: 64,
       paddingVertical: spacing.two,
       borderRadius: radius.pill,
-      borderWidth: 1,
+      borderWidth: border.hair,
       borderColor: t.colors.line,
       alignItems: 'center',
     },
@@ -261,7 +250,7 @@ const makeStyles = (t: Theme) =>
       paddingHorizontal: spacing.five,
       paddingBottom: spacing.four,
     },
-    pressed: { opacity: 0.8 },
+    pressed: { opacity: PRESSED_OPACITY },
     disabled: { opacity: 0.5 },
     busyOverlay: {
       position: 'absolute',

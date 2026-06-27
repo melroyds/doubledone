@@ -35,6 +35,11 @@ jobs:
           EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
 
+      - name: Inject SEO + social meta into the SPA index.html
+        # output:'single' ignores +html.tsx; patch dist/index.html before shipping so a
+        # shared doubledone.app link unfurls with the card, not title-only.
+        run: node scripts/inject-web-meta.mjs
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:

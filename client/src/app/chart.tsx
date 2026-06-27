@@ -3,9 +3,13 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BackLink } from '@/components/BackLink';
+import { Chip } from '@/components/Chip';
 import { PremiumButton } from '@/components/PremiumButton';
-import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
+import { PrimaryButton } from '@/components/PrimaryButton';
+import { border, control, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { chart, type CourseStep } from '@/lib/ai';
+import { aiErrorLine } from '@/lib/connection';
 import { toISODate } from '@/lib/day';
 import { usePremium } from '@/lib/premium-provider';
 import { spreadDueDates } from '@/lib/spread';
@@ -40,6 +44,7 @@ export default function ChartScreen() {
   const today = useMemo(() => new Date(), []);
   const [goal, setGoal] = useState('');
   const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [heading, setHeading] = useState('');
   const [steps, setSteps] = useState<Proposed[]>([]);
@@ -72,13 +77,19 @@ export default function ChartScreen() {
     try {
       const course = await chart(g, dueDate ? { dueDate } : undefined);
       if (course.steps.length === 0) {
-        setError("I couldn't map that out just now. Try rephrasing the goal?");
+        setError(aiErrorLine("I couldn't map that out just now. Try rephrasing the goal?"));
         setSteps([]);
         setHeading('');
       } else {
         setHeading(course.heading);
         setSteps(course.steps.map((s) => ({ ...s, checked: true })));
       }
+    } catch {
+      // chart() swallows its own errors today, but decouple this screen from that
+      // implicit never-throws contract: show the same calm empty-course line.
+      setError(aiErrorLine("I couldn't map that out just now. Try rephrasing the goal?"));
+      setSteps([]);
+      setHeading('');
     } finally {
       setBusy(false);
     }
@@ -92,22 +103,30 @@ export default function ChartScreen() {
   // tasks (no parentId, no project field), spread gently so the first lands on Today and Today stays small.
   async function addTasks() {
     const selected = steps.filter((s) => s.checked);
-    if (selected.length === 0) return;
-    const tasks = await loadTasks();
-    const now = nowMs();
-    const dates = spreadDueDates(selected.length, today, dueDate, 'gradual');
-    const minted: Task[] = selected.map((s, i) => ({
-      id: makeId(),
-      title: `${s.title} (${s.minutes} min)`,
-      done: false,
-      createdAt: now + i,
-      updatedAt: now + i,
-      complexity: s.minutes,
-      ...(dates[i] ? { due: dates[i] } : {}),
-    }));
-    await saveTasks([...tasks, ...minted]);
-    track('chart.added', { added: minted.length, offered: steps.length });
-    router.replace('/');
+    // Busy guard mirroring suggest(): the await below yields the loop, so without it a genuine
+    // double-tap mints two task sets from the same on-disk store and the second saveTasks (full
+    // overwrite) drops one set. Block the second call before any await.
+    if (adding || selected.length === 0) return;
+    setAdding(true);
+    try {
+      const tasks = await loadTasks();
+      const now = nowMs();
+      const dates = spreadDueDates(selected.length, today, dueDate, 'gradual');
+      const minted: Task[] = selected.map((s, i) => ({
+        id: makeId(),
+        title: `${s.title} (${s.minutes} min)`,
+        done: false,
+        createdAt: now + i,
+        updatedAt: now + i,
+        complexity: s.minutes,
+        ...(dates[i] ? { due: dates[i] } : {}),
+      }));
+      await saveTasks([...tasks, ...minted]);
+      track('chart.added', { added: minted.length, offered: steps.length });
+      router.replace('/today');
+    } finally {
+      setAdding(false);
+    }
   }
 
   const selectedCount = steps.filter((s) => s.checked).length;
@@ -115,14 +134,7 @@ export default function ChartScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top + spacing.three }]}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Pressable
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          hitSlop={8}
-        >
-          <Text style={styles.back}>‹ Back</Text>
-        </Pressable>
+        <BackLink />
         <Text style={styles.title}>Chart a course</Text>
         <Text style={styles.intro}>
           Name something you are working toward. You will get a calm list of the next few steps, yours to take or leave.
@@ -143,21 +155,9 @@ export default function ChartScreen() {
           <View style={styles.byWhen}>
             <Text style={styles.byWhenLabel}>By when?</Text>
             <View style={styles.chips}>
-              {dateChips.map((c) => {
-                const on = dueDate === c.iso;
-                return (
-                  <Pressable
-                    key={c.label}
-                    onPress={() => setDueDate(c.iso)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: on }}
-                    accessibilityLabel={c.label}
-                    style={[styles.chip, on && styles.chipOn]}
-                  >
-                    <Text style={[styles.chipText, on && styles.chipTextOn]}>{c.label}</Text>
-                  </Pressable>
-                );
-              })}
+              {dateChips.map((c) => (
+                <Chip key={c.label} label={c.label} selected={dueDate === c.iso} onPress={() => setDueDate(c.iso)} />
+              ))}
             </View>
           </View>
         )}
@@ -192,15 +192,13 @@ export default function ChartScreen() {
                 <Text style={styles.stepMin}>{s.minutes} min</Text>
               </Pressable>
             ))}
-            <Pressable
+            <PrimaryButton
+              label={selectedCount === 0 ? 'Pick a step to add' : `Add ${selectedCount} ${selectedCount === 1 ? 'task' : 'tasks'}`}
               onPress={addTasks}
-              disabled={selectedCount === 0}
-              accessibilityRole="button"
-              accessibilityLabel={`Add ${selectedCount} tasks to Today`}
-              style={({ pressed }) => [styles.cta, pressed && styles.pressed, selectedCount === 0 && styles.ctaDim]}
-            >
-              <Text style={styles.ctaText}>{selectedCount === 0 ? 'Pick a step to add' : `Add ${selectedCount} ${selectedCount === 1 ? 'task' : 'tasks'}`}</Text>
-            </Pressable>
+              disabled={adding || selectedCount === 0}
+              accessibilityLabel={`Add ${selectedCount} ${selectedCount === 1 ? 'task' : 'tasks'} to Today`}
+              style={styles.ctaSpace}
+            />
             <Pressable
               onPress={() => {
                 setSteps([]);
@@ -230,7 +228,6 @@ const makeStyles = (t: Theme) =>
     screen: { flex: 1, backgroundColor: t.colors.bg },
     scroll: { flex: 1 },
     content: { paddingHorizontal: spacing.five, paddingBottom: spacing.seven, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
-    back: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     title: { color: t.colors.ink, fontSize: 34 * t.scale, fontWeight: '400', fontFamily: fonts.sans, marginTop: spacing.three },
     intro: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 24 * t.scale, marginTop: spacing.two },
     input: {
@@ -245,34 +242,27 @@ const makeStyles = (t: Theme) =>
       lineHeight: 24 * t.scale,
       textAlignVertical: 'top',
     },
-    cta: { backgroundColor: t.colors.accent, borderRadius: radius.lg, paddingVertical: spacing.four, alignItems: 'center', marginTop: spacing.four },
+    ctaSpace: { marginTop: spacing.four },
     suggestBtn: { marginTop: spacing.four },
     byWhen: { marginTop: spacing.four, gap: spacing.two },
     byWhenLabel: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },
-    chip: { borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, borderColor: t.colors.line, paddingHorizontal: spacing.four, paddingVertical: spacing.two },
-    chipOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
-    chipText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
-    chipTextOn: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    ctaDim: { opacity: 0.5 },
-    ctaText: { color: '#FFFFFF', fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    pressed: { opacity: 0.8 },
     spinner: { marginTop: spacing.five },
     error: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, marginTop: spacing.four, lineHeight: 22 * t.scale },
     result: { marginTop: spacing.five, gap: spacing.two },
     heading: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', lineHeight: 26 * t.scale, marginBottom: spacing.two },
     stepRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three, paddingVertical: spacing.three },
     check: {
-      width: 24,
-      height: 24,
+      width: control.check,
+      height: control.check,
       borderRadius: radius.sm,
-      borderWidth: 1.5,
+      borderWidth: border.thin,
       borderColor: t.colors.line,
       alignItems: 'center',
       justifyContent: 'center',
     },
     checkOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
-    checkMark: { color: '#FFFFFF', fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    checkMark: { color: t.colors.onAccent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     stepTitle: { flex: 1, color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale },
     stepTitleOff: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
     stepMin: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body },

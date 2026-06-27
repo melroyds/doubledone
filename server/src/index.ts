@@ -13,9 +13,9 @@ import { buildLookbackSummaryRequest, LOOKBACK_SUMMARY_MODEL, parseLookbackSumma
 import { handleMcp } from './mcp';
 import { buildOcrRequest, type ImageMediaType, OCR_MODEL, parseMediaType, parseOcrResponse } from './ocr';
 import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
-import { requirePremium } from './premium';
+import { handleTrial, requirePremium } from './premium';
 import { deleteSub, parsePushSub, saveSub, sendDailyNudges } from './push';
-import { dataUrl, IMAGE_MODEL, imagePrompt, parseImage, parseScene, SCENE_MODEL, sceneMessages } from './scrapbook';
+import { dataUrl, IMAGE_MODEL, imagePrompt, overDailyCap, parseImage, parseScene, SCENE_MODEL, sceneMessages } from './scrapbook';
 import { buildSequenceRequest, parseEnergy, parseSequenceResponse, SEQUENCE_MODEL } from './sequence';
 import { buildSplitRequest, parseSplitResponse, SPLIT_MODEL } from './split';
 import { buildTinyRequest, parseTinyResponse, TINY_MODEL } from './tiny';
@@ -99,6 +99,10 @@ const ALLOWED_ORIGINS = [
   'http://localhost:19006',
 ];
 const AI_ROUTES = new Set(['/chart', '/clarify', '/combine', '/decompose', '/plan', '/sequence', '/split', '/tiny', '/strategise', '/triage', '/scrapbook', '/ocr', '/lookback-summary']);
+// Max request-body size (bytes) on the TEXT AI routes, so one giant payload cannot run up the Anthropic
+// bill (the rate limiter bounds frequency, this bounds size). 100 KB is far above any real brain-dump or
+// goal. /ocr is exempt below: it legitimately carries a photo.
+const MAX_TEXT_AI_BODY = 100_000;
 
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
@@ -133,6 +137,15 @@ export default {
     const { pathname } = new URL(request.url);
     const origin = request.headers.get('Origin');
     const cors = corsFor(origin);
+
+    // Defence-in-depth body ceiling for EVERY route. The per-route field caps are the real backstop, but a
+    // declared Content-Length over ~2MB (a multi-megabyte JSON body that would be materialised in Worker
+    // memory before any validation) is rejected here first. Content-Length can be absent or spoofed, so this
+    // is a backstop, not the only check. ~1.9MB matches the existing /ocr budget.
+    const declaredLen = Number(request.headers.get('Content-Length'));
+    if (Number.isFinite(declaredLen) && declaredLen > 2_000_000) {
+      return new Response('payload too large', { status: 413, headers: cors });
+    }
 
     // MCP server: token-authed and not origin-gated (so browser-based MCP clients
     // like the Inspector reach it). It carries its own permissive CORS.
@@ -214,6 +227,9 @@ export default {
     if (pathname === '/entitlement' && request.method === 'GET') {
       return handleEntitlement(request, env, cors);
     }
+    if (pathname === '/trial/start' && request.method === 'POST') {
+      return handleTrial(request, env, cors);
+    }
 
     // Web Push (Phase 2 reminders): store / remove a browser subscription for the daily
     // nudge. Browser-only, so origin-gated; the daily cron sends to the stored subs.
@@ -264,6 +280,16 @@ export default {
         const { success } = await env.AI_LIMITER.limit({ key: ip });
         if (!success) {
           return Response.json({ error: 'rate limited, try again shortly' }, { status: 429, headers: cors });
+        }
+      }
+      // Size cap on the text routes (see MAX_TEXT_AI_BODY). Read a CLONE so the handler can still read the
+      // body, and measure the real UTF-8 BYTE length: a content-length header can be absent or lie, and a
+      // plain .length (UTF-16 code units) undercounts multibyte scripts (CJK, Cyrillic, emoji) by up to ~3x.
+      // /ocr is exempt: it carries a real photo and enforces its own larger limit downstream.
+      if (pathname !== '/ocr') {
+        const probeBytes = new TextEncoder().encode(await request.clone().text()).length;
+        if (probeBytes > MAX_TEXT_AI_BODY) {
+          return Response.json({ error: 'request too large' }, { status: 413, headers: cors });
         }
       }
     }
@@ -927,6 +953,23 @@ export default {
         return Response.json({ error: 'server not configured' }, { status: 500, headers: cors });
       }
 
+      // Abuse backstop: bound image generation per client IP over a rolling 24h, so a scripted caller cannot
+      // mint unlimited keepsakes off one IP and drain the shared Workers AI budget. Generous (no legitimate
+      // user, free 1/month or premium up to 4/week, comes near it). Fails OPEN: a store hiccup must never deny a
+      // real keepsake.
+      const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
+      if (env.DB) {
+        try {
+          const since = Date.now() - 86_400_000;
+          const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM scrapbook_log WHERE ip = ?1 AND created_at >= ?2').bind(ip, since).first<{ n: number }>();
+          if (row && overDailyCap(row.n)) {
+            return Response.json({ error: 'rate_limited' }, { status: 429, headers: cors });
+          }
+        } catch {
+          // fail open: a missing table or transient error must never block a keepsake
+        }
+      }
+
       const started = Date.now();
       try {
         const sceneRes = await env.AI.run(SCENE_MODEL, {
@@ -958,6 +1001,18 @@ export default {
             inputTokens: null, outputTokens: null, latencyMs: Date.now() - started, ok: true,
           }),
         );
+        if (env.DB) {
+          const db = env.DB;
+          ctx.waitUntil(
+            (async () => {
+              try {
+                await db.prepare('INSERT INTO scrapbook_log (ip, created_at) VALUES (?1, ?2)').bind(ip, Date.now()).run();
+              } catch {
+                // best effort: the keepsake was made; the backstop log is non-critical
+              }
+            })(),
+          );
+        }
         return Response.json({ image, caption: scene }, { headers: cors });
       } catch (e) {
         ctx.waitUntil(

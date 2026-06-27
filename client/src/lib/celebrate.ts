@@ -67,3 +67,27 @@ export function finishContext(input: { lingerDays: number; stepCount: number }):
   const steps = stepCount > 0 ? `${cap(countWord(stepCount))} small ${stepCount === 1 ? 'step' : 'steps'}.` : '';
   return [lingerClause(lingerDays), steps, 'All done.'].filter(Boolean).join(' ');
 }
+
+// --- The rotating completion line (the quiet one-liner under a single-task finish) ---
+
+// A small pool of calm, never-shame lines shown briefly when a task is completed. They rotate so the
+// reassurance never feels canned, and they fold in what the separate "Good enough" button used to carry:
+// the OCD release ("filed, you can stop checking") and the perfectionism release ("good enough, let it
+// go"). Editorial-calm voice: no exclamation, no score, no number.
+export const DONE_AFFIRMATIONS = [
+  'Done is done. Recorded.',
+  'Filed. You can stop checking it now.',
+  'Good enough is done. Let it go.',
+  "That's off your plate.",
+  'Finished. Let it rest.',
+  'One thing lighter.',
+  "Done. It didn't need to be perfect.",
+  'Off the list. Nicely done.',
+] as const;
+
+/** The next completion line, rotating through DONE_AFFIRMATIONS by call count, so a run of completions
+ *  never repeats a line until the pool is exhausted. Pure: the caller holds the counter. */
+export function doneAffirmation(n: number): string {
+  const len = DONE_AFFIRMATIONS.length;
+  return DONE_AFFIRMATIONS[((n % len) + len) % len]; // the double-mod keeps a negative n safe
+}

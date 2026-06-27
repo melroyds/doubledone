@@ -73,3 +73,9 @@ jobs:
         env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      - name: Inject + verify the SPA SEO / social meta
+        # output:'single' ignores +html.tsx, so the front-door meta is patched into the
+        # export. Gate it here too: a broken patch fails CI, not the deploy.
+        run: |
+          node scripts/inject-web-meta.mjs
+          grep -q 'property="og:image"' client/dist/index.html

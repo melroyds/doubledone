@@ -1,12 +1,16 @@
 import { useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { type Questions } from '@/lib/ai';
 import { fromISODate, presetDate } from '@/lib/day';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
+import { Chip } from './Chip';
 import { DatePicker } from './DatePicker';
+import { ModalCard } from './ModalCard';
+import { PrimaryButton } from './PrimaryButton';
+import { Segmented } from './Segmented';
 
 export type BreakdownAnswers = {
   dueDate: string | null; // ISO or null = no deadline
@@ -52,10 +56,8 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
   }
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable style={styles.backdrop} onPress={onCancel} accessibilityLabel="Dismiss">
-        <Pressable style={styles.card} onPress={() => {}}>
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
+    <ModalCard visible onClose={onCancel} maxWidth={440} maxHeight="88%" scroll>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
             <Text style={styles.title}>A few quick questions</Text>
             <Text style={styles.task} numberOfLines={2}>
               {task}
@@ -63,33 +65,22 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
 
             <Text style={styles.q}>{questions.dueDate}</Text>
             <View style={styles.chips}>
-              {presets.map((o) => {
-                const on = !calOpen && o.iso === dueISO;
-                return (
-                  <Pressable
-                    key={o.label}
-                    onPress={() => {
-                      setDueISO(o.iso);
-                      setCalOpen(false);
-                    }}
-                    style={[styles.chip, on && styles.chipOn]}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: on }}
-                    accessibilityLabel={o.label}
-                  >
-                    <Text style={[styles.chipText, on && styles.chipTextOn]}>{o.label}</Text>
-                  </Pressable>
-                );
-              })}
-              <Pressable
+              {presets.map((o) => (
+                <Chip
+                  key={o.label}
+                  label={o.label}
+                  selected={!calOpen && o.iso === dueISO}
+                  onPress={() => {
+                    setDueISO(o.iso);
+                    setCalOpen(false);
+                  }}
+                />
+              ))}
+              <Chip
+                label="Pick a date"
+                selected={calOpen || isCustom}
                 onPress={() => setCalOpen((v) => !v)}
-                style={[styles.chip, (calOpen || isCustom) && styles.chipOn]}
-                accessibilityRole="button"
-                accessibilityState={{ selected: calOpen || isCustom }}
-                accessibilityLabel="Pick a date"
-              >
-                <Text style={[styles.chipText, (calOpen || isCustom) && styles.chipTextOn]}>Pick a date</Text>
-              </Pressable>
+              />
             </View>
             <Text style={styles.selected}>
               {dueISO == null
@@ -113,25 +104,15 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
             )}
 
             <Text style={styles.q}>{questions.spread}</Text>
-            <View style={styles.toggle}>
-              {(['gradual', 'sameday'] as const).map((s) => {
-                const on = spread === s;
-                return (
-                  <Pressable
-                    key={s}
-                    onPress={() => setSpread(s)}
-                    style={[styles.seg, on && styles.segOn]}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: on }}
-                    accessibilityLabel={s === 'gradual' ? 'Gradual' : 'Same day'}
-                  >
-                    <Text style={[styles.segText, on && styles.segTextOn]}>
-                      {s === 'gradual' ? 'Gradual' : 'Same day'}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <Segmented<'gradual' | 'sameday'>
+              value={spread}
+              options={[
+                { value: 'gradual', label: 'Gradual' },
+                { value: 'sameday', label: 'Same day' },
+              ]}
+              onChange={setSpread}
+              accessibilityLabel={questions.spread}
+            />
 
             <Text style={styles.q}>{questions.custom}</Text>
             <TextInput
@@ -145,22 +126,13 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
               accessibilityLabel="Answer to the question"
             />
 
-            <Pressable
+            <PrimaryButton
+              label="Break it down"
               onPress={submit}
-              disabled={busy}
-              style={({ pressed }) => [styles.btn, pressed && styles.pressed, busy && styles.disabled]}
-              accessibilityRole="button"
+              loading={busy}
               accessibilityLabel="Break it down"
-            >
-              {busy ? (
-                <View style={styles.btnBusy}>
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                  <Text style={styles.btnText}>Breaking it down…</Text>
-                </View>
-              ) : (
-                <Text style={styles.btnText}>Break it down</Text>
-              )}
-            </Pressable>
+              style={styles.btn}
+            />
             {busy && (
               <Text style={styles.waitNote}>Working out a few small steps. This takes a moment, no need to wait here.</Text>
             )}
@@ -172,57 +144,23 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
             <Text style={styles.disclosure} accessibilityRole="text">
               Your task is sent to an AI to suggest the steps, and kept anonymously (no name, no account) to improve them.
             </Text>
-          </ScrollView>
-        </Pressable>
-      </Pressable>
-    </Modal>
+      </ScrollView>
+    </ModalCard>
   );
 }
 
 const makeStyles = (t: Theme) => StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(43,39,34,0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.five,
-  },
-  card: { backgroundColor: t.colors.bg, borderRadius: radius.lg, width: '100%', maxWidth: 440, maxHeight: '88%' },
   scroll: { padding: spacing.six, gap: spacing.three },
-  title: { color: t.colors.ink, fontSize: 24 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.3 },
+  title: { ...t.type.heading, color: t.colors.ink, letterSpacing: -0.3 },
   task: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two },
   q: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.two },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },
-  chip: {
-    paddingHorizontal: spacing.four,
-    paddingVertical: spacing.two,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: t.colors.line,
-    backgroundColor: t.colors.surface,
-  },
-  chipOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
-  chipText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, fontWeight: '500' },
-  chipTextOn: { color: '#FFFFFF' },
   selected: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
-  toggle: { flexDirection: 'row', gap: spacing.two },
-  seg: {
-    flex: 1,
-    paddingVertical: spacing.three,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: t.colors.line,
-    backgroundColor: t.colors.surface,
-    alignItems: 'center',
-  },
-  segOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
-  segText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  segTextOn: { color: t.colors.accent },
   input: {
     minHeight: 44,
     maxHeight: 120,
     backgroundColor: t.colors.surface,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
     borderRadius: radius.md,
     paddingHorizontal: spacing.four,
@@ -231,17 +169,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     fontFamily: fonts.body,
     color: t.colors.ink,
   },
-  btn: {
-    backgroundColor: t.colors.accent,
-    borderRadius: radius.md,
-    paddingVertical: spacing.four,
-    alignItems: 'center',
-    marginTop: spacing.three,
-  },
-  btnBusy: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-  btnText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  pressed: { opacity: 0.85 },
-  disabled: { opacity: 0.6 },
+  btn: { marginTop: spacing.three },
   dismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.two },
   waitNote: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', lineHeight: 20 * t.scale, marginTop: spacing.two },
   errorNote: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', lineHeight: 20 * t.scale, marginTop: spacing.two },

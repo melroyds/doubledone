@@ -2633,3 +2633,796 @@ Verified in preview: the row tag renders, one big task floors the bar to "full" 
 today, and a big task tips a 5-task day (weighted 6) into heavy where 5 normal tasks stay calm. The server
 prompt change is committed but the Worker is NOT yet deployed (needs Melroy's per-instance OK); until then
 big-ness is sent and harmlessly ignored by the live Worker, so the AI weighting is dormant, not broken.
+
+## 2026-06-26 Design polish wave 1: dark-mode contrast, reduced-motion, scrim/onAccent tokens
+
+First wave of the stack-ranked design-review burn-down ([`docs/design-review.md`](docs/design-review.md)). The live defects.
+
+- **onAccent + onDone colour tokens (the dark-mode WCAG fix).** White CTA labels sat at 2.76:1 on the dark
+  accent and the completion tick at 2.16:1 on the dark sage fill, both failing AA, invisible in the light
+  preview we test in. Added per-scheme onAccent/onDone (light = #FFFFFF unchanged, dark = warm ink #2B2722).
+  Routed every white-on-accent label and the two sage ticks through them, and left every #FFFFFF on the
+  premium gradient untouched (white-on-gradient is intentional). Verified in a dark-scheme preview: the
+  accent button label now renders rgb(43,39,34), about 5.37:1.
+- **scrim colour token.** The modal backdrop rgba(43,39,34,0.45) was duplicated across 5 files and the Rooms
+  sheet had drifted to a cold pure-black rgba(0,0,0,0.28), against the warm-not-black rule. One scrim token
+  now: light rgba(43,39,34,0.45), dark rgba(10,8,6,0.6) (heavier so it actually dims the dark surface, still
+  a warm wash). All six backdrops routed through it.
+- **Today title weight 700 to 600.** Newsreader's heaviest loaded weight is 600, so the 700 title clamped
+  and rendered inconsistently. One-line fix.
+- **RepeatingDrawer honours reduced-motion** (it was the one animated surface that always ran the slide, a
+  broken promise for the motion-averse audience) and its **toggle rows announce as checkbox**, not button.
+
+Judgment calls (mine, per Melroy's "do it without interference, log it to challenge later"): the dark
+onAccent/onDone shade is the warm ink #2B2722 (a clean 5.37:1, keeps the palette warm). The dark scrim
+opacity is 0.6 (0.45 barely dimmed the dark background). The CameraCapture busy overlay (rgba(43,39,34,0.7))
+was left OUT of the scrim token: it is a camera-busy block, not a modal dim, and its heavier opacity is by
+design. The shared <Screen> wrapper was deferred to the component wave, so routines.tsx got the width cap
+directly.
+
+Gate green: client 346, server 197, lint + typecheck clean. On the premium branch, not yet deployed (the
+whole burn-down merges to main as one reviewed batch).
+
+## 2026-06-26 Design polish wave 2: a named type scale
+
+Introduced `makeTypeScale(scale)` in theme.ts: nine named steps (display / title / heading / subheading /
+body / bodyStrong / label / eyebrow / caption), each bundling fontSize + lineHeight + family + weight (and
+letterSpacing for the eyebrow), with `t.scale` baked in, exposed as `t.type.X`. Font sizes were inline
+literals spanning ~18 steps across every screen, so the typographic voice could not be tuned in one place.
+This wave routed only the title-tier and eyebrow-tier styles through it (the audit's named drifts); body,
+labels, captions, and button labels keep their inline sizes for now (button labels arrive with the
+PrimaryButton extraction next, the rest is a noted follow-on).
+
+THE judgment call to eyeball: **the page titles unified to 34/600.** settings, privacy, premium, and routines
+were a large airy 42/weight-400 editorial title; they now match Today/Lookback/Chart at 34/600. Rationale:
+the 42-vs-34 seam between adjacent screens was real drift, 600 is the brand's stated editorial-heading weight
+(the comment in theme.ts calls Newsreader 600 "a calm editorial heading", so the 400 was the outlier), and 34
+is the calmer size. This is the single most visible change in the burn-down. If the airy 42/400 was loved, it
+is a one-line change to the `title` token (size and/or weight). Other normalisations: modal titles 26 to 24,
+a 21 to 22, the sign-in title 30 to 24, and the 8-way section eyebrow (sizes 11/12/13, weight 600/700,
+letterSpacing 0.3 to 1) collapsed to one 12/700/0.5 step.
+
+Gate green: client 346, server 197, lint + typecheck clean. Sizes live-verified in the preview (settings
+title 34/600, premium card title 24/600, eyebrows 12/700/0.5). On premium, holding the merge.
+
+## 2026-06-26 Design polish wave 3a: PrimaryButton
+
+Extracted the solid-accent CTA (reimplemented ~12 times, actually 21 buttons across 11 files) into one
+<PrimaryButton> with label / onPress / disabled / loading / pill / style props, reading t.colors.accent, the
+Wave-1 onAccent label colour, and the Wave-2 bodyStrong type. The gradient PremiumButton was left untouched,
+and non-CTA accent elements (calendar day blobs, chips, dots) were correctly left alone.
+
+Consolidations, logged: one radius (md, the premium/chart buttons were lg and fold in), one label (bodyStrong
+17/700, the 16/600 sites unify up), one pressed (0.85), and a `pill` prop that keeps the two genuinely-pill
+buttons (the lookback scrapbook button, the routines add button). The agent also caught and fixed a latent
+dark-mode bug: the routines add-routine label used colors.surface instead of onAccent.
+
+Gate green: client 346, server 197, lint + typecheck clean (lint confirms no dead styles remain). Verified a
+button in a dark preview: bg #C68BA0, label #2B2722, radius 14, 17/700. On premium, holding the merge.
+
+## 2026-06-26 Design polish wave 3b: BackLink
+
+Extracted the "‹ Back" link (copy-pasted into 6 sub-screens) into one <BackLink label? fallback?>, accent
+style, role + a11y, hitSlop. Fixes a latent bug: Lookback's back link used a bare router.back() with no
+fallback, so a deep-linked Lookback (no in-app back stack) dead-ended. BackLink uses
+router.canGoBack() ? back() : replace(fallback), verified live (a deep-link back now routes to Today).
+Lookback also had drifted style (inkSoft / 16 / regular) now unified to the accent standard.
+settings / routines / lookback pass label "Today", privacy keeps fallback "/settings". Dead back styles and
+two now-unused router imports removed. Gate green. On premium, holding the merge.
+
+## 2026-06-26 Design polish wave 3c: Chip + Segmented
+
+Extracted two duplicated controls. <Chip> (selectable pill, soft default = accentSoft tint + accent text,
+solid variant available) and <Segmented> (generic mutually-exclusive toggle, one active treatment: border
+1.5 + accentSoft + accent + weight 600). Both carry role + selected state + a label by construction, so a
+pill can no longer ship label-less.
+
+Judgment call, logged: the BrainDump and BreakdownQuestions chips moved from a solid mauve fill with white
+text to the calmer soft tint (matching chart), the audit's "default to soft" recommendation,
+accent-used-sparingly. Reversible by passing variant="solid" or flipping the default. The Segmented 1.5/600
+unification resolves the settings (1.5/700) vs breakdown (1/600) drift. Migrated the chart / BrainDump /
+BreakdownQuestions chips and the settings + breakdown segmented toggles, dead styles removed. The multi-select
+weekday picker and action buttons were correctly left alone. Gate green (client 346, server 197). On premium,
+holding the merge.
+
+Noted for later: a pre-existing RoomsSheet nested-Pressable hydration warning (untouched by this work).
+
+## 2026-06-26 Design polish wave 3d: ModalCard (completes wave 3)
+
+Extracted the centred modal-card scaffold (Modal + scrim backdrop + tap-absorbing centred card) into one
+<ModalCard visible onClose maxWidth? animationType? scroll? maxHeight?>. The card matches the DOMINANT existing
+scaffold byte-for-byte (t.colors.bg, radius lg, padding spacing.six), so migrations are pixel-identical
+(verified on the open didOpen modal: scrim rgba(10,8,6,0.6), padding 24/32, radius 20, maxWidth 420).
+Conservative by design.
+
+Migrated 9 plain centred-card modals (the two Break-it-down modals as scroll hosts at maxWidth 440, and the
+seven index.tsx wrapCard modals: didOpen, combine, moveTo, nudge, plan, order, offerDefer), each keeping its
+exact visible condition and dismiss handler (now onClose). LEFT 5 correctly: the close-the-day modal (animated
+rise entrance, folding would lose the motion), focus mode (full-screen, no scaffold), CameraCapture (slide),
+the Rooms bottom sheet, and the BrainDump date picker (different padding, folding would be a visible change).
+The animated-entrance modals are a follow-on for if ModalCard later gains an Animated variant.
+
+Gate green: client 346, server 197, lint + typecheck clean. On premium, holding the merge. This completes wave
+3 (PrimaryButton, BackLink, Chip/Segmented, ModalCard), the shared-component extraction.
+
+## 2026-06-26 Design polish wave 4a: pressed / media / control tokens
+
+Three token families in theme.ts. PRESSED_OPACITY (0.7, the canonical pressed dim, with PremiumButton's
+gradient 0.9 the one documented exception, all 10 pressed sites routed). cardMediaWidth (360) and
+maxCalendarWidth (340) added to layout, the latter with a real fix: the DatePicker grid is now capped and
+centred so it stops inflating taller in wider host cards. control.check (26) and a border family
+(hair 1, thin 1.5, thick 2).
+
+Small deliberate unifications, logged: the completion checks in BreakdownReview and chart enlarge 24 to 26 to
+match TaskRow's hero check. Border widths were tokenized at their current values (no visual change). NOT
+reconciled, flagged for Melroy: the selected-emphasis border is 1.5 in Segmented but 2 in TaskRow's
+pinned/unique rows, the same "this is special" signal drawn at two weights. The 420/440 modal widths were left
+as-is (ModalCard already centralises modal width). Gate green: client 346, server 197. On premium, holding the
+merge.
+
+## 2026-06-26 Design polish wave 4b: hitSlop + a11y sweep (completes wave 4)
+
+The accessibility pass, no visual change beyond larger tap targets. hitSlop to a ~44pt floor on the
+sub-target controls the components had not already covered: the BrainDump slice steppers and weekday circles,
+the routines cadence pills, and the TaskRow confirm-row actions (vertical-only, since they wrap on a narrow
+phone). a11y: the TaskRow row label now folds in the repeating and reminder state (a recurring or reminder
+task used to read identically to a plain one), the decorative glyphs (the repeat arrow, the bell, the pin
+star, the Big pill) are hidden from screen readers so they are not double-announced, the RepeatingDrawer
+scrim gained role=button, and the routines when-pills gained explicit labels. Gate green: client 346, server
+197. On premium, holding the merge. Wave 4 complete.
+
+## 2026-06-26 Design polish wave 5: emoji-as-icons removed, periwinkle documented (item 19 deferred)
+
+The brand-vocabulary items.
+
+- Emoji-as-icons removed (item 18). The bell beside a reminder time, and the mic/camera on the Speak/Scan
+  buttons, rendered as raster multicolour, ignored t.colors, did not adapt to dark mode, and the inline bell
+  leaned toward the notification/alarm cue the never-alarm brand forbids. Dropped all three: the reminder now
+  shows the accent-coloured time alone (the a11y label already says "reminder at the time"), and the buttons
+  read "Speak" / "Scan". A proper SVG icon set is a noted follow-on if iconography is wanted later.
+- Periwinkle documented (item 20). The repeat colour comment now names its real, wider role (the
+  structured / multi-part accent: recurring tasks, the one-off task border, slice counts, the make-it-tiny
+  chain), which dissolves the apparent overload by naming the semantics. No colour change.
+
+DEFERRED, flagged for Melroy (item 19): the audit recommended giving the Today "Plan my day" PremiumButton a
+mauve-only fill instead of the full mauve-to-honey gradient, on single-accent grounds (the honey reads as a
+second accent on the protected Today screen). This directly conflicts with Melroy's explicit instruction that
+all premium features should carry the gradient, so it was NOT changed. The tension is his to resolve.
+
+Gate green: client 346, server 197. On premium, holding the merge.
+
+## 2026-06-26 Design polish wave 6: motion tokens + cardShadow (completes the burn-down, through item 22)
+
+The final wave. Motion durations tokenized: index.tsx closeRise 320 to motion.gentle, RepeatingDrawer 200 to
+motion.standard, and RotatingPhrase's intentional slow 500ms cross-fade got a named motion.crossfade (500)
+rather than being forced into a faster tier. RepeatingDrawer's useNativeDriver:false became
+Platform.OS !== 'web' (a perf win on Android, the target, since it only animates opacity + translateX, both
+native-driver-safe, and web is unchanged). A cardShadow(t) helper was extracted and used in TaskRow + routines
+(the byte-identical per-scheme boxShadow had been duplicated). Left as-is: the easings (motion.ts has no
+exported easing convention to route to) and RepeatingDrawer's 220ms open duration (matches no token, flagged).
+
+Gate green: client 346, server 197. On premium, holding the merge. This completes the stack-ranked design
+burn-down, items 1 through 22. Tier 4 and items 23-25 (CheckCircle, spacing hygiene, Bloom typography) are
+deliberately out of scope per Melroy's "until 22".
+
+## 2026-06-26 Copy audit: mechanical fixes applied, voice calls deferred to Melroy
+
+The 7-lens adversarial copy/microcopy audit ([`docs/copy-review.md`](docs/copy-review.md)), the i18n-prep. The
+verdict: the voice is strongly authored, so violations stand out as anomalies. Applied the safe mechanical
+fixes now, left every feature-naming and voice call for Melroy (his taste, like Strategise to Plan my day).
+
+Applied (mechanical, plus one spine fix):
+- **Raw provider error leak fixed (the spine one).** sign-in.tsx interpolated the raw Supabase err.message
+  onto the most anxiety-prone screen, a never-alarm breach and a small info leak. Both the send and verify
+  catches now show a calm fixed line only, never the raw detail.
+- Stray exclamation removed (premium "Thanks!" to "Thanks."), two prose semicolons to full stops (privacy.tsx
+  and the crawlable privacy.html, kept in sync), the brain-dump a11y label de-hyphenated to match the launcher,
+  and the Rooms pill's stale a11y list corrected (it omitted "Chart a course").
+
+Deferred, flagged for Melroy in docs/copy-review.md (his calls):
+- Tier 1: rename the "Rooms" pill (a first-timer cannot read the house metaphor), "Start fresh" to "See today"
+  on the welcome-back card (it reads as wipe/reset, contradicting "nothing's lost"), and the within-card
+  scrapbook vs keepsake collision.
+- Tier 2: unify scrapbook/keepsake across the paywall and Settings, the "Big" pill casing, "Sort it for me" vs
+  "Sort for me", and notably a suggestion to revisit "Plan my day" back toward "Plan my order" (the audit
+  argues it does not distinguish from "Lighten today"), which directly touches a recent call of his.
+- A terminology glossary (the canonical word per concept) and the i18n notes (concatenation, idioms,
+  hand-built plurals) are in the doc as the t()-layer backbone.
+
+Gate green. On premium, holding the merge (the whole design + copy batch goes to a preview for Melroy first).
+
+## 2026-06-26 Design polish items 23-25: CheckCircle, spacing hygiene, Bloom (burn-down 100% complete)
+
+The Tier-3 tail, finished autonomously after item 22. <CheckCircle done size?> extracted (the round sage
+completion check, shared by TaskRow's four rows and BreakdownReview). BreakdownReview's tick converges 14/16
+to the canonical 15/17 (the intended 1px unification, the whole point of the item). Exact-match spacing
+literals routed to the scale (paddingVertical 8 to spacing.two, several marginTop 2 to spacing.half), with
+off-scale nudges and the native TodayWidget left alone. Bloom's split typography folded into makeStyles and
+the type scale (the eyebrow step), the bespoke celebration sizes kept. Gate green: client 346, server 197. On
+premium, holding the merge. The stack-ranked design burn-down is now 100% complete (items 1 through 25).
+
+## 2026-06-26 Robustness + security audit: sync data-loss fixed, money/PII items flagged
+
+The 7-lens adversarial robustness + security audit ([`docs/robustness-review.md`](docs/robustness-review.md)).
+Posture is solid: no critical breach, no auth bypass, no forgeable premium, no data leak. The Stripe signature
+verification, the fail-closed premium gate, the comp allowlist, and the RLS path all held under scrutiny. The
+real findings are data-integrity and cost.
+
+Fixed (data-integrity, the spine one): the sync merge (client/src/lib/sync-merge.ts) was whole-row
+last-write-wins, so an offline recurring completion (completedDates) or slices progress made on one device was
+silently ERASED when another device made a newer unrelated edit. That is the never-lose-a-task,
+never-shame-by-disappearance failure the app exists to prevent. reconcileConflict now makes the synced
+completion data monotonic on top of the LWW winner (completedDates unioned grow-only, slices.done max), and
+carries the local-only big / manualOrder that were also being dropped when the remote row won. The reconciled
+row is pushed when the union grows the server's copy, so devices converge. Three tests added. The fix is
+conservative: it only ever preserves data, never loses, so it cannot make sync worse.
+
+Flagged for Melroy, NOT applied (sensitive: money, schema, his PII):
+- HIGH: the Stripe webhook has no idempotency or ordering guard, so a retried or out-of-order event can flip a
+  real subscriber's entitlement. Needs a processed_events D1 table plus an ordering guard.
+- HIGH: the AI routes accept unbounded input forwarded to Claude against the shared budget (a cost/abuse path
+  via the no-auth routes). Fix is a small capStrings/capText helper per route.
+- MEDIUM: checkout grants premium on status='complete' even without captured payment (a 100%-off promo code is
+  a live path). One-line tighten to payment_status==='paid', after confirming the trial flow.
+- MEDIUM (PII): the owner's personal Gmail is hardcoded in comp.ts in the PUBLIC repo. Move to a Worker secret
+  or an alias.
+The input caps and the webhook idempotency are server changes needing a Worker deploy anyway, so they wait for
+Melroy. Gate green. On premium, holding the merge.
+
+## 2026-06-26 Robustness clear-fix batch: double-submit guards + defensive hardening
+
+Applied the (clear-fix)-tagged findings from docs/robustness-review.md (the safe ones the verifier vetted),
+leaving the needs-judgment money/PII items for Melroy.
+
+- Double-submit guards on billable AI calls: the scrapbook "Make a scrapbook" button now has a synchronous ref
+  guard plus disabled (each image gen is roughly the whole daily Workers-AI budget), chart's addTasks got a
+  busy guard plus disabled (it was minting and dropping task sets on a double-tap), "Reflect on this week" and
+  the other PremiumButton AI calls now pass disabled, and biteElephant got a re-entry guard (the unguarded
+  TaskRow "Break down" path).
+- Defensive crash and loss guards: authHeader wraps getSession in try/catch (no unhandled rejection on a
+  storage error), handleEntitlement returns FREE on a D1 throw instead of a 500 (the cosmetic flag, never the
+  money gate), chart's suggest() got an explicit catch, the server stopped echoing the raw upstream HTTP status
+  to MCP callers, parseScene clamps the caption to 200 chars, and a shared 2MB body-size backstop (413) sits at
+  the top of the Worker fetch.
+- A NaN / corrupt-timestamp sync guard: rowToTask guards Date.parse with Number.isFinite, and the merge ranks a
+  non-finite updatedAt as -Infinity so a corrupt remote row can never win LWW and pin a task to it. One test
+  added (client 349 to 350).
+
+The server fixes (handleEntitlement, mcp, parseScene, the body-size guard) need a Worker deploy to take effect,
+so they ride on premium for Melroy's deploy. Gate green: client 350, server 197. On premium.
+
+## 2026-06-27 Security: owner email out of source into the COMP_EMAILS secret
+
+The robustness audit's PII finding, fixed at Melroy's urgent request. His personal Gmail was hardcoded in
+server/src/comp.ts (the always-premium comp allowlist) and referenced in three test files, all public on
+GitHub. isCompEmail now takes the allowlist from the COMP_EMAILS Worker secret (comma-separated, lowercased),
+so no personal address is in source. The Env / PremiumEnv / FullEnv types carry the optional secret, the tests
+use a fake address (owner@example.test), and the robustness-review.md finding was redacted.
+
+The server code fix is on BOTH premium and main (cherry-picked clean, main 8199613), so the email is gone from
+both public branches' current code, confirmed by grep. Git HISTORY still holds the old value (a separate
+history rewrite, offered, Melroy's call, and the public repo means it may already be cached elsewhere). To
+restore the owner comp: set the COMP_EMAILS secret (wrangler secret put, or the Cloudflare dashboard) then
+deploy the Worker. Until that deploy the live Worker runs the old hardcoded code, so the comp keeps working
+meanwhile. Gate green: client 350, server 199.
+
+## 2026-06-27 The Mark SVG icon set: Speak / Scan get real glyphs (wave 5 follow-on)
+
+Design wave 5 dropped the raster emoji (the reminder bell, the Speak mic, the Scan camera) and noted a
+proper SVG icon set as a follow-on "if iconography is wanted later". Melroy wanted the marks back, done
+right. Added `<Mark name="mic" | "camera">` ([`client/src/components/Mark.tsx`](client/src/components/Mark.tsx)):
+single-weight thin-line glyphs (Feather / Lucide lineage, MIT) on react-native-svg, tinted via a `color`
+prop so ONE icon serves light, dark, and the Dusk palette, the exact thing emoji could not do. Wired into
+BrainDump's Speak (mic when idle; the live dot still shows while listening) and Scan (camera), each at the
+speakText colour (inkSoft) so the glyph always matches its label.
+
+Considered and rejected AI-generated raster icons (nano-banana) for these inline UI marks: raster
+reintroduces the emoji problem (fixed colour, no dark-mode adapt, fuzzy at small sizes). That route was
+kept only as an option for distinctive / marketing art, with prompts handed over, not for the buttons.
+
+Verified live in the web preview (dark mode): both glyphs render with the right shapes (mic = 2 paths + 2
+lines, camera = path + lens circle), stroke `#8A7F73` matching the dark-mode label exactly (the dark-mode
+adaptation emoji never had), and `aria-hidden` so the Pressable's accessibilityLabel stays authoritative.
+A stray React warning was caught and fixed in the same pass: `accessibilityElementsHidden` /
+`importantForAccessibility` on the Svg leaked through react-native-svg onto the DOM on web; switched to
+`aria-hidden`, confirmed the svg now carries only width/height/viewBox/aria-hidden. Gate green. On premium.
+
+## 2026-06-27 Copy decisions applied: Rooms to Menu, keepsake to scrapbook, Start fresh to See today
+
+Melroy's calls on the deferred copy-review items ([`docs/copy-review.md`](docs/copy-review.md)), made after
+seeing them rendered in a before/after visual.
+
+- **Rooms to Menu.** The header pill, its a11y label, the bottom-sheet title, and the "Close menu" scrim label
+  all move to Menu ("Rooms never made sense" was his read). This goes one step beyond the copy-review, which
+  suggested keeping "Rooms" as the open-sheet title for charm: a Menu pill opening a Rooms-titled sheet read as
+  a mismatch, so the sheet title is Menu too. Trivial to restore the charm if he misses it. Internal names
+  (the RoomsSheet component, roomsOpen state, roomsLabel style) stay; only user-facing strings changed.
+- **keepsake to scrapbook**, as the feature name, everywhere it was user-facing (the premium paywall x8, the
+  settings card, the lookback over-quota line + image a11y + the within-card hint). "keepsake" now survives only
+  in code comments and the internal keepsakeNote style key. Plurals checked per sentence.
+- **Start fresh to See today**, on the shame-free re-entry card. "Start fresh" read as wipe/reset two lines under
+  "nothing's lost"; "See today" names the actual action (reveal today).
+- The three design ratify defaults (page titles unified to 34, chips soft-tint, emoji to the Mark glyphs) were
+  confirmed kept. **"Plan my day" stays** (Melroy overrode the audit's suggestion to revert it to "Plan my order").
+
+Verified live in the web preview: the Menu pill + sheet render, no "Rooms" visible anywhere, gate green. On premium.
+
+## 2026-06-27 Billing + cost hardening: payment_status, webhook idempotency, AI input cap
+
+The three money / cost items the robustness audit flagged (no critical breach was found; this is defence-in-depth
+on the paid surface). All server-side, on premium.
+
+- **Checkout payment_status strictness** (stripe.ts entitlementFromEvent). The initial grant on
+  checkout.session.completed accepted `status === 'complete'`, which can be true while payment_status is
+  'unpaid'. It now grants only on payment_status 'paid' or 'no_payment_required' (the latter covers trials and
+  100%-off promos). The customer.subscription.* events remain the authoritative source.
+- **Webhook idempotency** (stripe.ts handleWebhook + a new processed_events D1 table). Stripe delivers
+  at-least-once; a redelivered event id is now a no-op. Fails OPEN: any dedup-store error, or a not-yet-applied
+  table, falls through to processing, because the entitlement write is an idempotent upsert, so a real billing
+  event is never dropped. The Worker can therefore deploy before the table is applied.
+- **AI input size cap** (index.ts, MAX_TEXT_AI_BODY = 100 KB). The rate limiter bounds frequency, not size; one
+  giant text payload could still run up the Anthropic bill. The text AI routes now reject a body over 100 KB,
+  read via a request CLONE (so the handler still reads it) and measured by real length (a content-length header
+  can be absent or lie, the first attempt at a header check was a no-op in tests for exactly that reason). /ocr
+  is exempt: it carries a photo and enforces its own larger limit downstream.
+
+Tests: unpaid-but-complete denied, no_payment_required granted, a redelivered event writes once (duplicate:true),
+an oversized text body 413s, /ocr stays exempt. Gate green: server 204.
+
+Infra note: processed_events must be applied to the live D1 (fail-open makes the deploy order safe):
+`npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --file d1/schema.sql`. Flagged for
+Melroy's OK like any live change, alongside the Worker deploy.
+
+Deferred follow-up: webhook event ORDERING (a stale subscription.* event clobbering newer state) is a deeper,
+rarer edge not addressed here; noted for later.
+
+Adversarial review pass (two independent skeptics) cleared the grant/deny logic (no way to grant a non-payer
+or deny a payer, the dedup cannot drop a real event, no AI-cap bypass, no broken handler) and surfaced one
+real minor gap: the AI cap measured `.length` (UTF-16 code units), not bytes, so a multibyte body (CJK,
+Cyrillic, emoji) could carry ~3x the stated 100 KB before tripping. Bounded by the pre-existing 2 MB ceiling
+so not exploitable, but fixed to measure real UTF-8 bytes (TextEncoder), with a test locking the byte
+semantics. Server 205.
+
+## 2026-06-27 Copy audit closed out: the 5 mechanical + 10 voice calls applied
+
+The remaining copy-review tail, after the design + copy forks. The 5 mechanical fixes (casing plus two
+reassurance tails) went first (c4b4ae4). Then Melroy approved all 10 voice / wording calls in one decision
+round (the same shape as Plan my day), now applied:
+- Sort it for me -> Sort for me; This looks right -> Looks good, next; Almost there -> Continue (welcome).
+- No worries -> That's alright (premium cancel note).
+- Custom -> Every few days (cadence chip).
+- Step back -> Undo a step (a sliced task's hold menu).
+- Big / Not big -> Mark as a lot / Not a lot (the select-bar toggle; ties to the "Marked as a lot" affirmation).
+- finished tasks -> finished things (the Lookback scrapbook notes, the reflective register).
+- Done adding -> Close, and RepeatingDrawer's "Done" -> Close (the "Done" overload, now reserved for completing).
+- The camera-read and sync-unavailable errors reworded to name what happened, plainly.
+
+With this the copy review is fully APPLIED bar the i18n layer (the t() extraction, next). The glossary terms
+(thing(s) on reflective surfaces, big, scrapbook) now hold across the app, which is also step zero of i18n.
+Watch-item for Melroy's morning: "Mark as a lot" is longer than its select-bar siblings, check it doesn't
+crowd the bar on a narrow phone. On premium.
+
+## 2026-06-27 Onboarding: a Premium close, plus Speak + Combine surfaced
+
+Melroy's call: the intro never sold Premium, nor mentioned talk-to-capture or Combine. He wanted them in,
+Premium as a late screen ("I know it's not best practice, but we need to sell the idea"). Done economically,
+bending the deliberate "curate, don't catalogue" onboarding ethos by exactly one screen plus two light hints:
+- A new "premium" step before the handoff: the calm loop is free, then the suite (lead with the weekly
+  scrapbook, the emotional payoff; then Chart a course, Plan my day, Your patterns, Scan). It SELLS by the hook
+  and the copy, not by a paywall: it points to Settings rather than interrupting first use with a checkout,
+  which is both on-brand (never pushy) and better for conversion (don't ask for money before they've felt the
+  value). I made that call deliberately over a hard in-onboarding upsell; flagging it so Melroy can overrule.
+- Speak: the capture screen's faint "On web, you can just speak it" became "Prefer to talk? On web, tap Speak
+  and say them out loud" (names the button, invites).
+- Combine: a light hint on the reveal screen ("A few tasks that go together? You can combine them into one").
+Reuses the safetynet list styling, no new components. Onboarding is now 7 steps, skippable throughout. Gate
+green. On premium. MORNING FOLLOW-UPS: eyeball the new Premium onboarding screen live, and the E2E suite
+(scripts/gen-test-suite.py) wants a case for the added step before the eventual merge.
+
+## 2026-06-27 i18n foundation: the typed t() + Intl layer (the translatable architecture)
+
+Phase 3 of the overnight run, and the i18n plan's "concrete next code step", now that the copy is settled.
+Built ADDITIVELY (no screen rewired yet, so rendered English is unchanged, zero behaviour risk):
+- catalogs/en.ts: the English source-of-truth catalog, by namespace, with a starter set. Per-locale TRANSLATED
+  catalogs land later (native-reviewed); translate() falls back to en per key, so a partial translation never
+  blanks.
+- lib/i18n.ts: translate(loc, key, params) with {name} interpolation + en fallback; pluralize() via
+  Intl.PluralRules (kills the hand-built two-form English plurals, verified against French CLDR categories);
+  formatRelativeDay / MonthDay / Weekday / Time / Number via Intl (the replacements for the hardcoded en-AU
+  date machinery the copy review flagged).
+- lib/locale.ts: a session-locale-bound `t` and `fmt`, the screen-facing entry points (no React hook needed,
+  the locale resolves once at startup like aiLanguage).
+- 11 i18n tests (was 5), including locale-aware plurals and the date/number helpers.
+
+Deliberately NOT done tonight (the discipline of stopping): the per-screen string EXTRACTION. It is the large
+mechanical job, and it has real subtleties (e.g. Intl's relative-day is lowercase "tomorrow" vs the current
+capitalised "Tomorrow", so each migrated site must preserve its exact English), which makes a blind unattended
+sweep across ~28 files the wrong call to run while Melroy sleeps. It is now unblocked and batchable per screen,
+English-preserving, with the gate as the safety net. Gate green. On premium.
+
+## 2026-06-27 "Good enough" removed; the completion line now rotates; onboarding lists made symmetric
+
+Melroy's review of the overnight work, three calls:
+- **"Good enough" cut entirely.** It never made sense to him, and in the multi-select bar it sat confusingly
+  beside "Done" (it only appeared for a single selection and did the same completion, just with a gentler
+  affirmation). Removed from the select bar, the per-task hold menu, the goodEnough handler, and the
+  onGoodEnough prop. Its purpose, the OCD / perfectionism release, now lives in the next item.
+- **A rotating completion line.** Completing a task (single or bulk) now cycles through a small pool
+  (DONE_AFFIRMATIONS in lib/celebrate: "Done is done. Recorded.", "Filed. You can stop checking it now.",
+  "Good enough is done. Let it go.", and more), so the reassurance never feels canned and still carries the
+  gentle release. Pure + tested (doneAffirmation rotates and wraps; every line calm, no exclamation); the
+  counter is a ref on the screen.
+- **Onboarding list symmetry** (screens 4 + 6). The netRow flex-wrapped name + description inline, so a short
+  pair ("Chart a course", "Lighten today") sat on one line while longer ones wrapped, an asymmetry Melroy
+  disliked. Now a column: name on its own line, description beneath, every item identical.
+
+Gate green. On premium. Noted while verifying (PRE-EXISTING, not from this change): the Menu sheet
+(RoomsSheet) logs "a button cannot be nested in a button" on web, the scrim Pressable wraps the room
+Pressables; worth a separate small fix.
+
+## 2026-06-27 Fixed "button nested in button": scrims are now siblings of their cards
+
+The console error surfaced while verifying the Menu was a whole class. A scrim / backdrop Pressable
+(accessibilityRole="button", which react-native-web renders as a real <button>) WRAPPED the card content, so
+every control inside it (the room buttons, the Goodnight button, the date-picker days) was a <button> nested
+inside a <button>: invalid HTML and a hydration error on web.
+
+Fixed the pattern everywhere by making the scrim a SIBLING of the card, an absolute-fill dismiss layer BEHIND
+it, never its parent. The card sits on top, so taps on it don't reach the scrim, which also drops the
+tap-absorbing no-op inner Pressable each had. Touched: the shared ModalCard (covering ~13 modals at once),
+RoomsSheet (the Menu), and the inline close-the-day + BrainDump date-picker modals. RepeatingDrawer already
+used a self-closing sibling scrim, and the Focus + CameraCapture takeovers wrap a View, so those were already
+fine. Verified live: the Menu scrim now has zero nested buttons and the rooms render as its siblings, the
+sheet still opens, dims, and closes on a scrim tap. Gate green. On premium.
+
+## 2026-06-27 Completeness audit: 25 gaps (the inverse-lens audit a copy review can't do)
+
+Ran a 6-lens adversarial COMPLETENESS audit ([`docs/completeness-review.md`](docs/completeness-review.md)):
+the inverse of the design / copy / robustness audits, hunting ABSENCE, what the product should surface, sell,
+or explain but does NOT. Prompted by Melroy's fair critique that the copy audit (quality-only) missed the
+intro-doesn't-sell-Premium gap. 25 gaps confirmed against the code (not the spec). Note: a mid-run API
+rate-limit killed ~16 verifier agents, mostly on the onboarding lens, so 25 is a FLOOR; the doc still covers
+all six surfaces, the dropped items were almost certainly duplicates of surviving gaps, so it reads complete.
+
+Headline: the build is good; what's missing is everything that CONNECTS a person to it. DoubleDone
+consistently ENACTS its principles and consistently FAILS TO STATE them. Top 3 by leverage
+(activation / conversion / positioning): (1) the long-press is the only door to half the product (Break-it-down,
+Make-it-tiny, Pin, Combine, Remind, bulk) and nothing teaches it; (2) the web front door is mute (no landing
+page, no meta / OG tags) so every shared or interview link renders blank; (3) the ADHD / OCD audience and the
+never-shame promise appear in ZERO user-facing copy, only the spec and comments. The other 22 group by surface
+(onboarding, positioning, empty / first-run, errors / edges, discoverability, orientation), each tiered. The
+through-line: the cheapest high-leverage work left is not features, it is making the product say what it
+already quietly is. On premium. DECISION PENDING: which gaps to fix before the premium->main merge.
+
+## 2026-06-27 Audit fix: the daily reminder says WHY it didn't turn on
+
+The completeness audit's Tier-1 errors-edges gap: the reminder toggle silently sprang back to Off when
+permission was denied or push unsupported, with no word, for the one feature that fights the week-three
+retention cliff and an RSD audience that reads an unexplained refusal as rejection. enableDailyReminder (both
+the native and the web variant) now returns a ReminderResult ({ ok } | { ok: false, reason:
+denied | unsupported | error }) instead of a bare boolean, and a shared reminderReasonLine() gives one calm line
+per case. Today surfaces it through the existing affirm line; Settings shows it under the control. Tested (the
+three reasons read distinct and calm, and a denied user is pointed at their settings, not at themselves). On
+premium.
+
+## 2026-06-27 Audit fix: a post-payment recovery, never strand a user who just paid
+
+The completeness audit's other Tier-1 money gap: after a successful checkout the entitlement poll gave up after
+~20s and left the user on "Setting up your Premium" forever, with no Refresh and no recourse, the exact "did my
+money disappear" panic this audience is most sensitive to. The poll now sets a `stuck` flag on exhaustion, and
+the success screen swaps to a calm recovery: "This is taking longer than usual. Your payment went through, give
+it a minute, then tap Refresh", a Refresh button (re-checks the entitlement), and a pointer to send a note from
+Settings if it persists. On premium.
+
+## 2026-06-27 Audit fix: a one-time coachmark teaches the long-press (the #1 activation gap)
+
+The completeness audit's single highest-leverage gap: the long-press was the only door to half the product
+(pin, remind, combine, make-it-tiny, bulk select), and nothing taught it. For a demand-avoidant audience that
+will not fish for invisible gestures, an untaught gesture is a feature that does not exist. Today now shows a
+one-time, dismissible coachmark above the task list, when there are tasks and the hint has not been seen,
+"Hold a task for more: pin it, set a reminder, break it down, or make it tiny", keyed off a doubledone.holdhint.v1
+flag (loadHoldHintSeen / saveHoldHintSeen). Tap "Got it" to retire it forever. On premium.
+
+## 2026-06-27 Premium: custom accent colour (a curated four)
+
+The first paid-suite expansion beyond the launch premium features. Premium picks the app's single accent from
+four curated, calm hues: Mauve (the unchanged default and the free state), Teal, Rose, and a deepened Gold.
+
+Decided FOR a curated four over the five brand hues shown in the picker mock. Periwinkle is already the app's
+repeat / structured colour, so making it the accent would collide two meanings; it was dropped. Raw gold
+(#C19A4F) failed white-label contrast, so it was deepened to #B0863A (light) to sit at the same bar as the
+others. Decided FOR theming ONLY the `accent` and `accentSoft` tokens, the premium gradient, the per-task dot
+palette and the periwinkle repeat colour are deliberately NOT themed, so the swap is one clean change app-wide.
+onAccent stays the scheme default (white on the light accents, warm ink on the lifted dark ones, the contrast
+the dark-palette audit settled).
+
+Architecture: AccentName + ACCENT_NAMES live in the pure settings model and reach constants/theme as a
+TYPE-ONLY import, so the settings unit tests stay RN-free and there is no runtime cycle. The ACCENTS colour
+table and a fourth `accent` arg to buildTheme live in constants/theme; ThemeProvider threads settings.accent
+through the same useMemo that already re-paints on a theme / text-size change. The picker is a premium-gated
+swatch row in Settings; a free tap routes to the paywall (the conversion path the completeness audit wanted),
+a premium tap sets the accent and logs accent.set telemetry. Decided that a lapsed subscriber KEEPS their
+chosen accent (the gate is on the picker, not the paint), in keeping with never-punish.
+
+Verified in-preview: selecting Teal persisted accent:teal and repainted the whole app teal (14 themed elements
+on Today, zero mauve remaining), with the dark-mode variants resolving correctly.
+
+## 2026-06-27 Front door: the og:image social card (Direction 2)
+
+The +html.tsx summary card already turned a blank unfurl into a title + description; this adds the 1200x630
+image so a shared doubledone.app link shows a real brand card in iMessage / Slack / LinkedIn / WhatsApp / X.
+
+Chose Direction 2 of three mocked for Melroy: the Newsreader wordmark + an italic "Today, finite and
+achievable." on the Dusk paper, a short mauve rule, and a soft mauve disc with a checkmark (the one meaningful
+anchor, things get done here). Decided against the plainer centred card (D1, read too quiet for a click) and
+the busier product-hint card (D3, a faint card-in-a-card reads fussy at unfurl size).
+
+Build: scripts/gen-og-image.mjs rasterises an SVG to PNG via @resvg/resvg-js, loading the real brand fonts
+from client/assets/fonts (no browser, so the wordmark is the true serif). Decided to keep resvg-js an
+UNCOMMITTED, documented dev tool (like gen-test-suite's openpyxl) and commit only the generated PNG, so the
+asset is reproducible without adding a native-binary build dep to install/CI. The Newsreader italic face was
+copied into client/assets/fonts for reproducibility. Wired og:image (+ width / height / alt) and flipped
+twitter:card to summary_large_image. Verified: the PNG renders the brand correctly and is served at /og.png at
+1200x630. The true unfurl can only be confirmed once live, so re-check with a sharing debugger after the merge.
+
+## 2026-06-27 Web SEO meta: injected post-export, because output:'single' ignores +html.tsx
+
+A LinkedIn Post Inspector run on the live site found "No image found / No description found", title-only. The
+cause was not just that the front-door work sits unmerged on `premium`. Even merged it would have failed:
+web.output is "single" (an SPA) and Expo Router does NOT apply client/src/app/+html.tsx in that mode. `expo
+export` writes a default <head> (a bare <title>DoubleDone</title>, no meta), and crawlers read static HTML and
+run no JS, so the unfurl was always going to be title-only. The +html.tsx added earlier this session was inert.
+
+Considered switching web.output back to "static" (which WOULD honour +html.tsx and per-route <Head>), but that
+reintroduces the module-scope-Supabase-touches-window-at-build crash that drove the move to "single" originally,
+a real refactor on a live product, not warranted just for meta. Instead added scripts/inject-web-meta.mjs, which
+patches the SEO / social meta into client/dist/index.html after export. Wired into deploy-web.yml (before the
+Pages deploy) and ci.yml (with a grep assertion, so a broken patch fails the build, not the deploy). +html.tsx
+stays as the head for IF we ever move to static; the two are kept in sync by comment. Also fixed the page
+title's em-dash to a middot ("DoubleDone · a calmer kind of to-do").
+
+Verified locally: export then inject yields an index.html with the full title plus 15 og / twitter / description
+tags and og:image = https://doubledone.app/og.png. The true unfurl confirms post-deploy via an inspector
+re-scrape.
+
+## 2026-06-27 Audit (Tier 1): the sync footer stops claiming "Synced" on a failure
+
+The completeness audit's most dangerous live gap: a signed-in user whose sync failed for any non-fatal reason
+(network, RLS, 5xx, expired token) was still told "Synced to <email>", an affirmative false promise that their
+tasks are safe across devices. The failure was a swallowed track('sync.failed'). For a multi-device user this
+invites real data-loss-by-belief. Now the last sync result is persisted (loadLastSyncOk / saveLastSyncOk,
+doubledone.syncok.v1): success writes true, a non-account-gone failure writes false, and BOTH the Today footer
+and Settings downgrade the line to "Saved on this device. It'll sync when it can reach your account." when the
+last attempt did not land. Default stays optimistic (null / true shows "Synced"); only a real failure
+downgrades, and the next successful sync flips it back. The account-gone path is unchanged (it signs out).
+
+## 2026-06-27 Audit (Tier 1): a persistent Premium entry in the Menu
+
+Conversion gap: a willing buyer's only persistent door to the offer was the card at the very bottom of
+Settings; the Menu had no Premium entry, and Today none. Added a "Premium" room to the RoomsSheet (Menu),
+marked with the premium gradient dot (the one special row), routing to /premium and logging premium.menu_open.
+The hint adapts: a free user sees "Keepsakes, more AI, your colour", a subscriber sees "Manage your
+subscription". Kept the never-hard-sell posture, findable for someone actively looking, never pushed.
+
+## 2026-06-27 Audit (Tier 2): offline awareness across the AI seams
+
+Every AI feature showed the same generic "try again" regardless of cause, so on a flaky connection a user taps
+Break-it-down, waits, gets "try again", taps again, exactly the retry-into-overwhelm spiral the product exists
+to prevent. Added lib/connection.ts with one helper, aiErrorLine(fallback), that swaps in a calm offline line
+("You seem to be offline. This needs a connection, your tasks are safe here meanwhile.") when the device is
+positively offline, otherwise keeps the caller's own specific message. Applied at every AI seam: break-it-down,
+sort, strategise, make-it-tiny, tidy/split, chart, plan-order, scrapbook, week-summary, OCR. Web reads
+navigator.onLine; native returns false so the caller's message stays (a proper NetInfo check is deferred, see
+BUILD-PLAN). The offline line deliberately drops "Try again", the futile-retry nudge offline must not give.
+Unit-tested (the offline choice is injectable so the test never touches the global navigator).
+
+## 2026-06-27 Audit (Tier 2): sign-in tells rate-limit from a bad address, and gains Resend
+
+The OTP send collapsed every failure into "Check the address and try again", so a user whose correct address
+merely hit Supabase's per-address rate limit was told to doubt the (fine) address, on an already anxious
+screen. sendCode now inspects the error: a 429 / "wait N seconds" shows "Just sent one. Give it a minute, then
+try again."; offline reuses the shared aiErrorLine; everything else keeps the generic line. The code step
+gained a "Resend code" link with a 30s cooldown (disabled and counting down) so repeated taps cannot trip the
+rate limit in the first place. Still never leaks a raw provider error (the never-alarm spine).
+
+## 2026-06-27 Audit (Tier 2): offer the daily reminder once, after the first close-the-day
+
+The reminder is the named lever against the week-three retention cliff, but it lived only as a faint footer
+link and a Settings pill, never offered at the moment its value is concrete. The rested screen (after the first
+close-the-day) now shows a one-time gentle offer, "Want one gentle nudge a day to come back?" with "Yes, remind
+me" / "Not now", gated by doubledone.reminderoffer.v1 so either choice retires it for good and it never nags.
+Accept runs the same enableDailyReminder path (the reason line on failure, never a silent bounce); decline just
+marks it made. Only shown when the reminder is not already on.
+
+## 2026-06-27 Audit (Tier 2): the low-capacity day is reachable on calm days too
+
+The low-day toggle lived only inside the weight gauge, which renders solely when there are spreadable (open
+one-off) tasks. So on a calm, all-done, or recurring-only day it vanished, exactly the low-energy days it
+exists to serve. Added a standalone low-day affordance shown when the gauge does not (loaded, open day, no
+spreadable tasks), reusing the same toggleLowDay, so the option is always reachable on an open day.
+
+## 2026-06-27 Audit (Tier 2): onboarding teaches the hidden rooms
+
+Three onboarding gaps where deferral became silence. (1) The combine teaser advertised the feature with no path
+to it; it now teaches the gesture, "Hold one, pick the rest, then combine them." (2) Off-plan logging (the
+"+ I also did that" answer to "my brain says I did nothing") went unmentioned; the keep step now adds "Did
+something that was never on your list? Log it too. It still counts." (3) Routines, Repeating and the Lookback
+live only behind the Menu pill and were named nowhere in first-run; the handoff now points there: "Your
+Lookback, routines and repeating tasks all live in the Menu, top right." Copy-only, no new screens.
+
+## 2026-06-27 Audit (Tier 1): a real landing page at the front door (A1)
+
+The audit's last open Tier-1 gap: doubledone.app/ was the app shell booting into onboarding, with no marketing
+front door for a first-touch visitor or a hiring PM. Chose approach A1 of two: a landing route at / with the
+app moved to /today, over A2 (a static landing with the whole app relocated under /app). A1 keeps the SPA at
+the root, so checkout (returns to /premium), the service worker, and deep links are untouched, no server change,
+no Worker redeploy; the og meta already shipped gives crawlers the rich card. The accepted cost: the landing
+copy is client-rendered, not static-crawlable, a fair trade vs relocating a live payment app for modest SEO.
+
+Build: app/index.tsx (Today) moved to app/today.tsx via git mv; the new app/index.tsx is the Landing (the
+spine, the audience, the never-shame promise, the three-step loop, the payoff, two Begin CTAs, in the app's own
+theme and fonts). The Landing is the WEB first-touch surface only: native users and returning (onboarded) web
+users redirect straight to /today, so only a fresh web visitor or a crawler ever sees it. The four "go home"
+navigations (welcome, settings, premium, chart) and the screenshot harness's Today shots now target /today. PWA
+start_url stays / (the onboarded-redirect carries an installed user through to /today); a dedicated start_url
+is a noted minor follow-up. Verified in-preview: / shows the Landing for a fresh visitor, /today shows Today,
+and an onboarded visit to / redirects to Today.
+
+## 2026-06-27 Decision (to build): keep + expose Slices, split at the user's discretion
+
+Resolved the completeness audit's Slices question (Tier 3 #9): KEEP and properly EXPOSE Slices, do NOT cut it
+and do NOT fold it into Break-it-down. They are different mechanisms, not redundant: Slices is a progress
+counter on ONE task (10 episodes, 200 pages, 5 reps), Break-it-down splits a task into SEPARATE sub-tasks. The
+audit's only real flaw is discoverability (set at capture only, never taught, unreachable afterwards).
+
+The expose work (to build in the Tier 3 batch): teach it once, sharpen the capture hint, AND allow adding /
+editing the slice count on an EXISTING task. Governing principle, from Melroy's own work style: the split is
+entirely AT THE USER'S DISCRETION, grown manually over time (a 2-part task can become a 20-part task as he
+discovers the parts), never auto-decomposed by the app. Slices is the MANUAL counterpart to AI Break-it-down,
+the user owns the count and the app never imposes one. Decided 2026-06-27; noted now, built as part of the
+Tier 3 "actions 1 to 9" batch.
+
+## 2026-06-27 Premium: annual plan (A$50/yr) alongside monthly
+
+The first monetisation lever of the Tier 3 batch: a yearly price as a second checkout option. An annual plan
+recovers most of Stripe's flat per-charge fee and lifts margin. Server: STRIPE_PRICE_ID_ANNUAL (a non-secret
+wrangler var, Melroy's live price price_1Tmod5...) plus a `plan` param on /checkout; checkoutSessionForm picks
+the annual price only when the caller asked for it AND it is configured, otherwise monthly, so a missing var
+degrades safely to the existing flow. Client: the Premium page gains a Monthly / Annual toggle ("save 17%",
+about two months free) that passes the plan to startCheckout. Unit-tested the price-pick. Goes live on the next
+Worker redeploy (Melroy's per-instance OK) and the premium->main merge; the card-free trial follows next.
+
+## 2026-06-27 Premium: card-free "Try Premium" one-month trial (server)
+
+A 30-day Premium giveaway with NO card and NO Stripe, gated against gaming by a synced (email) account plus a
+write-once D1 record. Decided card-free over a Stripe trial (Melroy's call): a surprise auto-charge is exactly
+the trap an RSD-prone audience fears, so this just reverts to free, no charge ever unless they choose to
+subscribe. One-per-ACCOUNT: /trial/start CRYPTOGRAPHICALLY verifies the Supabase JWT (reuses requirePremium's
+defaultVerifySub, not a decode, since it grants Premium), and the trials table is write-once on the user_id
+primary key, so a prior trial (active OR expired) blocks a re-trial. It reverts on its own: the read checks
+expires_at against the clock (no cron), and both the client flag (handleEntitlement, status 'trial') and the
+costed money gate (requirePremium) honor an active trial, the gate failing CLOSED on any trials-store error so a
+hiccup never serves paid compute for free. The honest, accepted limit: a determined person with throwaway emails
+can re-trial, which is the right level for a A$5 product (no device fingerprinting, off-brand). New: D1 `trials`
+table, server/src/trials.ts (activeTrial / startTrial, unit-tested), the /trial/start route. The client entry
+("Try Premium free for a month", signed-in only) and the trial-state Premium page follow in the next commit.
+
+## 2026-06-27 Premium: seven custom colour themes (the "Dusk" family)
+
+Custom THEMES superseding the earlier custom-accent picker, which never shipped (it lived only on the unmerged
+premium branch), so this is a clean replacement, not a migration. Seven calm, paper-like FULL palettes (Dusk the
+free default, plus Sage, Slate, Heather, Fog, Honey, Rose as Premium), each with a tuned light AND dark variant,
+designed and WCAG-verified in Claude Design and handed off as a typed token table. Decided full palettes over the
+accent-only swap because a single accent on the same paper read as a gimmick; a whole mood (background, ink,
+cards, accent) is the feature people actually want, and the spine ("remove friction, never add a setting") holds
+because it stays ONE optional selector, not a panel. The presets carry 12 core tokens; the rest of the Palette is
+derived per preset (surfaceCard a translucent surface, doneSoft a pale tint of done, onDone) and the genuinely
+theme-independent tokens stay fixed (the loud priorityGradient, the per-task accent dots, the scrim). Dusk is
+special-cased to render the canonical light/dark palettes UNCHANGED, so the default and free experience does not
+shift a pixel. The Honey caveat is load-bearing: a calm gold cannot clear AA with white, so Honey uses DARK
+onAccent and every button label reads t.colors.onAccent (verified: no surface hardcodes white on the themeable
+accent; the only hardcoded whites sit on the camera's dark overlay and the fixed premium gradient). Gating lives
+in the picker (a free user's tap routes to /premium); buildTheme applies whatever preset is stored, which is fine
+because only the gated picker can set a non-Dusk preset, and a theme is cosmetic, not costed compute. New:
+THEME_PRESETS + toPalette in constants/theme.ts, ThemeName/themePreset replacing AccentName/accent in
+lib/settings.ts, the Settings "Colour theme" picker. Verified light and dark in-preview (Sage plus all seven
+swatches repaint correctly in both schemes). Decided against translated theme names for now (the names are
+evocative English; a later i18n pass can localise them).
+
+## 2026-06-27 Reminder time is the user's to choose
+
+The daily nudge fired at a hardcoded 9am, wrong for anyone whose day does not start at nine, and a reminder at
+the wrong time is worse than none (it trains the user to dismiss it). Added a persisted reminder hour (0-23,
+default 9am) and a calm minus/plus stepper in Settings that shows ONLY when the reminder is on, so it stays
+contextual, never a standing knob (the spine holds: no new setting for someone who has not opted in). The hour is
+an access need, not a Premium lever, so it is free for everyone. The displayed time and the saved value update
+instantly; the actual re-apply (web-push re-subscribe / native re-schedule) is debounced 600ms so a flurry of
+taps makes ONE network call at the final hour, never a burst, and avoids a race where an earlier POST lands last.
+All three enable sites (the Settings toggle, the Today footer, the close-day offer) now read the saved hour, so
+the time is consistent wherever the reminder is switched on. New: reminderHour in storage, clampHour +
+formatReminderHour (pure, unit-tested) in reminders-types, the Settings stepper. Verified in-preview: the stepper
+renders only when on, steps the hour, updates the 12-hour label, and persists.
+
+## 2026-06-27 Slices kept, exposed, and the user's to resize
+
+Slices (tracking ONE task across N parts, e.g. 10 episodes) were keepable but nearly invisible: definable only at
+capture, in BrainDump, for a lone line. Decided to KEEP them (not fold into Break-it-down, which makes SEPARATE
+sub-tasks; slices are a progress counter on a SINGLE task, a different gesture) and to EXPOSE them as a
+discretionary editor: hold a task, tap "Steps", and a stepper splits it into 2-50 parts, or re-sizes an
+already-sliced one. This is Melroy's own way of working (taking a 2-part task to 20 at his discretion) made a
+first-class action rather than a capture-time-only option. Progress carries over on a resize, clamped to the new
+total (shrinking below what is done snaps done down, and the boolean done flag stays reconciled so the calendar /
+close-the-day / reward need no special-casing), and "Make it whole again" drops the parts back to one task. Free
+for everyone (a way of working, not a Premium lever), single-task + non-recurring + not-done only. New pure,
+unit-tested logic: setSliceTotal + clearSlices in lib/slices; the "Steps" action and a ModalCard editor on Today.
+Moat telemetry now distinguishes slices.defined (a fresh split), slices.resized (a re-size), and slices.cleared
+from the existing slices.progressed. Verified: logic unit-tested, /today renders clean with the editor in the
+tree; the full hold->Steps->modal path (which needs a real long-press the headless preview can't simulate) is
+covered by the on-device E2E case TOD-07c.
+
+## 2026-06-27 Money-path hardening: scrapbook abuse backstop + a double-subscription guard
+
+Two correctness gaps the pre-merge review surfaced on the LIVE Stripe path, both closed defensively.
+
+(1) /scrapbook (the costed Workers AI image route) had no server-side ceiling: an origin-less script could mint
+keepsakes bounded only by the 30/min/IP AI limiter, so the per-tenure cadence was unenforceable and the shared
+Workers AI budget was abusable. Closed with a per-IP rolling-24h backstop (a new scrapbook_log D1 table, keyed by
+CF-Connecting-IP, cap 20/day), deliberately NOT a sign-in gate: the free monthly taste is anonymous-first by
+design, so requiring an account would change the product and add friction to the conversion hook. The backstop is
+a raw-abuse ceiling only (no legitimate user, free 1/month or premium up to 4/week, comes near it); the per-user
+cadence stays the client's job plus the paywall. It fails OPEN on any store error or a missing table, so a hiccup
+never denies a real keepsake (the never-shame spine) and the Worker can deploy before the table is applied. The
+full per-user server-side metering (which needs the "does the free taste require a free account" product call) is
+a deliberate follow-up, not rushed into the pre-launch merge.
+
+(2) /checkout never checked whether the caller was already subscribed, so a direct hit or a race could open a
+SECOND Stripe subscription (a real double charge, the worst surprise for an RSD-prone audience). Added a
+defence-in-depth guard: handleCheckout reads the entitlement first and 409s an active PAID subscriber (premium
+plus a Stripe customer), while a trial user (premium, no customer yet) is intentionally allowed to convert. The UI
+already routes active subscribers to "Manage", so this only backstops a direct or raced call; the client maps the
+409 to a calm "You're already on Premium" rather than a second charge. Both changes are unit-tested. They need a
+Worker redeploy to go live.
+
+## 2026-06-27 The light-mode contrast sweep (clearing the AA claim the code made)
+
+The pre-merge review found a coherent cluster: the light greens (done) and accents were tuned as FILLS, but where
+they were used as TEXT or a small glyph they dipped under WCAG AA, on an app that ships Atkinson Hyperlegible and
+whose theme file literally claimed "still clears WCAG AA". Closed NUMERICALLY (every value verified >= 4.5 with a
+throwaway WCAG script), not by eye:
+- The completion tick (onDone) went from white (3.1-3.9 on the sage fills, every light preset incl. Dusk) to a
+  dark warm ink (#21261F, 4.8-5.0), matching dark mode's already-dark tick. Sage's light done was nudged
+  #4E8C7A -> #5E9E7E so the dark tick clears it (4.90).
+- "Done" as TEXT (the affirmations, the sign-in success, the Lookback marks, the select-bar Done, the whole-task
+  bloom check, the repeating-drawer tick) now uses a new DERIVED doneText token (a deepened green, mix(done,
+  black, 0.35), ~5.4-5.9 on paper), keeping the soft `done` FILL unchanged so the calm sage completion look holds.
+- The default Dusk accent deepened #9B6A7D -> #946475 so the white PrimaryButton label clears 4.5 (4.42 -> 4.84);
+  this also lifts the When-pill and multi-select tick on Dusk.
+- The Segmented active label switched from accent-on-accentSoft (sub-AA on all 7) to ink (~12:1); the 1.5 border
+  plus tint still carry the active signal.
+- Three wrong-"on"-token glyphs that only broke on Honey (white on gold) now read the right token: the routine
+  "When" pill (surface -> onAccent), the multi-select tick (onDone -> onAccent), the routine step tick
+  (surface -> onDone).
+- The Today "Menu" pill stopped hard-coding Dusk's surface/ink RGBA and now derives rgba(surface)/rgba(ink), so it
+  follows the active theme instead of reading warm-brown under the cool dark presets.
+Verified in light-mode preview: the dark tick, the deepened accent, and the derived Menu pill all render.
+Deliberately LEFT: Honey's gold accent as small text (the Settings links) stays the documented
+low-contrast-accent trade-off, because no single gold can clear AA as text AND carry a dark button label; the real
+fix is the backlogged high-contrast mode. The visible changes (dark tick, deeper success text, slightly deeper
+Dusk mauve) are for Melroy to eye on the Android device-test before Play Store.
+
+## 2026-06-27 First translations: draft it/fr/es for a native vibe-check
+
+Melroy's wife is a polyglot (native Italian, advanced French and Spanish), so the deferred "translated languages"
+got a first, reviewable pass for those three Latin-script locales. Generated via three native-voice translator
+agents (one per language) briefed on the calm, never-shame voice, the informal-you register, and the rule that
+the product idioms ("Lighten today", "Break it down", "Make it tiny", "Chart a course") are TRANSCREATED, not
+translated literally. Caught and corrected a systematic defect: the French pass dropped its accents.
+
+Shipped: real it/fr/es catalogs (the 25 Common/Today/Actions/Capture seed strings) wired into CATALOGS, each
+typed `: Catalog` so the compiler enforces full key coverage; the Catalog type widened (a Stringify mapped type)
+from en's literal types so a translated catalog satisfies it. translate() still falls back to en per missing key,
+so this is SAFE to ship before review, an untranslated key shows English, never a blank, and the visible exposure
+is tiny because only ~1 screen calls t() yet. Plus docs/i18n/translations-review.md, a side-by-side EN/IT/FR/ES
+artifact with the transcreation rationale, for the wife to mark up. Deferred until AFTER her review: the in-app
+language picker (it needs a reactive-locale provider, not worth building before the strings are blessed) and the
+per-screen t() migration that makes the rest of the app translatable.

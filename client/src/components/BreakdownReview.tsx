@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { CheckCircle } from '@/components/CheckCircle';
+import { ModalCard } from '@/components/ModalCard';
+import { PrimaryButton } from '@/components/PrimaryButton';
+import { border, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { friendlyDate } from '@/lib/day';
 import { describePace, paceDays } from '@/lib/estimate';
 import { track } from '@/lib/telemetry';
@@ -48,10 +51,8 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
   }
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable style={styles.backdrop} onPress={onCancel} accessibilityLabel="Dismiss">
-        <Pressable style={styles.card} onPress={() => {}}>
-          <ScrollView contentContainerStyle={styles.scroll}>
+    <ModalCard visible onClose={onCancel} maxWidth={440} maxHeight="88%" scroll>
+      <ScrollView contentContainerStyle={styles.scroll}>
             <Text style={styles.title}>{"Here's the plan"}</Text>
             <Text style={styles.sub} numberOfLines={2}>
               {task}
@@ -70,7 +71,7 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
                     accessibilityState={{ checked: on }}
                     accessibilityLabel={`${s.title}, ${s.minutes} minutes, ${s.date == null ? 'Today' : friendlyDate(s.date, today)}`}
                   >
-                    <View style={[styles.check, on && styles.checkOn]}>{on && <Text style={styles.tick}>✓</Text>}</View>
+                    <CheckCircle done={on} />
                     <View style={styles.rowText}>
                       <Text style={[styles.stepTitle, !on && styles.stepOff]}>{s.title}</Text>
                       <Text style={styles.meta}>
@@ -101,42 +102,25 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
               {describePace(days)}
             </Text>
 
-            <Pressable
+            <PrimaryButton
+              label={`Add ${count} ${count === 1 ? 'task' : 'tasks'}`}
               onPress={add}
-              disabled={busy || count === 0}
-              style={({ pressed }) => [styles.btn, pressed && styles.pressed, (busy || count === 0) && styles.disabled]}
-              accessibilityRole="button"
+              loading={busy}
+              disabled={count === 0}
               accessibilityLabel={`Add ${count} ${count === 1 ? 'task' : 'tasks'}`}
-            >
-              {busy ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.btnText}>
-                  Add {count} {count === 1 ? 'task' : 'tasks'}
-                </Text>
-              )}
-            </Pressable>
+              style={styles.btn}
+            />
             <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel="Not now">
               <Text style={styles.dismiss}>Not now</Text>
             </Pressable>
-          </ScrollView>
-        </Pressable>
-      </Pressable>
-    </Modal>
+      </ScrollView>
+    </ModalCard>
   );
 }
 
 const makeStyles = (t: Theme) => StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(43,39,34,0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.five,
-  },
-  card: { backgroundColor: t.colors.bg, borderRadius: radius.lg, width: '100%', maxWidth: 440, maxHeight: '88%' },
   scroll: { padding: spacing.six, gap: spacing.three },
-  title: { color: t.colors.ink, fontSize: 24 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.3 },
+  title: { ...t.type.heading, color: t.colors.ink, letterSpacing: -0.3 },
   sub: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
   hint: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body },
   list: { gap: spacing.two, marginTop: spacing.one },
@@ -148,32 +132,18 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingHorizontal: spacing.four,
     backgroundColor: t.colors.surface,
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
   },
-  check: {
-    width: 24,
-    height: 24,
-    borderRadius: radius.pill,
-    borderWidth: 2,
-    borderColor: t.colors.inkFaint,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkOn: { backgroundColor: t.colors.done, borderColor: t.colors.done },
-  tick: { color: '#FFFFFF', fontSize: 14 * t.scale, fontWeight: '700', lineHeight: 16 * t.scale, fontFamily: fonts.bodyBold },
   rowText: { flex: 1 },
   stepTitle: { color: t.colors.ink, fontSize: 16 * t.scale, lineHeight: 21 * t.scale, fontFamily: fonts.body },
   stepOff: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
-  meta: { color: t.colors.inkSoft, fontSize: 13 * t.scale, marginTop: 2, fontFamily: fonts.body },
+  meta: { color: t.colors.inkSoft, fontSize: 13 * t.scale, marginTop: spacing.half, fontFamily: fonts.body },
   phases: { gap: spacing.two, marginTop: spacing.three },
   phasesHead: {
+    ...t.type.eyebrow,
     color: t.colors.inkFaint,
-    fontSize: 13 * t.scale,
-    fontWeight: '600',
-    letterSpacing: 0.4,
     textTransform: 'uppercase',
-    fontFamily: fonts.bodyBold,
   },
   phaseRow: {
     flexDirection: 'row',
@@ -183,7 +153,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingVertical: spacing.three,
     paddingHorizontal: spacing.four,
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
     borderStyle: 'dashed',
   },
@@ -202,15 +172,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingHorizontal: spacing.four,
     borderRadius: radius.md,
   },
-  btn: {
-    backgroundColor: t.colors.accent,
-    borderRadius: radius.md,
-    paddingVertical: spacing.four,
-    alignItems: 'center',
-    marginTop: spacing.three,
-  },
-  btnText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
-  pressed: { opacity: 0.85 },
-  disabled: { opacity: 0.6 },
+  btn: { marginTop: spacing.three },
+  pressed: { opacity: PRESSED_OPACITY },
   dismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two, fontFamily: fonts.body },
 });

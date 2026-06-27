@@ -30,6 +30,16 @@ describe('checkoutSessionForm', () => {
     expect(f.get('success_url')).toBe('https://doubledone.app/premium?status=success');
     expect(f.get('customer_email')).toBe('a@b.co');
   });
+
+  it('uses the annual price when plan is annual and it is configured', () => {
+    const annualEnv = { ...env, STRIPE_PRICE_ID_ANNUAL: 'price_year' };
+    expect(checkoutSessionForm(annualEnv, 'user-1', undefined, 'annual').get('line_items[0][price]')).toBe('price_year');
+    expect(checkoutSessionForm(annualEnv, 'user-1', undefined, 'monthly').get('line_items[0][price]')).toBe('price_123');
+  });
+
+  it('falls back to monthly when annual is asked for but not configured', () => {
+    expect(checkoutSessionForm(env, 'user-1', undefined, 'annual').get('line_items[0][price]')).toBe('price_123');
+  });
 });
 
 describe('webhook signature', () => {
@@ -58,6 +68,22 @@ describe('entitlementFromEvent', () => {
       data: { object: { client_reference_id: 'u1', payment_status: 'paid', status: 'complete', customer: 'cus_1' } },
     });
     expect(ent).toEqual({ userId: 'u1', premium: true, status: 'active', currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: 'cus_1' });
+  });
+
+  it('does NOT grant premium on a complete-but-unpaid checkout session', () => {
+    const ent = entitlementFromEvent({
+      type: 'checkout.session.completed',
+      data: { object: { client_reference_id: 'u1', payment_status: 'unpaid', status: 'complete', customer: 'cus_1' } },
+    });
+    expect(ent).toMatchObject({ userId: 'u1', premium: false, status: 'incomplete' });
+  });
+
+  it('grants premium when no payment is required (a trial or 100%-off promo)', () => {
+    const ent = entitlementFromEvent({
+      type: 'checkout.session.completed',
+      data: { object: { client_reference_id: 'u1', payment_status: 'no_payment_required' } },
+    });
+    expect(ent).toMatchObject({ userId: 'u1', premium: true, status: 'active' });
   });
 
   it('tracks subscription status changes by metadata user id', () => {
@@ -278,6 +304,21 @@ describe('Stripe handler flows (mocked fetch / signed webhook)', () => {
     expect((await handleCheckout(checkoutReq({}), env, cors)).status).toBe(502);
   });
 
+  it('handleCheckout refuses an already-subscribed user (409) but lets a trial user convert', async () => {
+    // An active PAID subscriber (premium + a Stripe customer) must not open a second Checkout.
+    const paidEnv = { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_123', DB: fakeDb() };
+    await writeEntitlement(paidEnv.DB, { userId: 'u1', premium: true, status: 'active', currentPeriodEnd: 123, cancelAtPeriodEnd: false, customerId: 'cus_1' }, '2026-06-20T00:00:00Z');
+    const req = () => new Request('https://w/checkout', { method: 'POST', headers: { Authorization: `Bearer ${tokenFor('u1')}` }, body: '{}' });
+    expect((await handleCheckout(req(), paidEnv, cors)).status).toBe(409);
+
+    // A trial user (premium, but NO Stripe customer yet) is intentionally allowed to convert: the guard falls
+    // through to Stripe, so "Go Premium to keep it" still works.
+    const trialEnv = { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_123', DB: fakeDb() };
+    await writeEntitlement(trialEnv.DB, { userId: 'u1', premium: true, status: 'trial', currentPeriodEnd: null, cancelAtPeriodEnd: true, customerId: null }, '2026-06-20T00:00:00Z');
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ url: 'https://checkout.stripe.com/c/y' }), { status: 200 }));
+    expect((await handleCheckout(req(), trialEnv, cors)).status).toBe(200);
+  });
+
   it('handleEntitlement returns a default view when DB is unbound', async () => {
     const res = await handleEntitlement(
       new Request('https://w/entitlement', { headers: { Authorization: `Bearer ${tokenFor('u1')}` } }),
@@ -304,6 +345,50 @@ describe('Stripe handler flows (mocked fetch / signed webhook)', () => {
     );
     expect(res.status).toBe(200);
     expect((await readEntitlement(db, 'u9')).premium).toBe(true);
+  });
+
+  it('handleWebhook dedups a redelivered event id (writes the entitlement once)', async () => {
+    // A SQL-aware fake: entitlements upsert plus processed_events dedup, so a duplicate is observable.
+    const ents = new Map<string, unknown>();
+    const seen = new Set<string>();
+    let entWrites = 0;
+    const db = {
+      prepare(sql: string) {
+        let args: unknown[] = [];
+        const stmt = {
+          bind(...a: unknown[]) {
+            args = a;
+            return stmt;
+          },
+          async first<T>() {
+            if (sql.includes('processed_events')) return (seen.has(args[0] as string) ? { ok: 1 } : null) as T | null;
+            return (ents.get(args[0] as string) ?? null) as T | null;
+          },
+          async run() {
+            if (sql.includes('processed_events')) seen.add(args[0] as string);
+            else {
+              entWrites += 1;
+              ents.set(args[0] as string, { premium: args[1] });
+            }
+          },
+          async all<T>() {
+            return { results: [] as T[] };
+          },
+        };
+        return stmt;
+      },
+    } as unknown as D1LikeDatabase;
+    const now = 1_750_000_000;
+    const event = JSON.stringify({ id: 'evt_dup1', type: 'checkout.session.completed', data: { object: { client_reference_id: 'u1', payment_status: 'paid' } } });
+    const sig = await signPayload(event, WH, now);
+    const mk = () => new Request('https://w/stripe-webhook', { method: 'POST', headers: { 'Stripe-Signature': sig }, body: event });
+    const wenv = { STRIPE_WEBHOOK_SECRET: WH, DB: db };
+    const first = await handleWebhook(mk(), wenv, 'now', now);
+    const second = await handleWebhook(mk(), wenv, 'now', now);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(await second.json()).toMatchObject({ duplicate: true });
+    expect(entWrites).toBe(1); // the redelivery did not write the entitlement a second time
   });
 
   it('handleWebhook rejects a bad signature and unparseable json', async () => {

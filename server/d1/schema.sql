@@ -72,3 +72,38 @@ create table if not exists push_subs (
   tz_offset integer not null default 0, -- minutes from UTC (Date.getTimezoneOffset; positive = behind UTC)
   created_at text not null default (datetime('now'))
 );
+
+-- Stripe webhook idempotency: the set of event ids already applied to entitlements, so an at-least-once
+-- redelivery (Stripe retries, occasional duplicates) is a no-op. Written ONLY by the verified webhook
+-- handler, which fails OPEN if this table is absent (the entitlement write is an idempotent upsert), so
+-- the Worker can deploy before this is applied. Apply once (idempotent):
+--   npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --file d1/schema.sql
+create table if not exists processed_events (
+  event_id text primary key,            -- Stripe event id (evt_...)
+  created_at text not null default (datetime('now'))
+);
+
+-- Card-free "Try Premium" trial: a one-time 30-day Premium grant per ACCOUNT, no card, no Stripe. Write-once on
+-- the user_id primary key, so one account gets one trial EVER (active or expired both block a re-trial). The
+-- entitlement read checks expires_at against the clock, so it reverts to free on its own with no cron. Gated on
+-- a synced (email) account, because an anonymous user has no identity to enforce one-per-person against. Apply
+-- once (idempotent):
+--   npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --file d1/schema.sql
+create table if not exists trials (
+  user_id text primary key,             -- the verified Supabase auth uid (JWT sub)
+  started_at integer not null,          -- epoch seconds the trial began
+  expires_at integer not null           -- epoch seconds the trial ends (Premium until then)
+);
+
+-- Scrapbook abuse backstop: a per-IP rolling-24h count of image generations, so a scripted caller cannot mint
+-- unlimited keepsakes off one IP and drain the shared Workers AI budget. NO user_id, no task content: just the
+-- client IP and a timestamp. Written ONLY by the /scrapbook route, which fails OPEN if this table is absent (so
+-- the Worker can deploy before it is applied). The legitimate per-user cadence stays the client's job + the
+-- paywall; this is only the raw-abuse ceiling. Apply once (idempotent):
+--   npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --file d1/schema.sql
+create table if not exists scrapbook_log (
+  id integer primary key autoincrement,
+  ip text not null,                     -- CF-Connecting-IP of the caller (the rate-limit key)
+  created_at integer not null           -- epoch ms the keepsake was generated
+);
+create index if not exists scrapbook_log_ip on scrapbook_log (ip, created_at);

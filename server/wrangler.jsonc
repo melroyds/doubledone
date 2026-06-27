@@ -40,6 +40,7 @@
   // via npx wrangler secret put STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET), never committed.
   "vars": {
     "STRIPE_PRICE_ID": "price_1TkHS3JmzIqjJFzqnTgI99Rt",
+    "STRIPE_PRICE_ID_ANNUAL": "price_1Tmod5JmzIqjJFzqVa1VRRM6",
     "APP_URL": "https://doubledone.app"
   }
 }

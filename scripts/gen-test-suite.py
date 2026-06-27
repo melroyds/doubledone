@@ -87,6 +87,12 @@ CASES = [
     ("TOD-07", "Today", "P2", "Tap-and-hold a task -> selection",
      "Press and hold a task. It enters selection with that task already ticked and the action bar appears.",
      "With one selected the bar offers Done / Tomorrow / Move to... / Break down / Remove (Break down is single-task only); Remove is the brick 'danger' colour. There is no separate long-press menu any more.", "Both"),
+    ("TOD-07b", "Today", "P2", "First-run coachmark teaches the long-press",
+     "On a device that has never seen it (or after clearing 'doubledone.holdhint.v1'), open Today with at least one task. Read the hint, tap 'Got it', then reload. Separately check an empty Today and the rested (closed-day) screen.",
+     "A calm one-line hint sits above the list: 'Hold a task for more: pin it, set a reminder, break it down, or make it tiny.' 'Got it' dismisses it for good (survives reload). It never shows on an empty Today or the rested screen, and never returns once dismissed.", "Both"),
+    ("TOD-07c", "Today", "P2", "Split a task into steps (and resize or make whole)",
+     "Tap-and-hold a single task, then tap 'Steps' in the action bar. With the - / + stepper pick a number of parts (2-50) and tap Done. Tap the task on Today to advance a step. Hold it again, 'Steps', change the count, Done. Then hold, 'Steps', 'Make it whole again'.",
+     "'Steps' opens a 'Track in steps' editor with a stepper bounded at 2 and 50. Done turns the task into an N-part one with a step counter; tapping it on Today advances one step, and finishing the last step completes it (with the whole-task bloom). Re-opening lets you change N: progress carries over, and shrinking below what's already done snaps it down. 'Make it whole again' drops the parts back to one task, keeping its done state. Single-task, non-recurring, not-done only. Free for everyone.", "Both"),
     ("TOD-08", "Today", "P2", "Shame-free re-entry after a gap",
      "Simulate not opening the app for 4+ days (set localStorage 'doubledone.lastopen.v1' to a date 5+ days ago), then reload Today.",
      "A calm 'Welcome back, the past is fine, here's just today' card appears above Today, never '47 overdue'. 'Start fresh' dismisses it; reopening same-day does not re-show it.", "Both"),
@@ -185,13 +191,18 @@ CASES = [
      "On the deployed web app (PC or Android Chrome) with VAPID configured, turn the daily reminder on (the 'Turn on daily reminder' action in the Today footer, or Settings > Daily reminder) and allow notifications. Check around your daily hour (the hourly cron can be run manually to verify without waiting).",
      "Toggling on registers a service worker and subscribes the browser; a calm 'Your today is here when you are ready.' notification arrives around the daily hour, and tapping it opens the app. Toggling off unsubscribes. The push carries no task content. The toggle is hidden when VAPID is unconfigured.", "Web"),
 
+    # --- Web landing page (the front door) -----------------------------------
+    ("LP-01", "Landing", "P1", "The web landing is the front door",
+     "On the web in a fresh browser (or after clearing 'doubledone.onboarded.v1'), open doubledone.app/. Read the page, then tap Begin. Separately, as a returning (onboarded) user, open doubledone.app/. On Android, just open the app.",
+     "A calm marketing page renders at the root: the wordmark, 'Today is finite and achievable.', the never-shame promise, the audience line (ADHD / autism / OCD), the three-step loop, the Lookback payoff, and a Begin CTA. Begin opens the app at /today (a first-timer continues into the welcome). A returning, onboarded visitor is redirected straight to /today and never sees the landing. On native the app opens to Today, never the landing. Checkout still returns to /premium and deep links still resolve.", "Both"),
+
     # --- Onboarding: the one-time guided welcome ------------------------------
-    ("ONB-01", "Onboarding", "P1", "Guided welcome on first run (6-screen)",
-     "On a fresh install (or after clearing 'doubledone.onboarded.v1'), open the app. Walk Begin -> type a few lines -> Sort it for me -> This looks right -> Got it -> Almost there -> Open Today. Try Back to a previous screen, and separately try Skip.",
-     "Today redirects to the welcome exactly once: a 6-screen sequence with a quiet 6-dot progress, Skip on every screen but the last, and Back (top-left) from screen 2 on with the typed text intact. The dump is triaged into a doable Today (some pushed to later, any big one flagged 'Looks big, break it down?'); the safety-net and 'what you keep' screens follow as calm info; Open Today saves the tasks and opens Today. Skip, or an empty Sort, leaves immediately, saving whatever was revealed. Never reappears once done. If the AI is slow or offline, everything lands on Today, nothing lost.", "Both"),
+    ("ONB-01", "Onboarding", "P1", "Guided welcome on first run (7-screen)",
+     "On a fresh install (or after clearing 'doubledone.onboarded.v1'), open the app. Walk Begin -> type a few lines -> Sort it for me -> This looks right -> Got it -> Almost there -> a Premium teaser -> Open Today. Try Back to a previous screen, and separately try Skip.",
+     "Today redirects to the welcome exactly once: a 7-screen sequence with a quiet 7-dot progress, Skip on every screen but the last, and Back (top-left) from screen 2 on with the typed text intact. The dump is triaged into a doable Today (some pushed to later, any big one flagged 'Looks big, break it down?'); the safety-net and 'what you keep' screens follow as calm info; the penultimate screen is a calm one-screen teaser of what Premium adds (never a hard gate, fully skippable); Open Today saves the tasks and opens Today. Skip, or an empty Sort, leaves immediately, saving whatever was revealed. Never reappears once done. If the AI is slow or offline, everything lands on Today, nothing lost.", "Both"),
     ("ONB-02", "Onboarding", "P2", "Replay the welcome from Settings (non-destructive)",
      "With tasks already on Today, open Settings -> 'See the welcome again'. Walk Begin -> dump a couple of lines -> Sort it for me -> This looks right -> through to Open Today.",
-     "The welcome replays identically (all 6 screens), but the new tasks MERGE into the existing list (nothing overwritten) and the onboarded flag is untouched. Skipping returns to Today with no change.", "Both"),
+     "The welcome replays identically (all 7 screens), but the new tasks MERGE into the existing list (nothing overwritten) and the onboarded flag is untouched. Skipping returns to Today with no change.", "Both"),
 
     # --- AI: Bite the Elephant (decompose) -----------------------------------
     ("AI-01", "AI decompose", "P1", "Break down a dreaded task",
@@ -237,6 +248,9 @@ CASES = [
     ("LB-04", "Lookback", "P2", "Scheduled tasks show on the calendar",
      "Defer a task to tomorrow (or use 'Date...'), then open the Lookback and tap that future day.",
      "The future day shows an outline marker; tapping it lists the task under 'Scheduled'.", "Both"),
+    ("LB-05", "Lookback", "P2", "First-ever open is warm, not empty",
+     "On a brand-new install with nothing ever completed, open the Lookback.",
+     "The month reads 'This is where everything you finish will gather. Nothing yet, and that's a fine place to start.' (a welcome, never 'you did nothing'). No day shows a 'Nothing logged' line on this first run. Once anything is completed, the normal calendar behaviour returns.", "Both"),
 
     # --- Scrapbook ------------------------------------------------------------
     ("SB-01", "Scrapbook", "P1", "Make a scrapbook",
@@ -337,6 +351,12 @@ CASES = [
     ("SET-06", "Settings", "P2", "Send feedback in-app",
      "In Settings, tap 'Send feedback', type a note, tap Send.",
      "An inline box opens (no mail client, no leaving the app). Send shows 'Sending...' then a calm 'Thank you. It is on its way.', and the note arrives at the support inbox. On failure it shows a calm retry with the typed text kept. Needs the Worker deployed with /feedback + the FEEDBACK_TO secret set.", "Both"),
+    ("SET-07", "Settings", "P2", "Daily reminder explains why it can't turn on",
+     "In Settings, set 'Daily reminder' to On in a context where it can't be granted: deny the browser notification prompt on web, or have notifications blocked.",
+     "The toggle returns to Off and a calm one-line reason appears under it (e.g. 'Notifications are off for DoubleDone. Turn them on in your settings, then try again.'), never a silent failure and never a raw error. Granting permission and retrying turns it On.", "Both"),
+    ("SET-08", "Settings", "P2", "Daily reminder time picker",
+     "Turn 'Daily reminder' On, then use the - / + stepper that appears under it to change the time. Step down toward 12:00 AM and up toward 11:00 PM (the ends disable). Reload and re-open Settings; also turn the reminder on from the Today footer and confirm it uses the chosen time.",
+     "A '- TIME +' stepper shows ONLY while the reminder is On, with a calm 12-hour label (e.g. '9:00 AM'). Each tap moves the hour by one and the label updates instantly; the minus disables at 12:00 AM, the plus at 11:00 PM. The chosen time survives reload and the daily nudge fires at that hour (not a fixed 9am), consistently wherever the reminder is switched on. Free for everyone, no upsell.", "Both"),
 
     # --- Accessibility --------------------------------------------------------
     ("A11Y-01", "Accessibility", "P2", "Screen reader (TalkBack)",
@@ -427,6 +447,18 @@ CASES = [
     ("PREM-13", "Premium", "P1", "Lookback insights: free sees a calm upsell, not a wall",
      "As a free user, open the Lookback and scroll below the Scrapbook, then tap the 'Your patterns' card.",
      "A calm one-line invite ('See what your weeks and months add up to'), never a teased count and never a wall. Tapping routes to /premium and logs 'premium.gate_hit' with reason 'insights'. The free user's calendar and their one monthly scrapbook are completely untouched.", "Both"),
+    ("PREM-14", "Premium", "P2", "Premium: custom colour theme",
+     "As premium (or with the dev Premium override on), open Settings -> Comfort -> 'Colour theme' and tap each of Dusk / Sage / Slate / Heather / Fog / Honey / Rose, reloading after choosing one, in BOTH light and dark mode. Then as a FREE user, tap a preset.",
+     "Premium: tapping a preset repaints the WHOLE app in that palette (background, cards, accent, the brand) and the choice survives reload; the chosen preset is ringed; Dusk is the default and looks identical to the pre-themes app. Each preset has a tuned light and dark variant. Honey's buttons keep DARK labels (a calm gold can't carry white text). Free: the block shows a 'Premium' tag and tapping any preset routes to the paywall with no change applied. A lapsed subscriber keeps the preset they chose.", "Both"),
+    ("PREM-15", "Premium", "P2", "Post-payment 'taking a while' recovery",
+     "Complete a test checkout, then on the return /premium success screen simulate the entitlement being slow (e.g. the webhook delayed) so polling does not flip within ~10 tries.",
+     "Instead of spinning forever it shows a calm message ('This is taking longer than usual. Your payment went through, give it a minute, then tap Refresh.') with a Refresh button and a pointer to send a note from Settings if it persists. Tapping Refresh re-checks and flips to premium once the entitlement lands. It never says the payment failed.", "Both"),
+    ("PREM-16", "Premium", "P2", "Card-free 'Try Premium' one-month trial",
+     "Signed in, on /premium tap 'Try Premium free for a month'. Confirm Premium unlocks. Tap it again on the SAME account. Advance the clock past 30 days (or inspect the trials row) and re-check entitlement. Also open the trial link signed OUT.",
+     "First tap: a calm confirm, Premium turns on with NO card and NO Stripe (status 'trial'); the page shows 'Your free month', 'Free until <date>', and 'Go Premium to keep it' (not 'Manage'). Second tap, same account: a gentle 'You've already had your free month' (never shame), no second trial granted. After expiry it reverts to free on its own, no charge ever. Signed out: an account is required (one trial per account), so the link routes to sign-in rather than granting.", "Both"),
+    ("PREM-17", "Premium", "P2", "Annual vs monthly plan checkout",
+     "On /premium use the Monthly / Annual toggle, then Subscribe. Confirm the Stripe Checkout reflects the chosen plan. Complete a test annual checkout. Then, as an already-subscribed user, hit Subscribe again.",
+     "The toggle shows 'A$50/year, about two months free' for annual; Checkout opens the YEARLY price for Annual and the monthly price for Monthly, and the success path grants Premium either way. An already-subscribed user is refused a second Checkout (the server 409s and the app says 'You're already on Premium', never a double charge). Prerequisite: the Worker deployed with STRIPE_PRICE_ID_ANNUAL and that price live in Stripe.", "Both"),
 
     # --- Prioritise / pin a task (Premium) -----------------------------------
     ("PIN-01", "Pin", "P1", "Premium: pin a task as the day's one thing",

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, motion, radius, spacing, type Theme } from '@/constants/theme';
 import { describeRecurrence } from '@/lib/recurrence';
 import { type Task } from '@/lib/tasks';
-import { useThemedStyles } from '@/lib/theme-provider';
+import { useReducedMotion, useThemedStyles } from '@/lib/theme-provider';
 import { isDoneOn, isRecurring } from '@/lib/today';
 
 type Props = {
@@ -22,17 +22,27 @@ type Props = {
 // a ref or a mount-time setState, both of which the render rules forbid.
 export function RepeatingDrawer({ open, onClose, tasks, today, onToggle }: Props) {
   const styles = useThemedStyles(makeStyles);
+  const reduced = useReducedMotion();
   const [anim] = useState(() => new Animated.Value(open ? 1 : 0));
   const { width } = useWindowDimensions();
   const panelWidth = Math.min(360, width * 0.86);
 
+  // Reduced motion shows the drawer (and its backdrop) snap to the open/closed end
+  // state instantly, never sliding or fading, mirroring how index.tsx settles its
+  // close-the-day card for users who opt out of motion.
   useEffect(() => {
-    Animated.timing(anim, {
+    if (reduced) {
+      anim.setValue(open ? 1 : 0);
+      return;
+    }
+    const animation = Animated.timing(anim, {
       toValue: open ? 1 : 0,
-      duration: open ? 220 : 200,
-      useNativeDriver: false,
-    }).start();
-  }, [open, anim]);
+      duration: open ? 220 : motion.standard,
+      useNativeDriver: Platform.OS !== 'web',
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [open, reduced, anim]);
 
   const recurring = tasks.filter((t) => !t.deletedAt && isRecurring(t));
   const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [panelWidth, 0] });
@@ -40,13 +50,13 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle }: Props
   return (
     <View style={[StyleSheet.absoluteFill, { overflow: 'hidden', pointerEvents: open ? 'auto' : 'none' }]}>
       <Animated.View style={[styles.backdrop, { opacity: anim }]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close repeating tasks" />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close repeating tasks" />
       </Animated.View>
       <Animated.View style={[styles.panel, { width: panelWidth, transform: [{ translateX }] }]}>
         <View style={styles.header}>
           <Text style={styles.title}>Repeating</Text>
           <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-            <Text style={styles.done}>Done</Text>
+            <Text style={styles.done}>Close</Text>
           </Pressable>
         </View>
         <Text style={styles.sub}>Your daily and repeating tasks. Today&apos;s due ones also show on Today.</Text>
@@ -63,7 +73,7 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle }: Props
                   key={t.id}
                   onPress={() => onToggle(t.id)}
                   style={styles.row}
-                  accessibilityRole="button"
+                  accessibilityRole="checkbox"
                   accessibilityState={{ checked: done }}
                   accessibilityLabel={t.title}
                 >
@@ -85,7 +95,7 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle }: Props
 }
 
 const makeStyles = (t: Theme) => StyleSheet.create({
-  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(43,39,34,0.45)' },
+  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: t.colors.scrim },
   panel: {
     position: 'absolute',
     top: 0,
@@ -99,7 +109,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     gap: spacing.three,
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { color: t.colors.ink, fontSize: 26 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.3 },
+  title: { ...t.type.heading, color: t.colors.ink, letterSpacing: -0.3 },
   done: { color: t.colors.accent, fontSize: 16 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
   sub: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body },
   list: { marginTop: spacing.two },
@@ -110,13 +120,13 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: radius.sm,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
     alignItems: 'center',
     justifyContent: 'center',
   },
   boxDone: { backgroundColor: t.colors.doneSoft, borderColor: t.colors.done },
-  tick: { color: t.colors.done, fontSize: 14 * t.scale, fontWeight: '700', fontFamily: fonts.bodyBold },
+  tick: { color: t.colors.doneText, fontSize: 14 * t.scale, fontWeight: '700', fontFamily: fonts.bodyBold },
   rowText: { flexShrink: 1 },
   rowTitle: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.body },
   rowTitleDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },

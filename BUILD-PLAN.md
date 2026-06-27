@@ -66,7 +66,7 @@ The single home for consciously parked work. Nothing here is dropped; each item 
 **Lists and collections**
 - **Custom lists** (reference / someday collections that live outside Today, pulled in only when you act). Trigger: after the core loop, designed so it never turns Today into an everything-bucket.
 - **A "someday" inbox** that demands no decision at capture. Trigger: with Custom lists.
-- **Edit slices on an existing task** (slices are set only at capture today). Trigger: someone reaches for it.
+- **Keep + expose Slices, with discretionary splitting** (decided 2026-06-27, see decision-log; built in the Tier 3 "actions 1-9" batch). Slices stays (a progress counter on ONE task; distinct from AI Break-it-down, which makes separate sub-tasks), but is taught and the capture hint sharpened, AND the slice count can be grown / edited on an EXISTING task. Governing rule: the split is entirely at the user's discretion (a 2-part task can become a 20-part task as they discover the parts), never auto-decomposed by the app, the manual counterpart to Break-it-down.
 
 **Scheduling and deferral**
 - **Set / clear a date on an existing task** (one-off dating works at capture only). Trigger: you reach to re-date something already captured.

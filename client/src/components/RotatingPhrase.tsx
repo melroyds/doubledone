@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Animated, Easing, Platform, StyleSheet } from 'react-native';
 
-import { fonts, type Theme } from '@/constants/theme';
+import { fonts, motion, type Theme } from '@/constants/theme';
 import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 // A calm, original (uncopyrighted) line at the foot of Today, in place of a single
@@ -34,14 +34,14 @@ export function RotatingPhrase() {
     const id = setInterval(() => {
       Animated.timing(opacity, {
         toValue: 0,
-        duration: 500,
+        duration: motion.crossfade,
         easing: Easing.inOut(Easing.ease),
         useNativeDriver: Platform.OS !== 'web',
       }).start(() => {
         setI((prev) => (prev + 1) % PHRASES.length);
         Animated.timing(opacity, {
           toValue: 1,
-          duration: 500,
+          duration: motion.crossfade,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: Platform.OS !== 'web',
         }).start();

@@ -1,8 +1,9 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { split } from '@/lib/ai';
+import { aiErrorLine } from '@/lib/connection';
 import { friendlyDate, toISODate } from '@/lib/day';
 import { appendPhrase } from '@/lib/dictation';
 import { type CaptureSchedule } from '@/lib/recurrence';
@@ -11,7 +12,10 @@ import { type Dictation, isDictationSupported, startDictation } from '@/lib/spee
 import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
+import { Chip } from './Chip';
 import { DatePicker } from './DatePicker';
+import { Mark } from './Mark';
+import { PrimaryButton } from './PrimaryButton';
 
 type Props = {
   onCapture: (text: string, schedule: CaptureSchedule, slices?: number) => void;
@@ -35,7 +39,7 @@ const MODES: { mode: Mode; label: string }[] = [
   { mode: 'date', label: 'Date…' },
   { mode: 'daily', label: 'Daily' },
   { mode: 'weekly', label: 'Weekly' },
-  { mode: 'everyN', label: 'Custom' },
+  { mode: 'everyN', label: 'Every few days' },
 ];
 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']; // index 0=Sun .. 6=Sat
@@ -180,7 +184,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
       await onBiteElephant(task);
       reset();
     } catch {
-      setError('Could not break that down just now. Try again.');
+      setError(aiErrorLine('Could not break that down just now. Try again.'));
     } finally {
       setBusyKind(null);
     }
@@ -195,7 +199,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
       await onSort(text);
       reset();
     } catch {
-      setError('Could not sort just now. Try again.');
+      setError(aiErrorLine('Could not sort just now. Try again.'));
     } finally {
       setBusyKind(null);
     }
@@ -216,10 +220,10 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
         setValue(items.join('\n'));
         track('capture.split.used', { to: items.length });
       } else {
-        setError("Couldn't split that just now. Try again, or put each on its own line.");
+        setError(aiErrorLine("Couldn't split that just now. Try again, or put each on its own line."));
       }
     } catch {
-      setError("Couldn't split that just now. Try again, or put each on its own line.");
+      setError(aiErrorLine("Couldn't split that just now. Try again, or put each on its own line."));
     } finally {
       setBusyKind(null);
     }
@@ -242,7 +246,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
           style={[styles.input, styles.inputFlex]}
           multiline
           textAlignVertical="top"
-          accessibilityLabel="Brain-dump. Add one or more things, one per line"
+          accessibilityLabel="Brain dump. Add one or more things, one per line"
         />
         {canDictate && (
           <Pressable
@@ -253,9 +257,9 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
             accessibilityState={{ selected: listening }}
             accessibilityLabel={listening ? 'Listening. Tap to stop.' : 'Speak your tasks instead of typing'}
           >
-            {listening && <View style={styles.liveDot} />}
+            {listening ? <View style={styles.liveDot} /> : <Mark name="mic" size={16} color={theme.colors.inkSoft} />}
             <Text style={[styles.speakText, listening && styles.speakTextOn]}>
-              {listening ? 'Listening…' : '🎤 Speak'}
+              {listening ? 'Listening…' : 'Speak'}
             </Text>
           </Pressable>
         )}
@@ -265,29 +269,25 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
             disabled={busy}
             style={({ pressed }) => [styles.speak, pressed && styles.pressed, busy && styles.disabled]}
             accessibilityRole="button"
-            accessibilityLabel="Read a list from a photo"
+            accessibilityLabel="Scan a photo of your list"
           >
-            <Text style={styles.speakText}>📷 Scan</Text>
+            <Mark name="camera" size={16} color={theme.colors.inkSoft} />
+            <Text style={styles.speakText}>Scan</Text>
           </Pressable>
         )}
       </View>
 
       <View style={styles.chips}>
         {MODES.map(({ mode: m, label }) => (
-          <Pressable
+          <Chip
             key={m}
+            label={label}
+            selected={mode === m}
             onPress={() => {
               setMode(m);
               if (m === 'date') setPickerFor('due');
             }}
-            style={[styles.chip, mode === m && styles.chipOn]}
-            hitSlop={{ top: 8, bottom: 8 }}
-            accessibilityRole="button"
-            accessibilityState={{ selected: mode === m }}
-            accessibilityLabel={label}
-          >
-            <Text style={[styles.chipText, mode === m && styles.chipTextOn]}>{label}</Text>
-          </Pressable>
+          />
         ))}
       </View>
 
@@ -298,7 +298,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
               key={d}
               onPress={() => toggleWeekday(d)}
               style={[styles.day, weekdays.includes(d) && styles.dayOn]}
-              hitSlop={{ top: 8, bottom: 8 }}
+              hitSlop={8}
               accessibilityRole="button"
               accessibilityState={{ selected: weekdays.includes(d) }}
               accessibilityLabel={`Repeat on ${label}`}
@@ -372,6 +372,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
             <Pressable
               onPress={() => setSliceCount((n) => (n <= MIN_SLICES ? 0 : n - 1))}
               style={styles.stepBtn}
+              hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="Fewer steps"
             >
@@ -381,6 +382,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
             <Pressable
               onPress={() => setSliceCount((n) => (n === 0 ? MIN_SLICES : Math.min(MAX_SLICES, n + 1)))}
               style={styles.stepBtn}
+              hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="More steps"
             >
@@ -449,22 +451,17 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
           </Pressable>
         )}
 
-        <Pressable
-          onPress={add}
-          disabled={busy}
-          style={({ pressed }) => [styles.add, pressed && styles.pressed, busy && styles.disabled]}
-          accessibilityRole="button"
-          accessibilityLabel={addLabel}
-        >
-          <Text style={styles.addText}>{addLabel}</Text>
-        </Pressable>
+        <PrimaryButton label={addLabel} onPress={add} disabled={busy} accessibilityLabel={addLabel} />
       </View>
 
       {error && <Text style={styles.error}>{error}</Text>}
 
       <Modal visible={pickerFor !== null} transparent animationType="fade" onRequestClose={() => setPickerFor(null)}>
-        <Pressable style={styles.backdrop} onPress={() => setPickerFor(null)} accessibilityRole="button" accessibilityLabel="Dismiss">
-          <Pressable style={styles.pickerCard} onPress={() => {}}>
+        <View style={styles.pickerRoot}>
+          {/* The scrim is a SIBLING of the card (an absolute-fill dismiss layer behind it), so the picker's
+              day buttons are never nested inside the scrim <button> (invalid HTML on web). */}
+          <Pressable style={styles.backdrop} onPress={() => setPickerFor(null)} accessibilityRole="button" accessibilityLabel="Dismiss" />
+          <View style={styles.pickerCard}>
             <Text style={styles.pickerTitle}>{pickerFor === 'due' ? 'On which day' : 'Starting from'}</Text>
             <DatePicker
               value={pickerFor === 'due' ? dueDate : start}
@@ -487,8 +484,8 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                 <Text style={styles.pickerToday}>Start today</Text>
               </Pressable>
             )}
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -500,7 +497,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     minHeight: 64,
     maxHeight: 160,
     backgroundColor: t.colors.surface,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
     borderRadius: radius.md,
     paddingHorizontal: spacing.four,
@@ -511,23 +508,12 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     color: t.colors.ink,
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },
-  chip: {
-    paddingHorizontal: spacing.four,
-    paddingVertical: spacing.two,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: t.colors.line,
-    backgroundColor: t.colors.surface,
-  },
-  chipOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
-  chipText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, fontWeight: '500' },
-  chipTextOn: { color: '#FFFFFF' },
   weekdays: { flexDirection: 'row', gap: spacing.two },
   day: {
     width: 34,
     height: 34,
     borderRadius: radius.pill,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
     backgroundColor: t.colors.surface,
     alignItems: 'center',
@@ -541,7 +527,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: radius.pill,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
     backgroundColor: t.colors.surface,
     alignItems: 'center',
@@ -558,24 +544,24 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingHorizontal: spacing.three,
     paddingVertical: spacing.one,
     borderRadius: radius.pill,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.accent,
     backgroundColor: t.colors.accentSoft,
   },
   startBtnText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  backdrop: {
+  pickerRoot: {
     flex: 1,
-    backgroundColor: 'rgba(43,39,34,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.five,
   },
+  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: t.colors.scrim },
   pickerCard: {
     backgroundColor: t.colors.bg,
     borderRadius: radius.lg,
     padding: spacing.five,
     width: '100%',
-    maxWidth: 360,
+    maxWidth: layout.cardMediaWidth,
     gap: spacing.three,
   },
   pickerTitle: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
@@ -583,22 +569,15 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
   bite: {
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.accent,
     paddingHorizontal: spacing.four,
     paddingVertical: spacing.three,
   },
   biteBusy: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
   biteText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  add: {
-    backgroundColor: t.colors.accent,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.five,
-    paddingVertical: spacing.three,
-  },
-  pressed: { opacity: 0.8 },
+  pressed: { opacity: PRESSED_OPACITY },
   disabled: { opacity: 0.5 },
-  addText: { color: '#FFFFFF', fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body },
   captureRow: { flexDirection: 'row', gap: spacing.two, alignItems: 'flex-start' },
   inputFlex: { flex: 1 },
@@ -610,7 +589,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingHorizontal: spacing.three,
     paddingVertical: spacing.two,
     borderRadius: radius.pill,
-    borderWidth: 1,
+    borderWidth: border.hair,
     borderColor: t.colors.line,
     backgroundColor: t.colors.surface,
   },
