@@ -3215,3 +3215,12 @@ sort, strategise, make-it-tiny, tidy/split, chart, plan-order, scrapbook, week-s
 navigator.onLine; native returns false so the caller's message stays (a proper NetInfo check is deferred, see
 BUILD-PLAN). The offline line deliberately drops "Try again", the futile-retry nudge offline must not give.
 Unit-tested (the offline choice is injectable so the test never touches the global navigator).
+
+## 2026-06-27 Audit (Tier 2): sign-in tells rate-limit from a bad address, and gains Resend
+
+The OTP send collapsed every failure into "Check the address and try again", so a user whose correct address
+merely hit Supabase's per-address rate limit was told to doubt the (fine) address, on an already anxious
+screen. sendCode now inspects the error: a 429 / "wait N seconds" shows "Just sent one. Give it a minute, then
+try again."; offline reuses the shared aiErrorLine; everything else keeps the generic line. The code step
+gained a "Resend code" link with a 30s cooldown (disabled and counting down) so repeated taps cannot trip the
+rate limit in the first place. Still never leaks a raw provider error (the never-alarm spine).
