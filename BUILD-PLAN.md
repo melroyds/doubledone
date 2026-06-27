@@ -2,7 +2,7 @@
 
 *The operational doc: what DoubleDone is, what has shipped, what is deliberately deferred, and what is next. A fresh working session reads [`CLAUDE.md`](CLAUDE.md), then this. A reader from outside gets the arc of the build and the product thinking behind it. The full chronological why-trail lives in [`decision-log.md`](decision-log.md); the what-and-why of the product in [`docs/product-spec.md`](docs/product-spec.md).*
 
-**Status (2026-06-25): v1.0.0.** Live at [doubledone.app](https://doubledone.app), Android sideloadable via EAS. The core product is complete and verified. Active threads: the Google Play Store listing (Melroy's), and Premium development on the `premium` branch (built in isolation, nothing deploys until merged).
+**Status (2026-06-27): v1.0.0, live and commercial.** Live at [doubledone.app](https://doubledone.app) with real paying Stripe subscribers, Android v1.0.0 sideloadable via EAS and heading to the Play Store. Premium (Tiers 1 and 2) and the launch control centre are merged and live; all launch code is done. Active thread: the Google Play Store listing (Melroy's).
 
 ---
 
@@ -22,7 +22,7 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 **The Lookback and reward.** A calendar-backed Lookback of everything actually finished, complexity-weighted celebration (warmth, never points or streaks), and a held whole-task-finish "bloom" that scales with the achievement.
 
-**The ADHD seam (Clusters A to D).** Done-is-done and Good-enough (OCD reassurance), the silent-parent decompose chain and Make-it-tiny (crossing the wall of awful), the low-capacity day and the evening wind-down (honouring the day), and Routines. Plus shame-free re-entry, "I also did that" off-plan logging, "just this one" focus mode, and the weight-of-today gauge. This is the founder-market-fit core.
+**The ADHD seam (Clusters A to D).** Done-is-done (OCD reassurance), the silent-parent decompose chain and Make-it-tiny (crossing the wall of awful), the low-capacity day and the evening wind-down (honouring the day), and Routines. Plus shame-free re-entry, "I also did that" off-plan logging, "just this one" focus mode, and the weight-of-today gauge. This is the founder-market-fit core.
 
 **AI and the moat.** The Worker is the only thing that calls Claude; every call is logged pseudonymously to Cloudflare D1 (no user id, no IP), completion outcomes are reported anonymously, and a transparent crowd-pace estimate is surfaced at breakdown time. Telemetry shipped before the features it measures.
 
@@ -32,7 +32,7 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 **Developer surface.** A versioned public REST API with an OpenAPI spec and Swagger UI, and an MCP server that lets AI agents drive a user's tasks (both bearer-authed under RLS, no elevated key).
 
-**Monetisation.** Stripe Premium (test mode, end-to-end verified), with the AI Scrapbook keepsake as the flagship paid delight. The prioritised premium backlog and the free-versus-premium wall live in **[`docs/premium.md`](docs/premium.md)**.
+**Monetisation and operations.** Stripe Premium **live** (A$5/mo or A$50/yr, a 30-day card-free trial), the AI Scrapbook keepsake the flagship paid delight, with the money path hardened (per-IP scrapbook backstop, double-subscription guard, dispute / refund / failed-payment alerts). The **launch control centre**: an hourly health sweep, a daily pulse, a dead-man's-switch heartbeat, and the $25 spend cap watched in real time (see **[`docs/operations.md`](docs/operations.md)**). The premium backlog and the free-versus-premium wall live in **[`docs/premium.md`](docs/premium.md)**.
 
 ---
 
@@ -42,9 +42,9 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 **The active work: the Google Play Store listing.** The full step-by-step (researched and adversarially reviewed) is in **[`docs/play-store-release.md`](docs/play-store-release.md)**. Everything code-side is done: the `production` EAS profile builds an AAB, the privacy policy is served as a crawlable static page at `/privacy`, and the exact-alarm justification and Data Safety form guidance are written. What remains is Melroy's: the $25 developer account, the feature graphic (done, in `docs/store-assets/`) plus screenshots, the policy forms, then build and submit.
 
-**Pre-launch, already done:** Stripe Premium (test mode), account deletion (live-tested), web push (live), the AI-endpoint lockdown (CORS + origin gate + rate limit), and the privacy policy (in-app and crawlable).
+**Pre-launch, already done:** Stripe Premium **live** (real charges, the 30-day trial, the annual plan), the launch control centre, account deletion (live-tested), web push (live), the AI-endpoint lockdown (CORS + origin gate + rate limit), and the privacy policy + Terms (in-app and crawlable).
 
-**Pre-launch, remaining (config and ops, not code):** flip Stripe to live mode for real charges, swap to a dedicated transactional email sender for the sign-in code (vs Supabase's shared sender), and let the crowd-pace estimate graduate to real cross-user data once there is volume.
+**Pre-launch, remaining (config and ops, not code):** swap to a dedicated transactional email sender for the sign-in code (vs Supabase's shared sender), and let the crowd-pace estimate graduate to real cross-user data once there is volume.
 
 **Premium.** Tier 1 (the feature flag, pin-a-task, the server-side requirePremium guard, OCR photo capture, and the owner comp allowlist) is **merged to main and live (2026-06-26)**. The native OCR viewfinder still awaits an EAS Android device test. **Tier 2 is LIVE (2026-06-26):** Richer Lookback insights, Chart a course, and Plan my order / sequencing, each gate-green, verified in preview, and shipped (the Worker deployed with the `/lookback-summary`, `/chart`, `/sequence` routes, and `premium` merged to main), with the Premium page reframed to sell the whole suite. **Unlimited AI is deliberately HELD** for a product decision (building it would bake an irreversible D1 schema around an unanswered question, for no user-visible value, see the decision-log). The full stack-ranked roadmap, the triggers, and the free-versus-premium wall are in [`docs/premium.md`](docs/premium.md).
 
