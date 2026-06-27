@@ -3477,10 +3477,16 @@ Decisions that shaped it:
   The thresholds are named consts in one place, set deliberately low for tiny launch numbers with the intent to
   retune after real traffic.
 
-Decided against (the discipline of stopping):
-- **A custom Stripe-webhook fraud branch** (dispute / refund / failed-payment alerts) was DEFERRED. Stripe's own
-  native email alerts cover it, and touching the money path's `handleWebhook` for mere redundancy is not worth the
-  launch risk. Backlogged.
+Reversed within the day (the data corrected the plan): the **custom Stripe-webhook fraud branch** (dispute /
+refund / failed-payment alerts) was first deferred on the assumption Stripe's own dashboard would email those.
+Setting it up showed it no longer does (no failed-payment email option, no refund option), so the deferral was
+wrong and the branch was built: `moneyAlertFromEvent` maps `charge.dispute.created` / `charge.refunded` /
+`invoice.payment_failed` to an owner alert through the same `SEND_EMAIL` path. It is purely additive and
+best-effort (it never touches the entitlement write, reuses `processed_events` to skip a redelivery, and a send
+failure can never fail the webhook), and information-poor (event type, amount, currency and the clickable Stripe
+event id only, never a card, name or email). Don't-fight-the-signal in miniature.
+
+Still decided against (the discipline of stopping):
 - **An in-app owner analytics screen** was deferred. The CLI (`npm run stats`) plus the daily digest cover the
   at-a-glance need; a screen adds a route and an owner-gated endpoint for marginal gain.
 - **Signups / activation-rate in the digest** were left out. They need Supabase `auth.users`, which needs the

@@ -12,6 +12,7 @@
 
 import { isCompEmail } from './comp';
 import { decodeJwtEmail, decodeJwtSub } from './mcp';
+import { buildOwnerEmail } from './monitor';
 import { type D1LikeDatabase } from './telemetry';
 import { activeTrial } from './trials';
 
@@ -182,6 +183,41 @@ export function entitlementFromEvent(event: unknown): Entitlement | null {
   return null;
 }
 
+// --- money-trouble alerts (the control centre's Stripe arm) -----------------
+
+export type MoneyAlert = { kind: string; title: string; detail: string };
+
+/** The amount on a money event, in dollars, as a " for 9.99 AUD" suffix. Prefers the
+ *  refunded/due amount over the original charge, so each event reports the relevant figure. */
+function amountSuffix(obj: Record<string, unknown>): string {
+  const cents = [obj.amount_refunded, obj.amount_due, obj.amount].find((v) => typeof v === 'number') as number | undefined;
+  if (typeof cents !== 'number') return '';
+  const cur = typeof obj.currency === 'string' ? obj.currency.toUpperCase() : '';
+  return ` for ${(cents / 100).toFixed(2)}${cur ? ' ' + cur : ''}`;
+}
+
+/** Map a Stripe event to a money-trouble alert (dispute / refund / failed payment), or
+ *  null. Stripe's dashboard no longer emails on these, so the verified webhook is where
+ *  they get caught. Carries ONLY the event type, amount, currency and the Stripe event id
+ *  (clickable in the dashboard): never a card, a name, or an email. */
+export function moneyAlertFromEvent(event: unknown): MoneyAlert | null {
+  const e = event as { id?: unknown; type?: unknown; data?: { object?: Record<string, unknown> } };
+  const type = typeof e.type === 'string' ? e.type : '';
+  const obj = e.data?.object ?? {};
+  const id = typeof e.id === 'string' ? e.id : '(no id)';
+  const amt = amountSuffix(obj);
+  if (type === 'charge.dispute.created') {
+    return { kind: 'stripe-dispute', title: 'Stripe dispute opened', detail: `A chargeback was opened${amt}. At this size it is most likely card-testing or friendly fraud. Open it in the Stripe dashboard: ${id}.` };
+  }
+  if (type === 'charge.refunded') {
+    return { kind: 'stripe-refund', title: 'Stripe refund', detail: `A charge was refunded${amt}. Stripe event ${id}.` };
+  }
+  if (type === 'invoice.payment_failed') {
+    return { kind: 'stripe-payment-failed', title: 'Stripe payment failed', detail: `A subscription payment failed${amt}. The customer enters dunning and Stripe will retry. Stripe event ${id}.` };
+  }
+  return null;
+}
+
 // --- D1 entitlement store --------------------------------------------------
 
 // The D1 shape is shared with telemetry; re-exported so tests can import it here.
@@ -241,7 +277,23 @@ export async function readEntitlement(db: D1LikeDatabase, userId: string): Promi
 
 // --- HTTP handlers ---------------------------------------------------------
 
-type FullEnv = StripeEnv & { DB?: D1LikeDatabase; COMP_EMAILS?: string };
+type FullEnv = StripeEnv & {
+  DB?: D1LikeDatabase;
+  COMP_EMAILS?: string;
+  // The control centre's email path (reused for money-trouble alerts), same binding the
+  // hourly monitor + /feedback use. Optional, so a webhook with billing-only config skips it.
+  SEND_EMAIL?: { send(message: unknown): Promise<unknown> };
+  FEEDBACK_TO?: string;
+};
+
+/** Email the owner via the proven send_email path (same as /feedback + the monitor). */
+async function sendOwnerAlert(env: FullEnv, subject: string, body: string): Promise<void> {
+  if (!env.SEND_EMAIL || !env.FEEDBACK_TO) return;
+  const from = 'feedback@doubledone.app';
+  const raw = buildOwnerEmail({ from, to: env.FEEDBACK_TO, subject, body, uuid: crypto.randomUUID(), date: new Date().toUTCString() });
+  const { EmailMessage } = (await import('cloudflare:email')) as { EmailMessage: new (from: string, to: string, raw: string) => unknown };
+  await env.SEND_EMAIL.send(new EmailMessage(from, env.FEEDBACK_TO, raw));
+}
 
 export function bearer(request: Request): string {
   const auth = request.headers.get('Authorization') ?? '';
@@ -342,6 +394,38 @@ export async function handleWebhook(request: Request, env: FullEnv, nowISO: stri
         // best effort: the write already succeeded, the dedup record is non-critical
       }
     }
+  }
+
+  // Money-trouble alerts (disputes / refunds / failed payments). Additive + best-effort:
+  // Stripe's dashboard no longer emails on these, so the verified, idempotent webhook is
+  // where they get caught. This never touches entitlements (those event types are disjoint
+  // from these), reuses processed_events to skip a redelivery, and a send failure can never
+  // fail the webhook. Counts + the event id only; no card, name or email ever rides along.
+  try {
+    const money = moneyAlertFromEvent(event);
+    if (money && env.SEND_EMAIL && env.FEEDBACK_TO) {
+      const evtId = typeof (event as { id?: unknown }).id === 'string' ? (event as { id: string }).id : '';
+      let seen = false;
+      if (evtId) {
+        try {
+          seen = !!(await env.DB.prepare('SELECT 1 FROM processed_events WHERE event_id = ?1').bind(evtId).first());
+        } catch {
+          // fail open: a dedup hiccup must not drop a money alert
+        }
+      }
+      if (!seen) {
+        await sendOwnerAlert(env, `[DoubleDone] ${money.title}`, money.detail);
+        if (evtId) {
+          try {
+            await env.DB.prepare('INSERT OR IGNORE INTO processed_events (event_id, created_at) VALUES (?1, ?2)').bind(evtId, nowISO).run();
+          } catch {
+            // best effort
+          }
+        }
+      }
+    }
+  } catch {
+    // a notification must never fail the webhook
   }
   return new Response(JSON.stringify({ received: true }), { headers: JSON_HEADERS });
 }

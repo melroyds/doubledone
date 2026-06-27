@@ -10,6 +10,7 @@ import {
   handleEntitlement,
   handlePortal,
   handleWebhook,
+  moneyAlertFromEvent,
   parseSigHeader,
   readEntitlement,
   signPayload,
@@ -422,5 +423,36 @@ describe('Stripe handler flows (mocked fetch / signed webhook)', () => {
     const res = await handlePortal(portalReq(), { STRIPE_SECRET_KEY: SK, DB: db }, cors);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ url: 'https://billing.stripe.com/p/2' });
+  });
+});
+
+describe('moneyAlertFromEvent', () => {
+  it('alerts on a dispute, carrying the amount and the event id', () => {
+    const a = moneyAlertFromEvent({ id: 'evt_1', type: 'charge.dispute.created', data: { object: { amount: 999, currency: 'aud' } } });
+    expect(a?.kind).toBe('stripe-dispute');
+    expect(a?.detail).toContain('9.99 AUD');
+    expect(a?.detail).toContain('evt_1');
+  });
+  it('alerts on a refund (reads amount_refunded, not the original charge)', () => {
+    const a = moneyAlertFromEvent({ id: 'evt_2', type: 'charge.refunded', data: { object: { amount: 2000, amount_refunded: 500, currency: 'aud' } } });
+    expect(a?.kind).toBe('stripe-refund');
+    expect(a?.detail).toContain('5.00 AUD');
+  });
+  it('alerts on a failed payment (reads amount_due)', () => {
+    expect(moneyAlertFromEvent({ id: 'evt_3', type: 'invoice.payment_failed', data: { object: { amount_due: 700, currency: 'usd' } } })?.kind).toBe('stripe-payment-failed');
+  });
+  it('ignores entitlement and unrelated events', () => {
+    expect(moneyAlertFromEvent({ type: 'checkout.session.completed', data: { object: {} } })).toBeNull();
+    expect(moneyAlertFromEvent({ type: 'customer.subscription.updated', data: { object: {} } })).toBeNull();
+    expect(moneyAlertFromEvent({ type: 'invoice.paid', data: { object: {} } })).toBeNull();
+  });
+  it('never leaks card / name / email (counts and the event id only)', () => {
+    const a = moneyAlertFromEvent({
+      id: 'evt_x',
+      type: 'charge.dispute.created',
+      data: { object: { amount: 100, currency: 'aud', billing_details: { email: 'jo@example.com', name: 'Jo Bloggs' } } },
+    });
+    expect(a?.detail).not.toContain('jo@example.com');
+    expect(a?.detail).not.toContain('Jo Bloggs');
   });
 });
