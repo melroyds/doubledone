@@ -3164,3 +3164,23 @@ asset is reproducible without adding a native-binary build dep to install/CI. Th
 copied into client/assets/fonts for reproducibility. Wired og:image (+ width / height / alt) and flipped
 twitter:card to summary_large_image. Verified: the PNG renders the brand correctly and is served at /og.png at
 1200x630. The true unfurl can only be confirmed once live, so re-check with a sharing debugger after the merge.
+
+## 2026-06-27 Web SEO meta: injected post-export, because output:'single' ignores +html.tsx
+
+A LinkedIn Post Inspector run on the live site found "No image found / No description found", title-only. The
+cause was not just that the front-door work sits unmerged on `premium`. Even merged it would have failed:
+web.output is "single" (an SPA) and Expo Router does NOT apply client/src/app/+html.tsx in that mode. `expo
+export` writes a default <head> (a bare <title>DoubleDone</title>, no meta), and crawlers read static HTML and
+run no JS, so the unfurl was always going to be title-only. The +html.tsx added earlier this session was inert.
+
+Considered switching web.output back to "static" (which WOULD honour +html.tsx and per-route <Head>), but that
+reintroduces the module-scope-Supabase-touches-window-at-build crash that drove the move to "single" originally,
+a real refactor on a live product, not warranted just for meta. Instead added scripts/inject-web-meta.mjs, which
+patches the SEO / social meta into client/dist/index.html after export. Wired into deploy-web.yml (before the
+Pages deploy) and ci.yml (with a grep assertion, so a broken patch fails the build, not the deploy). +html.tsx
+stays as the head for IF we ever move to static; the two are kept in sync by comment. Also fixed the page
+title's em-dash to a middot ("DoubleDone · a calmer kind of to-do").
+
+Verified locally: export then inject yields an index.html with the full title plus 15 og / twitter / description
+tags and og:image = https://doubledone.app/og.png. The true unfurl confirms post-deploy via an inspector
+re-scrape.
