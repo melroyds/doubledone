@@ -3195,3 +3195,11 @@ doubledone.syncok.v1): success writes true, a non-account-gone failure writes fa
 and Settings downgrade the line to "Saved on this device. It'll sync when it can reach your account." when the
 last attempt did not land. Default stays optimistic (null / true shows "Synced"); only a real failure
 downgrades, and the next successful sync flips it back. The account-gone path is unchanged (it signs out).
+
+## 2026-06-27 Audit (Tier 1): a persistent Premium entry in the Menu
+
+Conversion gap: a willing buyer's only persistent door to the offer was the card at the very bottom of
+Settings; the Menu had no Premium entry, and Today none. Added a "Premium" room to the RoomsSheet (Menu),
+marked with the premium gradient dot (the one special row), routing to /premium and logging premium.menu_open.
+The hint adapts: a free user sees "Keepsakes, more AI, your colour", a subscriber sees "Manage your
+subscription". Kept the never-hard-sell posture, findable for someone actively looking, never pushed.

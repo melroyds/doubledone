@@ -17,21 +17,33 @@ type Props = {
   onRoutines: () => void;
   onLookback: () => void;
   onChart: () => void;
+  onPremium: () => void;
   onSettings: () => void;
+  premium: boolean;
 };
 
-export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookback, onChart, onSettings }: Props) {
+export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookback, onChart, onPremium, onSettings, premium }: Props) {
   const styles = useThemedStyles(makeStyles);
   // Close first, then navigate, so the sheet is already gone when the destination arrives.
   const go = (fn: () => void) => () => {
     onClose();
     fn();
   };
-  const rooms: { key: string; label: string; hint: string; onPress: () => void; premium?: boolean }[] = [
+  // A persistent door to the Premium offer (the audit gap: a willing buyer could only find it at the bottom of
+  // Settings). A gradient dot marks it as the one special row; it routes to /premium, which itself shows the
+  // offer to a free user and a manage view to a subscriber. Never a hard sell, just findable.
+  const rooms: { key: string; label: string; hint: string; onPress: () => void; premium?: boolean; gradient?: boolean }[] = [
     { key: 'repeating', label: 'Repeating', hint: 'Tasks that come back', onPress: go(onRepeating) },
     { key: 'routines', label: 'Routines', hint: 'Gentle rituals, no streaks', onPress: go(onRoutines) },
     { key: 'lookback', label: 'Lookback', hint: 'Everything you finished', onPress: go(onLookback) },
     { key: 'chart', label: 'Chart a course', hint: 'Plan toward a goal', onPress: go(onChart), premium: true },
+    {
+      key: 'premium',
+      label: 'Premium',
+      hint: premium ? 'Manage your subscription' : 'Keepsakes, more AI, your colour',
+      onPress: go(onPremium),
+      gradient: true,
+    },
     { key: 'settings', label: 'Settings', hint: 'Comfort, access, your data', onPress: go(onSettings) },
   ];
   return (
@@ -51,7 +63,11 @@ export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookba
               accessibilityLabel={r.label}
               style={({ pressed }) => [styles.room, pressed && styles.roomPressed]}
             >
-              <View style={styles.dot} />
+              {r.gradient ? (
+                <LinearGradient colors={PREMIUM_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.dot} />
+              ) : (
+                <View style={styles.dot} />
+              )}
               <View style={styles.roomText}>
                 <Text style={styles.roomLabel}>{r.label}</Text>
                 <Text style={styles.roomHint}>{r.hint}</Text>

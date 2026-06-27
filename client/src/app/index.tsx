@@ -1927,7 +1927,12 @@ export default function TodayScreen() {
         onRoutines={() => router.push('/routines')}
         onLookback={() => router.push('/lookback')}
         onChart={() => router.push('/chart')}
+        onPremium={() => {
+          track('premium.menu_open');
+          router.push('/premium');
+        }}
         onSettings={() => router.push('/settings')}
+        premium={premium}
       />
       <Bloom data={bloom} onDone={dismissBloom} />
     </View>
