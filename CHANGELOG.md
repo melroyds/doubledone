@@ -9,6 +9,12 @@ versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+_Post-v1 work lands here._
+
+## [1.0.0] - 2026-06-26
+
+_Live and commercial: DoubleDone shipped to web and Android with real paying Stripe subscribers, a launch control centre, and the full ADHD product seam._
+
 ### Added
 - **The core loop**: friction-free brain-dump, a Today sized to be doable, tap-to-finish with a soft sage check, gentle close-the-day, and push-a-task-to-tomorrow.
 - **AI: Break it down** (the phased planner): three qualifying questions, then a review-and-accept plan; long-horizon tasks return a roadmap and only phase one is broken into steps now. Haiku clarify, Sonnet decompose; dates computed on-device.
@@ -22,7 +28,13 @@ versioning: [SemVer](https://semver.org/).
 - **Multi-language** AI replies (English, Italian, Spanish, French).
 - **Privacy policy** (in-app + public URL) and **account + data deletion**.
 - **The moat**: pseudonymous AI-call telemetry, instrumented from day one.
-- **End-to-end manual test suite** (`docs/qa/`): 60 cases, fillable `.xlsx` + readable `.md`.
+- **Premium** (Stripe, live): A$5/mo or A$50/yr with a 30-day card-free trial, gating the AI scrapbook, photo-to-tasks OCR, Plan my day, Chart a course, Lookback insights, pinning, and the six non-default themes; a signature-verified webhook writes the entitlement to Cloudflare D1.
+- **The launch control centre**: an hourly health sweep emailing the owner on spend / error / abuse breaches, a daily pulse, a dead-man's-switch heartbeat, and Stripe dispute / refund / failed-payment alerts.
+- **The ADHD product seam**: Make-it-tiny, the silent-parent breakdown chain, the low-capacity day, the evening wind-down, and Routines (no streak, by data shape).
+- **Talk-to-capture** (web Speech), the **public REST API + OpenAPI**, a full **UI design pass** and a marketing landing, the guided **first-run**, **data export**, and **in-app feedback**.
+- **i18n foundation**: a typed `t()` layer with English live and Italian / French / Spanish draft catalogs.
+- **Terms of Service + refund policy** (in-app + public URL), alongside the privacy policy.
+- **End-to-end manual test suite** (`docs/qa/`): 104 cases, fillable `.xlsx` + readable `.md`.
 - Initial golden-path scaffold (Inspector, tiered CI, playbook, doc tiers).
 
 ### Changed

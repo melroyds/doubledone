@@ -4,8 +4,8 @@
 
 > A calm, ADHD-friendly daily to-do app. It takes the things you have been avoiding, breaks them into pieces small enough to actually start, shows you only what today needs, and at the end shows you everything you finished, so your brain cannot tell you that you did nothing.
 
-**Status:** the core loop is live on web and Android, and a deep ADHD product seam now sits on top of it. The loop: friction-free capture (type **or speak**), AI triage and phased **Break it down**, recurring tasks, slices, **Strategise**, the **Lookback**, close-the-day, reminders, opt-in cloud sync, the AI **scrapbook** (images on Cloudflare **R2**), plus a task **MCP server** for AI agents and a public **REST API + OpenAPI** for developers. The seam, built for the audience's real failure modes: **Break it down keeps the real task** as a silent background parent so a dreaded thing gets finished without ever looming, **Make it tiny** shrinks a stuck task to a 2-minute start, a one-tap **low-capacity day** softens an over-heavy day, calm **Routines** with no streak to break, an evening **wind-down**, and **Done is done** plus **Good enough** for the OCD side. The launch basics (privacy policy, account and data deletion, AI-endpoint lockdown) are in, the whole UI has had a calm **design pass**, and new users get a guided, replayable **first-run**.
-**Live:** [doubledone.app](https://doubledone.app) (web). Android installs via a sideloaded EAS build.
+**Status: v1.0.0, live and commercial.** DoubleDone runs at [doubledone.app](https://doubledone.app) with real paying **Stripe** subscribers since June 2026, an Android v1.0.0 build heading to the Play Store, and a launch **control centre** watching cost and health hourly. The free core loop: friction-free capture (type **or speak**), AI triage and phased **Break it down**, recurring tasks, slices, **Strategise**, the **Lookback**, close-the-day, reminders, opt-in cloud sync, plus a task **MCP server** and a public **REST API + OpenAPI** for agents and developers. The deep ADHD seam on top: **Break it down keeps the real task** as a silent background parent so a dreaded thing gets finished without ever looming, **Make it tiny** shrinks a stuck task to a 2-minute start, a one-tap **low-capacity day**, calm **Routines** with no streak to break, an evening **wind-down**, and **Done is done** for the OCD side. **Premium** (A$5/mo or A$50/yr, a 30-day card-free trial) unlocks the AI **scrapbook** keepsake, photo-to-tasks scan, richer AI, and custom themes. The whole UI has had a calm **design pass**, the privacy policy and **Terms** are in, and new users get a guided, replayable **first-run**.
+**Live:** [doubledone.app](https://doubledone.app) (web). Android installs via a sideloaded EAS build, the Play Store listing in progress.
 
 <p align="center">
   <img src="docs/screenshots/today-light.png" alt="DoubleDone Today screen in the warm light theme" width="270" />
@@ -90,7 +90,7 @@ DoubleDone is built around those, not around a feature checklist. The founder bu
 - **Time blindness** is answered by the **weight-of-today** gauge, which keeps the day from silently overfilling, and the one-tap **low-capacity day**, which recalibrates Today to a gentler target when you have less to give.
 - **The discounting reflex** is answered by **"I also did that"** (log a win that was never on the list), the **Lookback** (a calendar of everything you actually finished), and the chain's payoff: finishing the small steps completes the whole dreaded task and says so, "you finished the whole thing".
 - **Rejection-sensitive dysphoria** is answered by the never-shame spine everywhere, **shame-free re-entry** after a gap, **Routines** that keep no streak to break, and an evening **wind-down** that invites you to close the day instead of nagging.
-- **OCD and the perfectionism overlap** get **"Done is done"** (a calm, consistent reassurance that a finished task is filed and you can stop checking) and **"Good enough"** (permission to release a task you are over-polishing).
+- **OCD and the perfectionism overlap** get **"Done is done"**, a calm, consistent reassurance that a finished task is filed and you can stop checking.
 
 **The payoff & retention**
 - **The Lookback**: a true Gregorian month calendar of what you finished each day, with a warmer mark for a "big win" (a long-dreaded or chunky task finally closed). The emotional core, not a stats page.
@@ -139,7 +139,7 @@ The client never talks to Anthropic directly: the Worker is the only thing that 
 | Sync DB | Supabase Postgres + row-level security | Privacy by architecture (every row scoped to its owner); Postgres fits the Lookback and flywheel queries |
 | Auth | Supabase passwordless email OTP | No passwords stored; the lowest-friction account |
 | AI backend | Cloudflare Worker | Holds the Anthropic key server-side; cheap, global, fast cold starts |
-| AI models | Claude, tiered: Haiku (triage, clarify, split, tiny) · Sonnet (plan, decompose, strategise) | Match model cost to task; stay under a $25/mo cap |
+| AI models | Claude, tiered: Haiku (triage, clarify, split, tiny, ocr) · Sonnet (plan, decompose, strategise, chart, sequence, lookback-summary) | Match model cost to task; stay under a hard $25/mo cap, watched hourly by the control centre |
 | AI contract | Forced tool-use + enum-constrained JSON schemas, defensive parsing | Reliable structured output; a malformed response never crashes a screen |
 | Moat telemetry | Cloudflare D1 (`ai_calls`), Worker-bound, no `user_id` | Pseudonymous capture of every AI call for the flywheel; no public write path |
 | Premium delight | Cloudflare Workers AI (scene → image) | The AI scrapbook, on free-tier neurons, no Anthropic spend |
@@ -164,18 +164,17 @@ The full why-trail is in [`decision-log.md`](decision-log.md); the headline call
 - **Privacy by architecture.** Local-first, anonymous-first; the only PII is an email, and only if you sync; RLS isolates every row; the AI key lives only in the Worker.
 - **Remove friction, never add a setting.** Light-first, no theme toggle to forget, defaults that just work. The retention bar is "is an ADHD person still opening this in week six".
 
-## What's not built yet
+## v2 roadmap (consciously parked)
 
-The build is feature-complete; what's left is launch-readiness and consciously-parked scope, each with a **trigger** (the full list, with reasoning, is in [`BUILD-PLAN.md`](BUILD-PLAN.md)). The honest picture:
+v1 is complete and live. These are deliberately deferred, each with a **trigger** for when it earns a place (the full list, with reasoning, is in [`BUILD-PLAN.md`](BUILD-PLAN.md)):
 
-- **Go-live config**, **account deletion** is built and needs its one migration run. (Stripe Premium is already wired and **tested in test mode**: the A$5/mo Checkout, a webhook-verified entitlement in D1, the paywall, cadence gating; flipping to live keys for real charges is a launch step.) Configuration, not code. *Trigger: a real public launch.*
-- **Multi-language (Italian, Spanish, French)**, the AI already answers in the user's language; externalising the UI strings and the translations themselves is the remaining half. *Trigger: now (the design pass it waited on is done).*
-- **"Other users took about X days" estimate**, the moat's user-facing payoff. Both halves of the flywheel are now instrumented (the decomposition offered, and an anonymised completion ping); the surface stays an honest *derived* estimate until there's enough real cross-user volume to swap in true crowd timings. *Trigger: enough volume.*
-- **Scrapbook cross-device sync**, the images are durable on R2; syncing their URLs to your account (so they follow you to a new device) is the remaining half. *Trigger: before real paid users.*
-- **Plan my day · Custom lists**, scoped and parked against the spine, so they never turn Today into an everything-bucket. *Trigger: a real need the spine can absorb.*
-- **Distribution**, a Play Store listing and a transactional email sender (vs the shared dev one). *Trigger: before pointing real people at it.*
+- **In-app language picker + full UI translation.** The typed-translation foundation is in (English live; Italian, Spanish, French draft catalogs await native sign-off), and the AI already answers in the user's language. The picker and the per-screen migration are the remaining half. *Trigger: the translations are blessed.*
+- **"Other users took about X days" estimate**, the moat's user-facing payoff. Both halves of the flywheel are instrumented (the decomposition offered, and an anonymised completion ping); the surface stays an honest *derived* estimate until there's enough real cross-user volume. *Trigger: enough volume.*
+- **Scrapbook cross-device sync**, the images are durable on R2; syncing their URLs to your account so they follow you to a new device is the remaining half. *Trigger: demand from synced users.*
+- **Higher-tier planners beyond the current premium set**, scoped against the spine so they never turn Today into an everything-bucket. *Trigger: a real need the spine can absorb.*
+- **The Play Store listing** (copy, the data-safety form, screenshots) and a dedicated transactional email sender. *Trigger: the public Android launch, in progress.*
 
-*Graduated out of this list as they shipped: the full UI design pass, the guided first-run, the moat's completion-telemetry framework, Stripe Premium (test mode), data export, the privacy policy, AI-endpoint lockdown, the **ADHD product seam** (Make-it-tiny, the silent-parent chain, the low-capacity day, the wind-down, Routines), **talk-to-capture**, and the **public REST API**. Items leave here as they land.*
+*Graduated out as they shipped: the full UI design pass and the marketing landing, the guided first-run, the completion-telemetry flywheel, **Stripe Premium (live)** with the 30-day trial and the annual plan, the **launch control centre**, the **ADHD product seam** (Make-it-tiny, the silent-parent chain, the low-capacity day, the wind-down, Routines), **talk-to-capture**, the **public REST API**, the **i18n foundation**, data export, in-app feedback, the privacy policy and **Terms**, and AI-endpoint lockdown. Items leave here as they land.*
 
 ## Run it
 
@@ -236,7 +235,7 @@ PLAYBOOK.md                 the reusable build discipline (golden-path)
 |---|---|
 | [`docs/case-study.md`](docs/case-study.md) | The PM narrative: the pivot, the spine, the moat, the never-shame calls, the discipline of stopping |
 | [`docs/build-journal.md`](docs/build-journal.md) | The engineering complement: stack rationale, architecture, the sync/AI/privacy mechanics, the testing and golden-path discipline, and the gotchas |
-| [Privacy policy](https://doubledone.app/privacy) | Plain-English: local-first, email is the only PII, AI egress disclosed, nothing sold. Also in-app via Settings → Privacy & data |
+| [Privacy policy](https://doubledone.app/privacy) · [Terms](https://doubledone.app/terms) | Plain-English: local-first, email is the only PII, AI egress and the control-centre alerts disclosed, nothing sold; plus the Terms of Service and refund policy. Both in-app via Settings |
 | [`docs/product-spec.md`](docs/product-spec.md) | The full v1 spec: spine, core loop, tiered features, the moat, monetisation |
 | [`docs/cost-analysis.md`](docs/cost-analysis.md) | What it costs to run, modelled at 100 / 1k / 10k / 100k users; where the money goes |
 | [`docs/commercialisation.md`](docs/commercialisation.md) | The commercial story: value prop, monetisation, unit economics, growth loops, success metrics |
