@@ -3359,3 +3359,26 @@ Moat telemetry now distinguishes slices.defined (a fresh split), slices.resized 
 from the existing slices.progressed. Verified: logic unit-tested, /today renders clean with the editor in the
 tree; the full hold->Steps->modal path (which needs a real long-press the headless preview can't simulate) is
 covered by the on-device E2E case TOD-07c.
+
+## 2026-06-27 Money-path hardening: scrapbook abuse backstop + a double-subscription guard
+
+Two correctness gaps the pre-merge review surfaced on the LIVE Stripe path, both closed defensively.
+
+(1) /scrapbook (the costed Workers AI image route) had no server-side ceiling: an origin-less script could mint
+keepsakes bounded only by the 30/min/IP AI limiter, so the per-tenure cadence was unenforceable and the shared
+Workers AI budget was abusable. Closed with a per-IP rolling-24h backstop (a new scrapbook_log D1 table, keyed by
+CF-Connecting-IP, cap 20/day), deliberately NOT a sign-in gate: the free monthly taste is anonymous-first by
+design, so requiring an account would change the product and add friction to the conversion hook. The backstop is
+a raw-abuse ceiling only (no legitimate user, free 1/month or premium up to 4/week, comes near it); the per-user
+cadence stays the client's job plus the paywall. It fails OPEN on any store error or a missing table, so a hiccup
+never denies a real keepsake (the never-shame spine) and the Worker can deploy before the table is applied. The
+full per-user server-side metering (which needs the "does the free taste require a free account" product call) is
+a deliberate follow-up, not rushed into the pre-launch merge.
+
+(2) /checkout never checked whether the caller was already subscribed, so a direct hit or a race could open a
+SECOND Stripe subscription (a real double charge, the worst surprise for an RSD-prone audience). Added a
+defence-in-depth guard: handleCheckout reads the entitlement first and 409s an active PAID subscriber (premium
+plus a Stripe customer), while a trial user (premium, no customer yet) is intentionally allowed to convert. The UI
+already routes active subscribers to "Manage", so this only backstops a direct or raced call; the client maps the
+409 to a calm "You're already on Premium" rather than a second charge. Both changes are unit-tested. They need a
+Worker redeploy to go live.

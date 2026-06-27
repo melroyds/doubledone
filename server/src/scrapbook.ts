@@ -64,3 +64,14 @@ export function parseImage(result: unknown): string | null {
 export function dataUrl(base64: string): string {
   return `data:image/jpeg;base64,${base64}`;
 }
+
+// Abuse backstop for the costed image route. Generous enough that no legitimate user (free 1/month, premium up
+// to 4/week) ever comes close; tight enough that a scripted caller cannot mint unlimited keepsakes off one IP
+// and drain the shared Workers AI budget. The per-user cadence stays the client's job (and the paywall); this
+// is only the server-side ceiling on raw abuse. Tunable.
+export const SCRAPBOOK_DAILY_CAP = 20;
+
+/** Whether a client (by its rolling-24h scrapbook count) is over the per-IP daily ceiling. */
+export function overDailyCap(recentCount: number, cap = SCRAPBOOK_DAILY_CAP): boolean {
+  return recentCount >= cap;
+}

@@ -80,7 +80,13 @@ export default function PremiumScreen() {
     track('premium.checkout_started', { plan });
     const res = await startCheckout(plan);
     if (!res.ok) {
-      setError(res.error === 'sign_in' ? 'Sign in first, so Premium attaches to your account.' : 'Could not start checkout. Please try again.');
+      setError(
+        res.error === 'sign_in'
+          ? 'Sign in first, so Premium attaches to your account.'
+          : res.error === 'already'
+            ? "You're already on Premium. Manage it from the button above."
+            : 'Could not start checkout. Please try again.',
+      );
       setBusy(false);
       return;
     }

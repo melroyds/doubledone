@@ -257,6 +257,20 @@ export async function handleCheckout(request: Request, env: FullEnv, cors: Recor
   if (!env.STRIPE_SECRET_KEY || !env.STRIPE_PRICE_ID) {
     return new Response(JSON.stringify({ error: 'not_configured' }), { status: 503, headers: { ...JSON_HEADERS, ...cors } });
   }
+  // Defence-in-depth: an already-subscribed user must not open a SECOND Checkout (a duplicate active
+  // subscription is a real double charge). The UI already routes active subscribers to "Manage", so this only
+  // fires on a direct hit or a race. A trial user (premium, but no Stripe customer yet) is intentionally allowed
+  // to convert, so the guard keys on an existing Stripe customer, not merely on the premium flag.
+  if (env.DB) {
+    try {
+      const existing = await readEntitlement(env.DB, sub);
+      if (existing.premium && existing.customerId) {
+        return new Response(JSON.stringify({ error: 'already_subscribed' }), { status: 409, headers: { ...JSON_HEADERS, ...cors } });
+      }
+    } catch {
+      // a transient read must never block a legitimate new checkout; fall through and create the session
+    }
+  }
   let email: string | undefined;
   let plan: 'monthly' | 'annual' | undefined;
   try {

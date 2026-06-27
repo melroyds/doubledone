@@ -15,7 +15,7 @@ import { buildOcrRequest, type ImageMediaType, OCR_MODEL, parseMediaType, parseO
 import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
 import { handleTrial, requirePremium } from './premium';
 import { deleteSub, parsePushSub, saveSub, sendDailyNudges } from './push';
-import { dataUrl, IMAGE_MODEL, imagePrompt, parseImage, parseScene, SCENE_MODEL, sceneMessages } from './scrapbook';
+import { dataUrl, IMAGE_MODEL, imagePrompt, overDailyCap, parseImage, parseScene, SCENE_MODEL, sceneMessages } from './scrapbook';
 import { buildSequenceRequest, parseEnergy, parseSequenceResponse, SEQUENCE_MODEL } from './sequence';
 import { buildSplitRequest, parseSplitResponse, SPLIT_MODEL } from './split';
 import { buildTinyRequest, parseTinyResponse, TINY_MODEL } from './tiny';
@@ -953,6 +953,23 @@ export default {
         return Response.json({ error: 'server not configured' }, { status: 500, headers: cors });
       }
 
+      // Abuse backstop: bound image generation per client IP over a rolling 24h, so a scripted caller cannot
+      // mint unlimited keepsakes off one IP and drain the shared Workers AI budget. Generous (no legitimate
+      // user, free 1/month or premium up to 4/week, comes near it). Fails OPEN: a store hiccup must never deny a
+      // real keepsake.
+      const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
+      if (env.DB) {
+        try {
+          const since = Date.now() - 86_400_000;
+          const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM scrapbook_log WHERE ip = ?1 AND created_at >= ?2').bind(ip, since).first<{ n: number }>();
+          if (row && overDailyCap(row.n)) {
+            return Response.json({ error: 'rate_limited' }, { status: 429, headers: cors });
+          }
+        } catch {
+          // fail open: a missing table or transient error must never block a keepsake
+        }
+      }
+
       const started = Date.now();
       try {
         const sceneRes = await env.AI.run(SCENE_MODEL, {
@@ -984,6 +1001,18 @@ export default {
             inputTokens: null, outputTokens: null, latencyMs: Date.now() - started, ok: true,
           }),
         );
+        if (env.DB) {
+          const db = env.DB;
+          ctx.waitUntil(
+            (async () => {
+              try {
+                await db.prepare('INSERT INTO scrapbook_log (ip, created_at) VALUES (?1, ?2)').bind(ip, Date.now()).run();
+              } catch {
+                // best effort: the keepsake was made; the backstop log is non-critical
+              }
+            })(),
+          );
+        }
         return Response.json({ image, caption: scene }, { headers: cors });
       } catch (e) {
         ctx.waitUntil(

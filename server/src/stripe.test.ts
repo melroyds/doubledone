@@ -304,6 +304,21 @@ describe('Stripe handler flows (mocked fetch / signed webhook)', () => {
     expect((await handleCheckout(checkoutReq({}), env, cors)).status).toBe(502);
   });
 
+  it('handleCheckout refuses an already-subscribed user (409) but lets a trial user convert', async () => {
+    // An active PAID subscriber (premium + a Stripe customer) must not open a second Checkout.
+    const paidEnv = { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_123', DB: fakeDb() };
+    await writeEntitlement(paidEnv.DB, { userId: 'u1', premium: true, status: 'active', currentPeriodEnd: 123, cancelAtPeriodEnd: false, customerId: 'cus_1' }, '2026-06-20T00:00:00Z');
+    const req = () => new Request('https://w/checkout', { method: 'POST', headers: { Authorization: `Bearer ${tokenFor('u1')}` }, body: '{}' });
+    expect((await handleCheckout(req(), paidEnv, cors)).status).toBe(409);
+
+    // A trial user (premium, but NO Stripe customer yet) is intentionally allowed to convert: the guard falls
+    // through to Stripe, so "Go Premium to keep it" still works.
+    const trialEnv = { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_123', DB: fakeDb() };
+    await writeEntitlement(trialEnv.DB, { userId: 'u1', premium: true, status: 'trial', currentPeriodEnd: null, cancelAtPeriodEnd: true, customerId: null }, '2026-06-20T00:00:00Z');
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ url: 'https://checkout.stripe.com/c/y' }), { status: 200 }));
+    expect((await handleCheckout(req(), trialEnv, cors)).status).toBe(200);
+  });
+
   it('handleEntitlement returns a default view when DB is unbound', async () => {
     const res = await handleEntitlement(
       new Request('https://w/entitlement', { headers: { Authorization: `Bearer ${tokenFor('u1')}` } }),

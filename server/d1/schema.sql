@@ -94,3 +94,16 @@ create table if not exists trials (
   started_at integer not null,          -- epoch seconds the trial began
   expires_at integer not null           -- epoch seconds the trial ends (Premium until then)
 );
+
+-- Scrapbook abuse backstop: a per-IP rolling-24h count of image generations, so a scripted caller cannot mint
+-- unlimited keepsakes off one IP and drain the shared Workers AI budget. NO user_id, no task content: just the
+-- client IP and a timestamp. Written ONLY by the /scrapbook route, which fails OPEN if this table is absent (so
+-- the Worker can deploy before it is applied). The legitimate per-user cadence stays the client's job + the
+-- paywall; this is only the raw-abuse ceiling. Apply once (idempotent):
+--   npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --file d1/schema.sql
+create table if not exists scrapbook_log (
+  id integer primary key autoincrement,
+  ip text not null,                     -- CF-Connecting-IP of the caller (the rate-limit key)
+  created_at integer not null           -- epoch ms the keepsake was generated
+);
+create index if not exists scrapbook_log_ip on scrapbook_log (ip, created_at);
