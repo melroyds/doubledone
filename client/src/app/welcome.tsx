@@ -317,7 +317,7 @@ export default function WelcomeScreen() {
             </View>
             <Text style={styles.h1}>{"That's it. No setup."}</Text>
             <Text style={styles.lead}>
-              {"It's already out of your head and onto today. Tomorrow it opens here, ready, without you arranging a thing."}
+              {"It's out of your head now, and it's all here. Tomorrow it opens ready, without you arranging a thing."}
             </Text>
             <Text style={styles.lead}>Your Lookback, routines and repeating tasks all live in the Menu, top right.</Text>
             <Text style={styles.ethos}>today is finite and achievable</Text>

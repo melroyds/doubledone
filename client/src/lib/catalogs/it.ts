@@ -25,9 +25,9 @@ export const it: Catalog = {
     focusOne: 'Concentrati su una cosa',
   },
   actions: {
-    lightenToday: 'Alleggerisci oggi', // transcreated: "lighten the load" of today
+    lightenToday: 'Alleggerisci la giornata', // transcreated + native review: lighten the day ("oggi" alone read odd as the object)
     planMyDay: 'Organizza la giornata',
-    breakItDown: 'Spezzala in passi', // transcreated: break it into steps
+    breakItDown: 'Dividi in passaggi', // transcreated + native review: divide into steps ("spezzala" read too violent)
     sortForMe: 'Ordina tu per me',
     makeItTiny: 'Rendila minuscola', // transcreated: shrink it to almost nothing
     chartACourse: 'Traccia la rotta', // transcreated: plot the course (nautical, calm)
