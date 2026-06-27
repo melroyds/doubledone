@@ -2,7 +2,7 @@ import '@/global.css';
 
 import { Appearance, Platform } from 'react-native';
 
-import { type AccentName } from '@/lib/settings';
+import { type ThemeName } from '@/lib/settings';
 
 // DoubleDone's "Dusk" palette: calm and warm, the opposite of an "epic"
 // productivity app. Soft paper background, warm ink, a single dusky-mauve accent
@@ -83,18 +83,73 @@ export const Colors = { light, dark } as const;
 // PremiumButton (Plan my order, Chart a course, Reflect on this week).
 export const PREMIUM_GRADIENT = ['#8E5E72', '#B5798F', '#D6A77E'] as const;
 
-// The Premium custom-accent palette: a curated four. Each overrides ONLY the single `accent` token and its
-// soft tint, for both schemes; onAccent stays the scheme default (white on the light accents, warm ink on the
-// lifted dark ones, the contrast the design audit settled). The premium gradient, the per-task `accents` dots
-// and the periwinkle `repeat` colour are deliberately NOT themed. Gold is deepened from the raw #C19A4F so
-// white labels clear contrast, in line with the other accents. Mauve is the unchanged default and free state.
-type AccentTokens = { accent: string; accentSoft: string };
-export const ACCENTS: Record<AccentName, { light: AccentTokens; dark: AccentTokens }> = {
-  mauve: { light: { accent: '#9B6A7D', accentSoft: '#F1E7EC' }, dark: { accent: '#C68BA0', accentSoft: '#352C32' } },
-  teal: { light: { accent: '#4E8C86', accentSoft: '#E4EFED' }, dark: { accent: '#6FB0A8', accentSoft: '#26322F' } },
-  rose: { light: { accent: '#BE7F84', accentSoft: '#F4E8E9' }, dark: { accent: '#D6979C', accentSoft: '#352B2C' } },
-  gold: { light: { accent: '#B0863A', accentSoft: '#F0E8D5' }, dark: { accent: '#D6B36A', accentSoft: '#322D20' } },
+// The Premium custom-theme presets (the "Dusk" family): seven calm, paper-like FULL palettes, each with a
+// light and dark variant on the same token names (designed and WCAG-verified in Claude Design). Dusk is the
+// unchanged default and the free state; the other six are Premium. Each preset carries the 12 core tokens; the
+// rest of the Palette is derived per preset (surfaceCard / doneSoft / onDone) or kept fixed (scrim, the loud
+// priorityGradient, and the per-task `accents` dots are deliberately theme-independent). IMPORTANT: onAccent is
+// PER-THEME, Honey uses DARK label text because a calm gold cannot clear AA with white, so button labels must
+// always read t.colors.onAccent, never a hardcoded white.
+export type ThemeTokens = {
+  bg: string; surface: string; ink: string; inkSoft: string; inkFaint: string; line: string;
+  accent: string; accentSoft: string; onAccent: string; done: string; repeat: string; danger: string;
 };
+
+export const THEME_PRESETS: Record<ThemeName, { name: string; light: ThemeTokens; dark: ThemeTokens }> = {
+  dusk: { name: 'Dusk',
+    light: { bg: '#FAF6F1', surface: '#FFFFFF', ink: '#2B2722', inkSoft: '#7A7066', inkFaint: '#A89E92', line: '#ECE4D8', accent: '#9B6A7D', accentSoft: '#F1E7EC', onAccent: '#FFFFFF', done: '#7E9B6B', repeat: '#6E72A0', danger: '#A1554C' },
+    dark: { bg: '#1B1917', surface: '#252119', ink: '#F2EBE0', inkSoft: '#A89E93', inkFaint: '#7A7066', line: '#34302A', accent: '#C68BA0', accentSoft: '#352C32', onAccent: '#1B1917', done: '#9DB98A', repeat: '#8E97C8', danger: '#D2887E' } },
+  sage: { name: 'Sage',
+    light: { bg: '#F3F5EF', surface: '#FFFFFF', ink: '#262A22', inkSoft: '#6A7064', inkFaint: '#9AA08F', line: '#E3E8DD', accent: '#5E7E62', accentSoft: '#E5EDE2', onAccent: '#FFFFFF', done: '#4E8C7A', repeat: '#6E7D9B', danger: '#A1554C' },
+    dark: { bg: '#1A1C17', surface: '#23261F', ink: '#ECEFE4', inkSoft: '#A6AC9C', inkFaint: '#767B6C', line: '#32362C', accent: '#93B196', accentSoft: '#2A3328', onAccent: '#1A1C17', done: '#7FB7A4', repeat: '#9AA7C6', danger: '#D2887E' } },
+  slate: { name: 'Slate',
+    light: { bg: '#F2F4F6', surface: '#FFFFFF', ink: '#232830', inkSoft: '#687078', inkFaint: '#99A0A8', line: '#E1E6EB', accent: '#5C7790', accentSoft: '#E6ECF1', onAccent: '#FFFFFF', done: '#6E9B6B', repeat: '#8A78A0', danger: '#A1554C' },
+    dark: { bg: '#15181B', surface: '#1E2226', ink: '#E7EBEF', inkSoft: '#A0A7AE', inkFaint: '#717880', line: '#2D3238', accent: '#8FA9C2', accentSoft: '#28313A', onAccent: '#15181B', done: '#8FB98C', repeat: '#B0A2C4', danger: '#D2887E' } },
+  heather: { name: 'Heather',
+    light: { bg: '#F4F2F7', surface: '#FFFFFF', ink: '#29262F', inkSoft: '#6F6A78', inkFaint: '#9F9AA8', line: '#E6E2EC', accent: '#74699B', accentSoft: '#ECE7F2', onAccent: '#FFFFFF', done: '#6E9B6B', repeat: '#5F86A0', danger: '#A1554C' },
+    dark: { bg: '#18161C', surface: '#211E26', ink: '#EAE7F0', inkSoft: '#A4A0AC', inkFaint: '#75717C', line: '#302C38', accent: '#A99BCB', accentSoft: '#2C2838', onAccent: '#18161C', done: '#8FB98C', repeat: '#93A9C4', danger: '#D2887E' } },
+  fog: { name: 'Fog',
+    light: { bg: '#F1F4F3', surface: '#FFFFFF', ink: '#232826', inkSoft: '#67706C', inkFaint: '#97A09B', line: '#E0E6E3', accent: '#517672', accentSoft: '#E5EDEB', onAccent: '#FFFFFF', done: '#6E9B6B', repeat: '#8478A0', danger: '#A1554C' },
+    dark: { bg: '#141716', surface: '#1D211F', ink: '#E6EBE8', inkSoft: '#9DA6A1', inkFaint: '#6F7873', line: '#2B302D', accent: '#8FB3AE', accentSoft: '#243230', onAccent: '#141716', done: '#8FB98C', repeat: '#AEA2C6', danger: '#D2887E' } },
+  honey: { name: 'Honey',
+    light: { bg: '#FAF6EC', surface: '#FFFFFF', ink: '#2B2720', inkSoft: '#736B5A', inkFaint: '#A89E8C', line: '#ECE5D3', accent: '#B5862B', accentSoft: '#F6EDD6', onAccent: '#2B2720', done: '#6E9B6B', repeat: '#6E86A0', danger: '#A1554C' },
+    dark: { bg: '#1A1813', surface: '#232017', ink: '#F1EAD9', inkSoft: '#A89E8C', inkFaint: '#7A7363', line: '#332E22', accent: '#D9B65E', accentSoft: '#322A18', onAccent: '#1A1813', done: '#9DB98A', repeat: '#93A6BE', danger: '#D2887E' } },
+  rose: { name: 'Rose',
+    light: { bg: '#FBF3F2', surface: '#FFFFFF', ink: '#2E2426', inkSoft: '#7A676B', inkFaint: '#B09BA0', line: '#F0E2E2', accent: '#AE5468', accentSoft: '#F7E6E9', onAccent: '#FFFFFF', done: '#7E9B6B', repeat: '#6E86A0', danger: '#A1554C' },
+    dark: { bg: '#1C1719', surface: '#251D20', ink: '#F2E7EA', inkSoft: '#B09BA0', inkFaint: '#7C6B6F', line: '#352B2E', accent: '#E0909F', accentSoft: '#38272C', onAccent: '#1C1719', done: '#9DB98A', repeat: '#93A6BE', danger: '#D2887E' } },
+};
+
+// Tiny colour helpers to derive the Palette tokens the presets do not carry (surfaceCard / doneSoft).
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace('#', '');
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+function rgba(hex: string, alpha: number): string {
+  const [r, g, b] = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+function mix(hexA: string, hexB: string, tB: number): string {
+  const a = hexToRgb(hexA);
+  const b = hexToRgb(hexB);
+  return `#${a.map((v, i) => Math.round(v * (1 - tB) + b[i] * tB).toString(16).padStart(2, '0')).join('')}`;
+}
+
+// Build a full Palette from a preset's 12 tokens: the rest is derived (surfaceCard a translucent surface,
+// doneSoft a pale tint of done, onDone white on light / the dark paper on dark) or carried from the fixed,
+// theme-independent extras (scrim, priorityGradient, the per-task accents dots).
+function toPalette(tk: ThemeTokens, scheme: 'light' | 'dark'): Palette {
+  const base = scheme === 'dark' ? dark : light;
+  return {
+    bg: tk.bg, surface: tk.surface, ink: tk.ink, inkSoft: tk.inkSoft, inkFaint: tk.inkFaint, line: tk.line,
+    accent: tk.accent, accentSoft: tk.accentSoft, onAccent: tk.onAccent, done: tk.done, repeat: tk.repeat, danger: tk.danger,
+    surfaceCard: rgba(tk.surface, scheme === 'light' ? 0.92 : 0.86),
+    doneSoft: mix(tk.done, tk.bg, 0.84),
+    onDone: scheme === 'light' ? '#FFFFFF' : tk.onAccent,
+    scrim: base.scrim,
+    priorityGradient: base.priorityGradient,
+    accents: base.accents,
+  };
+}
 
 // The launch-resolved palette (system-following), kept as the default and as the
 // ThemeProvider's fallback. Live switching (theme + text size) flows through the
@@ -215,12 +270,13 @@ export type Theme = {
   reduceMotion: boolean;
 };
 
-export function buildTheme(scheme: 'light' | 'dark', scale: number, reduceMotion: boolean, accent: AccentName = 'mauve'): Theme {
-  const base = scheme === 'dark' ? dark : light;
-  const a = ACCENTS[accent][scheme];
+export function buildTheme(scheme: 'light' | 'dark', scale: number, reduceMotion: boolean, preset: ThemeName = 'dusk'): Theme {
+  // Dusk (the default + free state) renders the canonical light/dark palettes UNCHANGED; the six Premium
+  // presets derive their full Palette from their 12 preset tokens.
+  const colors = preset === 'dusk' ? (scheme === 'dark' ? dark : light) : toPalette(THEME_PRESETS[preset][scheme], scheme);
   return {
     scheme,
-    colors: { ...base, accent: a.accent, accentSoft: a.accentSoft },
+    colors,
     fonts,
     spacing,
     radius,

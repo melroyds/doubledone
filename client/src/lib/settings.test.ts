@@ -64,7 +64,7 @@ describe('parseSettings', () => {
       theme: 'dark',
       textSize: 'default',
       motion: 'system',
-      accent: 'mauve',
+      themePreset: 'dusk',
     });
   });
 
@@ -75,12 +75,12 @@ describe('parseSettings', () => {
   });
 
   it('preserves a fully valid blob', () => {
-    const s: Settings = { theme: 'light', textSize: 'large', motion: 'reduce', accent: 'rose' };
+    const s: Settings = { theme: 'light', textSize: 'large', motion: 'reduce', themePreset: 'rose' };
     expect(parseSettings(serializeSettings(s))).toEqual(s);
   });
 
-  it('validates the accent, falling back to mauve for an unknown one', () => {
-    expect(parseSettings(JSON.stringify({ accent: 'teal' })).accent).toBe('teal');
-    expect(parseSettings(JSON.stringify({ accent: 'neon' })).accent).toBe('mauve');
+  it('validates the theme preset, falling back to dusk for an unknown one', () => {
+    expect(parseSettings(JSON.stringify({ themePreset: 'sage' })).themePreset).toBe('sage');
+    expect(parseSettings(JSON.stringify({ themePreset: 'neon' })).themePreset).toBe('dusk');
   });
 });

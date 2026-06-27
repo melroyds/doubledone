@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackLink } from '@/components/BackLink';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Segmented } from '@/components/Segmented';
-import { ACCENTS, border, fonts, layout, PREMIUM_GRADIENT, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, layout, PREMIUM_GRADIENT, PRESSED_OPACITY, radius, spacing, THEME_PRESETS, type Theme } from '@/constants/theme';
 import { deleteAccount } from '@/lib/account';
 import { purgeScrapbookImages } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
@@ -16,7 +16,7 @@ import { buildExport } from '@/lib/export';
 import { usePremium } from '@/lib/premium-provider';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { reminderReasonLine } from '@/lib/reminders-types';
-import { ACCENT_NAMES, type AccentName, type MotionPref, type TextSize, type ThemePref } from '@/lib/settings';
+import { type MotionPref, type TextSize, THEME_NAMES, type ThemePref } from '@/lib/settings';
 import { loadLastSyncOk, loadReminderOn, loadScrapbooks, loadTasks, saveReminderOn, wipeLocalData } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
@@ -31,9 +31,6 @@ const MCP_URL = `${process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app
 
 // The dev premium override exposed as a 3-way Choice; 'auto' defers to the real entitlement.
 type DevPremiumChoice = 'auto' | 'on' | 'off';
-
-// Display names for the four Premium accents (the colour table itself lives in constants/theme).
-const ACCENT_LABELS: Record<AccentName, string> = { mauve: 'Mauve', teal: 'Teal', rose: 'Rose', gold: 'Gold' };
 
 // The one deliberate Settings surface. Scoped to comfort and access (theme, text
 // size, motion), never open-ended config: that is the line that keeps "remove
@@ -259,37 +256,38 @@ export default function SettingsScreen() {
           {reminderNote && <Text style={styles.rowHint}>{reminderNote}</Text>}
           <View style={styles.accentBlock}>
             <View style={styles.accentHead}>
-              <Text style={styles.accentLabel}>Accent colour</Text>
+              <Text style={styles.accentLabel}>Colour theme</Text>
               {!premium && <Text style={styles.accentTag}>Premium</Text>}
             </View>
             <Text style={styles.rowHint}>
-              {premium ? 'The colour that runs through your app. Choose what feels calm.' : 'Make the app yours. A Premium touch.'}
+              {premium ? 'A calm palette for the whole app. Dusk is the default.' : "Seven calm palettes, a Premium touch. You're on Dusk."}
             </Text>
             <View style={styles.swatchRow}>
-              {ACCENT_NAMES.map((name) => {
-                const selected = settings.accent === name;
+              {THEME_NAMES.map((name) => {
+                const selected = settings.themePreset === name;
+                const preset = THEME_PRESETS[name];
                 return (
                   <Pressable
                     key={name}
                     onPress={() => {
                       if (premium) {
-                        setSettings({ accent: name });
-                        track('accent.set', { accent: name });
+                        setSettings({ themePreset: name });
+                        track('theme.set', { theme: name });
                       } else {
-                        track('accent.locked');
+                        track('theme.locked');
                         router.push('/premium');
                       }
                     }}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
-                    accessibilityLabel={`${ACCENT_LABELS[name]}${selected ? ', selected' : ''}${premium ? '' : ', Premium'}`}
+                    accessibilityLabel={`${preset.name}${selected ? ', selected' : ''}${premium ? '' : ', Premium'}`}
                     style={styles.swatchHit}
                     hitSlop={6}
                   >
                     <View style={[styles.swatchRing, selected && styles.swatchRingOn]}>
-                      <View style={[styles.swatch, { backgroundColor: ACCENTS[name][theme.scheme].accent }]} />
+                      <View style={[styles.swatch, { backgroundColor: preset[theme.scheme].accent }]} />
                     </View>
-                    <Text style={styles.swatchName}>{ACCENT_LABELS[name]}</Text>
+                    <Text style={styles.swatchName}>{preset.name}</Text>
                   </Pressable>
                 );
               })}
@@ -567,7 +565,7 @@ const makeStyles = (t: Theme) =>
       letterSpacing: 0.4,
       textTransform: 'uppercase',
     },
-    swatchRow: { flexDirection: 'row', gap: spacing.four, marginTop: spacing.three },
+    swatchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.four, marginTop: spacing.three },
     swatchHit: { alignItems: 'center', gap: spacing.one },
     swatchRing: { padding: 3, borderRadius: radius.pill, borderWidth: 2, borderColor: 'transparent' },
     swatchRingOn: { borderColor: t.colors.ink },

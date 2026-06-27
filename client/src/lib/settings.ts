@@ -7,23 +7,23 @@
 export type ThemePref = 'system' | 'light' | 'dark';
 export type TextSize = 'small' | 'default' | 'large';
 export type MotionPref = 'system' | 'reduce';
-export type AccentName = 'mauve' | 'teal' | 'rose' | 'gold';
+export type ThemeName = 'dusk' | 'sage' | 'slate' | 'heather' | 'fog' | 'honey' | 'rose';
 
 export type Settings = {
   theme: ThemePref;
   textSize: TextSize;
   motion: MotionPref;
-  accent: AccentName; // Premium: the single brand accent (mauve is the default and the free state)
+  themePreset: ThemeName; // Premium: the full colour theme (Dusk is the default and the free state)
 };
 
 // System-following, default size, system-following motion: the calmest defaults,
 // and the same behaviour the app had before the page existed.
-export const DEFAULT_SETTINGS: Settings = { theme: 'system', textSize: 'default', motion: 'system', accent: 'mauve' };
+export const DEFAULT_SETTINGS: Settings = { theme: 'system', textSize: 'default', motion: 'system', themePreset: 'dusk' };
 
 const THEME_PREFS: readonly ThemePref[] = ['system', 'light', 'dark'];
 const TEXT_SIZES: readonly TextSize[] = ['small', 'default', 'large'];
 const MOTION_PREFS: readonly MotionPref[] = ['system', 'reduce'];
-export const ACCENT_NAMES: readonly AccentName[] = ['mauve', 'teal', 'rose', 'gold'];
+export const THEME_NAMES: readonly ThemeName[] = ['dusk', 'sage', 'slate', 'heather', 'fog', 'honey', 'rose'];
 
 /** The active colour scheme, from the preference and the device scheme. */
 export function resolveScheme(theme: ThemePref, system: 'light' | 'dark' | null | undefined): 'light' | 'dark' {
@@ -60,7 +60,7 @@ export function parseSettings(raw: string | null | undefined): Settings {
       theme: THEME_PREFS.includes(o.theme as ThemePref) ? (o.theme as ThemePref) : DEFAULT_SETTINGS.theme,
       textSize: TEXT_SIZES.includes(o.textSize as TextSize) ? (o.textSize as TextSize) : DEFAULT_SETTINGS.textSize,
       motion: MOTION_PREFS.includes(o.motion as MotionPref) ? (o.motion as MotionPref) : DEFAULT_SETTINGS.motion,
-      accent: ACCENT_NAMES.includes(o.accent as AccentName) ? (o.accent as AccentName) : DEFAULT_SETTINGS.accent,
+      themePreset: THEME_NAMES.includes(o.themePreset as ThemeName) ? (o.themePreset as ThemeName) : DEFAULT_SETTINGS.themePreset,
     };
   } catch {
     return DEFAULT_SETTINGS;

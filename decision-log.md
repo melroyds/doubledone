@@ -3306,3 +3306,25 @@ hiccup never serves paid compute for free. The honest, accepted limit: a determi
 can re-trial, which is the right level for a A$5 product (no device fingerprinting, off-brand). New: D1 `trials`
 table, server/src/trials.ts (activeTrial / startTrial, unit-tested), the /trial/start route. The client entry
 ("Try Premium free for a month", signed-in only) and the trial-state Premium page follow in the next commit.
+
+## 2026-06-27 Premium: seven custom colour themes (the "Dusk" family)
+
+Custom THEMES superseding the earlier custom-accent picker, which never shipped (it lived only on the unmerged
+premium branch), so this is a clean replacement, not a migration. Seven calm, paper-like FULL palettes (Dusk the
+free default, plus Sage, Slate, Heather, Fog, Honey, Rose as Premium), each with a tuned light AND dark variant,
+designed and WCAG-verified in Claude Design and handed off as a typed token table. Decided full palettes over the
+accent-only swap because a single accent on the same paper read as a gimmick; a whole mood (background, ink,
+cards, accent) is the feature people actually want, and the spine ("remove friction, never add a setting") holds
+because it stays ONE optional selector, not a panel. The presets carry 12 core tokens; the rest of the Palette is
+derived per preset (surfaceCard a translucent surface, doneSoft a pale tint of done, onDone) and the genuinely
+theme-independent tokens stay fixed (the loud priorityGradient, the per-task accent dots, the scrim). Dusk is
+special-cased to render the canonical light/dark palettes UNCHANGED, so the default and free experience does not
+shift a pixel. The Honey caveat is load-bearing: a calm gold cannot clear AA with white, so Honey uses DARK
+onAccent and every button label reads t.colors.onAccent (verified: no surface hardcodes white on the themeable
+accent; the only hardcoded whites sit on the camera's dark overlay and the fixed premium gradient). Gating lives
+in the picker (a free user's tap routes to /premium); buildTheme applies whatever preset is stored, which is fine
+because only the gated picker can set a non-Dusk preset, and a theme is cosmetic, not costed compute. New:
+THEME_PRESETS + toPalette in constants/theme.ts, ThemeName/themePreset replacing AccentName/accent in
+lib/settings.ts, the Settings "Colour theme" picker. Verified light and dark in-preview (Sage plus all seven
+swatches repaint correctly in both schemes). Decided against translated theme names for now (the names are
+evocative English; a later i18n pass can localise them).
