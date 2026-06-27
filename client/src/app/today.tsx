@@ -51,7 +51,7 @@ import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { availableNudgePresets, isWindDownTime, type NudgePreset, nudgeTargetFor } from '@/lib/nudge';
 import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge } from '@/lib/reminders';
 import { reminderReasonLine } from '@/lib/reminders-types';
-import { applySliceDelta } from '@/lib/slices';
+import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
 import { loadClosedDate, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderHour, loadReminderOfferMade, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOfferMade, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
@@ -105,6 +105,9 @@ export default function TodayScreen() {
   const combineBusy = useRef(false); // guards the combine AI call from a double-fire
   const [nudgeOpen, setNudgeOpen] = useState(false);
   const [nudgePresets, setNudgePresets] = useState<NudgePreset[]>([]);
+  const [sliceEditOpen, setSliceEditOpen] = useState(false); // the "track in steps" editor (split a task into parts)
+  const [sliceEditCount, setSliceEditCount] = useState(MIN_SLICES);
+  const [sliceEditId, setSliceEditId] = useState<string | null>(null); // captured so confirm/clear survive exitSelect
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusPick, setFocusPick] = useState<string | null>(null);
   const { premium, loading: premiumLoading } = usePremium(); // gates Pin; a dev override drives it locally
@@ -870,6 +873,40 @@ export default function TodayScreen() {
     setDidOpen(false);
   }
 
+  // Open the "track in steps" editor for the one selected task (capture its id so the editor survives the
+  // selection clearing on confirm). Pre-fills the current count, or MIN_SLICES for a still-whole task.
+  function openSliceEdit() {
+    const t = onlyTask;
+    if (!t) return;
+    setSliceEditId(t.id);
+    setSliceEditCount(t.slices ? Math.min(MAX_SLICES, Math.max(MIN_SLICES, t.slices.total)) : MIN_SLICES);
+    setSliceEditOpen(true);
+  }
+  // Apply the chosen count: split a whole task into parts, or re-size a sliced one (progress carries over,
+  // clamped to the new total). The user's discretionary "make this a 20-part task" lever.
+  function confirmSliceEdit() {
+    const id = sliceEditId;
+    if (id == null) return;
+    const wasSliced = tasks.find((t) => t.id === id)?.slices != null;
+    commit(tasks.map((t) => (t.id === id ? { ...setSliceTotal(t, sliceEditCount), updatedAt: nowMs() } : t)));
+    track(wasSliced ? 'slices.resized' : 'slices.defined', { total: sliceEditCount });
+    setSliceEditOpen(false);
+    setSliceEditId(null);
+    exitSelect();
+    affirm(`In ${sliceEditCount} steps. Tap it to advance one.`);
+  }
+  // Drop the parts, back to one whole task (keeps whatever done state it had).
+  function makeWhole() {
+    const id = sliceEditId;
+    if (id == null) return;
+    commit(tasks.map((t) => (t.id === id ? { ...clearSlices(t), updatedAt: nowMs() } : t)));
+    track('slices.cleared');
+    setSliceEditOpen(false);
+    setSliceEditId(null);
+    exitSelect();
+    affirm('Back to one task.');
+  }
+
   // Advance (or step back) one slice of a sliced task. Crossing to all-slices-done
   // completes it through the same path as a tap-to-complete (done + completedAt),
   // so the calendar, Close-the-day and the celebration treat it like any finish.
@@ -1449,6 +1486,16 @@ export default function TodayScreen() {
                     <Text style={styles.selectAction}>Make it tiny</Text>
                   </Pressable>
                 )}
+                {onlyTask && !isRecurring(onlyTask) && !isDoneOn(onlyTask, today) && (
+                  <Pressable
+                    onPress={openSliceEdit}
+                    accessibilityRole="button"
+                    accessibilityLabel={onlyTask.slices ? 'Change the steps for this task' : 'Split this task into steps'}
+                    hitSlop={6}
+                  >
+                    <Text style={styles.selectAction}>Steps</Text>
+                  </Pressable>
+                )}
                 {combinable.length >= 2 && (
                   <Pressable
                     onPress={() => void openCombine()}
@@ -1763,6 +1810,48 @@ export default function TodayScreen() {
             </Pressable>
       </ModalCard>
 
+      <ModalCard visible={sliceEditOpen} onClose={() => setSliceEditOpen(false)}>
+            <Text style={styles.didTitle}>Track in steps</Text>
+            <Text style={styles.didHint}>Break this one task into parts and tick them off as you go. Tap it on Today to advance a step, whenever you are ready.</Text>
+            <View style={styles.sliceEditStepper}>
+              <Pressable
+                onPress={() => setSliceEditCount((n) => Math.max(MIN_SLICES, n - 1))}
+                disabled={sliceEditCount <= MIN_SLICES}
+                accessibilityRole="button"
+                accessibilityLabel="Fewer steps"
+                hitSlop={8}
+                style={({ pressed }) => [styles.sliceStepBtn, sliceEditCount <= MIN_SLICES && styles.sliceStepBtnOff, pressed && styles.pressed]}
+              >
+                <Text style={styles.sliceStepGlyph}>−</Text>
+              </Pressable>
+              <Text style={styles.sliceStepValue} accessibilityLabel={`${sliceEditCount} steps`}>
+                {sliceEditCount} steps
+              </Text>
+              <Pressable
+                onPress={() => setSliceEditCount((n) => Math.min(MAX_SLICES, n + 1))}
+                disabled={sliceEditCount >= MAX_SLICES}
+                accessibilityRole="button"
+                accessibilityLabel="More steps"
+                hitSlop={8}
+                style={({ pressed }) => [styles.sliceStepBtn, sliceEditCount >= MAX_SLICES && styles.sliceStepBtnOff, pressed && styles.pressed]}
+              >
+                <Text style={styles.sliceStepGlyph}>+</Text>
+              </Pressable>
+            </View>
+            <PrimaryButton label="Done" onPress={confirmSliceEdit} accessibilityLabel="Save these steps" />
+            {sliceEditId != null && tasks.find((t) => t.id === sliceEditId)?.slices != null && (
+              <Pressable
+                onPress={makeWhole}
+                accessibilityRole="button"
+                accessibilityLabel="Make this one whole task again"
+                hitSlop={8}
+                style={styles.moveCancelWrap}
+              >
+                <Text style={styles.didCancel}>Make it whole again</Text>
+              </Pressable>
+            )}
+      </ModalCard>
+
       <Modal visible={closing} transparent animationType="fade" onRequestClose={() => setClosing(false)}>
         <View style={styles.closeRoot}>
           {/* The scrim is a SIBLING of the card (an absolute-fill dismiss layer behind it), so the card's
@@ -2064,6 +2153,11 @@ const makeStyles = (t: Theme) =>
     selectActions: { alignItems: 'center', gap: spacing.three },
     actionRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: spacing.four },
     selectAction: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    sliceEditStepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.four, marginVertical: spacing.four },
+    sliceStepBtn: { width: 44, height: 44, borderRadius: radius.pill, borderWidth: border.hair, borderColor: t.colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: t.colors.surface },
+    sliceStepBtnOff: { opacity: 0.4 },
+    sliceStepGlyph: { fontSize: 26 * t.scale, lineHeight: 30 * t.scale, color: t.colors.accent, fontFamily: fonts.body },
+    sliceStepValue: { ...t.type.heading, color: t.colors.ink, minWidth: 110, textAlign: 'center' },
     selectActionDim: { opacity: 0.5 }, // a premium action shown to a free user: dimmed but tappable, routes to the upsell
     selectDone: { color: t.colors.done, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     selectRemove: { color: t.colors.danger, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },

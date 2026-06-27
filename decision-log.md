@@ -3342,3 +3342,20 @@ All three enable sites (the Settings toggle, the Today footer, the close-day off
 the time is consistent wherever the reminder is switched on. New: reminderHour in storage, clampHour +
 formatReminderHour (pure, unit-tested) in reminders-types, the Settings stepper. Verified in-preview: the stepper
 renders only when on, steps the hour, updates the 12-hour label, and persists.
+
+## 2026-06-27 Slices kept, exposed, and the user's to resize
+
+Slices (tracking ONE task across N parts, e.g. 10 episodes) were keepable but nearly invisible: definable only at
+capture, in BrainDump, for a lone line. Decided to KEEP them (not fold into Break-it-down, which makes SEPARATE
+sub-tasks; slices are a progress counter on a SINGLE task, a different gesture) and to EXPOSE them as a
+discretionary editor: hold a task, tap "Steps", and a stepper splits it into 2-50 parts, or re-sizes an
+already-sliced one. This is Melroy's own way of working (taking a 2-part task to 20 at his discretion) made a
+first-class action rather than a capture-time-only option. Progress carries over on a resize, clamped to the new
+total (shrinking below what is done snaps done down, and the boolean done flag stays reconciled so the calendar /
+close-the-day / reward need no special-casing), and "Make it whole again" drops the parts back to one task. Free
+for everyone (a way of working, not a Premium lever), single-task + non-recurring + not-done only. New pure,
+unit-tested logic: setSliceTotal + clearSlices in lib/slices; the "Steps" action and a ModalCard editor on Today.
+Moat telemetry now distinguishes slices.defined (a fresh split), slices.resized (a re-size), and slices.cleared
+from the existing slices.progressed. Verified: logic unit-tested, /today renders clean with the editor in the
+tree; the full hold->Steps->modal path (which needs a real long-press the headless preview can't simulate) is
+covered by the on-device E2E case TOD-07c.
