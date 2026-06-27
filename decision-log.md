@@ -3184,3 +3184,14 @@ title's em-dash to a middot ("DoubleDone · a calmer kind of to-do").
 Verified locally: export then inject yields an index.html with the full title plus 15 og / twitter / description
 tags and og:image = https://doubledone.app/og.png. The true unfurl confirms post-deploy via an inspector
 re-scrape.
+
+## 2026-06-27 Audit (Tier 1): the sync footer stops claiming "Synced" on a failure
+
+The completeness audit's most dangerous live gap: a signed-in user whose sync failed for any non-fatal reason
+(network, RLS, 5xx, expired token) was still told "Synced to <email>", an affirmative false promise that their
+tasks are safe across devices. The failure was a swallowed track('sync.failed'). For a multi-device user this
+invites real data-loss-by-belief. Now the last sync result is persisted (loadLastSyncOk / saveLastSyncOk,
+doubledone.syncok.v1): success writes true, a non-account-gone failure writes false, and BOTH the Today footer
+and Settings downgrade the line to "Saved on this device. It'll sync when it can reach your account." when the
+last attempt did not land. Default stays optimistic (null / true shows "Synced"); only a real failure
+downgrades, and the next successful sync flips it back. The account-gone path is unchanged (it signs out).

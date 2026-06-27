@@ -52,7 +52,7 @@ import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge }
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadClosedDate, loadHoldHintSeen, loadLastOpen, loadLowDayDate, loadOnboarded, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveHoldHintSeen, saveLastOpen, saveLowDayDate, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData } from '@/lib/storage';
+import { loadClosedDate, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { isAccountGone, localBelongsToAnother, syncOnce } from '@/lib/sync';
 import { parseDump, sweepElapsedNudges, type Task } from '@/lib/tasks';
@@ -126,6 +126,7 @@ export default function TodayScreen() {
   const [orderError, setOrderError] = useState<string | null>(null);
   const [reminderOn, setReminderOn] = useState(false);
   const [holdHintSeen, setHoldHintSeen] = useState(true); // default true: don't flash the coachmark before it loads
+  const [syncOk, setSyncOk] = useState<boolean | null>(null); // last sync result; null until known, false = local-only
   // Break it down, the two-call flow: qualify (questions) -> decompose (review).
   const [bdPhase, setBdPhase] = useState<'off' | 'questions' | 'review'>('off');
   const [bdTask, setBdTask] = useState('');
@@ -212,6 +213,9 @@ export default function TodayScreen() {
     void loadHoldHintSeen().then((seen) => {
       if (active) setHoldHintSeen(seen);
     });
+    void loadLastSyncOk().then((v) => {
+      if (active) setSyncOk(v);
+    });
     return () => {
       active = false;
     };
@@ -259,6 +263,8 @@ export default function TodayScreen() {
         void saveTasks(merged);
         void saveSyncedOwner(uid);
         track('sync.completed', { count: merged.length });
+        setSyncOk(true);
+        void saveLastSyncOk(true);
       } catch (e) {
         if (isAccountGone(e)) {
           // The account was deleted (here or on another device), so writes now fail the
@@ -272,7 +278,11 @@ export default function TodayScreen() {
           void client.auth.signOut();
           track('sync.account_gone');
         } else {
+          // A non-fatal sync failure (network, RLS, 5xx, expired token): the tasks are safe on this device,
+          // but we must NOT keep claiming "Synced", that is a false promise of cross-device safety.
           track('sync.failed', { error: e instanceof Error ? e.message : e });
+          if (active) setSyncOk(false);
+          void saveLastSyncOk(false);
         }
       }
     })();
@@ -1458,9 +1468,15 @@ export default function TodayScreen() {
           {isSyncConfigured &&
             (session ? (
               <>
-                <Text style={styles.optLink} numberOfLines={1}>
-                  Synced to {session.user.email ?? 'your account'}
-                </Text>
+                {syncOk === false ? (
+                  <Text style={styles.optLink} numberOfLines={2}>
+                    {"Saved on this device. It'll sync when it can reach your account."}
+                  </Text>
+                ) : (
+                  <Text style={styles.optLink} numberOfLines={1}>
+                    Synced to {session.user.email ?? 'your account'}
+                  </Text>
+                )}
                 <Pressable onPress={signOut} accessibilityRole="button" accessibilityLabel="Sign out" hitSlop={6}>
                   <Text style={styles.optFaint}>Sign out</Text>
                 </Pressable>

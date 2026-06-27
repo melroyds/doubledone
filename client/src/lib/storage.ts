@@ -18,6 +18,7 @@ const LASTOPEN_KEY = 'doubledone.lastopen.v1';
 const ONBOARDED_KEY = 'doubledone.onboarded.v1';
 const HOLDHINT_KEY = 'doubledone.holdhint.v1'; // one-time "hold a task for more" coachmark
 const ACCOUNT_KEY = 'doubledone.account.v1';
+const SYNCOK_KEY = 'doubledone.syncok.v1'; // result of the last sync attempt, so the footer can tell the truth
 const DEV_PREMIUM_KEY = 'doubledone.devPremium.v1'; // DEV/preview only: the premium-flag override (see premium-flag.ts)
 
 /**
@@ -276,6 +277,27 @@ export async function saveSyncedOwner(userId: string | null): Promise<void> {
   }
 }
 
+/** The result of the last sync attempt: true (reached the account), false (a non-fatal failure, the tasks are
+ *  saved on this device only), or null (never synced / unknown). Lets the UI stop claiming "Synced" when it
+ *  could not reach the account, which would be a false promise of cross-device safety. */
+export async function loadLastSyncOk(): Promise<boolean | null> {
+  try {
+    const v = await AsyncStorage.getItem(SYNCOK_KEY);
+    return v === 'yes' ? true : v === 'no' ? false : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Record whether the last sync attempt reached the account. Best effort. */
+export async function saveLastSyncOk(ok: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(SYNCOK_KEY, ok ? 'yes' : 'no');
+  } catch {
+    // best effort
+  }
+}
+
 /**
  * Erase everything tied to the person from this device, for account deletion: both the
  * explicit in-app delete and the detected remote-deletion path call this. One key list,
@@ -290,7 +312,7 @@ export async function wipeLocalData(): Promise<void> {
   await saveTasks([]);
   await saveSyncedOwner(null);
   try {
-    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY]);
+    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY, SYNCOK_KEY]);
   } catch {
     // best effort, like the per-key savers above
   }

@@ -17,7 +17,7 @@ import { usePremium } from '@/lib/premium-provider';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { ACCENT_NAMES, type AccentName, type MotionPref, type TextSize, type ThemePref } from '@/lib/settings';
-import { loadReminderOn, loadScrapbooks, loadTasks, saveReminderOn, wipeLocalData } from '@/lib/storage';
+import { loadLastSyncOk, loadReminderOn, loadScrapbooks, loadTasks, saveReminderOn, wipeLocalData } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
 import { useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -58,6 +58,7 @@ export default function SettingsScreen() {
   const [exportNote, setExportNote] = useState<string | null>(null);
   const [reminderOn, setReminderOn] = useState(false);
   const [reminderNote, setReminderNote] = useState<string | null>(null);
+  const [syncOk, setSyncOk] = useState<boolean | null>(null); // last sync result; false = saved local-only
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackState, setFeedbackState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -71,6 +72,9 @@ export default function SettingsScreen() {
       refresh();
       void loadReminderOn().then((on) => {
         if (active) setReminderOn(on);
+      });
+      void loadLastSyncOk().then((v) => {
+        if (active) setSyncOk(v);
       });
       return () => {
         active = false;
@@ -314,8 +318,10 @@ export default function SettingsScreen() {
         {session ? (
           <View style={styles.account}>
             <Text style={styles.accountLabel}>Account</Text>
-            <Text style={styles.accountEmail} numberOfLines={1}>
-              Synced to {session.user.email ?? 'your account'}
+            <Text style={styles.accountEmail} numberOfLines={syncOk === false ? 2 : 1}>
+              {syncOk === false
+                ? "Saved on this device. It'll sync when it can reach your account."
+                : `Synced to ${session.user.email ?? 'your account'}`}
             </Text>
             {confirming ? (
               <View style={styles.confirmBox}>
