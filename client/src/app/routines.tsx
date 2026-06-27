@@ -76,6 +76,16 @@ export default function RoutinesScreen() {
     cancelAdd();
   }
 
+  // A one-tap starter for the blank-slate problem: prefill a sensible Morning routine and open the form,
+  // editable before save. One example beats a paragraph for a task-initiation audience.
+  function startMorningExample() {
+    setName('Morning');
+    setWhen('morning');
+    setStepsText("Drink a glass of water\nTake any medication\nA few minutes of movement\nWrite down today's one thing");
+    setAdding(true);
+    track('routine.starter_opened');
+  }
+
   function cancelAdd() {
     setAdding(false);
     setName('');
@@ -126,9 +136,20 @@ export default function RoutinesScreen() {
         )}
 
         {routines.length === 0 && !adding && (
-          <Text style={styles.empty}>
-            {'No routines yet. A routine is a few small steps you do together, like a morning start or an evening wind-down.'}
-          </Text>
+          <View>
+            <Text style={styles.empty}>
+              {'No routines yet. A routine is a few small steps you do together, like a morning start or an evening wind-down. Tick them off as you go; tomorrow they start fresh, with no streak to keep up.'}
+            </Text>
+            <Pressable
+              onPress={startMorningExample}
+              accessibilityRole="button"
+              accessibilityLabel="Try a Morning routine, prefilled and editable"
+              style={styles.starterBtn}
+              hitSlop={6}
+            >
+              <Text style={styles.starterBtnText}>Try a Morning routine</Text>
+            </Pressable>
+          </View>
         )}
 
         {groups.map((g) => (
@@ -249,6 +270,8 @@ const makeStyles = (t: Theme) =>
     undoText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     undoAction: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
     empty: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale, marginTop: spacing.four },
+    starterBtn: { marginTop: spacing.four, alignSelf: 'flex-start' },
+    starterBtnText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     group: { gap: spacing.two, marginTop: spacing.two },
     groupHeading: { ...t.type.eyebrow, color: t.colors.inkSoft, textTransform: 'uppercase' },
     card: {
