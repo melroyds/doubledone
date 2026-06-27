@@ -1,6 +1,6 @@
 # DoubleDone, cost analysis
 
-*What it costs to run, modelled across scale. The figures are estimates: usage is assumed, and provider prices change (checked ~June 2026). The value here is the **shape of the cost curve** and **where the money goes**, not penny-precision. Costs in USD; the premium price is A$5/mo (~US$3.30 net of FX). Re-run against the real `ai_calls` telemetry (Cloudflare D1) once there is traffic, that table exists for exactly this.*
+*What it costs to run, modelled across scale. The figures are estimates: usage is assumed, and provider prices change (checked ~June 2026). The value here is the **shape of the cost curve** and **where the money goes**, not penny-precision. Costs in USD; Premium is A$5/mo (~US$3.30 net of FX) or A$50/yr. Now that v1 is live, re-run these against the real `ai_calls` telemetry (Cloudflare D1) and the control centre's daily digest, the table exists for exactly this.*
 
 ---
 
@@ -9,7 +9,7 @@
 - **DoubleDone is cheap to run.** The only meaningful variable cost is **AI** (Claude + the scrapbook image). Everything else, Workers, R2, D1, Pages, Supabase, is near-free until six figures.
 - **~$0.13 per registered user per month**, all-in, dominated by AI usage, scaling **linearly** (no large fixed costs to amortise).
 - **The unit economics work at every scale.** A conservative 5% premium conversion at A$5/mo covers cost with ~20% gross margin, and margin widens fast as conversion rises (revenue scales with conversion; cost per user stays flat).
-- **Watch-items:** the Anthropic token bill (tiered + capped + instrumented), the scrapbook image (the priciest single AI op, deliberately gated), and Stripe's $0.30 flat fee making a small A$5 sub cost ~6% to process.
+- **Watch-items:** the Anthropic token bill (tiered, capped at $25/mo, and now watched hourly by the control centre), the scrapbook image (the priciest single AI op, deliberately gated), and Stripe's flat US$0.30 fee, charged in USD regardless of billing currency, so ~9% of a ~US$3.30 sub on its own before the percentage fee.
 
 ## Assumptions
 
@@ -70,21 +70,21 @@ Monthly, by registered-user count (50% active):
 
 - **AI is ~85% of cost** (Claude ~65%, scrapbook image ~18%). Everything else is a rounding error until 100k users.
 - **Infra is almost free.** Cloudflare's no-egress R2 plus the Workers / Pages / D1 free tiers make the platform cost trivial. That is a deliberate stack choice, not luck.
-- **Stripe's flat $0.30** makes an A$5 sub cost ~6% to process (vs the 2.9% headline). On 5,000 subs that is ~$1,500/mo of pure fixed fee. **An annual plan (A$50/yr) cuts the charge count 12×** and recovers most of it.
+- **Stripe's flat US$0.30** is charged in USD, so it is ~9% of a ~US$3.30 monthly sub on its own, well above the 2.9% headline once added. On 5,000 monthly subs that is ~$1,500/mo of pure fixed fee. **The annual plan (A$50/yr, live) cuts the charge count 12×** and recovers most of it.
 - **Supabase** is the only step-change (free → $25 Pro at 50k MAU → usage). Tiny next to AI.
 - **Most of the 2026-06-22 work adds zero run cost.** Routines, the low-capacity day, and the wind-down nudge are fully local and client-side, so they touch no provider bill. The silent-parent chain (Break-it-down) reuses the existing decompose call and adds no AI. Only `/split` and `/tiny` add cost, and both are marginal Haiku.
 
 ## Margin levers (in order of impact)
 
 1. **Conversion rate.** Cost/user is ~flat ($0.13); revenue is all conversion. 5% → 10% roughly doubles margin. The niche + founder-market-fit make >5% plausible.
-2. **AI usage per user.** The cost driver. Tiered models (Haiku for cheap ops), the $25 cap, and the D1 telemetry already manage it; a heavy-user cohort is the cost risk to watch.
+2. **AI usage per user.** The cost driver. Tiered models (Haiku for cheap ops), the $25 cap, and the control centre's hourly sweep already manage it; a heavy-user cohort is the cost risk to watch.
 3. **Premium price / packaging.** A$5 is low. An annual plan (Stripe-fee saving) or a higher tier lifts revenue with no cost change.
 4. **Scrapbook image.** The priciest op; already gated (free monthly, premium weekly). A cheaper model or tighter free cadence protects it at scale.
 
 ## The honest risks
 
-- **Anthropic spend is the one unbounded line.** Capped at $25/mo in dev; production needs the cap lifted with real monitoring (the D1 `ai_calls` telemetry is built for this).
+- **Anthropic spend is the one unbounded line, now bounded.** It is hard-capped at $25/mo in production (`ANTHROPIC_MONTHLY_CAP_USD`) and watched by the launch control centre, which sweeps the D1 `ai_calls` telemetry hourly, alarms at 50% of the cap with a month-end projection, and lets AI routes fail gracefully rather than overrun. The risk is now early-warned, not open.
 - **Free-tier abuse.** The AI routes are origin-gated + per-IP rate-limited, but a determined abuser is the tail risk on the AI bill.
-- **FX.** Costs are USD, revenue is A$5; a weak AUD compresses margin.
+- **FX.** Costs are USD, revenue is AUD; a weak AUD compresses margin. Stripe's flat fee is USD too, so it bites hardest on small monthly subs, which is why annual billing (one charge, not twelve) matters below ~1,000 subscribers.
 
-**Bottom line:** a usage-priced cost base of ~$0.13/user that is ~85% AI, against ~$0.165/user of revenue at a deliberately conservative 5% conversion. It is profitable at every scale modelled, and the levers (conversion, packaging) push margin up without pushing cost up.
+**Bottom line:** a usage-priced cost base of ~$0.13/user that is ~85% AI, against ~$0.165/user of revenue at a deliberately conservative 5% conversion. The gross margin is positive at every scale modelled, but thin below ~1,000 users where Stripe's flat per-charge fee dominates, and it ramps with user count and conversion (the levers push margin up without pushing cost up). These figures are modelled pre-launch; v1 is now live and logging to D1, so they will be validated against real cohort usage.
