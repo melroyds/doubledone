@@ -150,8 +150,8 @@ async function run() {
   const only = process.env.SHOTS ? new Set(process.env.SHOTS.split(',').map((s) => s.trim())) : null;
 
   const shots = [
-    { name: 'today-light', route: '/', tasks: TODAY_TASKS, theme: 'light', waitText: 'Drink a glass of water' },
-    { name: 'today-dark', route: '/', tasks: TODAY_TASKS, theme: 'dark', waitText: 'Drink a glass of water' },
+    { name: 'today-light', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Drink a glass of water' },
+    { name: 'today-dark', route: '/today', tasks: TODAY_TASKS, theme: 'dark', waitText: 'Drink a glass of water' },
     { name: 'lookback-light', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'light', waitText: 'Water the plants' },
     { name: 'lookback-dark', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'dark', waitText: 'Water the plants' },
     { name: 'scrapbook-light', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'light', testid: 'scrapbook-card', waitText: 'Scrapbook' },

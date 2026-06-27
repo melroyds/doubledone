@@ -149,7 +149,7 @@ export default function SettingsScreen() {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.location.assign('/'); // a clean reload to an empty, signed-out Today
     } else {
-      router.replace('/');
+      router.replace('/today');
     }
   }
 

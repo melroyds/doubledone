@@ -123,7 +123,7 @@ export default function ChartScreen() {
       }));
       await saveTasks([...tasks, ...minted]);
       track('chart.added', { added: minted.length, offered: steps.length });
-      router.replace('/');
+      router.replace('/today');
     } finally {
       setAdding(false);
     }

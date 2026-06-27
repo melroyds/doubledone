@@ -97,7 +97,7 @@ export default function WelcomeScreen() {
 
   async function leave() {
     await commit();
-    router.replace('/');
+    router.replace('/today');
   }
 
   async function skip() {

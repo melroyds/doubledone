@@ -92,6 +92,12 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 |---|---|---|---|---|---|
 | WEB-01 | P2 | Web | Daily reminder via web push | On the deployed web app (PC or Android Chrome) with VAPID configured, turn the daily reminder on (the 'Turn on daily reminder' action in the Today footer, or Settings > Daily reminder) and allow notifications. Check around your daily hour (the hourly cron can be run manually to verify without waiting). | Toggling on registers a service worker and subscribes the browser; a calm 'Your today is here when you are ready.' notification arrives around the daily hour, and tapping it opens the app. Toggling off unsubscribes. The push carries no task content. The toggle is hidden when VAPID is unconfigured. |
 
+## Landing
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| LP-01 | P1 | Both | The web landing is the front door | On the web in a fresh browser (or after clearing 'doubledone.onboarded.v1'), open doubledone.app/. Read the page, then tap Begin. Separately, as a returning (onboarded) user, open doubledone.app/. On Android, just open the app. | A calm marketing page renders at the root: the wordmark, 'Today is finite and achievable.', the never-shame promise, the audience line (ADHD / autism / OCD), the three-step loop, the Lookback payoff, and a Begin CTA. Begin opens the app at /today (a first-timer continues into the welcome). A returning, onboarded visitor is redirected straight to /today and never sees the landing. On native the app opens to Today, never the landing. Checkout still returns to /premium and deep links still resolve. |
+
 ## Onboarding
 
 | ID | Pri | Platform | Test | Steps | Expected |

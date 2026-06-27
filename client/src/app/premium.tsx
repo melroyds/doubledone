@@ -137,7 +137,7 @@ export default function PremiumScreen() {
               accessibilityLabel="Manage or cancel your subscription"
               style={styles.ctaSpace}
             />
-            <Pressable onPress={() => router.replace('/')} accessibilityRole="button" accessibilityLabel="Back to Today" hitSlop={8} style={styles.backLink}>
+            <Pressable onPress={() => router.replace('/today')} accessibilityRole="button" accessibilityLabel="Back to Today" hitSlop={8} style={styles.backLink}>
               <Text style={styles.backLinkText}>Back to Today</Text>
             </Pressable>
             {error ? <Text style={styles.error}>{error}</Text> : null}

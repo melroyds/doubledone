@@ -3249,3 +3249,21 @@ to it; it now teaches the gesture, "Hold one, pick the rest, then combine them."
 something that was never on your list? Log it too. It still counts." (3) Routines, Repeating and the Lookback
 live only behind the Menu pill and were named nowhere in first-run; the handoff now points there: "Your
 Lookback, routines and repeating tasks all live in the Menu, top right." Copy-only, no new screens.
+
+## 2026-06-27 Audit (Tier 1): a real landing page at the front door (A1)
+
+The audit's last open Tier-1 gap: doubledone.app/ was the app shell booting into onboarding, with no marketing
+front door for a first-touch visitor or a hiring PM. Chose approach A1 of two: a landing route at / with the
+app moved to /today, over A2 (a static landing with the whole app relocated under /app). A1 keeps the SPA at
+the root, so checkout (returns to /premium), the service worker, and deep links are untouched, no server change,
+no Worker redeploy; the og meta already shipped gives crawlers the rich card. The accepted cost: the landing
+copy is client-rendered, not static-crawlable, a fair trade vs relocating a live payment app for modest SEO.
+
+Build: app/index.tsx (Today) moved to app/today.tsx via git mv; the new app/index.tsx is the Landing (the
+spine, the audience, the never-shame promise, the three-step loop, the payoff, two Begin CTAs, in the app's own
+theme and fonts). The Landing is the WEB first-touch surface only: native users and returning (onboarded) web
+users redirect straight to /today, so only a fresh web visitor or a crawler ever sees it. The four "go home"
+navigations (welcome, settings, premium, chart) and the screenshot harness's Today shots now target /today. PWA
+start_url stays / (the onboarded-redirect carries an installed user through to /today); a dedicated start_url
+is a noted minor follow-up. Verified in-preview: / shows the Landing for a fresh visitor, /today shows Today,
+and an onboarded visit to / redirects to Today.
