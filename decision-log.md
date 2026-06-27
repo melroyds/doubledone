@@ -3233,3 +3233,10 @@ close-the-day) now shows a one-time gentle offer, "Want one gentle nudge a day t
 me" / "Not now", gated by doubledone.reminderoffer.v1 so either choice retires it for good and it never nags.
 Accept runs the same enableDailyReminder path (the reason line on failure, never a silent bounce); decline just
 marks it made. Only shown when the reminder is not already on.
+
+## 2026-06-27 Audit (Tier 2): the low-capacity day is reachable on calm days too
+
+The low-day toggle lived only inside the weight gauge, which renders solely when there are spreadable (open
+one-off) tasks. So on a calm, all-done, or recurring-only day it vanished, exactly the low-energy days it
+exists to serve. Added a standalone low-day affordance shown when the gauge does not (loaded, open day, no
+spreadable tasks), reusing the same toggleLowDay, so the option is always reachable on an open day.

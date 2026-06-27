@@ -1148,6 +1148,22 @@ export default function TodayScreen() {
             </Pressable>
           </View>
         )}
+        {/* The weight gauge (and its low-day toggle) only render when there are spreadable tasks, so on a calm,
+            all-done, or recurring-only day the low-capacity option would vanish on exactly the days it serves.
+            Surface it standalone there, so it is always reachable on an open day. */}
+        {loaded && !isClosed && spreadable.length === 0 && (
+          <Pressable
+            onPress={toggleLowDay}
+            accessibilityRole="button"
+            accessibilityLabel={isLowDay ? 'Back to a normal day' : 'Mark today a low-capacity day'}
+            hitSlop={8}
+            style={styles.lowDayStandalone}
+          >
+            <Text style={styles.lowDayToggle}>
+              {isLowDay ? 'Back to a normal day' : 'Low on energy? Make it a low day'}
+            </Text>
+          </Pressable>
+        )}
 
         {isClosed && (
           <View style={styles.rested}>
@@ -2083,6 +2099,7 @@ const makeStyles = (t: Theme) =>
     weightFill: { backgroundColor: t.colors.accent },
     weightLabel: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
     lowDayToggle: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.one, textDecorationLine: 'underline' },
+    lowDayStandalone: { alignSelf: 'center', marginTop: spacing.three, marginBottom: spacing.one },
     windDown: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     dayActions: { marginTop: spacing.seven, alignItems: 'center', gap: spacing.three },
     closeDay: {
