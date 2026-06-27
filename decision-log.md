@@ -3409,3 +3409,20 @@ Deliberately LEFT: Honey's gold accent as small text (the Settings links) stays 
 low-contrast-accent trade-off, because no single gold can clear AA as text AND carry a dark button label; the real
 fix is the backlogged high-contrast mode. The visible changes (dark tick, deeper success text, slightly deeper
 Dusk mauve) are for Melroy to eye on the Android device-test before Play Store.
+
+## 2026-06-27 First translations: draft it/fr/es for a native vibe-check
+
+Melroy's wife is a polyglot (native Italian, advanced French and Spanish), so the deferred "translated languages"
+got a first, reviewable pass for those three Latin-script locales. Generated via three native-voice translator
+agents (one per language) briefed on the calm, never-shame voice, the informal-you register, and the rule that
+the product idioms ("Lighten today", "Break it down", "Make it tiny", "Chart a course") are TRANSCREATED, not
+translated literally. Caught and corrected a systematic defect: the French pass dropped its accents.
+
+Shipped: real it/fr/es catalogs (the 25 Common/Today/Actions/Capture seed strings) wired into CATALOGS, each
+typed `: Catalog` so the compiler enforces full key coverage; the Catalog type widened (a Stringify mapped type)
+from en's literal types so a translated catalog satisfies it. translate() still falls back to en per missing key,
+so this is SAFE to ship before review, an untranslated key shows English, never a blank, and the visible exposure
+is tiny because only ~1 screen calls t() yet. Plus docs/i18n/translations-review.md, a side-by-side EN/IT/FR/ES
+artifact with the transcreation rationale, for the wife to mark up. Deferred until AFTER her review: the in-app
+language picker (it needs a reactive-locale provider, not worth building before the strings are blessed) and the
+per-screen t() migration that makes the rest of the app translatable.

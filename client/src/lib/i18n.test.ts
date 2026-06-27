@@ -57,9 +57,11 @@ describe('translate', () => {
     expect(translate('en', 'common.close')).toBe('Close');
     expect(translate('en', 'capture.placeholder')).toBe('Empty your head. One line per thing.');
   });
-  it('falls back to en for an aliased locale, then to the key itself when absent', () => {
-    expect(translate('it', 'common.close')).toBe('Close'); // it aliases en until translations land
-    expect(translate('en', 'nope.notakey')).toBe('nope.notakey');
+  it('returns the locale translation, and an unknown key falls through to itself', () => {
+    expect(translate('it', 'common.close')).toBe('Chiudi');
+    expect(translate('fr', 'today.subtitle')).toBe("Juste aujourd'hui. Le reste peut attendre.");
+    expect(translate('es', 'actions.lightenToday')).toBe('Aligera el día');
+    expect(translate('en', 'nope.notakey')).toBe('nope.notakey'); // absent everywhere -> the key itself
   });
 });
 

@@ -49,4 +49,8 @@ export const en = {
   },
 } as const;
 
-export type Catalog = typeof en;
+// The catalog SHAPE, with string leaves (widened from en's literal types) so a TRANSLATED catalog (it / es / fr)
+// satisfies it, while en itself (literal types) still does. Typing a locale catalog `: Catalog` makes the
+// compiler enforce that it supplies EVERY key en has, so a translation can never silently drop one.
+type Stringify<T> = { [K in keyof T]: T[K] extends string ? string : Stringify<T[K]> };
+export type Catalog = Stringify<typeof en>;

@@ -5,6 +5,9 @@
 // user's language; the UI-string sweep follows.
 
 import { type Catalog, en } from './catalogs/en';
+import { es } from './catalogs/es';
+import { fr } from './catalogs/fr';
+import { it } from './catalogs/it';
 
 export const SUPPORTED = ['en', 'it', 'es', 'fr'] as const;
 export type Locale = (typeof SUPPORTED)[number];
@@ -36,9 +39,10 @@ export function aiLanguageFor(loc: Locale): string | undefined {
 // --- Pass 2: the typed t() resolver + Intl formatting (still pure; lib/locale binds these to the active
 // locale). Additive: nothing here is wired into a screen yet, so existing rendering is unchanged. ---
 
-// Per-locale catalogs. Only `en` is populated (the source); it/es/fr alias it until native-reviewed
-// translations land. translate() falls back to en per key regardless, so a partial catalog never blanks.
-const CATALOGS: Record<Locale, Catalog> = { en, it: en, es: en, fr: en };
+// Per-locale catalogs. en is the source; it/es/fr are DRAFT translations of the seed strings (pending native
+// review), each a partial catalog. translate() falls back to en per missing key, so an untranslated key never
+// blanks, it just shows English until its translation lands.
+const CATALOGS: Record<Locale, Catalog> = { en, it, es, fr };
 
 /** Resolve a dotted key ('today.subtitle') to a leaf string, or undefined if absent / not a string. */
 function lookup(cat: Catalog, key: string): string | undefined {
