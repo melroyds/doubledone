@@ -323,6 +323,9 @@ export default function LookbackScreen() {
             <Text style={styles.scrapbookHint}>
               {existingBook ? "That scrapbook's picture isn't available anymore. Make a new one?" : 'Turn this week into a scrapbook'}
             </Text>
+            {/* State the free cadence up front, so a free user knows the keepsake is monthly before they tap,
+                rather than meeting the cap as a surprise bounce at the emotional-payoff moment. */}
+            {!premium && <Text style={styles.scrapbookCadence}>Your free keepsake for this month.</Text>}
             <PrimaryButton
               label="Make a scrapbook"
               onPress={makeWeekScrapbook}
@@ -545,6 +548,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   scrapbookBtn: { alignSelf: 'center' },
   scrapbookError: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
   scrapbookNote: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, lineHeight: 17 * t.scale, textAlign: 'center' },
+  scrapbookCadence: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.one },
   weekList: { marginTop: spacing.four, gap: spacing.two },
   weekListHead: {
     color: t.colors.inkSoft,
