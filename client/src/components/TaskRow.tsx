@@ -182,6 +182,9 @@ export function TaskRow({
           <View style={{ flex: slices.done, backgroundColor: theme.colors.done }} />
           <View style={{ flex: rest }} />
         </View>
+        {/* A quiet sighted cue for the hold-to-adjust gesture, restoring parity with the spoken hint the screen
+            reader already gives. Without it a mis-tapped slice has no visible way back. Incomplete rows only. */}
+        {!complete && <Text style={styles.sliceAdjustHint}>Hold to adjust</Text>}
       </Pressable>
     );
   }
@@ -335,6 +338,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   sliceColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
   sliceTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
   sliceCount: { color: t.colors.repeat, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+  sliceAdjustHint: { color: t.colors.inkFaint, fontSize: 11 * t.scale, fontFamily: fonts.body, marginTop: spacing.half },
   track: {
     flexDirection: 'row',
     height: 4,
