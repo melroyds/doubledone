@@ -98,6 +98,12 @@ WHAT IT DOES:
 - Gentle reminders you ask for, never nagging.
 - Lookback: see everything you have actually finished.
 
+PREMIUM (optional):
+- Try it free for 30 days, no card needed.
+- A$5/month or A$50/year unlocks the AI keepsake scrapbook of your finished week, photo-to-tasks
+  scan, richer AI planning, and custom colour themes.
+- Cancel any time. Premium is billed via Stripe web checkout, not Google Play.
+
 PRIVACY:
 - Your tasks live on your device by default.
 - AI features (Break it down, Combine, and similar) send the task text to Anthropic's Claude to do
@@ -153,16 +159,24 @@ reminder notifications, no push service.
 
 ### 5c. Data Safety form (must match the privacy policy)
 
-Declare three data flows, each **optional / user-initiated**, and **word every line to match
+Declare these data flows, each **optional / user-initiated**, and **word every line to match
 doubledone.app/privacy** (do not invent retention periods, use whatever your policy actually states):
 
 1. **Task text -> Anthropic (Claude).** Sent only when the user uses an AI feature (Break it down, Combine,
-   Strategise, Sort). Disclose it as collected + shared with a service provider (Anthropic) for app
-   functionality. Before submitting, re-check Anthropic's current data-handling terms and make sure your
-   privacy policy's wording still matches them.
+   Strategise, Sort, and the premium Chart a course / Plan my day / Lookback insights / photo scan, which
+   also send task titles or a photo). Disclose it as collected + shared with a service provider (Anthropic)
+   for app functionality. Before submitting, re-check Anthropic's current data-handling terms and make sure
+   your privacy policy's wording still matches them.
 2. **Email -> Supabase.** Collected only if the user turns on sync. For account/authentication.
 3. **Pseudonymous completion telemetry -> the Worker's D1.** No user id, IP, or task text. For improving
    the breakdown suggestions. Disclose per your policy's wording.
+4. **Payment data -> Stripe.** Only if the user buys Premium. Stripe (not us) processes the card; the app
+   receives subscription events (type, amount, Stripe event id) to keep Premium status correct. Declare it
+   as collected + shared for purchases, matching the policy's "Payment events" section.
+
+Two things that must also match the policy: synced data is stored in **Supabase (Sydney, Australia)**, and the
+service sends the owner **system health alerts** (counts and error strings only, no personal data, no task
+text) per the policy's "Keeping the service running" section.
 
 Declare **no ads, no third-party analytics/trackers, no advertising ID**. Do not declare camera, location,
 contacts, etc. (DoubleDone uses none).
@@ -190,6 +204,14 @@ Use a staged rollout, do not go straight to Production:
 3. **Production**: create the release, add release notes, Send to review. Automated checks take 1-2h, the
    manual review usually 1-3 days. Approved apps appear in search within a couple of hours.
 
+**Before Production, confirm the operational readiness (outside the Play Console):**
+- **Stripe is live.** The live secret key + webhook signing secret are the Worker secrets, the live price ids
+  are set (`STRIPE_PRICE_ID`, `STRIPE_PRICE_ID_ANNUAL`), the webhook is registered for the live
+  `/stripe-webhook` endpoint, and one real test purchase grants Premium.
+- **The control centre is armed.** The Worker secrets `SEND_EMAIL` / `FEEDBACK_TO` / `HEARTBEAT_URL` and the
+  `ANTHROPIC_MONTHLY_CAP_USD` var are set, the hourly cron is active, and the first heartbeat and daily pulse
+  arrive (see [`operations.md`](operations.md)).
+
 Manual upload is simplest for the first release. To automate later, set up a Google Cloud service account
 with the Play Android Developer API, invite its email into Play Console as an admin, add it to the `submit`
 block in `eas.json`, and run `eas submit --platform android --latest`.
@@ -199,7 +221,10 @@ block in `eas.json`, and run `eas submit --platform android --latest`.
 ## 7. Pre-submit checklist
 
 - [ ] https://doubledone.app/privacy loads 200 in incognito with the full policy text (see section 3).
-- [ ] Privacy policy "Last updated" date is current and its content matches the Data Safety form.
+- [ ] Privacy policy "Last updated" date is current, its content matches the Data Safety form, and `privacy.html` matches the in-app `privacy.tsx`.
+- [ ] Terms of Service live at https://doubledone.app/terms.
+- [ ] Stripe in LIVE mode: live keys + live price ids on the Worker, the webhook registered for the live endpoint, one real test purchase verified.
+- [ ] Control centre armed: SEND_EMAIL / FEEDBACK_TO / HEARTBEAT_URL set, the cron active, the first heartbeat + pulse seen.
 - [ ] https://api.doubledone.app is live (the reviewer's device will call it for AI features). Check `/health`.
 - [ ] No secrets in the client bundle (all keys live on the Worker; gitleaks already guards this).
 - [ ] App tested on a clean, signed-out device: core features and AI work without an account.
