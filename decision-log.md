@@ -3146,3 +3146,21 @@ chosen accent (the gate is on the picker, not the paint), in keeping with never-
 
 Verified in-preview: selecting Teal persisted accent:teal and repainted the whole app teal (14 themed elements
 on Today, zero mauve remaining), with the dark-mode variants resolving correctly.
+
+## 2026-06-27 Front door: the og:image social card (Direction 2)
+
+The +html.tsx summary card already turned a blank unfurl into a title + description; this adds the 1200x630
+image so a shared doubledone.app link shows a real brand card in iMessage / Slack / LinkedIn / WhatsApp / X.
+
+Chose Direction 2 of three mocked for Melroy: the Newsreader wordmark + an italic "Today, finite and
+achievable." on the Dusk paper, a short mauve rule, and a soft mauve disc with a checkmark (the one meaningful
+anchor, things get done here). Decided against the plainer centred card (D1, read too quiet for a click) and
+the busier product-hint card (D3, a faint card-in-a-card reads fussy at unfurl size).
+
+Build: scripts/gen-og-image.mjs rasterises an SVG to PNG via @resvg/resvg-js, loading the real brand fonts
+from client/assets/fonts (no browser, so the wordmark is the true serif). Decided to keep resvg-js an
+UNCOMMITTED, documented dev tool (like gen-test-suite's openpyxl) and commit only the generated PNG, so the
+asset is reproducible without adding a native-binary build dep to install/CI. The Newsreader italic face was
+copied into client/assets/fonts for reproducibility. Wired og:image (+ width / height / alt) and flipped
+twitter:card to summary_large_image. Verified: the PNG renders the brand correctly and is served at /og.png at
+1200x630. The true unfurl can only be confirmed once live, so re-check with a sharing debugger after the merge.
