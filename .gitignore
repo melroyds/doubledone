@@ -47,3 +47,7 @@ CLAUDE.md
 
 # Local "what's left" working list, kept out of the public repo
 WHATS-LEFT.md
+
+# Bug screenshots + recordings from Android testing, dropped here from the phone via OneDrive.
+# Kept out of git: they can hold real task text and would bloat history. OneDrive backs them up.
+bugs/
