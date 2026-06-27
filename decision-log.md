@@ -3240,3 +3240,12 @@ The low-day toggle lived only inside the weight gauge, which renders solely when
 one-off) tasks. So on a calm, all-done, or recurring-only day it vanished, exactly the low-energy days it
 exists to serve. Added a standalone low-day affordance shown when the gauge does not (loaded, open day, no
 spreadable tasks), reusing the same toggleLowDay, so the option is always reachable on an open day.
+
+## 2026-06-27 Audit (Tier 2): onboarding teaches the hidden rooms
+
+Three onboarding gaps where deferral became silence. (1) The combine teaser advertised the feature with no path
+to it; it now teaches the gesture, "Hold one, pick the rest, then combine them." (2) Off-plan logging (the
+"+ I also did that" answer to "my brain says I did nothing") went unmentioned; the keep step now adds "Did
+something that was never on your list? Log it too. It still counts." (3) Routines, Repeating and the Lookback
+live only behind the Menu pill and were named nowhere in first-run; the handoff now points there: "Your
+Lookback, routines and repeating tasks all live in the Menu, top right." Copy-only, no new screens.

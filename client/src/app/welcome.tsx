@@ -249,7 +249,7 @@ export default function WelcomeScreen() {
               ))}
             </View>
             {laterCount > 0 ? <Text style={styles.laterLine}>Later · {laterCount} waiting</Text> : null}
-            <Text style={styles.speak}>A few tasks that go together? You can combine them into one.</Text>
+            <Text style={styles.speak}>A few tasks that go together? Hold one, pick the rest, then combine them.</Text>
           </View>
         )}
 
@@ -288,6 +288,7 @@ export default function WelcomeScreen() {
               tell you that you did nothing.
             </Text>
             <Text style={styles.lead}>Each evening, close the day. It honours what you did, never what you didn&apos;t.</Text>
+            <Text style={styles.lead}>Did something that was never on your list? Log it too. It still counts.</Text>
           </View>
         )}
 
@@ -318,6 +319,7 @@ export default function WelcomeScreen() {
             <Text style={styles.lead}>
               {"It's already out of your head and onto today. Tomorrow it opens here, ready, without you arranging a thing."}
             </Text>
+            <Text style={styles.lead}>Your Lookback, routines and repeating tasks all live in the Menu, top right.</Text>
             <Text style={styles.ethos}>today is finite and achievable</Text>
             <Text style={styles.fine}>Private by default. Nothing leaves your device unless you choose to sync.</Text>
           </View>
