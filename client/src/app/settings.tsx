@@ -312,7 +312,7 @@ export default function SettingsScreen() {
               {!premium && <Text style={styles.accentTag}>Premium</Text>}
             </View>
             <Text style={styles.rowHint}>
-              {premium ? 'A calm palette for the whole app. Dusk is the default.' : "Seven calm palettes, a Premium touch. You're on Dusk."}
+              {premium ? 'A calm palette for the whole app. Dusk is the default.' : 'Seven calm palettes. Dusk is always free. Premium unlocks the others.'}
             </Text>
             <View style={styles.swatchRow}>
               {THEME_NAMES.map((name) => {

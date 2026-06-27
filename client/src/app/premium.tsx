@@ -293,6 +293,14 @@ export default function PremiumScreen() {
                 ? 'The free monthly scrapbook is always yours, even if you never upgrade.'
                 : 'Premium attaches to your account, so it follows you across devices. The free monthly scrapbook is always yours.'}
             </Text>
+            <Pressable
+              onPress={() => router.push('/terms')}
+              accessibilityRole="button"
+              accessibilityLabel="Terms of service and refund policy"
+              hitSlop={6}
+            >
+              <Text style={styles.foot}>Billed securely via Stripe. Terms and refunds ›</Text>
+            </Pressable>
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </View>
         )}
