@@ -3426,3 +3426,18 @@ is tiny because only ~1 screen calls t() yet. Plus docs/i18n/translations-review
 artifact with the transcreation rationale, for the wife to mark up. Deferred until AFTER her review: the in-app
 language picker (it needs a reactive-locale provider, not worth building before the strings are blessed) and the
 per-screen t() migration that makes the rest of the app translatable.
+
+## 2026-06-27 The marketing landing, redesigned (the Claude Design "Dusk" front door)
+
+Replaced the plain single-column landing at / with the page Melroy art-directed in Claude Design over several
+rounds: a kicker standfirst ("for when the list is too much"), an empathy-first subhead (name the feeling, then
+the relief), a calm half-finished "Today" mock card, the never-shame promise pulled up near the hero, the 3-step
+loop, the "what you finish, you keep" payoff, a closing CTA, and a quiet footer. The direction the rounds settled
+on: calm and editorial, NOT a loud SaaS page; show the product (the mock) rather than just state a headline; lead
+with the feeling. Re-implemented as the React Native web component (not a loose HTML file) so it keeps the
+onboarded-redirect, the router, and the live theme, mapping the design's palette onto the real Dusk tokens so it
+follows light and dark for free (the design's accent and sage ARE the live tokens). One deliberate deviation from
+the mock: the "Today" card's completion ticks use the app's dark-ink-on-sage tick (the AA-correct one from the
+contrast sweep), not the mock's white check, so the front door matches the product and clears AA. Verified
+in-preview, light and dark: all copy plus the Today mock and the deepened accent button render in both schemes.
+Still web-only (native and onboarded web skip to /today).
