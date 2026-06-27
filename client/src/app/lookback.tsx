@@ -9,6 +9,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { lookbackSummary, makeScrapbook } from '@/lib/ai';
 import { addMonths, completionsByDay, monthLabel, monthMatrix, scheduledByDay, WEEKDAY_LABELS } from '@/lib/calendar';
+import { aiErrorLine } from '@/lib/connection';
 import { formatTodayLabel, fromISODate, toISODate } from '@/lib/day';
 import { canMakeScrapbook } from '@/lib/entitlement';
 import { scrapbookReady } from '@/lib/haptics';
@@ -137,7 +138,7 @@ export default function LookbackScreen() {
       scrapbookReady(reduced); // the keepsake landed: the payoff flourish, at the reveal
       track('scrapbook.made', { titles: titles.length });
     } catch {
-      setBookError('Could not make a scrapbook just now. Try again.');
+      setBookError(aiErrorLine('Could not make a scrapbook just now. Try again.'));
     } finally {
       setBookBusy(false);
       bookBusyRef.current = false;
@@ -159,7 +160,7 @@ export default function LookbackScreen() {
         setSummary(text);
         track('lookback.summary.made', { titles: titles.length });
       } else {
-        setSummaryError('Could not reflect on the week just now. Try again.');
+        setSummaryError(aiErrorLine('Could not reflect on the week just now. Try again.'));
       }
     } finally {
       setSummaryBusy(false);

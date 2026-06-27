@@ -38,6 +38,7 @@ import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
 import { celebrationTier, doneAffirmation, finishContext } from '@/lib/celebrate';
 import { combineTasks, eligibleForCombine } from '@/lib/combine';
+import { aiErrorLine } from '@/lib/connection';
 import { ageInDays, isBigWin } from '@/lib/reward';
 import { phaseGreeting } from '@/lib/phase';
 import { addDaysISO, formatTodayLabel, friendlyDate, isReentry, presetDate, toISODate } from '@/lib/day';
@@ -664,7 +665,7 @@ export default function TodayScreen() {
       track('strategise.requested', { count: spreadable.length });
       setPlan(result);
     } catch {
-      setStrategiseError('Could not strategise just now. Try again.');
+      setStrategiseError(aiErrorLine('Could not strategise just now. Try again.'));
     } finally {
       setStrategising(false);
     }
@@ -700,9 +701,9 @@ export default function TodayScreen() {
       const result = await sequence(spreadable.map((t) => ({ id: t.id, title: t.title })), undefined, aiLanguage);
       track('sequence.requested', { count: spreadable.length });
       if (result.length > 0) setOrder(result);
-      else setOrderError('Could not plan an order just now. Try again.');
+      else setOrderError(aiErrorLine('Could not plan an order just now. Try again.'));
     } catch {
-      setOrderError('Could not plan an order just now. Try again.');
+      setOrderError(aiErrorLine('Could not plan an order just now. Try again.'));
     } finally {
       setSequencing(false);
     }
@@ -940,7 +941,7 @@ export default function TodayScreen() {
       });
     } catch {
       setBdPhase('questions'); // stay put; the user can retry or dismiss
-      setBdError("Couldn't break it down just now. Your task is still here, try again?");
+      setBdError(aiErrorLine("Couldn't break it down just now. Your task is still here, try again?"));
     } finally {
       setBdBusy(false);
     }
@@ -1027,7 +1028,7 @@ export default function TodayScreen() {
       track('tiny.made');
       affirm('Made it tiny. Just this one.');
     } catch {
-      affirm("Couldn't shrink that just now. Try again.");
+      affirm(aiErrorLine("Couldn't shrink that just now. Try again."));
     } finally {
       tinyBusy.current = false;
     }

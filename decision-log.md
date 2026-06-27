@@ -3203,3 +3203,15 @@ Settings; the Menu had no Premium entry, and Today none. Added a "Premium" room 
 marked with the premium gradient dot (the one special row), routing to /premium and logging premium.menu_open.
 The hint adapts: a free user sees "Keepsakes, more AI, your colour", a subscriber sees "Manage your
 subscription". Kept the never-hard-sell posture, findable for someone actively looking, never pushed.
+
+## 2026-06-27 Audit (Tier 2): offline awareness across the AI seams
+
+Every AI feature showed the same generic "try again" regardless of cause, so on a flaky connection a user taps
+Break-it-down, waits, gets "try again", taps again, exactly the retry-into-overwhelm spiral the product exists
+to prevent. Added lib/connection.ts with one helper, aiErrorLine(fallback), that swaps in a calm offline line
+("You seem to be offline. This needs a connection, your tasks are safe here meanwhile.") when the device is
+positively offline, otherwise keeps the caller's own specific message. Applied at every AI seam: break-it-down,
+sort, strategise, make-it-tiny, tidy/split, chart, plan-order, scrapbook, week-summary, OCR. Web reads
+navigator.onLine; native returns false so the caller's message stays (a proper NetInfo check is deferred, see
+BUILD-PLAN). The offline line deliberately drops "Try again", the futile-retry nudge offline must not give.
+Unit-tested (the offline choice is injectable so the test never touches the global navigator).

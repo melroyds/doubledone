@@ -15,6 +15,7 @@ import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View }
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { ocr } from '@/lib/ai';
+import { aiErrorLine } from '@/lib/connection';
 import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
@@ -59,7 +60,7 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
       track('ocr.captured', { count: tasks.length });
       onTasks(tasks);
     } catch {
-      setError("Couldn't read that photo just now. Try again?");
+      setError(aiErrorLine("Couldn't read that photo just now. Try again?"));
     } finally {
       setBusy(false);
     }

@@ -9,6 +9,7 @@ import { PremiumButton } from '@/components/PremiumButton';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, control, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { chart, type CourseStep } from '@/lib/ai';
+import { aiErrorLine } from '@/lib/connection';
 import { toISODate } from '@/lib/day';
 import { usePremium } from '@/lib/premium-provider';
 import { spreadDueDates } from '@/lib/spread';
@@ -76,7 +77,7 @@ export default function ChartScreen() {
     try {
       const course = await chart(g, dueDate ? { dueDate } : undefined);
       if (course.steps.length === 0) {
-        setError("I couldn't map that out just now. Try rephrasing the goal?");
+        setError(aiErrorLine("I couldn't map that out just now. Try rephrasing the goal?"));
         setSteps([]);
         setHeading('');
       } else {
@@ -86,7 +87,7 @@ export default function ChartScreen() {
     } catch {
       // chart() swallows its own errors today, but decouple this screen from that
       // implicit never-throws contract: show the same calm empty-course line.
-      setError("I couldn't map that out just now. Try rephrasing the goal?");
+      setError(aiErrorLine("I couldn't map that out just now. Try rephrasing the goal?"));
       setSteps([]);
       setHeading('');
     } finally {

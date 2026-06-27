@@ -3,6 +3,7 @@ import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View 
 
 import { border, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { split } from '@/lib/ai';
+import { aiErrorLine } from '@/lib/connection';
 import { friendlyDate, toISODate } from '@/lib/day';
 import { appendPhrase } from '@/lib/dictation';
 import { type CaptureSchedule } from '@/lib/recurrence';
@@ -183,7 +184,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
       await onBiteElephant(task);
       reset();
     } catch {
-      setError('Could not break that down just now. Try again.');
+      setError(aiErrorLine('Could not break that down just now. Try again.'));
     } finally {
       setBusyKind(null);
     }
@@ -198,7 +199,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
       await onSort(text);
       reset();
     } catch {
-      setError('Could not sort just now. Try again.');
+      setError(aiErrorLine('Could not sort just now. Try again.'));
     } finally {
       setBusyKind(null);
     }
@@ -219,10 +220,10 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
         setValue(items.join('\n'));
         track('capture.split.used', { to: items.length });
       } else {
-        setError("Couldn't split that just now. Try again, or put each on its own line.");
+        setError(aiErrorLine("Couldn't split that just now. Try again, or put each on its own line."));
       }
     } catch {
-      setError("Couldn't split that just now. Try again, or put each on its own line.");
+      setError(aiErrorLine("Couldn't split that just now. Try again, or put each on its own line."));
     } finally {
       setBusyKind(null);
     }
