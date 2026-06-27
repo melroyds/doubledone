@@ -1171,7 +1171,7 @@ export default function TodayScreen() {
             accessibilityLabel="Got it, hide this tip"
             style={styles.holdHint}
           >
-            <Text style={styles.holdHintText}>Hold a task for more, pin it, set a reminder, combine, or make it tiny.</Text>
+            <Text style={styles.holdHintText}>Hold a task for more, pin it, set a reminder, break it down, or make it tiny.</Text>
             <Text style={styles.holdHintDismiss}>Got it</Text>
           </Pressable>
         )}

@@ -89,7 +89,7 @@ CASES = [
      "With one selected the bar offers Done / Tomorrow / Move to... / Break down / Remove (Break down is single-task only); Remove is the brick 'danger' colour. There is no separate long-press menu any more.", "Both"),
     ("TOD-07b", "Today", "P2", "First-run coachmark teaches the long-press",
      "On a device that has never seen it (or after clearing 'doubledone.holdhint.v1'), open Today with at least one task. Read the hint, tap 'Got it', then reload. Separately check an empty Today and the rested (closed-day) screen.",
-     "A calm one-line hint sits above the list: 'Hold a task for more, pin it, set a reminder, combine, or make it tiny.' 'Got it' dismisses it for good (survives reload). It never shows on an empty Today or the rested screen, and never returns once dismissed.", "Both"),
+     "A calm one-line hint sits above the list: 'Hold a task for more, pin it, set a reminder, break it down, or make it tiny.' 'Got it' dismisses it for good (survives reload). It never shows on an empty Today or the rested screen, and never returns once dismissed.", "Both"),
     ("TOD-08", "Today", "P2", "Shame-free re-entry after a gap",
      "Simulate not opening the app for 4+ days (set localStorage 'doubledone.lastopen.v1' to a date 5+ days ago), then reload Today.",
      "A calm 'Welcome back, the past is fine, here's just today' card appears above Today, never '47 overdue'. 'Start fresh' dismisses it; reopening same-day does not re-show it.", "Both"),
