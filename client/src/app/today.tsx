@@ -18,7 +18,7 @@ import { RepeatingDrawer } from '@/components/RepeatingDrawer';
 import { RoomsSheet } from '@/components/RoomsSheet';
 import { RotatingPhrase } from '@/components/RotatingPhrase';
 import { TaskRow } from '@/components/TaskRow';
-import { border, fonts, layout, motion, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, layout, motion, PRESSED_OPACITY, radius, rgba, spacing, type Theme } from '@/constants/theme';
 import {
   clarify,
   combine,
@@ -2098,8 +2098,8 @@ const makeStyles = (t: Theme) =>
       alignItems: 'center',
       gap: spacing.two,
       borderWidth: border.hair,
-      borderColor: t.scheme === 'dark' ? 'rgba(242,235,224,0.14)' : 'rgba(43,39,34,0.10)',
-      backgroundColor: t.scheme === 'dark' ? 'rgba(37,33,25,0.6)' : 'rgba(255,255,255,0.6)',
+      borderColor: rgba(t.colors.ink, t.scheme === 'dark' ? 0.14 : 0.1), // derived so the Menu pill follows the active theme, not a baked-in Dusk tint
+      backgroundColor: rgba(t.colors.surface, 0.6),
       borderRadius: radius.pill,
       paddingVertical: spacing.two,
       paddingHorizontal: 13,
@@ -2159,12 +2159,12 @@ const makeStyles = (t: Theme) =>
     sliceStepGlyph: { fontSize: 26 * t.scale, lineHeight: 30 * t.scale, color: t.colors.accent, fontFamily: fonts.body },
     sliceStepValue: { ...t.type.heading, color: t.colors.ink, minWidth: 110, textAlign: 'center' },
     selectActionDim: { opacity: 0.5 }, // a premium action shown to a free user: dimmed but tappable, routes to the upsell
-    selectDone: { color: t.colors.done, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    selectDone: { color: t.colors.doneText, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     selectRemove: { color: t.colors.danger, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     selectActionOff: { color: t.colors.inkFaint },
     selectCancel: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     sortSummary: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginBottom: spacing.two },
-    affirmation: { color: t.colors.done, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', marginBottom: spacing.two },
+    affirmation: { color: t.colors.doneText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', marginBottom: spacing.two },
     holdHint: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -2326,7 +2326,7 @@ const makeStyles = (t: Theme) =>
     wrapLine: { color: t.colors.ink, fontSize: 17 * t.scale, lineHeight: 24 * t.scale, fontFamily: fonts.body },
     wrapList: { gap: spacing.two, marginTop: spacing.one },
     wrapItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-    wrapCheck: { color: t.colors.done, fontSize: 16 * t.scale, fontWeight: '700', fontFamily: fonts.bodyBold },
+    wrapCheck: { color: t.colors.doneText, fontSize: 16 * t.scale, fontWeight: '700', fontFamily: fonts.bodyBold },
     wrapItemText: { color: t.colors.inkSoft, fontSize: 16 * t.scale, flexShrink: 1, fontFamily: fonts.body },
     wrapRoll: { color: t.colors.inkFaint, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, marginTop: spacing.two, fontFamily: fonts.body },
     wrapBtn: { marginTop: spacing.three },

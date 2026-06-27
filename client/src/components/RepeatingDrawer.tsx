@@ -126,7 +126,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     justifyContent: 'center',
   },
   boxDone: { backgroundColor: t.colors.doneSoft, borderColor: t.colors.done },
-  tick: { color: t.colors.done, fontSize: 14 * t.scale, fontWeight: '700', fontFamily: fonts.bodyBold },
+  tick: { color: t.colors.doneText, fontSize: 14 * t.scale, fontWeight: '700', fontFamily: fonts.bodyBold },
   rowText: { flexShrink: 1 },
   rowTitle: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.body },
   rowTitleDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },

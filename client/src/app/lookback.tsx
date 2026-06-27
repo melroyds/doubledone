@@ -471,7 +471,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   detailDate: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginBottom: spacing.one },
   detailEmpty: { color: t.colors.inkFaint, fontSize: 15 * t.scale, fontFamily: fonts.body },
   item: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-  itemMark: { color: t.colors.done, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+  itemMark: { color: t.colors.doneText, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
   itemMarkScheduled: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
   detailScheduledHead: {
     color: t.colors.accent,
@@ -483,7 +483,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     marginBottom: spacing.one,
   },
   itemTitle: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, flexShrink: 1 },
-  itemBig: { color: t.colors.done, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+  itemBig: { color: t.colors.doneText, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   scrapbook: { marginTop: spacing.six, gap: spacing.three },
   scrapbookHead: { color: t.colors.ink, fontSize: 20 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
   // The keepsake polaroid: a soft mat around the square image with a gentle

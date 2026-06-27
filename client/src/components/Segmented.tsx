@@ -53,9 +53,10 @@ const makeStyles = (t: Theme) =>
       alignItems: 'center',
       justifyContent: 'center',
     } as ViewStyle,
-    // The one active treatment: border lifts to 1.5, the mauve tint fills, the label goes mauve at weight 600.
+    // The one active treatment: border lifts to 1.5 and the mauve tint fills, which carry the active signal; the
+    // label is INK at weight 600 (accent-on-accentSoft was sub-AA, ink on the tint clears it ~12:1).
     segOn: { borderWidth: border.thin, borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
     pressed: { opacity: PRESSED_OPACITY },
     segText: { ...t.type.label, color: t.colors.inkSoft },
-    segTextOn: { color: t.colors.accent },
+    segTextOn: { color: t.colors.ink },
   });

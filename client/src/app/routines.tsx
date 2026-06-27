@@ -297,7 +297,7 @@ const makeStyles = (t: Theme) =>
       justifyContent: 'center',
     },
     stepBoxDone: { backgroundColor: t.colors.done, borderColor: t.colors.done },
-    stepTick: { color: t.colors.surface, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
+    stepTick: { color: t.colors.onDone, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
     stepTitle: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.body, flex: 1 },
     stepTitleDone: { color: t.colors.inkSoft, textDecorationLine: 'line-through' },
     remove: { color: t.colors.danger, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.two },
@@ -334,7 +334,7 @@ const makeStyles = (t: Theme) =>
       borderColor: t.colors.line,
       overflow: 'hidden',
     },
-    whenPillActive: { color: t.colors.surface, backgroundColor: t.colors.accent, borderColor: t.colors.accent },
+    whenPillActive: { color: t.colors.onAccent, backgroundColor: t.colors.accent, borderColor: t.colors.accent },
     formActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.four, marginTop: spacing.one },
     cancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
     newBtn: {

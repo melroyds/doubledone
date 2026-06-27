@@ -3382,3 +3382,30 @@ plus a Stripe customer), while a trial user (premium, no customer yet) is intent
 already routes active subscribers to "Manage", so this only backstops a direct or raced call; the client maps the
 409 to a calm "You're already on Premium" rather than a second charge. Both changes are unit-tested. They need a
 Worker redeploy to go live.
+
+## 2026-06-27 The light-mode contrast sweep (clearing the AA claim the code made)
+
+The pre-merge review found a coherent cluster: the light greens (done) and accents were tuned as FILLS, but where
+they were used as TEXT or a small glyph they dipped under WCAG AA, on an app that ships Atkinson Hyperlegible and
+whose theme file literally claimed "still clears WCAG AA". Closed NUMERICALLY (every value verified >= 4.5 with a
+throwaway WCAG script), not by eye:
+- The completion tick (onDone) went from white (3.1-3.9 on the sage fills, every light preset incl. Dusk) to a
+  dark warm ink (#21261F, 4.8-5.0), matching dark mode's already-dark tick. Sage's light done was nudged
+  #4E8C7A -> #5E9E7E so the dark tick clears it (4.90).
+- "Done" as TEXT (the affirmations, the sign-in success, the Lookback marks, the select-bar Done, the whole-task
+  bloom check, the repeating-drawer tick) now uses a new DERIVED doneText token (a deepened green, mix(done,
+  black, 0.35), ~5.4-5.9 on paper), keeping the soft `done` FILL unchanged so the calm sage completion look holds.
+- The default Dusk accent deepened #9B6A7D -> #946475 so the white PrimaryButton label clears 4.5 (4.42 -> 4.84);
+  this also lifts the When-pill and multi-select tick on Dusk.
+- The Segmented active label switched from accent-on-accentSoft (sub-AA on all 7) to ink (~12:1); the 1.5 border
+  plus tint still carry the active signal.
+- Three wrong-"on"-token glyphs that only broke on Honey (white on gold) now read the right token: the routine
+  "When" pill (surface -> onAccent), the multi-select tick (onDone -> onAccent), the routine step tick
+  (surface -> onDone).
+- The Today "Menu" pill stopped hard-coding Dusk's surface/ink RGBA and now derives rgba(surface)/rgba(ink), so it
+  follows the active theme instead of reading warm-brown under the cool dark presets.
+Verified in light-mode preview: the dark tick, the deepened accent, and the derived Menu pill all render.
+Deliberately LEFT: Honey's gold accent as small text (the Settings links) stays the documented
+low-contrast-accent trade-off, because no single gold can clear AA as text AND carry a dark button label; the real
+fix is the backlogged high-contrast mode. The visible changes (dark tick, deeper success text, slightly deeper
+Dusk mauve) are for Melroy to eye on the Android device-test before Play Store.

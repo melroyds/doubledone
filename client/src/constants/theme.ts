@@ -25,6 +25,7 @@ export type Palette = {
   onAccent: string;
   done: string;
   doneSoft: string;
+  doneText: string;
   onDone: string;
   repeat: string;
   danger: string;
@@ -41,12 +42,13 @@ const light = {
   inkSoft: '#7A7066', // secondary text
   inkFaint: '#8A7F73', // tertiary / placeholder
   line: '#ECE4D8', // hairline borders
-  accent: '#9B6A7D', // dusky mauve, the single accent, used sparingly
+  accent: '#946475', // dusky mauve, the single accent, used sparingly; deepened from #9B6A7D so a white label clears WCAG AA (4.84:1)
   accentSoft: '#F1E7EC', // mauve tint
-  onAccent: '#FFFFFF', // foreground (labels, glyphs) on the accent fill; white reads fine on the light accent
-  done: '#7E9B6B', // sage, completion, calm not alarming
+  onAccent: '#FFFFFF', // foreground (labels, glyphs) on the accent fill; white clears AA on the deepened accent
+  done: '#7E9B6B', // sage, completion, calm not alarming (a FILL; the tick on it is onDone, "done" as TEXT uses doneText)
   doneSoft: '#E9EFE2',
-  onDone: '#FFFFFF', // foreground (the completion tick) on the done fill; white reads fine on the light sage
+  doneText: '#526546', // a deepened sage for "done" rendered as TEXT (affirmations, success), so it clears AA on paper (5.9:1)
+  onDone: '#21261F', // the completion tick: a dark warm ink on the sage fill (4.98:1), matching dark mode's dark tick
   repeat: '#6E72A0', // dusk periwinkle, the structured / multi-part accent: recurring tasks, the one-off task border, slice progress counts, the make-it-tiny chain eyebrow
   danger: '#A1554C', // muted brick, the calm stand-in for "red" on destructive actions (Remove)
   scrim: 'rgba(43,39,34,0.45)', // warm-ink backdrop behind modals and sheets
@@ -68,6 +70,7 @@ const dark = {
   onAccent: '#2B2722', // warm ink on the lifted accent (~5.37:1); white here was only ~2.2-2.8:1
   done: '#9DB98A',
   doneSoft: '#2A3024',
+  doneText: '#9DB98A', // dark mode: the lifted sage already clears AA as text on the dark paper (~7.9:1), so done == doneText
   onDone: '#2B2722', // warm ink on the lifted done fill (~6.88:1); white here failed AA
   repeat: '#8E97C8', // lifted periwinkle
   danger: '#D2887E', // lifted brick for dark mode
@@ -97,10 +100,10 @@ export type ThemeTokens = {
 
 export const THEME_PRESETS: Record<ThemeName, { name: string; light: ThemeTokens; dark: ThemeTokens }> = {
   dusk: { name: 'Dusk',
-    light: { bg: '#FAF6F1', surface: '#FFFFFF', ink: '#2B2722', inkSoft: '#7A7066', inkFaint: '#A89E92', line: '#ECE4D8', accent: '#9B6A7D', accentSoft: '#F1E7EC', onAccent: '#FFFFFF', done: '#7E9B6B', repeat: '#6E72A0', danger: '#A1554C' },
+    light: { bg: '#FAF6F1', surface: '#FFFFFF', ink: '#2B2722', inkSoft: '#7A7066', inkFaint: '#A89E92', line: '#ECE4D8', accent: '#946475', accentSoft: '#F1E7EC', onAccent: '#FFFFFF', done: '#7E9B6B', repeat: '#6E72A0', danger: '#A1554C' },
     dark: { bg: '#1B1917', surface: '#252119', ink: '#F2EBE0', inkSoft: '#A89E93', inkFaint: '#7A7066', line: '#34302A', accent: '#C68BA0', accentSoft: '#352C32', onAccent: '#1B1917', done: '#9DB98A', repeat: '#8E97C8', danger: '#D2887E' } },
   sage: { name: 'Sage',
-    light: { bg: '#F3F5EF', surface: '#FFFFFF', ink: '#262A22', inkSoft: '#6A7064', inkFaint: '#9AA08F', line: '#E3E8DD', accent: '#5E7E62', accentSoft: '#E5EDE2', onAccent: '#FFFFFF', done: '#4E8C7A', repeat: '#6E7D9B', danger: '#A1554C' },
+    light: { bg: '#F3F5EF', surface: '#FFFFFF', ink: '#262A22', inkSoft: '#6A7064', inkFaint: '#9AA08F', line: '#E3E8DD', accent: '#5E7E62', accentSoft: '#E5EDE2', onAccent: '#FFFFFF', done: '#5E9E7E', repeat: '#6E7D9B', danger: '#A1554C' },
     dark: { bg: '#1A1C17', surface: '#23261F', ink: '#ECEFE4', inkSoft: '#A6AC9C', inkFaint: '#767B6C', line: '#32362C', accent: '#93B196', accentSoft: '#2A3328', onAccent: '#1A1C17', done: '#7FB7A4', repeat: '#9AA7C6', danger: '#D2887E' } },
   slate: { name: 'Slate',
     light: { bg: '#F2F4F6', surface: '#FFFFFF', ink: '#232830', inkSoft: '#687078', inkFaint: '#99A0A8', line: '#E1E6EB', accent: '#5C7790', accentSoft: '#E6ECF1', onAccent: '#FFFFFF', done: '#6E9B6B', repeat: '#8A78A0', danger: '#A1554C' },
@@ -124,7 +127,7 @@ function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace('#', '');
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
-function rgba(hex: string, alpha: number): string {
+export function rgba(hex: string, alpha: number): string {
   const [r, g, b] = hexToRgb(hex);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
@@ -135,8 +138,8 @@ function mix(hexA: string, hexB: string, tB: number): string {
 }
 
 // Build a full Palette from a preset's 12 tokens: the rest is derived (surfaceCard a translucent surface,
-// doneSoft a pale tint of done, onDone white on light / the dark paper on dark) or carried from the fixed,
-// theme-independent extras (scrim, priorityGradient, the per-task accents dots).
+// doneSoft a pale tint of done, doneText a deepened done that clears AA as text, onDone a dark ink tick on light
+// / the dark paper on dark) or carried from the fixed, theme-independent extras (scrim, priorityGradient, dots).
 function toPalette(tk: ThemeTokens, scheme: 'light' | 'dark'): Palette {
   const base = scheme === 'dark' ? dark : light;
   return {
@@ -144,7 +147,8 @@ function toPalette(tk: ThemeTokens, scheme: 'light' | 'dark'): Palette {
     accent: tk.accent, accentSoft: tk.accentSoft, onAccent: tk.onAccent, done: tk.done, repeat: tk.repeat, danger: tk.danger,
     surfaceCard: rgba(tk.surface, scheme === 'light' ? 0.92 : 0.86),
     doneSoft: mix(tk.done, tk.bg, 0.84),
-    onDone: scheme === 'light' ? '#FFFFFF' : tk.onAccent,
+    doneText: scheme === 'light' ? mix(tk.done, '#000000', 0.35) : tk.done, // deepened green for "done" as TEXT (AA on paper)
+    onDone: scheme === 'light' ? '#21261F' : tk.onAccent, // the tick: a dark warm ink on the sage fill (light) / dark paper (dark)
     scrim: base.scrim,
     priorityGradient: base.priorityGradient,
     accents: base.accents,
