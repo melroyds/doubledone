@@ -321,7 +321,7 @@ export default function WelcomeScreen() {
             </Text>
             <Text style={styles.lead}>Your Lookback, routines and repeating tasks all live in the Menu, top right.</Text>
             <Text style={styles.ethos}>today is finite and achievable</Text>
-            <Text style={styles.fine}>Private by default. Nothing leaves your device unless you choose to sync.</Text>
+            <Text style={styles.fine}>Private by default, nothing leaves your device. Want it on your phone and your laptop too? Sign in to sync, always optional.</Text>
           </View>
         )}
 
