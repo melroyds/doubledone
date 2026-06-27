@@ -94,7 +94,7 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
     if (isWeb) {
       return (
         <View style={styles.prompt}>
-          <Text style={styles.promptTitle}>Photograph your list</Text>
+          <Text style={styles.promptTitle}>Scan a photo of your list</Text>
           <Text style={styles.promptHint}>Choose a photo of a list, a note, or a whiteboard.</Text>
           <PrimaryButton
             label="Choose a photo"
@@ -117,7 +117,7 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
     if (!permission.granted) {
       return (
         <View style={styles.prompt}>
-          <Text style={styles.promptTitle}>Read a list from a photo</Text>
+          <Text style={styles.promptTitle}>Scan a photo of your list</Text>
           <Text style={styles.promptHint}>{EGRESS_NOTE}</Text>
           <PrimaryButton
             label="Allow camera"
@@ -166,7 +166,7 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
           <Pressable onPress={onClose} disabled={busy} accessibilityRole="button" accessibilityLabel="Close" hitSlop={8}>
             <Text style={[styles.headerLink, busy && styles.disabled]}>Close</Text>
           </Pressable>
-          <Text style={styles.headerTitle}>Snap your list</Text>
+          <Text style={styles.headerTitle}>Scan a list</Text>
           <View style={styles.headerSpacer} />
         </View>
 

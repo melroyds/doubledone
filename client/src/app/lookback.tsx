@@ -118,7 +118,7 @@ export default function LookbackScreen() {
         return;
       }
       const days = Math.max(1, Math.ceil((gate.resetAt - Date.now()) / 86_400_000));
-      setBookError(`That's this week's scrapbooks. The next is ready in ${days} day${days === 1 ? '' : 's'}.`);
+      setBookError(`That's this week's scrapbook. The next is ready in ${days} day${days === 1 ? '' : 's'}.`);
       return;
     }
     setBookBusy(true);

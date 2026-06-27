@@ -453,6 +453,12 @@ CASES = [
     ("PREM-15", "Premium", "P2", "Post-payment 'taking a while' recovery",
      "Complete a test checkout, then on the return /premium success screen simulate the entitlement being slow (e.g. the webhook delayed) so polling does not flip within ~10 tries.",
      "Instead of spinning forever it shows a calm message ('This is taking longer than usual. Your payment went through, give it a minute, then tap Refresh.') with a Refresh button and a pointer to send a note from Settings if it persists. Tapping Refresh re-checks and flips to premium once the entitlement lands. It never says the payment failed.", "Both"),
+    ("PREM-16", "Premium", "P2", "Card-free 'Try Premium' one-month trial",
+     "Signed in, on /premium tap 'Try Premium free for a month'. Confirm Premium unlocks. Tap it again on the SAME account. Advance the clock past 30 days (or inspect the trials row) and re-check entitlement. Also open the trial link signed OUT.",
+     "First tap: a calm confirm, Premium turns on with NO card and NO Stripe (status 'trial'); the page shows 'Your free month', 'Free until <date>', and 'Go Premium to keep it' (not 'Manage'). Second tap, same account: a gentle 'You've already had your free month' (never shame), no second trial granted. After expiry it reverts to free on its own, no charge ever. Signed out: an account is required (one trial per account), so the link routes to sign-in rather than granting.", "Both"),
+    ("PREM-17", "Premium", "P2", "Annual vs monthly plan checkout",
+     "On /premium use the Monthly / Annual toggle, then Subscribe. Confirm the Stripe Checkout reflects the chosen plan. Complete a test annual checkout. Then, as an already-subscribed user, hit Subscribe again.",
+     "The toggle shows 'A$50/year, about two months free' for annual; Checkout opens the YEARLY price for Annual and the monthly price for Monthly, and the success path grants Premium either way. An already-subscribed user is refused a second Checkout (the server 409s and the app says 'You're already on Premium', never a double charge). Prerequisite: the Worker deployed with STRIPE_PRICE_ID_ANNUAL and that price live in Stripe.", "Both"),
 
     # --- Prioritise / pin a task (Premium) -----------------------------------
     ("PIN-01", "Pin", "P1", "Premium: pin a task as the day's one thing",
