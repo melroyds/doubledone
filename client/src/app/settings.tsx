@@ -53,6 +53,7 @@ export default function SettingsScreen() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [mcpToken, setMcpToken] = useState<string | null>(null);
   const [mcpCopied, setMcpCopied] = useState(false);
+  const [mcpExpired, setMcpExpired] = useState(false); // the access token couldn't be fetched (expired session)
   const { premium, devOverride, setDevOverride, devAllowed, refresh } = usePremium();
   const [exporting, setExporting] = useState(false);
   const [exportNote, setExportNote] = useState<string | null>(null);
@@ -160,7 +161,13 @@ export default function SettingsScreen() {
     if (!supabase) return;
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token ?? null;
-    if (!token) return;
+    if (!token) {
+      // The access token expired and could not refresh: point at re-sign-in instead of dead-ending silently
+      // (the footnote tells users to re-copy when their agent stops, so the expired case is the common one).
+      setMcpExpired(true);
+      return;
+    }
+    setMcpExpired(false);
     setMcpToken(token);
     if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
       try {
@@ -385,6 +392,16 @@ export default function SettingsScreen() {
                 {mcpToken}
               </Text>
             ) : null}
+            {mcpExpired && (
+              <Pressable
+                onPress={() => router.push('/sign-in')}
+                accessibilityRole="button"
+                accessibilityLabel="Sign in again to get a fresh token"
+                hitSlop={6}
+              >
+                <Text style={styles.mcpExpired}>Your session expired. Sign in again to get a fresh token.</Text>
+              </Pressable>
+            )}
             <Text style={styles.mcpFoot}>The token refreshes about hourly. Re-copy it if your agent stops connecting.</Text>
           </View>
         ) : null}
@@ -613,6 +630,7 @@ const makeStyles = (t: Theme) =>
       marginTop: spacing.one,
     },
     mcpAction: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.one },
+    mcpExpired: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.two },
     mcpToken: {
       color: t.colors.inkSoft,
       fontSize: 12 * t.scale,
