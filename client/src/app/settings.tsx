@@ -62,6 +62,8 @@ export default function SettingsScreen() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackState, setFeedbackState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [confirmingAi, setConfirmingAi] = useState(false); // showing the "turn AI on" informed-consent card
+  const [aiNote, setAiNote] = useState<string | null>(null); // the calm line after turning AI off
 
   // Re-check the entitlement on focus (e.g. after returning from checkout) so the Premium card's
   // "Active" marker is current, and reflect the persisted daily-reminder toggle. The premium flag
@@ -221,6 +223,22 @@ export default function SettingsScreen() {
     }
   }
 
+  // AI on/off is asymmetric on purpose: turning it OFF is the safe, private direction, so it is
+  // instant. Turning it ON is when text leaves the device, so it asks for a clear, informed tap first.
+  function turnAiOff() {
+    setSettings({ aiEnabled: false });
+    setConfirmingAi(false);
+    setAiNote('AI is off. Everything stays on your device.');
+    track('ai.disabled');
+  }
+
+  function confirmAiOn() {
+    setSettings({ aiEnabled: true });
+    setConfirmingAi(false);
+    setAiNote(null);
+    track('ai.enabled');
+  }
+
   return (
     <View style={styles.screen}>
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.six }]}>
@@ -345,6 +363,40 @@ export default function SettingsScreen() {
               })}
             </View>
           </View>
+        </View>
+
+        <Text style={styles.band}>AI</Text>
+        <View style={styles.account}>
+          <Text style={styles.rowHint}>
+            {settings.aiEnabled
+              ? 'On. Break it down, Sort for me, and the keepsake scrapbook use AI, sending the text you choose to Claude to do its work.'
+              : 'Off. DoubleDone works fully without AI, entirely on your device. Built that way on purpose.'}
+          </Text>
+          {settings.aiEnabled ? (
+            <Pressable onPress={turnAiOff} accessibilityRole="button" accessibilityLabel="Turn AI off" hitSlop={6}>
+              <Text style={styles.exportLink}>Turn AI off ›</Text>
+            </Pressable>
+          ) : confirmingAi ? (
+            <View style={styles.confirmBox}>
+              <Text style={styles.confirmText}>
+                Turning on AI sends the text you choose, a task to break down, a day to sort, to Anthropic&apos;s Claude
+                to do its work. Nothing else ever leaves your device.
+              </Text>
+              <View style={styles.confirmRow}>
+                <Pressable onPress={() => setConfirmingAi(false)} accessibilityRole="button" accessibilityLabel="Not now" hitSlop={6}>
+                  <Text style={styles.keep}>Not now</Text>
+                </Pressable>
+                <Pressable onPress={confirmAiOn} accessibilityRole="button" accessibilityLabel="Turn on AI" hitSlop={6}>
+                  <Text style={styles.exportLink}>Turn on AI</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <Pressable onPress={() => setConfirmingAi(true)} accessibilityRole="button" accessibilityLabel="Turn AI on" hitSlop={6}>
+              <Text style={styles.exportLink}>Turn AI on ›</Text>
+            </Pressable>
+          )}
+          {aiNote ? <Text style={styles.exportNote}>{aiNote}</Text> : null}
         </View>
 
         <Text style={styles.band}>Access & data</Text>

@@ -3526,3 +3526,34 @@ the refund window is 7 days; governing law Victoria; the annual saving left as t
 number cannot drift across surfaces. This is a reasonable, ACL-aware DRAFT, explicitly not legal advice, with a clear
 in-file note that a lawyer's once-over is cheap insurance now that real money moves. Decided AGAINST blocking the v1
 docs pass on that review: terms being live beats the bigger risk of nothing at all, and they are trivially updated.
+
+## 2026-06-28 AI-optional: the app whole without it (for the AI-wary)
+
+Real user feedback: someone refused to use DoubleDone because it championed gen-AI. That instinct is a real and
+growing segment (privacy, ethics, anti-hype) and it overlaps the neurodivergent + privacy-conscious audience the
+app already serves. The brand is already local-first and anti-hype, so honouring it is coherent, not a bolt-on.
+
+The decision: NOT a "no-AI mode" (a toggle to manage), but make **AI genuinely optional and the app whole without
+it.** A single set-once choice (`aiEnabled`, default ON so nothing changes for an existing user), with the AI
+affordances hidden when off, so an AI-wary user gets a calm, fully-offline to-do app and never has AI pushed at
+them. Two principles shaped it:
+
+- **Asymmetric confirmation.** Turning AI OFF is the safe, private direction, so it is instant with a warm line
+  ("AI is off. Everything stays on your device."). Turning AI ON is when text leaves the device, so it asks for a
+  clear, informed tap first (an inline card naming what is sent, and to whom). Decided AGAINST a symmetric
+  type-to-confirm: that pattern is for irreversible / destructive actions (account deletion), and confirming the
+  way to MORE privacy is friction protecting nothing. The deliberate, in-writing confirmation is satisfied by a
+  clearly-worded card and one tap, not by making an ADHD user re-type a magic word.
+- **Never-shame cuts both ways.** The app must not frame no-AI as "the brave stand" or valorise it, because that
+  shames the AI-using half of the audience and breaks the one rule. The dignity for the AI-wary is being trusted to
+  just not use AI, no ceremony; the product makes the stand on their behalf by how it is built, not by making them
+  perform it.
+
+The settings model gains its second deliberate exception to "remove friction, never add a setting" (theme / text /
+motion are the access-need exception; `aiEnabled` is the values/privacy one).
+
+Built on the `premium` branch (no deploy until Melroy reviews): the `aiEnabled` setting + the Settings control
+(verified in preview, off instant + warm, on shows the informed card). Still to come: hiding the AI affordances
+across the surfaces when off, and a manual "break it into steps yourself" path so a no-AI user can still decompose
+(the one real gap, since Break-it-down is AI-only). Decided against rebuilding triage / Strategise as non-AI:
+manual placement already IS the no-AI version of those.
