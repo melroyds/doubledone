@@ -3224,3 +3224,12 @@ screen. sendCode now inspects the error: a 429 / "wait N seconds" shows "Just se
 try again."; offline reuses the shared aiErrorLine; everything else keeps the generic line. The code step
 gained a "Resend code" link with a 30s cooldown (disabled and counting down) so repeated taps cannot trip the
 rate limit in the first place. Still never leaks a raw provider error (the never-alarm spine).
+
+## 2026-06-27 Audit (Tier 2): offer the daily reminder once, after the first close-the-day
+
+The reminder is the named lever against the week-three retention cliff, but it lived only as a faint footer
+link and a Settings pill, never offered at the moment its value is concrete. The rested screen (after the first
+close-the-day) now shows a one-time gentle offer, "Want one gentle nudge a day to come back?" with "Yes, remind
+me" / "Not now", gated by doubledone.reminderoffer.v1 so either choice retires it for good and it never nags.
+Accept runs the same enableDailyReminder path (the reason line on failure, never a silent bounce); decline just
+marks it made. Only shown when the reminder is not already on.

@@ -53,7 +53,7 @@ import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge }
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadClosedDate, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData } from '@/lib/storage';
+import { loadClosedDate, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderOfferMade, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOfferMade, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { isAccountGone, localBelongsToAnother, syncOnce } from '@/lib/sync';
 import { parseDump, sweepElapsedNudges, type Task } from '@/lib/tasks';
@@ -128,6 +128,7 @@ export default function TodayScreen() {
   const [reminderOn, setReminderOn] = useState(false);
   const [holdHintSeen, setHoldHintSeen] = useState(true); // default true: don't flash the coachmark before it loads
   const [syncOk, setSyncOk] = useState<boolean | null>(null); // last sync result; null until known, false = local-only
+  const [reminderOfferMade, setReminderOfferMade] = useState(true); // default true: don't flash the close-day reminder offer
   // Break it down, the two-call flow: qualify (questions) -> decompose (review).
   const [bdPhase, setBdPhase] = useState<'off' | 'questions' | 'review'>('off');
   const [bdTask, setBdTask] = useState('');
@@ -216,6 +217,9 @@ export default function TodayScreen() {
     });
     void loadLastSyncOk().then((v) => {
       if (active) setSyncOk(v);
+    });
+    void loadReminderOfferMade().then((made) => {
+      if (active) setReminderOfferMade(made);
     });
     return () => {
       active = false;
@@ -652,6 +656,24 @@ export default function TodayScreen() {
       track('reminder.enabled', { granted: result.ok });
       if (!result.ok) affirm(reminderReasonLine(result.reason)); // never a silent bounce-back
     }
+  }
+
+  // The one-time daily-reminder offer, shown on the rested screen after the first close-the-day (the moment its
+  // value is concrete). Either choice retires it for good, so it never nags. The reminder is the named lever
+  // against the week-three retention cliff, surfaced here instead of only in a faint footer link.
+  async function acceptReminderOffer() {
+    setReminderOfferMade(true);
+    void saveReminderOfferMade();
+    const result = await enableDailyReminder();
+    setReminderOn(result.ok);
+    void saveReminderOn(result.ok);
+    track('reminder.enabled', { granted: result.ok, via: 'closeday_offer' });
+    if (!result.ok) affirm(reminderReasonLine(result.reason));
+  }
+  function dismissReminderOffer() {
+    setReminderOfferMade(true);
+    void saveReminderOfferMade();
+    track('reminder.offer_declined');
   }
 
   // Strategise: hand today's one-offs to the AI, get a calm re-spread, then PROPOSE
@@ -1155,6 +1177,19 @@ export default function TodayScreen() {
             >
               <Text style={styles.restedReopen}>Reopen today</Text>
             </Pressable>
+            {!reminderOn && !reminderOfferMade && (
+              <View style={styles.reminderOffer}>
+                <Text style={styles.reminderOfferText}>Want one gentle nudge a day to come back?</Text>
+                <View style={styles.reminderOfferRow}>
+                  <Pressable onPress={acceptReminderOffer} accessibilityRole="button" accessibilityLabel="Yes, remind me daily" hitSlop={6}>
+                    <Text style={styles.reminderOfferYes}>Yes, remind me</Text>
+                  </Pressable>
+                  <Pressable onPress={dismissReminderOffer} accessibilityRole="button" accessibilityLabel="Not now" hitSlop={6}>
+                    <Text style={styles.reminderOfferNo}>Not now</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
           </View>
         )}
 
@@ -2071,6 +2106,19 @@ const makeStyles = (t: Theme) =>
     restedLine: { color: t.colors.ink, fontSize: 17 * t.scale, lineHeight: 24 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     restedSub: { color: t.colors.inkFaint, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     restedReopen: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.three },
+    reminderOffer: {
+      alignSelf: 'stretch',
+      alignItems: 'center',
+      gap: spacing.three,
+      marginTop: spacing.five,
+      paddingTop: spacing.four,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: t.colors.line,
+    },
+    reminderOfferText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, lineHeight: 21 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+    reminderOfferRow: { flexDirection: 'row', gap: spacing.five, alignItems: 'center' },
+    reminderOfferYes: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    reminderOfferNo: { color: t.colors.inkFaint, fontSize: 15 * t.scale, fontFamily: fonts.body },
     strategiseNudge: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     strategiseBtn: {
       borderRadius: radius.md,

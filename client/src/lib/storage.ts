@@ -19,6 +19,7 @@ const ONBOARDED_KEY = 'doubledone.onboarded.v1';
 const HOLDHINT_KEY = 'doubledone.holdhint.v1'; // one-time "hold a task for more" coachmark
 const ACCOUNT_KEY = 'doubledone.account.v1';
 const SYNCOK_KEY = 'doubledone.syncok.v1'; // result of the last sync attempt, so the footer can tell the truth
+const REMINDEROFFER_KEY = 'doubledone.reminderoffer.v1'; // one-time "offer the reminder after the first close-day"
 const DEV_PREMIUM_KEY = 'doubledone.devPremium.v1'; // DEV/preview only: the premium-flag override (see premium-flag.ts)
 
 /**
@@ -293,6 +294,25 @@ export async function loadLastSyncOk(): Promise<boolean | null> {
 export async function saveLastSyncOk(ok: boolean): Promise<void> {
   try {
     await AsyncStorage.setItem(SYNCOK_KEY, ok ? 'yes' : 'no');
+  } catch {
+    // best effort
+  }
+}
+
+/** Whether the one-time daily-reminder offer (shown after the first close-the-day) has been made. The reminder
+ *  is the named lever against the week-three retention cliff, so it is offered once at a concrete moment. */
+export async function loadReminderOfferMade(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(REMINDEROFFER_KEY)) === 'yes';
+  } catch {
+    return false;
+  }
+}
+
+/** Mark the one-time reminder offer as made (accepted or declined), so it never shows again. Best effort. */
+export async function saveReminderOfferMade(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(REMINDEROFFER_KEY, 'yes');
   } catch {
     // best effort
   }
