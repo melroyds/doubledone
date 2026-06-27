@@ -3553,7 +3553,12 @@ The settings model gains its second deliberate exception to "remove friction, ne
 motion are the access-need exception; `aiEnabled` is the values/privacy one).
 
 Built on the `premium` branch (no deploy until Melroy reviews): the `aiEnabled` setting + the Settings control
-(verified in preview, off instant + warm, on shows the informed card). Still to come: hiding the AI affordances
-across the surfaces when off, and a manual "break it into steps yourself" path so a no-AI user can still decompose
-(the one real gap, since Break-it-down is AI-only). Decided against rebuilding triage / Strategise as non-AI:
+(verified in preview, off instant + warm, on shows the informed card). Hiding the AI affordances when off is now DONE across
+capture (BrainDump), Today (Strategise, Break it down, Make it tiny, Combine, Plan my day, the per-task Break-down +
+Make-tiny), the Rooms menu (the Chart a course entry) + the Chart screen (a redirect), Lookback (the scrapbook card +
+the weekly reflection), and the first-run triage, verified by a 3-agent adversarial leak sweep and in preview. The
+one break the sweep caught (an un-gated per-task Make-it-tiny handler) is fixed. Speak (on-device dictation, no
+server call) deliberately stays. Remaining for Melroy's review: a manual "break it into steps yourself" path so a
+no-AI user can still decompose (the one real gap, since Break-it-down is AI-only), plus minor first-run copy (the
+"Sort for me" button label on an AI-off onboarding replay). Decided against rebuilding triage / Strategise as non-AI:
 manual placement already IS the no-AI version of those.

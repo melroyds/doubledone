@@ -10,7 +10,7 @@ import { type CaptureSchedule } from '@/lib/recurrence';
 import { MAX_SLICES, MIN_SLICES } from '@/lib/slices';
 import { type Dictation, isDictationSupported, startDictation } from '@/lib/speech';
 import { track } from '@/lib/telemetry';
-import { useTheme, useThemedStyles } from '@/lib/theme-provider';
+import { useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 import { Chip } from './Chip';
 import { DatePicker } from './DatePicker';
@@ -69,6 +69,8 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   const [error, setError] = useState<string | null>(null);
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
+  const { settings } = useSettings();
+  const aiEnabled = settings.aiEnabled; // false hides every gen-AI affordance here (Sort for me, Break it down, Tidy, Scan). Speak stays: it is on-device dictation, not a server AI call.
   const inputRef = useRef<TextInput>(null);
 
   // Talk-to-capture (web only; the mic stays hidden where unsupported). Each spoken
@@ -263,7 +265,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
             </Text>
           </Pressable>
         )}
-        {onCamera && (
+        {onCamera && aiEnabled && (
           <Pressable
             onPress={onCamera}
             disabled={busy}
@@ -392,10 +394,10 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
         </View>
       )}
 
-      {lineCount === 1 && !busy && !canSplit && (
+      {aiEnabled && lineCount === 1 && !busy && !canSplit && (
         <Text style={styles.sortHint}>{"More than one? Put each on its own line and I'll sort them for you."}</Text>
       )}
-      {canSplit && (busyKind === 'split' || !busy) && (
+      {aiEnabled && canSplit && (busyKind === 'split' || !busy) && (
         <Pressable
           onPress={splitDump}
           disabled={busy}
@@ -415,7 +417,8 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
       )}
 
       <View style={styles.actions}>
-        {lineCount >= 2 ? (
+        {aiEnabled &&
+          (lineCount >= 2 ? (
           <Pressable
             onPress={sortDump}
             disabled={busy}
@@ -449,7 +452,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
               <Text style={styles.biteText}>Break it down</Text>
             )}
           </Pressable>
-        )}
+          ))}
 
         <PrimaryButton label={addLabel} onPress={add} disabled={busy} accessibilityLabel={addLabel} />
       </View>

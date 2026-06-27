@@ -9,7 +9,7 @@ import { triage } from '@/lib/ai';
 import { loadTasks, saveOnboarded, saveTasks } from '@/lib/storage';
 import { type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
-import { useTheme, useThemedStyles } from '@/lib/theme-provider';
+import { useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { triageToTasks } from '@/lib/triage';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
@@ -71,6 +71,7 @@ export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
+  const aiEnabled = useSettings().settings.aiEnabled;
   const [step, setStep] = useState<Step>('welcome');
   const [dump, setDump] = useState('');
   const [busy, setBusy] = useState(false);
@@ -123,14 +124,19 @@ export default function WelcomeScreen() {
     const today = new Date();
     const now = Date.now();
     let tasks: Task[];
-    try {
-      const items = await Promise.race([
-        triage(lines),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('triage timeout')), TRIAGE_TIMEOUT_MS)),
-      ]);
-      tasks = triageToTasks(lines, items, today, now, makeId);
-    } catch {
-      tasks = triageToTasks(lines, [], today, now, makeId); // all on today, nothing lost
+    if (!aiEnabled) {
+      // AI off: skip the triage call entirely; everything lands on today, no server call.
+      tasks = triageToTasks(lines, [], today, now, makeId);
+    } else {
+      try {
+        const items = await Promise.race([
+          triage(lines),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('triage timeout')), TRIAGE_TIMEOUT_MS)),
+        ]);
+        tasks = triageToTasks(lines, items, today, now, makeId);
+      } catch {
+        tasks = triageToTasks(lines, [], today, now, makeId); // all on today, nothing lost
+      }
     }
     setRevealed(tasks);
     setBusy(false);

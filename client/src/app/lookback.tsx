@@ -19,7 +19,7 @@ import { findScrapbook, type Scrapbook, upsertScrapbook, weekCompletions, weekLa
 import { loadScrapbooks, loadTasks, saveScrapbooks } from '@/lib/storage';
 import { type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
-import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
+import { useReducedMotion, useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 // The Lookback: an interactive Gregorian calendar of what you actually finished,
 // browsable by day. The emotional payoff, never a stats page, never a streak.
@@ -52,6 +52,7 @@ export default function LookbackScreen() {
   const { effectiveEntitlement, premium, loading: premiumLoading } = usePremium();
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
+  const aiEnabled = useSettings().settings.aiEnabled; // the scrapbook + weekly reflection are AI; hidden when off
 
   // Re-read the local store every time the screen regains focus, not only on first
   // mount, so the calendar always reflects the current data, including after an
@@ -288,7 +289,8 @@ export default function LookbackScreen() {
         )}
       </View>
 
-      <View style={styles.scrapbook} testID="scrapbook-card">
+      {aiEnabled && (
+        <View style={styles.scrapbook} testID="scrapbook-card">
         <Text style={styles.scrapbookHead}>Scrapbook</Text>
 
         {bookBusy ? (
@@ -356,6 +358,7 @@ export default function LookbackScreen() {
           </View>
         )}
       </View>
+      )}
 
       {/* Premium "Your patterns": pure additive abundance BELOW the always-free calendar and scrapbook.
           Free users see a calm one-line invite (never a teased-then-locked number). Premium users see
@@ -382,7 +385,7 @@ export default function LookbackScreen() {
                 )}
               </>
             )}
-            {weekList.length > 0 && (
+            {aiEnabled && weekList.length > 0 && (
               <View style={styles.summarySection}>
                 {summaryWeek === weekStart && summary ? (
                   <Text style={styles.summaryText}>{summary}</Text>

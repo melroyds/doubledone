@@ -60,7 +60,7 @@ import { parseDump, sweepElapsedNudges, type Task } from '@/lib/tasks';
 import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
 import { updateWidget } from '@/widget/update';
-import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
+import { useReducedMotion, useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { usePremium } from '@/lib/premium-provider';
 import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, isRecurring, pinFirst, resurfaceOpenParent, setBig, setPin, setSequence, tasksForToday, tinyParentTitle, toggleDoneOn, upcomingTasks } from '@/lib/today';
 
@@ -152,6 +152,7 @@ export default function TodayScreen() {
   // useState, not useRef: reading a ref in render trips the React Compiler lint.
   const [closeRise] = useState(() => new Animated.Value(0));
   const styles = useThemedStyles(makeStyles);
+  const aiEnabled = useSettings().settings.aiEnabled; // false hides every gen-AI affordance on Today (Break it down, Strategise, Make it tiny, Combine, Plan my day)
   const theme = useTheme();
 
   // Re-read the persisted list on every focus, not only first mount, so returning
@@ -1289,8 +1290,8 @@ export default function TodayScreen() {
               slices={task.slices ?? undefined}
               onAdvance={() => step(task.id, 1)}
               onRetreat={() => step(task.id, -1)}
-              onBreakdown={() => breakdownExisting(task.title, task.id)}
-              onMakeTiny={() => makeTiny(task.id, task.title)}
+              onBreakdown={aiEnabled ? () => breakdownExisting(task.title, task.id) : undefined}
+              onMakeTiny={aiEnabled ? () => makeTiny(task.id, task.title) : undefined}
               onDefer={() => deferTask(task.id)}
               suggestBreakdown={task.suggestBreakdown}
               selecting={selectMode}
@@ -1353,8 +1354,8 @@ export default function TodayScreen() {
                   slices={task.slices ?? undefined}
                   onAdvance={() => step(task.id, 1)}
                   onRetreat={() => step(task.id, -1)}
-                  onBreakdown={() => breakdownExisting(task.title, task.id)}
-                  onMakeTiny={() => makeTiny(task.id, task.title)}
+                  onBreakdown={aiEnabled ? () => breakdownExisting(task.title, task.id) : undefined}
+                  onMakeTiny={aiEnabled ? () => makeTiny(task.id, task.title) : undefined}
                   selecting={selectMode}
                   selected={selected.includes(task.id)}
                   onSelect={() => toggleSelect(task.id)}
@@ -1366,7 +1367,7 @@ export default function TodayScreen() {
         )}
         {loaded && !selectMode && (
           <View style={styles.dayActions}>
-            {spreadable.length >= 2 && (
+            {aiEnabled && spreadable.length >= 2 && (
               <>
                 {dayIsHeavy && <Text style={styles.strategiseNudge}>{"Today's looking full."}</Text>}
                 {dayIsHeavy && (
@@ -1437,7 +1438,7 @@ export default function TodayScreen() {
                 )}
               </View>
               <View style={styles.actionRow}>
-                {selected.length === 1 && (
+                {aiEnabled && selected.length === 1 && (
                   <Pressable
                     onPress={() => {
                       const one = tasks.find((y) => y.id === selected[0]);
@@ -1473,7 +1474,7 @@ export default function TodayScreen() {
                     <Text style={[styles.selectAction, !premium && !onlyTask.pinnedAt && styles.selectActionDim]}>{onlyTask.pinnedAt ? 'Unpin' : 'Pin'}</Text>
                   </Pressable>
                 )}
-                {selected.length === 1 && (
+                {aiEnabled && selected.length === 1 && (
                   <Pressable
                     onPress={() => {
                       const one = tasks.find((y) => y.id === selected[0]);
@@ -1496,7 +1497,7 @@ export default function TodayScreen() {
                     <Text style={styles.selectAction}>Steps</Text>
                   </Pressable>
                 )}
-                {combinable.length >= 2 && (
+                {aiEnabled && combinable.length >= 2 && (
                   <Pressable
                     onPress={() => void openCombine()}
                     accessibilityRole="button"
