@@ -30,7 +30,7 @@ export function Chip({ label, selected, onPress, variant = 'soft', accessibility
       hitSlop={{ top: 8, bottom: 8 }}
       style={[styles.chip, selected && fillOn]}
     >
-      <Text style={[styles.text, selected && textOn]}>{label}</Text>
+      <Text numberOfLines={1} style={[styles.text, selected && textOn]}>{label}</Text>
     </Pressable>
   );
 }
@@ -45,6 +45,7 @@ const makeStyles = (t: Theme) =>
       paddingHorizontal: spacing.four,
       alignItems: 'center',
       justifyContent: 'center',
+      flexShrink: 0, // never squeeze a chip narrower than its label; it wraps to a new row instead. Android was clipping "This week" to "This".
     } as ViewStyle,
     softOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
     solidOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
