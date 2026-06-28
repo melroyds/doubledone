@@ -13,15 +13,26 @@ the test.
 Google requires a closed test before a **new personal account** can publish to production:
 
 - **12 testers, opted in for 14 consecutive days**, before you can apply for production access. (Was 20;
-  cut to 12 on 11 Dec 2024.) A tester dropping out resets the clock. Google now measures **engagement**, so
-  testers must actually open and use the app over the two weeks, not just install it.
+  cut to 12 on 11 Dec 2024.) Keep 12+ opted in throughout: per Google an uninstall does NOT drop an opted-in
+  tester, but falling below 12 stalls you, so recruit a buffer. Google now measures **engagement**, so testers
+  should actually open and use the app over the two weeks, not just install once.
 - The `$25` individual signup is a **personal** account, so this applies. Budget **~3 to 4 weeks** to
   production, then a 1 to 3 day review. It is uncompressible and is the dominant launch-date driver.
 - Organisation accounts are exempt but need a D-U-N-S number (up to 30 days), so that is not faster for you.
 
-**The single highest-leverage move: recruit and opt in 12 real testers today.** Your partner, friends, and
-the ADHD / OCD people you built this for are perfect (and engaged daily users by nature). The 14-day clock
-starts when they are in. Everything below happens in parallel.
+**What to do now, in parallel: line up your people.** Collect ~14-15 Gmail addresses (a buffer, since some
+never follow through). That is just a list, no Console action yet. Your partner, friends, and the ADHD / OCD
+people you built this for are perfect, and engaged daily users by nature.
+
+**The opt-in itself happens only AFTER the app and the closed-testing track exist** (you cannot opt testers
+into a track that does not exist yet). Order: create the app, upload the AAB to a Closed-testing track, add
+testers or share the opt-in link, then each tester clicks "Become a tester" and installs. That click is what
+counts and starts the 14-day clock. Full sequence in "Who does what" below.
+
+**How the 12-for-14-days is verified:** not manually. Testers join through Google's own system, so the Play
+Console counts and timestamps every opt-in for you. The dashboard shows your live count, the production-access
+flow checks the criteria itself, and you just describe your testing in a short questionnaire. No screenshots,
+no evidence to submit.
 
 Avoid the "12 testers fast / tester farm" services that flood search results. With Google now measuring
 engagement, paid fake testers are a flag risk, and you do not need them.
@@ -164,6 +175,13 @@ I can generate these from the app (the screenshot harness in `scripts/screenshot
 
 ## Who does what
 
-**You:** confirm account type; recruit + opt in 12 testers (start the clock now); run `eas build --profile production` (your EAS account, minds the build-credit cap); create the app + Closed-testing track in Play Console; upload the AAB; complete Data Safety + content rating; submit for production after 14 days.
+**You, in order:**
+1. (Now, in parallel) Line up ~14-15 testers' Gmail addresses. Just a list, no Console action.
+2. `eas build --profile production` (your EAS account, minds the build-credit cap) -> the AAB.
+3. Create the app in Play Console.
+4. Upload the AAB to a **Closed-testing** track; complete Data Safety (answers above) + content rating; submit the track for review.
+5. Add your testers or enable the opt-in link, and share it. Each tester clicks "Become a tester" and installs. **This starts the 14-day clock.**
+6. Watch the count in the Console for 14 days (keep 12+ opted in). Capture the 5 screenshots from a tester's phone.
+7. After 14 days: Publishing overview -> Production -> **Request production access**, fill the questionnaire honestly, and submit.
 
-**Me (on your go-ahead):** apply the privacy-policy line + scrapbook_log pruning; pin target API 36; generate the 5 screenshots; and we decide on the one-time AI-consent card.
+**Me (done this session):** privacy-policy line + 24h purge (committed and Worker deployed); target API 36 pinned; the point-of-use AI disclosure (the calm alternative to a consent modal). Screenshots are best captured from a tester's device at step 6, not synthesised.
