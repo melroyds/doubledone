@@ -1,5 +1,11 @@
 # Publishing DoubleDone to the Google Play Store
 
+> **2026 update:** the current, paste-ready submission pack is
+> [play-store-submission-pack.md](play-store-submission-pack.md) (Data Safety form, listing, the verified
+> policy + timeline). **Correction to section 6 below:** for a new personal account, closed testing is NOT
+> optional, it is a mandatory 12-tester / 14-day gate before production. Read the pack first; use this guide
+> for the step-by-step Play Console mechanics.
+
 A first-release guide for DoubleDone (Expo SDK 56 / EAS, Android package `app.doubledone`, currently
 v1.0.0). Researched and adversarially reviewed 2026-06-24. Work top to bottom. The handful of things most
 likely to block the review are marked **BLOCKER**, deal with those first.
