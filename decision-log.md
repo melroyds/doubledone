@@ -3606,3 +3606,39 @@ for me" writes nothing, so no event there), letting the moat tell an onboarding 
 This also CLOSES the earlier "minor first-run copy" gap (the AI-off replay now shows "Put them on today" / "Change
 in Settings", not a misleading "Sort for me"). Still open: the manual "break it into steps yourself" path for a
 no-AI user. QA: ONB-03 + SET-09/SET-10 added to the E2E suite.
+
+## 2026-06-28 AI-optional, part 3: the manual Break-it-down and Combine, and a copy-leak sweep
+
+The two structural task-shaping tools, Break-it-down and Combine, were AI-only and vanished when AI was off,
+leaving a no-AI user unable to split a big task or merge related ones. Built their no-AI twins, and the insight
+that made it cheap: in both, the AI only supplies the WORDS; the structural operation is already AI-free.
+
+- **Combine** was the easy one. The fold itself (`combineTasks`) is a pure, AI-free function that already takes the
+  umbrella title as a parameter; the AI only suggested that title. So `openCombine` now skips the AI call when AI
+  is off and prefills the editable name with the selected titles joined by ', '. The select-bar Combine gate
+  dropped its `aiEnabled` condition. The AI-ON path is byte-identical (verified: the join is overwritten inside the
+  `aiEnabled` branch, and the busy guard is still correct without the old try/finally).
+- **Break it down** needed a small new modal. With AI off, the same "Break it down" affordance (per-task AND the
+  select bar, same label so the gesture is identical) opens a modal where the user types steps, one per line; each
+  becomes a child and the task becomes a `silentParent`, reusing the EXACT parent/child model `bdAccept` uses, so
+  it auto-completes and blooms when every step is done. No network, no questions, no phases. Make-it-tiny stays
+  AI-only (its no-AI form is just "add a small task", which capture already does), a deliberate scope line.
+
+Decided AGAINST relabelling the manual variants ("Break into steps", etc.): keeping the label "Break it down" /
+"Break down" identical on and off makes the AI a swappable convenience layer over a fully-working manual core, the
+cleaner story, and avoids confusion with the separate "Steps" (slices) action.
+
+Then an adversarial sweep of the WHOLE no-AI mode (three lenses: leak hunt, AI-on regression, manual-path edge
+cases) confirmed the manual paths correct and the AI-on paths un-regressed, and caught SIX copy/label leaks where
+the app still NAMED or advertised an AI-only feature to a user who had turned AI off. The two worst were exposed by
+the new onboarding opt-out: a user who opts out on the capture screen was then walked through a safety-net screen
+naming Make-it-tiny + Lighten-today and a Premium screen selling five AI features. All six fixed and verified in
+preview:
+- Onboarding safety-net: with AI off, shows only Break-it-down (filtered).
+- Onboarding Premium step: with AI off, shows the non-AI premium value (colour themes), not the AI suite.
+- Settings Premium card sub-line, the Today Menu pill a11y label ("Chart a course"), the Today long-press coachmark
+  ("make it tiny"), and the Rooms Premium hint ("more AI"): all now conditional on `aiEnabled`.
+
+The rule this crystallises: AI-off must hide the affordance AND never NAME, advertise, or route to an AI feature,
+including in accessibility labels and marketing copy. QA: AI-01b + TOD-20b added. This closes the no-AI decompose
+gap flagged in part 1; the no-AI mode is now feature-complete.

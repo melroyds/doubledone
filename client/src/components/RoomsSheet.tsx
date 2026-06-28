@@ -33,6 +33,9 @@ export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookba
   // A persistent door to the Premium offer (the audit gap: a willing buyer could only find it at the bottom of
   // Settings). A gradient dot marks it as the one special row; it routes to /premium, which itself shows the
   // offer to a free user and a manage view to a subscriber. Never a hard sell, just findable.
+  // With AI off, the Premium hint drops the AI value ("more AI", keepsakes) for the non-AI surface (colour
+  // themes), so the persistent menu never advertises AI to a user who turned it off.
+  const premiumFreeHint = aiEnabled ? 'Keepsakes, more AI, your colour' : 'Your colour theme, and more';
   const rooms: { key: string; label: string; hint: string; onPress: () => void; premium?: boolean; gradient?: boolean; ai?: boolean }[] = [
     { key: 'repeating', label: 'Repeating', hint: 'Tasks that come back', onPress: go(onRepeating) },
     { key: 'routines', label: 'Routines', hint: 'Gentle rituals, no streaks', onPress: go(onRoutines) },
@@ -41,7 +44,7 @@ export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookba
     {
       key: 'premium',
       label: 'Premium',
-      hint: premium ? 'Manage your subscription' : 'Keepsakes, more AI, your colour',
+      hint: premium ? 'Manage your subscription' : premiumFreeHint,
       onPress: go(onPremium),
       gradient: true,
     },

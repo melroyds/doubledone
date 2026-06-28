@@ -62,6 +62,12 @@ const PREMIUM_FEATURES: { name: string; what: string }[] = [
   { name: 'Scan a list', what: 'a photo of a written list, straight into tasks.' },
 ];
 
+// With AI off, the premium pitch drops the AI features (scrapbook, Chart, Plan my day, patterns, Scan) and shows
+// only the non-AI premium value, so a user who just opted out is never sold what they have turned off.
+const PREMIUM_FEATURES_NOAI: { name: string; what: string }[] = [
+  { name: 'Your colour', what: 'seven calm palettes for the whole app, yours to choose.' },
+];
+
 export default function WelcomeScreen() {
   const router = useRouter();
   // Replayable from Settings (?replay=1). A replay must never overwrite an existing list, so
@@ -286,7 +292,7 @@ export default function WelcomeScreen() {
             <Text style={styles.h1}>When something feels too big, you&apos;re not alone with it.</Text>
             <Text style={styles.lead}>Hand a dreaded task to DoubleDone, and it helps you start:</Text>
             <View style={styles.netList}>
-              {SAFETY_NET.map((row) => (
+              {SAFETY_NET.filter((row) => aiEnabled || row.name === 'Break it down').map((row) => (
                 <View key={row.name} style={styles.netRow}>
                   <Text style={styles.netName}>{row.name}</Text>
                   <Text style={styles.netWhat}>{row.what}</Text>
@@ -327,7 +333,7 @@ export default function WelcomeScreen() {
               Everything you&apos;ve just seen is free, forever. Premium adds a few extras, never anything you need.
             </Text>
             <View style={styles.netList}>
-              {PREMIUM_FEATURES.map((row) => (
+              {(aiEnabled ? PREMIUM_FEATURES : PREMIUM_FEATURES_NOAI).map((row) => (
                 <View key={row.name} style={styles.netRow}>
                   <Text style={styles.netName}>{row.name}</Text>
                   <Text style={styles.netWhat}>{row.what}</Text>
