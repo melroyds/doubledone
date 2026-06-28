@@ -131,6 +131,22 @@ Don't conflate them.
 - **Branch model when it's not just you** `[2]`: `feature/*` off `develop`, PR into `develop`,
   never push `main` directly. Solo, a single `main` is fine.
 
+## 9. The app-ready audit suite `[1]`
+
+Tests prove the code **works**. They do not prove the app is **ready**, that it says what it is, holds
+under pressure, includes everyone, and reads well. That is a different gate: a set of adversarial,
+multi-lens reviews you run before a launch or a redesign, each producing one tiered findings doc you burn
+down. Codified, stack-agnostic, in [AUDIT-SUITE.md](AUDIT-SUITE.md).
+
+- **The Tier-1 set is the launch gate** `[1]`: secrets, completeness (the inverse-lens, "does it say what
+  it is"), robustness + security, accessibility, copy, and the case-study. Tier 2 (design, translation)
+  runs when it applies; a commercial tier (pricing, store-readiness, monitoring) runs only if you take money.
+- **The one rule that makes them work:** every lens re-checks each finding with a skeptic before including
+  it. That filters false positives and spares your intentional choices.
+- **Audit before you rebuild** (§1): on a redesign, run the relevant audits first, then refine what is
+  close and rebuild only what is broken.
+- **The discipline of stopping applies:** do not run an audit whose findings you will not act on.
+
 ---
 
 ## The Day-0 checklist
@@ -148,6 +164,7 @@ Don't conflate them.
 [1] Coverage gate on · multi-stage CI (build/security) · rollback playbook in CLAUDE.md
 [1] Feedback channel shipped BEFORE you announce
 [1] Pre-launch smoke test on the real prod URL, real device, incognito
+[1] App-ready audit suite run before launch (AUDIT-SUITE.md) — the Tier-1 set, minimum
 [2] develop/feature branches · CONTRIBUTING · PR template · CHANGELOG · SECURITY.md
 ```
 
