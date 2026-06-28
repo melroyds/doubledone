@@ -60,7 +60,7 @@ import { parseDump, sweepElapsedNudges, type Task } from '@/lib/tasks';
 import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
 import { updateWidget } from '@/widget/update';
-import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
+import { useReducedMotion, useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { usePremium } from '@/lib/premium-provider';
 import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, isRecurring, pinFirst, resurfaceOpenParent, setBig, setPin, setSequence, tasksForToday, tinyParentTitle, toggleDoneOn, upcomingTasks } from '@/lib/today';
 
@@ -103,6 +103,10 @@ export default function TodayScreen() {
   const [combineTitle, setCombineTitle] = useState(''); // the editable umbrella title (AI-suggested)
   const [beingCombined, setBeingCombined] = useState<string[]>([]); // snapshot of the ids being folded
   const combineBusy = useRef(false); // guards the combine AI call from a double-fire
+  const [manualBdOpen, setManualBdOpen] = useState(false); // the no-AI "break it down by hand" modal (type the steps yourself)
+  const [manualBdId, setManualBdId] = useState<string | null>(null); // the task being broken down by hand (becomes the silent parent)
+  const [manualBdTitle, setManualBdTitle] = useState(''); // its title, for the modal heading
+  const [manualBdText, setManualBdText] = useState(''); // the typed steps, one per line
   const [nudgeOpen, setNudgeOpen] = useState(false);
   const [nudgePresets, setNudgePresets] = useState<NudgePreset[]>([]);
   const [sliceEditOpen, setSliceEditOpen] = useState(false); // the "track in steps" editor (split a task into parts)
@@ -152,6 +156,7 @@ export default function TodayScreen() {
   // useState, not useRef: reading a ref in render trips the React Compiler lint.
   const [closeRise] = useState(() => new Animated.Value(0));
   const styles = useThemedStyles(makeStyles);
+  const aiEnabled = useSettings().settings.aiEnabled; // false hides every gen-AI affordance on Today (Break it down, Strategise, Make it tiny, Combine, Plan my day)
   const theme = useTheme();
 
   // Re-read the persisted list on every focus, not only first mount, so returning
@@ -526,27 +531,28 @@ export default function TodayScreen() {
     exitSelect();
   }
 
-  // Combine (the inverse of Break-it-down): hand the selected one-offs' titles to the AI for
-  // an umbrella name, then show it editable. The AI is best-effort, a failure just opens the
-  // review with an empty name to type, so the flow never blocks. The fold runs on accept.
+  // Combine (the inverse of Break-it-down): the structural fold (combineTasks) is AI-free, so this works
+  // with AI off. The AI's only job is SUGGESTING the umbrella name; with AI off we start from a plain join
+  // the editable review lets the user keep or rename. Best-effort, so an AI failure never blocks the fold.
   async function openCombine() {
     if (combineBusy.current) return;
     const ids = combinable;
     if (ids.length < 2) return;
     combineBusy.current = true;
     setBeingCombined(ids);
-    affirm('Finding a name…');
     const titles = ids
       .map((id) => tasks.find((t) => t.id === id)?.title)
       .filter((t): t is string => typeof t === 'string' && t.length > 0);
-    let suggested = '';
-    try {
-      suggested = await combine(titles, aiLanguage);
-    } catch {
-      // best-effort: open the review with an empty name for the user to type
-    } finally {
-      combineBusy.current = false;
+    let suggested = titles.join(', ');
+    if (aiEnabled) {
+      affirm('Finding a name…');
+      try {
+        suggested = await combine(titles, aiLanguage);
+      } catch {
+        suggested = ''; // best-effort: open the review with an empty name for the user to type
+      }
     }
+    combineBusy.current = false;
     setCombineTitle(suggested);
     setCombineOpen(true);
   }
@@ -1059,6 +1065,56 @@ export default function TodayScreen() {
     void biteElephant(title, id);
   }
 
+  // Break it down WITHOUT AI: the no-AI twin of breakdownExisting. Same outcome (the task becomes a
+  // silent parent and its steps become children), but the user types the steps instead of the model
+  // writing them. Opened from the same "Break it down" affordance when AI is off, so the gesture is
+  // identical and only the source of the steps changes. No network, no questions, no phases.
+  function openManualBreakdown(id: string, title: string) {
+    setConfirmingId(null);
+    setManualBdId(id);
+    setManualBdTitle(title);
+    setManualBdText('');
+    setManualBdOpen(true);
+  }
+
+  function closeManualBreakdown() {
+    setManualBdOpen(false);
+    setManualBdId(null);
+    setManualBdTitle('');
+    setManualBdText('');
+  }
+
+  function manualBreakdownSubmit() {
+    const id = manualBdId;
+    const parent = id ? tasks.find((t) => t.id === id) : undefined;
+    const lines = manualBdText
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (!parent || lines.length === 0) {
+      closeManualBreakdown();
+      return;
+    }
+    const now = nowMs();
+    const link = { parentId: parent.id, parentTitle: parent.title };
+    const stepTasks: Task[] = lines.map((title, i) => ({
+      id: makeId(),
+      title,
+      done: false,
+      createdAt: now + i,
+      updatedAt: now + i,
+      ...link,
+    }));
+    // The real task goes silent (hidden, auto-completes + blooms when every step is done), exactly as an
+    // AI breakdown does, so the parent/child model is identical with AI on or off.
+    const withParent = tasks.map((t) => (t.id === parent.id ? { ...t, silentParent: true, updatedAt: now } : t));
+    commit([...withParent, ...stepTasks]);
+    track('breakdown.manual', { added: lines.length });
+    closeManualBreakdown();
+    exitSelect();
+    stepsLanded(reduced); // the dreaded task just got smaller
+  }
+
   // Make it tiny: the AI returns a 2-minute version; the real task goes silent as an OPEN
   // parent (it never auto-completes), and the tiny version becomes its child on Today.
   // Finishing the tiny version resurfaces the real task (see toggle), never losing it.
@@ -1138,7 +1194,7 @@ export default function TodayScreen() {
           <Pressable
             onPress={() => setRoomsOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel="Menu: Repeating, Routines, Lookback, Chart a course, Settings"
+            accessibilityLabel={`Menu: Repeating, Routines, Lookback, ${aiEnabled ? 'Chart a course, ' : ''}Settings`}
             hitSlop={8}
             style={({ pressed }) => [styles.roomsPill, pressed && styles.pressed]}
           >
@@ -1270,7 +1326,7 @@ export default function TodayScreen() {
             accessibilityLabel="Got it, hide this tip"
             style={styles.holdHint}
           >
-            <Text style={styles.holdHintText}>Hold a task for more: pin it, set a reminder, break it down, or make it tiny.</Text>
+            <Text style={styles.holdHintText}>{`Hold a task for more: pin it, set a reminder, ${aiEnabled ? 'break it down, or make it tiny.' : 'or break it down.'}`}</Text>
             <Text style={styles.holdHintDismiss}>Got it</Text>
           </Pressable>
         )}
@@ -1289,8 +1345,8 @@ export default function TodayScreen() {
               slices={task.slices ?? undefined}
               onAdvance={() => step(task.id, 1)}
               onRetreat={() => step(task.id, -1)}
-              onBreakdown={() => breakdownExisting(task.title, task.id)}
-              onMakeTiny={() => makeTiny(task.id, task.title)}
+              onBreakdown={aiEnabled ? () => breakdownExisting(task.title, task.id) : () => openManualBreakdown(task.id, task.title)}
+              onMakeTiny={aiEnabled ? () => makeTiny(task.id, task.title) : undefined}
               onDefer={() => deferTask(task.id)}
               suggestBreakdown={task.suggestBreakdown}
               selecting={selectMode}
@@ -1353,8 +1409,8 @@ export default function TodayScreen() {
                   slices={task.slices ?? undefined}
                   onAdvance={() => step(task.id, 1)}
                   onRetreat={() => step(task.id, -1)}
-                  onBreakdown={() => breakdownExisting(task.title, task.id)}
-                  onMakeTiny={() => makeTiny(task.id, task.title)}
+                  onBreakdown={aiEnabled ? () => breakdownExisting(task.title, task.id) : () => openManualBreakdown(task.id, task.title)}
+                  onMakeTiny={aiEnabled ? () => makeTiny(task.id, task.title) : undefined}
                   selecting={selectMode}
                   selected={selected.includes(task.id)}
                   onSelect={() => toggleSelect(task.id)}
@@ -1366,7 +1422,7 @@ export default function TodayScreen() {
         )}
         {loaded && !selectMode && (
           <View style={styles.dayActions}>
-            {spreadable.length >= 2 && (
+            {aiEnabled && spreadable.length >= 2 && (
               <>
                 {dayIsHeavy && <Text style={styles.strategiseNudge}>{"Today's looking full."}</Text>}
                 {dayIsHeavy && (
@@ -1441,7 +1497,9 @@ export default function TodayScreen() {
                   <Pressable
                     onPress={() => {
                       const one = tasks.find((y) => y.id === selected[0]);
-                      if (one) breakdownExisting(one.title, one.id);
+                      if (!one) return;
+                      if (aiEnabled) breakdownExisting(one.title, one.id);
+                      else openManualBreakdown(one.id, one.title);
                       exitSelect();
                     }}
                     accessibilityRole="button"
@@ -1473,7 +1531,7 @@ export default function TodayScreen() {
                     <Text style={[styles.selectAction, !premium && !onlyTask.pinnedAt && styles.selectActionDim]}>{onlyTask.pinnedAt ? 'Unpin' : 'Pin'}</Text>
                   </Pressable>
                 )}
-                {selected.length === 1 && (
+                {aiEnabled && selected.length === 1 && (
                   <Pressable
                     onPress={() => {
                       const one = tasks.find((y) => y.id === selected[0]);
@@ -1732,6 +1790,33 @@ export default function TodayScreen() {
                 onPress={combineAccept}
                 disabled={!combineTitle.trim()}
                 accessibilityLabel="Combine into one task"
+              />
+            </View>
+      </ModalCard>
+
+      <ModalCard visible={manualBdOpen} onClose={closeManualBreakdown}>
+            <Text style={styles.didTitle}>Break it into steps</Text>
+            <Text style={styles.didHint}>
+              {`Smaller pieces of "${manualBdTitle}". One step per line. They become a checklist under it, and it is done when they all are.`}
+            </Text>
+            <TextInput
+              style={styles.manualBdInput}
+              value={manualBdText}
+              onChangeText={setManualBdText}
+              placeholder={'first small step\nnext small step'}
+              placeholderTextColor={theme.colors.inkFaint}
+              multiline
+              accessibilityLabel="The steps, one per line"
+            />
+            <View style={styles.didActions}>
+              <Pressable onPress={closeManualBreakdown} accessibilityRole="button" accessibilityLabel="Not now" hitSlop={8}>
+                <Text style={styles.didCancel}>Not now</Text>
+              </Pressable>
+              <PrimaryButton
+                label="Break it down"
+                onPress={manualBreakdownSubmit}
+                disabled={manualBdText.trim().length === 0}
+                accessibilityLabel="Break the task into these steps"
               />
             </View>
       </ModalCard>
@@ -2269,6 +2354,23 @@ const makeStyles = (t: Theme) =>
       color: t.colors.ink,
       backgroundColor: t.colors.surface,
       marginTop: spacing.one,
+    },
+    manualBdInput: {
+      borderWidth: border.hair,
+      borderColor: t.colors.line,
+      borderRadius: radius.md,
+      paddingVertical: spacing.three,
+      paddingHorizontal: spacing.four,
+      fontSize: 17 * t.scale,
+      fontFamily: fonts.body,
+      color: t.colors.ink,
+      backgroundColor: t.colors.surface,
+      minHeight: 110,
+      maxHeight: 200,
+      textAlignVertical: 'top',
+      lineHeight: 26 * t.scale,
+      marginTop: spacing.one,
+      marginBottom: spacing.one,
     },
     didActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.five, marginTop: spacing.two },
     didCancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },

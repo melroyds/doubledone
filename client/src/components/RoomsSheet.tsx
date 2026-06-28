@@ -8,7 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { fonts, layout, PREMIUM_GRADIENT, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
-import { useThemedStyles } from '@/lib/theme-provider';
+import { useSettings, useThemedStyles } from '@/lib/theme-provider';
 
 type Props = {
   visible: boolean;
@@ -24,6 +24,7 @@ type Props = {
 
 export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookback, onChart, onPremium, onSettings, premium }: Props) {
   const styles = useThemedStyles(makeStyles);
+  const aiEnabled = useSettings().settings.aiEnabled; // hides the AI-only rooms (Chart a course) when AI is off
   // Close first, then navigate, so the sheet is already gone when the destination arrives.
   const go = (fn: () => void) => () => {
     onClose();
@@ -32,15 +33,18 @@ export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookba
   // A persistent door to the Premium offer (the audit gap: a willing buyer could only find it at the bottom of
   // Settings). A gradient dot marks it as the one special row; it routes to /premium, which itself shows the
   // offer to a free user and a manage view to a subscriber. Never a hard sell, just findable.
-  const rooms: { key: string; label: string; hint: string; onPress: () => void; premium?: boolean; gradient?: boolean }[] = [
+  // With AI off, the Premium hint drops the AI value ("more AI", keepsakes) for the non-AI surface (colour
+  // themes), so the persistent menu never advertises AI to a user who turned it off.
+  const premiumFreeHint = aiEnabled ? 'Keepsakes, more AI, your colour' : 'Your colour theme, and more';
+  const rooms: { key: string; label: string; hint: string; onPress: () => void; premium?: boolean; gradient?: boolean; ai?: boolean }[] = [
     { key: 'repeating', label: 'Repeating', hint: 'Tasks that come back', onPress: go(onRepeating) },
     { key: 'routines', label: 'Routines', hint: 'Gentle rituals, no streaks', onPress: go(onRoutines) },
     { key: 'lookback', label: 'Lookback', hint: 'Everything you finished', onPress: go(onLookback) },
-    { key: 'chart', label: 'Chart a course', hint: 'Plan toward a goal', onPress: go(onChart), premium: true },
+    { key: 'chart', label: 'Chart a course', hint: 'Plan toward a goal', onPress: go(onChart), premium: true, ai: true },
     {
       key: 'premium',
       label: 'Premium',
-      hint: premium ? 'Manage your subscription' : 'Keepsakes, more AI, your colour',
+      hint: premium ? 'Manage your subscription' : premiumFreeHint,
       onPress: go(onPremium),
       gradient: true,
     },
@@ -55,7 +59,7 @@ export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookba
         <Pressable style={styles.scrim} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close menu" />
         <View style={styles.sheet}>
           <Text style={styles.title}>Menu</Text>
-          {rooms.map((r) => (
+          {rooms.filter((r) => aiEnabled || !r.ai).map((r) => (
             <Pressable
               key={r.key}
               onPress={r.onPress}

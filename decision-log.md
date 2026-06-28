@@ -3526,3 +3526,125 @@ the refund window is 7 days; governing law Victoria; the annual saving left as t
 number cannot drift across surfaces. This is a reasonable, ACL-aware DRAFT, explicitly not legal advice, with a clear
 in-file note that a lawyer's once-over is cheap insurance now that real money moves. Decided AGAINST blocking the v1
 docs pass on that review: terms being live beats the bigger risk of nothing at all, and they are trivially updated.
+
+## 2026-06-28 AI-optional: the app whole without it (for the AI-wary)
+
+Real user feedback: someone refused to use DoubleDone because it championed gen-AI. That instinct is a real and
+growing segment (privacy, ethics, anti-hype) and it overlaps the neurodivergent + privacy-conscious audience the
+app already serves. The brand is already local-first and anti-hype, so honouring it is coherent, not a bolt-on.
+
+The decision: NOT a "no-AI mode" (a toggle to manage), but make **AI genuinely optional and the app whole without
+it.** A single set-once choice (`aiEnabled`, default ON so nothing changes for an existing user), with the AI
+affordances hidden when off, so an AI-wary user gets a calm, fully-offline to-do app and never has AI pushed at
+them. Two principles shaped it:
+
+- **Asymmetric confirmation.** Turning AI OFF is the safe, private direction, so it is instant with a warm line
+  ("AI is off. Everything stays on your device."). Turning AI ON is when text leaves the device, so it asks for a
+  clear, informed tap first (an inline card naming what is sent, and to whom). Decided AGAINST a symmetric
+  type-to-confirm: that pattern is for irreversible / destructive actions (account deletion), and confirming the
+  way to MORE privacy is friction protecting nothing. The deliberate, in-writing confirmation is satisfied by a
+  clearly-worded card and one tap, not by making an ADHD user re-type a magic word.
+- **Never-shame cuts both ways.** The app must not frame no-AI as "the brave stand" or valorise it, because that
+  shames the AI-using half of the audience and breaks the one rule. The dignity for the AI-wary is being trusted to
+  just not use AI, no ceremony; the product makes the stand on their behalf by how it is built, not by making them
+  perform it.
+
+The settings model gains its second deliberate exception to "remove friction, never add a setting" (theme / text /
+motion are the access-need exception; `aiEnabled` is the values/privacy one).
+
+Built on the `premium` branch (no deploy until Melroy reviews): the `aiEnabled` setting + the Settings control
+(verified in preview, off instant + warm, on shows the informed card). Hiding the AI affordances when off is now DONE across
+capture (BrainDump), Today (Strategise, Break it down, Make it tiny, Combine, Plan my day, the per-task Break-down +
+Make-tiny), the Rooms menu (the Chart a course entry) + the Chart screen (a redirect), Lookback (the scrapbook card +
+the weekly reflection), and the first-run triage, verified by a 3-agent adversarial leak sweep and in preview. The
+one break the sweep caught (an un-gated per-task Make-it-tiny handler) is fixed. Speak (on-device dictation, no
+server call) deliberately stays. Remaining for Melroy's review: a manual "break it into steps yourself" path so a
+no-AI user can still decompose (the one real gap, since Break-it-down is AI-only), plus minor first-run copy (the
+"Sort for me" button label on an AI-off onboarding replay). Decided against rebuilding triage / Strategise as non-AI:
+manual placement already IS the no-AI version of those.
+
+## 2026-06-28 AI-optional, part 2: the choice moves into the introduction
+
+The setting existed but the only door to it was Settings, AND the first-run itself makes an AI call (the
+capture-screen triage that sorts the first dump). So an AI-objector got AI used on their data BEFORE they could
+ever reach the toggle. The Settings flip alone closed the barn door after the horse had bolted. Melroy's call: the
+introduction must let the user choose AI-free before any AI touches their data.
+
+Designed by a multi-agent workflow (four independent design approaches across distinct lenses, three adversarial
+judges, one synthesis), judged against a HARD requirement (an objector reaches Today having made zero AI calls on
+their data) and the calm spine. The winner, grafted up:
+
+- **A quiet sibling action on capture, not a forced fork.** The default stays AI-on. The capture screen keeps
+  "Sort for me" as its primary and gains one calm secondary link beneath it, "I'll sort it myself", which persists
+  `aiEnabled:false` and runs the same capture fully on-device. The choice falls out of an action the user is
+  already taking, so the overwhelmed majority pays no decision tax and the objector has a plainly visible,
+  dignified opt-out. Decided AGAINST a forced "AI: yes or no?" screen: an extra gate at the door is the exact
+  friction the spine forbids, and it would force the app to editorialise about AI (breaking never-preach).
+- **The opt-out precedes the only first-run AI call.** "I'll sort it myself" sets the flag then sorts locally
+  (everything on today, no triage call), so consent-before-use is airtight. Verified in preview: the opt-out path
+  makes ZERO network calls to the AI backend, persists `aiEnabled:false`, and lands on a calm reveal.
+- **The stale-closure fix (load-bearing).** `makeDay` now takes the chosen boolean as a parameter rather than
+  reading the just-set hook value (stale within the same tick). The capture primary's label is computed from the
+  same `aiEnabled` read ("Sort for me" on, "Put them on today" off) so label and behaviour cannot desync.
+- **Reverse direction stays asymmetric.** Turning AI back ON is never inline here; the AI-off capture link reads
+  "Change in Settings" and routes to the Settings consent card, so the only one-tap inline write is the safe
+  opt-OUT. Matches the Settings asymmetry exactly.
+- **The honesty wrinkle, fixed at the root.** The handoff used to claim "nothing leaves your device" right after
+  the triage sent the dump out. It is now conditional: literally true when AI is off, and an honest "the AI
+  features send the text you choose to Claude... nothing else" when on. Plus one always-on neutral line on capture
+  names what each button does. The three honesty surfaces (capture disclosure, handoff line, Settings card) are now
+  a LINKED SET; change one, change all, so they never drift.
+
+Three tone calls made (each a one-line swap if Melroy vetoes): the capture disclosure line is always-on rather than
+only-if-testing-shows-confusion (airtight consent over a sliver of calm); it names "Claude" specifically rather
+than a vague "an AI" (privacy-wary users trust a named processor); and the AI-off reveal gets a calm
+forward-pointing line ("Sorted on your device... open any task later to break it down yourself") so the local sort
+never reads as a downgrade.
+
+Telemetry: `track('ai.disabled', { from: 'welcome' })` fires only on the opt-out tap (the standing-default "Sort
+for me" writes nothing, so no event there), letting the moat tell an onboarding opt-out from a later Settings flip.
+This also CLOSES the earlier "minor first-run copy" gap (the AI-off replay now shows "Put them on today" / "Change
+in Settings", not a misleading "Sort for me"). Still open: the manual "break it into steps yourself" path for a
+no-AI user. QA: ONB-03 + SET-09/SET-10 added to the E2E suite.
+
+## 2026-06-28 AI-optional, part 3: the manual Break-it-down and Combine, and a copy-leak sweep
+
+The two structural task-shaping tools, Break-it-down and Combine, were AI-only and vanished when AI was off,
+leaving a no-AI user unable to split a big task or merge related ones. Built their no-AI twins, and the insight
+that made it cheap: in both, the AI only supplies the WORDS; the structural operation is already AI-free.
+
+- **Combine** was the easy one. The fold itself (`combineTasks`) is a pure, AI-free function that already takes the
+  umbrella title as a parameter; the AI only suggested that title. So `openCombine` now skips the AI call when AI
+  is off and prefills the editable name with the selected titles joined by ', '. The select-bar Combine gate
+  dropped its `aiEnabled` condition. The AI-ON path is byte-identical (verified: the join is overwritten inside the
+  `aiEnabled` branch, and the busy guard is still correct without the old try/finally).
+- **Break it down** needed a small new modal. With AI off, the same "Break it down" affordance (per-task AND the
+  select bar, same label so the gesture is identical) opens a modal where the user types steps, one per line; each
+  becomes a child and the task becomes a `silentParent`, reusing the EXACT parent/child model `bdAccept` uses, so
+  it auto-completes and blooms when every step is done. No network, no questions, no phases. Make-it-tiny stays
+  AI-only (its no-AI form is just "add a small task", which capture already does), a deliberate scope line.
+
+Decided AGAINST relabelling the manual variants ("Break into steps", etc.): keeping the label "Break it down" /
+"Break down" identical on and off makes the AI a swappable convenience layer over a fully-working manual core, the
+cleaner story, and avoids confusion with the separate "Steps" (slices) action.
+
+Then an adversarial sweep of the WHOLE no-AI mode (three lenses: leak hunt, AI-on regression, manual-path edge
+cases) confirmed the manual paths correct and the AI-on paths un-regressed, and caught SIX copy/label leaks where
+the app still NAMED or advertised an AI-only feature to a user who had turned AI off. The two worst were exposed by
+the new onboarding opt-out: a user who opts out on the capture screen was then walked through a safety-net screen
+naming Make-it-tiny + Lighten-today and a Premium screen selling five AI features. All six fixed and verified in
+preview:
+- Onboarding safety-net: with AI off, shows only Break-it-down (filtered).
+- Onboarding Premium step: with AI off, shows the non-AI premium value (colour themes), not the AI suite.
+- Settings Premium card sub-line, the Today Menu pill a11y label ("Chart a course"), the Today long-press coachmark
+  ("make it tiny"), and the Rooms Premium hint ("more AI"): all now conditional on `aiEnabled`.
+
+The rule this crystallises: AI-off must hide the affordance AND never NAME, advertise, or route to an AI feature,
+including in accessibility labels and marketing copy. QA: AI-01b + TOD-20b added. This closes the no-AI decompose
+gap flagged in part 1; the no-AI mode is now feature-complete.
+
+**Follow-up (same day, on Melroy's eye):** stripping the AI items left onboarding screens 4 (safety-net) and 6
+(Premium) with a single item each, reading as broken. Fixed by REPLACING, not removing: with AI off the safety-net
+shows three on-device tools (Break it down, Focus on one thing, Make it a low day) and Premium shows the two non-AI
+premium features (colour themes, Pin). The principle, added to the rule above: a no-AI screen should be re-pointed
+at the non-AI equivalents, not emptied.

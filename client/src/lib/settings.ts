@@ -3,6 +3,9 @@
 // one deliberate exception to "remove friction, never add a setting": for this
 // audience theme, text size and motion are access needs, not config knobs, so
 // the page stays scoped to comfort/accessibility and never an everything-dashboard.
+// aiEnabled is the other deliberate exception: a values / privacy choice (use the AI
+// features, or run the app fully offline and AI-free), which for an AI-wary user is an
+// access need too. Default on, so nothing changes for an existing user until they choose.
 
 export type ThemePref = 'system' | 'light' | 'dark';
 export type TextSize = 'small' | 'default' | 'large';
@@ -14,11 +17,12 @@ export type Settings = {
   textSize: TextSize;
   motion: MotionPref;
   themePreset: ThemeName; // Premium: the full colour theme (Dusk is the default and the free state)
+  aiEnabled: boolean; // whether the AI features are offered at all; false = a fully offline, AI-free app
 };
 
 // System-following, default size, system-following motion: the calmest defaults,
 // and the same behaviour the app had before the page existed.
-export const DEFAULT_SETTINGS: Settings = { theme: 'system', textSize: 'default', motion: 'system', themePreset: 'dusk' };
+export const DEFAULT_SETTINGS: Settings = { theme: 'system', textSize: 'default', motion: 'system', themePreset: 'dusk', aiEnabled: true };
 
 const THEME_PREFS: readonly ThemePref[] = ['system', 'light', 'dark'];
 const TEXT_SIZES: readonly TextSize[] = ['small', 'default', 'large'];
@@ -61,6 +65,7 @@ export function parseSettings(raw: string | null | undefined): Settings {
       textSize: TEXT_SIZES.includes(o.textSize as TextSize) ? (o.textSize as TextSize) : DEFAULT_SETTINGS.textSize,
       motion: MOTION_PREFS.includes(o.motion as MotionPref) ? (o.motion as MotionPref) : DEFAULT_SETTINGS.motion,
       themePreset: THEME_NAMES.includes(o.themePreset as ThemeName) ? (o.themePreset as ThemeName) : DEFAULT_SETTINGS.themePreset,
+      aiEnabled: typeof o.aiEnabled === 'boolean' ? o.aiEnabled : DEFAULT_SETTINGS.aiEnabled,
     };
   } catch {
     return DEFAULT_SETTINGS;

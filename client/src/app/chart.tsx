@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,7 +16,7 @@ import { spreadDueDates } from '@/lib/spread';
 import { loadTasks, saveTasks } from '@/lib/storage';
 import { type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
-import { useTheme, useThemedStyles } from '@/lib/theme-provider';
+import { useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 // Module-scope id + clock, so the handlers stay pure for the render linter (the same reason index.tsx keeps
 // makeId / nowMs at module scope).
@@ -40,6 +40,7 @@ export default function ChartScreen() {
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
+  const aiEnabled = useSettings().settings.aiEnabled;
   const { premium, loading: premiumLoading } = usePremium();
   const today = useMemo(() => new Date(), []);
   const [goal, setGoal] = useState('');
@@ -130,6 +131,10 @@ export default function ChartScreen() {
   }
 
   const selectedCount = steps.filter((s) => s.checked).length;
+
+  // Chart a course is wholly an AI feature; with AI off it has no non-AI value, so send the user home
+  // (the menu entry is already hidden, this guards a direct visit to /chart).
+  if (!aiEnabled) return <Redirect href="/today" />;
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + spacing.three }]}>

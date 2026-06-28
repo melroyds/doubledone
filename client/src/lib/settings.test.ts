@@ -65,6 +65,7 @@ describe('parseSettings', () => {
       textSize: 'default',
       motion: 'system',
       themePreset: 'dusk',
+      aiEnabled: true,
     });
   });
 
@@ -75,12 +76,19 @@ describe('parseSettings', () => {
   });
 
   it('preserves a fully valid blob', () => {
-    const s: Settings = { theme: 'light', textSize: 'large', motion: 'reduce', themePreset: 'rose' };
+    const s: Settings = { theme: 'light', textSize: 'large', motion: 'reduce', themePreset: 'rose', aiEnabled: false };
     expect(parseSettings(serializeSettings(s))).toEqual(s);
   });
 
   it('validates the theme preset, falling back to dusk for an unknown one', () => {
     expect(parseSettings(JSON.stringify({ themePreset: 'sage' })).themePreset).toBe('sage');
     expect(parseSettings(JSON.stringify({ themePreset: 'neon' })).themePreset).toBe('dusk');
+  });
+
+  it('parses aiEnabled, defaulting to on for a missing or non-boolean value', () => {
+    expect(parseSettings(JSON.stringify({ aiEnabled: false })).aiEnabled).toBe(false);
+    expect(parseSettings(JSON.stringify({ aiEnabled: true })).aiEnabled).toBe(true);
+    expect(parseSettings(JSON.stringify({})).aiEnabled).toBe(true);
+    expect(parseSettings(JSON.stringify({ aiEnabled: 'no' })).aiEnabled).toBe(true);
   });
 });
