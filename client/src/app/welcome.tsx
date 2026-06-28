@@ -51,6 +51,14 @@ const SAFETY_NET: { name: string; what: string }[] = [
   { name: 'Lighten today', what: 'a too-full day, eased by moving a few tasks to later days.' },
 ];
 
+// With AI off, the safety net swaps the AI tools (Make it tiny, Lighten today) for the on-device ones that serve
+// the same "you're not alone when it feels too big" purpose, so the screen stays full and all three really work.
+const SAFETY_NET_NOAI: { name: string; what: string }[] = [
+  { name: 'Break it down', what: 'into small, doable steps you write yourself.' },
+  { name: 'Focus on one thing', what: 'hide the rest and keep just one task in view.' },
+  { name: 'Make it a low day', what: 'ease a heavy day when you have less to give.' },
+];
+
 // The Premium suite, introduced once at the end of onboarding. The calm loop is free; this is the
 // "when you want more" close. Lead with the scrapbook (the emotional payoff), and never a hard sell:
 // it plants the idea and points to Settings, rather than interrupting first use with a paywall.
@@ -66,6 +74,7 @@ const PREMIUM_FEATURES: { name: string; what: string }[] = [
 // only the non-AI premium value, so a user who just opted out is never sold what they have turned off.
 const PREMIUM_FEATURES_NOAI: { name: string; what: string }[] = [
   { name: 'Your colour', what: 'seven calm palettes for the whole app, yours to choose.' },
+  { name: "Pin today's one thing", what: 'keep your single most important task at the top.' },
 ];
 
 export default function WelcomeScreen() {
@@ -292,7 +301,7 @@ export default function WelcomeScreen() {
             <Text style={styles.h1}>When something feels too big, you&apos;re not alone with it.</Text>
             <Text style={styles.lead}>Hand a dreaded task to DoubleDone, and it helps you start:</Text>
             <View style={styles.netList}>
-              {SAFETY_NET.filter((row) => aiEnabled || row.name === 'Break it down').map((row) => (
+              {(aiEnabled ? SAFETY_NET : SAFETY_NET_NOAI).map((row) => (
                 <View key={row.name} style={styles.netRow}>
                   <Text style={styles.netName}>{row.name}</Text>
                   <Text style={styles.netWhat}>{row.what}</Text>

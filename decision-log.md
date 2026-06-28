@@ -3642,3 +3642,9 @@ preview:
 The rule this crystallises: AI-off must hide the affordance AND never NAME, advertise, or route to an AI feature,
 including in accessibility labels and marketing copy. QA: AI-01b + TOD-20b added. This closes the no-AI decompose
 gap flagged in part 1; the no-AI mode is now feature-complete.
+
+**Follow-up (same day, on Melroy's eye):** stripping the AI items left onboarding screens 4 (safety-net) and 6
+(Premium) with a single item each, reading as broken. Fixed by REPLACING, not removing: with AI off the safety-net
+shows three on-device tools (Break it down, Focus on one thing, Make it a low day) and Premium shows the two non-AI
+premium features (colour themes, Pin). The principle, added to the rule above: a no-AI screen should be re-pointed
+at the non-AI equivalents, not emptied.
