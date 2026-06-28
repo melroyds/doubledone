@@ -3666,3 +3666,16 @@ but the policy never mentioned this log. Fixed both ways:
 
 Decided against a softer "about a day" wording: the design is a hard 24h rolling window and the data now genuinely
 is, so "no more than 24 hours" is the honest claim. Full pack: docs/play-store-submission-pack.md item 1.
+
+## 2026-06-29 Play readiness item 3: point-of-use AI disclosure, not a consent modal
+
+Google's third-party-AI guidance prefers a prominent disclosure plus an affirmative tap before personal data goes
+to a third party. The onboarding capture choice covers this for users who go through it, but someone who SKIPS
+onboarding could reach the everyday "Sort for me" (which had no point-of-use disclosure) and send tasks to Anthropic
+without one. Two options were put to Melroy: (A) a calm point-of-use line on the everyday capture, or (B) a one-time
+"Use AI / Stay offline" consent modal for the skip cohort. **Melroy chose A.** A faint line sits above the AI
+actions, shown only when AI is on and there is text: "Sort and Break it down send what you type to Anthropic's
+Claude." Decided AGAINST B (the modal): it adds a fork/friction against the calm spine for a requirement the audit
+rated debatable, whereas the point-of-use line satisfies disclosure-before-egress for everyone with no modal.
+Escalate to B only if a reviewer ever flags it. (BreakdownQuestions already carries its own disclosure; this closes
+the main "Sort for me" path.)

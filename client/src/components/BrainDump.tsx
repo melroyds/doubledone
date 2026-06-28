@@ -416,6 +416,10 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
         </Pressable>
       )}
 
+      {aiEnabled && value.trim().length > 0 && (
+        <Text style={styles.aiNote}>{"Sort and Break it down send what you type to Anthropic's Claude."}</Text>
+      )}
+
       <View style={styles.actions}>
         {aiEnabled &&
           (lineCount >= 2 ? (
@@ -541,6 +545,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   sliceField: { gap: spacing.two },
   sliceHint: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body },
   sortHint: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.one },
+  aiNote: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
   startRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
   startLabel: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
   startBtn: {
