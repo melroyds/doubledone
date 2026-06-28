@@ -968,6 +968,8 @@ export default {
         try {
           const since = Date.now() - 86_400_000;
           const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM scrapbook_log WHERE ip = ?1 AND created_at >= ?2').bind(ip, since).first<{ n: number }>();
+          // Purge rows past the 24h window so this abuse log never holds an IP longer than the privacy policy promises.
+          await env.DB.prepare('DELETE FROM scrapbook_log WHERE created_at < ?1').bind(since).run();
           if (row && overDailyCap(row.n)) {
             return Response.json({ error: 'rate_limited' }, { status: 429, headers: cors });
           }
@@ -1043,5 +1045,22 @@ export default {
     // D1 for trouble (spend / errors / abuse), and once a day send the pulse. Isolated
     // from the nudge above so a failure in one never blocks the other. See monitor.ts.
     ctx.waitUntil(runMonitor(env, Date.now()));
+    // Purge abuse-log IPs past the 24h window every tick, so the privacy policy's "no more than 24 hours" holds
+    // even through a stretch with no scrapbook traffic (the request path prunes too; this is the no-traffic backstop).
+    if (env.DB) {
+      try {
+        ctx.waitUntil(
+          env.DB.prepare('DELETE FROM scrapbook_log WHERE created_at < ?1')
+            .bind(Date.now() - 86_400_000)
+            .run()
+            .then(
+              () => undefined,
+              () => undefined,
+            ),
+        );
+      } catch {
+        // fail open: a transient store error must never break the tick; the request path also prunes
+      }
+    }
   },
 } satisfies ExportedHandler<Env>;

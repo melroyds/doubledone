@@ -22,7 +22,7 @@ export default function PrivacyScreen() {
         <BackLink fallback="/settings" />
 
         <Text style={styles.title}>Privacy</Text>
-        <Text style={styles.updated}>Last updated 27 June 2026.</Text>
+        <Text style={styles.updated}>Last updated 28 June 2026.</Text>
 
         <Text style={styles.lead}>
           DoubleDone is built to need almost nothing from you. It runs on your device, and nothing leaves it unless you
@@ -43,8 +43,8 @@ export default function PrivacyScreen() {
         <View style={styles.section}>
           <Text style={styles.heading}>The AI features</Text>
           <Text style={styles.body}>
-            Break it down, Lighten today, and Sort for me send the text you typed to our server, which passes it to
-            Anthropic&apos;s Claude to do the work. Anthropic does not train their models on it, and does not keep your
+            The AI features (such as Break it down, Sort, Combine, and the photo scan) send the text or photo you
+            choose to our server, which passes it to Anthropic&apos;s Claude to do the work. Anthropic does not train their models on it, and does not keep your
             text or the response by default. Anything flagged for safety or legal reasons can be held by Anthropic for
             up to two years. Separately, we keep a copy on our side, without your name, account, or IP address, to
             improve how the app breaks tasks down for everyone. It is pseudonymous and aggregate, never tied to you and
@@ -68,7 +68,9 @@ export default function PrivacyScreen() {
           To keep DoubleDone up and within budget, our systems alert the owner when something needs attention, for
           example AI spending nearing its cap, an unusual spike in errors, or signs of abuse. These alerts hold only
           numbers, error messages, and the names of the parts of the system involved. They never contain your tasks,
-          your email, your account, or your IP address.
+          your email, your account, or your IP address. Separately, to stop abuse of the AI keepsake image, our systems
+          briefly note the network address a request comes from, for no more than 24 hours, and never tied to your
+          account.
         </Section>
 
         <Section styles={styles} heading="What we never do">

@@ -3648,3 +3648,21 @@ gap flagged in part 1; the no-AI mode is now feature-complete.
 shows three on-device tools (Break it down, Focus on one thing, Make it a low day) and Premium shows the two non-AI
 premium features (colour themes, Pin). The principle, added to the rule above: a no-AI screen should be re-pointed
 at the non-AI equivalents, not emptied.
+
+## 2026-06-28 Play readiness: privacy IP disclosure + a real 24h abuse-log purge
+
+The Play Data Safety readiness audit found the one form-vs-policy gap (a mismatch is an automatic Play rejection):
+the scrapbook abuse backstop logs the caller IP (CF-Connecting-IP) in D1 `scrapbook_log` for a rolling-24h cap, but
+the privacy policy leaned on "no IP". Those "no IP" claims were TRUE for the telemetry copy and the owner alerts,
+but the policy never mentioned this log. Fixed both ways:
+
+- **Disclosed it** in `privacy.tsx` + `privacy.html` ("to stop abuse of the AI keepsake image, our systems briefly
+  note the network address a request comes from, for no more than 24 hours, and never tied to your account"), and
+  widened the AI-features list to "(such as Break it down, Sort, Combine, and the photo scan)" so no reviewer thinks
+  an undisclosed feature sends data. Bumped "Last updated" to 28 June.
+- **Made the claim true:** `scrapbook_log` rows past 24h are now purged on every scrapbook request (self-cleaning
+  with traffic) AND on the hourly cron tick (the no-traffic backstop), so an IP is never held beyond the window.
+  Previously rows were only filtered by query, never deleted. The server change needs a Worker deploy to take effect.
+
+Decided against a softer "about a day" wording: the design is a hard 24h rolling window and the data now genuinely
+is, so "no more than 24 hours" is the honest claim. Full pack: docs/play-store-submission-pack.md item 1.
