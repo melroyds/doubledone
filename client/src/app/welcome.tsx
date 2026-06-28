@@ -71,7 +71,8 @@ export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
-  const aiEnabled = useSettings().settings.aiEnabled;
+  const { settings, setSettings } = useSettings();
+  const aiEnabled = settings.aiEnabled;
   const [step, setStep] = useState<Step>('welcome');
   const [dump, setDump] = useState('');
   const [busy, setBusy] = useState(false);
@@ -113,7 +114,7 @@ export default function WelcomeScreen() {
   // "Sort it for me": run the captured lines through the real triage (the same one the app's
   // Sort for me uses), then reveal. A timeout AND a catch both fall back to "everything on
   // today", so a slow or failed call never stalls or breaks the first impression.
-  async function makeDay() {
+  async function makeDay(useAi: boolean) {
     if (busy) return;
     const lines = dump
       .split('\n')
@@ -124,7 +125,7 @@ export default function WelcomeScreen() {
     const today = new Date();
     const now = Date.now();
     let tasks: Task[];
-    if (!aiEnabled) {
+    if (!useAi) {
       // AI off: skip the triage call entirely; everything lands on today, no server call.
       tasks = triageToTasks(lines, [], today, now, makeId);
     } else {
@@ -144,13 +145,23 @@ export default function WelcomeScreen() {
     track('welcome.triaged', { total: lines.length });
   }
 
+  // The onboarding opt-out: choose AI-free BEFORE any triage runs. Writes the same aiEnabled flag the
+  // whole app reads, logs where in the funnel the choice was made, then sorts locally. We pass the chosen
+  // value straight into makeDay rather than reading the just-set hook value (stale within the same tick).
+  // The reverse direction (back to AI) is deliberately NOT inline; it goes through Settings' consent card.
+  function sortItMyself() {
+    setSettings({ aiEnabled: false });
+    track('ai.disabled', { from: 'welcome' });
+    void makeDay(false);
+  }
+
   function onPrimary() {
     switch (step) {
       case 'welcome':
         setStep('capture');
         break;
       case 'capture':
-        void makeDay();
+        void makeDay(aiEnabled);
         break;
       case 'reveal':
         setStep('safetynet');
@@ -175,6 +186,9 @@ export default function WelcomeScreen() {
   // On capture, hold back the primary until there's something to sort, so an empty tap can
   // never bail out of onboarding. Skip (top-right) stays the deliberate way to leave.
   const captureEmpty = step === 'capture' && dump.trim().length === 0;
+  // The capture primary's label tracks the AI choice, so a user who opted out never sees a button that
+  // still says "Sort for me". Derived from the same aiEnabled read that makeDay branches on, so they can't desync.
+  const primaryLabel = step === 'capture' ? (aiEnabled ? 'Sort for me' : 'Put them on today') : PRIMARY[step];
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + spacing.three, paddingBottom: insets.bottom + spacing.four }]}>
@@ -233,6 +247,11 @@ export default function WelcomeScreen() {
               autoFocus
               accessibilityLabel="Your brain-dump, one thing per line"
             />
+            <Text style={styles.speak}>
+              {aiEnabled
+                ? "Sort for me sends these lines to Claude to order your day. I'll sort it myself keeps everything on this device."
+                : 'On this device only. Nothing here is sent anywhere.'}
+            </Text>
             <Text style={styles.speak}>Prefer to talk? On web, tap Speak and say them out loud.</Text>
           </View>
         )}
@@ -243,6 +262,9 @@ export default function WelcomeScreen() {
             <Text style={styles.lead}>
               {todayTasks.length} for today.{laterCount > 0 ? ' The rest is waiting calmly for later.' : ''}
             </Text>
+            {!aiEnabled ? (
+              <Text style={styles.lead}>Sorted on your device, all on today for now. Open any task later to break it down yourself.</Text>
+            ) : null}
             <View style={styles.revealList}>
               {todayTasks.map((task) => (
                 <View key={task.id} style={styles.revealRow}>
@@ -327,7 +349,11 @@ export default function WelcomeScreen() {
             </Text>
             <Text style={styles.lead}>Your Lookback, routines and repeating tasks all live in the Menu, top right.</Text>
             <Text style={styles.ethos}>today is finite and achievable</Text>
-            <Text style={styles.fine}>Private by default, nothing leaves your device. Want it on your phone and your laptop too? Sign in to sync, always optional.</Text>
+            <Text style={styles.fine}>
+              {aiEnabled
+                ? 'On your device by default. The AI features send the text you choose to Claude to do their work, nothing else. Want it on your phone and your laptop too? Sign in to sync, always optional.'
+                : 'Private by default, nothing leaves your device. Want it on your phone and your laptop too? Sign in to sync, always optional.'}
+            </Text>
           </View>
         )}
 
@@ -338,8 +364,19 @@ export default function WelcomeScreen() {
             ))}
           </View>
           {!captureEmpty && (
-            <PrimaryButton label={PRIMARY[step]} onPress={onPrimary} loading={busy} accessibilityLabel={PRIMARY[step]} />
+            <PrimaryButton label={primaryLabel} onPress={onPrimary} loading={busy} accessibilityLabel={primaryLabel} />
           )}
+          {step === 'capture' && !captureEmpty && !busy ? (
+            aiEnabled ? (
+              <Pressable onPress={sortItMyself} accessibilityRole="button" accessibilityLabel="Sort it myself, keep everything on this device" hitSlop={8}>
+                <Text style={styles.optOut}>I&apos;ll sort it myself</Text>
+              </Pressable>
+            ) : (
+              <Pressable onPress={() => router.push('/settings')} accessibilityRole="button" accessibilityLabel="Change AI in Settings" hitSlop={8}>
+                <Text style={styles.optOut}>Change in Settings</Text>
+              </Pressable>
+            )
+          ) : null}
         </View>
       </ScrollView>
     </View>
@@ -361,6 +398,7 @@ const makeStyles = (t: Theme) =>
     h1: { color: t.colors.ink, fontSize: 30 * t.scale, fontFamily: fonts.sans, fontWeight: '400', letterSpacing: -0.3, lineHeight: 36 * t.scale },
     lead: { color: t.colors.inkSoft, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 26 * t.scale },
     speak: { color: t.colors.inkFaint, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
+    optOut: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center' },
     fine: { color: t.colors.inkSoft, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 26 * t.scale, marginTop: spacing.two },
     input: {
       minHeight: 150,

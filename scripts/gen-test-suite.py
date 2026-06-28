@@ -203,6 +203,9 @@ CASES = [
     ("ONB-02", "Onboarding", "P2", "Replay the welcome from Settings (non-destructive)",
      "With tasks already on Today, open Settings -> 'See the welcome again'. Walk Begin -> dump a couple of lines -> Sort it for me -> This looks right -> through to Open Today.",
      "The welcome replays identically (all 7 screens), but the new tasks MERGE into the existing list (nothing overwritten) and the onboarded flag is untouched. Skipping returns to Today with no change.", "Both"),
+    ("ONB-03", "Onboarding", "P1", "Choose AI-free in the introduction (zero egress)",
+     "On a fresh run, Begin, then on the capture screen type a couple of lines. Read the line under the box, then tap 'I'll sort it myself' instead of 'Sort for me'. Walk through to Open Today. To prove zero egress, watch the network: nothing should reach the AI backend.",
+     "The capture screen always shows one neutral line naming what each button does ('Sort for me sends these lines to Claude to order your day. I'll sort it myself keeps everything on this device'). Tapping 'I'll sort it myself' sets AI off, puts every line on today with NO call to the AI backend, and the reveal adds 'Sorted on your device, all on today for now.' The final screen reads 'Private by default, nothing leaves your device' (now literally true). AI stays off afterwards (Settings shows Off). Tapping 'Sort for me' instead gives the normal AI triage. Replaying the welcome while AI is off shows the primary as 'Put them on today' and the link as 'Change in Settings'.", "Both"),
 
     # --- AI: Bite the Elephant (decompose) -----------------------------------
     ("AI-01", "AI decompose", "P1", "Break down a dreaded task",
@@ -357,6 +360,12 @@ CASES = [
     ("SET-08", "Settings", "P2", "Daily reminder time picker",
      "Turn 'Daily reminder' On, then use the - / + stepper that appears under it to change the time. Step down toward 12:00 AM and up toward 11:00 PM (the ends disable). Reload and re-open Settings; also turn the reminder on from the Today footer and confirm it uses the chosen time.",
      "A '- TIME +' stepper shows ONLY while the reminder is On, with a calm 12-hour label (e.g. '9:00 AM'). Each tap moves the hour by one and the label updates instantly; the minus disables at 12:00 AM, the plus at 11:00 PM. The chosen time survives reload and the daily nudge fires at that hour (not a fixed 9am), consistently wherever the reminder is switched on. Free for everyone, no upsell.", "Both"),
+    ("SET-09", "Settings", "P1", "Turn AI off, the app whole without it",
+     "In Settings under 'AI', tap 'Turn AI off'. Then move through the app: capture, Today (long-press a task), the Menu, Lookback.",
+     "Turning off is instant with a warm line ('AI is off. Everything stays on your device.'). Every AI affordance then disappears: Sort for me / Tidy this / Scan in capture; Break it down / Make it tiny / Combine / Plan my day on Today, including the per-task Break-down and Make-tiny; the 'Chart a course' menu entry (and the screen redirects away); and Lookback's scrapbook + weekly reflection. On-device Speak stays. Nothing calls the AI backend and the calm to-do loop still works fully.", "Both"),
+    ("SET-10", "Settings", "P2", "Turn AI back on (informed consent)",
+     "With AI off, in Settings tap 'Turn AI on', read the card, and tap 'Turn on AI' (also try 'Not now').",
+     "Turning ON asks first: a card naming exactly what is sent and to whom ('sends the text you choose... to Anthropic's Claude... Nothing else ever leaves your device.'). 'Not now' cancels with no change. 'Turn on AI' restores every AI affordance across the app. The asymmetry is deliberate: off is one instant tap, on is a clear informed tap.", "Both"),
 
     # --- Accessibility --------------------------------------------------------
     ("A11Y-01", "Accessibility", "P2", "Screen reader (TalkBack)",
