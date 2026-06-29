@@ -3689,3 +3689,15 @@ Fix: removed the with-exact-alarm config plugin (both USE_EXACT_ALARM and SCHEDU
 Decided against: (1) Selecting "Alarm clock" or "Calendar" to keep the permission, a false declaration and a real suspension risk, the opposite of the trust this app is built on. (2) Keeping SCHEDULE_EXACT_ALARM alone, on the API-36 target it is not auto-granted, so without a runtime "Alarms & reminders" grant prompt it falls back to inexact anyway, and that prompt is friction against the no-settings ethos, so it buys nothing. (3) The fallback, if delivery reliability ever proves a real, measured problem: SCHEDULE_EXACT_ALARM behind a one-time user grant, a deliberate later decision, never the ineligible USE_EXACT_ALARM.
 
 Requires a new production AAB (versionCode auto-increments to 3) to replace the blocked versionCode 2 release. The closed-testing rollout resumes once the new bundle is uploaded, with no exact-alarm declaration to make.
+
+## 2026-06-29 The closed-test build shipped without Supabase keys: sync + sign-in dead (config gap, fixed)
+
+A closed-test tester reported sync not working. Root cause: the production AAB was built with no Supabase config. EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY are build-time vars Expo inlines, and supabase.ts (unlike ai.ts / stripe.ts) has NO hardcoded fallback, so a missing value yields a null client and silently disables sign-in and sync. The local .env carries them for dev, but EAS does not read the gitignored .env, and the EAS "production" environment held zero variables (that was the earlier, unheeded "Resolved production environment ... no environment variables found" build-log line). The earlier sideloaded builds worked because they used the `preview` profile, whose `preview` environment had the keys.
+
+Why only sync broke: ai.ts, stripe.ts, and settings.tsx all fall back to https://api.doubledone.app when EXPO_PUBLIC_AI_URL is unset, so the AI features and checkout link kept working; Supabase was the lone casualty.
+
+Fix: set EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY (sensitive), and EXPO_PUBLIC_AI_URL on the EAS production environment (values pulled from the local .env, never committed; the anon key is the publishable one), and made the production build profile's environment:production explicit in eas.json to match how preview is wired. Rebuilt (versionCode 4) and re-uploaded to the closed track.
+
+Decided against committing the keys into eas.json's env block: even though the anon key is publishable, keeping config in the EAS environment (not the repo) matches the preview setup and keeps the gitignored-secrets discipline intact.
+
+Gotcha banked: EXPO_PUBLIC_* vars must live in the EAS environment for the profile being built, not just the local .env, or a production build silently ships without them. Verify with `eas env:list --environment production` before any production build.
