@@ -3679,3 +3679,13 @@ Claude." Decided AGAINST B (the modal): it adds a fork/friction against the calm
 rated debatable, whereas the point-of-use line satisfies disclosure-before-egress for everyone with no modal.
 Escalate to B only if a reviewer ever flags it. (BreakdownQuestions already carries its own disclosure; this closes
 the main "Sort for me" path.)
+
+## 2026-06-29 USE_EXACT_ALARM removed: a to-do app is neither an alarm clock nor a calendar (Play block, corrected)
+
+Creating the closed-testing release surfaced a blocking exact-alarm declaration: "Your app uses USE_EXACT_ALARM. If your core functionality is not 'calendar' or 'alarm clock', you're not eligible and must remove it." The only options offered were Alarm clock and Calendar. DoubleDone is a to-do app, so it is neither. This corrects the 2026-06-24 "goes gold" entry, which assumed "DoubleDone qualifies as a reminder app". It does not: Play reserves USE_EXACT_ALARM strictly for alarm-clock and calendar apps.
+
+Fix: removed the with-exact-alarm config plugin (both USE_EXACT_ALARM and SCHEDULE_EXACT_ALARM) and deleted client/plugins/with-exact-alarm.js. No reminder logic changed: reminders.ts never calls an exact-alarm API, it schedules expo-notifications DAILY and DATE triggers, which now degrade to inexact alarms. The daily reminder and the per-task nudges can be delayed on aggressive OEMs (Samsung One UI Doze), the exact reliability problem the plugin was added to solve on 2026-06-24. Accepted: a delayed (not "never") nudge is on-brand for an offer-not-deadline poke whose own copy reads "Whenever you are ready."
+
+Decided against: (1) Selecting "Alarm clock" or "Calendar" to keep the permission, a false declaration and a real suspension risk, the opposite of the trust this app is built on. (2) Keeping SCHEDULE_EXACT_ALARM alone, on the API-36 target it is not auto-granted, so without a runtime "Alarms & reminders" grant prompt it falls back to inexact anyway, and that prompt is friction against the no-settings ethos, so it buys nothing. (3) The fallback, if delivery reliability ever proves a real, measured problem: SCHEDULE_EXACT_ALARM behind a one-time user grant, a deliberate later decision, never the ineligible USE_EXACT_ALARM.
+
+Requires a new production AAB (versionCode auto-increments to 3) to replace the blocked versionCode 2 release. The closed-testing rollout resumes once the new bundle is uploaded, with no exact-alarm declaration to make.

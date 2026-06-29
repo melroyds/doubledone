@@ -57,7 +57,6 @@
           "photosPermission": "DoubleDone reads a to-do list from a photo you choose."
         }
       ],
-      "./plugins/with-exact-alarm",
       [
         "expo-font",
         {

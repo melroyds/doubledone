@@ -95,10 +95,12 @@ export async function scheduleNudge(taskId: string, title: string, at: Date): Pr
     let { status } = await Notifications.getPermissionsAsync();
     if (status !== 'granted') ({ status } = await Notifications.requestPermissionsAsync());
     if (status !== 'granted') return null;
-    // A stable identifier (one nudge per task) plus the SCHEDULE_EXACT_ALARM / USE_EXACT_ALARM
-    // permissions from the with-exact-alarm config plugin let expo-notifications use an EXACT
-    // alarm. Without them Android 12+ falls back to an inexact alarm that Samsung's Doze can
-    // throttle into never firing.
+    // A stable identifier (one nudge per task). The nudge schedules as an INEXACT alarm:
+    // USE_EXACT_ALARM is reserved by Play for alarm-clock / calendar apps, which a to-do app is
+    // not, so we don't request it (declaring otherwise risks suspension). On aggressive OEMs
+    // (Samsung Doze) an inexact nudge can be delayed, acceptable for an offer-not-deadline poke.
+    // If reliability ever proves a real problem, the fix is SCHEDULE_EXACT_ALARM behind a one-time
+    // user grant, never the ineligible USE_EXACT_ALARM.
     return await Notifications.scheduleNotificationAsync({
       identifier: `nudge-${taskId}`,
       content: { title, body: NUDGE_BODY, data: { taskId } },
