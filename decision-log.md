@@ -3701,3 +3701,15 @@ Fix: set EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY (sensitive), an
 Decided against committing the keys into eas.json's env block: even though the anon key is publishable, keeping config in the EAS environment (not the repo) matches the preview setup and keeps the gitignored-secrets discipline intact.
 
 Gotcha banked: EXPO_PUBLIC_* vars must live in the EAS environment for the profile being built, not just the local .env, or a production build silently ships without them. Verify with `eas env:list --environment production` before any production build.
+
+## 2026-07-02 Capture for tomorrow after closing the day (BedtimeCapture) [android-refinement]
+
+From a tester (an auDHD user): "there doesn't appear to be a way to add to the list after you've closed the day. I often think of things as I'm preparing for bed." The gap: DoubleDone could only capture FOR today, and only WHILE the day was open. That quietly betrays the app's deeper promise, get it out of your head, at the moment the head is loudest.
+
+Built: a slim BedtimeCapture on the closed-day rested screen. A quiet, visible field ("Something on your mind for tomorrow? Add it here and let it go."), an "Add for tomorrow" button, and a "Not tomorrow?" day-pick for the rarer later case. Anything captured lands on TOMORROW (or the picked day), never today, so the closed day never reopens and stays rested. Deliberately plain: no AI, no sort, no slices, nothing leaves the device. Confirms "Saved for tomorrow. Rest well."
+
+The "pickle" (how to add after close without reopening the day) dissolves in the destination: captures go to tomorrow, so there is nothing to reopen. It reuses the existing, tested capture() with a { mode: 'tomorrow' } / { mode: 'date' } schedule (the same path the normal Tomorrow / Date chips use), so there is no new task-creation logic and hence no new unit test (per testing.md's risk-targeting); coverage is the E2E case TOD-04c plus preview verification.
+
+Decided against: a general "backlog/someday" list (reintroduces the overwhelm the app exists to prevent); reusing the full BrainDump on the rested screen (its AI/sort/speak machinery is the opposite of the calm bedtime moment); defaulting to a date picker (a decision at bedtime is friction; tomorrow is the 90% case and "later" is one tap away).
+
+Verified in the web preview: on the rested screen the capture renders; adding lands the task on tomorrow (due = tomorrow), the day stays closed (closedDate unchanged, rested screen intact), the task does not clutter the closed today, and the "Saved for tomorrow. Rest well." confirm shows. Built on the android-refinement branch (tester-feedback polish), which does NOT auto-deploy; it merges to main when Melroy ships. The related item-2 gap ("add not-today while the day is open") shares this plumbing and is a natural fast-follow.
