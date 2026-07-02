@@ -5,6 +5,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Bloom, type BloomData } from '@/components/Bloom';
+import { BedtimeCapture } from '@/components/BedtimeCapture';
 import { BrainDump, type BrainDumpHandle } from '@/components/BrainDump';
 import { CameraCapture } from '@/components/CameraCapture';
 import { type BreakdownAnswers, BreakdownQuestions } from '@/components/BreakdownQuestions';
@@ -1277,6 +1278,7 @@ export default function TodayScreen() {
                 : "A quiet day, and that's allowed. Rest well."}
             </Text>
             <Text style={styles.restedSub}>{"It's all here tomorrow."}</Text>
+            <BedtimeCapture onCapture={capture} today={today} />
             <Pressable
               onPress={reopenDay}
               accessibilityRole="button"
