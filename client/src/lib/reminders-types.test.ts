@@ -33,17 +33,20 @@ describe('clampHour', () => {
 });
 
 describe('formatReminderHour', () => {
-  it('reads as a calm 12-hour time across the day', () => {
-    expect(formatReminderHour(0)).toBe('12:00 AM');
-    expect(formatReminderHour(9)).toBe('9:00 AM');
-    expect(formatReminderHour(12)).toBe('12:00 PM');
-    expect(formatReminderHour(13)).toBe('1:00 PM');
-    expect(formatReminderHour(18)).toBe('6:00 PM');
-    expect(formatReminderHour(23)).toBe('11:00 PM');
+  // Intl output; normalise the space variant (some ICU builds emit U+202F before am/pm).
+  const label = (h: number) => formatReminderHour(h).replace(/ /g, ' ');
+
+  it('reads as a calm 12-hour time across the day (en-AU default)', () => {
+    expect(label(0)).toBe('12:00 am');
+    expect(label(9)).toBe('9:00 am');
+    expect(label(12)).toBe('12:00 pm');
+    expect(label(13)).toBe('1:00 pm');
+    expect(label(18)).toBe('6:00 pm');
+    expect(label(23)).toBe('11:00 pm');
   });
 
   it('clamps a bad hour before formatting', () => {
-    expect(formatReminderHour(30)).toBe('11:00 PM');
-    expect(formatReminderHour(-1)).toBe('12:00 AM');
+    expect(label(30)).toBe('11:00 pm');
+    expect(label(-1)).toBe('12:00 am');
   });
 });

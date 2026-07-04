@@ -11,6 +11,7 @@ import { border, control, fonts, layout, radius, spacing, type Theme } from '@/c
 import { chart, type CourseStep } from '@/lib/ai';
 import { aiErrorLine } from '@/lib/connection';
 import { toISODate } from '@/lib/day';
+import { fmt, t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
 import { spreadDueDates } from '@/lib/spread';
 import { loadTasks, saveTasks } from '@/lib/storage';
@@ -54,11 +55,11 @@ export default function ChartScreen() {
   // chosen date paces the AI's steps AND spreads the accepted tasks from today to it (see addTasks).
   const dateChips = useMemo(
     () => [
-      { label: 'No deadline', iso: null as string | null },
-      { label: 'In 2 weeks', iso: toISODate(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 14)) },
-      { label: 'In a month', iso: toISODate(new Date(today.getFullYear(), today.getMonth() + 1, today.getDate())) },
-      { label: 'In 2 months', iso: toISODate(new Date(today.getFullYear(), today.getMonth() + 2, today.getDate())) },
-      { label: 'In 3 months', iso: toISODate(new Date(today.getFullYear(), today.getMonth() + 3, today.getDate())) },
+      { label: t('chart.chipNoDeadline'), iso: null as string | null },
+      { label: t('chart.chipInTwoWeeks'), iso: toISODate(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 14)) },
+      { label: t('chart.chipInAMonth'), iso: toISODate(new Date(today.getFullYear(), today.getMonth() + 1, today.getDate())) },
+      { label: t('chart.chipInTwoMonths'), iso: toISODate(new Date(today.getFullYear(), today.getMonth() + 2, today.getDate())) },
+      { label: t('chart.chipInThreeMonths'), iso: toISODate(new Date(today.getFullYear(), today.getMonth() + 3, today.getDate())) },
     ],
     [today],
   );
@@ -78,7 +79,7 @@ export default function ChartScreen() {
     try {
       const course = await chart(g, dueDate ? { dueDate } : undefined);
       if (course.steps.length === 0) {
-        setError(aiErrorLine("I couldn't map that out just now. Try rephrasing the goal?"));
+        setError(aiErrorLine(t('chart.mapError')));
         setSteps([]);
         setHeading('');
       } else {
@@ -88,7 +89,7 @@ export default function ChartScreen() {
     } catch {
       // chart() swallows its own errors today, but decouple this screen from that
       // implicit never-throws contract: show the same calm empty-course line.
-      setError(aiErrorLine("I couldn't map that out just now. Try rephrasing the goal?"));
+      setError(aiErrorLine(t('chart.mapError')));
       setSteps([]);
       setHeading('');
     } finally {
@@ -115,7 +116,7 @@ export default function ChartScreen() {
       const dates = spreadDueDates(selected.length, today, dueDate, 'gradual');
       const minted: Task[] = selected.map((s, i) => ({
         id: makeId(),
-        title: `${s.title} (${s.minutes} min)`,
+        title: t('breakdown.stepTitleWithMinutes', { title: s.title, minutes: s.minutes }),
         done: false,
         createdAt: now + i,
         updatedAt: now + i,
@@ -140,25 +141,23 @@ export default function ChartScreen() {
     <View style={[styles.screen, { paddingTop: insets.top + spacing.three }]}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <BackLink />
-        <Text style={styles.title}>Chart a course</Text>
-        <Text style={styles.intro}>
-          Name something you are working toward. You will get a calm list of the next few steps, yours to take or leave.
-        </Text>
+        <Text style={styles.title}>{t('actions.chartACourse')}</Text>
+        <Text style={styles.intro}>{t('chart.intro')}</Text>
 
         <TextInput
           style={styles.input}
           value={goal}
           onChangeText={setGoal}
-          placeholder="e.g. get fit for a 10k, learn three easy meals"
+          placeholder={t('chart.goalPlaceholder')}
           placeholderTextColor={theme.colors.inkFaint}
           multiline
-          accessibilityLabel="Your goal"
+          accessibilityLabel={t('chart.goalA11yLabel')}
           editable={!busy}
         />
 
         {steps.length === 0 && (
           <View style={styles.byWhen}>
-            <Text style={styles.byWhenLabel}>By when?</Text>
+            <Text style={styles.byWhenLabel}>{t('chart.byWhen')}</Text>
             <View style={styles.chips}>
               {dateChips.map((c) => (
                 <Chip key={c.label} label={c.label} selected={dueDate === c.iso} onPress={() => setDueDate(c.iso)} />
@@ -169,10 +168,10 @@ export default function ChartScreen() {
 
         {steps.length === 0 && (
           <PremiumButton
-            label={busy ? 'Charting…' : 'Suggest steps'}
+            label={busy ? t('chart.charting') : t('chart.suggestSteps')}
             onPress={suggest}
             disabled={busy || goal.trim().length === 0}
-            accessibilityLabel="Suggest steps toward this goal"
+            accessibilityLabel={t('chart.suggestStepsA11y')}
             style={styles.suggestBtn}
           />
         )}
@@ -194,14 +193,18 @@ export default function ChartScreen() {
               >
                 <View style={[styles.check, s.checked && styles.checkOn]}>{s.checked && <Text style={styles.checkMark}>✓</Text>}</View>
                 <Text style={[styles.stepTitle, !s.checked && styles.stepTitleOff]}>{s.title}</Text>
-                <Text style={styles.stepMin}>{s.minutes} min</Text>
+                <Text style={styles.stepMin}>{t('chart.stepMinutes', { minutes: s.minutes })}</Text>
               </Pressable>
             ))}
             <PrimaryButton
-              label={selectedCount === 0 ? 'Pick a step to add' : `Add ${selectedCount} ${selectedCount === 1 ? 'task' : 'tasks'}`}
+              label={
+                selectedCount === 0
+                  ? t('chart.pickAStep')
+                  : fmt.plural(selectedCount, { one: t('chart.addTasksOne'), other: t('chart.addTasksOther') })
+              }
               onPress={addTasks}
               disabled={adding || selectedCount === 0}
-              accessibilityLabel={`Add ${selectedCount} ${selectedCount === 1 ? 'task' : 'tasks'} to Today`}
+              accessibilityLabel={fmt.plural(selectedCount, { one: t('chart.addTasksA11yOne'), other: t('chart.addTasksA11yOther') })}
               style={styles.ctaSpace}
             />
             <Pressable
@@ -210,19 +213,19 @@ export default function ChartScreen() {
                 setHeading('');
               }}
               accessibilityRole="button"
-              accessibilityLabel="Start over with a different goal"
+              accessibilityLabel={t('chart.startOverA11y')}
               hitSlop={8}
               style={styles.startOver}
             >
-              <Text style={styles.startOverText}>Not these, start over</Text>
+              <Text style={styles.startOverText}>{t('chart.startOver')}</Text>
             </Pressable>
             <Text style={styles.note}>
-              The first step lands on Today, the rest spread gently {dueDate ? 'toward your deadline' : 'over the next days'}. They become ordinary tasks.
+              {t('chart.spreadNote', { spreadHint: t(dueDate ? 'chart.spreadNoteTowardDeadline' : 'chart.spreadNoteOverNextDays') })}
             </Text>
           </View>
         )}
 
-        <Text style={styles.egress}>Your goal is sent to an AI to suggest steps, then discarded. Nothing is added until you choose.</Text>
+        <Text style={styles.egress}>{t('chart.egressNote')}</Text>
       </ScrollView>
     </View>
   );

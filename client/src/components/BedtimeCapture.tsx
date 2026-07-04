@@ -3,6 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 
 import { border, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { friendlyDate, toISODate } from '@/lib/day';
+import { t } from '@/lib/locale';
 import { type CaptureSchedule } from '@/lib/recurrence';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
@@ -29,14 +30,14 @@ export function BedtimeCapture({ onCapture, today }: Props) {
 
   // Tomorrow, month/year rollover handled by Date's normalisation. Used only for the picker's default.
   const tomorrowIso = toISODate(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1));
-  const whenLabel = dueIso === null ? 'tomorrow' : friendlyDate(dueIso, today);
+  const whenLabel = dueIso === null ? t('closeDay.tomorrowWord') : friendlyDate(dueIso, today);
 
   function add() {
     const text = value.trim();
     if (!text) return;
     const schedule: CaptureSchedule = dueIso === null ? { mode: 'tomorrow' } : { mode: 'date', date: dueIso };
     onCapture(text, schedule);
-    setSaved(`Saved for ${whenLabel}. Rest well.`);
+    setSaved(t('closeDay.bedtimeSavedConfirm', { when: whenLabel }));
     setValue('');
     setDueIso(null); // the next thought defaults back to tomorrow
   }
@@ -48,16 +49,16 @@ export function BedtimeCapture({ onCapture, today }: Props) {
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.prompt}>Something on your mind for tomorrow? Add it here and let it go.</Text>
+      <Text style={styles.prompt}>{t('closeDay.bedtimePrompt')}</Text>
       <TextInput
         value={value}
         onChangeText={onType}
-        placeholder="One thing per line"
+        placeholder={t('closeDay.bedtimePlaceholder')}
         placeholderTextColor={theme.colors.inkFaint}
         style={styles.input}
         multiline
         textAlignVertical="top"
-        accessibilityLabel="Add something for tomorrow, one thing per line"
+        accessibilityLabel={t('closeDay.bedtimeInputLabel')}
       />
       <View style={styles.actions}>
         <Pressable
@@ -65,17 +66,17 @@ export function BedtimeCapture({ onCapture, today }: Props) {
           disabled={!value.trim()}
           style={({ pressed }) => [styles.addBtn, pressed && styles.pressed, !value.trim() && styles.disabled]}
           accessibilityRole="button"
-          accessibilityLabel={`Add for ${whenLabel}`}
+          accessibilityLabel={t('closeDay.addForWhen', { when: whenLabel })}
         >
-          <Text style={styles.addText}>{`Add for ${whenLabel}`}</Text>
+          <Text style={styles.addText}>{t('closeDay.addForWhen', { when: whenLabel })}</Text>
         </Pressable>
         <Pressable
           onPress={() => setPickerOpen(true)}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Add it for a different day"
+          accessibilityLabel={t('closeDay.addDifferentDayLabel')}
         >
-          <Text style={styles.later}>{dueIso === null ? 'Not tomorrow?' : 'Change day'}</Text>
+          <Text style={styles.later}>{dueIso === null ? t('closeDay.notTomorrow') : t('closeDay.changeDay')}</Text>
         </Pressable>
       </View>
       {saved && (
@@ -88,9 +89,9 @@ export function BedtimeCapture({ onCapture, today }: Props) {
         <View style={styles.pickerRoot}>
           {/* Scrim is a SIBLING of the card (an absolute-fill dismiss layer), so the day buttons are never
               nested inside the scrim <button> (invalid HTML on web). Mirrors BrainDump's picker. */}
-          <Pressable style={styles.backdrop} onPress={() => setPickerOpen(false)} accessibilityRole="button" accessibilityLabel="Dismiss" />
+          <Pressable style={styles.backdrop} onPress={() => setPickerOpen(false)} accessibilityRole="button" accessibilityLabel={t('common.dismiss')} />
           <View style={styles.pickerCard}>
-            <Text style={styles.pickerTitle}>Add it for which day</Text>
+            <Text style={styles.pickerTitle}>{t('closeDay.pickDayTitle')}</Text>
             <DatePicker
               value={dueIso ?? tomorrowIso}
               today={today}
@@ -105,9 +106,9 @@ export function BedtimeCapture({ onCapture, today }: Props) {
                 setPickerOpen(false);
               }}
               accessibilityRole="button"
-              accessibilityLabel="Tomorrow instead"
+              accessibilityLabel={t('closeDay.tomorrowInstead')}
             >
-              <Text style={styles.pickerTomorrow}>Tomorrow instead</Text>
+              <Text style={styles.pickerTomorrow}>{t('closeDay.tomorrowInstead')}</Text>
             </Pressable>
           </View>
         </View>

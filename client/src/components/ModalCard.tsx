@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import { Modal, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { radius, spacing, type Theme } from '@/constants/theme';
+import { t } from '@/lib/locale';
 import { useThemedStyles } from '@/lib/theme-provider';
 
 type Props = {
@@ -34,11 +35,12 @@ export function ModalCard({
   children,
   maxWidth = 420,
   animationType = 'fade',
-  dismissLabel = 'Dismiss',
+  dismissLabel,
   scroll = false,
   maxHeight,
 }: Props) {
   const styles = useThemedStyles(makeStyles);
+  const dismiss = dismissLabel ?? t('common.dismiss');
   return (
     <Modal transparent visible={visible} animationType={animationType} onRequestClose={onClose}>
       <View style={styles.root}>
@@ -46,7 +48,7 @@ export function ModalCard({
             so the card's interactive content is not a <button> nested inside the scrim <button> (invalid HTML
             and a hydration error on web). The card sits on top, so taps on it don't reach the scrim, no
             tap-absorbing inner Pressable needed. */}
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel={dismissLabel} />
+        <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel={dismiss} />
         <View style={[scroll ? styles.cardScroll : styles.card, { maxWidth }, maxHeight != null ? { maxHeight } : null]}>
           {children}
         </View>

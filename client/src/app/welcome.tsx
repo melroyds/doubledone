@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { triage } from '@/lib/ai';
+import { t } from '@/lib/locale';
 import { loadTasks, saveOnboarded, saveTasks } from '@/lib/storage';
 import { type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
@@ -31,50 +32,49 @@ const STEPS = ['welcome', 'capture', 'reveal', 'safetynet', 'keep', 'premium', '
 type Step = (typeof STEPS)[number];
 
 const PRIMARY: Record<Step, string> = {
-  welcome: 'Begin',
-  capture: 'Sort for me',
-  reveal: 'Looks good, next',
-  safetynet: 'Got it',
-  keep: 'Continue',
-  premium: 'Continue',
-  handoff: 'Open Today',
+  welcome: t('common.begin'),
+  capture: t('actions.sortForMe'),
+  reveal: t('welcome.primaryLooksGood'),
+  safetynet: t('common.gotIt'),
+  keep: t('common.continue'),
+  premium: t('common.continue'),
+  handoff: t('welcome.primaryOpenToday'),
 };
 
-const EXAMPLE = 'call the dentist\nreply to Dana\nsort out the garage\nbuy Mum a card\ntake meds';
 const TRIAGE_TIMEOUT_MS = 8000;
 
 // The safety-net pass: the three "you're not alone with a hard task" tools, introduced once
 // here and discovered in context thereafter.
 const SAFETY_NET: { name: string; what: string }[] = [
-  { name: 'Break it down', what: 'into small, time-boxed steps.' },
-  { name: 'Make it tiny', what: 'a two-minute version, just to begin.' },
-  { name: 'Lighten today', what: 'a too-full day, eased by moving a few tasks to later days.' },
+  { name: t('actions.breakItDown'), what: t('welcome.safetyNetBreakWhat') },
+  { name: t('actions.makeItTiny'), what: t('welcome.safetyNetTinyWhat') },
+  { name: t('actions.lightenToday'), what: t('welcome.safetyNetLightenWhat') },
 ];
 
 // With AI off, the safety net swaps the AI tools (Make it tiny, Lighten today) for the on-device ones that serve
 // the same "you're not alone when it feels too big" purpose, so the screen stays full and all three really work.
 const SAFETY_NET_NOAI: { name: string; what: string }[] = [
-  { name: 'Break it down', what: 'into small, doable steps you write yourself.' },
-  { name: 'Focus on one thing', what: 'hide the rest and keep just one task in view.' },
-  { name: 'Make it a low day', what: 'ease a heavy day when you have less to give.' },
+  { name: t('actions.breakItDown'), what: t('welcome.safetyNetNoAiBreakWhat') },
+  { name: t('today.focusOne'), what: t('welcome.safetyNetFocusWhat') },
+  { name: t('welcome.safetyNetLowDayName'), what: t('welcome.safetyNetLowDayWhat') },
 ];
 
 // The Premium suite, introduced once at the end of onboarding. The calm loop is free; this is the
 // "when you want more" close. Lead with the scrapbook (the emotional payoff), and never a hard sell:
 // it plants the idea and points to Settings, rather than interrupting first use with a paywall.
 const PREMIUM_FEATURES: { name: string; what: string }[] = [
-  { name: 'A weekly scrapbook', what: 'an AI keepsake of everything you finished that week.' },
-  { name: 'Chart a course', what: 'turn a goal into calm, ordered steps.' },
-  { name: 'Plan my day', what: "a gentle order for today's tasks, in one tap." },
-  { name: 'Your patterns', what: 'quiet stats and a warm weekly reflection.' },
-  { name: 'Scan a list', what: 'a photo of a written list, straight into tasks.' },
+  { name: t('welcome.premiumScrapbookName'), what: t('welcome.premiumScrapbookWhat') },
+  { name: t('actions.chartACourse'), what: t('welcome.premiumChartWhat') },
+  { name: t('actions.planMyDay'), what: t('welcome.premiumPlanWhat') },
+  { name: t('welcome.premiumPatternsName'), what: t('welcome.premiumPatternsWhat') },
+  { name: t('welcome.premiumScanName'), what: t('welcome.premiumScanWhat') },
 ];
 
 // With AI off, the premium pitch drops the AI features (scrapbook, Chart, Plan my day, patterns, Scan) and shows
 // only the non-AI premium value, so a user who just opted out is never sold what they have turned off.
 const PREMIUM_FEATURES_NOAI: { name: string; what: string }[] = [
-  { name: 'Your colour', what: 'seven calm palettes for the whole app, yours to choose.' },
-  { name: "Pin today's one thing", what: 'keep your single most important task at the top.' },
+  { name: t('welcome.premiumColourName'), what: t('welcome.premiumColourWhat') },
+  { name: t('welcome.premiumPinName'), what: t('welcome.premiumPinWhat') },
 ];
 
 export default function WelcomeScreen() {
@@ -203,21 +203,21 @@ export default function WelcomeScreen() {
   const captureEmpty = step === 'capture' && dump.trim().length === 0;
   // The capture primary's label tracks the AI choice, so a user who opted out never sees a button that
   // still says "Sort for me". Derived from the same aiEnabled read that makeDay branches on, so they can't desync.
-  const primaryLabel = step === 'capture' ? (aiEnabled ? 'Sort for me' : 'Put them on today') : PRIMARY[step];
+  const primaryLabel = step === 'capture' ? (aiEnabled ? t('actions.sortForMe') : t('welcome.primaryPutOnToday')) : PRIMARY[step];
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + spacing.three, paddingBottom: insets.bottom + spacing.four }]}>
       <View style={styles.topBar}>
         {stepIndex > 0 ? (
-          <Pressable onPress={back} accessibilityRole="button" accessibilityLabel="Back one screen" hitSlop={10}>
-            <Text style={styles.back}>‹ Back</Text>
+          <Pressable onPress={back} accessibilityRole="button" accessibilityLabel={t('welcome.backA11y')} hitSlop={10}>
+            <Text style={styles.back}>{t('welcome.back')}</Text>
           </Pressable>
         ) : (
           <View />
         )}
         {step !== 'handoff' ? (
-          <Pressable onPress={skip} accessibilityRole="button" accessibilityLabel="Skip the introduction" hitSlop={10}>
-            <Text style={styles.skip}>Skip</Text>
+          <Pressable onPress={skip} accessibilityRole="button" accessibilityLabel={t('welcome.skipA11y')} hitSlop={10}>
+            <Text style={styles.skip}>{t('common.skip')}</Text>
           </Pressable>
         ) : (
           <View />
@@ -234,51 +234,50 @@ export default function WelcomeScreen() {
                 resizeMode="cover"
                 accessible
                 accessibilityIgnoresInvertColors
-                accessibilityLabel="A warm coffee beside an open notebook in morning light"
+                accessibilityLabel={t('today.emptyArtAlt')}
               />
             </View>
             <Text style={styles.brand}>DoubleDone</Text>
-            <Text style={styles.tagline}>A calmer kind of to-do.</Text>
-            <Text style={styles.lead}>It shows you only what today needs, and quietly keeps everything you finish.</Text>
-            <Text style={styles.lead}>Nothing is ever overdue. It just waits.</Text>
-            <Text style={styles.lead}>Made for ADHD, autism, OCD, and anyone whose list has ever felt like too much. Nothing here will ever shame you for a task just existing.</Text>
+            <Text style={styles.tagline}>{t('welcome.tagline')}</Text>
+            <Text style={styles.lead}>{t('welcome.lead1')}</Text>
+            <Text style={styles.lead}>{t('welcome.lead2')}</Text>
+            <Text style={styles.lead}>{t('welcome.lead3')}</Text>
           </View>
         )}
 
         {step === 'capture' && (
           <View style={styles.block}>
-            <Text style={styles.h1}>{"What's on your mind?"}</Text>
+            <Text style={styles.h1}>{t('welcome.captureHeading')}</Text>
             <Text style={styles.lead}>
-              {"Type whatever you're carrying. One thing per line. Don't worry about the order, that's our job."}
+              {t('welcome.captureLead')}
             </Text>
             <TextInput
               value={dump}
               onChangeText={setDump}
               editable={!busy}
-              placeholder={EXAMPLE}
+              placeholder={t('welcome.capturePlaceholder')}
               placeholderTextColor={theme.colors.inkFaint}
               style={styles.input}
               multiline
               autoFocus
-              accessibilityLabel="Your brain-dump, one thing per line"
+              accessibilityLabel={t('welcome.captureInputA11y')}
             />
             <Text style={styles.speak}>
-              {aiEnabled
-                ? "Sort for me sends these lines to Claude to order your day. I'll sort it myself keeps everything on this device."
-                : 'On this device only. Nothing here is sent anywhere.'}
+              {aiEnabled ? t('welcome.capturePrivacyAi') : t('welcome.capturePrivacyNoAi')}
             </Text>
-            <Text style={styles.speak}>Prefer to talk? On web, tap Speak and say them out loud.</Text>
+            <Text style={styles.speak}>{t('capture.speakHint')}</Text>
           </View>
         )}
 
         {step === 'reveal' && (
           <View style={styles.block}>
-            <Text style={styles.h1}>Here&apos;s today, sized to be doable.</Text>
+            <Text style={styles.h1}>{t('welcome.revealHeading')}</Text>
             <Text style={styles.lead}>
-              {todayTasks.length} for today.{laterCount > 0 ? ' The rest is waiting calmly for later.' : ''}
+              {t('welcome.revealCount', { count: todayTasks.length })}
+              {laterCount > 0 ? ` ${t('welcome.revealRestWaiting')}` : ''}
             </Text>
             {!aiEnabled ? (
-              <Text style={styles.lead}>Sorted on your device, all on today for now. Open any task later to break it down yourself.</Text>
+              <Text style={styles.lead}>{t('welcome.revealNoAiNote')}</Text>
             ) : null}
             <View style={styles.revealList}>
               {todayTasks.map((task) => (
@@ -286,20 +285,20 @@ export default function WelcomeScreen() {
                   <View style={styles.revealCheck} />
                   <View style={styles.revealText}>
                     <Text style={styles.revealTitle}>{task.title}</Text>
-                    {task.suggestBreakdown ? <Text style={styles.revealHint}>Looks big, break it down?</Text> : null}
+                    {task.suggestBreakdown ? <Text style={styles.revealHint}>{t('welcome.revealBreakdownHint')}</Text> : null}
                   </View>
                 </View>
               ))}
             </View>
-            {laterCount > 0 ? <Text style={styles.laterLine}>Later · {laterCount} waiting</Text> : null}
-            <Text style={styles.speak}>A few tasks that go together? Hold one, pick the rest, then combine them.</Text>
+            {laterCount > 0 ? <Text style={styles.laterLine}>{t('welcome.revealLaterLine', { count: laterCount })}</Text> : null}
+            <Text style={styles.speak}>{t('welcome.revealCombineHint')}</Text>
           </View>
         )}
 
         {step === 'safetynet' && (
           <View style={styles.block}>
-            <Text style={styles.h1}>When something feels too big, you&apos;re not alone with it.</Text>
-            <Text style={styles.lead}>Hand a dreaded task to DoubleDone, and it helps you start:</Text>
+            <Text style={styles.h1}>{t('welcome.safetyNetHeading')}</Text>
+            <Text style={styles.lead}>{t('welcome.safetyNetLead')}</Text>
             <View style={styles.netList}>
               {(aiEnabled ? SAFETY_NET : SAFETY_NET_NOAI).map((row) => (
                 <View key={row.name} style={styles.netRow}>
@@ -309,7 +308,7 @@ export default function WelcomeScreen() {
               ))}
             </View>
             <View style={styles.inscriptionRule} />
-            <Text style={styles.inscription}>you&apos;re allowed to go slowly</Text>
+            <Text style={styles.inscription}>{t('welcome.safetyNetInscription')}</Text>
           </View>
         )}
 
@@ -322,24 +321,23 @@ export default function WelcomeScreen() {
                 resizeMode="cover"
                 accessible
                 accessibilityIgnoresInvertColors
-                accessibilityLabel="A calm dusk sky settling over a closed notebook"
+                accessibilityLabel={t('closeDay.artAlt')}
               />
             </View>
-            <Text style={styles.h1}>What you finish, you keep.</Text>
+            <Text style={styles.h1}>{t('welcome.keepHeading')}</Text>
             <Text style={styles.lead}>
-              Everything you complete, even a task you dreaded for weeks, is saved in your Lookback. Your brain can&apos;t
-              tell you that you did nothing.
+              {t('welcome.keepLead1')}
             </Text>
-            <Text style={styles.lead}>Each evening, close the day. It honours what you did, never what you didn&apos;t.</Text>
-            <Text style={styles.lead}>Did something that was never on your list? Log it too. It still counts.</Text>
+            <Text style={styles.lead}>{t('welcome.keepLead2')}</Text>
+            <Text style={styles.lead}>{t('welcome.keepLead3')}</Text>
           </View>
         )}
 
         {step === 'premium' && (
           <View style={styles.block}>
-            <Text style={styles.h1}>And when you want a little more.</Text>
+            <Text style={styles.h1}>{t('welcome.premiumHeading')}</Text>
             <Text style={styles.lead}>
-              Everything you&apos;ve just seen is free, forever. Premium adds a few extras, never anything you need.
+              {t('welcome.premiumLead')}
             </Text>
             <View style={styles.netList}>
               {(aiEnabled ? PREMIUM_FEATURES : PREMIUM_FEATURES_NOAI).map((row) => (
@@ -349,7 +347,7 @@ export default function WelcomeScreen() {
                 </View>
               ))}
             </View>
-            <Text style={styles.fine}>A$5 a month, cancel anytime. It&apos;s in Settings whenever you&apos;re curious. No ads, ever.</Text>
+            <Text style={styles.fine}>{t('welcome.premiumFine')}</Text>
           </View>
         )}
 
@@ -358,16 +356,14 @@ export default function WelcomeScreen() {
             <View style={styles.check}>
               <Text style={styles.checkMark}>✓</Text>
             </View>
-            <Text style={styles.h1}>{"That's it. No setup."}</Text>
+            <Text style={styles.h1}>{t('welcome.handoffHeading')}</Text>
             <Text style={styles.lead}>
-              {"It's out of your head now, and it's all here. Tomorrow it opens ready, without you arranging a thing."}
+              {t('welcome.handoffLead1')}
             </Text>
-            <Text style={styles.lead}>Your Lookback, routines and repeating tasks all live in the Menu, top right.</Text>
-            <Text style={styles.ethos}>today is finite and achievable</Text>
+            <Text style={styles.lead}>{t('welcome.handoffLead2')}</Text>
+            <Text style={styles.ethos}>{t('welcome.handoffEthos')}</Text>
             <Text style={styles.fine}>
-              {aiEnabled
-                ? 'On your device by default. The AI features send the text you choose to Claude to do their work, nothing else. Want it on your phone and your laptop too? Sign in to sync, always optional.'
-                : 'Private by default, nothing leaves your device. Want it on your phone and your laptop too? Sign in to sync, always optional.'}
+              {aiEnabled ? t('welcome.handoffFineAi') : t('welcome.handoffFineNoAi')}
             </Text>
           </View>
         )}
@@ -383,12 +379,12 @@ export default function WelcomeScreen() {
           )}
           {step === 'capture' && !captureEmpty && !busy ? (
             aiEnabled ? (
-              <Pressable onPress={sortItMyself} accessibilityRole="button" accessibilityLabel="Sort it myself, keep everything on this device" hitSlop={8}>
-                <Text style={styles.optOut}>I&apos;ll sort it myself</Text>
+              <Pressable onPress={sortItMyself} accessibilityRole="button" accessibilityLabel={t('welcome.sortMyselfA11y')} hitSlop={8}>
+                <Text style={styles.optOut}>{t('welcome.sortMyself')}</Text>
               </Pressable>
             ) : (
-              <Pressable onPress={() => router.push('/settings')} accessibilityRole="button" accessibilityLabel="Change AI in Settings" hitSlop={8}>
-                <Text style={styles.optOut}>Change in Settings</Text>
+              <Pressable onPress={() => router.push('/settings')} accessibilityRole="button" accessibilityLabel={t('welcome.changeInSettingsA11y')} hitSlop={8}>
+                <Text style={styles.optOut}>{t('welcome.changeInSettings')}</Text>
               </Pressable>
             )
           ) : null}

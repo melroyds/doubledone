@@ -6,6 +6,7 @@ import { split } from '@/lib/ai';
 import { aiErrorLine } from '@/lib/connection';
 import { friendlyDate, toISODate } from '@/lib/day';
 import { appendPhrase } from '@/lib/dictation';
+import { t } from '@/lib/locale';
 import { type CaptureSchedule } from '@/lib/recurrence';
 import { MAX_SLICES, MIN_SLICES } from '@/lib/slices';
 import { type Dictation, isDictationSupported, startDictation } from '@/lib/speech';
@@ -33,24 +34,33 @@ export type BrainDumpHandle = { seed: (text: string | null) => void };
 
 type Mode = 'today' | 'tomorrow' | 'date' | 'daily' | 'weekly' | 'everyN';
 
-const MODES: { mode: Mode; label: string }[] = [
-  { mode: 'today', label: 'Today' },
-  { mode: 'tomorrow', label: 'Tomorrow' },
-  { mode: 'date', label: 'Date…' },
-  { mode: 'daily', label: 'Daily' },
-  { mode: 'weekly', label: 'Weekly' },
-  { mode: 'everyN', label: 'Every few days' },
+const MODES: { mode: Mode; labelKey: string }[] = [
+  { mode: 'today', labelKey: 'common.today' },
+  { mode: 'tomorrow', labelKey: 'common.tomorrow' },
+  { mode: 'date', labelKey: 'capture.modeDate' },
+  { mode: 'daily', labelKey: 'capture.modeDaily' },
+  { mode: 'weekly', labelKey: 'capture.modeWeekly' },
+  { mode: 'everyN', labelKey: 'capture.modeEveryN' },
 ];
 
-const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']; // index 0=Sun .. 6=Sat
+// index 0=Sun .. 6=Sat
+const WEEKDAY_KEYS = [
+  'capture.weekdayShortSun',
+  'capture.weekdayShortMon',
+  'capture.weekdayShortTue',
+  'capture.weekdayShortWed',
+  'capture.weekdayShortThu',
+  'capture.weekdayShortFri',
+  'capture.weekdayShortSat',
+];
 
-const ADD_LABEL: Record<Mode, string> = {
-  today: 'Add',
-  tomorrow: 'Add for tomorrow',
-  date: 'Add for that day',
-  daily: 'Add daily',
-  weekly: 'Add weekly',
-  everyN: 'Add repeating',
+const ADD_LABEL_KEY: Record<Mode, string> = {
+  today: 'capture.add',
+  tomorrow: 'capture.addForTomorrow',
+  date: 'capture.addForThatDay',
+  daily: 'capture.addDaily',
+  weekly: 'capture.addWeekly',
+  everyN: 'capture.addRepeating',
 };
 
 // Capture, with a calm "when" (the chips, for adding) and a "break it down" path
@@ -104,7 +114,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   const canSlice = lineCount <= 1 && (mode === 'today' || mode === 'tomorrow' || mode === 'date');
   const isRecurringMode = mode === 'daily' || mode === 'weekly' || mode === 'everyN';
   const todayIso = toISODate(today);
-  const addLabel = mode === 'date' ? `Add for ${friendlyDate(dueDate, today)}` : ADD_LABEL[mode];
+  const addLabel = mode === 'date' ? t('capture.addForDate', { date: friendlyDate(dueDate, today) }) : t(ADD_LABEL_KEY[mode]);
 
   function buildSchedule(): CaptureSchedule {
     if (mode === 'daily') {
@@ -161,7 +171,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
       onError: () => {
         dictationRef.current = null;
         setListening(false);
-        setError("Couldn't hear that. Try again, or just type.");
+        setError(t('capture.dictationError'));
       },
       onEnd: () => {
         dictationRef.current = null;
@@ -186,7 +196,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
       await onBiteElephant(task);
       reset();
     } catch {
-      setError(aiErrorLine('Could not break that down just now. Try again.'));
+      setError(aiErrorLine(t('capture.breakDownError')));
     } finally {
       setBusyKind(null);
     }
@@ -201,7 +211,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
       await onSort(text);
       reset();
     } catch {
-      setError(aiErrorLine('Could not sort just now. Try again.'));
+      setError(aiErrorLine(t('capture.sortError')));
     } finally {
       setBusyKind(null);
     }
@@ -222,10 +232,10 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
         setValue(items.join('\n'));
         track('capture.split.used', { to: items.length });
       } else {
-        setError(aiErrorLine("Couldn't split that just now. Try again, or put each on its own line."));
+        setError(aiErrorLine(t('capture.splitError')));
       }
     } catch {
-      setError(aiErrorLine("Couldn't split that just now. Try again, or put each on its own line."));
+      setError(aiErrorLine(t('capture.splitError')));
     } finally {
       setBusyKind(null);
     }
@@ -243,12 +253,12 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
           value={value}
           onChangeText={setValue}
           editable={!busy}
-          placeholder="Empty your head. One line per thing."
+          placeholder={t('capture.placeholder')}
           placeholderTextColor={theme.colors.inkFaint}
           style={[styles.input, styles.inputFlex]}
           multiline
           textAlignVertical="top"
-          accessibilityLabel="Brain dump. Add one or more things, one per line"
+          accessibilityLabel={t('capture.inputA11y')}
         />
         {canDictate && (
           <Pressable
@@ -257,11 +267,11 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
             style={({ pressed }) => [styles.speak, listening && styles.speakOn, pressed && styles.pressed, busy && styles.disabled]}
             accessibilityRole="button"
             accessibilityState={{ selected: listening }}
-            accessibilityLabel={listening ? 'Listening. Tap to stop.' : 'Speak your tasks instead of typing'}
+            accessibilityLabel={listening ? t('capture.speakListeningA11y') : t('capture.speakA11y')}
           >
             {listening ? <View style={styles.liveDot} /> : <Mark name="mic" size={16} color={theme.colors.inkSoft} />}
             <Text style={[styles.speakText, listening && styles.speakTextOn]}>
-              {listening ? 'Listening…' : 'Speak'}
+              {listening ? t('capture.listening') : t('capture.speak')}
             </Text>
           </Pressable>
         )}
@@ -271,19 +281,19 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
             disabled={busy}
             style={({ pressed }) => [styles.speak, pressed && styles.pressed, busy && styles.disabled]}
             accessibilityRole="button"
-            accessibilityLabel="Scan a photo of your list"
+            accessibilityLabel={t('capture.scanA11y')}
           >
             <Mark name="camera" size={16} color={theme.colors.inkSoft} />
-            <Text style={styles.speakText}>Scan</Text>
+            <Text style={styles.speakText}>{t('capture.scan')}</Text>
           </Pressable>
         )}
       </View>
 
       <View style={styles.chips}>
-        {MODES.map(({ mode: m, label }) => (
+        {MODES.map(({ mode: m, labelKey }) => (
           <Chip
             key={m}
-            label={label}
+            label={t(labelKey)}
             selected={mode === m}
             onPress={() => {
               setMode(m);
@@ -295,7 +305,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
 
       {mode === 'weekly' && (
         <View style={styles.weekdays}>
-          {WEEKDAYS.map((label, d) => (
+          {WEEKDAY_KEYS.map((key, d) => (
             <Pressable
               key={d}
               onPress={() => toggleWeekday(d)}
@@ -303,9 +313,9 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
               hitSlop={8}
               accessibilityRole="button"
               accessibilityState={{ selected: weekdays.includes(d) }}
-              accessibilityLabel={`Repeat on ${label}`}
+              accessibilityLabel={t('capture.repeatOnDayA11y', { day: t(key) })}
             >
-              <Text style={[styles.dayText, weekdays.includes(d) && styles.dayTextOn]}>{label}</Text>
+              <Text style={[styles.dayText, weekdays.includes(d) && styles.dayTextOn]}>{t(key)}</Text>
             </Pressable>
           ))}
         </View>
@@ -318,17 +328,17 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
             style={styles.stepBtn}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Fewer days"
+            accessibilityLabel={t('capture.fewerDaysA11y')}
           >
             <Text style={styles.stepBtnText}>−</Text>
           </Pressable>
-          <Text style={styles.stepLabel}>Every {everyNDays} days</Text>
+          <Text style={styles.stepLabel}>{t('capture.everyNDays', { count: everyNDays })}</Text>
           <Pressable
             onPress={() => setEveryNDays((n) => Math.min(30, n + 1))}
             style={styles.stepBtn}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="More days"
+            accessibilityLabel={t('capture.moreDaysA11y')}
           >
             <Text style={styles.stepBtnText}>+</Text>
           </Pressable>
@@ -337,13 +347,13 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
 
       {mode === 'date' && (
         <View style={styles.startRow}>
-          <Text style={styles.startLabel}>On</Text>
+          <Text style={styles.startLabel}>{t('common.on')}</Text>
           <Pressable
             onPress={() => setPickerFor('due')}
             style={styles.startBtn}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel={`On ${friendlyDate(dueDate, today)}`}
+            accessibilityLabel={t('capture.onDateA11y', { date: friendlyDate(dueDate, today) })}
           >
             <Text style={styles.startBtnText}>{friendlyDate(dueDate, today)}</Text>
           </Pressable>
@@ -352,15 +362,15 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
 
       {isRecurringMode && (
         <View style={styles.startRow}>
-          <Text style={styles.startLabel}>Starting from</Text>
+          <Text style={styles.startLabel}>{t('capture.startingFrom')}</Text>
           <Pressable
             onPress={() => setPickerFor('start')}
             style={styles.startBtn}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel={`Starting from ${start === todayIso ? 'today' : start}`}
+            accessibilityLabel={t('capture.startingFromA11y', { date: start === todayIso ? t('common.today') : friendlyDate(start, today) })}
           >
-            <Text style={styles.startBtnText}>{start === todayIso ? 'Today' : friendlyDate(start, today)}</Text>
+            <Text style={styles.startBtnText}>{start === todayIso ? t('common.today') : friendlyDate(start, today)}</Text>
           </Pressable>
         </View>
       )}
@@ -368,7 +378,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
       {canSlice && (
         <View style={styles.sliceField}>
           <Text style={styles.sliceHint}>
-            {sliceCount === 0 ? 'Has parts? Track it in steps.' : 'Tap it on Today to advance a step.'}
+            {sliceCount === 0 ? t('capture.stepsHintOff') : t('capture.stepsHintOn')}
           </Text>
           <View style={styles.stepperRow}>
             <Pressable
@@ -376,17 +386,17 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
               style={styles.stepBtn}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel="Fewer steps"
+              accessibilityLabel={t('today.fewerStepsA11y')}
             >
               <Text style={styles.stepBtnText}>−</Text>
             </Pressable>
-            <Text style={styles.stepLabel}>{sliceCount === 0 ? 'No steps' : `${sliceCount} steps`}</Text>
+            <Text style={styles.stepLabel}>{sliceCount === 0 ? t('capture.noSteps') : t('today.stepsCount', { count: sliceCount })}</Text>
             <Pressable
               onPress={() => setSliceCount((n) => (n === 0 ? MIN_SLICES : Math.min(MAX_SLICES, n + 1)))}
               style={styles.stepBtn}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel="More steps"
+              accessibilityLabel={t('today.moreStepsA11y')}
             >
               <Text style={styles.stepBtnText}>+</Text>
             </Pressable>
@@ -395,7 +405,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
       )}
 
       {aiEnabled && lineCount === 1 && !busy && !canSplit && (
-        <Text style={styles.sortHint}>{"More than one? Put each on its own line and I'll sort them for you."}</Text>
+        <Text style={styles.sortHint}>{t('capture.sortHint')}</Text>
       )}
       {aiEnabled && canSplit && (busyKind === 'split' || !busy) && (
         <Pressable
@@ -403,21 +413,21 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
           disabled={busy}
           style={({ pressed }) => [styles.split, pressed && styles.pressed, busy && styles.disabled]}
           accessibilityRole="button"
-          accessibilityLabel="Tidy this into tasks with AI"
+          accessibilityLabel={t('capture.tidyA11y')}
         >
           {busyKind === 'split' ? (
             <View style={styles.biteBusy}>
               <ActivityIndicator size="small" color={theme.colors.accent} />
-              <Text style={styles.splitText}>Tidying…</Text>
+              <Text style={styles.splitText}>{t('capture.tidying')}</Text>
             </View>
           ) : (
-            <Text style={styles.splitText}>{"Tidy this into tasks"}</Text>
+            <Text style={styles.splitText}>{t('capture.tidy')}</Text>
           )}
         </Pressable>
       )}
 
       {aiEnabled && value.trim().length > 0 && (
-        <Text style={styles.aiNote}>{"Sort and Break it down send what you type to Anthropic's Claude."}</Text>
+        <Text style={styles.aiNote}>{t('capture.aiNote')}</Text>
       )}
 
       <View style={styles.actions}>
@@ -428,15 +438,15 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
             disabled={busy}
             style={({ pressed }) => [styles.bite, pressed && styles.pressed, busy && styles.disabled]}
             accessibilityRole="button"
-            accessibilityLabel="Sort with AI"
+            accessibilityLabel={t('capture.sortA11y')}
           >
             {busyKind === 'sort' ? (
               <View style={styles.biteBusy}>
                 <ActivityIndicator size="small" color={theme.colors.accent} />
-                <Text style={styles.biteText}>Sorting…</Text>
+                <Text style={styles.biteText}>{t('capture.sorting')}</Text>
               </View>
             ) : (
-              <Text style={styles.biteText}>Sort for me</Text>
+              <Text style={styles.biteText}>{t('actions.sortForMe')}</Text>
             )}
           </Pressable>
         ) : (
@@ -445,15 +455,15 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
             disabled={busy}
             style={({ pressed }) => [styles.bite, pressed && styles.pressed, busy && styles.disabled]}
             accessibilityRole="button"
-            accessibilityLabel="Break it down with AI"
+            accessibilityLabel={t('capture.breakDownA11y')}
           >
             {busyKind === 'bite' ? (
               <View style={styles.biteBusy}>
                 <ActivityIndicator size="small" color={theme.colors.accent} />
-                <Text style={styles.biteText}>Breaking it down…</Text>
+                <Text style={styles.biteText}>{t('capture.breakingDown')}</Text>
               </View>
             ) : (
-              <Text style={styles.biteText}>Break it down</Text>
+              <Text style={styles.biteText}>{t('actions.breakItDown')}</Text>
             )}
           </Pressable>
           ))}
@@ -467,9 +477,9 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
         <View style={styles.pickerRoot}>
           {/* The scrim is a SIBLING of the card (an absolute-fill dismiss layer behind it), so the picker's
               day buttons are never nested inside the scrim <button> (invalid HTML on web). */}
-          <Pressable style={styles.backdrop} onPress={() => setPickerFor(null)} accessibilityRole="button" accessibilityLabel="Dismiss" />
+          <Pressable style={styles.backdrop} onPress={() => setPickerFor(null)} accessibilityRole="button" accessibilityLabel={t('common.dismiss')} />
           <View style={styles.pickerCard}>
-            <Text style={styles.pickerTitle}>{pickerFor === 'due' ? 'On which day' : 'Starting from'}</Text>
+            <Text style={styles.pickerTitle}>{pickerFor === 'due' ? t('capture.pickerTitleDue') : t('capture.startingFrom')}</Text>
             <DatePicker
               value={pickerFor === 'due' ? dueDate : start}
               today={today}
@@ -486,9 +496,9 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                   setPickerFor(null);
                 }}
                 accessibilityRole="button"
-                accessibilityLabel="Start today"
+                accessibilityLabel={t('capture.startToday')}
               >
-                <Text style={styles.pickerToday}>Start today</Text>
+                <Text style={styles.pickerToday}>{t('capture.startToday')}</Text>
               </Pressable>
             )}
           </View>

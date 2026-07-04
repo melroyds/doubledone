@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+import { t } from './i18n-active';
 import { type ReminderResult } from './reminders-types';
 
 export type { ReminderReason, ReminderResult } from './reminders-types';
@@ -12,12 +13,11 @@ export type { ReminderReason, ReminderResult } from './reminders-types';
 // the nudges are each cancelled by their own id, never with a blanket cancel-all, so they
 // never clobber one another.
 
-const REMINDER_TITLE = 'DoubleDone';
-const REMINDER_BODY = 'Your today is here when you are ready.';
+// Notification title/body copy resolves via t() at schedule time, so it follows the device
+// locale. The ids below are NOT copy: they are stable identifiers and must never localise.
 const DAILY_ID = 'doubledone-daily'; // fixed id so we cancel only the daily, leaving nudges alone
 const DAILY_CHANNEL_ID = 'daily-reminder';
 const NUDGE_CHANNEL_ID = 'task-nudge-v2'; // v2 forces a fresh HIGH-importance channel, since Android ignores importance changes to an already-created channel
-const NUDGE_BODY = 'Whenever you are ready.';
 
 // Show notifications even when the app is foregrounded. Without this, expo-notifications
 // drops a notification that fires while the app is open (the default), so a reminder set
@@ -52,13 +52,15 @@ export async function enableDailyReminder(hour = 9): Promise<ReminderResult> {
   try {
     // Channel first: on Android 13 the permission prompt does not appear until a channel
     // exists, so creating it before requesting is what lets a first-time user grant.
-    await ensureChannel(DAILY_CHANNEL_ID, 'Daily reminder');
+    // The channel NAME localises for new installs only: Android fixes it at creation,
+    // and we never bump the channel id just to rename it.
+    await ensureChannel(DAILY_CHANNEL_ID, t('settings.reminderLabel'));
     const { status } = await Notifications.requestPermissionsAsync();
     if (status !== 'granted') return { ok: false, reason: 'denied' };
     await Notifications.cancelScheduledNotificationAsync(DAILY_ID);
     await Notifications.scheduleNotificationAsync({
       identifier: DAILY_ID,
-      content: { title: REMINDER_TITLE, body: REMINDER_BODY },
+      content: { title: t('reminders.dailyTitle'), body: t('reminders.dailyBody') },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour,
@@ -91,7 +93,7 @@ export async function scheduleNudge(taskId: string, title: string, at: Date): Pr
   try {
     // Channel first (see enableDailyReminder): the Android 13 permission prompt needs a
     // channel to exist before it will appear. HIGH importance so a requested reminder pops.
-    await ensureChannel(NUDGE_CHANNEL_ID, 'Task nudges', Notifications.AndroidImportance.HIGH);
+    await ensureChannel(NUDGE_CHANNEL_ID, t('reminders.nudgeChannelName'), Notifications.AndroidImportance.HIGH);
     let { status } = await Notifications.getPermissionsAsync();
     if (status !== 'granted') ({ status } = await Notifications.requestPermissionsAsync());
     if (status !== 'granted') return null;
@@ -103,7 +105,7 @@ export async function scheduleNudge(taskId: string, title: string, at: Date): Pr
     // user grant, never the ineligible USE_EXACT_ALARM.
     return await Notifications.scheduleNotificationAsync({
       identifier: `nudge-${taskId}`,
-      content: { title, body: NUDGE_BODY, data: { taskId } },
+      content: { title, body: t('reminders.nudgeBody'), data: { taskId } },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
         date: at,

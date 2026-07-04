@@ -13,6 +13,8 @@
 // to true crowd timings at scale without a UI change. Never shown as fabricated
 // live metrics.
 
+import { t } from './i18n-active';
+
 export type EstimateStep = { minutes: number };
 
 /**
@@ -34,15 +36,15 @@ export function paceDays(steps: EstimateStep[], laterPhaseCount = 0): number {
 export function describePace(days: number): string {
   const span =
     days <= 1
-      ? 'about a day'
+      ? t('estimate.pace.aboutADay')
       : days === 2
-        ? 'a couple of days'
+        ? t('estimate.pace.coupleOfDays')
         : days <= 6
-          ? `about ${days} days`
+          ? t('estimate.pace.aboutNDays', { days })
           : days <= 10
-            ? 'about a week'
-            : 'a week or two';
-  return `Usually ${span}, at a gentle pace. No rush.`;
+            ? t('estimate.pace.aboutAWeek')
+            : t('estimate.pace.weekOrTwo');
+  return t('estimate.pace.line', { span });
 }
 
 export type DayWeight = { level: 'clear' | 'light' | 'full' | 'heavy'; label: string; fill: number };
@@ -66,25 +68,25 @@ export function weightedLoad(count: number, bigCount = 0): number {
  * least "full" so even one heavy thing registers, never sinking to "room to breathe".
  */
 export function dayWeight(count: number, lowDay = false, bigCount = 0): DayWeight {
-  if (count <= 0) return { level: 'clear', label: lowDay ? 'A clear day. Rest up.' : 'A clear day', fill: 0 };
+  if (count <= 0) return { level: 'clear', label: lowDay ? t('estimate.weight.clearLow') : t('estimate.weight.clear'), fill: 0 };
   const load = weightedLoad(count, bigCount);
   let base: DayWeight;
   if (lowDay) {
     const fill = Math.min(load / 4, 1);
-    if (load <= 2) base = { level: 'light', label: 'A low day. A couple of things is plenty.', fill };
-    else if (load <= 4) base = { level: 'full', label: 'A low day. Be gentle, the rest can wait.', fill };
-    else base = { level: 'heavy', label: 'A low day with a lot on. Just pick one, the rest waits.', fill: 1 };
+    if (load <= 2) base = { level: 'light', label: t('estimate.weight.lowLight'), fill };
+    else if (load <= 4) base = { level: 'full', label: t('estimate.weight.lowFull'), fill };
+    else base = { level: 'heavy', label: t('estimate.weight.lowHeavy'), fill: 1 };
   } else {
     const fill = Math.min(load / 8, 1);
-    if (load <= 4) base = { level: 'light', label: 'A gentle day. Room to breathe.', fill };
-    else if (load <= 7) base = { level: 'full', label: 'A full day, but doable.', fill };
-    else base = { level: 'heavy', label: 'A lot on. Be gentle with yourself.', fill: 1 };
+    if (load <= 4) base = { level: 'light', label: t('estimate.weight.light'), fill };
+    else if (load <= 7) base = { level: 'full', label: t('estimate.weight.full'), fill };
+    else base = { level: 'heavy', label: t('estimate.weight.heavy'), fill: 1 };
   }
   // A lone big task should be felt: if anything is marked big, never read lighter than "full".
   if (bigCount > 0 && base.level === 'light') {
     return {
       level: 'full',
-      label: lowDay ? 'A low day. Be gentle, the rest can wait.' : 'A full day, but doable.',
+      label: lowDay ? t('estimate.weight.lowFull') : t('estimate.weight.full'),
       fill: Math.max(base.fill, 0.5),
     };
   }

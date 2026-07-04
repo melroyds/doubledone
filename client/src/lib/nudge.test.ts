@@ -43,11 +43,11 @@ describe('availableNudgePresets', () => {
 });
 
 describe('formatNudgeTime', () => {
-  it('formats whole and half hours with am/pm', () => {
-    expect(formatNudgeTime(at(18).getTime())).toBe('6pm');
-    expect(formatNudgeTime(at(21).getTime())).toBe('9pm');
-    expect(formatNudgeTime(at(9, 30).getTime())).toBe('9:30am');
-    expect(formatNudgeTime(at(0).getTime())).toBe('12am');
+  it('formats whole and half hours via Intl (en-AU default: 12-hour with am/pm)', () => {
+    expect(formatNudgeTime(at(18).getTime())).toBe('6:00 pm');
+    expect(formatNudgeTime(at(21).getTime())).toBe('9:00 pm');
+    expect(formatNudgeTime(at(9, 30).getTime())).toBe('9:30 am');
+    expect(formatNudgeTime(at(0).getTime())).toBe('12:00 am');
   });
 });
 

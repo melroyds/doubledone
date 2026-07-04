@@ -6,7 +6,7 @@
 // Web reads navigator.onLine. On native, navigator.onLine is undefined, so isOffline returns false and the
 // caller's own specific message is kept (a proper NetInfo check is a deferred add, see the BUILD-PLAN backlog).
 
-const OFFLINE_LINE = 'You seem to be offline. This needs a connection, your tasks are safe here meanwhile.';
+import { t } from './i18n-active';
 
 /** True only when we can positively tell the device is offline (web). Unknown (native) returns false. */
 export function isOffline(): boolean {
@@ -19,5 +19,5 @@ export function isOffline(): boolean {
  * `offline` is injectable so the choice is unit-testable without touching the global navigator.
  */
 export function aiErrorLine(fallback: string, offline: boolean = isOffline()): string {
-  return offline ? OFFLINE_LINE : fallback;
+  return offline ? t('common.offlineLine') : fallback;
 }

@@ -15,6 +15,7 @@ import { Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { setInbound } from '@/lib/inbound';
+import { t } from '@/lib/locale';
 import { PremiumProvider } from '@/lib/premium-provider';
 import { useShareInbound } from '@/lib/share-intent';
 import { ThemeProvider, useTheme } from '@/lib/theme-provider';
@@ -78,8 +79,8 @@ function RootStack() {
   useEffect(() => {
     if (Platform.OS === 'web') return;
     void QuickActions.setItems([
-      { id: 'dump', title: 'Brain dump', subtitle: 'Empty your head' },
-      { id: 'focus', title: 'Focus on one thing', subtitle: 'Just the next thing' },
+      { id: 'dump', title: t('widget.quickActionDumpTitle'), subtitle: t('widget.quickActionDumpSubtitle') },
+      { id: 'focus', title: t('today.focusOne'), subtitle: t('widget.quickActionFocusSubtitle') },
     ]);
     if (QuickActions.initial) routeQuickAction(QuickActions.initial);
     const sub = QuickActions.addListener(routeQuickAction);

@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { fonts, layout, PREMIUM_GRADIENT, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
+import { t } from '@/lib/locale';
 import { useSettings, useThemedStyles } from '@/lib/theme-provider';
 
 type Props = {
@@ -35,20 +36,20 @@ export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookba
   // offer to a free user and a manage view to a subscriber. Never a hard sell, just findable.
   // With AI off, the Premium hint drops the AI value ("more AI", keepsakes) for the non-AI surface (colour
   // themes), so the persistent menu never advertises AI to a user who turned it off.
-  const premiumFreeHint = aiEnabled ? 'Keepsakes, more AI, your colour' : 'Your colour theme, and more';
+  const premiumFreeHint = aiEnabled ? t('rooms.premiumHintFreeAi') : t('rooms.premiumHintFreeNoAi');
   const rooms: { key: string; label: string; hint: string; onPress: () => void; premium?: boolean; gradient?: boolean; ai?: boolean }[] = [
-    { key: 'repeating', label: 'Repeating', hint: 'Tasks that come back', onPress: go(onRepeating) },
-    { key: 'routines', label: 'Routines', hint: 'Gentle rituals, no streaks', onPress: go(onRoutines) },
-    { key: 'lookback', label: 'Lookback', hint: 'Everything you finished', onPress: go(onLookback) },
-    { key: 'chart', label: 'Chart a course', hint: 'Plan toward a goal', onPress: go(onChart), premium: true, ai: true },
+    { key: 'repeating', label: t('repeat.title'), hint: t('rooms.repeatingHint'), onPress: go(onRepeating) },
+    { key: 'routines', label: t('routines.title'), hint: t('rooms.routinesHint'), onPress: go(onRoutines) },
+    { key: 'lookback', label: t('lookback.title'), hint: t('rooms.lookbackHint'), onPress: go(onLookback) },
+    { key: 'chart', label: t('actions.chartACourse'), hint: t('rooms.chartHint'), onPress: go(onChart), premium: true, ai: true },
     {
       key: 'premium',
-      label: 'Premium',
-      hint: premium ? 'Manage your subscription' : premiumFreeHint,
+      label: t('common.premium'),
+      hint: premium ? t('rooms.premiumHintSubscribed') : premiumFreeHint,
       onPress: go(onPremium),
       gradient: true,
     },
-    { key: 'settings', label: 'Settings', hint: 'Comfort, access, your data', onPress: go(onSettings) },
+    { key: 'settings', label: t('settings.title'), hint: t('rooms.settingsHint'), onPress: go(onSettings) },
   ];
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -56,9 +57,9 @@ export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookba
         {/* The scrim is a SIBLING of the sheet (an absolute-fill dismiss layer behind it), never its parent,
             so the room buttons are not <button>s nested inside the scrim <button> (invalid HTML on web). The
             sheet sits on top, so taps on it don't reach the scrim. */}
-        <Pressable style={styles.scrim} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close menu" />
+        <Pressable style={styles.scrim} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('rooms.closeMenuA11y')} />
         <View style={styles.sheet}>
-          <Text style={styles.title}>Menu</Text>
+          <Text style={styles.title}>{t('today.menu')}</Text>
           {rooms.filter((r) => aiEnabled || !r.ai).map((r) => (
             <Pressable
               key={r.key}
@@ -79,7 +80,7 @@ export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookba
               {r.premium && (
                 <View style={styles.premiumTag}>
                   <LinearGradient colors={PREMIUM_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premiumTagGrad}>
-                    <Text style={styles.premiumTagText}>Premium</Text>
+                    <Text style={styles.premiumTagText}>{t('common.premium')}</Text>
                   </LinearGradient>
                 </View>
               )}

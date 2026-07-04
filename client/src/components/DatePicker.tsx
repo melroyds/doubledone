@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { addMonths, monthLabel, monthMatrix, WEEKDAY_LABELS } from '@/lib/calendar';
 import { fromISODate, toISODate } from '@/lib/day';
+import { t } from '@/lib/locale';
 import { useThemedStyles } from '@/lib/theme-provider';
 
 type Props = {
@@ -32,7 +33,7 @@ export function DatePicker({ value, onChange, today }: Props) {
           style={styles.nav}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Previous month"
+          accessibilityLabel={t('common.previousMonth')}
         >
           <Text style={styles.navText}>‹</Text>
         </Pressable>
@@ -42,7 +43,7 @@ export function DatePicker({ value, onChange, today }: Props) {
           style={styles.nav}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Next month"
+          accessibilityLabel={t('common.nextMonth')}
         >
           <Text style={styles.navText}>›</Text>
         </Pressable>

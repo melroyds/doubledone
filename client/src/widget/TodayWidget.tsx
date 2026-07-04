@@ -1,5 +1,6 @@
 import { FlexWidget, type HexColor, TextWidget } from 'react-native-android-widget';
 
+import { t } from '@/lib/locale';
 import { type WidgetModel } from '@/lib/widget-model';
 
 // The Today widget's UI, in the constrained widget component model (not RN views). Colors
@@ -21,7 +22,7 @@ export function TodayWidget({ model, scheme }: { model: WidgetModel; scheme: 'li
   const c = WIDGET_COLORS[scheme];
 
   const children = [
-    <TextWidget key="h" text="Today" style={{ fontSize: 16, color: hx(c.accent), fontWeight: '700' }} />,
+    <TextWidget key="h" text={t('common.today')} style={{ fontSize: 16, color: hx(c.accent), fontWeight: '700' }} />,
   ];
 
   if (model.state === 'tasks') {
@@ -38,7 +39,7 @@ export function TodayWidget({ model, scheme }: { model: WidgetModel; scheme: 'li
       lines.push(
         <TextWidget
           key="more"
-          text={`+${model.remaining - model.lines.length} more`}
+          text={t('widget.more', { count: model.remaining - model.lines.length })}
           style={{ fontSize: 13, color: hx(c.inkSoft), marginTop: 8 }}
         />,
       );

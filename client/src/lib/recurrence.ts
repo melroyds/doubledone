@@ -1,4 +1,5 @@
 import { addDaysISO, daysBetween, friendlyDate, fromISODate, toISODate } from './day';
+import { fmt, t } from './i18n-active';
 
 // A task is either one-off (no recurrence, optionally with a due date) or it
 // repeats: daily, on chosen weekdays, or every N days from a start date (e.g.
@@ -17,7 +18,9 @@ export type Schedulable = {
   recurrence?: Recurrence;
 };
 
-const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// 2024-01-07 is a known Sunday: a weekday index 0..6 renders through the locale-aware
+// formatter ("Sun".."Sat" in English) instead of a hardcoded English table.
+const weekdayName = (dow: number): string => fmt.weekday(new Date(2024, 0, 7 + dow));
 
 /** Is this task due on `date`? This is what decides what lands on Today. */
 export function isDueOn(task: Schedulable, date: Date): boolean {
@@ -48,7 +51,7 @@ export function describeRecurrence(r: Recurrence, today?: Date): string {
   // Surface a future start so a not-yet-active habit is legible in the drawer.
   const start = r.kind === 'daily' || r.kind === 'weekly' ? r.start : r.kind === 'interval' ? r.anchor : undefined;
   if (today && start && start > toISODate(today)) {
-    return `${base} · from ${friendlyDate(start, today)}`;
+    return t('repeat.fromDate', { base, date: friendlyDate(start, today) });
   }
   return base;
 }
@@ -56,18 +59,18 @@ export function describeRecurrence(r: Recurrence, today?: Date): string {
 function cadenceLabel(r: Recurrence): string {
   switch (r.kind) {
     case 'none':
-      return 'One-off';
+      return t('repeat.oneOff');
     case 'daily':
-      return 'Every day';
+      return t('repeat.everyDay');
     case 'interval':
-      return r.days === 1 ? 'Every day' : `Every ${r.days} days`;
+      return r.days === 1 ? t('repeat.everyDay') : t('repeat.everyNDays', { days: r.days });
     case 'weekly':
-      if (r.weekdays.length === 7) return 'Every day';
-      if (r.weekdays.length === 0) return 'Weekly';
+      if (r.weekdays.length === 7) return t('repeat.everyDay');
+      if (r.weekdays.length === 0) return t('capture.modeWeekly');
       return r.weekdays
         .slice()
         .sort((a, b) => a - b)
-        .map((d) => WEEKDAY_LABELS[d])
+        .map(weekdayName)
         .join(', ');
   }
 }

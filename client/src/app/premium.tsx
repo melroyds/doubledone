@@ -8,6 +8,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { useSession } from '@/lib/auth';
 import { weeklyAllowance } from '@/lib/entitlement';
+import { t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
 import { startCheckout, startPortal, startTrial } from '@/lib/stripe';
 import { track } from '@/lib/telemetry';
@@ -82,10 +83,10 @@ export default function PremiumScreen() {
     if (!res.ok) {
       setError(
         res.error === 'sign_in'
-          ? 'Sign in first, so Premium attaches to your account.'
+          ? t('premium.errorCheckoutSignIn')
           : res.error === 'already'
-            ? "You're already on Premium. Manage it from the button above."
-            : 'Could not start checkout. Please try again.',
+            ? t('premium.errorAlreadyPremium')
+            : t('premium.errorCheckoutFailed'),
       );
       setBusy(false);
       return;
@@ -109,11 +110,11 @@ export default function PremiumScreen() {
     const res = await startTrial();
     setBusy(false);
     if (!res.ok) {
-      setError(res.error === 'sign_in' ? 'Sign in first, so the trial attaches to your account.' : 'Could not start the trial just now. Try again.');
+      setError(res.error === 'sign_in' ? t('premium.errorTrialSignIn') : t('premium.errorTrialFailed'));
       return;
     }
     if (res.result === 'already') {
-      setTrialNote("You've already had your free month. Go Premium any time to keep it.");
+      setTrialNote(t('premium.trialAlreadyUsed'));
       return;
     }
     track('premium.trial_started');
@@ -127,7 +128,7 @@ export default function PremiumScreen() {
     track('premium.manage_opened');
     const res = await startPortal();
     if (!res.ok) {
-      setError(res.error === 'sign_in' ? 'Please sign in again.' : 'Could not open the billing portal. Please try again.');
+      setError(res.error === 'sign_in' ? t('premium.errorPortalSignIn') : t('premium.errorPortalFailed'));
       setBusy(false);
       return;
     }
@@ -143,44 +144,47 @@ export default function PremiumScreen() {
     <View style={[styles.screen, { paddingTop: insets.top + spacing.three }]}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         <BackLink />
-        <Text style={styles.title}>Premium</Text>
+        <Text style={styles.title}>{t('common.premium')}</Text>
 
         {loading ? (
           <ActivityIndicator color={styles.spinner.color} style={styles.loadingPad} />
         ) : premium ? (
           <View style={styles.panel}>
-            <Text style={styles.panelHead}>{status === 'trial' ? 'Your free month ✓' : "You're Premium ✓"}</Text>
+            <Text style={styles.panelHead}>{status === 'trial' ? t('premium.headTrialActive') : t('premium.headPremiumActive')}</Text>
             <Text style={styles.body}>
-              Everything is unlocked: Scan, Chart a course, Plan my day, Your patterns, and {allowance} weekly scrapbook{allowance === 1 ? '' : 's'}
-              {allowance < 4 ? ', more the longer you stay.' : '.'} Thank you for keeping DoubleDone independent.
+              {allowance === 1
+                ? t('premium.unlockedBodyOneGrowing', { allowance })
+                : allowance < 4
+                  ? t('premium.unlockedBodyGrowing', { allowance })
+                  : t('premium.unlockedBodyFull', { allowance })}
             </Text>
             {status === 'trial' && periodLabel ? (
-              <Text style={styles.subStatus}>Free until {periodLabel}, then back to the free monthly scrapbook. No charge, ever, unless you choose to keep it.</Text>
+              <Text style={styles.subStatus}>{t('premium.trialUntil', { periodLabel })}</Text>
             ) : effectiveEntitlement.cancelAtPeriodEnd && periodLabel ? (
-              <Text style={styles.subStatus}>Premium until {periodLabel}, then back to the free monthly scrapbook.</Text>
+              <Text style={styles.subStatus}>{t('premium.premiumUntil', { periodLabel })}</Text>
             ) : periodLabel ? (
-              <Text style={styles.subStatus}>Renews {periodLabel}.</Text>
+              <Text style={styles.subStatus}>{t('premium.renews', { periodLabel })}</Text>
             ) : null}
-            <Text style={styles.foot}>The free monthly scrapbook is always yours, even if you cancel.</Text>
+            <Text style={styles.foot}>{t('premium.freeScrapbookEvenIfCancel')}</Text>
             {status === 'trial' ? (
               <PrimaryButton
-                label={busy ? 'Opening checkout…' : 'Go Premium to keep it'}
+                label={busy ? t('premium.openingCheckout') : t('premium.goPremiumKeepIt')}
                 onPress={subscribe}
                 disabled={busy}
-                accessibilityLabel="Go Premium to keep it after your free month"
+                accessibilityLabel={t('premium.goPremiumKeepItA11y')}
                 style={styles.ctaSpace}
               />
             ) : (
               <PrimaryButton
-                label={busy ? 'Opening…' : 'Manage subscription'}
+                label={busy ? t('premium.opening') : t('premium.manageSubscription')}
                 onPress={manage}
                 disabled={busy}
-                accessibilityLabel="Manage or cancel your subscription"
+                accessibilityLabel={t('premium.manageSubscriptionA11y')}
                 style={styles.ctaSpace}
               />
             )}
-            <Pressable onPress={() => router.replace('/today')} accessibilityRole="button" accessibilityLabel="Back to Today" hitSlop={8} style={styles.backLink}>
-              <Text style={styles.backLinkText}>Back to Today</Text>
+            <Pressable onPress={() => router.replace('/today')} accessibilityRole="button" accessibilityLabel={t('common.backToToday')} hitSlop={8} style={styles.backLink}>
+              <Text style={styles.backLinkText}>{t('common.backToToday')}</Text>
             </Pressable>
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </View>
@@ -189,46 +193,46 @@ export default function PremiumScreen() {
             {status === 'success' ? (
               stuck ? (
                 <>
-                  <Text style={styles.note}>This is taking longer than usual. Your payment went through, give it a minute, then tap Refresh.</Text>
-                  <PrimaryButton label="Refresh" onPress={refresh} accessibilityLabel="Refresh your Premium status" style={styles.ctaSpace} />
-                  <Text style={styles.foot}>Still nothing after a minute? Send us a note from Settings and we&apos;ll sort it.</Text>
+                  <Text style={styles.note}>{t('premium.stuckNote')}</Text>
+                  <PrimaryButton label={t('common.refresh')} onPress={refresh} accessibilityLabel={t('premium.refreshA11y')} style={styles.ctaSpace} />
+                  <Text style={styles.foot}>{t('premium.stuckFoot')}</Text>
                 </>
               ) : (
-                <Text style={styles.note}>Thanks. Setting up your Premium, this updates in a moment.</Text>
+                <Text style={styles.note}>{t('premium.settingUp')}</Text>
               )
             ) : status === 'cancelled' ? (
-              <Text style={styles.note}>That&apos;s alright. Your free monthly scrapbook is always here.</Text>
+              <Text style={styles.note}>{t('premium.checkoutCancelled')}</Text>
             ) : null}
 
-            <Text style={styles.panelHead}>More of what you love.</Text>
+            <Text style={styles.panelHead}>{t('premium.upsellHead')}</Text>
             <Text style={styles.body}>
-              The whole calm daily loop stays free, forever, all the relief and your Lookback. Premium is the extras, never anything you need.
+              {t('premium.upsellBody')}
             </Text>
 
             <View style={styles.featureList}>
               {[
-                'Scan a photo of a list straight into tasks',
-                "Pin the day's one thing",
-                'A weekly AI scrapbook of everything you finished',
-                'Your patterns, gentle stats and a warm weekly reflection',
-                'Chart a course, turn a goal into calm next steps',
-                'Plan my day, a calm order for today',
+                t('premium.featureScan'),
+                t('premium.featurePin'),
+                t('premium.featureScrapbook'),
+                t('premium.featurePatterns'),
+                t('premium.featureChart'),
+                t('premium.featurePlanMyDay'),
               ].map((f) => (
                 <View key={f} style={styles.featureRow}>
                   <View style={styles.featureDot} />
                   <Text style={styles.feature}>{f}</Text>
                 </View>
               ))}
-              <Text style={styles.featureMore}>and more on the way…</Text>
+              <Text style={styles.featureMore}>{t('premium.featureMore')}</Text>
             </View>
 
-            <Text style={styles.keepsakeNote}>The weekly scrapbook grows the longer you stay:</Text>
+            <Text style={styles.keepsakeNote}>{t('premium.scrapbookGrows')}</Text>
             <View style={styles.tiers}>
-              <Text style={styles.tier}>1 a week</Text>
+              <Text style={styles.tier}>{t('premium.tierOneAWeek')}</Text>
               <Text style={styles.tierArrow}>→</Text>
-              <Text style={styles.tier}>2 after two months</Text>
+              <Text style={styles.tier}>{t('premium.tierTwoAfterTwoMonths')}</Text>
               <Text style={styles.tierArrow}>→</Text>
-              <Text style={styles.tier}>4 after six months</Text>
+              <Text style={styles.tier}>{t('premium.tierFourAfterSixMonths')}</Text>
             </View>
 
             {session && (
@@ -237,41 +241,39 @@ export default function PremiumScreen() {
                   onPress={() => setPlan('monthly')}
                   accessibilityRole="button"
                   accessibilityState={{ selected: plan === 'monthly' }}
-                  accessibilityLabel="Monthly, five dollars a month"
+                  accessibilityLabel={t('premium.planMonthlyA11y')}
                   style={[styles.planPill, plan === 'monthly' && styles.planPillOn]}
                 >
-                  <Text style={[styles.planPillText, plan === 'monthly' && styles.planPillTextOn]}>Monthly</Text>
+                  <Text style={[styles.planPillText, plan === 'monthly' && styles.planPillTextOn]}>{t('premium.planMonthly')}</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => setPlan('annual')}
                   accessibilityRole="button"
                   accessibilityState={{ selected: plan === 'annual' }}
-                  accessibilityLabel="Annual, fifty dollars a year, save about seventeen percent"
+                  accessibilityLabel={t('premium.planAnnualA11y')}
                   style={[styles.planPill, plan === 'annual' && styles.planPillOn]}
                 >
-                  <Text style={[styles.planPillText, plan === 'annual' && styles.planPillTextOn]}>Annual · save 17%</Text>
+                  <Text style={[styles.planPillText, plan === 'annual' && styles.planPillTextOn]}>{t('premium.planAnnual')}</Text>
                 </Pressable>
               </View>
             )}
             <Text style={styles.price}>
-              {plan === 'annual'
-                ? 'A$50 / year, about two months free. Cancel anytime.'
-                : 'A$5 / month. Cancel anytime. No ads, ever.'}
+              {plan === 'annual' ? t('premium.priceAnnual') : t('premium.priceMonthly')}
             </Text>
 
             {session ? (
               <PrimaryButton
-                label={busy ? 'Opening checkout…' : 'Go Premium'}
+                label={busy ? t('premium.openingCheckout') : t('premium.goPremium')}
                 onPress={subscribe}
                 disabled={busy}
-                accessibilityLabel={plan === 'annual' ? 'Subscribe to Premium, fifty dollars a year' : 'Subscribe to Premium, five dollars a month'}
+                accessibilityLabel={plan === 'annual' ? t('premium.subscribeAnnualA11y') : t('premium.subscribeMonthlyA11y')}
                 style={styles.ctaSpace}
               />
             ) : (
               <PrimaryButton
-                label="Sign in to go Premium"
+                label={t('premium.signInToGoPremium')}
                 onPress={() => router.push('/sign-in')}
-                accessibilityLabel="Sign in to go Premium"
+                accessibilityLabel={t('premium.signInToGoPremium')}
                 style={styles.ctaSpace}
               />
             )}
@@ -280,26 +282,24 @@ export default function PremiumScreen() {
                 onPress={startFreeTrial}
                 disabled={busy}
                 accessibilityRole="button"
-                accessibilityLabel="Try Premium free for a month, no card needed"
+                accessibilityLabel={t('premium.trialLinkA11y')}
                 hitSlop={6}
                 style={styles.trialLink}
               >
-                <Text style={styles.trialLinkText}>Or try Premium free for a month</Text>
+                <Text style={styles.trialLinkText}>{t('premium.trialLink')}</Text>
               </Pressable>
             )}
             {trialNote ? <Text style={styles.trialNoteText}>{trialNote}</Text> : null}
             <Text style={styles.foot}>
-              {session
-                ? 'The free monthly scrapbook is always yours, even if you never upgrade.'
-                : 'Premium attaches to your account, so it follows you across devices. The free monthly scrapbook is always yours.'}
+              {session ? t('premium.footSignedIn') : t('premium.footSignedOut')}
             </Text>
             <Pressable
               onPress={() => router.push('/terms')}
               accessibilityRole="button"
-              accessibilityLabel="Terms of service and refund policy"
+              accessibilityLabel={t('premium.termsLinkA11y')}
               hitSlop={6}
             >
-              <Text style={styles.foot}>Billed securely via Stripe. Terms and refunds ›</Text>
+              <Text style={styles.foot}>{t('premium.billedViaStripe')}</Text>
             </Pressable>
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </View>

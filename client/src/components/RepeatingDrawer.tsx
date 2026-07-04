@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { border, fonts, motion, radius, spacing, type Theme } from '@/constants/theme';
+import { t } from '@/lib/locale';
 import { describeRecurrence } from '@/lib/recurrence';
 import { type Task } from '@/lib/tasks';
 import { useReducedMotion, useThemedStyles } from '@/lib/theme-provider';
@@ -44,45 +45,45 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle }: Props
     return () => animation.stop();
   }, [open, reduced, anim]);
 
-  const recurring = tasks.filter((t) => !t.deletedAt && isRecurring(t));
+  const recurring = tasks.filter((task) => !task.deletedAt && isRecurring(task));
   const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [panelWidth, 0] });
 
   return (
     <View style={[StyleSheet.absoluteFill, { overflow: 'hidden', pointerEvents: open ? 'auto' : 'none' }]}>
       <Animated.View style={[styles.backdrop, { opacity: anim }]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close repeating tasks" />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('repeat.closeDrawerA11y')} />
       </Animated.View>
       <Animated.View style={[styles.panel, { width: panelWidth, transform: [{ translateX }] }]}>
         <View style={styles.header}>
-          <Text style={styles.title}>Repeating</Text>
-          <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-            <Text style={styles.done}>Close</Text>
+          <Text style={styles.title}>{t('repeat.title')}</Text>
+          <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('common.close')}>
+            <Text style={styles.done}>{t('common.close')}</Text>
           </Pressable>
         </View>
-        <Text style={styles.sub}>Your daily and repeating tasks. Today&apos;s due ones also show on Today.</Text>
+        <Text style={styles.sub}>{t('repeat.subtitle')}</Text>
         <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
           {recurring.length === 0 ? (
             <Text style={styles.empty}>
-              No repeating tasks yet. Add one with the Daily or Weekly chip when you capture.
+              {t('repeat.empty')}
             </Text>
           ) : (
-            recurring.map((t) => {
-              const done = isDoneOn(t, today);
+            recurring.map((task) => {
+              const done = isDoneOn(task, today);
               return (
                 <Pressable
-                  key={t.id}
-                  onPress={() => onToggle(t.id)}
+                  key={task.id}
+                  onPress={() => onToggle(task.id)}
                   style={styles.row}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: done }}
-                  accessibilityLabel={t.title}
+                  accessibilityLabel={task.title}
                 >
                   <View style={[styles.box, done && styles.boxDone]}>
-                    {done && <Text style={styles.tick}>✓</Text>}
+                    {done && <Text style={styles.tick}>{t('common.tick')}</Text>}
                   </View>
                   <View style={styles.rowText}>
-                    <Text style={[styles.rowTitle, done && styles.rowTitleDone]}>{t.title}</Text>
-                    <Text style={styles.cadence}>{t.recurrence ? describeRecurrence(t.recurrence, today) : ''}</Text>
+                    <Text style={[styles.rowTitle, done && styles.rowTitleDone]}>{task.title}</Text>
+                    <Text style={styles.cadence}>{task.recurrence ? describeRecurrence(task.recurrence, today) : ''}</Text>
                   </View>
                 </Pressable>
               );
