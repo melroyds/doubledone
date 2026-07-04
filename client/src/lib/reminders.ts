@@ -85,13 +85,15 @@ export async function disableDailyReminder(): Promise<void> {
 }
 
 /**
- * Request permission and schedule a calm daily nudge for a routine at `hour` (the title is
- * the routine's own name, user data, never translated; the body a gentle "when you're
- * ready"). One per routine, keyed by `routine-` + routineId, so re-scheduling replaces and
- * cancelling touches only this routine's nudge. Shares the daily-reminder channel (DEFAULT
- * importance, calm): a routine nudge is an offer, not an alarm. Returns ok, or a reason it didn't.
+ * Request permission and schedule a calm daily nudge for a routine at `hour`:`minute` (the
+ * title is the routine's own name, user data, never translated; the body a gentle "when
+ * you're ready"). One per routine, keyed by `routine-` + routineId, so re-scheduling
+ * replaces and cancelling touches only this routine's nudge. Shares the daily-reminder
+ * channel (DEFAULT importance, calm): a routine nudge is an offer, not an alarm. Android
+ * delivers these inexactly (see scheduleNudge on exact alarms), so the UI copy says
+ * "around", never a to-the-minute promise. Returns ok, or a reason it didn't.
  */
-export async function scheduleRoutineNudge(routineId: string, name: string, hour: number): Promise<ReminderResult> {
+export async function scheduleRoutineNudge(routineId: string, name: string, hour: number, minute = 0): Promise<ReminderResult> {
   try {
     // Channel first (see enableDailyReminder): the Android 13 permission prompt needs a
     // channel to exist before it will appear.
@@ -105,7 +107,7 @@ export async function scheduleRoutineNudge(routineId: string, name: string, hour
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour,
-        minute: 0,
+        minute,
         channelId: DAILY_CHANNEL_ID,
       },
     });

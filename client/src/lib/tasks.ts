@@ -22,6 +22,7 @@ export type Task = {
   due?: string | null; // 'YYYY-MM-DD' for a one-off; null/undefined = someday
   recurrence?: Recurrence; // absent = one-off (see lib/recurrence)
   completedDates?: string[]; // ISO dates a recurring task was ticked (per-day completion)
+  skippedDates?: string[]; // ISO dates a recurring task's instance was removed from Today (skip-today; the series continues, see lib/today skipOn)
   slices?: Slices | null; // absent = whole task; present = track progress across parts (see lib/slices)
   suggestBreakdown?: boolean; // AI triage flagged this as too big to just do; shows an inline "break it down?" on the row
   decompositionId?: string; // pseudonymous id of the AI decomposition this step came from; links to the /outcome completion ping (the moat)

@@ -89,7 +89,7 @@ export async function cancelNudge(id: string): Promise<void> {
 
 /** No-op on web: routine nudges are native-only (web has no local scheduling), so the
  *  screen can say calmly that they aren't available here. */
-export async function scheduleRoutineNudge(routineId: string, name: string, hour: number): Promise<ReminderResult> {
+export async function scheduleRoutineNudge(routineId: string, name: string, hour: number, minute = 0): Promise<ReminderResult> {
   return { ok: false, reason: 'unsupported' };
 }
 

@@ -48,7 +48,7 @@ import { dayCleared, dayClosed, stepsLanded, taskDone } from '@/lib/haptics';
 import { type Inbound, subscribeInbound, takeInbound } from '@/lib/inbound';
 import { aiLanguage, fmt, t } from '@/lib/locale';
 import { buildOutcome } from '@/lib/outcome';
-import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
+import { scheduleFields, type CaptureSchedule, type Recurrence } from '@/lib/recurrence';
 import { availableNudgePresets, isWindDownTime, type NudgePreset, nudgeTargetFor } from '@/lib/nudge';
 import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge } from '@/lib/reminders';
 import { reminderReasonLine } from '@/lib/reminders-types';
@@ -63,7 +63,7 @@ import { track } from '@/lib/telemetry';
 import { updateWidget } from '@/widget/update';
 import { useReducedMotion, useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { usePremium } from '@/lib/premium-provider';
-import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, isRecurring, pinFirst, resurfaceOpenParent, setBig, setPin, setSequence, tasksForToday, tinyParentTitle, toggleDoneOn, upcomingTasks } from '@/lib/today';
+import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, isRecurring, pinFirst, resurfaceOpenParent, setBig, setPin, setSequence, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, upcomingTasks } from '@/lib/today';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
@@ -403,11 +403,22 @@ export default function TodayScreen() {
     void updateWidget(next, closedDate); // keep any home-screen widget in sync (native; no-op on web)
   }
 
-  // Soft-delete: tombstone the task (hidden from every view) rather than dropping
-  // it, so the deletion can sync to other devices instead of resurrecting on pull.
+  // Remove is scoped to what Today shows: Today manages days, the Repeating drawer
+  // manages the series. A recurring task's Remove skips TODAY'S instance only (the
+  // series continues on its next due day, see skipOn); a one-off is soft-deleted, a
+  // tombstone (hidden from every view) rather than a drop, so the deletion can sync
+  // to other devices instead of resurrecting on pull.
   function removeTask(id: string) {
     const now = nowMs();
-    commit(tasks.map((t) => (t.id === id ? clearNudgeIfAny({ ...t, deletedAt: now, updatedAt: now }) : t)));
+    const target = tasks.find((x) => x.id === id);
+    if (target && isRecurring(target)) {
+      commit(tasks.map((x) => (x.id === id ? clearNudgeIfAny({ ...skipOn(x, today), updatedAt: now }) : x)));
+      setConfirmingId(null);
+      track('repeat.instance_skipped');
+      affirm(t('repeat.skippedToday'));
+      return;
+    }
+    commit(tasks.map((x) => (x.id === id ? clearNudgeIfAny({ ...x, deletedAt: now, updatedAt: now }) : x)));
     setConfirmingId(null);
     track('task.removed');
   }
@@ -527,8 +538,23 @@ export default function TodayScreen() {
     if (selected.length === 0) return;
     const now = nowMs();
     const set = new Set(selected);
-    commit(tasks.map((t) => (set.has(t.id) ? clearNudgeIfAny({ ...t, deletedAt: now, updatedAt: now }) : t)));
-    track('bulk.removed', { count: selected.length });
+    // Same split as removeTask: a selected recurring task is skipped for today only
+    // (the repeat continues), one-offs keep the tombstone. A mixed selection does both.
+    const skippedCount = selected.filter((id) => {
+      const x = tasks.find((y) => y.id === id);
+      return x != null && isRecurring(x);
+    }).length;
+    commit(
+      tasks.map((x) => {
+        if (!set.has(x.id)) return x;
+        if (isRecurring(x)) return clearNudgeIfAny({ ...skipOn(x, today), updatedAt: now });
+        return clearNudgeIfAny({ ...x, deletedAt: now, updatedAt: now });
+      }),
+    );
+    if (skippedCount > 0) track('repeat.instance_skipped', { count: skippedCount });
+    if (selected.length - skippedCount > 0) track('bulk.removed', { count: selected.length - skippedCount });
+    // Only-recurring removals get the honest reassurance: nothing died, today was skipped.
+    if (skippedCount === selected.length) affirm(t('repeat.skippedToday'));
     exitSelect();
   }
   function bulkMoveTo(iso: string) {
@@ -669,6 +695,31 @@ export default function TodayScreen() {
   function openDrawer() {
     setDrawerOpen(true);
     track('repeating.opened');
+  }
+
+  // The Repeating drawer manages the series (Today manages days): rename or
+  // re-cadence a repeating task in place. updatedAt bumps so the edit wins
+  // last-write-wins sync, the same commit path as every other task mutation.
+  function editSeries(id: string, title: string, recurrence: Recurrence) {
+    const now = nowMs();
+    commit(tasks.map((x) => (x.id === id ? { ...x, title, recurrence, updatedAt: now } : x)));
+    track('repeat.series_edited');
+  }
+
+  // Remove the whole series: the standard tombstone (hidden from every view, syncs
+  // as a delete). The drawer pairs it with a 6-second undo, matching routines, so
+  // it is recoverable rather than a confirmation gauntlet.
+  function removeSeries(id: string) {
+    const now = nowMs();
+    commit(tasks.map((x) => (x.id === id ? clearNudgeIfAny({ ...x, deletedAt: now, updatedAt: now }) : x)));
+    track('repeat.series_removed');
+  }
+
+  // The undo: clear the tombstone and the series is back, cadence and history intact.
+  function restoreSeries(id: string) {
+    const now = nowMs();
+    commit(tasks.map((x) => (x.id === id ? { ...x, deletedAt: null, updatedAt: now } : x)));
+    track('repeat.remove.undone');
   }
 
   // A calm daily reminder, opt-in. Native schedules a local one; on web (Phase 2)
@@ -1034,8 +1085,10 @@ export default function TodayScreen() {
   }
 
   // Accept the chosen phase-one steps onto Today, plus a dated milestone task for
-  // each later phase (each broken down later, when you reach it).
-  function bdAccept(selected: ReviewStep[]) {
+  // each later phase (each broken down later, when you reach it). The phases come
+  // back from the review, not bdPhases state: they too are propose -> edit -> accept,
+  // so the minted milestones carry the user's edits and skip the removed ones.
+  function bdAccept(selected: ReviewStep[], phases: ReviewPhase[]) {
     const now = nowMs();
     // Keep the real task as a silent parent and chain the steps to it (Cluster B): an
     // existing task becomes the parent; an at-capture breakdown mints one.
@@ -1053,7 +1106,7 @@ export default function TodayScreen() {
       ...(bdCorrId ? { decompositionId: bdCorrId, decompositionSteps: selected.length } : {}),
       ...(s.date ? { due: s.date } : {}),
     }));
-    const phaseTasks: Task[] = (bdPhases ?? []).map((p, i) => ({
+    const phaseTasks: Task[] = phases.map((p, i) => ({
       id: makeId(),
       title: p.title,
       done: false,
@@ -1370,7 +1423,6 @@ export default function TodayScreen() {
               onBreakdown={aiEnabled ? () => breakdownExisting(task.title, task.id) : () => openManualBreakdown(task.id, task.title)}
               onMakeTiny={aiEnabled ? () => makeTiny(task.id, task.title) : undefined}
               onDefer={() => deferTask(task.id)}
-              onDoneOn={!isRecurring(task) && !isDoneOn(task, today) ? () => openDoneOn(task.id) : undefined}
               suggestBreakdown={task.suggestBreakdown}
               selecting={selectMode}
               selected={selected.includes(task.id)}
@@ -1500,9 +1552,18 @@ export default function TodayScreen() {
             </View>
             <View style={styles.selectActions}>
               <View style={styles.actionRow}>
-                <Pressable onPress={bulkComplete} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={t('today.markSelectedDoneA11y')} hitSlop={6}>
-                  <Text style={[styles.selectDone, selected.length === 0 && styles.selectActionOff]}>{t('common.done')}</Text>
-                </Pressable>
+                {/* Correction is a property of a COMPLETED task: muscle memory taps it done first, THEN
+                    attributes the day. A single already-done one-off swaps the (pointless) Done for
+                    "Done on…"; every other selection keeps the bulk complete. */}
+                {onlyTask && isDoneOn(onlyTask, today) && !isRecurring(onlyTask) ? (
+                  <Pressable onPress={() => openDoneOn(onlyTask.id)} accessibilityRole="button" accessibilityLabel={t('today.doneOnA11y', { title: onlyTask.title })} hitSlop={6}>
+                    <Text style={styles.selectDone}>{t('today.doneOn')}</Text>
+                  </Pressable>
+                ) : (
+                  <Pressable onPress={bulkComplete} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={t('today.markSelectedDoneA11y')} hitSlop={6}>
+                    <Text style={[styles.selectDone, selected.length === 0 && styles.selectActionOff]}>{t('common.done')}</Text>
+                  </Pressable>
+                )}
                 <Pressable onPress={() => setMoveToOpen(true)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={t('today.moveSelectedA11y')} hitSlop={6}>
                   <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>{t('today.moveTo')}</Text>
                 </Pressable>
@@ -1554,16 +1615,6 @@ export default function TodayScreen() {
                     <Text style={[styles.selectAction, !premium && !onlyTask.pinnedAt && styles.selectActionDim]}>{onlyTask.pinnedAt ? t('today.unpin') : t('today.pin')}</Text>
                   </Pressable>
                 )}
-                {onlyTask && !isRecurring(onlyTask) && !isDoneOn(onlyTask, today) && (
-                  <Pressable
-                    onPress={() => openDoneOn(onlyTask.id)}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('today.doneOnA11y', { title: onlyTask.title })}
-                    hitSlop={6}
-                  >
-                    <Text style={styles.selectAction}>{t('today.doneOn')}</Text>
-                  </Pressable>
-                )}
                 {aiEnabled && selected.length === 1 && (
                   <Pressable
                     onPress={() => {
@@ -1597,7 +1648,17 @@ export default function TodayScreen() {
                     <Text style={styles.selectAction}>{t('today.combine')}</Text>
                   </Pressable>
                 )}
-                <Pressable onPress={bulkRemove} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={t('today.removeSelectedA11y')} hitSlop={6}>
+                {/* A lone recurring selection names the true semantics (skip today, the repeat continues),
+                    so a screen reader never hears "remove" and fears the series is gone. */}
+                <Pressable
+                  onPress={bulkRemove}
+                  disabled={selected.length === 0}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    onlyTask && isRecurring(onlyTask) ? t('repeat.skipTodayA11y', { title: onlyTask.title }) : t('today.removeSelectedA11y')
+                  }
+                  hitSlop={6}
+                >
                   <Text style={[styles.selectRemove, selected.length === 0 && styles.selectActionOff]}>{t('common.remove')}</Text>
                 </Pressable>
               </View>
@@ -2176,6 +2237,9 @@ export default function TodayScreen() {
         tasks={tasks}
         today={today}
         onToggle={toggle}
+        onEditSeries={editSeries}
+        onRemoveSeries={removeSeries}
+        onRestoreSeries={restoreSeries}
       />
 
       {bdPhase === 'questions' && bdQuestions && (

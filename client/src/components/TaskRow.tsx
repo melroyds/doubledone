@@ -24,7 +24,6 @@ type Props = {
   onBreakdown?: () => void;
   onDefer?: () => void;
   onMakeTiny?: () => void;
-  onDoneOn?: () => void; // "Done on…": mark this done as of an earlier day (honest bookkeeping for a forgotten tick)
   suggestBreakdown?: boolean;
   selecting?: boolean;
   selected?: boolean;
@@ -59,7 +58,6 @@ export function TaskRow({
   onBreakdown,
   onDefer,
   onMakeTiny,
-  onDoneOn,
   suggestBreakdown,
   selecting,
   selected,
@@ -146,11 +144,6 @@ export function TaskRow({
           {onBreakdown && !recurring && (
             <Pressable onPress={onBreakdown} accessibilityRole="button" accessibilityLabel={t('breakdown.breakDownTaskLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
               <Text style={styles.keep}>{t('breakdown.breakDown')}</Text>
-            </Pressable>
-          )}
-          {onDoneOn && !recurring && (
-            <Pressable onPress={onDoneOn} accessibilityRole="button" accessibilityLabel={t('today.doneOnA11y', { title })} hitSlop={{ top: 12, bottom: 12 }}>
-              <Text style={styles.keep}>{t('today.doneOn')}</Text>
             </Pressable>
           )}
           <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={t('today.removeTaskLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>

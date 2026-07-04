@@ -10,6 +10,7 @@ export type Scheduled = {
   due?: string | null;
   recurrence?: Recurrence;
   completedDates?: string[]; // ISO dates a recurring task was completed
+  skippedDates?: string[]; // ISO dates whose instance the user removed from Today (the series continues)
   deletedAt?: number | null; // soft-delete tombstone; set = never shown
   silentParent?: boolean; // a silent parent (Cluster B): hidden from Today / Later until its children are done
 };
@@ -39,17 +40,33 @@ export function toggleDoneOn<T extends Scheduled>(task: T, date: Date): T {
 }
 
 /**
+ * Skip a recurring task's instance for one day, returning a new task: that day's
+ * occurrence leaves Today, and the series is untouched (it returns on its next due
+ * day). This is Today's "remove" for a recurring task: Today manages days, the
+ * Repeating drawer manages the series. Idempotent (an already-skipped day is a
+ * no-op) and non-mutating. One-offs never carry skippedDates; they tombstone.
+ */
+export function skipOn<T extends Scheduled>(task: T, date: Date): T {
+  const iso = toISODate(date);
+  const dates = task.skippedDates ?? [];
+  if (dates.includes(iso)) return task;
+  return { ...task, skippedDates: [...dates, iso] };
+}
+
+/**
  * What lands on Today. A recurring task shows when it is due today. An OPEN one-off
  * shows when it is undated (the "do it now" capture default) or its due date is today
  * or earlier, so an overdue one-off rolls forward calmly, with no shaming. A DONE
  * one-off shows only on the day it was finished, then it lives in the Lookback (a
  * completed task never carries into the next day). Future one-offs wait in Later.
+ * A recurring task whose instance was skipped for this day (skipOn) stays off Today
+ * for just this day; skippedDates never touches a one-off.
  */
 export function tasksForToday<T extends Scheduled>(tasks: T[], date: Date): T[] {
   const todayIso = toISODate(date);
   return tasks.filter((t) => {
     if (t.deletedAt || t.silentParent) return false;
-    if (isRecurring(t)) return isDueOn(t, date);
+    if (isRecurring(t)) return isDueOn(t, date) && !(t.skippedDates ?? []).includes(todayIso);
     if (t.done) return t.completedAt != null && toISODate(new Date(t.completedAt)) === todayIso;
     return t.due == null || t.due <= todayIso;
   });

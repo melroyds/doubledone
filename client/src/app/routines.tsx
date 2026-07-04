@@ -9,7 +9,7 @@ import { border, cardShadow, fonts, layout, PRESSED_OPACITY, radius, spacing, ty
 import { toISODate } from '@/lib/day';
 import { t } from '@/lib/locale';
 import { cancelRoutineNudge, scheduleRoutineNudge } from '@/lib/reminders';
-import { clampHour, formatReminderHour, reminderReasonLine } from '@/lib/reminders-types';
+import { clampHour, clampMinute, formatReminderTime, reminderReasonLine } from '@/lib/reminders-types';
 import { applyRoutineEdit, isStepDoneToday, type Routine, routineProgress, type RoutineWhen, toggleStep } from '@/lib/routines';
 import { loadRoutines, saveRoutines } from '@/lib/storage';
 import { parseDump } from '@/lib/tasks';
@@ -56,7 +56,18 @@ export default function RoutinesScreen() {
   const [stepsText, setStepsText] = useState('');
   const [nudgeOn, setNudgeOn] = useState(false); // the once-a-day nudge for the routine in the form; default Off
   const [nudgeHour, setNudgeHour] = useState(9);
+  const [nudgeMinute, setNudgeMinute] = useState(0);
   const [nudgeNote, setNudgeNote] = useState<string | null>(null); // the calm line when the nudge couldn't be set
+  // The precise time entry, opened by tapping the time: two small 24h inputs holding the
+  // typed text (the clamped VALUE lives in nudgeHour/nudgeMinute, narrated live below).
+  const [timeEntryOpen, setTimeEntryOpen] = useState(false);
+  const [hourText, setHourText] = useState('9');
+  const [minuteText, setMinuteText] = useState('00');
+  // Which save requirement the form is quietly pointing at, so a save tap is never silent.
+  // Clears the moment the user types in the field the hint names.
+  const [formHint, setFormHint] = useState<'name' | 'steps' | null>(null);
+  const nameInput = useRef<TextInput>(null);
+  const stepsInput = useRef<TextInput>(null);
   const [undo, setUndo] = useState<Routine | null>(null); // the just-removed routine, for a brief undo
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -82,26 +93,40 @@ export default function RoutinesScreen() {
     track('routine.step.toggled');
   }
 
-  // Save the form, creating or (when editingId is set) editing. The nudge reconciles FIRST,
-  // so the stored hour is honest: if scheduling didn't work the routine saves with no nudge
-  // and one calm line says why (never a silent bounce-back). Edits go through
-  // applyRoutineEdit so a surviving step keeps its id, and with it today's tick.
+  // Save the form, creating or (when editingId is set) editing. Every tap gets an answer:
+  // a missing name or missing steps points the user there with a quiet hint and focus,
+  // never a silent nothing and never a disabled button. The nudge reconciles FIRST, so the
+  // stored time is honest: if scheduling didn't work the routine saves with no nudge and
+  // one calm line says why (never a silent bounce-back). Edits go through applyRoutineEdit
+  // so a surviving step keeps its id, and with it today's tick.
   async function saveRoutine() {
     const trimmed = name.trim();
     const stepTitles = parseDump(stepsText);
-    if (!trimmed || stepTitles.length === 0) return;
+    if (!trimmed) {
+      setFormHint('name');
+      nameInput.current?.focus();
+      return;
+    }
+    if (stepTitles.length === 0) {
+      setFormHint('steps');
+      stepsInput.current?.focus();
+      return;
+    }
     const existing = editingId ? routines.find((r) => r.id === editingId) : undefined;
     if (editingId && !existing) return; // removed while the form was open; nothing to save onto
     const now = Date.now();
     const id = existing ? existing.id : makeId();
     const wanted = nudgeOn ? nudgeHour : null;
+    const wantedMinute = clampMinute(nudgeMinute);
     let hour: number | null = null;
+    let minute: number | null = null;
     let note: string | null = null;
     if (wanted != null) {
-      const result = await scheduleRoutineNudge(id, trimmed, wanted);
+      const result = await scheduleRoutineNudge(id, trimmed, wanted, wantedMinute);
       if (result.ok) {
         hour = wanted;
-        track('routine.nudge.set', { hour: wanted });
+        minute = wantedMinute;
+        track('routine.nudge.set', { hour: wanted, minute: wantedMinute });
       } else {
         note = reminderReasonLine(result.reason);
       }
@@ -110,12 +135,15 @@ export default function RoutinesScreen() {
       if (existing?.nudgeHour != null) track('routine.nudge.cleared');
     }
     if (existing) {
-      const edited = applyRoutineEdit(existing, { name: trimmed, when, stepTitles, nudgeHour: hour, now }, makeId);
+      const edited = applyRoutineEdit(existing, { name: trimmed, when, stepTitles, nudgeHour: hour, nudgeMinute: minute, now }, makeId);
       commit(routines.map((r) => (r.id === existing.id ? edited : r)));
       track('routine.edited');
     } else {
       const steps = stepTitles.map((title) => ({ id: makeId(), title }));
-      commit([...routines, { id, name: trimmed, when, steps, done: {}, nudgeHour: hour, createdAt: now, updatedAt: now }]);
+      commit([
+        ...routines,
+        { id, name: trimmed, when, steps, done: {}, nudgeHour: hour, nudgeMinute: minute, createdAt: now, updatedAt: now },
+      ]);
       track('routine.created', { steps: steps.length, when });
     }
     setNudgeNote(note);
@@ -131,7 +159,10 @@ export default function RoutinesScreen() {
     setStepsText(r.steps.map((s) => s.title).join('\n'));
     setNudgeOn(r.nudgeHour != null);
     setNudgeHour(r.nudgeHour ?? defaultNudgeHour(r.when));
+    setNudgeMinute(r.nudgeHour != null ? (r.nudgeMinute ?? 0) : 0);
     setNudgeNote(null);
+    setTimeEntryOpen(false);
+    setFormHint(null);
     setAdding(true);
   }
 
@@ -148,6 +179,7 @@ export default function RoutinesScreen() {
         t('routines.starterStepOneThing'),
       ].join('\n'),
     );
+    setFormHint(null);
     setAdding(true);
     track('routine.starter_opened');
   }
@@ -159,6 +191,39 @@ export default function RoutinesScreen() {
     setStepsText('');
     setWhen('morning');
     setNudgeOn(false);
+    setNudgeMinute(0);
+    setTimeEntryOpen(false);
+    setFormHint(null);
+  }
+
+  // Tapping the time toggles the precise entry, seeding the inputs from the current value
+  // so what the user sees is what they are editing.
+  function toggleTimeEntry() {
+    setHourText(String(nudgeHour));
+    setMinuteText(String(nudgeMinute).padStart(2, '0'));
+    setTimeEntryOpen((open) => !open);
+  }
+
+  // The precise inputs stay in 24h (0-23 / 0-59, digits only, clamped), and the line below
+  // narrates the RESULT in the device's own 12/24h convention, so an Italian sees 20:47 and
+  // an Australian sees 8:47 pm without anyone juggling am/pm in a two-character box.
+  function onHourText(v: string) {
+    const digits = v.replace(/\D/g, '').slice(0, 2);
+    setHourText(digits);
+    if (digits !== '') setNudgeHour(clampHour(Number(digits)));
+  }
+
+  function onMinuteText(v: string) {
+    const digits = v.replace(/\D/g, '').slice(0, 2);
+    setMinuteText(digits);
+    if (digits !== '') setNudgeMinute(clampMinute(Number(digits)));
+  }
+
+  // On blur the typed text settles to the clamped value ("77" becomes "59"), so the box
+  // never disagrees with the narrated time.
+  function settleTimeText() {
+    setHourText(String(nudgeHour));
+    setMinuteText(String(nudgeMinute).padStart(2, '0'));
   }
 
   // Remove is recoverable, not a confirmation gauntlet: a routine is a built object, so an
@@ -179,7 +244,7 @@ export default function RoutinesScreen() {
     if (!undo) return;
     if (undoTimer.current) clearTimeout(undoTimer.current);
     commit([...routines, undo]);
-    if (undo.nudgeHour != null) void scheduleRoutineNudge(undo.id, undo.name, undo.nudgeHour); // best effort: the routine is back, so is its nudge
+    if (undo.nudgeHour != null) void scheduleRoutineNudge(undo.id, undo.name, undo.nudgeHour, undo.nudgeMinute ?? 0); // best effort: the routine is back, so is its nudge
     track('routine.remove.undone');
     setUndo(null);
   }
@@ -233,6 +298,13 @@ export default function RoutinesScreen() {
                       {t('routines.progress', { done: p.done, total: p.total })}
                     </Text>
                   </View>
+                  {/* The nudge, visible where it was set: "around" is deliberate, Android
+                      delivers these inexactly and the copy never promises the minute. */}
+                  {r.nudgeHour != null && (
+                    <Text style={styles.cardNudge}>
+                      {t('routines.nudgeAt', { time: formatReminderTime(r.nudgeHour, r.nudgeMinute ?? 0) })}
+                    </Text>
+                  )}
                   {r.steps.map((s) => {
                     const done = isStepDoneToday(r, s.id, today);
                     return (
@@ -277,13 +349,18 @@ export default function RoutinesScreen() {
         {adding ? (
           <View style={styles.form}>
             <TextInput
+              ref={nameInput}
               style={styles.input}
               placeholder={t('routines.namePlaceholder')}
               placeholderTextColor={theme.colors.inkFaint}
               value={name}
-              onChangeText={setName}
+              onChangeText={(v) => {
+                setName(v);
+                if (formHint === 'name') setFormHint(null);
+              }}
               accessibilityLabel={t('routines.nameA11y')}
             />
+            {formHint === 'name' && <Text style={styles.formHint}>{t('routines.nameFirstHint')}</Text>}
             <View style={styles.whenPills}>
               {WHENS.map((w) => {
                 const active = w.value === when;
@@ -302,14 +379,19 @@ export default function RoutinesScreen() {
               })}
             </View>
             <TextInput
+              ref={stepsInput}
               style={[styles.input, styles.stepsInput]}
               placeholder={t('routines.stepsPlaceholder')}
               placeholderTextColor={theme.colors.inkFaint}
               value={stepsText}
-              onChangeText={setStepsText}
+              onChangeText={(v) => {
+                setStepsText(v);
+                if (formHint === 'steps') setFormHint(null);
+              }}
               multiline
               accessibilityLabel={t('routines.stepsA11y')}
             />
+            {formHint === 'steps' && <Text style={styles.formHint}>{t('routines.stepsFirstHint')}</Text>}
             {/* The once-a-day nudge, default Off: an Off pill beside a time pill, which becomes
                 the Settings-style hour stepper once it is on. An offer, never a demand. */}
             <View style={styles.nudgeBlock}>
@@ -328,7 +410,11 @@ export default function RoutinesScreen() {
                 {nudgeOn ? (
                   <View style={styles.stepper}>
                     <Pressable
-                      onPress={() => setNudgeHour(clampHour(nudgeHour - 1))}
+                      onPress={() => {
+                        const h = clampHour(nudgeHour - 1);
+                        setNudgeHour(h);
+                        setHourText(String(h));
+                      }}
                       disabled={nudgeHour <= 0}
                       accessibilityRole="button"
                       accessibilityLabel={t('settings.reminderEarlier')}
@@ -337,14 +423,23 @@ export default function RoutinesScreen() {
                     >
                       <Text style={styles.stepGlyph}>−</Text>
                     </Pressable>
-                    <Text
-                      style={styles.stepValue}
-                      accessibilityLabel={t('routines.nudgeAtA11y', { name: name.trim(), time: formatReminderHour(nudgeHour) })}
-                    >
-                      {formatReminderHour(nudgeHour)}
-                    </Text>
+                    {/* Tapping the time opens the precise entry below; the steppers stay for
+                        coarse hour moves, the inputs give the meticulous fine control. */}
                     <Pressable
-                      onPress={() => setNudgeHour(clampHour(nudgeHour + 1))}
+                      onPress={toggleTimeEntry}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: timeEntryOpen }}
+                      accessibilityLabel={t('routines.timeEntryA11y')}
+                      hitSlop={8}
+                    >
+                      <Text style={styles.stepValue}>{formatReminderTime(nudgeHour, nudgeMinute)}</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        const h = clampHour(nudgeHour + 1);
+                        setNudgeHour(h);
+                        setHourText(String(h));
+                      }}
                       disabled={nudgeHour >= 23}
                       accessibilityRole="button"
                       accessibilityLabel={t('today.laterHeading')}
@@ -358,17 +453,52 @@ export default function RoutinesScreen() {
                   <Pressable
                     onPress={() => {
                       setNudgeHour(defaultNudgeHour(when));
+                      setNudgeMinute(0);
                       setNudgeOn(true);
                     }}
                     accessibilityRole="button"
                     accessibilityState={{ selected: false }}
-                    accessibilityLabel={t('routines.nudgeAtA11y', { name: name.trim(), time: formatReminderHour(defaultNudgeHour(when)) })}
+                    accessibilityLabel={t('routines.nudgeAtA11y', { name: name.trim(), time: formatReminderTime(defaultNudgeHour(when), 0) })}
                     hitSlop={8}
                   >
-                    <Text style={styles.whenPill}>{formatReminderHour(defaultNudgeHour(when))}</Text>
+                    <Text style={styles.whenPill}>{formatReminderTime(defaultNudgeHour(when), 0)}</Text>
                   </Pressable>
                 )}
               </View>
+              {/* The precise entry: 24h hour and minute, digits only. The line underneath
+                  narrates the result in the device's own 12/24h convention, "around" because
+                  Android delivers inexactly, never a to-the-minute promise. */}
+              {nudgeOn && timeEntryOpen && (
+                <View>
+                  <View style={styles.timeEntryRow}>
+                    <TextInput
+                      style={[styles.input, styles.timeInput]}
+                      value={hourText}
+                      onChangeText={onHourText}
+                      onBlur={settleTimeText}
+                      keyboardType="number-pad"
+                      maxLength={2}
+                      accessibilityLabel={t('routines.timeHourA11y')}
+                    />
+                    <Text style={styles.timeColon}>:</Text>
+                    <TextInput
+                      style={[styles.input, styles.timeInput]}
+                      value={minuteText}
+                      onChangeText={onMinuteText}
+                      onBlur={settleTimeText}
+                      keyboardType="number-pad"
+                      maxLength={2}
+                      accessibilityLabel={t('routines.timeMinuteA11y')}
+                    />
+                  </View>
+                  <Text style={styles.timeResult}>
+                    {t('routines.nudgeAt', { time: formatReminderTime(nudgeHour, nudgeMinute) })}
+                  </Text>
+                  {/* The entry is 24-hour; one static line spares a 12h-convention user typing "8"
+                      for 8 pm and quietly getting 8 am. The live line above shows the real result. */}
+                  <Text style={styles.timeResult}>{t('routines.timeEntry24hHint')}</Text>
+                </View>
+              )}
             </View>
             <View style={styles.formActions}>
               <Pressable onPress={cancelAdd} accessibilityRole="button" hitSlop={6}>
@@ -430,6 +560,7 @@ const makeStyles = (t: Theme) =>
     cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: spacing.one },
     cardName: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, flex: 1 },
     cardProgress: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, marginLeft: spacing.three },
+    cardNudge: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, marginBottom: spacing.one },
     step: { flexDirection: 'row', alignItems: 'center', gap: spacing.three, paddingVertical: spacing.two },
     stepBox: {
       width: 22,
@@ -468,6 +599,8 @@ const makeStyles = (t: Theme) =>
       backgroundColor: t.colors.bg,
     },
     stepsInput: { minHeight: 90, textAlignVertical: 'top' },
+    // The quiet save hint: the form's own accent, never a red shout.
+    formHint: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale },
     whenPills: { flexDirection: 'row', gap: spacing.two },
     whenPill: {
       color: t.colors.inkSoft,
@@ -491,6 +624,11 @@ const makeStyles = (t: Theme) =>
     stepBtnOff: { opacity: 0.4 },
     stepGlyph: { fontSize: 22 * t.scale, lineHeight: 26 * t.scale, color: t.colors.accent, fontFamily: fonts.body },
     stepValue: { ...t.type.bodyStrong, color: t.colors.ink, minWidth: 88, textAlign: 'center' },
+    // The precise 24h time entry, opened by tapping the time.
+    timeEntryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, marginTop: spacing.three },
+    timeInput: { width: 56, textAlign: 'center' },
+    timeColon: { ...t.type.bodyStrong, color: t.colors.inkSoft },
+    timeResult: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.two },
     pressed: { opacity: PRESSED_OPACITY },
     nudgeNote: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
     formActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.four, marginTop: spacing.one },

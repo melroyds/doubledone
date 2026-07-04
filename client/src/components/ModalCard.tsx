@@ -17,6 +17,10 @@ type Props = {
   // needs a viewport-relative cap) opts out of the padding and passes a maxHeight instead.
   scroll?: boolean;
   maxHeight?: ViewStyle['maxHeight'];
+  // False makes the card un-losable: a backdrop tap or the Android back-request no longer
+  // closes it, only the explicit affordances inside do. For cards holding work the user
+  // paid for (an AI plan mid-review), where a stray tap must never destroy the contents.
+  dismissable?: boolean;
 };
 
 // The centred modal-card scaffold: a transparent Modal, a scrim backdrop that closes on tap,
@@ -38,17 +42,23 @@ export function ModalCard({
   dismissLabel,
   scroll = false,
   maxHeight,
+  dismissable = true,
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   const dismiss = dismissLabel ?? t('common.dismiss');
   return (
-    <Modal transparent visible={visible} animationType={animationType} onRequestClose={onClose}>
+    <Modal transparent visible={visible} animationType={animationType} onRequestClose={dismissable ? onClose : () => undefined}>
       <View style={styles.root}>
         {/* The scrim is a SIBLING of the card (an absolute-fill dismiss layer BEHIND it), never its parent,
             so the card's interactive content is not a <button> nested inside the scrim <button> (invalid HTML
             and a hydration error on web). The card sits on top, so taps on it don't reach the scrim, no
-            tap-absorbing inner Pressable needed. */}
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel={dismiss} />
+            tap-absorbing inner Pressable needed. A non-dismissable card renders the scrim as a plain View
+            (no dead button announced to a screen reader, no tap-to-close). */}
+        {dismissable ? (
+          <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel={dismiss} />
+        ) : (
+          <View style={styles.backdrop} />
+        )}
         <View style={[scroll ? styles.cardScroll : styles.card, { maxWidth }, maxHeight != null ? { maxHeight } : null]}>
           {children}
         </View>
