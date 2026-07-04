@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
+import { t } from '@/lib/locale';
 import { loadOnboarded } from '@/lib/storage';
 import { useThemedStyles } from '@/lib/theme-provider';
 
@@ -15,9 +16,10 @@ import { useThemedStyles } from '@/lib/theme-provider';
 // Design: the Claude Design "Dusk" landing, re-implemented on the live theme tokens so it follows light/dark and
 // the completion tick matches the app's (a dark ink on sage, the AA-correct one, not the mock's white check).
 const STEPS = [
-  { n: '1', title: 'Empty your head', body: 'Type or speak everything weighing on you. The AI sorts it into a doable today and tucks the rest away.' },
-  { n: '2', title: 'Work the day', body: 'Stuck on something big? Break it into first steps. Drowning? Lighten the day in one tap.' },
-  { n: '3', title: 'Close it gently', body: "Each evening, close the day. It honours what you did, never what you didn't. Tomorrow opens fresh." },
+  // Step 1's title deliberately reuses the launcher shortcut's words ("Empty your head"), so they share a key.
+  { n: '1', title: t('widget.quickActionDumpSubtitle'), body: t('welcome.step1Body') },
+  { n: '2', title: t('welcome.step2Title'), body: t('welcome.step2Body') },
+  { n: '3', title: t('welcome.step3Title'), body: t('welcome.step3Body') },
 ];
 
 type Styles = ReturnType<typeof makeStyles>;
@@ -69,58 +71,55 @@ export default function Landing() {
 
         {/* hero */}
         <View style={styles.hero}>
-          <Text style={styles.kicker}>for when the list is too much</Text>
-          <Text style={styles.h1}>Today is finite and achievable.</Text>
-          <Text style={styles.sub}>
-            If a to-do list has ever felt like too much, you can put it down here. DoubleDone shows you only what today needs, and
-            quietly keeps everything you finish.
-          </Text>
-          <PrimaryButton label="Begin" onPress={begin} accessibilityLabel="Begin, open DoubleDone" style={styles.cta} />
-          <Text style={styles.trust}>Free. No account needed. Works offline.</Text>
+          <Text style={styles.kicker}>{t('welcome.kicker')}</Text>
+          <Text style={styles.h1}>{t('welcome.heroHeadline')}</Text>
+          <Text style={styles.sub}>{t('welcome.heroSub')}</Text>
+          <PrimaryButton label={t('common.begin')} onPress={begin} accessibilityLabel={t('welcome.beginA11y')} style={styles.cta} />
+          <Text style={styles.trust}>{t('welcome.trustLine')}</Text>
 
           {/* the Today screen, calm and half-finished */}
           <View
             style={styles.today}
             accessibilityRole="image"
-            accessibilityLabel="The Today screen: two finished tasks, Call the pharmacy and Reply to Dana, and one still to do, Start the tax folder. The rest is waiting calmly for later."
+            accessibilityLabel={t('welcome.todayMockA11y')}
           >
             <View style={styles.todayHead}>
-              <Text style={styles.todayTitle}>Today</Text>
-              <Text style={styles.todayDate}>Thursday 27</Text>
+              <Text style={styles.todayTitle}>{t('common.today')}</Text>
+              <Text style={styles.todayDate}>{t('welcome.mockTodayDate')}</Text>
             </View>
             <View style={[styles.row, { marginTop: spacing.three }]}>
               <View style={[styles.check, styles.checkDone]}>
                 <Text style={styles.checkTick}>✓</Text>
               </View>
-              <Text style={[styles.task, styles.taskDone]}>Call the pharmacy</Text>
+              <Text style={[styles.task, styles.taskDone]}>{t('welcome.mockTask1')}</Text>
             </View>
             <View style={styles.ruleSoft} />
             <View style={styles.row}>
               <View style={[styles.check, styles.checkDone]}>
                 <Text style={styles.checkTick}>✓</Text>
               </View>
-              <Text style={[styles.task, styles.taskDone]}>Reply to Dana about the lease</Text>
+              <Text style={[styles.task, styles.taskDone]}>{t('welcome.mockTask2')}</Text>
             </View>
             <View style={styles.ruleSoft} />
             <View style={styles.row}>
               <View style={[styles.check, styles.checkOpen]} />
-              <Text style={styles.task}>Start the tax folder</Text>
+              <Text style={styles.task}>{t('welcome.mockTask3')}</Text>
             </View>
             <View style={styles.rule} />
-            <Text style={styles.todayFoot}>The rest is waiting calmly for later.</Text>
+            <Text style={styles.todayFoot}>{t('welcome.revealRestWaiting')}</Text>
           </View>
 
           {/* the promise, given weight */}
           <View style={styles.promise}>
-            <Text style={styles.promiseH}>Nothing is ever overdue. It just waits.</Text>
-            <Text style={styles.promiseP}>And nothing here will ever shame you for a task simply existing. No streaks, no guilt, no red.</Text>
+            <Text style={styles.promiseH}>{t('welcome.lead2')}</Text>
+            <Text style={styles.promiseP}>{t('welcome.promiseBody')}</Text>
           </View>
         </View>
 
         {/* how a day goes */}
         <View style={styles.section}>
-          <Text style={styles.secLabel}>How a day goes</Text>
-          <Text style={styles.secH}>Three calm steps, start to rest.</Text>
+          <Text style={styles.secLabel}>{t('welcome.howLabel')}</Text>
+          <Text style={styles.secH}>{t('welcome.howHeadline')}</Text>
           <View style={styles.steps}>
             {STEPS.map((s, i) => (
               <View key={s.n} style={[styles.step, i === 0 && styles.stepFirst]}>
@@ -139,28 +138,25 @@ export default function Landing() {
           <View style={styles.payoffDot}>
             <Text style={styles.checkTick}>✓</Text>
           </View>
-          <Text style={styles.payoffH}>What you finish, you keep.</Text>
-          <Text style={styles.payoffP}>
-            Everything you complete gathers in your Lookback, even a task you dreaded for weeks. Your brain can&apos;t tell you that you did
-            nothing.
-          </Text>
+          <Text style={styles.payoffH}>{t('welcome.keepHeading')}</Text>
+          <Text style={styles.payoffP}>{t('welcome.payoffBody')}</Text>
         </View>
 
         {/* closing */}
         <View style={styles.closing}>
-          <Text style={styles.closingLine}>When you&apos;re ready, start with today.</Text>
-          <PrimaryButton label="Begin" onPress={begin} accessibilityLabel="Begin, open DoubleDone" />
-          <Text style={styles.trust}>Free. No account needed. Works offline.</Text>
+          <Text style={styles.closingLine}>{t('welcome.closingLine')}</Text>
+          <PrimaryButton label={t('common.begin')} onPress={begin} accessibilityLabel={t('welcome.beginA11y')} />
+          <Text style={styles.trust}>{t('welcome.trustLine')}</Text>
         </View>
 
         {/* footer */}
         <View style={styles.footer}>
-          <Text style={styles.footWho}>Made for ADHD, autism, OCD, and anyone whose list has ever felt like too much.</Text>
+          <Text style={styles.footWho}>{t('welcome.footerWho')}</Text>
           <View style={styles.footMeta}>
             <Mark styles={styles} />
             <Text style={styles.wordmark}>DoubleDone</Text>
           </View>
-          <Text style={styles.footFine}>An installable app that works offline. Today is finite and achievable.</Text>
+          <Text style={styles.footFine}>{t('welcome.footerFine')}</Text>
         </View>
       </View>
     </ScrollView>

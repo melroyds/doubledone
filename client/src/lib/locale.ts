@@ -1,52 +1,31 @@
 import * as Localization from 'expo-localization';
 
-import {
-  aiLanguageFor,
-  formatMonthDay,
-  formatNumber,
-  formatRelativeDay,
-  formatTime,
-  formatWeekday,
-  type Locale,
-  type PluralForms,
-  pluralize,
-  resolveLocale,
-  translate,
-} from './i18n';
+import { aiLanguageFor, type Locale, resolveLocale } from './i18n';
+import { activeLocale, setActiveLocale } from './i18n-active';
 
 // The device-locale seam (kept out of lib/i18n so that stays test-pure, like the
-// storage / reminders / supabase seams). Detected once at startup; a manual
-// override will come with the Settings page. Guarded so a failure degrades to
-// English rather than throwing.
+// storage / reminders / supabase seams). Detected once at startup and bound into
+// lib/i18n-active, the pure holder every lib module reads. Screens import
+// { t, fmt } from here (re-exported), lib modules from './i18n-active' directly.
+// Guarded so a failure degrades to English rather than throwing.
 
-function detect(): Locale {
+function detect(): { loc: Locale; tag: string | undefined } {
   try {
-    const code = Localization.getLocales?.()?.[0]?.languageCode ?? 'en';
-    return resolveLocale(code);
+    const first = Localization.getLocales?.()?.[0];
+    return { loc: resolveLocale(first?.languageCode ?? 'en'), tag: first?.languageTag ?? undefined };
   } catch {
-    return 'en';
+    return { loc: 'en', tag: undefined };
   }
 }
 
+const detected = detect();
+setActiveLocale(detected.loc, detected.tag);
+
 /** The active locale for this session. */
-export const locale: Locale = detect();
+export const locale: Locale = activeLocale();
 
 /** The language to ask the AI to answer in, or undefined for English. */
 export const aiLanguage: string | undefined = aiLanguageFor(locale);
 
-/** Translate a key in the active session locale. `{name}` placeholders interpolate from params. The
- *  screen-facing entry point: import { t } from '@/lib/locale'. */
-export function t(key: string, params?: Record<string, string | number>): string {
-  return translate(locale, key, params);
-}
-
-/** The active-locale-bound formatters, so screens stop hand-rolling dates, plurals and numbers. */
-export const fmt = {
-  relativeDay: (date: Date, today: Date): string => formatRelativeDay(locale, date, today),
-  monthDay: (date: Date): string => formatMonthDay(locale, date),
-  weekday: (date: Date, width?: 'short' | 'narrow'): string => formatWeekday(locale, date, width),
-  time: (date: Date): string => formatTime(locale, date),
-  number: (n: number): string => formatNumber(locale, n),
-  plural: (count: number, forms: PluralForms, params?: Record<string, string | number>): string =>
-    pluralize(locale, count, forms, params),
-};
+/** The screen-facing entry points: import { t, fmt } from '@/lib/locale'. */
+export { fmt, t } from './i18n-active';

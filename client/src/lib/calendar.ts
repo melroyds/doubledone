@@ -4,14 +4,15 @@
 // by construction. Week starts on Sunday, matching the capture weekday chips.
 
 import { toISODate } from './day';
+import { fmt } from './i18n-active';
 import { isBigWin } from './reward';
 import { isRecurring, type Scheduled } from './today';
 
-export const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
-export const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+// Weekday column headers, localised ("Sun".."Sat" in English). Evaluated when this module
+// first loads, which is after lib/locale has bound the device locale (the root layout
+// imports lib/locale before any screen), so the labels come out in the user's language.
+// 2024-01-07 is a known Sunday, so index 0..6 maps Su..Sa like the grid.
+export const WEEKDAY_LABELS = Array.from({ length: 7 }, (_, i) => fmt.weekday(new Date(2024, 0, 7 + i)));
 
 export type YearMonth = { year: number; month: number }; // month is 0-11
 
@@ -31,9 +32,9 @@ export function monthMatrix(year: number, month: number): (string | null)[][] {
   return weeks;
 }
 
-/** Header label, e.g. "June 2026". */
+/** Header label, e.g. "June 2026", month name per the device locale. */
 export function monthLabel(year: number, month: number): string {
-  return `${MONTH_NAMES[month]} ${year}`;
+  return new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 }
 
 /** Step months with year rollover, e.g. addMonths(2026, 11, 1) -> { 2027, 0 }. */

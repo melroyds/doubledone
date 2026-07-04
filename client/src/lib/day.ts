@@ -3,6 +3,8 @@
 // is that Today is correct. DST and midnight-wrap are the traps, so the day
 // arithmetic counts local midnights rather than fixed 24h blocks. Tested.
 
+import { activeFormatTag, fmt } from './i18n-active';
+
 /** Midnight at the start of the local day containing `d`. */
 export function startOfDay(d: Date): Date {
   const x = new Date(d);
@@ -29,8 +31,8 @@ export function daysBetween(a: Date, b: Date): number {
   return Math.round(ms / 86_400_000);
 }
 
-/** Friendly header label, e.g. "Wednesday, 17 June". */
-export function formatTodayLabel(d: Date, locale = 'en-AU'): string {
+/** Friendly header label, e.g. "Wednesday, 17 June", in the device's own convention. */
+export function formatTodayLabel(d: Date, locale = activeFormatTag()): string {
   return d.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
@@ -55,9 +57,14 @@ export function fromISODate(iso: string): Date {
   return new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1);
 }
 
-/** Friendly label for a due date relative to today: "Tomorrow", else "Sat 20 Jun". */
-export function friendlyDate(iso: string, today: Date, locale = 'en-AU'): string {
-  if (iso === addDaysISO(today, 1)) return 'Tomorrow';
+/** Friendly label for a due date relative to today: "Tomorrow" (per locale), else "Sat 20 Jun",
+ *  in the device's own convention. */
+export function friendlyDate(iso: string, today: Date, locale = activeFormatTag()): string {
+  if (iso === addDaysISO(today, 1)) {
+    // Intl's relative day is lowercase ("tomorrow"); this label leads a chip, so capitalise.
+    const rel = fmt.relativeDay(fromISODate(iso), today);
+    return rel.charAt(0).toUpperCase() + rel.slice(1);
+  }
   return fromISODate(iso).toLocaleDateString(locale, {
     weekday: 'short',
     day: 'numeric',

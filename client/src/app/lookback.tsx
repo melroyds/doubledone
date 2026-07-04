@@ -14,6 +14,7 @@ import { formatTodayLabel, fromISODate, toISODate } from '@/lib/day';
 import { canMakeScrapbook } from '@/lib/entitlement';
 import { scrapbookReady } from '@/lib/haptics';
 import { lookbackStats } from '@/lib/insights';
+import { fmt, t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
 import { findScrapbook, type Scrapbook, upsertScrapbook, weekCompletions, weekLabel, weekStartISO } from '@/lib/scrapbook';
 import { loadScrapbooks, loadTasks, saveScrapbooks } from '@/lib/storage';
@@ -119,7 +120,7 @@ export default function LookbackScreen() {
         return;
       }
       const days = Math.max(1, Math.ceil((gate.resetAt - Date.now()) / 86_400_000));
-      setBookError(`That's this week's scrapbook. The next is ready in ${days} day${days === 1 ? '' : 's'}.`);
+      setBookError(fmt.plural(days, { one: t('lookback.scrapbookWeeklyGateOne'), other: t('lookback.scrapbookWeeklyGateOther') }, { days }));
       return;
     }
     setBookBusy(true);
@@ -139,7 +140,7 @@ export default function LookbackScreen() {
       scrapbookReady(reduced); // the keepsake landed: the payoff flourish, at the reveal
       track('scrapbook.made', { titles: titles.length });
     } catch {
-      setBookError(aiErrorLine('Could not make a scrapbook just now. Try again.'));
+      setBookError(aiErrorLine(t('lookback.scrapbookError')));
     } finally {
       setBookBusy(false);
       bookBusyRef.current = false;
@@ -161,7 +162,7 @@ export default function LookbackScreen() {
         setSummary(text);
         track('lookback.summary.made', { titles: titles.length });
       } else {
-        setSummaryError(aiErrorLine('Could not reflect on the week just now. Try again.'));
+        setSummaryError(aiErrorLine(t('lookback.reflectError')));
       }
     } finally {
       setSummaryBusy(false);
@@ -182,17 +183,17 @@ export default function LookbackScreen() {
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.six, paddingBottom: insets.bottom + spacing.six }]}
     >
-      <BackLink label="Today" />
+      <BackLink label={t('common.today')} />
 
-      <Text style={styles.title}>Lookback</Text>
-      <Text style={styles.sub}>Everything you have actually finished.</Text>
+      <Text style={styles.title}>{t('lookback.title')}</Text>
+      <Text style={styles.sub}>{t('lookback.subtitle')}</Text>
 
       <View style={styles.monthBar}>
-        <Pressable onPress={() => step(-1)} accessibilityRole="button" accessibilityLabel="Previous month" hitSlop={10}>
+        <Pressable onPress={() => step(-1)} accessibilityRole="button" accessibilityLabel={t('common.previousMonth')} hitSlop={10}>
           <Text style={styles.arrow}>‹</Text>
         </Pressable>
         <Text style={styles.monthLabel}>{monthLabel(view.year, view.month)}</Text>
-        <Pressable onPress={() => step(1)} accessibilityRole="button" accessibilityLabel="Next month" hitSlop={10}>
+        <Pressable onPress={() => step(1)} accessibilityRole="button" accessibilityLabel={t('common.nextMonth')} hitSlop={10}>
           <Text style={styles.arrow}>›</Text>
         </Pressable>
       </View>
@@ -221,7 +222,12 @@ export default function LookbackScreen() {
                 onPress={() => openDay(iso)}
                 style={styles.cell}
                 accessibilityRole="button"
-                accessibilityLabel={`${iso}, ${count} finished${bigDay ? ', a big one' : ''}${sched > 0 ? `, ${sched} scheduled` : ''}`}
+                accessibilityLabel={t('lookback.dayCellA11y', {
+                  iso,
+                  count,
+                  bigPart: bigDay ? t('lookback.dayCellBig') : '',
+                  schedPart: sched > 0 ? t('lookback.dayCellSched', { sched }) : '',
+                })}
               >
                 <View style={[styles.dayBlob, isToday && styles.dayToday, isSelected && styles.daySelected]}>
                   <Text style={[styles.dayNum, isSelected && styles.dayNumSelected]}>
@@ -244,24 +250,24 @@ export default function LookbackScreen() {
       <View style={styles.legend}>
         <View style={styles.legendItem}>
           <View style={styles.legendDot} />
-          <Text style={styles.legendText}>finished</Text>
+          <Text style={styles.legendText}>{t('lookback.legendFinished')}</Text>
         </View>
         <View style={styles.legendItem}>
           <View style={styles.legendDotBig} />
-          <Text style={styles.legendText}>a big one</Text>
+          <Text style={styles.legendText}>{t('lookback.aBigOne')}</Text>
         </View>
         <View style={styles.legendItem}>
           <View style={styles.legendDotScheduled} />
-          <Text style={styles.legendText}>scheduled</Text>
+          <Text style={styles.legendText}>{t('lookback.legendScheduled')}</Text>
         </View>
       </View>
 
       {isFirstRun ? (
         // First run: one warm line in place of the stacked month-empty + day-empty, so the payoff screen
         // never greets a brand-new user with "you have done nothing".
-        <Text style={styles.monthEmpty}>This is where everything you finish will gather. Nothing yet, and that&apos;s a fine place to start.</Text>
+        <Text style={styles.monthEmpty}>{t('lookback.firstRunEmpty')}</Text>
       ) : (
-        !monthHasCompletions && <Text style={styles.monthEmpty}>A quiet month so far. What you finish will appear here.</Text>
+        !monthHasCompletions && <Text style={styles.monthEmpty}>{t('lookback.monthEmpty')}</Text>
       )}
 
       <View style={styles.detail}>
@@ -271,12 +277,12 @@ export default function LookbackScreen() {
             <View key={c.id} style={styles.item}>
               <Text style={styles.itemMark}>✓</Text>
               <Text style={styles.itemTitle}>{c.title}</Text>
-              {c.big && <Text style={styles.itemBig}>a big one</Text>}
+              {c.big && <Text style={styles.itemBig}>{t('lookback.aBigOne')}</Text>}
             </View>
           ))
         ) : selectedScheduled.length > 0 ? (
           <>
-            <Text style={styles.detailScheduledHead}>Scheduled</Text>
+            <Text style={styles.detailScheduledHead}>{t('lookback.scheduledHeading')}</Text>
             {selectedScheduled.map((s) => (
               <View key={s.id} style={styles.item}>
                 <Text style={styles.itemMarkScheduled}>○</Text>
@@ -285,20 +291,20 @@ export default function LookbackScreen() {
             ))}
           </>
         ) : isFirstRun ? null : (
-          <Text style={styles.detailEmpty}>Nothing logged this day.</Text>
+          <Text style={styles.detailEmpty}>{t('lookback.dayEmpty')}</Text>
         )}
       </View>
 
       {aiEnabled && (
         <View style={styles.scrapbook} testID="scrapbook-card">
-        <Text style={styles.scrapbookHead}>Scrapbook</Text>
+        <Text style={styles.scrapbookHead}>{t('lookback.scrapbookHeading')}</Text>
 
         {bookBusy ? (
           <View style={styles.polaroid}>
             <View style={styles.scrapbookImagePlaceholder}>
               <ActivityIndicator size="small" color={theme.colors.accent} />
             </View>
-            <Text style={styles.scrapbookCaption}>Making your scrapbook…</Text>
+            <Text style={styles.scrapbookCaption}>{t('lookback.makingScrapbook')}</Text>
           </View>
         ) : existingBook && !brokenImages.has(weekStart) ? (
           <>
@@ -309,11 +315,11 @@ export default function LookbackScreen() {
                 resizeMode="cover"
                 onError={() => setBrokenImages((prev) => new Set(prev).add(weekStart))}
                 accessible
-                accessibilityLabel={`A scrapbook still-life for the ${weekLabel(weekStart)}: ${existingBook.caption}`}
+                accessibilityLabel={t('lookback.scrapbookImageA11y', { week: weekLabel(weekStart), caption: existingBook.caption })}
               />
               {existingBook.caption.length > 0 && <Text style={styles.scrapbookCaption}>{existingBook.caption}</Text>}
             </View>
-            <Text style={styles.scrapbookMeta}>Made with AI · {weekLabel(weekStart)}</Text>
+            <Text style={styles.scrapbookMeta}>{t('lookback.madeWithAi', { week: weekLabel(weekStart) })}</Text>
           </>
         ) : weekList.length > 0 ? (
           <View style={styles.inviteWrap}>
@@ -323,36 +329,34 @@ export default function LookbackScreen() {
               </View>
             </View>
             <Text style={styles.scrapbookHint}>
-              {existingBook ? "That scrapbook's picture isn't available anymore. Make a new one?" : 'Turn this week into a scrapbook'}
+              {existingBook ? t('lookback.scrapbookImageGone') : t('lookback.scrapbookInvite')}
             </Text>
             {/* State the free cadence up front, so a free user knows the keepsake is monthly before they tap,
                 rather than meeting the cap as a surprise bounce at the emotional-payoff moment. */}
-            {!premium && <Text style={styles.scrapbookCadence}>Your free keepsake for this month.</Text>}
+            {!premium && <Text style={styles.scrapbookCadence}>{t('lookback.freeKeepsakeNote')}</Text>}
             <PrimaryButton
-              label="Make a scrapbook"
+              label={t('lookback.makeScrapbook')}
               onPress={makeWeekScrapbook}
               disabled={bookBusy}
               pill
-              accessibilityLabel={`Make a scrapbook of the ${weekLabel(weekStart)}`}
+              accessibilityLabel={t('lookback.makeScrapbookA11y', { week: weekLabel(weekStart) })}
               style={styles.scrapbookBtn}
             />
             {bookError && <Text style={styles.scrapbookError}>{bookError}</Text>}
-            <Text style={styles.scrapbookNote}>
-              Your week&apos;s finished things are sent to an AI to imagine the still-life. No names are kept.
-            </Text>
+            <Text style={styles.scrapbookNote}>{t('lookback.scrapbookPrivacyNote')}</Text>
           </View>
         ) : (
-          <Text style={styles.detailEmpty}>Finish a few things this week to make a scrapbook.</Text>
+          <Text style={styles.detailEmpty}>{t('lookback.scrapbookNeedsFinishes')}</Text>
         )}
 
         {weekList.length > 0 && (
           <View style={styles.weekList}>
-            <Text style={styles.weekListHead}>This week you finished</Text>
+            <Text style={styles.weekListHead}>{t('lookback.weekListHeading')}</Text>
             {weekList.map((c, i) => (
               <View key={`${c.title}-${i}`} style={styles.item}>
                 <Text style={styles.itemMark}>✓</Text>
                 <Text style={styles.itemTitle}>{c.title}</Text>
-                {c.big && <Text style={styles.itemBig}>a big one</Text>}
+                {c.big && <Text style={styles.itemBig}>{t('lookback.aBigOne')}</Text>}
               </View>
             ))}
           </View>
@@ -366,21 +370,24 @@ export default function LookbackScreen() {
       {!premiumLoading &&
         (premium ? (
           <View style={styles.insightsCard}>
-            <Text style={styles.insightsHead}>Your patterns</Text>
+            <Text style={styles.insightsHead}>{t('welcome.premiumPatternsName')}</Text>
             {stats.finishedThisMonth === 0 ? (
-              <Text style={styles.insightsStat}>As you finish things, your weeks and months will gather here.</Text>
+              <Text style={styles.insightsStat}>{t('lookback.patternsEmpty')}</Text>
             ) : (
               <>
                 {stats.finishedThisWeek > 0 && (
-                  <Text style={styles.insightsStat}>This week you finished {stats.finishedThisWeek}.</Text>
+                  <Text style={styles.insightsStat}>{t('lookback.statFinishedThisWeek', { count: stats.finishedThisWeek })}</Text>
                 )}
                 <Text style={styles.insightsStat}>
-                  This month, you finished things on {stats.activeDaysThisMonth} {stats.activeDaysThisMonth === 1 ? 'day' : 'days'}.
+                  {fmt.plural(stats.activeDaysThisMonth, { one: t('lookback.statActiveDaysOne'), other: t('lookback.statActiveDaysOther') })}
                 </Text>
                 {stats.bigWinsThisMonth > 0 && (
                   <Text style={styles.insightsStat}>
-                    You reclaimed {stats.bigWinsThisMonth} {stats.bigWinsThisMonth === 1 ? 'thing' : 'things'} that had been waiting
-                    {stats.bigWinTitle ? `, like ${stats.bigWinTitle}` : ''}.
+                    {fmt.plural(
+                      stats.bigWinsThisMonth,
+                      { one: t('lookback.statBigWinsOne'), other: t('lookback.statBigWinsOther') },
+                      { like: stats.bigWinTitle ? t('lookback.statBigWinsLike', { title: stats.bigWinTitle }) : '' },
+                    )}
                   </Text>
                 )}
               </>
@@ -392,20 +399,18 @@ export default function LookbackScreen() {
                 ) : summaryWeek === weekStart && summaryBusy ? (
                   <View style={styles.summaryBusyRow}>
                     <ActivityIndicator size="small" color={theme.colors.accent} />
-                    <Text style={styles.insightsStat}>Looking back over your week…</Text>
+                    <Text style={styles.insightsStat}>{t('lookback.reflectingBusy')}</Text>
                   </View>
                 ) : (
                   <>
                     <PremiumButton
-                      label="Reflect on this week"
+                      label={t('lookback.reflectOnWeek')}
                       onPress={reflectOnWeek}
                       disabled={summaryBusy}
-                      accessibilityLabel="Reflect on this week with AI"
+                      accessibilityLabel={t('lookback.reflectOnWeekA11y')}
                       style={styles.summaryBtn}
                     />
-                    <Text style={styles.scrapbookNote}>
-                      Your week&apos;s finished things are sent to an AI to write this, then discarded. No names are kept.
-                    </Text>
+                    <Text style={styles.scrapbookNote}>{t('lookback.reflectPrivacyNote')}</Text>
                   </>
                 )}
                 {summaryWeek === weekStart && summaryError && <Text style={styles.scrapbookError}>{summaryError}</Text>}
@@ -420,10 +425,10 @@ export default function LookbackScreen() {
               router.push('/premium');
             }}
             accessibilityRole="button"
-            accessibilityLabel="See your patterns with Premium"
+            accessibilityLabel={t('lookback.patternsUpsellA11y')}
           >
-            <Text style={styles.insightsHead}>Your patterns</Text>
-            <Text style={styles.insightsUpsell}>See what your weeks and months add up to, with Premium.</Text>
+            <Text style={styles.insightsHead}>{t('welcome.premiumPatternsName')}</Text>
+            <Text style={styles.insightsUpsell}>{t('lookback.patternsUpsell')}</Text>
           </Pressable>
         ))}
     </ScrollView>

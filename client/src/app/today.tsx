@@ -46,7 +46,7 @@ import { addDaysISO, formatTodayLabel, friendlyDate, isReentry, presetDate, toIS
 import { dayWeight, weightedLoad } from '@/lib/estimate';
 import { dayCleared, dayClosed, stepsLanded, taskDone } from '@/lib/haptics';
 import { type Inbound, subscribeInbound, takeInbound } from '@/lib/inbound';
-import { aiLanguage } from '@/lib/locale';
+import { aiLanguage, fmt, t } from '@/lib/locale';
 import { buildOutcome } from '@/lib/outcome';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { availableNudgePresets, isWindDownTime, type NudgePreset, nudgeTargetFor } from '@/lib/nudge';
@@ -458,7 +458,7 @@ export default function TodayScreen() {
     const wasPinned = tasks.find((t) => t.id === id)?.pinnedAt != null;
     commit(setPin(tasks, id, nowMs())); // the at-most-one invariant + the updatedAt bumps live in setPin (pure, tested)
     track(wasPinned ? 'task.unpinned' : 'task.pinned');
-    affirm(wasPinned ? 'Unpinned.' : 'Pinned. Your one thing for today.');
+    affirm(wasPinned ? t('today.unpinnedAffirm') : t('today.pinnedAffirm'));
     exitSelect();
   }
 
@@ -528,7 +528,7 @@ export default function TodayScreen() {
     if (ids.length === 0) return;
     commit(setBig(tasks, ids, on, nowMs()));
     track('bulk.big', { count: ids.length, on });
-    affirm(on ? "Marked as a lot. The day knows it's heavier." : 'Eased off. No longer marked.');
+    affirm(on ? t('today.markedBigAffirm') : t('today.easedOffAffirm'));
     exitSelect();
   }
 
@@ -546,7 +546,7 @@ export default function TodayScreen() {
       .filter((t): t is string => typeof t === 'string' && t.length > 0);
     let suggested = titles.join(', ');
     if (aiEnabled) {
-      affirm('Finding a name…');
+      affirm(t('today.combineFindingName'));
       try {
         suggested = await combine(titles, aiLanguage);
       } catch {
@@ -567,7 +567,7 @@ export default function TodayScreen() {
     const { next } = combineTasks(tasks, beingCombined, title, nowMs(), makeId());
     commit(next);
     track('combine.created', { count: beingCombined.length });
-    affirm(`Combined into one: ${title}.`);
+    affirm(t('today.combinedAffirm', { title }));
     setCombineOpen(false);
     setCombineTitle('');
     setBeingCombined([]);
@@ -642,7 +642,7 @@ export default function TodayScreen() {
       setLowDayDate(iso);
       void saveLowDayDate(iso);
       track('lowday.on');
-      affirm('A low day. Be gentle, a little is plenty.');
+      affirm(t('today.lowDayAffirm'));
     }
   }
 
@@ -697,7 +697,7 @@ export default function TodayScreen() {
       track('strategise.requested', { count: spreadable.length });
       setPlan(result);
     } catch {
-      setStrategiseError(aiErrorLine('Could not strategise just now. Try again.'));
+      setStrategiseError(aiErrorLine(t('today.strategiseError')));
     } finally {
       setStrategising(false);
     }
@@ -733,9 +733,9 @@ export default function TodayScreen() {
       const result = await sequence(spreadable.map((t) => ({ id: t.id, title: t.title })), undefined, aiLanguage);
       track('sequence.requested', { count: spreadable.length });
       if (result.length > 0) setOrder(result);
-      else setOrderError(aiErrorLine('Could not plan an order just now. Try again.'));
+      else setOrderError(aiErrorLine(t('today.sequenceError')));
     } catch {
-      setOrderError(aiErrorLine('Could not plan an order just now. Try again.'));
+      setOrderError(aiErrorLine(t('today.sequenceError')));
     } finally {
       setSequencing(false);
     }
@@ -749,7 +749,7 @@ export default function TodayScreen() {
     // Once the day is ordered, if it is still heavy, offer to lighten it (the re-spread). On a calm day
     // there is nothing to push out, so just affirm and stay out of the way.
     if (dayIsHeavy) setOfferDefer(true);
-    else affirm('A gentle order, top of the list when you are ready.');
+    else affirm(t('today.gentleOrderAffirm'));
   }
 
   // A brief, consistent reassurance after completing. One timer at a time, so a fresh completion is
@@ -829,7 +829,7 @@ export default function TodayScreen() {
       setBloom(bloomData);
     } else {
       if (parentBack) {
-        affirm(`You started, that's the hard part. ${parentBack} is back when you're ready.`);
+        affirm(t('today.tinyParentBackAffirm', { parentTitle: parentBack }));
       } else if (done && !cleared) {
         doneAffirm(); // a rotating completion line (carries the old "good enough" release)
       }
@@ -900,7 +900,7 @@ export default function TodayScreen() {
     setSliceEditOpen(false);
     setSliceEditId(null);
     exitSelect();
-    affirm(`In ${sliceEditCount} steps. Tap it to advance one.`);
+    affirm(t('today.slicesSetAffirm', { count: sliceEditCount }));
   }
   // Drop the parts, back to one whole task (keeps whatever done state it had).
   function makeWhole() {
@@ -911,7 +911,7 @@ export default function TodayScreen() {
     setSliceEditOpen(false);
     setSliceEditId(null);
     exitSelect();
-    affirm('Back to one task.');
+    affirm(t('today.backToOneTaskAffirm'));
   }
 
   // Advance (or step back) one slice of a sliced task. Crossing to all-slices-done
@@ -1007,7 +1007,7 @@ export default function TodayScreen() {
       });
     } catch {
       setBdPhase('questions'); // stay put; the user can retry or dismiss
-      setBdError(aiErrorLine("Couldn't break it down just now. Your task is still here, try again?"));
+      setBdError(aiErrorLine(t('breakdown.planError')));
     } finally {
       setBdBusy(false);
     }
@@ -1024,7 +1024,7 @@ export default function TodayScreen() {
     const totalMinutes = selected.reduce((sum, s) => sum + s.minutes, 0);
     const stepTasks: Task[] = selected.map((s, i) => ({
       id: makeId(),
-      title: `${s.title} (${s.minutes} min)`,
+      title: t('breakdown.stepTitleWithMinutes', { title: s.title, minutes: s.minutes }),
       done: false,
       createdAt: now + i,
       updatedAt: now + i,
@@ -1126,13 +1126,13 @@ export default function TodayScreen() {
     if (hasActiveTinyChild(tasks, id)) {
       setConfirmingId(null);
       exitSelect();
-      affirm('You already have a tiny step for this. Finish that one first.');
+      affirm(t('today.tinyAlreadyActive'));
       return;
     }
     tinyBusy.current = true;
     setConfirmingId(null);
     exitSelect();
-    affirm('Shrinking it…');
+    affirm(t('today.tinyShrinking'));
     try {
       const tinyTitle = await tiny(title);
       if (!tinyTitle) throw new Error('empty');
@@ -1142,9 +1142,9 @@ export default function TodayScreen() {
         { id: makeId(), title: tinyTitle, done: false, createdAt: now, updatedAt: now, parentId: id, parentTitle: title },
       ]);
       track('tiny.made');
-      affirm('Made it tiny. Just this one.');
+      affirm(t('today.tinyMade'));
     } catch {
-      affirm(aiErrorLine("Couldn't shrink that just now. Try again."));
+      affirm(aiErrorLine(t('today.tinyError')));
     } finally {
       tinyBusy.current = false;
     }
@@ -1195,7 +1195,7 @@ export default function TodayScreen() {
           <Pressable
             onPress={() => setRoomsOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel={`Menu: Repeating, Routines, Lookback, ${aiEnabled ? 'Chart a course, ' : ''}Settings`}
+            accessibilityLabel={aiEnabled ? t('today.menuA11y') : t('today.menuNoAiA11y')}
             hitSlop={8}
             style={({ pressed }) => [styles.roomsPill, pressed && styles.pressed]}
           >
@@ -1204,24 +1204,24 @@ export default function TodayScreen() {
               <View style={styles.roomsDot} />
               <View style={styles.roomsDot} />
             </View>
-            <Text style={styles.roomsLabel}>Menu</Text>
+            <Text style={styles.roomsLabel}>{t('today.menu')}</Text>
           </Pressable>
         </View>
         {reentry && !isClosed && (
           <View style={styles.reentry}>
-            <Text style={styles.reentryTitle}>Welcome back.</Text>
+            <Text style={styles.reentryTitle}>{t('today.reentryTitle')}</Text>
             <Text style={styles.reentryBody}>
-              {"However long it's been, the past is fine. Nothing's overdue, nothing's lost. Here's just today, when you're ready."}
+              {t('today.reentryBody')}
             </Text>
             <PrimaryButton
-              label="See today"
+              label={t('today.seeToday')}
               onPress={() => setReentry(false)}
-              accessibilityLabel="See today"
+              accessibilityLabel={t('today.seeToday')}
               style={styles.reentryBtn}
             />
           </View>
         )}
-        <Text style={styles.title}>Today</Text>
+        <Text style={styles.title}>{t('common.today')}</Text>
         <Text style={styles.spine}>{phaseGreeting(today)}</Text>
         {loaded && !isClosed && spreadable.length > 0 && (
           <View style={styles.weight}>
@@ -1233,11 +1233,11 @@ export default function TodayScreen() {
             <Pressable
               onPress={toggleLowDay}
               accessibilityRole="button"
-              accessibilityLabel={isLowDay ? 'Back to a normal day' : 'Mark today a low-capacity day'}
+              accessibilityLabel={isLowDay ? t('today.lowDayBack') : t('today.lowDayMarkA11y')}
               hitSlop={8}
             >
               <Text style={styles.lowDayToggle}>
-                {isLowDay ? 'Back to a normal day' : 'Low on energy? Make it a low day'}
+                {isLowDay ? t('today.lowDayBack') : t('today.lowDay')}
               </Text>
             </Pressable>
           </View>
@@ -1249,12 +1249,12 @@ export default function TodayScreen() {
           <Pressable
             onPress={toggleLowDay}
             accessibilityRole="button"
-            accessibilityLabel={isLowDay ? 'Back to a normal day' : 'Mark today a low-capacity day'}
+            accessibilityLabel={isLowDay ? t('today.lowDayBack') : t('today.lowDayMarkA11y')}
             hitSlop={8}
             style={styles.lowDayStandalone}
           >
             <Text style={styles.lowDayToggle}>
-              {isLowDay ? 'Back to a normal day' : 'Low on energy? Make it a low day'}
+              {isLowDay ? t('today.lowDayBack') : t('today.lowDay')}
             </Text>
           </Pressable>
         )}
@@ -1268,35 +1268,35 @@ export default function TodayScreen() {
                 resizeMode="cover"
                 accessibilityIgnoresInvertColors
                 accessible
-                accessibilityLabel="A calm dusk sky settling over a closed notebook"
+                accessibilityLabel={t('closeDay.artAlt')}
               />
             </View>
-            <Text style={styles.restedTitle}>{"You've closed today."}</Text>
+            <Text style={styles.restedTitle}>{t('closeDay.restedTitle')}</Text>
             <Text style={styles.restedLine}>
               {todayDone.length > 0
-                ? `You finished ${todayDone.length} ${todayDone.length === 1 ? 'thing' : 'things'} today. Rest well.`
-                : "A quiet day, and that's allowed. Rest well."}
+                ? fmt.plural(todayDone.length, { one: t('closeDay.restedFinishedOne'), other: t('closeDay.restedFinishedOther') })
+                : t('closeDay.restedQuiet')}
             </Text>
-            <Text style={styles.restedSub}>{"It's all here tomorrow."}</Text>
+            <Text style={styles.restedSub}>{t('closeDay.restedSub')}</Text>
             <BedtimeCapture onCapture={capture} today={today} />
             <Pressable
               onPress={reopenDay}
               accessibilityRole="button"
-              accessibilityLabel="Reopen today"
+              accessibilityLabel={t('closeDay.reopen')}
               hitSlop={8}
               style={({ pressed }) => [pressed && styles.pressed]}
             >
-              <Text style={styles.restedReopen}>Reopen today</Text>
+              <Text style={styles.restedReopen}>{t('closeDay.reopen')}</Text>
             </Pressable>
             {!reminderOn && !reminderOfferMade && (
               <View style={styles.reminderOffer}>
-                <Text style={styles.reminderOfferText}>Want one gentle nudge a day to come back?</Text>
+                <Text style={styles.reminderOfferText}>{t('reminders.offerText')}</Text>
                 <View style={styles.reminderOfferRow}>
-                  <Pressable onPress={acceptReminderOffer} accessibilityRole="button" accessibilityLabel="Yes, remind me daily" hitSlop={6}>
-                    <Text style={styles.reminderOfferYes}>Yes, remind me</Text>
+                  <Pressable onPress={acceptReminderOffer} accessibilityRole="button" accessibilityLabel={t('reminders.offerYesA11y')} hitSlop={6}>
+                    <Text style={styles.reminderOfferYes}>{t('reminders.offerYes')}</Text>
                   </Pressable>
-                  <Pressable onPress={dismissReminderOffer} accessibilityRole="button" accessibilityLabel="Not now" hitSlop={6}>
-                    <Text style={styles.reminderOfferNo}>Not now</Text>
+                  <Pressable onPress={dismissReminderOffer} accessibilityRole="button" accessibilityLabel={t('common.notNow')} hitSlop={6}>
+                    <Text style={styles.reminderOfferNo}>{t('common.notNow')}</Text>
                   </Pressable>
                 </View>
               </View>
@@ -1310,10 +1310,10 @@ export default function TodayScreen() {
           <Pressable
             onPress={openFocus}
             accessibilityRole="button"
-            accessibilityLabel="Focus on one thing"
+            accessibilityLabel={t('today.focusOne')}
             style={({ pressed }) => [styles.focusEntry, pressed && styles.pressed]}
           >
-            <Text style={styles.focusEntryText}>Focus on one thing</Text>
+            <Text style={styles.focusEntryText}>{t('today.focusOne')}</Text>
           </Pressable>
         )}
         {!holdHintSeen && visible.length > 0 && (
@@ -1325,11 +1325,11 @@ export default function TodayScreen() {
               void saveHoldHintSeen();
             }}
             accessibilityRole="button"
-            accessibilityLabel="Got it, hide this tip"
+            accessibilityLabel={t('today.holdHintDismissA11y')}
             style={styles.holdHint}
           >
-            <Text style={styles.holdHintText}>{`Hold a task for more: pin it, set a reminder, ${aiEnabled ? 'break it down, or make it tiny.' : 'or break it down.'}`}</Text>
-            <Text style={styles.holdHintDismiss}>Got it</Text>
+            <Text style={styles.holdHintText}>{aiEnabled ? t('today.holdHint') : t('today.holdHintNoAi')}</Text>
+            <Text style={styles.holdHintDismiss}>{t('common.gotIt')}</Text>
           </Pressable>
         )}
         <View style={styles.list}>
@@ -1371,29 +1371,29 @@ export default function TodayScreen() {
                 resizeMode="cover"
                 accessibilityIgnoresInvertColors
                 accessible
-                accessibilityLabel="A warm coffee beside an open notebook in morning light"
+                accessibilityLabel={t('today.emptyArtAlt')}
               />
             </View>
-            <Text style={[styles.calmNote, styles.emptyNote]}>Nothing here yet. Add one thing, or enjoy the quiet.</Text>
+            <Text style={[styles.calmNote, styles.emptyNote]}>{t('today.emptyNote')}</Text>
           </View>
         )}
-        {allDone && <Text style={styles.calmNote}>{"That's the list. Nicely done."}</Text>}
+        {allDone && <Text style={styles.calmNote}>{t('today.allDoneNote')}</Text>}
 
         {loaded && !selectMode && (
           <Pressable
             onPress={() => setDidOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel="Log something you also did"
+            accessibilityLabel={t('today.alsoDidA11y')}
             hitSlop={6}
             style={({ pressed }) => [styles.alsoDidUnderList, pressed && styles.pressed]}
           >
-            <Text style={styles.alsoDidLink}>+ I also did that</Text>
+            <Text style={styles.alsoDidLink}>{t('today.alsoDidThat')}</Text>
           </Pressable>
         )}
 
         {upcoming.length > 0 && (
           <View style={styles.later}>
-            <Text style={styles.laterHeading}>Later</Text>
+            <Text style={styles.laterHeading}>{t('today.laterHeading')}</Text>
             {upcoming.map((task, i) => (
               <View key={task.id} style={styles.laterItem}>
                 {(i === 0 || upcoming[i - 1].due !== task.due) && task.due && (
@@ -1426,24 +1426,24 @@ export default function TodayScreen() {
           <View style={styles.dayActions}>
             {aiEnabled && spreadable.length >= 2 && (
               <>
-                {dayIsHeavy && <Text style={styles.strategiseNudge}>{"Today's looking full."}</Text>}
+                {dayIsHeavy && <Text style={styles.strategiseNudge}>{t('today.heavyNudge')}</Text>}
                 {dayIsHeavy && (
                   <Pressable
                     onPress={runStrategise}
                     disabled={strategising}
                     style={({ pressed }) => [styles.strategiseBtn, pressed && styles.pressed, strategising && styles.disabledBtn]}
                     accessibilityRole="button"
-                    accessibilityLabel="Lighten today by moving some tasks to later days"
+                    accessibilityLabel={t('today.lightenA11y')}
                   >
-                    <Text style={styles.strategiseBtnText}>{strategising ? 'Lightening…' : 'Lighten today'}</Text>
+                    <Text style={styles.strategiseBtnText}>{strategising ? t('today.lightening') : t('actions.lightenToday')}</Text>
                   </Pressable>
                 )}
                 {strategiseError && <Text style={styles.strategiseErr}>{strategiseError}</Text>}
                 <PremiumButton
-                  label={sequencing ? 'Planning…' : 'Plan my day'}
+                  label={sequencing ? t('today.planning') : t('actions.planMyDay')}
                   onPress={runSequence}
                   disabled={sequencing}
-                  accessibilityLabel="Plan my day, order today's tasks"
+                  accessibilityLabel={t('today.planMyDayA11y')}
                   style={styles.sequenceBtn}
                 />
                 {orderError && <Text style={styles.strategiseErr}>{orderError}</Text>}
@@ -1451,16 +1451,16 @@ export default function TodayScreen() {
             )}
             {windDown && !isClosed && (
               <Text style={styles.windDown}>
-                {"Evening's here. Close the day when you're ready, even a little counts."}
+                {t('closeDay.windDown')}
               </Text>
             )}
             <Pressable
               onPress={openClose}
               style={({ pressed }) => [styles.closeDay, pressed && styles.pressed]}
               accessibilityRole="button"
-              accessibilityLabel="Close the day"
+              accessibilityLabel={t('today.closeTheDay')}
             >
-              <Text style={styles.closeDayText}>Close the day</Text>
+              <Text style={styles.closeDayText}>{t('today.closeTheDay')}</Text>
             </Pressable>
           </View>
         )}
@@ -1472,25 +1472,25 @@ export default function TodayScreen() {
         {selectMode ? (
           <View style={styles.selectBar}>
             <View style={styles.selectTop}>
-              <Text style={styles.selectCount}>{selected.length === 0 ? 'Tap tasks to select' : `${selected.length} selected`}</Text>
-              <Pressable onPress={() => setSelected(spreadable.map((x) => x.id))} accessibilityRole="button" accessibilityLabel="Select all tasks" hitSlop={6}>
-                <Text style={styles.selectAllText}>Select all</Text>
+              <Text style={styles.selectCount}>{selected.length === 0 ? t('today.selectHint') : t('today.selectedCount', { count: selected.length })}</Text>
+              <Pressable onPress={() => setSelected(spreadable.map((x) => x.id))} accessibilityRole="button" accessibilityLabel={t('today.selectAllA11y')} hitSlop={6}>
+                <Text style={styles.selectAllText}>{t('today.selectAll')}</Text>
               </Pressable>
             </View>
             <View style={styles.selectActions}>
               <View style={styles.actionRow}>
-                <Pressable onPress={bulkComplete} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Mark selected done" hitSlop={6}>
-                  <Text style={[styles.selectDone, selected.length === 0 && styles.selectActionOff]}>Done</Text>
+                <Pressable onPress={bulkComplete} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={t('today.markSelectedDoneA11y')} hitSlop={6}>
+                  <Text style={[styles.selectDone, selected.length === 0 && styles.selectActionOff]}>{t('common.done')}</Text>
                 </Pressable>
-                <Pressable onPress={() => setMoveToOpen(true)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Move selected to a date" hitSlop={6}>
-                  <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>Move to…</Text>
+                <Pressable onPress={() => setMoveToOpen(true)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={t('today.moveSelectedA11y')} hitSlop={6}>
+                  <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>{t('today.moveTo')}</Text>
                 </Pressable>
-                <Pressable onPress={() => markBig(selected, !allBig)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={allBig ? 'Unmark the selected tasks as big' : 'Mark the selected tasks as big'} hitSlop={6}>
-                  <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>{allBig ? 'Not a lot' : 'Mark as a lot'}</Text>
+                <Pressable onPress={() => markBig(selected, !allBig)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={allBig ? t('today.unmarkBigA11y') : t('today.markBigA11y')} hitSlop={6}>
+                  <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>{allBig ? t('today.notALot') : t('today.markAsALot')}</Text>
                 </Pressable>
                 {Platform.OS !== 'web' && onlyTask && !isDoneOn(onlyTask, today) && (
-                  <Pressable onPress={openNudge} accessibilityRole="button" accessibilityLabel="Remind me about this task" hitSlop={6}>
-                    <Text style={styles.selectAction}>Remind me</Text>
+                  <Pressable onPress={openNudge} accessibilityRole="button" accessibilityLabel={t('reminders.remindMeA11y')} hitSlop={6}>
+                    <Text style={styles.selectAction}>{t('reminders.remindMe')}</Text>
                   </Pressable>
                 )}
               </View>
@@ -1505,10 +1505,10 @@ export default function TodayScreen() {
                       exitSelect();
                     }}
                     accessibilityRole="button"
-                    accessibilityLabel="Break down the selected task"
+                    accessibilityLabel={t('breakdown.breakDownSelectedA11y')}
                     hitSlop={6}
                   >
-                    <Text style={styles.selectAction}>Break down</Text>
+                    <Text style={styles.selectAction}>{t('breakdown.breakDown')}</Text>
                   </Pressable>
                 )}
                 {onlyTask && !isRecurring(onlyTask) && !isDoneOn(onlyTask, today) && (
@@ -1527,10 +1527,10 @@ export default function TodayScreen() {
                       pinTask(t.id);
                     }}
                     accessibilityRole="button"
-                    accessibilityLabel={onlyTask.pinnedAt ? 'Unpin this task' : "Pin this as today's one thing"}
+                    accessibilityLabel={onlyTask.pinnedAt ? t('today.unpinA11y') : t('today.pinA11y')}
                     hitSlop={6}
                   >
-                    <Text style={[styles.selectAction, !premium && !onlyTask.pinnedAt && styles.selectActionDim]}>{onlyTask.pinnedAt ? 'Unpin' : 'Pin'}</Text>
+                    <Text style={[styles.selectAction, !premium && !onlyTask.pinnedAt && styles.selectActionDim]}>{onlyTask.pinnedAt ? t('today.unpin') : t('today.pin')}</Text>
                   </Pressable>
                 )}
                 {aiEnabled && selected.length === 1 && (
@@ -1540,39 +1540,39 @@ export default function TodayScreen() {
                       if (one) void makeTiny(one.id, one.title);
                     }}
                     accessibilityRole="button"
-                    accessibilityLabel="Make the selected task tiny"
+                    accessibilityLabel={t('today.makeTinyA11y')}
                     hitSlop={6}
                   >
-                    <Text style={styles.selectAction}>Make it tiny</Text>
+                    <Text style={styles.selectAction}>{t('actions.makeItTiny')}</Text>
                   </Pressable>
                 )}
                 {onlyTask && !isRecurring(onlyTask) && !isDoneOn(onlyTask, today) && (
                   <Pressable
                     onPress={openSliceEdit}
                     accessibilityRole="button"
-                    accessibilityLabel={onlyTask.slices ? 'Change the steps for this task' : 'Split this task into steps'}
+                    accessibilityLabel={onlyTask.slices ? t('today.changeStepsA11y') : t('today.splitStepsA11y')}
                     hitSlop={6}
                   >
-                    <Text style={styles.selectAction}>Steps</Text>
+                    <Text style={styles.selectAction}>{t('today.steps')}</Text>
                   </Pressable>
                 )}
                 {combinable.length >= 2 && (
                   <Pressable
                     onPress={() => void openCombine()}
                     accessibilityRole="button"
-                    accessibilityLabel="Combine selected tasks into one"
+                    accessibilityLabel={t('today.combineA11y')}
                     hitSlop={6}
                   >
-                    <Text style={styles.selectAction}>Combine</Text>
+                    <Text style={styles.selectAction}>{t('today.combine')}</Text>
                   </Pressable>
                 )}
-                <Pressable onPress={bulkRemove} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel="Remove selected" hitSlop={6}>
-                  <Text style={[styles.selectRemove, selected.length === 0 && styles.selectActionOff]}>Remove</Text>
+                <Pressable onPress={bulkRemove} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={t('today.removeSelectedA11y')} hitSlop={6}>
+                  <Text style={[styles.selectRemove, selected.length === 0 && styles.selectActionOff]}>{t('common.remove')}</Text>
                 </Pressable>
               </View>
             </View>
-            <Pressable onPress={exitSelect} accessibilityRole="button" accessibilityLabel="Cancel selection" hitSlop={6}>
-              <Text style={styles.selectCancel}>Cancel</Text>
+            <Pressable onPress={exitSelect} accessibilityRole="button" accessibilityLabel={t('today.cancelSelectionA11y')} hitSlop={6}>
+              <Text style={styles.selectCancel}>{t('common.cancel')}</Text>
             </Pressable>
           </View>
         ) : (
@@ -1585,11 +1585,11 @@ export default function TodayScreen() {
               <Pressable
                 onPress={() => setCaptureOpen(false)}
                 accessibilityRole="button"
-                accessibilityLabel="Collapse the add panel"
+                accessibilityLabel={t('capture.collapseA11y')}
                 hitSlop={8}
                 style={styles.captureHandle}
               >
-                <Text style={styles.optLink}>Close</Text>
+                <Text style={styles.optLink}>{t('common.close')}</Text>
               </Pressable>
               <BrainDump
                 ref={brainDumpRef}
@@ -1612,10 +1612,10 @@ export default function TodayScreen() {
             <Pressable
               onPress={() => setCaptureOpen(true)}
               accessibilityRole="button"
-              accessibilityLabel="Add a task to today"
+              accessibilityLabel={t('capture.addA11y')}
               style={({ pressed }) => [styles.addBar, pressed && styles.pressed]}
             >
-              <Text style={styles.focusEntryText}>+  Add to Today</Text>
+              <Text style={styles.focusEntryText}>{t('today.addToToday')}</Text>
             </Pressable>
           ))}
         <View style={styles.ethos}>
@@ -1629,24 +1629,24 @@ export default function TodayScreen() {
               <>
                 {syncOk === false ? (
                   <Text style={styles.optLink} numberOfLines={2}>
-                    {"Saved on this device. It'll sync when it can reach your account."}
+                    {t('today.syncPending')}
                   </Text>
                 ) : (
                   <Text style={styles.optLink} numberOfLines={1}>
-                    Synced to {session.user.email ?? 'your account'}
+                    {t('today.syncedTo', { account: session.user.email ?? t('today.syncedFallbackAccount') })}
                   </Text>
                 )}
-                <Pressable onPress={signOut} accessibilityRole="button" accessibilityLabel="Sign out" hitSlop={6}>
-                  <Text style={styles.optFaint}>Sign out</Text>
+                <Pressable onPress={signOut} accessibilityRole="button" accessibilityLabel={t('signIn.signOut')} hitSlop={6}>
+                  <Text style={styles.optFaint}>{t('signIn.signOut')}</Text>
                 </Pressable>
               </>
             ) : (
-              <Pressable onPress={() => router.push('/sign-in')} accessibilityRole="button" accessibilityLabel="Sync across devices" hitSlop={6}>
-                <Text style={styles.optLink}>Sync across devices</Text>
+              <Pressable onPress={() => router.push('/sign-in')} accessibilityRole="button" accessibilityLabel={t('signIn.syncAcrossDevices')} hitSlop={6}>
+                <Text style={styles.optLink}>{t('signIn.syncAcrossDevices')}</Text>
               </Pressable>
             ))}
-          <Pressable onPress={toggleReminder} accessibilityRole="button" accessibilityLabel="Toggle daily reminder" hitSlop={6}>
-            <Text style={styles.optLink}>{reminderOn ? 'Daily reminder on' : 'Turn on daily reminder'}</Text>
+          <Pressable onPress={toggleReminder} accessibilityRole="button" accessibilityLabel={t('reminders.toggleA11y')} hitSlop={6}>
+            <Text style={styles.optLink}>{reminderOn ? t('reminders.dailyOn') : t('reminders.turnOn')}</Text>
           </Pressable>
         </View>
           </>
@@ -1658,79 +1658,79 @@ export default function TodayScreen() {
           <Pressable
             onPress={closeFocus}
             accessibilityRole="button"
-            accessibilityLabel="Exit focus"
+            accessibilityLabel={t('today.focusExitA11y')}
             hitSlop={10}
             style={({ pressed }) => [styles.focusExit, pressed && styles.pressed]}
           >
-            <Text style={styles.focusExitText}>Exit</Text>
+            <Text style={styles.focusExitText}>{t('today.focusExit')}</Text>
           </Pressable>
           {focusTask ? (
             <View style={styles.focusBody}>
-              <Text style={styles.focusLabel}>Just this one</Text>
+              <Text style={styles.focusLabel}>{t('today.focusLabel')}</Text>
               <Text style={styles.focusTitle}>{focusTask.title}</Text>
               {focusTask.slices ? (
                 <Text style={styles.focusStep}>
-                  Step {Math.min(focusTask.slices.done + 1, focusTask.slices.total)} of {focusTask.slices.total}
+                  {t('today.focusStepOf', { step: Math.min(focusTask.slices.done + 1, focusTask.slices.total), total: focusTask.slices.total })}
                 </Text>
               ) : null}
               <View style={styles.focusActions}>
                 <Pressable
                   onPress={() => setFocusPick(null)}
                   accessibilityRole="button"
-                  accessibilityLabel="Choose another"
+                  accessibilityLabel={t('today.focusChooseAnother')}
                   hitSlop={8}
                   style={({ pressed }) => [pressed && styles.pressed]}
                 >
-                  <Text style={styles.focusSkipText}>Choose another</Text>
+                  <Text style={styles.focusSkipText}>{t('today.focusChooseAnother')}</Text>
                 </Pressable>
                 <PrimaryButton
-                  label="Done"
+                  label={t('common.done')}
                   onPress={() => focusComplete(focusTask.id)}
-                  accessibilityLabel={`Done with ${focusTask.title}`}
+                  accessibilityLabel={t('today.focusDoneA11y', { title: focusTask.title })}
                 />
               </View>
             </View>
           ) : spreadable.length > 0 ? (
             <View style={styles.focusBody}>
-              <Text style={styles.focusLabel}>Just this one</Text>
-              <Text style={styles.focusTitle}>Which one?</Text>
+              <Text style={styles.focusLabel}>{t('today.focusLabel')}</Text>
+              <Text style={styles.focusTitle}>{t('today.focusWhichOne')}</Text>
               <View style={styles.focusPickList}>
-                {spreadable.map((t) => (
+                {spreadable.map((task) => (
                   <Pressable
-                    key={t.id}
-                    onPress={() => setFocusPick(t.id)}
+                    key={task.id}
+                    onPress={() => setFocusPick(task.id)}
                     accessibilityRole="button"
-                    accessibilityLabel={`Focus on ${t.title}`}
+                    accessibilityLabel={t('today.focusOnTaskA11y', { title: task.title })}
                     style={({ pressed }) => [styles.focusPickItem, pressed && styles.pressed]}
                   >
-                    <Text style={styles.focusPickItemText}>{t.title}</Text>
+                    <Text style={styles.focusPickItemText}>{task.title}</Text>
                   </Pressable>
                 ))}
               </View>
             </View>
           ) : (
             <View style={styles.focusBody}>
-              <Text style={styles.focusTitle}>{"That's everything for now."}</Text>
-              <Text style={styles.focusEmptyNote}>{"Nothing left to focus on. Rest, or add something when you're ready."}</Text>
-              <PrimaryButton label="Back to Today" onPress={closeFocus} accessibilityLabel="Back to Today" />
+              <Text style={styles.focusTitle}>{t('today.focusAllDone')}</Text>
+              <Text style={styles.focusEmptyNote}>{t('today.focusEmptyNote')}</Text>
+              <PrimaryButton label={t('common.backToToday')} onPress={closeFocus} accessibilityLabel={t('common.backToToday')} />
             </View>
           )}
         </View>
       </Modal>
 
       <ModalCard visible={didOpen} onClose={() => setDidOpen(false)}>
-            <Text style={styles.didTitle}>What did you do?</Text>
-            <Text style={styles.didHint}>{"Something you got done that was never on the list. It still counts."}</Text>
+            <Text style={styles.didTitle}>{t('today.didTitle')}</Text>
+            <Text style={styles.didHint}>{t('today.didHint')}</Text>
             <TextInput
               style={styles.didInput}
               value={didText}
               onChangeText={setDidText}
-              placeholder="Made the call, took a walk…"
+              placeholder={t('today.didPlaceholder')}
               placeholderTextColor={theme.colors.inkFaint}
               autoFocus
               returnKeyType="done"
               onSubmitEditing={() => logDidIt(didText)}
-              accessibilityLabel="What did you do"
+              accessibilityLabel={t('today.didInputA11y')}
             />
             <View style={styles.didActions}>
               <Pressable
@@ -1739,29 +1739,29 @@ export default function TodayScreen() {
                   setDidOpen(false);
                 }}
                 accessibilityRole="button"
-                accessibilityLabel="Cancel"
+                accessibilityLabel={t('common.cancel')}
                 hitSlop={8}
               >
-                <Text style={styles.didCancel}>Cancel</Text>
+                <Text style={styles.didCancel}>{t('common.cancel')}</Text>
               </Pressable>
-              <PrimaryButton label="Add it" onPress={() => logDidIt(didText)} accessibilityLabel="Add it" />
+              <PrimaryButton label={t('today.didAdd')} onPress={() => logDidIt(didText)} accessibilityLabel={t('today.didAdd')} />
             </View>
       </ModalCard>
 
       <ModalCard visible={combineOpen} onClose={() => setCombineOpen(false)}>
-            <Text style={styles.didTitle}>Combine into one</Text>
+            <Text style={styles.didTitle}>{t('today.combineModalTitle')}</Text>
             <Text style={styles.didHint}>
-              {`${beingCombined.length} tasks become one. Edit the name, or keep the suggestion. It lands on the earliest of their dates.`}
+              {t('today.combineHint', { count: beingCombined.length })}
             </Text>
             <TextInput
               style={styles.didInput}
               value={combineTitle}
               onChangeText={setCombineTitle}
-              placeholder="Name the combined task…"
+              placeholder={t('today.combinePlaceholder')}
               placeholderTextColor={theme.colors.inkFaint}
               returnKeyType="done"
               onSubmitEditing={combineAccept}
-              accessibilityLabel="The combined task's name"
+              accessibilityLabel={t('today.combineInputA11y')}
             />
             <View style={styles.combineList}>
               {beingCombined.map((id) => {
@@ -1782,95 +1782,95 @@ export default function TodayScreen() {
                   setBeingCombined([]);
                 }}
                 accessibilityRole="button"
-                accessibilityLabel="Cancel"
+                accessibilityLabel={t('common.cancel')}
                 hitSlop={8}
               >
-                <Text style={styles.didCancel}>Cancel</Text>
+                <Text style={styles.didCancel}>{t('common.cancel')}</Text>
               </Pressable>
               <PrimaryButton
-                label="Combine"
+                label={t('today.combine')}
                 onPress={combineAccept}
                 disabled={!combineTitle.trim()}
-                accessibilityLabel="Combine into one task"
+                accessibilityLabel={t('today.combineConfirmA11y')}
               />
             </View>
       </ModalCard>
 
       <ModalCard visible={manualBdOpen} onClose={closeManualBreakdown}>
-            <Text style={styles.didTitle}>Break it into steps</Text>
+            <Text style={styles.didTitle}>{t('breakdown.manualTitle')}</Text>
             <Text style={styles.didHint}>
-              {`Smaller pieces of "${manualBdTitle}". One step per line. They become a checklist under it, and it is done when they all are.`}
+              {t('breakdown.manualHint', { title: manualBdTitle })}
             </Text>
             <TextInput
               style={styles.manualBdInput}
               value={manualBdText}
               onChangeText={setManualBdText}
-              placeholder={'first small step\nnext small step'}
+              placeholder={t('breakdown.manualPlaceholder')}
               placeholderTextColor={theme.colors.inkFaint}
               multiline
-              accessibilityLabel="The steps, one per line"
+              accessibilityLabel={t('breakdown.manualInputA11y')}
             />
             <View style={styles.didActions}>
-              <Pressable onPress={closeManualBreakdown} accessibilityRole="button" accessibilityLabel="Not now" hitSlop={8}>
-                <Text style={styles.didCancel}>Not now</Text>
+              <Pressable onPress={closeManualBreakdown} accessibilityRole="button" accessibilityLabel={t('common.notNow')} hitSlop={8}>
+                <Text style={styles.didCancel}>{t('common.notNow')}</Text>
               </Pressable>
               <PrimaryButton
-                label="Break it down"
+                label={t('actions.breakItDown')}
                 onPress={manualBreakdownSubmit}
                 disabled={manualBdText.trim().length === 0}
-                accessibilityLabel="Break the task into these steps"
+                accessibilityLabel={t('breakdown.manualSubmitA11y')}
               />
             </View>
       </ModalCard>
 
       <ModalCard visible={moveToOpen} onClose={() => setMoveToOpen(false)}>
-            <Text style={styles.didTitle}>Move to…</Text>
+            <Text style={styles.didTitle}>{t('today.moveTo')}</Text>
             <Text style={styles.didHint}>
-              {selected.length === 1 ? 'One task moves to the day you pick.' : `${selected.length} tasks move to the day you pick.`}
+              {fmt.plural(selected.length, { one: t('today.moveToHintOne'), other: t('today.moveToHintOther') })}
             </Text>
             <View style={styles.moveToPresets}>
               <Pressable
                 onPress={() => bulkMoveTo(toISODate(today))}
                 style={({ pressed }) => [styles.moveChip, pressed && styles.pressed]} hitSlop={6}
                 accessibilityRole="button"
-                accessibilityLabel="Today"
+                accessibilityLabel={t('common.today')}
               >
-                <Text style={styles.moveChipText}>Today</Text>
+                <Text style={styles.moveChipText}>{t('common.today')}</Text>
               </Pressable>
               <Pressable
                 onPress={() => bulkMoveTo(presetDate(today, 'thisWeekend'))}
                 style={({ pressed }) => [styles.moveChip, pressed && styles.pressed]} hitSlop={6}
                 accessibilityRole="button"
-                accessibilityLabel="This weekend"
+                accessibilityLabel={t('today.thisWeekend')}
               >
-                <Text style={styles.moveChipText}>This weekend</Text>
+                <Text style={styles.moveChipText}>{t('today.thisWeekend')}</Text>
               </Pressable>
               <Pressable
                 onPress={() => bulkMoveTo(presetDate(today, 'nextWeek'))}
                 style={({ pressed }) => [styles.moveChip, pressed && styles.pressed]} hitSlop={6}
                 accessibilityRole="button"
-                accessibilityLabel="Next week"
+                accessibilityLabel={t('today.nextWeek')}
               >
-                <Text style={styles.moveChipText}>Next week</Text>
+                <Text style={styles.moveChipText}>{t('today.nextWeek')}</Text>
               </Pressable>
             </View>
             <DatePicker value={null} onChange={(iso) => bulkMoveTo(iso)} today={today} />
             <Pressable
               onPress={() => setMoveToOpen(false)}
               accessibilityRole="button"
-              accessibilityLabel="Cancel"
+              accessibilityLabel={t('common.cancel')}
               hitSlop={8}
               style={styles.moveCancelWrap}
             >
-              <Text style={styles.didCancel}>Cancel</Text>
+              <Text style={styles.didCancel}>{t('common.cancel')}</Text>
             </Pressable>
       </ModalCard>
 
       <ModalCard visible={nudgeOpen} onClose={() => setNudgeOpen(false)}>
-            <Text style={styles.didTitle}>Remind me…</Text>
-            <Text style={styles.didHint}>A gentle poke about this later today, never a deadline.</Text>
+            <Text style={styles.didTitle}>{t('reminders.nudgeTitle')}</Text>
+            <Text style={styles.didHint}>{t('reminders.nudgeHint')}</Text>
             {nudgePresets.length === 0 ? (
-              <Text style={styles.didHint}>It is a little late for a nudge today. Tomorrow is always there.</Text>
+              <Text style={styles.didHint}>{t('reminders.nudgeTooLate')}</Text>
             ) : (
               <View style={styles.moveToPresets}>
                 {nudgePresets.map((p) => (
@@ -1889,52 +1889,52 @@ export default function TodayScreen() {
             <Pressable
               onPress={() => setNudgeOpen(false)}
               accessibilityRole="button"
-              accessibilityLabel="Not now"
+              accessibilityLabel={t('common.notNow')}
               hitSlop={8}
               style={styles.moveCancelWrap}
             >
-              <Text style={styles.didCancel}>Not now</Text>
+              <Text style={styles.didCancel}>{t('common.notNow')}</Text>
             </Pressable>
       </ModalCard>
 
       <ModalCard visible={sliceEditOpen} onClose={() => setSliceEditOpen(false)}>
-            <Text style={styles.didTitle}>Track in steps</Text>
-            <Text style={styles.didHint}>Break this one task into parts and tick them off as you go. Tap it on Today to advance a step, whenever you are ready.</Text>
+            <Text style={styles.didTitle}>{t('today.sliceTitle')}</Text>
+            <Text style={styles.didHint}>{t('today.sliceHint')}</Text>
             <View style={styles.sliceEditStepper}>
               <Pressable
                 onPress={() => setSliceEditCount((n) => Math.max(MIN_SLICES, n - 1))}
                 disabled={sliceEditCount <= MIN_SLICES}
                 accessibilityRole="button"
-                accessibilityLabel="Fewer steps"
+                accessibilityLabel={t('today.fewerStepsA11y')}
                 hitSlop={8}
                 style={({ pressed }) => [styles.sliceStepBtn, sliceEditCount <= MIN_SLICES && styles.sliceStepBtnOff, pressed && styles.pressed]}
               >
                 <Text style={styles.sliceStepGlyph}>−</Text>
               </Pressable>
-              <Text style={styles.sliceStepValue} accessibilityLabel={`${sliceEditCount} steps`}>
-                {sliceEditCount} steps
+              <Text style={styles.sliceStepValue} accessibilityLabel={t('today.stepsCount', { count: sliceEditCount })}>
+                {t('today.stepsCount', { count: sliceEditCount })}
               </Text>
               <Pressable
                 onPress={() => setSliceEditCount((n) => Math.min(MAX_SLICES, n + 1))}
                 disabled={sliceEditCount >= MAX_SLICES}
                 accessibilityRole="button"
-                accessibilityLabel="More steps"
+                accessibilityLabel={t('today.moreStepsA11y')}
                 hitSlop={8}
                 style={({ pressed }) => [styles.sliceStepBtn, sliceEditCount >= MAX_SLICES && styles.sliceStepBtnOff, pressed && styles.pressed]}
               >
                 <Text style={styles.sliceStepGlyph}>+</Text>
               </Pressable>
             </View>
-            <PrimaryButton label="Done" onPress={confirmSliceEdit} accessibilityLabel="Save these steps" />
+            <PrimaryButton label={t('common.done')} onPress={confirmSliceEdit} accessibilityLabel={t('today.saveStepsA11y')} />
             {sliceEditId != null && tasks.find((t) => t.id === sliceEditId)?.slices != null && (
               <Pressable
                 onPress={makeWhole}
                 accessibilityRole="button"
-                accessibilityLabel="Make this one whole task again"
+                accessibilityLabel={t('today.makeWholeA11y')}
                 hitSlop={8}
                 style={styles.moveCancelWrap}
               >
-                <Text style={styles.didCancel}>Make it whole again</Text>
+                <Text style={styles.didCancel}>{t('today.makeWhole')}</Text>
               </Pressable>
             )}
       </ModalCard>
@@ -1943,7 +1943,7 @@ export default function TodayScreen() {
         <View style={styles.closeRoot}>
           {/* The scrim is a SIBLING of the card (an absolute-fill dismiss layer behind it), so the card's
               buttons are never nested inside the scrim <button> (invalid HTML on web). */}
-          <Pressable style={styles.backdrop} onPress={() => setClosing(false)} accessibilityRole="button" accessibilityLabel="Dismiss" />
+          <Pressable style={styles.backdrop} onPress={() => setClosing(false)} accessibilityRole="button" accessibilityLabel={t('common.dismiss')} />
           <Animated.View
             style={[
               styles.wrapAnim,
@@ -1961,15 +1961,16 @@ export default function TodayScreen() {
                   resizeMode="cover"
                   accessibilityIgnoresInvertColors
                   accessible
-                  accessibilityLabel="A calm dusk sky settling over a closed notebook"
+                  accessibilityLabel={t('closeDay.artAlt')}
                 />
               </View>
-              <Text style={styles.wrapTitle}>{"That's the day"}</Text>
+              <Text style={styles.wrapTitle}>{t('closeDay.wrapTitle')}</Text>
               {todayDone.length > 0 ? (
                 <>
                   <Text style={styles.wrapLine}>
-                    You finished {todayDone.length} {todayDone.length === 1 ? 'thing' : 'things'} today
-                    {todayDone.some((c) => c.big) ? ', one a big one' : ''}.
+                    {todayDone.some((c) => c.big)
+                      ? fmt.plural(todayDone.length, { one: t('closeDay.finishedWithBigOne'), other: t('closeDay.finishedWithBigOther') })
+                      : fmt.plural(todayDone.length, { one: t('closeDay.finishedPlainOne'), other: t('closeDay.finishedPlainOther') })}
                   </Text>
                   <View style={styles.wrapList}>
                     {todayDone.map((c) => (
@@ -1981,21 +1982,21 @@ export default function TodayScreen() {
                   </View>
                 </>
               ) : (
-                <Text style={styles.wrapLine}>A quiet day. That is allowed.</Text>
+                <Text style={styles.wrapLine}>{t('closeDay.quietDay')}</Text>
               )}
-              <Text style={styles.wrapRoll}>Anything left rolls to tomorrow. Nothing is lost.</Text>
-              <Text style={styles.closeNoteLabel}>Anything else you did?</Text>
+              <Text style={styles.wrapRoll}>{t('closeDay.rollForward')}</Text>
+              <Text style={styles.closeNoteLabel}>{t('closeDay.anythingElse')}</Text>
               <TextInput
                 style={styles.didInput}
                 value={closeNote}
                 onChangeText={setCloseNote}
-                placeholder="Something off the list…"
+                placeholder={t('closeDay.notePlaceholder')}
                 placeholderTextColor={theme.colors.inkFaint}
                 returnKeyType="done"
-                accessibilityLabel="Anything else you did today"
+                accessibilityLabel={t('closeDay.noteA11y')}
               />
               <PrimaryButton
-                label="Goodnight"
+                label={t('closeDay.goodnight')}
                 onPress={() => {
                   const note = closeNote.trim();
                   if (note) {
@@ -2010,7 +2011,7 @@ export default function TodayScreen() {
                   void saveClosedDate(toISODate(today));
                   dayClosed(reduced); // the gentle close: a warm, soft confirmation
                 }}
-                accessibilityLabel="Goodnight"
+                accessibilityLabel={t('closeDay.goodnight')}
                 style={styles.wrapBtn}
               />
             </View>
@@ -2019,17 +2020,17 @@ export default function TodayScreen() {
       </Modal>
 
       <ModalCard visible={plan != null} onClose={() => setPlan(null)}>
-            <Text style={styles.wrapTitle}>A calmer spread</Text>
-            <Text style={styles.wrapLine}>{"Keep today lighter. Here's where the rest could go."}</Text>
+            <Text style={styles.wrapTitle}>{t('today.spreadTitle')}</Text>
+            <Text style={styles.wrapLine}>{t('today.spreadLine')}</Text>
             <View style={styles.wrapList}>
               {(plan ?? []).map((p) => {
-                const t = tasks.find((x) => x.id === p.id);
-                if (!t) return null;
-                const when = p.dayOffset <= 0 ? 'Today' : p.dayOffset === 1 ? 'Tomorrow' : `In ${p.dayOffset} days`;
+                const task = tasks.find((x) => x.id === p.id);
+                if (!task) return null;
+                const when = p.dayOffset <= 0 ? t('common.today') : p.dayOffset === 1 ? t('common.tomorrow') : t('today.inDays', { days: p.dayOffset });
                 return (
                   <View key={p.id} style={styles.planItem}>
                     <Text style={styles.planTitle} numberOfLines={1}>
-                      {t.title}
+                      {task.title}
                     </Text>
                     <Text style={styles.planWhen}>{when}</Text>
                   </View>
@@ -2037,29 +2038,29 @@ export default function TodayScreen() {
               })}
             </View>
             <PrimaryButton
-              label="Use this spread"
+              label={t('today.useSpread')}
               onPress={acceptPlan}
-              accessibilityLabel="Use this spread"
+              accessibilityLabel={t('today.useSpread')}
               style={styles.wrapBtn}
             />
-            <Pressable onPress={() => setPlan(null)} accessibilityRole="button" accessibilityLabel="Not now">
-              <Text style={styles.planDismiss}>Not now</Text>
+            <Pressable onPress={() => setPlan(null)} accessibilityRole="button" accessibilityLabel={t('common.notNow')}>
+              <Text style={styles.planDismiss}>{t('common.notNow')}</Text>
             </Pressable>
       </ModalCard>
 
       <ModalCard visible={order != null} onClose={() => setOrder(null)}>
-            <Text style={styles.wrapTitle}>A gentle order</Text>
-            <Text style={styles.wrapLine}>{"Here's an order that might flow. Yours to take or leave."}</Text>
+            <Text style={styles.wrapTitle}>{t('today.orderTitle')}</Text>
+            <Text style={styles.wrapLine}>{t('today.orderLine')}</Text>
             <View style={styles.wrapList}>
               {(order ?? []).map((o, i) => {
-                const t = tasks.find((x) => x.id === o.id);
-                if (!t) return null;
+                const task = tasks.find((x) => x.id === o.id);
+                if (!task) return null;
                 return (
                   <View key={o.id} style={styles.seqItem}>
                     <Text style={styles.seqNum}>{i + 1}</Text>
                     <View style={styles.seqText}>
                       <Text style={styles.planTitle} numberOfLines={1}>
-                        {t.title}
+                        {task.title}
                       </Text>
                       <Text style={styles.seqReason} numberOfLines={2}>
                         {o.reason}
@@ -2070,39 +2071,39 @@ export default function TodayScreen() {
               })}
             </View>
             <PrimaryButton
-              label="Use this order"
+              label={t('today.useOrder')}
               onPress={acceptOrder}
-              accessibilityLabel="Use this order"
+              accessibilityLabel={t('today.useOrder')}
               style={styles.wrapBtn}
             />
-            <Pressable onPress={() => setOrder(null)} accessibilityRole="button" accessibilityLabel="Not now">
-              <Text style={styles.planDismiss}>Not now</Text>
+            <Pressable onPress={() => setOrder(null)} accessibilityRole="button" accessibilityLabel={t('common.notNow')}>
+              <Text style={styles.planDismiss}>{t('common.notNow')}</Text>
             </Pressable>
       </ModalCard>
 
       {/* After "Plan my day" orders a heavy day, offer the Lighten-today re-spread (Melroy's "push a few
           out?" follow-up). Only on a heavy day, and only after ordering, so it never nags a calm day. */}
       <ModalCard visible={offerDefer} onClose={() => setOfferDefer(false)}>
-            <Text style={styles.wrapTitle}>Still a full day?</Text>
-            <Text style={styles.wrapLine}>Today is ordered. Want to push a few tasks out to later days, to lighten it?</Text>
+            <Text style={styles.wrapTitle}>{t('today.offerDeferTitle')}</Text>
+            <Text style={styles.wrapLine}>{t('today.offerDeferLine')}</Text>
             <PrimaryButton
-              label="Yes, lighten today"
+              label={t('today.offerDeferYes')}
               onPress={() => {
                 setOfferDefer(false);
                 runStrategise();
               }}
-              accessibilityLabel="Yes, lighten today by moving some out"
+              accessibilityLabel={t('today.offerDeferYesA11y')}
               style={styles.wrapBtn}
             />
             <Pressable
               onPress={() => {
                 setOfferDefer(false);
-                affirm('A gentle order, top of the list when you are ready.');
+                affirm(t('today.gentleOrderAffirm'));
               }}
               accessibilityRole="button"
-              accessibilityLabel="No, this is good"
+              accessibilityLabel={t('today.offerDeferNo')}
             >
-              <Text style={styles.planDismiss}>No, this is good</Text>
+              <Text style={styles.planDismiss}>{t('today.offerDeferNo')}</Text>
             </Pressable>
       </ModalCard>
 

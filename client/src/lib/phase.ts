@@ -4,6 +4,8 @@
 // component renders these; this module is the testable brain. Values come straight from
 // the design handoff (docs/design/redesign/README.md).
 
+import { t } from './i18n-active';
+
 export type Phase = 'dawn' | 'day' | 'dusk' | 'night';
 
 /** The background phase for a moment: dawn 5-9, day 9-17, dusk 17-20, night otherwise. */
@@ -53,8 +55,8 @@ export function poolLayout(width: number, height: number) {
 /** The greeting that drifts with the time of day, always ending on the spine. */
 export function phaseGreeting(date: Date): string {
   const h = date.getHours();
-  if (h >= 5 && h < 12) return 'Good morning. Just today.';
-  if (h >= 12 && h < 17) return 'Good afternoon. Just today.';
-  if (h >= 17 && h < 21) return 'Winding down. Just today.';
-  return 'Just today. The rest can wait.';
+  if (h >= 5 && h < 12) return t('phase.greeting.morning');
+  if (h >= 12 && h < 17) return t('phase.greeting.afternoon');
+  if (h >= 17 && h < 21) return t('phase.greeting.evening');
+  return t('today.subtitle');
 }

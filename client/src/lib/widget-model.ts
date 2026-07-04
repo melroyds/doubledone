@@ -3,6 +3,7 @@
 // task and the app render identical data from one source of truth. No widget-library
 // imports here, so it stays trivially testable.
 import { toISODate } from './day';
+import { t } from './i18n-active';
 import type { Task } from './tasks';
 import { isDoneOn, tasksForToday } from './today';
 
@@ -28,13 +29,13 @@ export function buildWidgetModel(tasks: Task[], today: Date, closedISO: string |
   const remaining = undone.length;
 
   if (closedISO === toISODate(today)) {
-    return { remaining, lines: [], state: 'closed', message: 'Closed for today.' };
+    return { remaining, lines: [], state: 'closed', message: t('widget.closedForToday') };
   }
   if (todays.length === 0) {
-    return { remaining: 0, lines: [], state: 'empty', message: 'Nothing for today yet.' };
+    return { remaining: 0, lines: [], state: 'empty', message: t('widget.nothingForToday') };
   }
   if (remaining === 0) {
-    return { remaining: 0, lines: [], state: 'done', message: 'All done for today.' };
+    return { remaining: 0, lines: [], state: 'done', message: t('widget.allDoneForToday') };
   }
   return {
     remaining,

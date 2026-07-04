@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Animated, Easing, Platform, StyleSheet } from 'react-native';
 
 import { fonts, motion, type Theme } from '@/constants/theme';
+import { t } from '@/lib/locale';
 import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 // A calm, original (uncopyrighted) line at the foot of Today, in place of a single
@@ -9,16 +10,16 @@ import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provide
 // Newsreader serif italic so it reads like a quiet inscription, distinct from the
 // Atkinson body around it. It cross-fades slowly; with reduced motion it simply
 // shows one and stays still. Phrases are gentle and never instructive-shaming.
-const PHRASES = [
-  'today is finite and achievable',
-  'one thing, then the next',
-  'small steps still move you',
-  'rest is part of the work',
-  "you're allowed to go slowly",
-  'a quiet day still counts',
-  'what you finish, you keep',
-  'gentle is still forward',
-];
+const PHRASE_KEYS = [
+  'welcome.handoffEthos', // today is finite and achievable
+  'today.phraseOneThing',
+  'today.phraseSmallSteps',
+  'today.phraseRest',
+  'welcome.safetyNetInscription', // you're allowed to go slowly
+  'today.phraseQuietDay',
+  'today.phraseFinishKeep',
+  'today.phraseGentleForward',
+] as const;
 
 export function RotatingPhrase() {
   const styles = useThemedStyles(makeStyles);
@@ -26,7 +27,7 @@ export function RotatingPhrase() {
   const reduced = useReducedMotion();
   // A varying start so each open opens on a different line; rotation continues
   // from there when motion is allowed.
-  const [i, setI] = useState(() => Math.floor(Math.random() * PHRASES.length));
+  const [i, setI] = useState(() => Math.floor(Math.random() * PHRASE_KEYS.length));
   const [opacity] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
@@ -38,7 +39,7 @@ export function RotatingPhrase() {
         easing: Easing.inOut(Easing.ease),
         useNativeDriver: Platform.OS !== 'web',
       }).start(() => {
-        setI((prev) => (prev + 1) % PHRASES.length);
+        setI((prev) => (prev + 1) % PHRASE_KEYS.length);
         Animated.timing(opacity, {
           toValue: 1,
           duration: motion.crossfade,
@@ -54,7 +55,7 @@ export function RotatingPhrase() {
 
   return (
     <Animated.Text style={[styles.phrase, { color, opacity }]} accessibilityRole="text">
-      {PHRASES[i]}
+      {t(PHRASE_KEYS[i])}
     </Animated.Text>
   );
 }

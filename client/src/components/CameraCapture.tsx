@@ -16,6 +16,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { ocr } from '@/lib/ai';
 import { aiErrorLine } from '@/lib/connection';
+import { t } from '@/lib/locale';
 import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
@@ -27,8 +28,6 @@ type Props = {
   onTasks: (tasks: string[]) => void;
   language?: string;
 };
-
-const EGRESS_NOTE = 'Your photo is sent to the AI to read your list, then discarded. It is never stored.';
 
 export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
   const styles = useThemedStyles(makeStyles);
@@ -49,18 +48,18 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
       const ref = await ImageManipulator.manipulate(uri).resize({ width: 1080 }).renderAsync();
       const out = await ref.saveAsync({ compress: 0.6, format: SaveFormat.JPEG, base64: true });
       if (!out.base64) {
-        setError('Could not prepare that image. Try again.');
+        setError(t('capture.errorPrepareImage'));
         return;
       }
       const tasks = await ocr(out.base64, 'image/jpeg', language);
       if (tasks.length === 0) {
-        setError("I couldn't read any tasks from that. Try again, with the list filling the frame.");
+        setError(t('capture.errorNoTasksRead'));
         return;
       }
       track('ocr.captured', { count: tasks.length });
       onTasks(tasks);
     } catch {
-      setError(aiErrorLine("Couldn't read that photo just now. Try again?"));
+      setError(aiErrorLine(t('capture.errorReadPhoto')));
     } finally {
       setBusy(false);
     }
@@ -74,7 +73,7 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
       const photo = await cam.takePictureAsync({ quality: 0.7 });
       if (photo?.uri) await readFromUri(photo.uri);
     } catch {
-      setError('Could not take that photo. Try again.');
+      setError(t('capture.errorTakePhoto'));
     }
   }
 
@@ -85,7 +84,7 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
       const res = await launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
       if (!res.canceled && res.assets[0]?.uri) await readFromUri(res.assets[0].uri);
     } catch {
-      setError('Could not open your photos. Try again.');
+      setError(t('capture.errorOpenPhotos'));
     }
   }
 
@@ -94,13 +93,13 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
     if (isWeb) {
       return (
         <View style={styles.prompt}>
-          <Text style={styles.promptTitle}>Scan a photo of your list</Text>
-          <Text style={styles.promptHint}>Choose a photo of a list, a note, or a whiteboard.</Text>
+          <Text style={styles.promptTitle}>{t('capture.scanA11y')}</Text>
+          <Text style={styles.promptHint}>{t('capture.choosePhotoHint')}</Text>
           <PrimaryButton
-            label="Choose a photo"
+            label={t('capture.choosePhoto')}
             onPress={pickFromGallery}
             disabled={busy}
-            accessibilityLabel="Choose a photo of your list"
+            accessibilityLabel={t('capture.choosePhotoA11y')}
           />
         </View>
       );
@@ -117,15 +116,15 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
     if (!permission.granted) {
       return (
         <View style={styles.prompt}>
-          <Text style={styles.promptTitle}>Scan a photo of your list</Text>
-          <Text style={styles.promptHint}>{EGRESS_NOTE}</Text>
+          <Text style={styles.promptTitle}>{t('capture.scanA11y')}</Text>
+          <Text style={styles.promptHint}>{t('capture.photoEgressNote')}</Text>
           <PrimaryButton
-            label="Allow camera"
+            label={t('capture.allowCamera')}
             onPress={requestPermission}
-            accessibilityLabel="Allow the camera"
+            accessibilityLabel={t('capture.allowCameraA11y')}
           />
-          <Pressable onPress={pickFromGallery} accessibilityRole="button" accessibilityLabel="Choose from your photos instead">
-            <Text style={styles.linkBtnText}>Choose from photos instead</Text>
+          <Pressable onPress={pickFromGallery} accessibilityRole="button" accessibilityLabel={t('capture.chooseFromPhotosA11y')}>
+            <Text style={styles.linkBtnText}>{t('capture.chooseFromPhotos')}</Text>
           </Pressable>
         </View>
       );
@@ -140,16 +139,16 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
             disabled={busy}
             style={({ pressed }) => [styles.galleryBtn, pressed && styles.pressed, busy && styles.disabled]}
             accessibilityRole="button"
-            accessibilityLabel="Choose from your photos instead"
+            accessibilityLabel={t('capture.chooseFromPhotosA11y')}
           >
-            <Text style={styles.galleryBtnText}>Photos</Text>
+            <Text style={styles.galleryBtnText}>{t('capture.photosButton')}</Text>
           </Pressable>
           <Pressable
             onPress={shoot}
             disabled={busy}
             style={({ pressed }) => [styles.shutter, pressed && styles.pressed, busy && styles.disabled]}
             accessibilityRole="button"
-            accessibilityLabel="Take a photo of your list"
+            accessibilityLabel={t('capture.takePhotoA11y')}
           >
             <View style={styles.shutterInner} />
           </Pressable>
@@ -163,22 +162,22 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.screen}>
         <View style={styles.header}>
-          <Pressable onPress={onClose} disabled={busy} accessibilityRole="button" accessibilityLabel="Close" hitSlop={8}>
-            <Text style={[styles.headerLink, busy && styles.disabled]}>Close</Text>
+          <Pressable onPress={onClose} disabled={busy} accessibilityRole="button" accessibilityLabel={t('common.close')} hitSlop={8}>
+            <Text style={[styles.headerLink, busy && styles.disabled]}>{t('common.close')}</Text>
           </Pressable>
-          <Text style={styles.headerTitle}>Scan a list</Text>
+          <Text style={styles.headerTitle}>{t('welcome.premiumScanName')}</Text>
           <View style={styles.headerSpacer} />
         </View>
 
         {body()}
 
-        {(isWeb || permission?.granted) && <Text style={styles.footerNote}>{EGRESS_NOTE}</Text>}
+        {(isWeb || permission?.granted) && <Text style={styles.footerNote}>{t('capture.photoEgressNote')}</Text>}
         {error && <Text style={styles.error}>{error}</Text>}
 
         {busy && (
           <View style={styles.busyOverlay} pointerEvents="auto">
             <ActivityIndicator size="large" color="#FFFFFF" />
-            <Text style={styles.busyText}>Reading your list…</Text>
+            <Text style={styles.busyText}>{t('capture.readingYourList')}</Text>
           </View>
         )}
       </View>

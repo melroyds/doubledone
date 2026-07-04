@@ -3,6 +3,8 @@
 // sprang back to Off with no word. For an RSD-sensitive audience an unexplained refusal reads as the app
 // rejecting them, and they will not try again. This carries the REASON so the UI can say one calm thing.
 
+import { fmt, t } from './i18n-active';
+
 export type ReminderReason = 'denied' | 'unsupported' | 'error';
 export type ReminderResult = { ok: true } | { ok: false; reason: ReminderReason };
 
@@ -10,11 +12,11 @@ export type ReminderResult = { ok: true } | { ok: false; reason: ReminderReason 
 export function reminderReasonLine(reason: ReminderReason): string {
   switch (reason) {
     case 'denied':
-      return 'Notifications are off for DoubleDone. Turn them on in your settings, then try again.';
+      return t('reminders.reason.denied');
     case 'unsupported':
-      return "Reminders aren't available on this device.";
+      return t('reminders.reason.unsupported');
     case 'error':
-      return "Couldn't set the reminder just now. Try again?";
+      return t('reminders.reason.error');
   }
 }
 
@@ -24,10 +26,9 @@ export function clampHour(hour: number): number {
   return Math.max(0, Math.min(23, Math.round(hour)));
 }
 
-/** A reminder hour (0-23) as a calm 12-hour label: 9 -> "9:00 AM", 0 -> "12:00 AM", 12 -> "12:00 PM", 18 -> "6:00 PM". */
+/** A reminder hour (0-23) as a calm time label in the device's own convention: 9 -> "9:00 am"
+ *  (en-AU), "09:00" (fr/it). Matches the nudge chips, which use the same Intl path. */
 export function formatReminderHour(hour: number): string {
   const h = clampHour(hour);
-  const period = h < 12 ? 'AM' : 'PM';
-  const display = h % 12 === 0 ? 12 : h % 12;
-  return `${display}:00 ${period}`;
+  return fmt.time(new Date(2000, 0, 1, h, 0));
 }

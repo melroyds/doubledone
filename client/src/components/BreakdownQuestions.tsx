@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { type Questions } from '@/lib/ai';
 import { fromISODate, presetDate } from '@/lib/day';
+import { fmt, t } from '@/lib/locale';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 import { Chip } from './Chip';
@@ -36,11 +37,11 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
   const presets: { label: string; iso: string | null }[] = [
-    { label: 'No deadline', iso: null },
-    { label: 'Today', iso: presetDate(today, 'today') },
-    { label: 'Tomorrow', iso: presetDate(today, 'tomorrow') },
-    { label: 'This week', iso: presetDate(today, 'thisWeek') },
-    { label: 'Two weeks', iso: presetDate(today, 'twoWeeks') },
+    { label: t('chart.chipNoDeadline'), iso: null },
+    { label: t('common.today'), iso: presetDate(today, 'today') },
+    { label: t('common.tomorrow'), iso: presetDate(today, 'tomorrow') },
+    { label: t('breakdown.thisWeek'), iso: presetDate(today, 'thisWeek') },
+    { label: t('breakdown.twoWeeks'), iso: presetDate(today, 'twoWeeks') },
   ];
   // Default to the date the AI found in the task, else the end of this week.
   const [dueISO, setDueISO] = useState<string | null>(() => questions.suggestedDueDate ?? presetDate(today, 'thisWeek'));
@@ -58,7 +59,7 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
   return (
     <ModalCard visible onClose={onCancel} maxWidth={440} maxHeight="88%" scroll>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
-            <Text style={styles.title}>A few quick questions</Text>
+            <Text style={styles.title}>{t('breakdown.questionsTitle')}</Text>
             <Text style={styles.task} numberOfLines={2}>
               {task}
             </Text>
@@ -77,20 +78,15 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
                 />
               ))}
               <Chip
-                label="Pick a date"
+                label={t('breakdown.pickADate')}
                 selected={calOpen || isCustom}
                 onPress={() => setCalOpen((v) => !v)}
               />
             </View>
             <Text style={styles.selected}>
               {dueISO == null
-                ? 'No deadline'
-                : fromISODate(dueISO).toLocaleDateString('en-AU', {
-                    weekday: 'short',
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric',
-                  })}
+                ? t('chart.chipNoDeadline')
+                : `${fmt.weekday(fromISODate(dueISO))} ${fmt.monthDay(fromISODate(dueISO))}`}
             </Text>
             {calOpen && (
               <DatePicker
@@ -107,8 +103,8 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
             <Segmented<'gradual' | 'sameday'>
               value={spread}
               options={[
-                { value: 'gradual', label: 'Gradual' },
-                { value: 'sameday', label: 'Same day' },
+                { value: 'gradual', label: t('breakdown.spreadGradual') },
+                { value: 'sameday', label: t('breakdown.spreadSameDay') },
               ]}
               onChange={setSpread}
               accessibilityLabel={questions.spread}
@@ -119,30 +115,30 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
               value={answer}
               onChangeText={setAnswer}
               editable={!busy}
-              placeholder="Optional"
+              placeholder={t('breakdown.optionalPlaceholder')}
               placeholderTextColor={theme.colors.inkFaint}
               style={styles.input}
               multiline
-              accessibilityLabel="Answer to the question"
+              accessibilityLabel={t('breakdown.answerA11y')}
             />
 
             <PrimaryButton
-              label="Break it down"
+              label={t('actions.breakItDown')}
               onPress={submit}
               loading={busy}
-              accessibilityLabel="Break it down"
+              accessibilityLabel={t('actions.breakItDown')}
               style={styles.btn}
             />
             {busy && (
-              <Text style={styles.waitNote}>Working out a few small steps. This takes a moment, no need to wait here.</Text>
+              <Text style={styles.waitNote}>{t('breakdown.waitNote')}</Text>
             )}
             {!busy && error ? <Text style={styles.errorNote}>{error}</Text> : null}
-            <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel="Not now">
-              <Text style={styles.dismiss}>Not now</Text>
+            <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel={t('common.notNow')}>
+              <Text style={styles.dismiss}>{t('common.notNow')}</Text>
             </Pressable>
 
             <Text style={styles.disclosure} accessibilityRole="text">
-              Your task is sent to an AI to suggest the steps, and kept anonymously (no name, no account) to improve them.
+              {t('breakdown.aiDisclosure')}
             </Text>
       </ScrollView>
     </ModalCard>

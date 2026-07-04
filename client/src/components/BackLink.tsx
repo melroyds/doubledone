@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text } from 'react-native';
 
 import { fonts, type Theme } from '@/constants/theme';
+import { t } from '@/lib/locale';
 import { useThemedStyles } from '@/lib/theme-provider';
 
 // The one back link, lifted out of the six sub-screens that each hand-rolled it.
@@ -10,16 +11,17 @@ import { useThemedStyles } from '@/lib/theme-provider';
 // fallback route, so a deep-linked screen (opened with no back stack) returns to
 // Today instead of dead-ending. Label and fallback are overridable per screen
 // (Settings/Routines/Lookback read "Today", Privacy falls back to /settings).
-export function BackLink({ label = 'Back', fallback = '/' }: { label?: string; fallback?: string }) {
+export function BackLink({ label, fallback = '/' }: { label?: string; fallback?: string }) {
   const styles = useThemedStyles(makeStyles);
+  const text = label ?? t('common.back');
   return (
     <Pressable
       onPress={() => (router.canGoBack() ? router.back() : router.replace(fallback as any))}
       accessibilityRole="button"
-      accessibilityLabel="Go back"
+      accessibilityLabel={t('common.goBack')}
       hitSlop={8}
     >
-      <Text style={styles.back}>‹ {label}</Text>
+      <Text style={styles.back}>‹ {text}</Text>
     </Pressable>
   );
 }

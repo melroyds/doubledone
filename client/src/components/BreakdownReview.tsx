@@ -7,6 +7,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { friendlyDate } from '@/lib/day';
 import { describePace, paceDays } from '@/lib/estimate';
+import { fmt, t } from '@/lib/locale';
 import { track } from '@/lib/telemetry';
 import { useThemedStyles } from '@/lib/theme-provider';
 
@@ -53,15 +54,16 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
   return (
     <ModalCard visible onClose={onCancel} maxWidth={440} maxHeight="88%" scroll>
       <ScrollView contentContainerStyle={styles.scroll}>
-            <Text style={styles.title}>{"Here's the plan"}</Text>
+            <Text style={styles.title}>{t('breakdown.planTitle')}</Text>
             <Text style={styles.sub} numberOfLines={2}>
               {task}
             </Text>
-            <Text style={styles.hint}>Tap to keep or skip any step.</Text>
+            <Text style={styles.hint}>{t('breakdown.tapToKeepOrSkip')}</Text>
 
             <View style={styles.list}>
               {steps.map((s, i) => {
                 const on = selected[i];
+                const dateLabel = s.date == null ? t('common.today') : friendlyDate(s.date, today);
                 return (
                   <Pressable
                     key={`${s.title}-${i}`}
@@ -69,13 +71,17 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
                     style={({ pressed }) => [styles.row, pressed && styles.pressed]}
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: on }}
-                    accessibilityLabel={`${s.title}, ${s.minutes} minutes, ${s.date == null ? 'Today' : friendlyDate(s.date, today)}`}
+                    accessibilityLabel={fmt.plural(
+                      s.minutes,
+                      { one: t('breakdown.stepRowA11yOne'), other: t('breakdown.stepRowA11yOther') },
+                      { title: s.title, minutes: s.minutes, date: dateLabel },
+                    )}
                   >
                     <CheckCircle done={on} />
                     <View style={styles.rowText}>
                       <Text style={[styles.stepTitle, !on && styles.stepOff]}>{s.title}</Text>
                       <Text style={styles.meta}>
-                        {s.minutes} min · {s.date == null ? 'Today' : friendlyDate(s.date, today)}
+                        {t('breakdown.stepMeta', { minutes: s.minutes, date: dateLabel })}
                       </Text>
                     </View>
                   </Pressable>
@@ -85,16 +91,16 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
 
             {phaseCount > 0 && (
               <View style={styles.phases}>
-                <Text style={styles.phasesHead}>Then, as you get there</Text>
+                <Text style={styles.phasesHead}>{t('breakdown.laterPhasesHead')}</Text>
                 {laterPhases!.map((p, i) => (
                   <View key={`${p.title}-${i}`} style={styles.phaseRow}>
                     <Text style={styles.phaseTitle} numberOfLines={2}>
                       {p.title}
                     </Text>
-                    <Text style={styles.phaseDate}>{p.date == null ? 'Today' : friendlyDate(p.date, today)}</Text>
+                    <Text style={styles.phaseDate}>{p.date == null ? t('common.today') : friendlyDate(p.date, today)}</Text>
                   </View>
                 ))}
-                <Text style={styles.phasesNote}>These wait in Later. Break each one down when you reach it.</Text>
+                <Text style={styles.phasesNote}>{t('breakdown.laterPhasesNote')}</Text>
               </View>
             )}
 
@@ -103,15 +109,15 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
             </Text>
 
             <PrimaryButton
-              label={`Add ${count} ${count === 1 ? 'task' : 'tasks'}`}
+              label={fmt.plural(count, { one: t('breakdown.addCountTasksOne'), other: t('breakdown.addCountTasksOther') })}
               onPress={add}
               loading={busy}
               disabled={count === 0}
-              accessibilityLabel={`Add ${count} ${count === 1 ? 'task' : 'tasks'}`}
+              accessibilityLabel={fmt.plural(count, { one: t('breakdown.addCountTasksOne'), other: t('breakdown.addCountTasksOther') })}
               style={styles.btn}
             />
-            <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel="Not now">
-              <Text style={styles.dismiss}>Not now</Text>
+            <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel={t('common.notNow')}>
+              <Text style={styles.dismiss}>{t('common.notNow')}</Text>
             </Pressable>
       </ScrollView>
     </ModalCard>

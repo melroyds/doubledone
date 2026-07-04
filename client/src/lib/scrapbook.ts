@@ -6,6 +6,7 @@
 // as free delight first (no paywall yet); see the monetisation decision-log.
 
 import { addDaysISO, fromISODate, toISODate } from './day';
+import { fmt, t } from './i18n-active';
 
 export type Scrapbook = {
   weekStart: string; // ISO of the week's Sunday (weeks start Sunday, like the calendar)
@@ -68,8 +69,8 @@ export function upsertScrapbook(books: Scrapbook[], entry: Scrapbook): Scrapbook
   return [entry, ...rest].slice(0, MAX_SCRAPBOOKS);
 }
 
-/** A short, friendly label for a week, e.g. "week of Sun 15 June". */
+/** A short, friendly label for a week, e.g. "week of Sun 15 June" (per locale). */
 export function weekLabel(weekStart: string): string {
   const d = fromISODate(weekStart);
-  return `week of ${d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'long' })}`;
+  return t('scrapbook.weekOf', { date: `${fmt.weekday(d)} ${fmt.monthDay(d)}` });
 }

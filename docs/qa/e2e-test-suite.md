@@ -203,6 +203,12 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | SET-09 | P1 | Both | Turn AI off, the app whole without it | In Settings under 'AI', tap 'Turn AI off'. Then move through the app: capture, Today (long-press a task), the Menu, Lookback. | Turning off is instant with a warm line ('AI is off. Everything stays on your device.'). Every AI affordance then disappears: Sort for me / Tidy this / Scan in capture; Break it down / Make it tiny / Combine / Plan my day on Today, including the per-task Break-down and Make-tiny; the 'Chart a course' menu entry (and the screen redirects away); and Lookback's scrapbook + weekly reflection. On-device Speak stays. Nothing calls the AI backend and the calm to-do loop still works fully. |
 | SET-10 | P2 | Both | Turn AI back on (informed consent) | With AI off, in Settings tap 'Turn AI on', read the card, and tap 'Turn on AI' (also try 'Not now'). | Turning ON asks first: a card naming exactly what is sent and to whom ('sends the text you choose... to Anthropic's Claude... Nothing else ever leaves your device.'). 'Not now' cancels with no change. 'Turn on AI' restores every AI affordance across the app. The asymmetry is deliberate: off is one instant tap, on is a clear informed tap. |
 
+## Languages
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| I18N-01 | P2 | Both | App follows the device language (Italian / Spanish / French) | Set the device (or browser) language to Italian, Spanish, or French and open DoubleDone fresh. Walk Today, the introduction, Settings, Lookback, capture, and close-the-day. | The whole UI renders in that language: screens, buttons, hints, errors, notification copy, and screen-reader labels. Dates and times follow the region's convention (24-hour clock and day-month order where the locale uses them). Task titles the user typed stay exactly as typed (user data never translates), the brand stays 'DoubleDone', and legal pages stay English. Any missing string falls back to English, never a blank. An English device sees the app unchanged. |
+
 ## Accessibility
 
 | ID | Pri | Platform | Test | Steps | Expected |

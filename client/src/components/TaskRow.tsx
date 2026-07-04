@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { border, cardShadow, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
+import { t } from '@/lib/locale';
 import { formatNudgeTime } from '@/lib/nudge';
 import { type Slices } from '@/lib/tasks';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -73,10 +74,10 @@ export function TaskRow({
   // The repeat and reminder state are folded in too, so a recurring task or one with a nudge no longer
   // reads identically to a plain one (their decorative glyphs are then hidden from the reader, below).
   const rowLabel =
-    (pinned ? `${title}, pinned as today's one thing` : title) +
-    (big ? ', marked as a big task' : '') +
-    (recurring ? ', repeating' : '') +
-    (nudgeAt ? `, reminder at ${formatNudgeTime(nudgeAt)}` : '');
+    (pinned ? t('today.rowLabelPinned', { title }) : title) +
+    (big ? t('today.rowLabelBigSuffix') : '') +
+    (recurring ? t('today.rowLabelRepeatingSuffix') : '') +
+    (nudgeAt ? t('today.rowLabelReminderSuffix', { time: formatNudgeTime(nudgeAt) }) : '');
 
   // Multi-select mode: every row becomes a checkbox (tap to pick), and the calm
   // tap-to-complete / long-press menu are suspended until the user leaves select mode.
@@ -87,7 +88,7 @@ export function TaskRow({
         style={({ pressed }) => [styles.row, !recurring && styles.rowUnique, selected && styles.rowSelected, pressed && styles.pressed]}
         accessibilityRole="checkbox"
         accessibilityState={{ checked: Boolean(selected) }}
-        accessibilityLabel={`Select ${title}`}
+        accessibilityLabel={t('today.selectRowLabel', { title })}
       >
         <View style={[styles.selectDot, selected && styles.selectDotOn]}>{selected && <Text style={styles.tick}>✓</Text>}</View>
         <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
@@ -108,16 +109,16 @@ export function TaskRow({
             onPress={onRetreat}
             disabled={slices.done <= 0}
             accessibilityRole="button"
-            accessibilityLabel={`Step ${title} back one`}
+            accessibilityLabel={t('today.stepBackLabel', { title })}
             hitSlop={{ top: 12, bottom: 12 }}
           >
-            <Text style={[styles.keep, slices.done <= 0 && styles.controlOff]}>Undo a step</Text>
+            <Text style={[styles.keep, slices.done <= 0 && styles.controlOff]}>{t('today.undoAStep')}</Text>
           </Pressable>
-          <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${title}`} hitSlop={{ top: 12, bottom: 12 }}>
-            <Text style={styles.remove}>Remove</Text>
+          <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={t('today.removeTaskLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
+            <Text style={styles.remove}>{t('common.remove')}</Text>
           </Pressable>
-          <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel="Close" hitSlop={{ top: 12, bottom: 12 }}>
-            <Text style={styles.close}>Close</Text>
+          <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel={t('common.close')} hitSlop={{ top: 12, bottom: 12 }}>
+            <Text style={styles.close}>{t('common.close')}</Text>
           </Pressable>
         </View>
       );
@@ -131,25 +132,25 @@ export function TaskRow({
         </Text>
         <View style={styles.confirmActions}>
           {onDefer && !recurring && (
-            <Pressable onPress={onDefer} accessibilityRole="button" accessibilityLabel={`Move ${title} to tomorrow`} hitSlop={{ top: 12, bottom: 12 }}>
-              <Text style={styles.keep}>Tomorrow</Text>
+            <Pressable onPress={onDefer} accessibilityRole="button" accessibilityLabel={t('today.moveToTomorrowLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
+              <Text style={styles.keep}>{t('common.tomorrow')}</Text>
             </Pressable>
           )}
           {onMakeTiny && !recurring && (
-            <Pressable onPress={onMakeTiny} accessibilityRole="button" accessibilityLabel={`Make ${title} tiny`} hitSlop={{ top: 12, bottom: 12 }}>
-              <Text style={styles.keep}>Make it tiny</Text>
+            <Pressable onPress={onMakeTiny} accessibilityRole="button" accessibilityLabel={t('today.makeTinyLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
+              <Text style={styles.keep}>{t('actions.makeItTiny')}</Text>
             </Pressable>
           )}
           {onBreakdown && !recurring && (
-            <Pressable onPress={onBreakdown} accessibilityRole="button" accessibilityLabel={`Break down ${title}`} hitSlop={{ top: 12, bottom: 12 }}>
-              <Text style={styles.keep}>Break down</Text>
+            <Pressable onPress={onBreakdown} accessibilityRole="button" accessibilityLabel={t('breakdown.breakDownTaskLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
+              <Text style={styles.keep}>{t('breakdown.breakDown')}</Text>
             </Pressable>
           )}
-          <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${title}`} hitSlop={{ top: 12, bottom: 12 }}>
-            <Text style={styles.remove}>Remove</Text>
+          <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={t('today.removeTaskLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
+            <Text style={styles.remove}>{t('common.remove')}</Text>
           </Pressable>
-          <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel="Close" hitSlop={{ top: 12, bottom: 12 }}>
-            <Text style={styles.close}>Close</Text>
+          <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel={t('common.close')} hitSlop={{ top: 12, bottom: 12 }}>
+            <Text style={styles.close}>{t('common.close')}</Text>
           </Pressable>
         </View>
       </View>
@@ -169,7 +170,11 @@ export function TaskRow({
         style={({ pressed }) => [styles.row, styles.rowUnique, styles.sliceColumn, pressed && styles.pressed]}
         accessibilityRole="button"
         accessibilityState={{ checked: complete }}
-        accessibilityLabel={`${title}, ${slices.done} of ${slices.total} done${complete ? ', complete' : ', tap to advance, hold to adjust'}`}
+        accessibilityLabel={
+          complete
+            ? t('today.sliceRowLabelComplete', { title, done: slices.done, total: slices.total })
+            : t('today.sliceRowLabelInProgress', { title, done: slices.done, total: slices.total })
+        }
       >
         <View style={styles.sliceTop}>
           <CheckCircle done={complete} />
@@ -184,7 +189,7 @@ export function TaskRow({
         </View>
         {/* A quiet sighted cue for the hold-to-adjust gesture, restoring parity with the spoken hint the screen
             reader already gives. Without it a mis-tapped slice has no visible way back. Incomplete rows only. */}
-        {!complete && <Text style={styles.sliceAdjustHint}>Hold to adjust</Text>}
+        {!complete && <Text style={styles.sliceAdjustHint}>{t('today.holdToAdjust')}</Text>}
       </Pressable>
     );
   }
@@ -205,7 +210,7 @@ export function TaskRow({
           accessibilityLabel={rowLabel}
         >
           <CheckCircle done={done} />
-          {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">big</Text> : null}
+          {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
           {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
           {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
@@ -215,11 +220,11 @@ export function TaskRow({
           <Pressable
             onPress={onBreakdown}
             accessibilityRole="button"
-            accessibilityLabel={`Break down ${title}`}
+            accessibilityLabel={t('breakdown.breakDownTaskLabel', { title })}
             hitSlop={6}
             style={({ pressed }) => [styles.suggestHintBtn, pressed && styles.pressed]}
           >
-            <Text style={styles.suggestHint}>Looks big, break it down?</Text>
+            <Text style={styles.suggestHint}>{t('welcome.revealBreakdownHint')}</Text>
           </Pressable>
         )}
       </View>
@@ -232,7 +237,7 @@ export function TaskRow({
     return (
       <View style={[styles.row, styles.rowUnique, styles.tinyColumn]}>
         <Text style={styles.tinyEyebrow} numberOfLines={1}>
-          A tiny step toward · {tinyParent}
+          {t('today.tinyStepEyebrow', { parent: tinyParent })}
         </Text>
         <Pressable
           onPress={onToggle}
@@ -241,7 +246,7 @@ export function TaskRow({
           style={({ pressed }) => [styles.tinyMain, pressed && styles.pressed]}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: done }}
-          accessibilityLabel={`${title}, a tiny step toward ${tinyParent}`}
+          accessibilityLabel={t('today.tinyStepRowLabel', { title, parent: tinyParent })}
         >
           <CheckCircle done={done} />
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
@@ -261,7 +266,7 @@ export function TaskRow({
       accessibilityLabel={rowLabel}
     >
       <CheckCircle done={done} />
-      {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">big</Text> : null}
+      {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
       <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
       {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
       {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}

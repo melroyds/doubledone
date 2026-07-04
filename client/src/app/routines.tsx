@@ -7,6 +7,7 @@ import { BackLink } from '@/components/BackLink';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, cardShadow, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { toISODate } from '@/lib/day';
+import { t } from '@/lib/locale';
 import { isStepDoneToday, type Routine, routineProgress, type RoutineWhen, toggleStep } from '@/lib/routines';
 import { loadRoutines, saveRoutines } from '@/lib/storage';
 import { parseDump } from '@/lib/tasks';
@@ -21,10 +22,11 @@ function makeId(): string {
   return `r-${Date.now().toString(36)}-${idCounter.toString(36)}`;
 }
 
-const WHENS: { value: RoutineWhen; label: string }[] = [
-  { value: 'morning', label: 'Morning' },
-  { value: 'evening', label: 'Evening' },
-  { value: 'anytime', label: 'Anytime' },
+// Labels resolve through t() at render time (not module load), so a locale change is honoured.
+const WHENS: { value: RoutineWhen; labelKey: string }[] = [
+  { value: 'morning', labelKey: 'routines.whenMorning' },
+  { value: 'evening', labelKey: 'routines.whenEvening' },
+  { value: 'anytime', labelKey: 'routines.whenAnytime' },
 ];
 
 // Routines (Cluster D): a calm screen for morning / evening rituals, reached from Today.
@@ -79,9 +81,16 @@ export default function RoutinesScreen() {
   // A one-tap starter for the blank-slate problem: prefill a sensible Morning routine and open the form,
   // editable before save. One example beats a paragraph for a task-initiation audience.
   function startMorningExample() {
-    setName('Morning');
+    setName(t('routines.whenMorning'));
     setWhen('morning');
-    setStepsText("Drink a glass of water\nTake any medication\nA few minutes of movement\nWrite down today's one thing");
+    setStepsText(
+      [
+        t('routines.starterStepWater'),
+        t('routines.starterStepMedication'),
+        t('routines.starterStepMovement'),
+        t('routines.starterStepOneThing'),
+      ].join('\n'),
+    );
     setAdding(true);
     track('routine.starter_opened');
   }
@@ -121,40 +130,38 @@ export default function RoutinesScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.six }]}>
-        <BackLink label="Today" />
+        <BackLink label={t('common.today')} />
 
-        <Text style={styles.title}>Routines</Text>
-        <Text style={styles.subtitle}>Gentle rituals. No streaks, no pressure, just today.</Text>
+        <Text style={styles.title}>{t('routines.title')}</Text>
+        <Text style={styles.subtitle}>{t('routines.subtitle')}</Text>
 
         {undo && (
           <View style={styles.undoBar}>
-            <Text style={styles.undoText}>Routine removed.</Text>
-            <Pressable onPress={undoRemove} accessibilityRole="button" accessibilityLabel="Undo removing the routine" hitSlop={8}>
-              <Text style={styles.undoAction}>Undo</Text>
+            <Text style={styles.undoText}>{t('routines.removed')}</Text>
+            <Pressable onPress={undoRemove} accessibilityRole="button" accessibilityLabel={t('routines.undoRemoveA11y')} hitSlop={8}>
+              <Text style={styles.undoAction}>{t('common.undo')}</Text>
             </Pressable>
           </View>
         )}
 
         {routines.length === 0 && !adding && (
           <View>
-            <Text style={styles.empty}>
-              {'No routines yet. A routine is a few small steps you do together, like a morning start or an evening wind-down. Tick them off as you go; tomorrow they start fresh, with no streak to keep up.'}
-            </Text>
+            <Text style={styles.empty}>{t('routines.empty')}</Text>
             <Pressable
               onPress={startMorningExample}
               accessibilityRole="button"
-              accessibilityLabel="Try a Morning routine, prefilled and editable"
+              accessibilityLabel={t('routines.starterA11y')}
               style={styles.starterBtn}
               hitSlop={6}
             >
-              <Text style={styles.starterBtnText}>Try a Morning routine</Text>
+              <Text style={styles.starterBtnText}>{t('routines.starter')}</Text>
             </Pressable>
           </View>
         )}
 
         {groups.map((g) => (
           <View key={g.value} style={styles.group}>
-            <Text style={styles.groupHeading}>{g.label}</Text>
+            <Text style={styles.groupHeading}>{t(g.labelKey)}</Text>
             {g.items.map((r) => {
               const p = routineProgress(r, today);
               return (
@@ -162,7 +169,7 @@ export default function RoutinesScreen() {
                   <View style={styles.cardHead}>
                     <Text style={styles.cardName}>{r.name}</Text>
                     <Text style={styles.cardProgress}>
-                      {p.done} of {p.total}
+                      {t('routines.progress', { done: p.done, total: p.total })}
                     </Text>
                   </View>
                   {r.steps.map((s) => {
@@ -185,10 +192,10 @@ export default function RoutinesScreen() {
                   <Pressable
                     onPress={() => removeRoutine(r.id)}
                     accessibilityRole="button"
-                    accessibilityLabel={`Remove ${r.name}`}
+                    accessibilityLabel={t('routines.removeA11y', { name: r.name })}
                     hitSlop={6}
                   >
-                    <Text style={styles.remove}>Remove</Text>
+                    <Text style={styles.remove}>{t('common.remove')}</Text>
                   </Pressable>
                 </View>
               );
@@ -200,11 +207,11 @@ export default function RoutinesScreen() {
           <View style={styles.form}>
             <TextInput
               style={styles.input}
-              placeholder="Name, like Morning"
+              placeholder={t('routines.namePlaceholder')}
               placeholderTextColor={theme.colors.inkFaint}
               value={name}
               onChangeText={setName}
-              accessibilityLabel="Routine name"
+              accessibilityLabel={t('routines.nameA11y')}
             />
             <View style={styles.whenPills}>
               {WHENS.map((w) => {
@@ -215,33 +222,33 @@ export default function RoutinesScreen() {
                     onPress={() => setWhen(w.value)}
                     accessibilityRole="button"
                     accessibilityState={{ selected: active }}
-                    accessibilityLabel={w.label}
+                    accessibilityLabel={t(w.labelKey)}
                     hitSlop={8}
                   >
-                    <Text style={[styles.whenPill, active && styles.whenPillActive]}>{w.label}</Text>
+                    <Text style={[styles.whenPill, active && styles.whenPillActive]}>{t(w.labelKey)}</Text>
                   </Pressable>
                 );
               })}
             </View>
             <TextInput
               style={[styles.input, styles.stepsInput]}
-              placeholder={'Steps, one per line'}
+              placeholder={t('routines.stepsPlaceholder')}
               placeholderTextColor={theme.colors.inkFaint}
               value={stepsText}
               onChangeText={setStepsText}
               multiline
-              accessibilityLabel="Routine steps, one per line"
+              accessibilityLabel={t('routines.stepsA11y')}
             />
             <View style={styles.formActions}>
               <Pressable onPress={cancelAdd} accessibilityRole="button" hitSlop={6}>
-                <Text style={styles.cancel}>Cancel</Text>
+                <Text style={styles.cancel}>{t('common.cancel')}</Text>
               </Pressable>
-              <PrimaryButton label="Add routine" onPress={addRoutine} pill accessibilityLabel="Add routine" />
+              <PrimaryButton label={t('routines.add')} onPress={addRoutine} pill accessibilityLabel={t('routines.add')} />
             </View>
           </View>
         ) : (
           <Pressable onPress={() => setAdding(true)} accessibilityRole="button" style={styles.newBtn} hitSlop={6}>
-            <Text style={styles.newBtnText}>+ New routine</Text>
+            <Text style={styles.newBtnText}>{t('routines.new')}</Text>
           </Pressable>
         )}
       </ScrollView>

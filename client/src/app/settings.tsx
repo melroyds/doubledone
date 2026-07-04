@@ -13,6 +13,7 @@ import { purgeScrapbookImages } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
 import { toISODate } from '@/lib/day';
 import { buildExport } from '@/lib/export';
+import { t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { clampHour, formatReminderHour, reminderReasonLine } from '@/lib/reminders-types';
@@ -137,13 +138,13 @@ export default function SettingsScreen() {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        setExportNote("Downloaded. It's yours to keep.");
+        setExportNote(t('settings.exportDone'));
       } else {
         await Share.share({ message: json, title: name });
       }
       track('data.exported', { count: tasks.length });
     } catch {
-      setExportNote('Could not export just now. Try again?');
+      setExportNote(t('settings.exportError'));
     } finally {
       setExporting(false);
     }
@@ -157,7 +158,7 @@ export default function SettingsScreen() {
     setDeleteError(null);
     const res = await deleteAccount(supabase);
     if (!res.ok) {
-      setDeleteError('Could not delete just now. Please try again.');
+      setDeleteError(t('settings.deleteError'));
       setDeleting(false);
       return;
     }
@@ -228,7 +229,7 @@ export default function SettingsScreen() {
   function turnAiOff() {
     setSettings({ aiEnabled: false });
     setConfirmingAi(false);
-    setAiNote('AI is off. Everything stays on your device.');
+    setAiNote(t('settings.aiOffNote'));
     track('ai.disabled');
   }
 
@@ -242,64 +243,64 @@ export default function SettingsScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.six }]}>
-        <BackLink label="Today" />
+        <BackLink label={t('common.today')} />
 
-        <Text style={styles.title}>Settings</Text>
-        <Text style={styles.subtitle}>Make it comfortable. These follow you across the app.</Text>
+        <Text style={styles.title}>{t('settings.title')}</Text>
+        <Text style={styles.subtitle}>{t('settings.subtitle')}</Text>
 
-        <Text style={styles.band}>Comfort</Text>
+        <Text style={styles.band}>{t('settings.bandComfort')}</Text>
         <View style={styles.rows}>
           <Choice<ThemePref>
-            label="Theme"
-            hint="Dark follows your device unless you choose."
+            label={t('settings.themeLabel')}
+            hint={t('settings.themeHint')}
             value={settings.theme}
             options={[
-              { value: 'system', label: 'System' },
-              { value: 'light', label: 'Light' },
-              { value: 'dark', label: 'Dark' },
+              { value: 'system', label: t('settings.themeSystem') },
+              { value: 'light', label: t('settings.themeLight') },
+              { value: 'dark', label: t('settings.themeDark') },
             ]}
             onChange={(theme) => setSettings({ theme })}
           />
           <Choice<TextSize>
-            label="Text size"
+            label={t('settings.textSizeLabel')}
             value={settings.textSize}
             options={[
-              { value: 'small', label: 'Small' },
-              { value: 'default', label: 'Default' },
-              { value: 'large', label: 'Large' },
+              { value: 'small', label: t('settings.textSizeSmall') },
+              { value: 'default', label: t('settings.textSizeDefault') },
+              { value: 'large', label: t('settings.textSizeLarge') },
             ]}
             onChange={(textSize) => setSettings({ textSize })}
           />
           <Choice<MotionPref>
-            label="Motion"
-            hint="Reduce stops the gentle fades, the scrolling titles, and the buzz of haptics."
+            label={t('settings.motionLabel')}
+            hint={t('settings.motionHint')}
             value={settings.motion}
             options={[
-              { value: 'system', label: 'Follow system' },
-              { value: 'reduce', label: 'Reduce' },
+              { value: 'system', label: t('settings.motionFollowSystem') },
+              { value: 'reduce', label: t('settings.motionReduce') },
             ]}
             onChange={(motion) => setSettings({ motion })}
           />
           <Choice<'off' | 'on'>
-            label="Daily reminder"
-            hint="One gentle nudge a day to come back to your day. Nothing more."
+            label={t('settings.reminderLabel')}
+            hint={t('settings.reminderHint')}
             value={reminderOn ? 'on' : 'off'}
             options={[
-              { value: 'off', label: 'Off' },
-              { value: 'on', label: 'On' },
+              { value: 'off', label: t('common.off') },
+              { value: 'on', label: t('common.on') },
             ]}
             onChange={(v) => setReminder(v === 'on')}
           />
           {reminderNote && <Text style={styles.rowHint}>{reminderNote}</Text>}
           {reminderOn && (
             <View style={styles.reminderTimeRow}>
-              <Text style={styles.reminderTimeLabel}>Remind me at</Text>
+              <Text style={styles.reminderTimeLabel}>{t('settings.remindMeAt')}</Text>
               <View style={styles.stepper}>
                 <Pressable
                   onPress={() => changeReminderHour(reminderHour - 1)}
                   disabled={reminderHour <= 0}
                   accessibilityRole="button"
-                  accessibilityLabel="Earlier"
+                  accessibilityLabel={t('settings.reminderEarlier')}
                   hitSlop={8}
                   style={({ pressed }) => [styles.stepBtn, reminderHour <= 0 && styles.stepBtnOff, pressed && styles.pressed]}
                 >
@@ -307,7 +308,7 @@ export default function SettingsScreen() {
                 </Pressable>
                 <Text
                   style={styles.stepValue}
-                  accessibilityLabel={`Daily reminder at ${formatReminderHour(reminderHour)}`}
+                  accessibilityLabel={t('settings.reminderAtA11y', { time: formatReminderHour(reminderHour) })}
                 >
                   {formatReminderHour(reminderHour)}
                 </Text>
@@ -315,7 +316,7 @@ export default function SettingsScreen() {
                   onPress={() => changeReminderHour(reminderHour + 1)}
                   disabled={reminderHour >= 23}
                   accessibilityRole="button"
-                  accessibilityLabel="Later"
+                  accessibilityLabel={t('today.laterHeading')}
                   hitSlop={8}
                   style={({ pressed }) => [styles.stepBtn, reminderHour >= 23 && styles.stepBtnOff, pressed && styles.pressed]}
                 >
@@ -326,16 +327,23 @@ export default function SettingsScreen() {
           )}
           <View style={styles.accentBlock}>
             <View style={styles.accentHead}>
-              <Text style={styles.accentLabel}>Colour theme</Text>
-              {!premium && <Text style={styles.accentTag}>Premium</Text>}
+              <Text style={styles.accentLabel}>{t('settings.colourThemeLabel')}</Text>
+              {!premium && <Text style={styles.accentTag}>{t('common.premium')}</Text>}
             </View>
             <Text style={styles.rowHint}>
-              {premium ? 'A calm palette for the whole app. Dusk is the default.' : 'Seven calm palettes. Dusk is always free. Premium unlocks the others.'}
+              {premium ? t('settings.colourThemeHintPremium') : t('settings.colourThemeHintFree')}
             </Text>
             <View style={styles.swatchRow}>
               {THEME_NAMES.map((name) => {
                 const selected = settings.themePreset === name;
                 const preset = THEME_PRESETS[name];
+                const presetLabel = t(`themes.${name}`);
+                // The full "name, selected, Premium" reading lives in the catalog; the partial
+                // combinations compose from the name + the localised suffix keys.
+                const swatchA11y =
+                  selected && !premium
+                    ? t('settings.swatchA11y', { presetName: presetLabel })
+                    : `${presetLabel}${selected ? t('settings.swatchSelectedSuffix') : ''}${premium ? '' : t('settings.swatchPremiumSuffix')}`;
                 return (
                   <Pressable
                     key={name}
@@ -350,14 +358,14 @@ export default function SettingsScreen() {
                     }}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
-                    accessibilityLabel={`${preset.name}${selected ? ', selected' : ''}${premium ? '' : ', Premium'}`}
+                    accessibilityLabel={swatchA11y}
                     style={styles.swatchHit}
                     hitSlop={6}
                   >
                     <View style={[styles.swatchRing, selected && styles.swatchRingOn]}>
                       <View style={[styles.swatch, { backgroundColor: preset[theme.scheme].accent }]} />
                     </View>
-                    <Text style={styles.swatchName}>{preset.name}</Text>
+                    <Text style={styles.swatchName}>{presetLabel}</Text>
                   </Pressable>
                 );
               })}
@@ -365,103 +373,96 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <Text style={styles.band}>AI</Text>
+        <Text style={styles.band}>{t('settings.bandAi')}</Text>
         <View style={styles.account}>
           <Text style={styles.rowHint}>
-            {settings.aiEnabled
-              ? 'On. Break it down, Sort for me, and the keepsake scrapbook use AI, sending the text you choose to Claude to do its work.'
-              : 'Off. DoubleDone works fully without AI, entirely on your device. Built that way on purpose.'}
+            {settings.aiEnabled ? t('settings.aiStatusOn') : t('settings.aiStatusOff')}
           </Text>
           {settings.aiEnabled ? (
-            <Pressable onPress={turnAiOff} accessibilityRole="button" accessibilityLabel="Turn AI off" hitSlop={6}>
-              <Text style={styles.exportLink}>Turn AI off ›</Text>
+            <Pressable onPress={turnAiOff} accessibilityRole="button" accessibilityLabel={t('settings.turnAiOffA11y')} hitSlop={6}>
+              <Text style={styles.exportLink}>{t('settings.turnAiOffLink')}</Text>
             </Pressable>
           ) : confirmingAi ? (
             <View style={styles.confirmBox}>
-              <Text style={styles.confirmText}>
-                Turning on AI sends the text you choose, a task to break down, a day to sort, to Anthropic&apos;s Claude
-                to do its work. Nothing else ever leaves your device.
-              </Text>
+              <Text style={styles.confirmText}>{t('settings.aiConsentBody')}</Text>
               <View style={styles.confirmRow}>
-                <Pressable onPress={() => setConfirmingAi(false)} accessibilityRole="button" accessibilityLabel="Not now" hitSlop={6}>
-                  <Text style={styles.keep}>Not now</Text>
+                <Pressable onPress={() => setConfirmingAi(false)} accessibilityRole="button" accessibilityLabel={t('common.notNow')} hitSlop={6}>
+                  <Text style={styles.keep}>{t('common.notNow')}</Text>
                 </Pressable>
-                <Pressable onPress={confirmAiOn} accessibilityRole="button" accessibilityLabel="Turn on AI" hitSlop={6}>
-                  <Text style={styles.exportLink}>Turn on AI</Text>
+                <Pressable onPress={confirmAiOn} accessibilityRole="button" accessibilityLabel={t('settings.aiConsentTurnOn')} hitSlop={6}>
+                  <Text style={styles.exportLink}>{t('settings.aiConsentTurnOn')}</Text>
                 </Pressable>
               </View>
             </View>
           ) : (
-            <Pressable onPress={() => setConfirmingAi(true)} accessibilityRole="button" accessibilityLabel="Turn AI on" hitSlop={6}>
-              <Text style={styles.exportLink}>Turn AI on ›</Text>
+            <Pressable onPress={() => setConfirmingAi(true)} accessibilityRole="button" accessibilityLabel={t('settings.turnAiOnA11y')} hitSlop={6}>
+              <Text style={styles.exportLink}>{t('settings.turnAiOnLink')}</Text>
             </Pressable>
           )}
           {aiNote ? <Text style={styles.exportNote}>{aiNote}</Text> : null}
         </View>
 
-        <Text style={styles.band}>Access & data</Text>
+        <Text style={styles.band}>{t('settings.bandAccessData')}</Text>
         <Pressable
           onPress={() => router.push('/privacy')}
           accessibilityRole="button"
-          accessibilityLabel="Privacy and data"
+          accessibilityLabel={t('settings.privacyLinkA11y')}
           style={styles.privacyLink}
         >
-          <Text style={styles.privacyLinkText}>Privacy & data ›</Text>
+          <Text style={styles.privacyLinkText}>{t('settings.privacyLink')}</Text>
         </Pressable>
         <Pressable
           onPress={() => router.push('/terms')}
           accessibilityRole="button"
-          accessibilityLabel="Terms of service"
+          accessibilityLabel={t('settings.termsLinkA11y')}
           style={styles.privacyLink}
         >
-          <Text style={styles.privacyLinkText}>Terms ›</Text>
+          <Text style={styles.privacyLinkText}>{t('settings.termsLink')}</Text>
         </Pressable>
 
         <View style={styles.account}>
-          <Text style={styles.accountLabel}>Your data</Text>
-          <Text style={styles.exportHint}>{"Your tasks and what you've finished, as a file you keep. No account needed."}</Text>
+          <Text style={styles.accountLabel}>{t('settings.yourDataLabel')}</Text>
+          <Text style={styles.exportHint}>{t('settings.exportHint')}</Text>
           <Pressable
             onPress={runExport}
             disabled={exporting}
             accessibilityRole="button"
-            accessibilityLabel="Export your data"
+            accessibilityLabel={t('settings.exportAction')}
             hitSlop={6}
           >
-            <Text style={styles.exportLink}>{exporting ? 'Exporting…' : 'Export your data'}</Text>
+            <Text style={styles.exportLink}>{exporting ? t('settings.exporting') : t('settings.exportAction')}</Text>
           </Pressable>
           {exportNote ? <Text style={styles.exportNote}>{exportNote}</Text> : null}
         </View>
 
         {session ? (
           <View style={styles.account}>
-            <Text style={styles.accountLabel}>Account</Text>
+            <Text style={styles.accountLabel}>{t('settings.accountLabel')}</Text>
             <Text style={styles.accountEmail} numberOfLines={syncOk === false ? 2 : 1}>
               {syncOk === false
-                ? "Saved on this device. It'll sync when it can reach your account."
-                : `Synced to ${session.user.email ?? 'your account'}`}
+                ? t('today.syncPending')
+                : t('settings.syncedTo', { email: session.user.email ?? t('today.syncedFallbackAccount') })}
             </Text>
             {confirming ? (
               <View style={styles.confirmBox}>
-                <Text style={styles.confirmText}>
-                  This permanently deletes your account and everything synced to it. It cannot be undone.
-                </Text>
+                <Text style={styles.confirmText}>{t('settings.deleteConfirmBody')}</Text>
                 <View style={styles.confirmRow}>
                   <Pressable
                     onPress={() => setConfirming(false)}
                     accessibilityRole="button"
-                    accessibilityLabel="Keep my account"
+                    accessibilityLabel={t('settings.keepMyAccount')}
                     hitSlop={6}
                   >
-                    <Text style={styles.keep}>Keep my account</Text>
+                    <Text style={styles.keep}>{t('settings.keepMyAccount')}</Text>
                   </Pressable>
                   <Pressable
                     onPress={runDelete}
                     disabled={deleting}
                     accessibilityRole="button"
-                    accessibilityLabel="Confirm delete account"
+                    accessibilityLabel={t('settings.confirmDeleteA11y')}
                     hitSlop={6}
                   >
-                    <Text style={styles.deleteConfirm}>{deleting ? 'Deleting…' : 'Delete'}</Text>
+                    <Text style={styles.deleteConfirm}>{deleting ? t('settings.deleting') : t('settings.deleteAction')}</Text>
                   </Pressable>
                 </View>
                 {deleteError ? <Text style={styles.deleteErr}>{deleteError}</Text> : null}
@@ -470,10 +471,10 @@ export default function SettingsScreen() {
               <Pressable
                 onPress={() => setConfirming(true)}
                 accessibilityRole="button"
-                accessibilityLabel="Delete account and data"
+                accessibilityLabel={t('settings.deleteAccountLink')}
                 hitSlop={6}
               >
-                <Text style={styles.deleteLink}>Delete account and data</Text>
+                <Text style={styles.deleteLink}>{t('settings.deleteAccountLink')}</Text>
               </Pressable>
             )}
           </View>
@@ -481,21 +482,19 @@ export default function SettingsScreen() {
 
         {session ? (
           <View style={styles.account}>
-            <Text style={styles.accountLabel}>AI agent access (MCP)</Text>
-            <Text style={styles.mcpHint}>
-              Let an AI agent add and finish your tasks. Add this server to your MCP client, then paste your token.
-            </Text>
+            <Text style={styles.accountLabel}>{t('settings.mcpLabel')}</Text>
+            <Text style={styles.mcpHint}>{t('settings.mcpHint')}</Text>
             <Text style={styles.mcpUrl} selectable>
               {MCP_URL}
             </Text>
             <Pressable
               onPress={revealMcpToken}
               accessibilityRole="button"
-              accessibilityLabel="Copy my MCP token"
+              accessibilityLabel={t('settings.copyMcpTokenA11y')}
               hitSlop={6}
               style={({ pressed }) => [pressed && styles.pressed]}
             >
-              <Text style={styles.mcpAction}>{mcpCopied ? 'Token copied ✓' : 'Copy my token'}</Text>
+              <Text style={styles.mcpAction}>{mcpCopied ? t('settings.tokenCopied') : t('settings.copyMyToken')}</Text>
             </Pressable>
             {mcpToken ? (
               <Text style={styles.mcpToken} selectable numberOfLines={3}>
@@ -506,37 +505,39 @@ export default function SettingsScreen() {
               <Pressable
                 onPress={() => router.push('/sign-in')}
                 accessibilityRole="button"
-                accessibilityLabel="Sign in again to get a fresh token"
+                accessibilityLabel={t('settings.mcpExpiredA11y')}
                 hitSlop={6}
               >
-                <Text style={styles.mcpExpired}>Your session expired. Sign in again to get a fresh token.</Text>
+                <Text style={styles.mcpExpired}>{t('settings.mcpExpired')}</Text>
               </Pressable>
             )}
-            <Text style={styles.mcpFoot}>The token refreshes about hourly. Re-copy it if your agent stops connecting.</Text>
+            <Text style={styles.mcpFoot}>{t('settings.mcpFootnote')}</Text>
           </View>
         ) : null}
 
         <Pressable
           onPress={() => router.push('/premium')}
           accessibilityRole="button"
-          accessibilityLabel={premium ? 'DoubleDone Premium, active' : 'DoubleDone Premium, see plans'}
+          accessibilityLabel={premium ? t('settings.premiumCardActiveA11y') : t('settings.premiumCardSeePlansA11y')}
           style={({ pressed }) => [styles.premiumCardWrap, pressed && styles.pressed]}
         >
           <LinearGradient colors={PREMIUM_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premiumCard}>
             <View style={styles.premiumCardText}>
-              <Text style={styles.premiumCardTitle}>DoubleDone Premium</Text>
+              <Text style={styles.premiumCardTitle}>{t('premium.brandName')}</Text>
               <Text style={styles.premiumCardSub}>
                 {premium
-                  ? 'Active. Every extra is yours.'
-                  : `More of what you love: ${settings.aiEnabled ? 'Scan a list, Chart a course, weekly scrapbooks, and more.' : 'your colour theme, and more.'}`}
+                  ? t('settings.premiumCardActiveSub')
+                  : settings.aiEnabled
+                    ? t('settings.premiumCardSubAi')
+                    : t('settings.premiumCardSubNoAi')}
               </Text>
             </View>
-            <Text style={styles.premiumCardCue}>{premium ? 'Active ✓' : '›'}</Text>
+            <Text style={styles.premiumCardCue}>{premium ? t('settings.premiumCardActiveCue') : '›'}</Text>
           </LinearGradient>
         </Pressable>
 
         {feedbackState === 'sent' ? (
-          <Text style={styles.feedbackThanks}>Thank you. It is on its way.</Text>
+          <Text style={styles.feedbackThanks}>{t('settings.feedbackThanks')}</Text>
         ) : feedbackOpen ? (
           <View style={styles.feedbackForm}>
             <TextInput
@@ -546,13 +547,13 @@ export default function SettingsScreen() {
                 setFeedbackText(t);
                 if (feedbackState === 'error') setFeedbackState('idle');
               }}
-              placeholder="What is working, what is not, what you wish it did…"
+              placeholder={t('settings.feedbackPlaceholder')}
               placeholderTextColor={theme.colors.inkFaint}
               multiline
               editable={feedbackState !== 'sending'}
-              accessibilityLabel="Your feedback"
+              accessibilityLabel={t('settings.feedbackInputA11y')}
             />
-            {feedbackState === 'error' && <Text style={styles.feedbackError}>Could not send just now. Please try again.</Text>}
+            {feedbackState === 'error' && <Text style={styles.feedbackError}>{t('settings.feedbackError')}</Text>}
             <View style={styles.feedbackActions}>
               <Pressable
                 onPress={() => {
@@ -561,16 +562,16 @@ export default function SettingsScreen() {
                   setFeedbackState('idle');
                 }}
                 accessibilityRole="button"
-                accessibilityLabel="Cancel feedback"
+                accessibilityLabel={t('settings.feedbackCancelA11y')}
                 hitSlop={8}
               >
-                <Text style={styles.feedbackCancel}>Cancel</Text>
+                <Text style={styles.feedbackCancel}>{t('common.cancel')}</Text>
               </Pressable>
               <PrimaryButton
-                label={feedbackState === 'sending' ? 'Sending…' : 'Send'}
+                label={feedbackState === 'sending' ? t('settings.feedbackSending') : t('common.send')}
                 onPress={sendFeedback}
                 disabled={!feedbackText.trim() || feedbackState === 'sending'}
-                accessibilityLabel="Send feedback"
+                accessibilityLabel={t('settings.sendFeedback')}
               />
             </View>
           </View>
@@ -578,41 +579,41 @@ export default function SettingsScreen() {
           <Pressable
             onPress={() => setFeedbackOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel="Send feedback"
+            accessibilityLabel={t('settings.sendFeedback')}
             hitSlop={8}
             style={styles.welcomeAgain}
           >
-            <Text style={styles.welcomeAgainText}>Send feedback</Text>
+            <Text style={styles.welcomeAgainText}>{t('settings.sendFeedback')}</Text>
           </Pressable>
         )}
         <Pressable
           onPress={() => router.push({ pathname: '/welcome', params: { replay: '1' } })}
           accessibilityRole="button"
-          accessibilityLabel="See the welcome again"
+          accessibilityLabel={t('settings.seeWelcomeAgain')}
           hitSlop={8}
           style={styles.welcomeAgain}
         >
-          <Text style={styles.welcomeAgainText}>See the welcome again</Text>
+          <Text style={styles.welcomeAgainText}>{t('settings.seeWelcomeAgain')}</Text>
         </Pressable>
         {devAllowed ? (
           <View>
-            <Text style={styles.band}>Developer</Text>
+            <Text style={styles.band}>{t('settings.bandDeveloper')}</Text>
             <View style={styles.rows}>
               <Choice<DevPremiumChoice>
-                label="Premium override"
-                hint="Local testing only. Forces the Premium or Free state without a live subscription. Never ships to production."
+                label={t('settings.devPremiumOverrideLabel')}
+                hint={t('settings.devPremiumOverrideHint')}
                 value={devOverride ?? 'auto'}
                 options={[
-                  { value: 'auto', label: 'Auto' },
-                  { value: 'on', label: 'Premium' },
-                  { value: 'off', label: 'Free' },
+                  { value: 'auto', label: t('settings.devOverrideAuto') },
+                  { value: 'on', label: t('common.premium') },
+                  { value: 'off', label: t('settings.devOverrideFree') },
                 ]}
                 onChange={(v) => setDevOverride(v === 'auto' ? null : v)}
               />
             </View>
           </View>
         ) : null}
-        <Text style={styles.footnote}>Saved to this device. Nothing here leaves it.</Text>
+        <Text style={styles.footnote}>{t('settings.footnote')}</Text>
       </ScrollView>
     </View>
   );

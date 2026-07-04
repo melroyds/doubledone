@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { aiErrorLine } from '@/lib/connection';
+import { fmt, t } from '@/lib/locale';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -59,7 +60,7 @@ export default function SignInScreen() {
     const addr = email.trim();
     if (!addr || busy) return;
     if (!supabase) {
-      setError("Syncing isn't available here. Your tasks are safe on this device.");
+      setError(t('signIn.syncUnavailable'));
       return;
     }
     setError(null);
@@ -77,8 +78,8 @@ export default function SignInScreen() {
       // Never leak a raw provider error onto this anxiety-prone screen (the never-alarm spine): a calm line only.
       // Tell apart offline, a rate-limit ("you just asked"), and everything else, so a user whose correct
       // address was fine is never told to suspect it.
-      if (isRateLimit(e)) setError('Just sent one. Give it a minute, then try again.');
-      else setError(aiErrorLine('Could not send the code. Check the address and try again.'));
+      if (isRateLimit(e)) setError(t('signIn.rateLimited'));
+      else setError(aiErrorLine(t('signIn.sendFailed')));
     } finally {
       setBusy(false);
     }
@@ -99,7 +100,7 @@ export default function SignInScreen() {
       track('auth.signed_in');
       setPhase('done');
     } catch {
-      setError('That code did not work. Check it, or send a new one.');
+      setError(t('signIn.codeInvalid'));
     } finally {
       setBusy(false);
     }
@@ -108,15 +109,12 @@ export default function SignInScreen() {
   return (
     <View style={styles.screen}>
       <View style={[styles.content, { paddingTop: insets.top + spacing.six }]}>
-      <Pressable onPress={goBack} accessibilityRole="button" accessibilityLabel="Not now" hitSlop={8}>
-        <Text style={styles.cancel}>Not now</Text>
+      <Pressable onPress={goBack} accessibilityRole="button" accessibilityLabel={t('common.notNow')} hitSlop={8}>
+        <Text style={styles.cancel}>{t('common.notNow')}</Text>
       </Pressable>
 
-      <Text style={styles.title}>Sync across devices</Text>
-      <Text style={styles.sub}>
-        Optional. Your tasks stay on this device until you sign in. We email a 6-digit code, no
-        password to remember.
-      </Text>
+      <Text style={styles.title}>{t('signIn.syncAcrossDevices')}</Text>
+      <Text style={styles.sub}>{t('signIn.subtitle')}</Text>
 
       {phase === 'email' && (
         <View style={styles.form}>
@@ -124,48 +122,56 @@ export default function SignInScreen() {
             value={email}
             onChangeText={setEmail}
             editable={!busy}
-            placeholder="you@example.com"
+            placeholder={t('signIn.emailPlaceholder')}
             placeholderTextColor={theme.colors.inkFaint}
             style={styles.input}
             keyboardType="email-address"
             autoCapitalize="none"
             autoComplete="email"
             inputMode="email"
-            accessibilityLabel="Email address"
+            accessibilityLabel={t('signIn.emailA11y')}
           />
           <PrimaryButton
-            label="Email me a code"
+            label={t('signIn.emailMeACode')}
             onPress={sendCode}
             loading={busy}
-            accessibilityLabel="Email me a code"
+            accessibilityLabel={t('signIn.emailMeACode')}
           />
         </View>
       )}
 
       {phase === 'code' && (
         <View style={styles.form}>
-          <Text style={styles.sentTo}>We sent a code to {email.trim()}.</Text>
+          <Text style={styles.sentTo}>{t('signIn.sentTo', { email: email.trim() })}</Text>
           <TextInput
             value={code}
             onChangeText={setCode}
             editable={!busy}
-            placeholder="6-digit code"
+            placeholder={t('signIn.codePlaceholder')}
             placeholderTextColor={theme.colors.inkFaint}
             style={styles.input}
             keyboardType="number-pad"
             inputMode="numeric"
             maxLength={6}
-            accessibilityLabel="Code from your email"
+            accessibilityLabel={t('signIn.codeA11y')}
           />
-          <PrimaryButton label="Sign in" onPress={verify} loading={busy} accessibilityLabel="Sign in" />
+          <PrimaryButton label={t('signIn.signIn')} onPress={verify} loading={busy} accessibilityLabel={t('signIn.signIn')} />
           <Pressable
             onPress={sendCode}
             disabled={busy || cooldown > 0}
             accessibilityRole="button"
-            accessibilityLabel={cooldown > 0 ? `Resend code in ${cooldown} seconds` : 'Resend code'}
+            accessibilityLabel={
+              cooldown > 0
+                ? fmt.plural(
+                    cooldown,
+                    { one: t('signIn.resendCooldownA11yOne'), other: t('signIn.resendCooldownA11yOther') },
+                    { cooldown },
+                  )
+                : t('signIn.resendCode')
+            }
           >
             <Text style={[styles.link, (busy || cooldown > 0) && styles.linkDim]}>
-              {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
+              {cooldown > 0 ? t('signIn.resendIn', { cooldown }) : t('signIn.resendCode')}
             </Text>
           </Pressable>
           <Pressable
@@ -176,18 +182,18 @@ export default function SignInScreen() {
             }}
             disabled={busy}
             accessibilityRole="button"
-            accessibilityLabel="Use a different email"
+            accessibilityLabel={t('signIn.useDifferentEmail')}
           >
-            <Text style={styles.link}>Use a different email</Text>
+            <Text style={styles.link}>{t('signIn.useDifferentEmail')}</Text>
           </Pressable>
         </View>
       )}
 
       {phase === 'done' && (
         <View style={styles.form}>
-          <Text style={styles.success}>Signed in</Text>
-          <Text style={styles.sub}>You&apos;re synced as {email.trim()}. Taking you back to today.</Text>
-          <PrimaryButton label="Back to Today" onPress={goBack} accessibilityLabel="Back to Today" />
+          <Text style={styles.success}>{t('signIn.signedIn')}</Text>
+          <Text style={styles.sub}>{t('signIn.syncedAs', { email: email.trim() })}</Text>
+          <PrimaryButton label={t('common.backToToday')} onPress={goBack} accessibilityLabel={t('common.backToToday')} />
         </View>
       )}
 

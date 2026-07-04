@@ -4,17 +4,20 @@
 // and that preset is simply not offered. No side effects here; reminders.ts does the actual
 // scheduling. Pure and tested.
 
+import { fmt, t } from './i18n-active';
+
 export type NudgePreset = { id: string; label: string };
 
 export const NUDGE_CUTOFF_HOUR = 21; // never fire a nudge after 9pm
 export const EVENING_HOUR = 18; // "this evening" means 6pm
 
-// The presets offered, in order. One that resolves to null for the current time (would fire
+// The presets offered, in order (labels resolve per-locale at call time, in
+// availableNudgePresets). One that resolves to null for the current time (would fire
 // too late, or already passed) is hidden, so the chooser only ever shows valid options.
-export const NUDGE_PRESETS: NudgePreset[] = [
-  { id: '1h', label: 'In 1 hour' },
-  { id: '3h', label: 'In 3 hours' },
-  { id: 'evening', label: 'This evening' },
+const PRESET_DEFS = [
+  { id: '1h', labelKey: 'reminders.presetOneHour' },
+  { id: '3h', labelKey: 'reminders.presetThreeHours' },
+  { id: 'evening', labelKey: 'reminders.presetEvening' },
 ];
 
 const HOUR_MS = 3_600_000;
@@ -40,17 +43,15 @@ export function nudgeTargetFor(presetId: string, now: Date): Date | null {
 
 /** Which presets can fire right now (the rest are hidden so the chooser stays honest). */
 export function availableNudgePresets(now: Date): NudgePreset[] {
-  return NUDGE_PRESETS.filter((p) => nudgeTargetFor(p.id, now) !== null);
+  return PRESET_DEFS.filter((p) => nudgeTargetFor(p.id, now) !== null).map((p) => ({
+    id: p.id,
+    label: t(p.labelKey),
+  }));
 }
 
-/** Format a nudge time for the row indicator: "6pm", "9pm", "9:30am". */
+/** Format a nudge time for the row indicator, per locale: "6:00 pm", "9:30 am". */
 export function formatNudgeTime(ms: number): string {
-  const d = new Date(ms);
-  const h = d.getHours();
-  const m = d.getMinutes();
-  const period = h < 12 ? 'am' : 'pm';
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return m === 0 ? `${h12}${period}` : `${h12}:${String(m).padStart(2, '0')}${period}`;
+  return fmt.time(new Date(ms));
 }
 
 /** The evening wind-down window: 6pm onward, the calm time to close the day. Drives an

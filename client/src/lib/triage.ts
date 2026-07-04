@@ -5,6 +5,7 @@
 
 import { type TriagedItem } from './ai';
 import { addDaysISO } from './day';
+import { t } from './i18n-active';
 import { type Task } from './tasks';
 
 export type TriageSummary = { today: number; later: number; decompose: number };
@@ -47,9 +48,9 @@ export function summarizeAdded(tasks: Pick<Task, 'due' | 'suggestBreakdown'>[]):
 /** A calm one-line summary of what Sort did, or null if nothing was added. */
 export function summaryLine(s: TriageSummary): string | null {
   const parts: string[] = [];
-  if (s.today > 0) parts.push(`${s.today} for today`);
-  if (s.later > 0) parts.push(`${s.later} for tomorrow`);
-  if (s.decompose > 0) parts.push(`${s.decompose} to break down`);
+  if (s.today > 0) parts.push(t('triage.summary.forToday', { count: s.today }));
+  if (s.later > 0) parts.push(t('triage.summary.forTomorrow', { count: s.later }));
+  if (s.decompose > 0) parts.push(t('triage.summary.toBreakDown', { count: s.decompose }));
   if (parts.length === 0) return null;
-  return `Sorted: ${parts.join(', ')}.`;
+  return t('triage.summary.line', { parts: parts.join(', ') });
 }

@@ -34,7 +34,13 @@
           }
         }
       ],
-      "expo-localization",
+      [
+        "expo-localization",
+        {
+          "supportedLocales": ["en", "it", "es", "fr"],
+          "allowDynamicLocaleChangesAndroid": false
+        }
+      ],
       [
         "expo-navigation-bar",
         {
