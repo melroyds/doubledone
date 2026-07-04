@@ -55,7 +55,7 @@ export const en = {
   },
   capture: {
     add: 'Add',
-    addA11y: 'Add a task to today',
+    addA11y: 'Add something, for today or another day',
     addDaily: 'Add daily',
     addForDate: 'Add for {date}',
     addForThatDay: 'Add for that day',
@@ -571,7 +571,7 @@ export const en = {
     slate: 'Slate',
   },
   today: {
-    addToToday: '+  Add to Today',
+    addToToday: '+  Add to…',
     allDoneNote: "That's the list. Nicely done.",
     alsoDidA11y: 'Log something you also did',
     alsoDidThat: '+ I also did that',

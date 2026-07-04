@@ -51,7 +51,7 @@ export const fr: Catalog = {
   },
   capture: {
     add: 'Ajouter',
-    addA11y: "Ajouter une tâche pour aujourd'hui",
+    addA11y: "Ajoute quelque chose, pour aujourd'hui ou un autre jour",
     addDaily: 'Ajouter en quotidien',
     addForDate: 'Ajouter pour {date}',
     addForThatDay: 'Ajouter pour ce jour-là',
@@ -567,7 +567,7 @@ export const fr: Catalog = {
     slate: 'Ardoise',
   },
   today: {
-    addToToday: "+  Ajouter à aujourd'hui",
+    addToToday: '+  Ajouter à…',
     allDoneNote: "C'est toute la liste. Bien joué.",
     alsoDidA11y: 'Noter quelque chose que tu as aussi fait',
     alsoDidThat: "+ Ça aussi, je l'ai fait",
