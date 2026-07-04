@@ -163,6 +163,15 @@ CASES = [
     ("RTN-03", "Routines", "P3", "Remove a routine (recoverable)",
      "On a routine card tap Remove, then optionally tap Undo.",
      "The routine is removed with a brief 'Routine removed. Undo' banner, not a confirmation dialog. Tapping Undo within a few seconds restores it, otherwise it stays gone. Recoverable, never a confirm gauntlet.", "Both"),
+    ("RTN-04", "Routines", "P2", "Edit a routine (today's ticks survive)",
+     "On a routine card tick one step, then tap Edit. Change the name, add a step on a new line, remove another, and tap 'Save changes'.",
+     "The form opens prefilled (name, when, steps one per line, nudge hour). After saving, kept steps keep today's ticks (the ticked step stays ticked), the added step appears unticked, and the removed step's tick never resurrects. Supports building a routine slowly, start with 3 and grow it.", "Both"),
+    ("RTN-05", "Routines", "P2", "A daily nudge per routine (opt-in)",
+     "Create or edit a routine, turn the nudge on, pick an hour (e.g. 8:00 pm), save. On Android, wait for the hour (or check the scheduled notification).",
+     "Off by default. When on, ONE gentle daily notification fires around the chosen hour: title = the routine's name, body 'When you're ready. A step is plenty.' Same calm channel as the daily reminder, inexact timing is fine. Removing the routine (or turning the nudge off) cancels it. On web the nudge row explains reminders aren't available on this device, and the routine still saves. If notification permission is denied, a calm reason line shows, never a dialog.", "Android"),
+    ("TOD-23", "Today", "P2", "Done on… (attribute a task to an earlier day)",
+     "Long-press a rolled-over one-off task to select it, tap 'Done on…', pick a past day (yesterday to 14 days back; today is not offered).",
+     "The task completes as of that day: it leaves Today, the Lookback shows it under the chosen day, and a QUIET 'Recorded for {day}.' affirmation appears, no bloom, no haptic (bookkeeping, not a fresh win). Recurring tasks don't offer it. Syncs to other devices with the backdated day intact.", "Both"),
 
     # --- Haptics (Android device only) ---------------------------------------
     ("HAP-01", "Haptics", "P3", "Earned-moment haptics fire (Android)",

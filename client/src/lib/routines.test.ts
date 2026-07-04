@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { deserializeRoutines, isStepDoneToday, type Routine, routineProgress, serializeRoutines, toggleStep } from './routines';
+import { applyRoutineEdit, deserializeRoutines, isStepDoneToday, type Routine, routineProgress, serializeRoutines, toggleStep } from './routines';
 
 const iso = '2026-06-22';
 const yest = '2026-06-21';
@@ -53,6 +53,78 @@ describe('routineProgress', () => {
   });
 });
 
+describe('applyRoutineEdit', () => {
+  // A deterministic id maker so tests can assert which steps are NEW.
+  function makeIds(prefix = 'new'): () => string {
+    let n = 0;
+    return () => {
+      n += 1;
+      return `${prefix}-${n}`;
+    };
+  }
+
+  it("keeps a surviving step's id, so its tick for today survives the edit", () => {
+    const r = { ...mk(), done: { s1: iso } };
+    const out = applyRoutineEdit(r, { name: 'Morning', when: 'morning', stepTitles: ['Water', 'Meds', 'Stretch'], now: 500 }, makeIds());
+    expect(out.steps.map((s) => s.id)).toEqual(['s1', 's2', 'new-1']); // kept, kept, added
+    expect(isStepDoneToday(out, 's1', iso)).toBe(true); // the tick survives
+    expect(out.updatedAt).toBe(500);
+  });
+
+  it('gives an added step a fresh id with no tick', () => {
+    const out = applyRoutineEdit(mk(), { name: 'Morning', when: 'morning', stepTitles: ['Water', 'Meds', 'Stretch'], now: 500 }, makeIds());
+    const added = out.steps[2];
+    expect(added).toEqual({ id: 'new-1', title: 'Stretch' });
+    expect(out.done['new-1']).toBeUndefined();
+  });
+
+  it("strips a removed step's tick so it cannot resurrect when the title comes back later", () => {
+    const r = { ...mk(), done: { s2: iso } };
+    const removed = applyRoutineEdit(r, { name: 'Morning', when: 'morning', stepTitles: ['Water'], now: 500 }, makeIds());
+    expect(removed.done).toEqual({}); // the orphaned tick is stripped
+    const back = applyRoutineEdit(removed, { name: 'Morning', when: 'morning', stepTitles: ['Water', 'Meds'], now: 600 }, makeIds());
+    expect(back.steps[1].id).toBe('new-1'); // a new step, not the old s2
+    expect(isStepDoneToday(back, 'new-1', iso)).toBe(false); // and not ticked
+  });
+
+  it('maps duplicate titles one-to-one, in order, consuming each existing step once', () => {
+    const r: Routine = {
+      ...mk(),
+      steps: [
+        { id: 'a', title: 'Water' },
+        { id: 'b', title: 'Water' },
+      ],
+      done: { b: iso },
+    };
+    const out = applyRoutineEdit(r, { name: 'Morning', when: 'morning', stepTitles: ['Water', 'Water', 'Water'], now: 500 }, makeIds());
+    expect(out.steps.map((s) => s.id)).toEqual(['a', 'b', 'new-1']);
+    expect(isStepDoneToday(out, 'b', iso)).toBe(true);
+  });
+
+  it('treats a renamed step as a new step, losing its tick by design', () => {
+    const r = { ...mk(), done: { s1: iso } };
+    const out = applyRoutineEdit(r, { name: 'Morning', when: 'morning', stepTitles: ['Warm water', 'Meds'], now: 500 }, makeIds());
+    expect(out.steps[0].id).toBe('new-1'); // the rename is a new step
+    expect(out.done).toEqual({}); // the old title's tick fell away
+  });
+
+  it('applies name, when and nudge hour, and clears the nudge when absent', () => {
+    const on = applyRoutineEdit(mk(), { name: 'Wind-down', when: 'evening', stepTitles: ['Water'], nudgeHour: 20, now: 500 }, makeIds());
+    expect(on.name).toBe('Wind-down');
+    expect(on.when).toBe('evening');
+    expect(on.nudgeHour).toBe(20);
+    const off = applyRoutineEdit(on, { name: 'Wind-down', when: 'evening', stepTitles: ['Water'], now: 600 }, makeIds());
+    expect(off.nudgeHour).toBeNull();
+  });
+
+  it('does not mutate the original routine', () => {
+    const r = { ...mk(), done: { s1: iso } };
+    applyRoutineEdit(r, { name: 'X', when: 'anytime', stepTitles: ['Meds'], now: 500 }, makeIds());
+    expect(r.steps.map((s) => s.title)).toEqual(['Water', 'Meds']);
+    expect(r.done).toEqual({ s1: iso });
+  });
+});
+
 describe('deserializeRoutines', () => {
   it('round-trips valid routines', () => {
     const r = [mk()];
@@ -63,6 +135,17 @@ describe('deserializeRoutines', () => {
     expect(deserializeRoutines(null)).toEqual([]);
     expect(deserializeRoutines('not json')).toEqual([]);
     expect(deserializeRoutines('{}')).toEqual([]);
+  });
+
+  it('round-trips a valid nudge hour and drops an invalid one', () => {
+    const withNudge = { ...mk(), nudgeHour: 20 };
+    expect(deserializeRoutines(serializeRoutines([withNudge]))).toEqual([withNudge]);
+    const junk = JSON.stringify([
+      { ...mk(), nudgeHour: 24 },
+      { ...mk(), nudgeHour: 9.5 },
+      { ...mk(), nudgeHour: 'evening' },
+    ]);
+    for (const r of deserializeRoutines(junk)) expect(r.nudgeHour).toBeUndefined();
   });
 
   it('drops malformed entries and defaults a bad `when` to anytime', () => {

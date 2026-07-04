@@ -42,7 +42,7 @@ import { combineTasks, eligibleForCombine } from '@/lib/combine';
 import { aiErrorLine } from '@/lib/connection';
 import { ageInDays, isBigWin } from '@/lib/reward';
 import { phaseGreeting } from '@/lib/phase';
-import { addDaysISO, formatTodayLabel, friendlyDate, isReentry, presetDate, toISODate } from '@/lib/day';
+import { addDaysISO, daysBetween, formatTodayLabel, friendlyDate, fromISODate, isReentry, presetDate, toISODate } from '@/lib/day';
 import { dayWeight, weightedLoad } from '@/lib/estimate';
 import { dayCleared, dayClosed, stepsLanded, taskDone } from '@/lib/haptics';
 import { type Inbound, subscribeInbound, takeInbound } from '@/lib/inbound';
@@ -57,7 +57,7 @@ import { spreadDueDates } from '@/lib/spread';
 import { loadClosedDate, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderHour, loadReminderOfferMade, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOfferMade, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { isAccountGone, localBelongsToAnother, syncOnce } from '@/lib/sync';
-import { parseDump, sweepElapsedNudges, type Task } from '@/lib/tasks';
+import { completeOnDay, parseDump, sweepElapsedNudges, type Task } from '@/lib/tasks';
 import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
 import { updateWidget } from '@/widget/update';
@@ -100,6 +100,7 @@ export default function TodayScreen() {
   const [didText, setDidText] = useState('');
   const [closeNote, setCloseNote] = useState('');
   const [moveToOpen, setMoveToOpen] = useState(false);
+  const [doneOnId, setDoneOnId] = useState<string | null>(null); // the task being marked "Done on…" an earlier day; non-null opens the picker modal
   const [combineOpen, setCombineOpen] = useState(false); // the Combine review modal
   const [combineTitle, setCombineTitle] = useState(''); // the editable umbrella title (AI-suggested)
   const [beingCombined, setBeingCombined] = useState<string[]>([]); // snapshot of the ids being folded
@@ -419,6 +420,25 @@ export default function TodayScreen() {
     commit(tasks.map((t) => (t.id === id ? clearNudgeIfAny({ ...deferToTomorrow(t, today), updatedAt: now }) : t)));
     setConfirmingId(null);
     track('task.deferred');
+  }
+
+  // "Done on…": mark a rolled-over task done as of the EARLIER day it was actually
+  // finished, so the Lookback attributes it honestly. This is bookkeeping, not a fresh
+  // win: the quiet affirmation only, never the bloom or a haptic celebration.
+  function openDoneOn(id: string) {
+    setConfirmingId(null);
+    exitSelect(); // reached from the select bar; the picker takes over from here
+    setDoneOnId(id);
+  }
+
+  function pickDoneOn(iso: string) {
+    const id = doneOnId;
+    setDoneOnId(null);
+    if (id == null) return;
+    const now = nowMs();
+    commit(tasks.map((x) => (x.id === id ? clearNudgeIfAny(completeOnDay(x, iso, now)) : x)));
+    track('task.done_earlier', { daysBack: daysBetween(fromISODate(iso), today) });
+    affirm(t('today.doneOnAffirm', { day: friendlyDate(iso, today) }));
   }
 
   // "Just this one" focus mode: complete the focused task fully (slices included) by
@@ -1350,6 +1370,7 @@ export default function TodayScreen() {
               onBreakdown={aiEnabled ? () => breakdownExisting(task.title, task.id) : () => openManualBreakdown(task.id, task.title)}
               onMakeTiny={aiEnabled ? () => makeTiny(task.id, task.title) : undefined}
               onDefer={() => deferTask(task.id)}
+              onDoneOn={!isRecurring(task) && !isDoneOn(task, today) ? () => openDoneOn(task.id) : undefined}
               suggestBreakdown={task.suggestBreakdown}
               selecting={selectMode}
               selected={selected.includes(task.id)}
@@ -1531,6 +1552,16 @@ export default function TodayScreen() {
                     hitSlop={6}
                   >
                     <Text style={[styles.selectAction, !premium && !onlyTask.pinnedAt && styles.selectActionDim]}>{onlyTask.pinnedAt ? t('today.unpin') : t('today.pin')}</Text>
+                  </Pressable>
+                )}
+                {onlyTask && !isRecurring(onlyTask) && !isDoneOn(onlyTask, today) && (
+                  <Pressable
+                    onPress={() => openDoneOn(onlyTask.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('today.doneOnA11y', { title: onlyTask.title })}
+                    hitSlop={6}
+                  >
+                    <Text style={styles.selectAction}>{t('today.doneOn')}</Text>
                   </Pressable>
                 )}
                 {aiEnabled && selected.length === 1 && (
@@ -1857,6 +1888,28 @@ export default function TodayScreen() {
             <DatePicker value={null} onChange={(iso) => bulkMoveTo(iso)} today={today} />
             <Pressable
               onPress={() => setMoveToOpen(false)}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.cancel')}
+              hitSlop={8}
+              style={styles.moveCancelWrap}
+            >
+              <Text style={styles.didCancel}>{t('common.cancel')}</Text>
+            </Pressable>
+      </ModalCard>
+
+      {/* "Done on…": pick the earlier day a rolled-over task was actually finished (yesterday back to
+          14 days; never today, since today is the normal tap). Quiet bookkeeping, so no bloom. */}
+      <ModalCard visible={doneOnId != null} onClose={() => setDoneOnId(null)}>
+            <Text style={styles.didTitle}>{t('today.doneOnTitle')}</Text>
+            <DatePicker
+              value={null}
+              onChange={pickDoneOn}
+              today={today}
+              minIso={addDaysISO(today, -14)}
+              maxIso={addDaysISO(today, -1)}
+            />
+            <Pressable
+              onPress={() => setDoneOnId(null)}
               accessibilityRole="button"
               accessibilityLabel={t('common.cancel')}
               hitSlop={8}

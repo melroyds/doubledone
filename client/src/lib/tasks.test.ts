@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { deserialize, parseDump, serialize, sweepElapsedNudges, type Task } from './tasks';
+import { completeOnDay, deserialize, parseDump, serialize, sweepElapsedNudges, type Task } from './tasks';
 
 const sample: Task[] = [
   { id: 'a', title: 'Water the plants', done: false, createdAt: 10, updatedAt: 10 },
@@ -129,5 +129,45 @@ describe('sweepElapsedNudges', () => {
     const out = sweepElapsedNudges([withNudge('past', 1000), withNudge('future', 9000)], 5000);
     expect(out.find((t) => t.id === 'past')?.nudgeAt).toBeUndefined();
     expect(out.find((t) => t.id === 'future')?.nudgeAt).toBe(9000);
+  });
+});
+
+describe('completeOnDay', () => {
+  const base: Task = { id: 'a', title: 'Water the plants', done: false, createdAt: 10, updatedAt: 10 };
+  const now = 1_700_000_000_000;
+
+  it('stamps completedAt at local NOON of the chosen day, never a neighbouring day', () => {
+    const out = completeOnDay(base, '2026-06-20', now);
+    expect(out.completedAt).toBe(new Date(2026, 5, 20, 12).getTime());
+  });
+
+  it('marks the task done and bumps updatedAt to now so sync carries it', () => {
+    const out = completeOnDay(base, '2026-06-20', now);
+    expect(out.done).toBe(true);
+    expect(out.updatedAt).toBe(now);
+  });
+
+  it('completes a sliced task outright: every slice filled', () => {
+    const sliced: Task = { ...base, slices: { total: 5, done: 2 } };
+    const out = completeOnDay(sliced, '2026-06-19', now);
+    expect(out.slices).toEqual({ total: 5, done: 5 });
+    expect(out.done).toBe(true);
+  });
+
+  it('does not invent slices on a whole task', () => {
+    const out = completeOnDay(base, '2026-06-19', now);
+    expect(out.slices).toBeUndefined();
+  });
+
+  it('handles a month boundary (the chosen day, not the neighbour)', () => {
+    const out = completeOnDay(base, '2026-07-01', now);
+    expect(out.completedAt).toBe(new Date(2026, 6, 1, 12).getTime());
+  });
+
+  it('leaves the original task untouched (pure)', () => {
+    const sliced: Task = { ...base, slices: { total: 3, done: 1 } };
+    completeOnDay(sliced, '2026-06-19', now);
+    expect(sliced.done).toBe(false);
+    expect(sliced.slices).toEqual({ total: 3, done: 1 });
   });
 });

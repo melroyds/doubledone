@@ -17,6 +17,7 @@ export type { ReminderReason, ReminderResult } from './reminders-types';
 // locale. The ids below are NOT copy: they are stable identifiers and must never localise.
 const DAILY_ID = 'doubledone-daily'; // fixed id so we cancel only the daily, leaving nudges alone
 const DAILY_CHANNEL_ID = 'daily-reminder';
+const ROUTINE_NUDGE_PREFIX = 'routine-'; // + routineId: one daily nudge per routine, cancellable alone
 const NUDGE_CHANNEL_ID = 'task-nudge-v2'; // v2 forces a fresh HIGH-importance channel, since Android ignores importance changes to an already-created channel
 
 // Show notifications even when the app is foregrounded. Without this, expo-notifications
@@ -78,6 +79,46 @@ export async function enableDailyReminder(hour = 9): Promise<ReminderResult> {
 export async function disableDailyReminder(): Promise<void> {
   try {
     await Notifications.cancelScheduledNotificationAsync(DAILY_ID);
+  } catch {
+    // best effort
+  }
+}
+
+/**
+ * Request permission and schedule a calm daily nudge for a routine at `hour` (the title is
+ * the routine's own name, user data, never translated; the body a gentle "when you're
+ * ready"). One per routine, keyed by `routine-` + routineId, so re-scheduling replaces and
+ * cancelling touches only this routine's nudge. Shares the daily-reminder channel (DEFAULT
+ * importance, calm): a routine nudge is an offer, not an alarm. Returns ok, or a reason it didn't.
+ */
+export async function scheduleRoutineNudge(routineId: string, name: string, hour: number): Promise<ReminderResult> {
+  try {
+    // Channel first (see enableDailyReminder): the Android 13 permission prompt needs a
+    // channel to exist before it will appear.
+    await ensureChannel(DAILY_CHANNEL_ID, t('settings.reminderLabel'));
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status !== 'granted') return { ok: false, reason: 'denied' };
+    await Notifications.cancelScheduledNotificationAsync(ROUTINE_NUDGE_PREFIX + routineId);
+    await Notifications.scheduleNotificationAsync({
+      identifier: ROUTINE_NUDGE_PREFIX + routineId,
+      content: { title: name, body: t('reminders.routineNudgeBody') },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour,
+        minute: 0,
+        channelId: DAILY_CHANNEL_ID,
+      },
+    });
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'error' };
+  }
+}
+
+/** Cancel a routine's daily nudge (only its own, by its stable id). Best effort, never throws. */
+export async function cancelRoutineNudge(routineId: string): Promise<void> {
+  try {
+    await Notifications.cancelScheduledNotificationAsync(ROUTINE_NUDGE_PREFIX + routineId);
   } catch {
     // best effort
   }

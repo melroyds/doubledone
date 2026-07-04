@@ -11,18 +11,24 @@ type Props = {
   value: string | null; // selected ISO date, or null
   onChange: (iso: string) => void;
   today: Date;
+  minIso?: string; // earliest selectable day (inclusive); defaults to today, so existing callers stay future-only
+  maxIso?: string; // latest selectable day (inclusive); absent = open-ended (the default future behaviour)
 };
 
 // A calm month-grid date picker. Pure React Native views (reusing the Lookback's
 // monthMatrix), so it works identically on web and Android with no native module.
-// Past days are disabled, since a due date is always today or later.
-export function DatePicker({ value, onChange, today }: Props) {
+// By default past days are disabled, since a due date is always today or later;
+// a caller picking a PAST day ("Done on…") passes minIso/maxIso to move the window.
+export function DatePicker({ value, onChange, today, minIso, maxIso }: Props) {
   const styles = useThemedStyles(makeStyles);
+  const todayIso = toISODate(today);
+  const min = minIso ?? todayIso; // unset keeps the original contract: today or later
   const [ym, setYm] = useState(() => {
-    const base = value ? fromISODate(value) : today;
+    // Open on the selection's month; with no selection and an all-past window, open on the
+    // latest selectable month, so a past-mode picker never starts on all-disabled days.
+    const base = value ? fromISODate(value) : maxIso != null && maxIso < todayIso ? fromISODate(maxIso) : today;
     return { year: base.getFullYear(), month: base.getMonth() };
   });
-  const todayIso = toISODate(today);
   const weeks = monthMatrix(ym.year, ym.month);
 
   return (
@@ -61,19 +67,19 @@ export function DatePicker({ value, onChange, today }: Props) {
         <View key={wi} style={styles.week}>
           {week.map((iso, di) => {
             if (!iso) return <View key={di} style={styles.cell} />;
-            const past = iso < todayIso;
+            const off = iso < min || (maxIso != null && iso > maxIso); // outside the selectable window
             const selected = iso === value;
             return (
               <Pressable
                 key={di}
-                onPress={() => !past && onChange(iso)}
-                disabled={past}
+                onPress={() => !off && onChange(iso)}
+                disabled={off}
                 style={[styles.cell, selected && styles.cellOn]}
                 accessibilityRole="button"
-                accessibilityState={{ selected, disabled: past }}
+                accessibilityState={{ selected, disabled: off }}
                 accessibilityLabel={fromISODate(iso).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
               >
-                <Text style={[styles.day, past && styles.dayPast, selected && styles.dayOn]}>
+                <Text style={[styles.day, off && styles.dayPast, selected && styles.dayOn]}>
                   {Number(iso.slice(8, 10))}
                 </Text>
               </Pressable>
