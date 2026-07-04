@@ -366,6 +366,11 @@ export const es: Catalog = {
     upsellBody: 'Todo el ciclo diario tranquilo sigue gratis, para siempre: todo el alivio y tu Recuento. Premium son los extras, nunca algo que necesites.',
     upsellHead: 'Más de lo que te encanta.',
   },
+  relative: {
+    today: 'hoy',
+    tomorrow: 'mañana',
+    yesterday: 'ayer',
+  },
   reminders: {
     dailyBody: 'Tu Hoy está aquí para cuando quieras.',
     dailyOn: 'Recordatorio diario activado',

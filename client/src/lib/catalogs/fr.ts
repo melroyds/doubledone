@@ -366,6 +366,11 @@ export const fr: Catalog = {
     upsellBody: "Toute la boucle quotidienne reste gratuite, pour toujours, tout le soulagement et ta Rétrospective. Premium, ce sont les extras, jamais rien d'indispensable.",
     upsellHead: 'Encore plus de ce que tu aimes.',
   },
+  relative: {
+    today: "aujourd'hui",
+    tomorrow: 'demain',
+    yesterday: 'hier',
+  },
   reminders: {
     dailyBody: "Ton aujourd'hui est là quand tu veux.",
     dailyOn: 'Rappel quotidien activé',

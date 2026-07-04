@@ -70,9 +70,17 @@ export function translate(loc: Locale, key: string, params?: Record<string, stri
 export type PluralForms = { zero?: string; one?: string; two?: string; few?: string; many?: string; other: string };
 
 /** Pick the plural form for `count` in `loc` (Intl.PluralRules CLDR categories) and interpolate `{count}`.
- *  Replaces the hand-built two-form English "1 task" / "N tasks" the copy review flagged. */
+ *  Replaces the hand-built two-form English "1 task" / "N tasks" the copy review flagged.
+ *  HERMES GUARD: Android's Hermes engine does not implement Intl.PluralRules (it crashed v6/v7 at
+ *  launch on real devices; the web preview proved nothing, browsers have it). The fallback is exact
+ *  for the four shipped locales: en/it/es take 'one' at exactly 1, French also at 0. */
 export function pluralize(loc: Locale, count: number, forms: PluralForms, params?: Record<string, string | number>): string {
-  const category = new Intl.PluralRules(loc).select(count) as keyof PluralForms;
+  let category: keyof PluralForms;
+  try {
+    category = new Intl.PluralRules(loc).select(count) as keyof PluralForms;
+  } catch {
+    category = (loc === 'fr' ? count === 0 || count === 1 : count === 1) ? 'one' : 'other';
+  }
   const template = forms[category] ?? forms.other;
   return interpolate(template, { count, ...params });
 }
@@ -86,7 +94,16 @@ function startOfDay(d: Date): Date {
  *  Casing is the relative-time formatter's (lowercase in English); a call site that needs a capital applies it. */
 export function formatRelativeDay(loc: string, date: Date, today: Date): string {
   const days = Math.round((startOfDay(date).getTime() - startOfDay(today).getTime()) / 86_400_000);
-  if (days >= -1 && days <= 1) return new Intl.RelativeTimeFormat(loc, { numeric: 'auto' }).format(days, 'day');
+  if (days >= -1 && days <= 1) {
+    // HERMES GUARD: Intl.RelativeTimeFormat is missing or partial on Android's Hermes engine
+    // (the v6/v7 launch crash). The three relative words live in the catalogs instead.
+    try {
+      return new Intl.RelativeTimeFormat(loc, { numeric: 'auto' }).format(days, 'day');
+    } catch {
+      const key = days === -1 ? 'relative.yesterday' : days === 0 ? 'relative.today' : 'relative.tomorrow';
+      return translate(resolveLocale(loc), key);
+    }
+  }
   return new Intl.DateTimeFormat(loc, { weekday: 'short', month: 'short', day: 'numeric' }).format(date);
 }
 

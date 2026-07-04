@@ -370,6 +370,11 @@ export const en = {
     upsellBody: 'The whole calm daily loop stays free, forever, all the relief and your Lookback. Premium is the extras, never anything you need.',
     upsellHead: 'More of what you love.',
   },
+  relative: {
+    today: 'today',
+    tomorrow: 'tomorrow',
+    yesterday: 'yesterday',
+  },
   reminders: {
     dailyBody: 'Your today is here when you are ready.',
     dailyOn: 'Daily reminder on',
