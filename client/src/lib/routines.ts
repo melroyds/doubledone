@@ -17,6 +17,7 @@ export type Routine = {
   when: RoutineWhen;
   steps: RoutineStep[];
   done: Record<string, string>; // stepId -> ISO date last ticked; "done today" iff === today's ISO
+  nudgeHour?: number | null; // optional once-a-day nudge hour (0-23); null / absent = no nudge
   createdAt: number;
   updatedAt: number;
 };
@@ -41,6 +42,37 @@ export function toggleStep(routine: Routine, stepId: string, todayIso: string, n
 export function routineProgress(routine: Routine, todayIso: string): { done: number; total: number } {
   const done = routine.steps.filter((s) => routine.done[s.id] === todayIso).length;
   return { done, total: routine.steps.length };
+}
+
+export type RoutineEdit = {
+  name: string;
+  when: RoutineWhen;
+  stepTitles: string[]; // the edited steps, one title each, in their new order
+  nudgeHour?: number | null; // the edited nudge hour, or null / absent for no nudge
+  now: number;
+};
+
+/**
+ * Apply an edit (from the prefilled form) to a routine, returning a new routine. The
+ * critical rule: TODAY'S TICKS SURVIVE. A step whose title still appears keeps its
+ * existing id (each existing step is consumed at most once, in order, so duplicate
+ * titles map one-to-one), which keeps its `done` entry alive; a new title gets a new
+ * id, and a renamed step is a new step by design (its old tick falls away). `done`
+ * entries for removed steps are stripped so a removed tick can never resurrect.
+ */
+export function applyRoutineEdit(routine: Routine, edit: RoutineEdit, makeId: () => string): Routine {
+  const pool = [...routine.steps]; // each existing step is reusable once
+  const steps = edit.stepTitles.map((title) => {
+    const i = pool.findIndex((s) => s.title === title);
+    if (i >= 0) return pool.splice(i, 1)[0];
+    return { id: makeId(), title };
+  });
+  const keptIds = new Set(steps.map((s) => s.id));
+  const done: Record<string, string> = {};
+  for (const [stepId, date] of Object.entries(routine.done)) {
+    if (keptIds.has(stepId)) done[stepId] = date;
+  }
+  return { ...routine, name: edit.name, when: edit.when, steps, done, nudgeHour: edit.nudgeHour ?? null, updatedAt: edit.now };
 }
 
 /** Serialize routines for storage. */
@@ -81,7 +113,12 @@ function cleanRoutine(r: Routine): Routine {
   );
   const when: RoutineWhen = raw.when === 'morning' || raw.when === 'evening' ? raw.when : 'anytime';
   const done = raw.done != null && typeof raw.done === 'object' ? (raw.done as Record<string, string>) : {};
+  // A valid nudge hour (a 0-23 integer) is preserved; anything else (absent, null, junk) means no nudge.
+  const nudgeHour =
+    typeof raw.nudgeHour === 'number' && Number.isInteger(raw.nudgeHour) && raw.nudgeHour >= 0 && raw.nudgeHour <= 23
+      ? raw.nudgeHour
+      : undefined;
   const createdAt = typeof raw.createdAt === 'number' ? raw.createdAt : 0;
   const updatedAt = typeof raw.updatedAt === 'number' ? raw.updatedAt : createdAt;
-  return { id: r.id, name: r.name, when, steps, done, createdAt, updatedAt };
+  return { id: r.id, name: r.name, when, steps, done, nudgeHour, createdAt, updatedAt };
 }

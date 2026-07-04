@@ -163,6 +163,15 @@ CASES = [
     ("RTN-03", "Routines", "P3", "Remove a routine (recoverable)",
      "On a routine card tap Remove, then optionally tap Undo.",
      "The routine is removed with a brief 'Routine removed. Undo' banner, not a confirmation dialog. Tapping Undo within a few seconds restores it, otherwise it stays gone. Recoverable, never a confirm gauntlet.", "Both"),
+    ("RTN-04", "Routines", "P2", "Edit a routine (today's ticks survive)",
+     "On a routine card tick one step, then tap Edit. Change the name, add a step on a new line, remove another, and tap 'Save changes'.",
+     "The form opens prefilled (name, when, steps one per line, nudge hour). After saving, kept steps keep today's ticks (the ticked step stays ticked), the added step appears unticked, and the removed step's tick never resurrects. Supports building a routine slowly, start with 3 and grow it.", "Both"),
+    ("RTN-05", "Routines", "P2", "A daily nudge per routine (opt-in)",
+     "Create or edit a routine, turn the nudge on, pick an hour (e.g. 8:00 pm), save. On Android, wait for the hour (or check the scheduled notification).",
+     "Off by default. When on, ONE gentle daily notification fires around the chosen hour: title = the routine's name, body 'When you're ready. A step is plenty.' Same calm channel as the daily reminder, inexact timing is fine. Removing the routine (or turning the nudge off) cancels it. On web the nudge row explains reminders aren't available on this device, and the routine still saves. If notification permission is denied, a calm reason line shows, never a dialog.", "Android"),
+    ("TOD-23", "Today", "P2", "Done on… (attribute a task to an earlier day)",
+     "Long-press a rolled-over one-off task to select it, tap 'Done on…', pick a past day (yesterday to 14 days back; today is not offered).",
+     "The task completes as of that day: it leaves Today, the Lookback shows it under the chosen day, and a QUIET 'Recorded for {day}.' affirmation appears, no bloom, no haptic (bookkeeping, not a fresh win). Recurring tasks don't offer it. Syncs to other devices with the backdated day intact.", "Both"),
 
     # --- Haptics (Android device only) ---------------------------------------
     ("HAP-01", "Haptics", "P3", "Earned-moment haptics fire (Android)",
@@ -240,6 +249,9 @@ CASES = [
      "A warm radial bloom rises over a dimming scrim: 'You finished the whole thing', the task name in Newsreader italic, and a warm context line ('... since you first wrote it down. N small steps. All done.'). It holds longer and blooms larger for a long-dreaded or chunky task than for a quick same-day one. A tap dismisses it early, otherwise it auto-settles. Never confetti, points, or a number on screen. On Android the dimmed scrim is clean, with NO vertical pillar or banding behind it (the SVG background pools are disabled on Android, where they mis-render at large size). With Reduce Motion on, the held title and warm colour still show, only the movement is removed.", "Both"),
 
     # --- AI: Sort-for-me & Lighten today -------------------------------------
+    ("AI-10", "AI decompose", "P2", "Edit or drop AI-suggested steps before accepting (both surfaces)",
+     "Break down a task (or run Chart a course). In the review, tap a step's TITLE, rewrite it, submit. Tap the small x on another step. Then accept.",
+     "Tapping a title swaps it for an input (emptying it reverts, never silently deletes). The x removes the row and the 'Add N tasks' count follows; removing all steps disables Add ('start over' remains the escape). Accepting mints the EDITED titles and skips removed steps. Editing composes with keep/skip (breakdown) and checkboxes (chart). Suggestions are sparks, not all-or-nothing. Device check: on Android, opening a second title edit while one is in-flight may revert (not delete) the first, acceptable, verify no data loss.", "Both"),
     ("AI-05", "AI triage", "P2", "Sort-for-me (triage + feedback)",
      "In the brain-dump type a MIXED pile, one per line (a couple of quick things, one that can wait, one big/vague). At one line a hint nudges 'one per line'; at two, 'Break it down' becomes 'Sort for me'. Run it.",
      "Shows a summary line ('Sorted: N for today, M for tomorrow, K to break down.'). Quick items stay on Today, can-waits move to tomorrow, big ones get an inline 'Looks big, break it down?' prompt. Calm, never scolding.", "Both"),

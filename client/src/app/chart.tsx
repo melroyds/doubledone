@@ -30,7 +30,9 @@ function nowMs(): number {
   return Date.now();
 }
 
-type Proposed = CourseStep & { checked: boolean };
+// `original` keeps the AI's title so accept-time telemetry can count edits; `removed` hides a
+// step without splicing it out, so `total`/`offered` still mean what the AI proposed.
+type Proposed = CourseStep & { checked: boolean; removed: boolean; original: string };
 
 // Chart a course (PREMIUM): name a goal, get a calm ordered list of the next concrete steps toward it, then
 // accept the ones you want. Accepted steps become FLAT one-off tasks in the single Today/backlog (the first
@@ -50,6 +52,10 @@ export default function ChartScreen() {
   const [error, setError] = useState<string | null>(null);
   const [heading, setHeading] = useState('');
   const [steps, setSteps] = useState<Proposed[]>([]);
+  // Propose -> EDIT -> accept: tap a step's title to reshape it before accepting.
+  // Per-render-session state only, nothing persists.
+  const [editing, setEditing] = useState<number | null>(null);
+  const [draft, setDraft] = useState('');
   const [dueDate, setDueDate] = useState<string | null>(null);
   // "By when?" relative chips. A goal is a timeframe ("within 2 months"), so chips beat a calendar here: the
   // chosen date paces the AI's steps AND spreads the accepted tasks from today to it (see addTasks).
@@ -84,7 +90,8 @@ export default function ChartScreen() {
         setHeading('');
       } else {
         setHeading(course.heading);
-        setSteps(course.steps.map((s) => ({ ...s, checked: true })));
+        setSteps(course.steps.map((s) => ({ ...s, checked: true, removed: false, original: s.title })));
+        setEditing(null);
       }
     } catch {
       // chart() swallows its own errors today, but decouple this screen from that
@@ -101,10 +108,29 @@ export default function ChartScreen() {
     setSteps((prev) => prev.map((s, j) => (j === i ? { ...s, checked: !s.checked } : s)));
   }
 
+  function startEdit(i: number) {
+    setDraft(steps[i].title);
+    setEditing(i);
+  }
+
+  // Submit and blur both commit (and can both fire on web); the editing guard makes the
+  // second call a no-op. An emptied title reverts to what it was, never deletes silently.
+  function commitEdit(i: number) {
+    if (editing !== i) return;
+    const next = draft.trim();
+    if (next.length > 0) setSteps((prev) => prev.map((s, j) => (j === i ? { ...s, title: next } : s)));
+    setEditing(null);
+  }
+
+  function removeStep(i: number) {
+    if (editing === i) setEditing(null);
+    setSteps((prev) => prev.map((s, j) => (j === i ? { ...s, removed: true } : s)));
+  }
+
   // Propose-then-accept: nothing is minted until here, and only the ticked steps. They become plain one-off
   // tasks (no parentId, no project field), spread gently so the first lands on Today and Today stays small.
   async function addTasks() {
-    const selected = steps.filter((s) => s.checked);
+    const selected = steps.filter((s) => s.checked && !s.removed);
     // Busy guard mirroring suggest(): the await below yields the loop, so without it a genuine
     // double-tap mints two task sets from the same on-disk store and the second saveTasks (full
     // overwrite) drops one set. Block the second call before any await.
@@ -125,13 +151,19 @@ export default function ChartScreen() {
       }));
       await saveTasks([...tasks, ...minted]);
       track('chart.added', { added: minted.length, offered: steps.length });
+      // Moat surface: how far the AI's proposal was from what the user accepted, per offer.
+      const edited = steps.filter((s) => !s.removed && s.title !== s.original).length;
+      const removedCount = steps.filter((s) => s.removed).length;
+      if (edited + removedCount > 0) {
+        track('chart.steps.edited', { edited, removed: removedCount, total: steps.length });
+      }
       router.replace('/today');
     } finally {
       setAdding(false);
     }
   }
 
-  const selectedCount = steps.filter((s) => s.checked).length;
+  const selectedCount = steps.filter((s) => s.checked && !s.removed).length;
 
   // Chart a course is wholly an AI feature; with AI off it has no non-AI value, so send the user home
   // (the menu entry is already hidden, this guards a direct visit to /chart).
@@ -182,20 +214,59 @@ export default function ChartScreen() {
         {steps.length > 0 && (
           <View style={styles.result}>
             {heading.length > 0 && <Text style={styles.heading}>{heading}</Text>}
-            {steps.map((s, i) => (
-              <Pressable
-                key={i}
-                onPress={() => toggle(i)}
-                style={styles.stepRow}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: s.checked }}
-                accessibilityLabel={s.title}
-              >
-                <View style={[styles.check, s.checked && styles.checkOn]}>{s.checked && <Text style={styles.checkMark}>✓</Text>}</View>
-                <Text style={[styles.stepTitle, !s.checked && styles.stepTitleOff]}>{s.title}</Text>
-                <Text style={styles.stepMin}>{t('chart.stepMinutes', { minutes: s.minutes })}</Text>
-              </Pressable>
-            ))}
+            {steps.map((s, i) => {
+              if (s.removed) return null;
+              return (
+                <Pressable
+                  key={i}
+                  onPress={() => toggle(i)}
+                  style={styles.stepRow}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: s.checked }}
+                  accessibilityLabel={s.title}
+                >
+                  <View style={[styles.check, s.checked && styles.checkOn]}>{s.checked && <Text style={styles.checkMark}>✓</Text>}</View>
+                  {editing === i ? (
+                    <TextInput
+                      style={styles.stepInput}
+                      value={draft}
+                      onChangeText={setDraft}
+                      autoFocus
+                      onSubmitEditing={() => commitEdit(i)}
+                      onBlur={() => commitEdit(i)}
+                      returnKeyType="done"
+                      accessibilityLabel={t('breakdown.stepInputA11y')}
+                    />
+                  ) : (
+                    <Pressable
+                      onPress={(e) => {
+                        e.stopPropagation(); // don't let a title tap also toggle the row
+                        startEdit(i);
+                      }}
+                      style={styles.stepTitleWrap}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('breakdown.editStepA11y', { title: s.title })}
+                      hitSlop={4}
+                    >
+                      <Text style={[styles.stepTitle, !s.checked && styles.stepTitleOff]}>{s.title}</Text>
+                    </Pressable>
+                  )}
+                  <Text style={styles.stepMin}>{t('chart.stepMinutes', { minutes: s.minutes })}</Text>
+                  <Pressable
+                    onPress={(e) => {
+                      e.stopPropagation(); // don't let a remove tap also toggle the row
+                      removeStep(i);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('breakdown.removeStepA11y', { title: s.title })}
+                    hitSlop={8}
+                    style={styles.removeBtn}
+                  >
+                    <Text style={styles.removeMark}>✕</Text>
+                  </Pressable>
+                </Pressable>
+              );
+            })}
             <PrimaryButton
               label={
                 selectedCount === 0
@@ -211,6 +282,7 @@ export default function ChartScreen() {
               onPress={() => {
                 setSteps([]);
                 setHeading('');
+                setEditing(null);
               }}
               accessibilityRole="button"
               accessibilityLabel={t('chart.startOverA11y')}
@@ -271,8 +343,21 @@ const makeStyles = (t: Theme) =>
     },
     checkOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
     checkMark: { color: t.colors.onAccent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    stepTitle: { flex: 1, color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale },
+    stepTitleWrap: { flex: 1 },
+    stepTitle: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale },
     stepTitleOff: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
+    stepInput: {
+      flex: 1,
+      color: t.colors.ink,
+      fontSize: 16 * t.scale,
+      fontFamily: fonts.body,
+      lineHeight: 22 * t.scale,
+      padding: 0,
+      borderBottomWidth: border.thin,
+      borderBottomColor: t.colors.accent,
+    },
+    removeBtn: { paddingHorizontal: spacing.one, paddingVertical: spacing.half },
+    removeMark: { color: t.colors.inkFaint, fontSize: 14 * t.scale, fontFamily: fonts.body },
     stepMin: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body },
     startOver: { alignSelf: 'center', marginTop: spacing.two },
     startOverText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },

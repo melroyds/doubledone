@@ -135,3 +135,19 @@ export function sweepElapsedNudges(tasks: Task[], now: number): Task[] {
   });
   return changed ? out : tasks;
 }
+
+/**
+ * Mark a task done as of an EARLIER day ("Done on…"): it was finished, just never
+ * ticked, so the Lookback should attribute it to the day it actually happened.
+ * completedAt lands at NOON LOCAL of the chosen day, so a timezone edge never
+ * bleeds the completion into a neighbouring day. updatedAt is stamped `now` so
+ * last-write-wins sync carries the change. A sliced task completes outright
+ * (every slice filled), the same as any other finish.
+ */
+export function completeOnDay(task: Task, dayIso: string, now: number): Task {
+  const [y, m, d] = dayIso.split('-').map(Number);
+  const completedAt = new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1, 12).getTime();
+  const out: Task = { ...task, done: true, completedAt, updatedAt: now };
+  if (task.slices) out.slices = { total: task.slices.total, done: task.slices.total };
+  return out;
+}
