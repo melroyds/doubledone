@@ -77,8 +77,11 @@ The single home for consciously parked work. Nothing here is dropped; each item 
 - **Sync the `big` flag across devices.** "Big task" ships local-only (the flag lives on-device, like `manualOrder`), because adding it to the sync payload before the Supabase column exists would break every task upsert. To make it cross-device: (1) run `alter table public.tasks add column if not exists big boolean;` on the live Supabase project, then (2) add `big: boolean | null` to `TaskRow` in `client/src/lib/sync.ts`, set `big: task.big ?? null` in `taskToRow`, and `if (row.big) task.big = true;` in `rowToTask`. Trigger: the column is applied (needs the Supabase dashboard), or a multi-device user reports a big mark not carrying over.
 - Sharing a list with another person. Trigger: a real second-user case, weighed hard against the team-tool trap the spec warns against.
 
+**Platform and build**
+- **R8/ProGuard + the deobfuscation mapping.** Enable `enableProguardInReleaseBuilds` via expo-build-properties, add the React Native keep rules, smoke-test every flow on device (R8's failure mode is a feature silently dying at runtime), and upload the generated mapping file with each AAB. Prize: a few MB off the app plus readable crash traces if we ever obfuscate; also silences the Play Console's "no deobfuscation file" nag, which is cosmetic today because Expo doesn't obfuscate by default. Deliberately NOT done mid-closed-test (code-stripping risk for a cosmetic warning is the wrong trade). Trigger: app size starts to matter for listing conversion, or production-launch prep begins.
+
 **Internationalisation**
-- Pass 1 shipped (locale detection, and the AI answers in the user's language). Remaining: externalise UI strings behind a typed `t()` layer, then IT / ES / FR translations (native-speaker reviewed so the calm tone survives), and localised date formatting. Trigger: after the design copy is final.
+- The full sweep SHIPPED 2026-07-04 (721 keys, en/it/es/fr catalogs, every screen wired, region-aware dates, the Android 13+ per-app language picker). Remaining: the Spanish native review lands back into `es.ts` (spreadsheet with the reviewer); an Italian and a French native pass someday (drafts ship behind per-key English fallback meanwhile); localised store listings if those markets are ever pursued deliberately. Trigger: each reviewer's availability; store listings only with a real market push.
 
 **Platform and distribution**
 - Over-the-air updates (refresh without a reinstall). Trigger: reinstalling per change gets old.
