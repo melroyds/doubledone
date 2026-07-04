@@ -375,6 +375,9 @@ CASES = [
     ("SET-10", "Settings", "P2", "Turn AI back on (informed consent)",
      "With AI off, in Settings tap 'Turn AI on', read the card, and tap 'Turn on AI' (also try 'Not now').",
      "Turning ON asks first: a card naming exactly what is sent and to whom ('sends the text you choose... to Anthropic's Claude... Nothing else ever leaves your device.'). 'Not now' cancels with no change. 'Turn on AI' restores every AI affordance across the app. The asymmetry is deliberate: off is one instant tap, on is a clear informed tap.", "Both"),
+    ("I18N-01", "Languages", "P2", "App follows the device language (Italian / Spanish / French)",
+     "Set the device (or browser) language to Italian, Spanish, or French and open DoubleDone fresh. Walk Today, the introduction, Settings, Lookback, capture, and close-the-day.",
+     "The whole UI renders in that language: screens, buttons, hints, errors, notification copy, and screen-reader labels. Dates and times follow the region's convention (24-hour clock and day-month order where the locale uses them). Task titles the user typed stay exactly as typed (user data never translates), the brand stays 'DoubleDone', and legal pages stay English. Any missing string falls back to English, never a blank. An English device sees the app unchanged.", "Both"),
 
     # --- Accessibility --------------------------------------------------------
     ("A11Y-01", "Accessibility", "P2", "Screen reader (TalkBack)",

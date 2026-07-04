@@ -34,6 +34,12 @@ export function activeLocale(): Locale {
   return active;
 }
 
+/** The currently bound formatting tag (the device's full BCP-47, e.g. "en-AU", "it-IT"),
+ *  for the rare date shape fmt doesn't cover. */
+export function activeFormatTag(): string {
+  return activeFormat;
+}
+
 /** Translate a key in the active locale. `{name}` placeholders interpolate from params. */
 export function t(key: string, params?: Record<string, string | number>): string {
   return translate(active, key, params);
