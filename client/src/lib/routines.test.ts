@@ -117,6 +117,18 @@ describe('applyRoutineEdit', () => {
     expect(off.nudgeHour).toBeNull();
   });
 
+  it('carries the nudge minute alongside the hour, and clears it when absent', () => {
+    const on = applyRoutineEdit(
+      mk(),
+      { name: 'Wind-down', when: 'evening', stepTitles: ['Water'], nudgeHour: 20, nudgeMinute: 47, now: 500 },
+      makeIds(),
+    );
+    expect(on.nudgeHour).toBe(20);
+    expect(on.nudgeMinute).toBe(47);
+    const off = applyRoutineEdit(on, { name: 'Wind-down', when: 'evening', stepTitles: ['Water'], now: 600 }, makeIds());
+    expect(off.nudgeMinute).toBeNull();
+  });
+
   it('does not mutate the original routine', () => {
     const r = { ...mk(), done: { s1: iso } };
     applyRoutineEdit(r, { name: 'X', when: 'anytime', stepTitles: ['Meds'], now: 500 }, makeIds());
@@ -146,6 +158,24 @@ describe('deserializeRoutines', () => {
       { ...mk(), nudgeHour: 'evening' },
     ]);
     for (const r of deserializeRoutines(junk)) expect(r.nudgeHour).toBeUndefined();
+  });
+
+  it('round-trips a valid nudge minute and drops an invalid one', () => {
+    const withTime = { ...mk(), nudgeHour: 20, nudgeMinute: 47 };
+    expect(deserializeRoutines(serializeRoutines([withTime]))).toEqual([withTime]);
+    const atZero = { ...mk(), nudgeHour: 20, nudgeMinute: 0 };
+    expect(deserializeRoutines(serializeRoutines([atZero]))).toEqual([atZero]); // :00 is a value, not junk
+    const junk = JSON.stringify([
+      { ...mk(), nudgeHour: 20, nudgeMinute: 60 },
+      { ...mk(), nudgeHour: 20, nudgeMinute: -1 },
+      { ...mk(), nudgeHour: 20, nudgeMinute: 30.5 },
+      { ...mk(), nudgeHour: 20, nudgeMinute: 'ish' },
+      { ...mk(), nudgeHour: 20, nudgeMinute: null },
+    ]);
+    for (const r of deserializeRoutines(junk)) {
+      expect(r.nudgeHour).toBe(20); // the valid hour survives its junk minute
+      expect(r.nudgeMinute).toBeUndefined();
+    }
   });
 
   it('drops malformed entries and defaults a bad `when` to anytime', () => {

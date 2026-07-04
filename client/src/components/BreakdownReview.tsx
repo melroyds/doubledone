@@ -19,7 +19,7 @@ type Props = {
   steps: ReviewStep[];
   laterPhases?: ReviewPhase[];
   busy: boolean;
-  onAdd: (selected: ReviewStep[]) => void;
+  onAdd: (selected: ReviewStep[], phases: ReviewPhase[]) => void;
   onCancel: () => void;
   today: Date;
 };
@@ -30,6 +30,7 @@ type Props = {
 // Nothing lands on your day until you accept; the dates came from your answers.
 export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCancel, today }: Props) {
   const styles = useThemedStyles(makeStyles);
+  const phases = laterPhases ?? [];
   const [selected, setSelected] = useState<boolean[]>(() => steps.map(() => true));
   // Propose -> EDIT -> accept: the titles are the user's to reshape before anything lands.
   // Local, per-render-session state only, like `selected`; the props stay the AI's originals
@@ -38,7 +39,12 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
   const [removed, setRemoved] = useState<boolean[]>(() => steps.map(() => false));
   const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState('');
-  const phaseCount = laterPhases?.length ?? 0;
+  // The later phases follow the same propose -> edit -> accept shape as the steps.
+  const [phaseTitles, setPhaseTitles] = useState<string[]>(() => phases.map((p) => p.title));
+  const [phaseRemoved, setPhaseRemoved] = useState<boolean[]>(() => phases.map(() => false));
+  const [phaseEditing, setPhaseEditing] = useState<number | null>(null);
+  const [phaseDraft, setPhaseDraft] = useState('');
+  const phaseCount = phaseRemoved.filter((r) => !r).length;
   const count = selected.filter((on, i) => on && !removed[i]).length + phaseCount;
   const days = paceDays(steps, phaseCount);
 
@@ -54,6 +60,7 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
   }
 
   function startEdit(i: number) {
+    if (phaseEditing != null) commitPhaseEdit(phaseEditing); // one edit at a time; never discard the other
     setDraft(titles[i]);
     setEditing(i);
   }
@@ -72,20 +79,56 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
     setRemoved((prev) => prev.map((v, idx) => (idx === i ? true : v)));
   }
 
+  function startPhaseEdit(i: number) {
+    if (editing != null) commitEdit(editing); // one edit at a time; never discard the other
+    setPhaseDraft(phaseTitles[i]);
+    setPhaseEditing(i);
+  }
+
+  function commitPhaseEdit(i: number) {
+    if (phaseEditing !== i) return;
+    const next = phaseDraft.trim();
+    if (next.length > 0) setPhaseTitles((prev) => prev.map((v, idx) => (idx === i ? next : v)));
+    setPhaseEditing(null);
+  }
+
+  function removePhase(i: number) {
+    if (phaseEditing === i) setPhaseEditing(null);
+    setPhaseRemoved((prev) => prev.map((v, idx) => (idx === i ? true : v)));
+  }
+
+  // A tap anywhere on the card body COMMITS an in-flight title edit (never discards it):
+  // the backdrop no longer closes this card, and a stray tap must never destroy typed work.
+  function commitAnyEdit() {
+    if (editing != null) commitEdit(editing);
+    if (phaseEditing != null) commitPhaseEdit(phaseEditing);
+  }
+
   function add() {
     if (busy || count === 0) return;
     // Moat surface: how far the AI's proposal was from what the user accepted, per offer.
-    const edited = steps.filter((s, i) => !removed[i] && titles[i] !== s.title).length;
-    const removedCount = removed.filter(Boolean).length;
+    // Phase rows count too: they are the same propose -> edit -> accept surface.
+    const edited =
+      steps.filter((s, i) => !removed[i] && titles[i] !== s.title).length +
+      phases.filter((p, i) => !phaseRemoved[i] && phaseTitles[i] !== p.title).length;
+    const removedCount = removed.filter(Boolean).length + phaseRemoved.filter(Boolean).length;
     if (edited + removedCount > 0) {
-      track('breakdown.steps.edited', { edited, removed: removedCount, total: steps.length });
+      track('breakdown.steps.edited', { edited, removed: removedCount, total: steps.length + phases.length });
     }
-    onAdd(steps.map((s, i) => ({ ...s, title: titles[i] })).filter((_step, i) => selected[i] && !removed[i]));
+    onAdd(
+      steps.map((s, i) => ({ ...s, title: titles[i] })).filter((_step, i) => selected[i] && !removed[i]),
+      phases.map((p, i) => ({ ...p, title: phaseTitles[i] })).filter((_phase, i) => !phaseRemoved[i]),
+    );
   }
 
   return (
-    <ModalCard visible onClose={onCancel} maxWidth={440} maxHeight="88%" scroll>
+    // dismissable={false}: this card holds an AI plan the user paid a call for. A stray backdrop
+    // tap (or Android back) must never destroy it; only the explicit Add / "Not now" close it.
+    <ModalCard visible onClose={onCancel} maxWidth={440} maxHeight="88%" scroll dismissable={false}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        {/* The body wrapper commits (never discards) an in-flight title edit on any stray tap,
+            the same close-the-input pattern a backdrop tap used to trigger, minus the data loss. */}
+        <Pressable onPress={commitAnyEdit} accessible={false} style={styles.body}>
             <Text style={styles.title}>{t('breakdown.planTitle')}</Text>
             <Text style={styles.sub} numberOfLines={2}>
               {task}
@@ -160,14 +203,47 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
             {phaseCount > 0 && (
               <View style={styles.phases}>
                 <Text style={styles.phasesHead}>{t('breakdown.laterPhasesHead')}</Text>
-                {laterPhases!.map((p, i) => (
-                  <View key={`${p.title}-${i}`} style={styles.phaseRow}>
-                    <Text style={styles.phaseTitle} numberOfLines={2}>
-                      {p.title}
-                    </Text>
-                    <Text style={styles.phaseDate}>{p.date == null ? t('common.today') : friendlyDate(p.date, today)}</Text>
-                  </View>
-                ))}
+                {phases.map((p, i) => {
+                  if (phaseRemoved[i]) return null;
+                  return (
+                    <View key={`${p.title}-${i}`} style={styles.phaseRow}>
+                      {phaseEditing === i ? (
+                        <TextInput
+                          style={[styles.stepInput, styles.phaseInput]}
+                          value={phaseDraft}
+                          onChangeText={setPhaseDraft}
+                          autoFocus
+                          onSubmitEditing={() => commitPhaseEdit(i)}
+                          onBlur={() => commitPhaseEdit(i)}
+                          returnKeyType="done"
+                          accessibilityLabel={t('breakdown.stepInputA11y')}
+                        />
+                      ) : (
+                        <Pressable
+                          onPress={() => startPhaseEdit(i)}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('breakdown.editStepA11y', { title: phaseTitles[i] })}
+                          hitSlop={4}
+                          style={styles.phaseTitleWrap}
+                        >
+                          <Text style={styles.phaseTitle} numberOfLines={2}>
+                            {phaseTitles[i]}
+                          </Text>
+                        </Pressable>
+                      )}
+                      <Text style={styles.phaseDate}>{p.date == null ? t('common.today') : friendlyDate(p.date, today)}</Text>
+                      <Pressable
+                        onPress={() => removePhase(i)}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('breakdown.removeStepA11y', { title: phaseTitles[i] })}
+                        hitSlop={8}
+                        style={({ pressed }) => [styles.removeBtn, pressed && styles.pressed]}
+                      >
+                        <Text style={styles.removeMark}>✕</Text>
+                      </Pressable>
+                    </View>
+                  );
+                })}
                 <Text style={styles.phasesNote}>{t('breakdown.laterPhasesNote')}</Text>
               </View>
             )}
@@ -187,13 +263,17 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
             <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel={t('common.notNow')}>
               <Text style={styles.dismiss}>{t('common.notNow')}</Text>
             </Pressable>
+        </Pressable>
       </ScrollView>
     </ModalCard>
   );
 }
 
 const makeStyles = (t: Theme) => StyleSheet.create({
-  scroll: { padding: spacing.six, gap: spacing.three },
+  scroll: { flexGrow: 1 },
+  // The body Pressable carries the card's padding + gap (the scroll content's old layout), so
+  // the whole card surface is the commit-an-edit tap target, edge to edge.
+  body: { padding: spacing.six, gap: spacing.three },
   title: { ...t.type.heading, color: t.colors.ink, letterSpacing: -0.3 },
   sub: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
   hint: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body },
@@ -242,7 +322,9 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     borderColor: t.colors.line,
     borderStyle: 'dashed',
   },
-  phaseTitle: { color: t.colors.inkSoft, fontSize: 15 * t.scale, flex: 1, fontFamily: fonts.body },
+  phaseTitleWrap: { flex: 1 },
+  phaseInput: { flex: 1 },
+  phaseTitle: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
   phaseDate: { color: t.colors.repeat, fontSize: 13 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
   phasesNote: { color: t.colors.inkFaint, fontSize: 12 * t.scale, lineHeight: 17 * t.scale, fontFamily: fonts.body },
   pace: {

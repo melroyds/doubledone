@@ -18,6 +18,7 @@ export type Routine = {
   steps: RoutineStep[];
   done: Record<string, string>; // stepId -> ISO date last ticked; "done today" iff === today's ISO
   nudgeHour?: number | null; // optional once-a-day nudge hour (0-23); null / absent = no nudge
+  nudgeMinute?: number | null; // minute (0-59) for the nudge; meaningful only when nudgeHour is set; null / absent = :00
   createdAt: number;
   updatedAt: number;
 };
@@ -49,6 +50,7 @@ export type RoutineEdit = {
   when: RoutineWhen;
   stepTitles: string[]; // the edited steps, one title each, in their new order
   nudgeHour?: number | null; // the edited nudge hour, or null / absent for no nudge
+  nudgeMinute?: number | null; // the edited nudge minute (0-59), riding with nudgeHour; null / absent = :00
   now: number;
 };
 
@@ -72,7 +74,16 @@ export function applyRoutineEdit(routine: Routine, edit: RoutineEdit, makeId: ()
   for (const [stepId, date] of Object.entries(routine.done)) {
     if (keptIds.has(stepId)) done[stepId] = date;
   }
-  return { ...routine, name: edit.name, when: edit.when, steps, done, nudgeHour: edit.nudgeHour ?? null, updatedAt: edit.now };
+  return {
+    ...routine,
+    name: edit.name,
+    when: edit.when,
+    steps,
+    done,
+    nudgeHour: edit.nudgeHour ?? null,
+    nudgeMinute: edit.nudgeMinute ?? null,
+    updatedAt: edit.now,
+  };
 }
 
 /** Serialize routines for storage. */
@@ -118,7 +129,12 @@ function cleanRoutine(r: Routine): Routine {
     typeof raw.nudgeHour === 'number' && Number.isInteger(raw.nudgeHour) && raw.nudgeHour >= 0 && raw.nudgeHour <= 23
       ? raw.nudgeHour
       : undefined;
+  // Same for the minute (a 0-59 integer); anything else (absent, null, junk) means :00.
+  const nudgeMinute =
+    typeof raw.nudgeMinute === 'number' && Number.isInteger(raw.nudgeMinute) && raw.nudgeMinute >= 0 && raw.nudgeMinute <= 59
+      ? raw.nudgeMinute
+      : undefined;
   const createdAt = typeof raw.createdAt === 'number' ? raw.createdAt : 0;
   const updatedAt = typeof raw.updatedAt === 'number' ? raw.updatedAt : createdAt;
-  return { id: r.id, name: r.name, when, steps, done, nudgeHour, createdAt, updatedAt };
+  return { id: r.id, name: r.name, when, steps, done, nudgeHour, nudgeMinute, createdAt, updatedAt };
 }

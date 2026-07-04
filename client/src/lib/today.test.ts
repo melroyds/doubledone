@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { type Recurrence } from './recurrence';
-import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, pinFirst, resurfaceOpenParent, setBig, setPin, setSequence, tinyParentTitle, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
+import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, pinFirst, resurfaceOpenParent, setBig, setPin, setSequence, skipOn, tinyParentTitle, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
 
 const today = new Date(2026, 5, 17);
 const iso = '2026-06-17';
@@ -158,6 +158,48 @@ describe('toggleDoneOn', () => {
     expect(onceDone.completedDates).toEqual(['2026-06-16', iso]);
     const undone = toggleDoneOn(onceDone, today);
     expect(undone.completedDates).toEqual(['2026-06-16']);
+  });
+});
+
+describe('skipOn', () => {
+  it('adds the day to skippedDates without mutating the original (purity)', () => {
+    const base = { done: false, recurrence: daily, skippedDates: ['2026-06-16'] };
+    const skipped = skipOn(base, today);
+    expect(skipped.skippedDates).toEqual(['2026-06-16', iso]);
+    expect(base.skippedDates).toEqual(['2026-06-16']); // untouched
+    expect(skipped).not.toBe(base);
+  });
+
+  it('is idempotent: skipping an already-skipped day changes nothing', () => {
+    const once = skipOn<Scheduled>({ done: false, recurrence: daily }, today);
+    const twice = skipOn(once, today);
+    expect(twice.skippedDates).toEqual([iso]);
+    expect(twice).toBe(once);
+  });
+
+  it('a skipped daily task vanishes from Today but returns tomorrow', () => {
+    const skipped = skipOn({ id: 'd', done: false, recurrence: daily }, today);
+    expect(tasksForToday([skipped], today)).toEqual([]);
+    expect(tasksForToday([skipped], new Date(2026, 5, 18)).map((t) => t.id)).toEqual(['d']);
+  });
+
+  it('a skipped weekly task returns on its next weekday', () => {
+    // 2026-06-17 is a Wednesday (3); the task repeats Wed + Fri.
+    const weekly = { kind: 'weekly', weekdays: [3, 5] } as Recurrence;
+    const skipped = skipOn({ id: 'w', done: false, recurrence: weekly }, today);
+    expect(tasksForToday([skipped], today)).toEqual([]);
+    expect(tasksForToday([skipped], new Date(2026, 5, 18))).toEqual([]); // Thursday: not due anyway
+    expect(tasksForToday([skipped], new Date(2026, 5, 19)).map((t) => t.id)).toEqual(['w']); // Friday: back
+  });
+
+  it('does not touch completedDates', () => {
+    const skipped = skipOn({ done: false, recurrence: daily, completedDates: ['2026-06-16'] }, today);
+    expect(skipped.completedDates).toEqual(['2026-06-16']);
+  });
+
+  it('a one-off is never affected by skippedDates', () => {
+    const oneOff = { id: 'o', done: false, skippedDates: [iso] };
+    expect(tasksForToday([oneOff], today).map((t) => t.id)).toEqual(['o']);
   });
 });
 

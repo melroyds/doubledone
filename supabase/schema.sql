@@ -22,6 +22,7 @@ create table if not exists public.tasks (
   due text,                       -- 'YYYY-MM-DD' for a one-off; null = someday (live is text)
   recurrence jsonb,               -- the Recurrence object; null = one-off (live is json; both work)
   completed_dates jsonb,          -- array of ISO dates a recurring task was ticked (live is json)
+  skipped_dates jsonb,            -- array of ISO dates a recurring task's instance was removed from Today (skip-today; the series continues)
   completed_at timestamptz,       -- when a one-off was finished (the calendar/Lookback record)
   complexity integer,             -- effort signal (decomposition minutes); weights the celebration
   slices jsonb,                   -- { total, done } for a task tracked across parts; null = whole task
@@ -89,6 +90,12 @@ create index if not exists tasks_user_id_idx on public.tasks (user_id);
 -- the pin works locally but does NOT sync across devices (an unknown column would fail the upsert):
 -- alter table public.tasks
 --   add column if not exists pinned_at timestamptz;
+--
+-- Skip-today for recurring tasks added skipped_dates. Run once; idempotent. MUST run before
+-- the client that sends it ships: taskToRow includes the column on EVERY upsert, so until the
+-- live table has it, every signed-in push fails (the app stays usable, but sync shows pending):
+-- alter table public.tasks
+--   add column if not exists skipped_dates jsonb;
 
 -- ---------------------------------------------------------------------------
 -- ai_calls: pseudonymous AI-call telemetry (the moat). The Worker writes one

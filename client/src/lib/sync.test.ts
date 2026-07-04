@@ -45,7 +45,7 @@ describe('taskToRow / rowToTask', () => {
     expect(rowToTask(taskToRow(plain, 'user-1'))).not.toHaveProperty('pinnedAt');
   });
 
-  it('round-trips a full task (due, recurrence, completedDates, tombstone)', () => {
+  it('round-trips a full task (due, recurrence, completedDates, skippedDates, tombstone)', () => {
     const t: Task = {
       id: 'b',
       title: 'Stretch',
@@ -55,6 +55,7 @@ describe('taskToRow / rowToTask', () => {
       due: '2026-06-20',
       recurrence: { kind: 'daily' } as Recurrence,
       completedDates: ['2026-06-18', '2026-06-19'],
+      skippedDates: ['2026-06-17'],
       completedAt: 1718000007000,
       complexity: 30,
       deletedAt: 1718000009000,
@@ -93,6 +94,7 @@ describe('taskToRow / rowToTask', () => {
     expect(row.due).toBeNull();
     expect(row.recurrence).toBeNull();
     expect(row.completed_dates).toBeNull();
+    expect(row.skipped_dates).toBeNull();
     expect(row.completed_at).toBeNull();
     expect(row.complexity).toBeNull();
     expect(row.slices).toBeNull();
