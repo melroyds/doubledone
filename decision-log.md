@@ -3763,3 +3763,13 @@ Three changes, all from real testers, built as parallel agent slices against pre
 **"Add to…"** (two testers independently: "Add to Today" reads as today-only). The capture entry button and its a11y twin now signal the choice the panel already offers, a catalogs-only change since the i18n sweep.
 
 Verified end-to-end with a Playwright script (scripts/verify-refinements.mjs, kept): 13/13 checks, including completedAt landing at exactly yesterday's local noon and a ticked step's id surviving an edit. Gate green (389 client + 236 server). QA RTN-04, RTN-05, TOD-23 added (165 cases).
+
+## 2026-07-04 Propose -> edit -> accept: AI-suggested steps are now editable (tester wave, slice 2) [tester-refinements]
+
+From a paying Premium user testing an intentionally vague creative prompt: the review's all-or-nothing ("Add 6 tasks" / "start over") forces repeated restarts when the AI near-misses, and for vague prompts it always near-misses. His framing is the correct product theory: "AI suggestions should just be something that sparks your mind into saying 'ah yes I know what to replace the ai suggestion with'." The spine's propose-then-accept gains its missing middle: propose, EDIT, accept.
+
+Built on both review surfaces (BreakdownReview and Chart a course): tap a step's title to rewrite it inline (an emptied edit reverts, never silently deletes), a quiet per-row x removes a step (the Add-count follows; zero steps disables Add with "start over" as the escape), and accepting mints the edited titles of surviving steps. Editing composes with the existing keep/skip (breakdown) and checkboxes (chart). In chart, removal is a flag rather than a splice so the pre-existing `offered` telemetry still means what the AI proposed.
+
+The moat bonus: accepting now fires breakdown.steps.edited / chart.steps.edited { edited, removed, total } (only when something changed), which is the decomposition-outcome signal the flywheel was designed around: not just "was it completed" but "how far was the AI's proposal from what the human actually wanted".
+
+Verified live, not just structurally: one real /decompose call in the web preview (scripts/verify-edit-suggestions.mjs, kept), editing a step, removing a step by its own a11y label, accepting, and asserting storage: the edited title minted ("Call the venue and book a table (2 min)"), the removed step never did. A first scripted pass failed by removing the row it had just edited (index math); the fix targets rows by aria-label, and the failure was the script's, recorded honestly. Known native edge (from the build agent): a second title-edit opened while one is in-flight can revert (never delete) the first on Android; flagged in QA AI-10 for the device pass.

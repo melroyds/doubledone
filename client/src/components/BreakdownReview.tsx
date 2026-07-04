@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { CheckCircle } from '@/components/CheckCircle';
 import { ModalCard } from '@/components/ModalCard';
@@ -31,8 +31,15 @@ type Props = {
 export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCancel, today }: Props) {
   const styles = useThemedStyles(makeStyles);
   const [selected, setSelected] = useState<boolean[]>(() => steps.map(() => true));
+  // Propose -> EDIT -> accept: the titles are the user's to reshape before anything lands.
+  // Local, per-render-session state only, like `selected`; the props stay the AI's originals
+  // so accept-time telemetry can count what actually changed.
+  const [titles, setTitles] = useState<string[]>(() => steps.map((s) => s.title));
+  const [removed, setRemoved] = useState<boolean[]>(() => steps.map(() => false));
+  const [editing, setEditing] = useState<number | null>(null);
+  const [draft, setDraft] = useState('');
   const phaseCount = laterPhases?.length ?? 0;
-  const count = selected.filter(Boolean).length + phaseCount;
+  const count = selected.filter((on, i) => on && !removed[i]).length + phaseCount;
   const days = paceDays(steps, phaseCount);
 
   // Moat surface: log that a pace estimate was shown, with its day count (pairs
@@ -46,14 +53,39 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
     setSelected((prev) => prev.map((v, idx) => (idx === i ? !v : v)));
   }
 
+  function startEdit(i: number) {
+    setDraft(titles[i]);
+    setEditing(i);
+  }
+
+  // Submit and blur both commit (and can both fire on web); the editing guard makes the
+  // second call a no-op. An emptied title reverts to what it was, never deletes silently.
+  function commitEdit(i: number) {
+    if (editing !== i) return;
+    const next = draft.trim();
+    if (next.length > 0) setTitles((prev) => prev.map((v, idx) => (idx === i ? next : v)));
+    setEditing(null);
+  }
+
+  function removeStep(i: number) {
+    if (editing === i) setEditing(null);
+    setRemoved((prev) => prev.map((v, idx) => (idx === i ? true : v)));
+  }
+
   function add() {
     if (busy || count === 0) return;
-    onAdd(steps.filter((_step, i) => selected[i]));
+    // Moat surface: how far the AI's proposal was from what the user accepted, per offer.
+    const edited = steps.filter((s, i) => !removed[i] && titles[i] !== s.title).length;
+    const removedCount = removed.filter(Boolean).length;
+    if (edited + removedCount > 0) {
+      track('breakdown.steps.edited', { edited, removed: removedCount, total: steps.length });
+    }
+    onAdd(steps.map((s, i) => ({ ...s, title: titles[i] })).filter((_step, i) => selected[i] && !removed[i]));
   }
 
   return (
     <ModalCard visible onClose={onCancel} maxWidth={440} maxHeight="88%" scroll>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
             <Text style={styles.title}>{t('breakdown.planTitle')}</Text>
             <Text style={styles.sub} numberOfLines={2}>
               {task}
@@ -62,6 +94,7 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
 
             <View style={styles.list}>
               {steps.map((s, i) => {
+                if (removed[i]) return null;
                 const on = selected[i];
                 const dateLabel = s.date == null ? t('common.today') : friendlyDate(s.date, today);
                 return (
@@ -74,16 +107,51 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
                     accessibilityLabel={fmt.plural(
                       s.minutes,
                       { one: t('breakdown.stepRowA11yOne'), other: t('breakdown.stepRowA11yOther') },
-                      { title: s.title, minutes: s.minutes, date: dateLabel },
+                      { title: titles[i], minutes: s.minutes, date: dateLabel },
                     )}
                   >
                     <CheckCircle done={on} />
                     <View style={styles.rowText}>
-                      <Text style={[styles.stepTitle, !on && styles.stepOff]}>{s.title}</Text>
+                      {editing === i ? (
+                        <TextInput
+                          style={styles.stepInput}
+                          value={draft}
+                          onChangeText={setDraft}
+                          autoFocus
+                          onSubmitEditing={() => commitEdit(i)}
+                          onBlur={() => commitEdit(i)}
+                          returnKeyType="done"
+                          accessibilityLabel={t('breakdown.stepInputA11y')}
+                        />
+                      ) : (
+                        <Pressable
+                          onPress={(e) => {
+                            e.stopPropagation(); // don't let a title tap also toggle the row
+                            startEdit(i);
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('breakdown.editStepA11y', { title: titles[i] })}
+                          hitSlop={4}
+                        >
+                          <Text style={[styles.stepTitle, !on && styles.stepOff]}>{titles[i]}</Text>
+                        </Pressable>
+                      )}
                       <Text style={styles.meta}>
                         {t('breakdown.stepMeta', { minutes: s.minutes, date: dateLabel })}
                       </Text>
                     </View>
+                    <Pressable
+                      onPress={(e) => {
+                        e.stopPropagation(); // don't let a remove tap also toggle the row
+                        removeStep(i);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('breakdown.removeStepA11y', { title: titles[i] })}
+                      hitSlop={8}
+                      style={({ pressed }) => [styles.removeBtn, pressed && styles.pressed]}
+                    >
+                      <Text style={styles.removeMark}>✕</Text>
+                    </Pressable>
                   </Pressable>
                 );
               })}
@@ -143,6 +211,17 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   rowText: { flex: 1 },
   stepTitle: { color: t.colors.ink, fontSize: 16 * t.scale, lineHeight: 21 * t.scale, fontFamily: fonts.body },
+  stepInput: {
+    color: t.colors.ink,
+    fontSize: 16 * t.scale,
+    lineHeight: 21 * t.scale,
+    fontFamily: fonts.body,
+    padding: 0,
+    borderBottomWidth: border.thin,
+    borderBottomColor: t.colors.accent,
+  },
+  removeBtn: { paddingHorizontal: spacing.one, paddingVertical: spacing.half },
+  removeMark: { color: t.colors.inkFaint, fontSize: 14 * t.scale, fontFamily: fonts.body },
   stepOff: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
   meta: { color: t.colors.inkSoft, fontSize: 13 * t.scale, marginTop: spacing.half, fontFamily: fonts.body },
   phases: { gap: spacing.two, marginTop: spacing.three },
