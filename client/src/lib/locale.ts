@@ -9,16 +9,17 @@ import { activeLocale, setActiveLocale } from './i18n-active';
 // { t, fmt } from here (re-exported), lib modules from './i18n-active' directly.
 // Guarded so a failure degrades to English rather than throwing.
 
-function detect(): Locale {
+function detect(): { loc: Locale; tag: string | undefined } {
   try {
-    const code = Localization.getLocales?.()?.[0]?.languageCode ?? 'en';
-    return resolveLocale(code);
+    const first = Localization.getLocales?.()?.[0];
+    return { loc: resolveLocale(first?.languageCode ?? 'en'), tag: first?.languageTag ?? undefined };
   } catch {
-    return 'en';
+    return { loc: 'en', tag: undefined };
   }
 }
 
-setActiveLocale(detect());
+const detected = detect();
+setActiveLocale(detected.loc, detected.tag);
 
 /** The active locale for this session. */
 export const locale: Locale = activeLocale();

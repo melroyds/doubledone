@@ -84,28 +84,28 @@ function startOfDay(d: Date): Date {
 /** "today" / "tomorrow" / "yesterday" (per locale, via Intl.RelativeTimeFormat) for a date within a day of
  *  `today`, otherwise a short formatted date. Replaces the hardcoded en-AU 'Tomorrow' literal in lib/day.
  *  Casing is the relative-time formatter's (lowercase in English); a call site that needs a capital applies it. */
-export function formatRelativeDay(loc: Locale, date: Date, today: Date): string {
+export function formatRelativeDay(loc: string, date: Date, today: Date): string {
   const days = Math.round((startOfDay(date).getTime() - startOfDay(today).getTime()) / 86_400_000);
   if (days >= -1 && days <= 1) return new Intl.RelativeTimeFormat(loc, { numeric: 'auto' }).format(days, 'day');
   return new Intl.DateTimeFormat(loc, { weekday: 'short', month: 'short', day: 'numeric' }).format(date);
 }
 
 /** "27 June" style, per locale. Replaces the hardcoded MONTH_NAMES table. */
-export function formatMonthDay(loc: Locale, date: Date): string {
+export function formatMonthDay(loc: string, date: Date): string {
   return new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'long' }).format(date);
 }
 
 /** A short ("Mon") or narrow ("M") weekday, per locale. Replaces the two-letter WEEKDAY_LABELS arrays. */
-export function formatWeekday(loc: Locale, date: Date, width: 'short' | 'narrow' = 'short'): string {
+export function formatWeekday(loc: string, date: Date, width: 'short' | 'narrow' = 'short'): string {
   return new Intl.DateTimeFormat(loc, { weekday: width }).format(date);
 }
 
 /** "6:00 pm" style, per locale. Replaces the hand-rolled 12-hour am/pm in lib/nudge. */
-export function formatTime(loc: Locale, date: Date): string {
+export function formatTime(loc: string, date: Date): string {
   return new Intl.DateTimeFormat(loc, { hour: 'numeric', minute: '2-digit' }).format(date);
 }
 
 /** A locale-formatted number ("1,234"). */
-export function formatNumber(loc: Locale, n: number): string {
+export function formatNumber(loc: string, n: number): string {
   return new Intl.NumberFormat(loc).format(n);
 }
