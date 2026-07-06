@@ -803,6 +803,7 @@ export const en = {
     primaryOpenToday: 'Open Today',
     primaryPutOnToday: 'Put them on today',
     promiseBody: 'And nothing here will ever shame you for a task simply existing. No streaks, no guilt, no red.',
+    revealAllTodayNote: 'Everything starts on today. Move anything to tomorrow, or later, whenever you like.',
     revealBreakdownHint: 'Looks big, break it down?',
     revealCombineHint: 'A few tasks that go together? Hold one, pick the rest, then combine them.',
     revealCount: '{count} for today.',

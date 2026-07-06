@@ -799,6 +799,7 @@ export const es: Catalog = {
     primaryOpenToday: 'Abrir Hoy',
     primaryPutOnToday: 'Ponlas en hoy',
     promiseBody: 'Y nada aquí te hará sentir mal por una tarea que simplemente existe. Sin rachas, sin culpa, sin rojos.',
+    revealAllTodayNote: 'Todo empieza en hoy. Mueve lo que necesites a mañana, o más adelante, cuando quieras.',
     revealBreakdownHint: '¿Parece grande? ¿La dividimos en pasos?',
     revealCombineHint: '¿Varias tareas que van juntas? Mantén pulsada una, elige las demás y combínalas.',
     revealCount: '{count} para hoy.',

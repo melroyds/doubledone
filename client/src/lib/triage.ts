@@ -32,6 +32,22 @@ export function triageToTasks(
   });
 }
 
+/**
+ * Strip every future date from a triaged set so the WHOLE dump lands on Today. The
+ * onboarding's promise: before trust exists, nothing a first-time user typed may
+ * appear to vanish into Later (to an ADHD user that reads as data loss, the exact
+ * opposite of "get it out of your head"). Keeps the AI's order and its break-down
+ * suggestions; returns the same array reference when nothing had a date.
+ */
+export function allOnToday(tasks: Task[]): Task[] {
+  if (!tasks.some((task) => task.due != null)) return tasks;
+  return tasks.map((task) => {
+    if (task.due == null) return task;
+    const { due: _due, ...rest } = task;
+    return rest;
+  });
+}
+
 /** Count what actually landed where, from the built tasks (always sums to the input). */
 export function summarizeAdded(tasks: Pick<Task, 'due' | 'suggestBreakdown'>[]): TriageSummary {
   let today = 0;

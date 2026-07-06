@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { summarizeAdded, summaryLine, triageToTasks } from './triage';
+import { allOnToday, summarizeAdded, summaryLine, triageToTasks } from './triage';
+import { type Task } from './tasks';
 
 describe('triageToTasks', () => {
   const today = new Date(2026, 5, 20); // 20 Jun 2026
@@ -58,5 +59,31 @@ describe('summarizeAdded + summaryLine', () => {
 
   it('returns null when nothing was added', () => {
     expect(summaryLine({ today: 0, later: 0, decompose: 0 })).toBeNull();
+  });
+});
+
+describe('allOnToday (the onboarding all-on-Today guarantee)', () => {
+  const mk = (over: Partial<Task>): Task => ({ id: 'x', title: 't', done: false, createdAt: 1, updatedAt: 1, ...over });
+
+  it('strips a future due so a later-bucketed line still lands on Today', () => {
+    const tasks = [mk({ id: 'a' }), mk({ id: 'b', due: '2026-07-06' })];
+    const out = allOnToday(tasks);
+    expect(out[1].due).toBeUndefined();
+    expect(out.map((t) => t.id)).toEqual(['a', 'b']); // the AI's order is kept
+  });
+
+  it('keeps break-down suggestions while removing the date', () => {
+    const out = allOnToday([mk({ due: '2026-07-06', suggestBreakdown: true })]);
+    expect(out[0].suggestBreakdown).toBe(true);
+    expect(out[0].due).toBeUndefined();
+  });
+
+  it('returns the same reference when nothing was dated, and never mutates', () => {
+    const clean = [mk({ id: 'a' }), mk({ id: 'b' })];
+    expect(allOnToday(clean)).toBe(clean);
+    const dated = [mk({ due: '2026-07-06' })];
+    const out = allOnToday(dated);
+    expect(out).not.toBe(dated);
+    expect(dated[0].due).toBe('2026-07-06'); // original untouched
   });
 });

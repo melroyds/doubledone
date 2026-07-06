@@ -11,7 +11,7 @@ import { loadTasks, saveOnboarded, saveTasks } from '@/lib/storage';
 import { type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
 import { useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
-import { triageToTasks } from '@/lib/triage';
+import { allOnToday, triageToTasks } from '@/lib/triage';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
@@ -149,7 +149,10 @@ export default function WelcomeScreen() {
           triage(lines),
           new Promise<never>((_, reject) => setTimeout(() => reject(new Error('triage timeout')), TRIAGE_TIMEOUT_MS)),
         ]);
-        tasks = triageToTasks(lines, items, today, now, makeId);
+        // The AI's ordering and break-down flags are kept, but EVERYTHING lands on Today:
+        // before trust exists, a line vanishing into Later reads as data loss (Melroy,
+        // 2026-07-05). The reveal teaches the move-it-later affordance instead.
+        tasks = allOnToday(triageToTasks(lines, items, today, now, makeId));
       } catch {
         tasks = triageToTasks(lines, [], today, now, makeId); // all on today, nothing lost
       }
@@ -196,8 +199,9 @@ export default function WelcomeScreen() {
     }
   }
 
+  // Every path now lands the whole dump on Today (allOnToday), so this filter is a
+  // belt-and-braces guard rather than a bucket split, and there is no Later count.
   const todayTasks = revealed.filter((t) => !t.due);
-  const laterCount = revealed.length - todayTasks.length;
   // On capture, hold back the primary until there's something to sort, so an empty tap can
   // never bail out of onboarding. Skip (top-right) stays the deliberate way to leave.
   const captureEmpty = step === 'capture' && dump.trim().length === 0;
@@ -274,11 +278,10 @@ export default function WelcomeScreen() {
             <Text style={styles.h1}>{t('welcome.revealHeading')}</Text>
             <Text style={styles.lead}>
               {t('welcome.revealCount', { count: todayTasks.length })}
-              {laterCount > 0 ? ` ${t('welcome.revealRestWaiting')}` : ''}
             </Text>
-            {!aiEnabled ? (
-              <Text style={styles.lead}>{t('welcome.revealNoAiNote')}</Text>
-            ) : null}
+            <Text style={styles.lead}>
+              {aiEnabled ? t('welcome.revealAllTodayNote') : t('welcome.revealNoAiNote')}
+            </Text>
             <View style={styles.revealList}>
               {todayTasks.map((task) => (
                 <View key={task.id} style={styles.revealRow}>
@@ -290,7 +293,6 @@ export default function WelcomeScreen() {
                 </View>
               ))}
             </View>
-            {laterCount > 0 ? <Text style={styles.laterLine}>{t('welcome.revealLaterLine', { count: laterCount })}</Text> : null}
             <Text style={styles.speak}>{t('welcome.revealCombineHint')}</Text>
           </View>
         )}

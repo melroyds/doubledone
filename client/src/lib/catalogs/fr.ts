@@ -799,6 +799,7 @@ export const fr: Catalog = {
     primaryOpenToday: "Ouvrir Aujourd'hui",
     primaryPutOnToday: "Les mettre sur aujourd'hui",
     promiseBody: "Et rien ici ne te fera jamais honte parce qu'une tâche existe, tout simplement. Pas de séries, pas de culpabilité, pas de rouge.",
+    revealAllTodayNote: "Tout commence sur aujourd'hui. Déplace ce que tu veux à demain, ou plus tard, quand tu veux.",
     revealBreakdownHint: "Ça a l'air gros, on la décompose ?",
     revealCombineHint: "Quelques tâches qui vont ensemble ? Appuie longuement sur l'une, choisis les autres, puis combine-les.",
     revealCount: "{count} pour aujourd'hui.",

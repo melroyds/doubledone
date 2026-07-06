@@ -799,6 +799,7 @@ export const it: Catalog = {
     primaryOpenToday: 'Apri Oggi',
     primaryPutOnToday: 'Mettile su Oggi',
     promiseBody: "E niente qui ti farà mai sentire in colpa perché un'attività semplicemente esiste. Niente serie, niente sensi di colpa, niente rosso.",
+    revealAllTodayNote: 'Tutto parte da oggi. Sposta quello che vuoi a domani, o più avanti, quando vuoi.',
     revealBreakdownHint: 'Sembra grande, la dividiamo in passaggi?',
     revealCombineHint: 'Qualche attività che va insieme? Tieni premuta una, scegli le altre, poi uniscile.',
     revealCount: '{count} per oggi.',
