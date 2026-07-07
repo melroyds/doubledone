@@ -93,9 +93,24 @@ HTTP**, URL = the endpoint above. For the token tools add a header
 
 | Tool | Arguments | Does |
 |---|---|---|
-| `add_task` | `title` (string) | Adds a one-off task to your today list. |
+| `add_task` | `title` (string); optional `due` (`YYYY-MM-DD`) **or** `repeat` (object), not both | Adds a task. By default it lands on today. `due` schedules a one-off for a future day; `repeat` makes it recur (`daily`, `weekly` with `weekdays` 0–6, or `every_n_days` with `days`, plus an optional `start`). |
 | `list_today` | none | Lists what's open on your Today, each with its id: one-off tasks (undated or due today or earlier) plus any repeating task due today that you haven't done or skipped yet. |
+| `list_upcoming` | optional `days` (1–30, default 7) | Looks ahead: your future-dated tasks and the next occurrence of each repeat within the window, in date order, each with its id. Read-only. |
 | `complete_task` | `id` (string, from `list_today`) | Marks that task done. |
+| `update_task` | `id` (string); any of `title`, `due` (or `null`), `repeat` (or `null`) | Changes a task. Setting `due` clears any repeat and vice versa; `null` clears a field. At least one change is required. |
+| `delete_task` | `id` (string) | Removes a task. It is tombstoned (recoverable and syncs), never hard-deleted. |
+| `break_down` | `task` (string); optional `context` (string), `steps` (2–10) | **Proposes** small, ordered, time-boxed steps for a dreaded task. It adds nothing: the agent shows the steps, and only once you agree does it call `add_task` per step. This is the one tool that spends a little AI time, so it is rate-limited per user. |
+| `search` | `query` (string) | Searches your open tasks by keyword (for ChatGPT Deep Research). Read-only. |
+| `fetch` | `id` (string, from `search`) | Fetches one task's detail (for ChatGPT Deep Research). Read-only. |
+
+`search` and `fetch` complete OpenAI's Deep Research connector contract; the rest are the
+everyday task tools an agent uses to capture, look ahead over, and manage your day.
+
+> **Miss path is deliberate.** `search` returns the well-formed empty shape (`{results:[]}`)
+> on an upstream blip so Deep Research does not choke, and `fetch` returns a well-formed empty
+> document (`{id, title:'Not found', text:'This task is no longer available.', url}`) rather
+> than an off-contract `{error}` object when an id no longer resolves. Both keep every response
+> shape-valid; the trade-off is that a transient outage reads the same as "no matching tasks."
 
 ---
 
@@ -135,7 +150,12 @@ touch anyone else's tasks, and cannot act as an admin.
 - **Recurring tasks are included.** `list_today` shows a repeating task on the day it is
   due, once, and hides it after you tick or skip it that day, so the agent sees the same
   Today you do. The cadence (daily / chosen weekdays / every-N-days) is evaluated in the
-  Worker; `add_task` still creates one-off tasks only.
+  Worker, the same math the app uses, so an agent-created repeat behaves identically to one
+  you make in the app.
+- **Propose, then accept.** `break_down` never writes. It returns the steps and reminds you
+  nothing was added yet; adding them is a separate, explicit `add_task` per step once you say
+  yes. Nothing here shames a backlog or deletes anything for real (delete is a recoverable
+  tombstone), in keeping with the app's spine.
 - **Mirrors what you see.** A task you have broken down hides behind its steps in the app
   (its umbrella goes quiet until the steps are done). `list_today` hides that umbrella too,
   so an agent sees the same Today you do, the steps to act on, not the parent.
