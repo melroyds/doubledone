@@ -385,10 +385,13 @@ async function stepCode(env: OAuthEnv, form: FormData, view: View, authReq: Auth
 }
 
 /** Custody rows belonging to grants this re-authorization is about to replace get
- *  removed, so superseded refresh ciphertexts do not pile up in D1. Their provider
- *  grants are revoked by completeAuthorization itself (revokeExistingGrants defaults
- *  on); the custodyGrantId lives in the grant's unencrypted metadata for exactly this
- *  lookup, and it is only a random uuid, never a secret. */
+ *  removed, so superseded refresh ciphertexts do not pile up in D1 AND the old connection
+ *  goes dead (its token resolves to a missing custody row and 401s). We do NOT revoke the
+ *  provider-side grants here (completeAuthorization runs with revokeExistingGrants:false, on
+ *  purpose, see there): revoking mid-connect is what caused the "Grant not found" loop. The
+ *  old provider grant records simply age out via KV TTL, harmless once custody is gone. The
+ *  custodyGrantId lives in the grant's unencrypted metadata for exactly this lookup, and it
+ *  is only a random uuid, never a secret. */
 async function retireReplacedGrants(helpers: OAuthHelpers, env: GrantsEnv, userId: string, clientId: string): Promise<void> {
   try {
     let cursor: string | undefined;
@@ -468,6 +471,15 @@ async function stepConsent(env: OAuthEnv, helpers: OAuthHelpers, authReq: AuthRe
       // props are encrypted end-to-end by the library, but still: identifiers ONLY,
       // never session tokens. The tokens live in custody, under our own key.
       props: { grantId, userId, email },
+      // revokeExistingGrants MUST stay false. A connector (claude.ai was the repro) makes
+      // several /authorize attempts while wiring up; with the library default (revoke ON),
+      // a later attempt revokes an earlier attempt's grant WHILE the connector is still
+      // exchanging that earlier code at /token, which then 400s "Grant not found" and the
+      // connector loops forever. Old grants do not need revoking here anyway:
+      // retireReplacedGrants already deletes their custody (so their tokens 401 and they are
+      // effectively dead), the explicit /mcp/disconnect hard-revokes, and the rest age out
+      // via KV TTL. Turning this off is what makes a fresh connection reliable, not a dice roll.
+      revokeExistingGrants: false,
     }));
   } catch {
     return plainErrorPage(400, 'This connection request is not valid any more. Go back to your AI assistant and connect again.');
