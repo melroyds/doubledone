@@ -90,6 +90,15 @@ So the product went *deep* on the failure modes rather than wide on new ones. Fo
 
 This is the move from "a calm to-do app with some ADHD touches" to a system organised around how these brains actually fail. It is also the part hardest to copy: a competitor can clone a screen in a weekend, but not the accumulated judgment about which thin spot to deepen next.
 
+## The platform surface: one engine, two front doors
+
+A calm consumer app did not have to have a developer surface at all. Building one, and building it with restraint, is the platform-thinking signal. DoubleDone exposes a user's own tasks two ways on a single Cloudflare Worker, both bearer-authed with the user's own Supabase token and scoped entirely by row-level security, so the server holds no elevated key:
+
+- **A public REST API** (OpenAPI 3.1, version 1.1.0, at `/api/v1` with a browsable Swagger UI at `/api/v1/docs`): a token-authenticated CRUD-plus-query surface over a user's tasks. Create a task that lands on today or takes a future due day or a repeat cadence (but never both dated and recurring), patch any field, and read three ways, a substring search, a look-ahead window, or the app's own Today view.
+- **An MCP server** for AI agents (nine tools), so an agent can add, list, complete, update, delete, and *break down* a task, with a `search` / `fetch` pair that implements the OpenAI Deep Research connector contract, putting a user's own task history within reach of a research agent. Two auth paths by design, a pasted token for local tools and OAuth 2.1 with S256 PKCE for the hosted assistants, with an immediate Disconnect kill switch and the rotating refresh token encrypted at rest.
+
+The call worth seeing is that **both surfaces share the same recurrence engine** (`buildRecurrence`). A repeating task made by an agent, by the REST API, or in the app is byte-for-byte the same shape, so the three doors never drift. And the division of labour is deliberate: the **AI actions (Break-it-down, the propose-only decomposition) are MCP-only**, because an agent asks for a yes before anything lands, while the REST API stays pure CRUD-plus-query. The intelligence lives where the consent loop lives; the plumbing stays boring on purpose.
+
 ## Going live: the rigour that is not features
 
 Feature-complete is not launch-ready, and the gap between them is what separates a finished prototype from a business. The last stretch was almost entirely rigour, not new features.
@@ -113,8 +122,9 @@ A product manager who:
 - builds a defensible data moat and resolves its privacy tension by architecture;
 - and keeps a reasoning trail honest enough to reconstruct every call, including the roads not taken;
 - knows when polish is the highest-leverage work, scoping a redesign by auditing each surface rather than rebuilding on reflex;
+- thinks in platforms as well as screens, giving a consumer app a restrained developer surface (REST and MCP at parity on one engine, reaching AI research agents) without letting it bloat the product;
 - and takes a product the last mile from feature-complete to commercially live, hardening the money paths and instrumenting operations before they meet real volume, then proving the thesis with real paying users.
 
 ## Status
 
-**v1.0.0, live and commercial.** The core loop shipped on web ([doubledone.app](https://doubledone.app)) and Android, then a full design pass and a marketing landing, a guided replayable first-run, and a deep ADHD product seam (the silent-parent chain, Make-it-tiny, the low-capacity day, the wind-down, never-streak Routines, OCD reassurance), beside the agent MCP server and a public REST API. Then the commercial half: Stripe Premium live with real subscribers (the 30-day trial, the annual plan), the money-path hardening, and the launch control centre. In progress: the Google Play listing, and the in-app language picker over the shipped i18n foundation. The full sequence and the parked-with-triggers backlog are in [`BUILD-PLAN.md`](../BUILD-PLAN.md).
+**v1.0.0, live and commercial.** The core loop shipped on web ([doubledone.app](https://doubledone.app)) and Android, then a full design pass and a marketing landing, a guided replayable first-run, and a deep ADHD product seam (the silent-parent chain, Make-it-tiny, the low-capacity day, the wind-down, never-streak Routines, OCD reassurance), beside a dual developer surface (a public REST API and an agent MCP server at parity, sharing one recurrence engine, with a Deep Research connector). Then the commercial half: Stripe Premium live with real subscribers (the 30-day trial, the annual plan), the money-path hardening, and the launch control centre. In progress: the Google Play listing, and the in-app language picker over the shipped i18n foundation. The full sequence and the parked-with-triggers backlog are in [`BUILD-PLAN.md`](../BUILD-PLAN.md).

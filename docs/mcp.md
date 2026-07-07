@@ -1,8 +1,15 @@
 # DoubleDone MCP server
 
 A small remote [MCP](https://modelcontextprotocol.io) server so an AI agent can manage
-your DoubleDone tasks: add them, see today's, tick them off. It runs on the same
-Cloudflare Worker as the AI backend, holds **no elevated key**, and acts only as **you**.
+your DoubleDone tasks: add them, see today's, tick them off, break a dread task into steps.
+It runs on the same Cloudflare Worker as the AI backend, holds **no elevated key**, and acts
+only as **you**.
+
+> **MCP or REST?** This MCP surface is for AI agents and includes the AI **Break-it-down**
+> engine, which is **MCP-only**. For plain programmatic CRUD over the same tasks (create,
+> read, update, delete, search, look-ahead, recurrence) there is a token-authenticated
+> [REST API](api.md). Both surfaces share the same cadence engine, so a repeating task is the
+> same shape whichever one made it.
 
 There are two ways to connect, by how much your client can do:
 
