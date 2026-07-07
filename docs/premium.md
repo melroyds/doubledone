@@ -32,7 +32,7 @@ DoubleDone is free to use, completely: the whole daily loop, all the AI relief, 
 
 **Never gated, on principle:**
 - **Data export.** Privacy is non-negotiable; gating it reads as holding your own data hostage.
-- **The public API and MCP.** The developer moat grows by adoption, not by a toll.
+- **The public API and MCP.** The developer moat grows by adoption, not by a toll, and the REST API and MCP server are at parity on one shared engine. The premium AI features (Chart a course, sequencing) are not exposed over the developer surface, so there is no paid tier to gate there.
 - **The relief moments.** Sort-for-me, Break-it-down, and Close-the-day are always free. The paywall sits at the moment of *abundance*, never the moment of friction.
 
 **Deliberately not built** (the spine protects these): multiple projects or workspaces (it turns Today into an everything-bucket), streaks or points, tags or folders, social by default, variable rewards, and any AI that silently reorganises.

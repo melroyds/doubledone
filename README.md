@@ -106,8 +106,9 @@ DoubleDone is built around those, not around a feature checklist. The founder bu
 - **In-app feedback**: a calm box in Settings sends your note straight to the maker (no mail client, no account), so what's broken or what you love gets heard.
 
 **For AI agents and developers (AX + DX)**
-- A stateless **MCP server** (`/mcp` on the Worker) lets Claude Desktop and other agents add, list and complete your tasks, authorised by your own token so it only ever touches your own rows under RLS. Guide in [`docs/mcp.md`](docs/mcp.md).
-- A public **REST API with an OpenAPI spec** exposes the same task operations to any developer or script, under the same token and the same RLS, with no elevated key. Reference in [`docs/api.md`](docs/api.md).
+- An **MCP server** (`/mcp` on the Worker) gives AI agents **nine tools**: add, list-today, list-upcoming, complete, update and delete a task, **Break it down** (propose-only, nothing added without your yes, per-user hourly rate cap before any spend), plus `search` and `fetch` (the OpenAI Deep Research connector contract). Two auth paths chosen by the bearer shape: a pasted Supabase token (Claude Code / Desktop / Cursor) or **OAuth 2.1** sign-in-with-a-URL (claude.ai / Cowork / ChatGPT), S256 PKCE, the refresh token AES-GCM-encrypted at rest, an instant Disconnect kill switch. Everything runs under your own token and RLS, no elevated key. Guide in [`docs/mcp.md`](docs/mcp.md).
+- A public **REST API** (`/api/v1`, **OpenAPI 3.1**, version 1.1.0) with a browsable **Swagger UI** at [`/api/v1/docs`](https://api.doubledone.app/api/v1/docs) exposes token-authenticated CRUD-plus-query over your own tasks, under the same RLS and no elevated key. Create with a due day *or* a repeat rule (never both), `PATCH` any field, and read three ways: `q` substring search, an `upcoming` look-ahead window, or the app's `today` view. Reference in [`docs/api.md`](docs/api.md).
+- **One cadence engine, three surfaces.** The REST API, the MCP server and the app share the same repeat vocabulary and recurrence math (`buildRecurrence`), so a repeating task made by an agent, by a script, or in the app is indistinguishable in shape. Break-it-down and the AI actions are MCP-only by design; the REST API is CRUD + query. Malformed input is always a calm `400`, never a `500` or a leaked upstream status.
 
 **The moat (instrumented from day one)**
 - Every AI call is logged **pseudonymously** (no `user_id`) to a Worker-bound **Cloudflare D1** database with no public write path, so the decompositions and plans we offer can be tuned on what actually gets used. Built before there was data to use, on purpose.
@@ -144,7 +145,7 @@ The client never talks to Anthropic directly: the Worker is the only thing that 
 | Moat telemetry | Cloudflare D1 (`ai_calls`), Worker-bound, no `user_id` | Pseudonymous capture of every AI call for the flywheel; no public write path |
 | Premium delight | Cloudflare Workers AI (scene → image) | The AI scrapbook, on free-tier neurons, no Anthropic spend |
 | Image storage | Cloudflare R2 (`doubledone-scrapbooks`) | Durable scrapbook keepsakes served by URL; the heavy image lives off the localStorage quota |
-| Agent + developer surface (AX + DX) | MCP server (`/mcp`) + a public REST API with OpenAPI, bearer-token | Agents and scripts drive tasks under the user's own RLS, no elevated key |
+| Agent + developer surface (AX + DX) | MCP server (`/mcp`, nine tools, JWT or OAuth 2.1) + a public REST API (`/api/v1`, OpenAPI 3.1 + Swagger UI), bearer-token | Agents and scripts drive tasks under the user's own RLS, no elevated key; both share the `buildRecurrence` cadence engine |
 | Tests | Vitest, co-located, risk-targeted | Logic + the AI request **contract** are tested (mock the SDK, assert the shape); no live AI calls in CI |
 | Quality gate | golden-path harness (pre-commit Inspector, gitleaks, CI) | The whole safety net for a solo build |
 | Hosting | Cloudflare Pages (web, auto-deploy) · Expo EAS (Android) | SPA web output; sideloaded APK |
@@ -239,8 +240,8 @@ PLAYBOOK.md                 the reusable build discipline (golden-path)
 | [`docs/product-spec.md`](docs/product-spec.md) | The full v1 spec: spine, core loop, tiered features, the moat, monetisation |
 | [`docs/cost-analysis.md`](docs/cost-analysis.md) | What it costs to run, modelled at 100 / 1k / 10k / 100k users; where the money goes |
 | [`docs/commercialisation.md`](docs/commercialisation.md) | The commercial story: value prop, monetisation, unit economics, growth loops, success metrics |
-| [`docs/mcp.md`](docs/mcp.md) | The MCP server: endpoint, auth, the three tools, and connecting Claude Desktop |
-| [`docs/api.md`](docs/api.md) | The public REST API: endpoints, the OpenAPI spec, token auth, and example calls |
+| [`docs/mcp.md`](docs/mcp.md) | The MCP server: endpoint, the two auth paths (JWT and OAuth 2.1), the nine tools, and connecting an agent |
+| [`docs/api.md`](docs/api.md) | The public REST API: `/api/v1`, the OpenAPI 3.1 spec + Swagger UI, token auth, and example calls |
 | [`docs/qa/`](docs/qa) | The end-to-end manual test suite (fillable `.xlsx` + readable `.md`) |
 | [`decision-log.md`](decision-log.md) | The why-trail, written as the work happened, including what was decided **against** |
 | [`BUILD-PLAN.md`](BUILD-PLAN.md) | Where we are, the staged sequence, and the triggered backlog |
