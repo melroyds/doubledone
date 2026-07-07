@@ -360,7 +360,7 @@ CASES = [
      "Task appears in your Today (web/app) after sync.", "Desktop"),
     ("MCP-03", "MCP", "P1", "list_today",
      "Ask the agent: what's on my DoubleDone today?",
-     "Returns your open tasks, each with an id.", "Desktop"),
+     "Returns your open tasks, each with an id. Repeating tasks due today appear once and drop after you tick or skip them.", "Desktop"),
     ("MCP-04", "MCP", "P1", "complete_task",
      "Ask the agent to complete one of the listed tasks by id.",
      "Marked done; reflects in the app after sync.", "Desktop"),

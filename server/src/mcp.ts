@@ -15,6 +15,8 @@
 // Pure helpers (the tool schemas, the JWT decode, the Supabase request builders,
 // the JSON-RPC envelopes) are exported and unit-tested; handleMcp does the I/O.
 
+import { recurringDueToday } from './cadence';
+
 export type McpEnv = { SUPABASE_URL?: string; SUPABASE_ANON_KEY?: string };
 
 export const MCP_PROTOCOL_VERSION = '2025-06-18';
@@ -147,20 +149,39 @@ export function addTaskRequest(
 }
 
 export function listTodayRequest(env: McpEnv, token: string, todayIso: string): { url: string; init: RequestInit } {
-  // One-off, open, not future-dated, not deleted, not recurring, and not a silent parent (a
-  // decompose umbrella the app hides from Today). Recurrence's "due today" needs cadence
-  // logic PostgREST can't do, so v1 lists one-offs. silent_parent=not.is.true keeps rows that
-  // are false or null (a normal task), excluding only true (a silent parent).
+  // Open, not deleted, not a silent parent (a decompose umbrella the app hides from Today).
+  // Two kinds pass: an open one-off that is undated or due today-or-earlier, AND any open
+  // recurring task, whose "due today" is decided in the Worker (see cadence.ts) because
+  // PostgREST can't do the day-of-week / interval math. The cadence fields come back so the
+  // tool can filter. silent_parent=not.is.true keeps false/null rows, excluding only true.
   const q = new URLSearchParams({
-    select: 'id,title',
+    select: 'id,title,recurrence,completed_dates,skipped_dates,due',
     deleted_at: 'is.null',
-    done: 'is.false',
-    recurrence: 'is.null',
     silent_parent: 'not.is.true',
-    or: `(due.is.null,due.lte.${todayIso})`,
+    or: `(and(recurrence.is.null,done.is.false,or(due.is.null,due.lte.${todayIso})),and(recurrence.not.is.null,done.is.false))`,
     order: 'created_at.asc',
   });
   return { url: `${env.SUPABASE_URL}/rest/v1/tasks?${q.toString()}`, init: { method: 'GET', headers: supaHeaders(env, token, false) } };
+}
+
+/** Turn the raw PostgREST rows into the id+title list to show. A one-off row (recurrence
+ *  null) is already scoped by the SQL (open, due today-or-earlier); a recurring row is kept
+ *  only if it is due today and not yet done/skipped today (cadence.ts, the logic PostgREST
+ *  can't express). Order is preserved (the query sorts by created_at). Pure + unit-tested. */
+export function listTodayFromRows(rows: unknown, todayIso: string): { id: string; title: string }[] {
+  if (!Array.isArray(rows)) return [];
+  const out: { id: string; title: string }[] = [];
+  for (const r of rows) {
+    if (r == null || typeof r !== 'object') continue;
+    const row = r as { id?: unknown; title?: unknown; recurrence?: unknown; completed_dates?: unknown; skipped_dates?: unknown };
+    if (typeof row.id !== 'string' || typeof row.title !== 'string') continue;
+    if (row.recurrence == null) {
+      out.push({ id: row.id, title: row.title }); // an open one-off, already scoped by the SQL
+    } else if (recurringDueToday(row.recurrence, row.completed_dates, row.skipped_dates, todayIso)) {
+      out.push({ id: row.id, title: row.title });
+    }
+  }
+  return out;
 }
 
 export function completeTaskRequest(env: McpEnv, token: string, id: string, now: string): { url: string; init: RequestInit } {
@@ -193,16 +214,12 @@ async function runTool(env: McpEnv, token: string, name: string, args: Record<st
   }
 
   if (name === 'list_today') {
-    const { url, init } = listTodayRequest(env, token, now.slice(0, 10));
+    const todayIso = now.slice(0, 10);
+    const { url, init } = listTodayRequest(env, token, todayIso);
     const res = await fetch(url, init);
     if (!res.ok) return toolText('Could not list tasks just now. Try again.', true);
     const rows = (await res.json()) as unknown;
-    const tasks = Array.isArray(rows)
-      ? rows.filter(
-          (r): r is { id: string; title: string } =>
-            r != null && typeof (r as { id?: unknown }).id === 'string' && typeof (r as { title?: unknown }).title === 'string',
-        )
-      : [];
+    const tasks = listTodayFromRows(rows, todayIso);
     if (tasks.length === 0) return toolText('Nothing on today. Enjoy the quiet.');
     return toolText(tasks.map((t) => `• ${t.title}  [${t.id}]`).join('\n'));
   }

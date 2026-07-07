@@ -94,7 +94,7 @@ HTTP**, URL = the endpoint above. For the token tools add a header
 | Tool | Arguments | Does |
 |---|---|---|
 | `add_task` | `title` (string) | Adds a one-off task to your today list. |
-| `list_today` | none | Lists your open, non-future, non-recurring tasks, each with its id. |
+| `list_today` | none | Lists what's open on your Today, each with its id: one-off tasks (undated or due today or earlier) plus any repeating task due today that you haven't done or skipped yet. |
 | `complete_task` | `id` (string, from `list_today`) | Marks that task done. |
 
 ---
@@ -132,9 +132,10 @@ touch anyone else's tasks, and cannot act as an admin.
 
 - **Existing accounts only for the URL path.** The sign-in page will not create an
   account; sign in once in the app first.
-- **One-offs for now.** `list_today` returns one-off tasks (open, due today or undated).
-  Recurring tasks need cadence logic the database query can't express, so v1 leaves them
-  to the app. A later version can surface today's recurrences.
+- **Recurring tasks are included.** `list_today` shows a repeating task on the day it is
+  due, once, and hides it after you tick or skip it that day, so the agent sees the same
+  Today you do. The cadence (daily / chosen weekdays / every-N-days) is evaluated in the
+  Worker; `add_task` still creates one-off tasks only.
 - **Mirrors what you see.** A task you have broken down hides behind its steps in the app
   (its umbrella goes quiet until the steps are done). `list_today` hides that umbrella too,
   so an agent sees the same Today you do, the steps to act on, not the parent.

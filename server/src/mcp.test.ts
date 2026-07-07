@@ -7,6 +7,7 @@ import {
   decodeJwtSub,
   handleMcp,
   initializeResult,
+  listTodayFromRows,
   listTodayRequest,
   type McpEnv,
   toolsListResult,
@@ -53,15 +54,43 @@ describe('supabase request builders', () => {
     expect(row).toMatchObject({ id: 't1', user_id: 'u1', title: 'Call mum', done: false });
   });
 
-  it('list_today filters to open, non-future, non-recurring, non-deleted, non-silent-parent', () => {
+  it('list_today fetches open one-offs (due today or earlier) AND open recurring, for cadence filtering', () => {
     const { url, init } = listTodayRequest(env, 'tok', '2026-06-20');
     expect(init.method).toBe('GET');
     expect(url).toContain('/rest/v1/tasks?');
-    expect(decodeURIComponent(url)).toContain('done=is.false');
-    expect(decodeURIComponent(url)).toContain('deleted_at=is.null');
-    expect(decodeURIComponent(url)).toContain('recurrence=is.null');
-    expect(decodeURIComponent(url)).toContain('silent_parent=not.is.true');
-    expect(decodeURIComponent(url)).toContain('due.lte.2026-06-20');
+    const dec = decodeURIComponent(url);
+    expect(dec).toContain('deleted_at=is.null');
+    expect(dec).toContain('silent_parent=not.is.true');
+    // the cadence fields come back so listTodayFromRows can decide
+    expect(dec).toContain('completed_dates');
+    expect(dec).toContain('skipped_dates');
+    // one-off branch (open, undated or due<=today) OR any open recurring
+    expect(dec).toContain('and(recurrence.is.null,done.is.false,or(due.is.null,due.lte.2026-06-20))');
+    expect(dec).toContain('and(recurrence.not.is.null,done.is.false)');
+  });
+
+  it('listTodayFromRows keeps open one-offs, and recurring only when due-and-not-done-today', () => {
+    const today = '2026-06-20'; // a Saturday (UTC)
+    const rows = [
+      { id: 'o1', title: 'One-off', recurrence: null }, // SQL-scoped one-off -> kept
+      { id: 'd1', title: 'Daily due', recurrence: { kind: 'daily' }, completed_dates: [], skipped_dates: [] }, // kept
+      { id: 'd2', title: 'Daily done today', recurrence: { kind: 'daily' }, completed_dates: [today] }, // dropped (done today)
+      { id: 'd3', title: 'Daily skipped today', recurrence: { kind: 'daily' }, skipped_dates: [today] }, // dropped (skipped)
+      { id: 'w1', title: 'Weekly Sat', recurrence: { kind: 'weekly', weekdays: [6] } }, // kept (Sat)
+      { id: 'w2', title: 'Weekly Mon', recurrence: { kind: 'weekly', weekdays: [1] } }, // dropped (not today)
+      { id: 'i1', title: 'Every 2d from anchor', recurrence: { kind: 'interval', days: 2, anchor: '2026-06-18' } }, // kept (2 days on)
+      { id: 'i2', title: 'Every 2d off-beat', recurrence: { kind: 'interval', days: 2, anchor: '2026-06-19' } }, // dropped (1 day on)
+      { id: 'f1', title: 'Future daily', recurrence: { kind: 'daily', start: '2026-07-01' } }, // dropped (not started)
+    ];
+    const kept = listTodayFromRows(rows, today).map((t) => t.id);
+    expect(kept).toEqual(['o1', 'd1', 'w1', 'i1']);
+  });
+
+  it('listTodayFromRows is defensive: junk rows and a bad recurrence never throw or leak', () => {
+    const today = '2026-06-20';
+    const rows = [null, 42, { id: 'x' }, { title: 'no id' }, { id: 'b1', title: 'Bad rec', recurrence: { kind: 'weird' } }];
+    expect(listTodayFromRows(rows, today)).toEqual([]);
+    expect(listTodayFromRows('not-an-array', today)).toEqual([]);
   });
 
   it('complete_task patches the row by id to done', () => {
