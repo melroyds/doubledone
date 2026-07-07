@@ -6,6 +6,12 @@
 // WITH that token, so row-level security scopes it to exactly their own rows; this
 // server holds no elevated key. Discovery (initialize / tools/list) needs no auth.
 //
+// Since the OAuth connector path landed (see oauth.ts), the Supabase token can also
+// arrive INJECTED: the OAuth layer validates its own opaque token, resolves the
+// user's session from grant custody (mcp-grants.ts), and calls handleMcp with an
+// 'oauth' token source. The legacy pasted-token path still reads the header
+// exactly as it always did; nothing about it changed.
+//
 // Pure helpers (the tool schemas, the JWT decode, the Supabase request builders,
 // the JSON-RPC envelopes) are exported and unit-tested; handleMcp does the I/O.
 
@@ -228,7 +234,31 @@ function mcpJson(payload: unknown): Response {
   return new Response(JSON.stringify(payload), { headers: { 'content-type': 'application/json', ...MCP_CORS } });
 }
 
-export async function handleMcp(request: Request, env: McpEnv): Promise<Response> {
+/** Where tools/call gets its Supabase access token. 'header' is the legacy pasted-token
+ *  path: read the bearer straight off the request, exactly as always. 'oauth' is the
+ *  connector path: the OAuth layer resolves the token from grant custody, and a null
+ *  there means the grant is dead, which must surface as HTTP 401 invalid_token (not an
+ *  in-band calm text) so claude.ai / ChatGPT re-run the OAuth flow instead of wedging. */
+export type McpTokenSource = { kind: 'header' } | { kind: 'oauth'; getToken: () => Promise<string | null> };
+
+/** 401 for a dead OAuth grant (custody revoked, refresh family invalidated). The
+ *  WWW-Authenticate header mirrors the provider's RFC 9728 challenge, resource metadata
+ *  URL and all, so a connector treats it exactly like an expired token and re-authorizes. */
+function oauthGrantGone(request: Request): Response {
+  const url = new URL(request.url);
+  const meta = `${url.origin}/.well-known/oauth-protected-resource${url.pathname}`;
+  const description = 'This connection is no longer authorized. Reconnect DoubleDone.';
+  return new Response(JSON.stringify({ error: 'invalid_token', error_description: description }), {
+    status: 401,
+    headers: {
+      'content-type': 'application/json',
+      'WWW-Authenticate': `Bearer realm="OAuth", resource_metadata="${meta}", error="invalid_token", error_description="${description}"`,
+      ...MCP_CORS,
+    },
+  });
+}
+
+export async function handleMcp(request: Request, env: McpEnv, source: McpTokenSource = { kind: 'header' }): Promise<Response> {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: MCP_CORS });
   if (request.method !== 'POST') return new Response('doubledone-mcp', { status: 405, headers: MCP_CORS });
 
@@ -252,12 +282,19 @@ export async function handleMcp(request: Request, env: McpEnv): Promise<Response
   if (method === 'ping') return mcpJson(rpcResult(id, {}));
 
   if (method === 'tools/call') {
-    const auth = request.headers.get('Authorization') ?? '';
-    const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-    if (!token) {
-      return mcpJson(
-        rpcResult(id, toolText('Not connected. Paste your DoubleDone token into this MCP server (Settings → MCP access in the app).', true)),
-      );
+    let token: string;
+    if (source.kind === 'header') {
+      const auth = request.headers.get('Authorization') ?? '';
+      token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+      if (!token) {
+        return mcpJson(
+          rpcResult(id, toolText('Not connected. Paste your DoubleDone token into this MCP server (Settings → MCP access in the app).', true)),
+        );
+      }
+    } else {
+      const resolved = await source.getToken();
+      if (!resolved) return oauthGrantGone(request);
+      token = resolved;
     }
     if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
       return mcpJson(rpcError(id, -32603, 'server not configured'));

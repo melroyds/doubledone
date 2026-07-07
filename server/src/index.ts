@@ -2,6 +2,8 @@
 // Holds the Anthropic key as a Worker secret and is the only thing that calls
 // Claude. The app talks to this, never to Anthropic directly.
 
+import type { OAuthHelpers } from '@cloudflare/workers-oauth-provider';
+
 import { handleApi } from './api';
 import { buildChartRequest, type ChartContext, CHART_MODEL, parseChartContext, parseChartResponse } from './chart';
 import { buildClarifyRequest, CLARIFY_MODEL, parseClarifyResponse } from './clarify';
@@ -11,6 +13,7 @@ import { buildFeedbackEmail, parseFeedback } from './feedback';
 import { parseLanguage } from './lang';
 import { buildLookbackSummaryRequest, LOOKBACK_SUMMARY_MODEL, parseLookbackSummaryResponse } from './lookbackSummary';
 import { handleMcp } from './mcp';
+import { handleMcpDisconnect, isJwtShaped, isOAuthPath, type KVNamespaceLike, oauthFetch } from './oauth';
 import { buildOcrRequest, type ImageMediaType, OCR_MODEL, parseMediaType, parseOcrResponse } from './ocr';
 import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
 import { handleTrial, requirePremium } from './premium';
@@ -91,6 +94,17 @@ export interface Env {
   // secret). Both drive the hourly health sweep + daily pulse on the cron below.
   ANTHROPIC_MONTHLY_CAP_USD?: string;
   HEARTBEAT_URL?: string;
+  // MCP OAuth (the connect-by-URL path for claude.ai / Cowork / ChatGPT; see oauth.ts).
+  // OAUTH_KV is the provider library's store (client registrations, grants, token
+  // HASHES and encrypted props only, never a raw secret). OTP_LIMITER rate-limits the
+  // authorize flow's email step per IP so the sign-in page cannot be scripted into an
+  // email-spam cannon. MCP_GRANT_KEY (a Worker secret, base64 of 32 random bytes) is
+  // the AES-GCM key grant custody (mcp-grants.ts) encrypts Supabase refresh tokens
+  // with in D1. OAUTH_PROVIDER is injected by the library on requests it routes.
+  OAUTH_KV?: KVNamespaceLike;
+  OTP_LIMITER?: RateLimitBinding;
+  MCP_GRANT_KEY?: string;
+  OAUTH_PROVIDER?: OAuthHelpers;
 }
 
 // The app's own origins. A browser request from anywhere else is refused before
@@ -138,26 +152,18 @@ function parseContext(raw: unknown): DecomposeContext | undefined {
   return out;
 }
 
-export default {
+// The application router: every route EXCEPT the MCP OAuth surface, byte-for-byte as
+// it always was. The default export below wraps it, peeling off only /mcp (which is
+// triaged between the legacy pasted-token path and the OAuth provider) and the OAuth
+// endpoints themselves; everything else lands here untouched.
+const router = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const { pathname } = new URL(request.url);
     const origin = request.headers.get('Origin');
     const cors = corsFor(origin);
 
-    // Defence-in-depth body ceiling for EVERY route. The per-route field caps are the real backstop, but a
-    // declared Content-Length over ~2MB (a multi-megabyte JSON body that would be materialised in Worker
-    // memory before any validation) is rejected here first. Content-Length can be absent or spoofed, so this
-    // is a backstop, not the only check. ~1.9MB matches the existing /ocr budget.
-    const declaredLen = Number(request.headers.get('Content-Length'));
-    if (Number.isFinite(declaredLen) && declaredLen > 2_000_000) {
-      return new Response('payload too large', { status: 413, headers: cors });
-    }
-
-    // MCP server: token-authed and not origin-gated (so browser-based MCP clients
-    // like the Inspector reach it). It carries its own permissive CORS.
-    if (pathname === '/mcp') {
-      return handleMcp(request, env);
-    }
+    // /mcp is handled BEFORE this router (see the default export): a JWT-shaped bearer
+    // goes to the legacy handleMcp, anything else to the OAuth provider.
 
     // Public REST API (token-authed, OpenAPI-described) over the user's tasks. Not
     // origin-gated: the bearer token is the auth, and handleApi carries its own CORS.
@@ -1035,6 +1041,60 @@ export default {
     }
 
     return new Response('doubledone-ai', { status: 200, headers: cors });
+  },
+};
+
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const { pathname } = new URL(request.url);
+
+    // Defence-in-depth body ceiling for EVERY route (it ran first before the OAuth
+    // split too, so the ordering is unchanged). The per-route field caps are the real
+    // backstop, but a declared Content-Length over ~2MB (a multi-megabyte JSON body
+    // that would be materialised in Worker memory before any validation) is rejected
+    // here first. Content-Length can be absent or spoofed, so this is a backstop, not
+    // the only check. ~1.9MB matches the existing /ocr budget.
+    const declaredLen = Number(request.headers.get('Content-Length'));
+    if (Number.isFinite(declaredLen) && declaredLen > 2_000_000) {
+      return new Response('payload too large', { status: 413, headers: corsFor(request.headers.get('Origin')) });
+    }
+
+    // The user-driven MCP kill switch (Disconnect AI connectors in Settings): authed by the
+    // user's own Supabase token, browser-origin, so origin-gated like the other app routes.
+    // Deletes the caller's custody rows immediately (see handleMcpDisconnect). Placed before
+    // the '/mcp' exact-match triage below; '/mcp/disconnect' is not '/mcp', but keeping it
+    // here makes the ordering explicit.
+    if (pathname === '/mcp/disconnect') {
+      const origin = request.headers.get('Origin');
+      const cors = corsFor(origin);
+      if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+      if (request.method !== 'POST') return new Response('method not allowed', { status: 405, headers: cors });
+      if (origin !== null && !isAllowedOrigin(origin)) {
+        return Response.json({ error: 'forbidden origin' }, { status: 403, headers: cors });
+      }
+      return handleMcpDisconnect(request, env, cors);
+    }
+
+    // The MCP triage (token-authed, not origin-gated, so browser-based MCP clients
+    // like the Inspector reach it):
+    //   OPTIONS            -> the legacy preflight (its permissive CORS, byte-for-byte)
+    //   JWT-shaped bearer  -> the legacy pasted-token path, unchanged behaviour
+    //   anything else      -> the OAuth provider: opaque-token validation into the same
+    //                         tool logic, or (no auth at all) the RFC 9728 401 challenge
+    //                         that tells claude.ai / ChatGPT to start the OAuth flow.
+    //                         That 401 deliberately ends the old open no-auth discovery.
+    if (pathname === '/mcp') {
+      if (request.method === 'OPTIONS') return handleMcp(request, env);
+      const auth = request.headers.get('Authorization') ?? '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+      if (token && isJwtShaped(token)) return handleMcp(request, env);
+      return oauthFetch(request, env, ctx);
+    }
+
+    // The OAuth endpoints (/authorize, /token, /register, the two well-known metadata
+    // documents) belong to the provider; every other path is the app's, untouched.
+    if (isOAuthPath(pathname)) return oauthFetch(request, env, ctx);
+    return router.fetch(request, env, ctx);
   },
 
   // Daily web-push nudge (Phase 2). A Cloudflare Cron Trigger fires hourly; this sends a

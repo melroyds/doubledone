@@ -19,7 +19,19 @@
   "triggers": { "crons": ["0 * * * *"] },
   // Per-IP rate limit on the paid AI routes: 30 requests per 60s. Generous for a
   // real user, a hard cap on scripted abuse against the $25/mo Anthropic budget.
-  "ratelimits": [{ "name": "AI_LIMITER", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } }],
+  // OTP_LIMITER guards the MCP OAuth authorize flow's email step (5/min per IP), so the
+  // sign-in page can never be scripted into an email-spam cannon (Supabase's own per-email
+  // OTP limits are the second wall).
+  "ratelimits": [
+    { "name": "AI_LIMITER", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } },
+    { "name": "OTP_LIMITER", "namespace_id": "1002", "simple": { "limit": 5, "period": 60 } }
+  ],
+  // MCP OAuth (the paste-a-URL connector path for claude.ai / Cowork / ChatGPT):
+  // @cloudflare/workers-oauth-provider stores clients, grants and its own tokens here.
+  // Props are encrypted by the library; the rotating Supabase refresh tokens live in D1
+  // (mcp_grants), AES-GCM-encrypted with the MCP_GRANT_KEY Worker secret
+  // (npx wrangler secret put MCP_GRANT_KEY), never in KV and never in plaintext.
+  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "19449c2e1f354275b65076bca8a84485" }],
   // Workers AI, for the scrapbook image pipeline (free-tier neurons, no Anthropic call).
   "ai": { "binding": "AI" },
   // R2 bucket for scrapbook keepsake images (off the localStorage quota; the Worker

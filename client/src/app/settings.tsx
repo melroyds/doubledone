@@ -52,6 +52,8 @@ export default function SettingsScreen() {
   const [mcpToken, setMcpToken] = useState<string | null>(null);
   const [mcpCopied, setMcpCopied] = useState(false);
   const [mcpExpired, setMcpExpired] = useState(false); // the access token couldn't be fetched (expired session)
+  const [mcpDisconnecting, setMcpDisconnecting] = useState(false);
+  const [mcpDisconnectNote, setMcpDisconnectNote] = useState<string | null>(null); // calm line after a disconnect
   const { premium, devOverride, setDevOverride, devAllowed, refresh } = usePremium();
   const [exporting, setExporting] = useState(false);
   const [exportNote, setExportNote] = useState<string | null>(null);
@@ -195,6 +197,35 @@ export default function SettingsScreen() {
       } catch {
         // the selectable field below is the fallback
       }
+    }
+  }
+
+  // The immediate kill switch for URL-connected (OAuth) agents: POST /mcp/disconnect with
+  // the user's own verified token, which deletes the server's custody of this account's
+  // session so the next tool call from any connector fails and it must sign in again. The
+  // pasted-token path expires on its own, so this is about the OAuth connectors. Best
+  // effort, always calm: a failure explains, never blames.
+  async function disconnectMcp() {
+    if (!supabase || mcpDisconnecting) return;
+    setMcpDisconnecting(true);
+    setMcpDisconnectNote(null);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token ?? null;
+      if (!token) {
+        setMcpExpired(true);
+        return;
+      }
+      const base = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
+      const res = await fetch(`${base}/mcp/disconnect`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setMcpDisconnectNote(res.ok ? t('settings.mcpDisconnectDone') : t('settings.mcpDisconnectError'));
+    } catch {
+      setMcpDisconnectNote(t('settings.mcpDisconnectError'));
+    } finally {
+      setMcpDisconnecting(false);
     }
   }
 
@@ -512,6 +543,17 @@ export default function SettingsScreen() {
               </Pressable>
             )}
             <Text style={styles.mcpFoot}>{t('settings.mcpFootnote')}</Text>
+            <Pressable
+              onPress={disconnectMcp}
+              disabled={mcpDisconnecting}
+              accessibilityRole="button"
+              accessibilityLabel={t('settings.mcpDisconnectA11y')}
+              hitSlop={6}
+              style={({ pressed }) => [pressed && styles.pressed]}
+            >
+              <Text style={styles.mcpDisconnect}>{t('settings.mcpDisconnect')}</Text>
+            </Pressable>
+            {mcpDisconnectNote ? <Text style={styles.mcpFoot}>{mcpDisconnectNote}</Text> : null}
           </View>
         ) : null}
 
@@ -761,6 +803,7 @@ const makeStyles = (t: Theme) =>
       marginTop: spacing.one,
     },
     mcpFoot: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale, marginTop: spacing.one },
+    mcpDisconnect: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.three },
     welcomeAgain: { alignItems: 'center', paddingTop: spacing.six },
     welcomeAgainText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     feedbackForm: { paddingTop: spacing.six, gap: spacing.three },

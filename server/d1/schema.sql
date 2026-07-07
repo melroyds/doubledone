@@ -119,3 +119,28 @@ create table if not exists alerts_sent (
   created_at integer not null     -- epoch ms the alert was sent
 );
 create index if not exists alerts_sent_kind on alerts_sent (kind, created_at);
+
+-- MCP OAuth grant custody: the bridge between a workers-oauth-provider grant and the
+-- user's own Supabase session. Holds the ROTATING Supabase refresh token AES-GCM-
+-- encrypted with the MCP_GRANT_KEY Worker secret (never plaintext, never in KV), plus a
+-- short-lived cached access token so most MCP calls skip the refresh round-trip. The
+-- server still holds NO elevated key: every task call uses the user's own session under
+-- RLS, exactly like the legacy pasted-token path. Revocation: the IMMEDIATE user-side kill
+-- switch is POST /mcp/disconnect (Disconnect AI connectors in Settings), which DELETES the
+-- user's rows here so the very next getAccessToken returns null with no wait -- unlike
+-- signing out everywhere, which only revokes the Supabase refresh family and so leaves the
+-- ~1h cached access_token alive. A re-authorization also deletes the superseded row (and the
+-- provider revokes its grant). Apply once (idempotent):
+--   npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --file d1/schema.sql
+create table if not exists mcp_grants (
+  grant_id text primary key,            -- the workers-oauth-provider grant id (from props)
+  user_id text not null,                -- Supabase auth uid, for support/revocation lookups
+  email text not null,                  -- the verified sign-in email (shown on consent, support)
+  refresh_enc text not null,            -- AES-GCM({iv,ct} base64) of the CURRENT Supabase refresh token
+  access_token text,                    -- cached Supabase access token (short-lived, plaintext JWT)
+  access_exp integer,                   -- epoch seconds the cached access token expires
+  created_at integer not null,          -- epoch ms
+  updated_at integer not null,          -- epoch ms (bumped on every rotation)
+  revoked_at integer                    -- epoch ms; set = the grant is dead regardless of provider state
+);
+create index if not exists mcp_grants_user on mcp_grants (user_id);
