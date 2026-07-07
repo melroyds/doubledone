@@ -6,8 +6,16 @@
 // WITH that token, so row-level security scopes it to exactly their own rows; this
 // server holds no elevated key. Discovery (initialize / tools/list) needs no auth.
 //
+// Since the OAuth connector path landed (see oauth.ts), the Supabase token can also
+// arrive INJECTED: the OAuth layer validates its own opaque token, resolves the
+// user's session from grant custody (mcp-grants.ts), and calls handleMcp with an
+// 'oauth' token source. The legacy pasted-token path still reads the header
+// exactly as it always did; nothing about it changed.
+//
 // Pure helpers (the tool schemas, the JWT decode, the Supabase request builders,
 // the JSON-RPC envelopes) are exported and unit-tested; handleMcp does the I/O.
+
+import { recurringDueToday } from './cadence';
 
 export type McpEnv = { SUPABASE_URL?: string; SUPABASE_ANON_KEY?: string };
 
@@ -141,20 +149,39 @@ export function addTaskRequest(
 }
 
 export function listTodayRequest(env: McpEnv, token: string, todayIso: string): { url: string; init: RequestInit } {
-  // One-off, open, not future-dated, not deleted, not recurring, and not a silent parent (a
-  // decompose umbrella the app hides from Today). Recurrence's "due today" needs cadence
-  // logic PostgREST can't do, so v1 lists one-offs. silent_parent=not.is.true keeps rows that
-  // are false or null (a normal task), excluding only true (a silent parent).
+  // Open, not deleted, not a silent parent (a decompose umbrella the app hides from Today).
+  // Two kinds pass: an open one-off that is undated or due today-or-earlier, AND any open
+  // recurring task, whose "due today" is decided in the Worker (see cadence.ts) because
+  // PostgREST can't do the day-of-week / interval math. The cadence fields come back so the
+  // tool can filter. silent_parent=not.is.true keeps false/null rows, excluding only true.
   const q = new URLSearchParams({
-    select: 'id,title',
+    select: 'id,title,recurrence,completed_dates,skipped_dates,due',
     deleted_at: 'is.null',
-    done: 'is.false',
-    recurrence: 'is.null',
     silent_parent: 'not.is.true',
-    or: `(due.is.null,due.lte.${todayIso})`,
+    or: `(and(recurrence.is.null,done.is.false,or(due.is.null,due.lte.${todayIso})),and(recurrence.not.is.null,done.is.false))`,
     order: 'created_at.asc',
   });
   return { url: `${env.SUPABASE_URL}/rest/v1/tasks?${q.toString()}`, init: { method: 'GET', headers: supaHeaders(env, token, false) } };
+}
+
+/** Turn the raw PostgREST rows into the id+title list to show. A one-off row (recurrence
+ *  null) is already scoped by the SQL (open, due today-or-earlier); a recurring row is kept
+ *  only if it is due today and not yet done/skipped today (cadence.ts, the logic PostgREST
+ *  can't express). Order is preserved (the query sorts by created_at). Pure + unit-tested. */
+export function listTodayFromRows(rows: unknown, todayIso: string): { id: string; title: string }[] {
+  if (!Array.isArray(rows)) return [];
+  const out: { id: string; title: string }[] = [];
+  for (const r of rows) {
+    if (r == null || typeof r !== 'object') continue;
+    const row = r as { id?: unknown; title?: unknown; recurrence?: unknown; completed_dates?: unknown; skipped_dates?: unknown };
+    if (typeof row.id !== 'string' || typeof row.title !== 'string') continue;
+    if (row.recurrence == null) {
+      out.push({ id: row.id, title: row.title }); // an open one-off, already scoped by the SQL
+    } else if (recurringDueToday(row.recurrence, row.completed_dates, row.skipped_dates, todayIso)) {
+      out.push({ id: row.id, title: row.title });
+    }
+  }
+  return out;
 }
 
 export function completeTaskRequest(env: McpEnv, token: string, id: string, now: string): { url: string; init: RequestInit } {
@@ -187,16 +214,12 @@ async function runTool(env: McpEnv, token: string, name: string, args: Record<st
   }
 
   if (name === 'list_today') {
-    const { url, init } = listTodayRequest(env, token, now.slice(0, 10));
+    const todayIso = now.slice(0, 10);
+    const { url, init } = listTodayRequest(env, token, todayIso);
     const res = await fetch(url, init);
     if (!res.ok) return toolText('Could not list tasks just now. Try again.', true);
     const rows = (await res.json()) as unknown;
-    const tasks = Array.isArray(rows)
-      ? rows.filter(
-          (r): r is { id: string; title: string } =>
-            r != null && typeof (r as { id?: unknown }).id === 'string' && typeof (r as { title?: unknown }).title === 'string',
-        )
-      : [];
+    const tasks = listTodayFromRows(rows, todayIso);
     if (tasks.length === 0) return toolText('Nothing on today. Enjoy the quiet.');
     return toolText(tasks.map((t) => `• ${t.title}  [${t.id}]`).join('\n'));
   }
@@ -228,7 +251,31 @@ function mcpJson(payload: unknown): Response {
   return new Response(JSON.stringify(payload), { headers: { 'content-type': 'application/json', ...MCP_CORS } });
 }
 
-export async function handleMcp(request: Request, env: McpEnv): Promise<Response> {
+/** Where tools/call gets its Supabase access token. 'header' is the legacy pasted-token
+ *  path: read the bearer straight off the request, exactly as always. 'oauth' is the
+ *  connector path: the OAuth layer resolves the token from grant custody, and a null
+ *  there means the grant is dead, which must surface as HTTP 401 invalid_token (not an
+ *  in-band calm text) so claude.ai / ChatGPT re-run the OAuth flow instead of wedging. */
+export type McpTokenSource = { kind: 'header' } | { kind: 'oauth'; getToken: () => Promise<string | null> };
+
+/** 401 for a dead OAuth grant (custody revoked, refresh family invalidated). The
+ *  WWW-Authenticate header mirrors the provider's RFC 9728 challenge, resource metadata
+ *  URL and all, so a connector treats it exactly like an expired token and re-authorizes. */
+function oauthGrantGone(request: Request): Response {
+  const url = new URL(request.url);
+  const meta = `${url.origin}/.well-known/oauth-protected-resource${url.pathname}`;
+  const description = 'This connection is no longer authorized. Reconnect DoubleDone.';
+  return new Response(JSON.stringify({ error: 'invalid_token', error_description: description }), {
+    status: 401,
+    headers: {
+      'content-type': 'application/json',
+      'WWW-Authenticate': `Bearer realm="OAuth", resource_metadata="${meta}", error="invalid_token", error_description="${description}"`,
+      ...MCP_CORS,
+    },
+  });
+}
+
+export async function handleMcp(request: Request, env: McpEnv, source: McpTokenSource = { kind: 'header' }): Promise<Response> {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: MCP_CORS });
   if (request.method !== 'POST') return new Response('doubledone-mcp', { status: 405, headers: MCP_CORS });
 
@@ -252,12 +299,19 @@ export async function handleMcp(request: Request, env: McpEnv): Promise<Response
   if (method === 'ping') return mcpJson(rpcResult(id, {}));
 
   if (method === 'tools/call') {
-    const auth = request.headers.get('Authorization') ?? '';
-    const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-    if (!token) {
-      return mcpJson(
-        rpcResult(id, toolText('Not connected. Paste your DoubleDone token into this MCP server (Settings → MCP access in the app).', true)),
-      );
+    let token: string;
+    if (source.kind === 'header') {
+      const auth = request.headers.get('Authorization') ?? '';
+      token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+      if (!token) {
+        return mcpJson(
+          rpcResult(id, toolText('Not connected. Paste your DoubleDone token into this MCP server (Settings → MCP access in the app).', true)),
+        );
+      }
+    } else {
+      const resolved = await source.getToken();
+      if (!resolved) return oauthGrantGone(request);
+      token = resolved;
     }
     if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
       return mcpJson(rpcError(id, -32603, 'server not configured'));

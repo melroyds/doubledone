@@ -51,3 +51,9 @@ WHATS-LEFT.md
 # Bug screenshots + recordings from Android testing, dropped here from the phone via OneDrive.
 # Kept out of git: they can hold real task text and would bloat history. OneDrive backs them up.
 bugs/
+
+# Wrangler local dev secrets (never commit)
+.dev.vars
+
+# Wrangler local dev state (miniflare)
+.wrangler/
