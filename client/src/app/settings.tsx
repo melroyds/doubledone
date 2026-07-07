@@ -803,7 +803,7 @@ const makeStyles = (t: Theme) =>
       marginTop: spacing.one,
     },
     mcpFoot: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale, marginTop: spacing.one },
-    mcpDisconnect: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.three },
+    mcpDisconnect: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.three },
     welcomeAgain: { alignItems: 'center', paddingTop: spacing.six },
     welcomeAgainText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     feedbackForm: { paddingTop: spacing.six, gap: spacing.three },
