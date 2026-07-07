@@ -257,7 +257,13 @@ export default function TodayScreen() {
   // and push-on-change are deferred (see BUILD-PLAN backlog). Failures are silent
   // and logged, the app stays usable offline regardless.
   useEffect(() => {
-    if (!supabase || !session) return;
+    // WAIT for the local load (`loaded`) before syncing. Without this gate the sync could
+    // race loadTasks and run against the empty initial tasksRef, which makes every remote row
+    // look "remote-only": it pulls non-deleted copies back down AND overwrites local storage,
+    // wiping any un-pushed tombstone (a delete made this session but not yet synced). That is
+    // the "deleted task keeps coming back" bug, worst for agent-added tasks whose tombstone
+    // has only ever lived locally. Gating on `loaded` makes the merge see the real local set.
+    if (!supabase || !session || !loaded) return;
     const client = supabase;
     const uid = session.user.id;
     let active = true;
@@ -304,7 +310,7 @@ export default function TodayScreen() {
     return () => {
       active = false;
     };
-  }, [session]);
+  }, [session, loaded]);
 
   // Drive the close-the-day card's soft fade-and-rise on open. Reduced motion
   // shows it settled instantly, never moving for users who opt out of motion.
