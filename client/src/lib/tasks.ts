@@ -152,3 +152,27 @@ export function completeOnDay(task: Task, dayIso: string, now: number): Task {
   if (task.slices) out.slices = { total: task.slices.total, done: task.slices.total };
   return out;
 }
+
+/**
+ * Guarantee a monotonic updatedAt for every task a commit CHANGED, so a change to a task we
+ * have synced always wins last-write-wins, even against a row a DIFFERENT clock wrote.
+ *
+ * The bug this closes: sync is last-write-wins on updatedAt, and every task write used to
+ * stamp the browser clock. Once the MCP server (a Cloudflare Worker) began writing rows on
+ * ITS clock, a user whose browser clock runs even slightly behind produced deletes/edits with
+ * an updatedAt LOWER than the Worker-written remote copy, so the remote won the merge and the
+ * change silently resurrected on the next pull. Another device's clock is the same hazard.
+ *
+ * The fix: if a task's new stamp is not strictly greater than the copy we held (t.updatedAt <
+ * prev.updatedAt), bump it to prev.updatedAt + 1. Because our local copy already reflects the
+ * remote's (foreign) updatedAt after a sync, +1 clears the remote too, so the change wins.
+ * A `<` comparison (never `<=`) means an UNCHANGED task, whose updatedAt equals prev, is never
+ * touched, so this adds no spurious pushes. Pure; the screen calls it inside commit().
+ */
+export function withMonotonicStamps(next: Task[], prev: Task[]): Task[] {
+  const prevById = new Map(prev.map((t) => [t.id, t]));
+  return next.map((t) => {
+    const p = prevById.get(t.id);
+    return p && t.updatedAt < p.updatedAt ? { ...t, updatedAt: p.updatedAt + 1 } : t;
+  });
+}

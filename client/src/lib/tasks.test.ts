@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { completeOnDay, deserialize, parseDump, serialize, sweepElapsedNudges, type Task } from './tasks';
+import { completeOnDay, deserialize, parseDump, serialize, sweepElapsedNudges, type Task, withMonotonicStamps } from './tasks';
 
 const sample: Task[] = [
   { id: 'a', title: 'Water the plants', done: false, createdAt: 10, updatedAt: 10 },
@@ -169,5 +169,37 @@ describe('completeOnDay', () => {
     completeOnDay(sliced, '2026-06-19', now);
     expect(sliced.done).toBe(false);
     expect(sliced.slices).toEqual({ total: 3, done: 1 });
+  });
+});
+
+describe('withMonotonicStamps (delete/edit must win LWW against a foreign clock)', () => {
+  const mk = (over: Partial<Task>): Task => ({ id: 'a', title: 't', done: false, createdAt: 1, updatedAt: 1, ...over });
+
+  it('bumps a changed task whose new stamp is BEHIND the copy we held (browser clock behind the MCP Worker)', () => {
+    // The local copy carries the Worker-written updatedAt (2000, "the future"); the browser
+    // delete stamped 1500 (its clock is behind). Without the bump this tombstone loses LWW.
+    const prev = [mk({ id: 'x', updatedAt: 2000 })];
+    const next = [mk({ id: 'x', updatedAt: 1500, deletedAt: 1500 })];
+    const out = withMonotonicStamps(next, prev);
+    expect(out[0].updatedAt).toBe(2001); // strictly beats the remote copy (2000)
+    expect(out[0].deletedAt).toBe(1500); // the change itself is preserved
+  });
+
+  it('leaves a normal change alone when its stamp already beats the held copy', () => {
+    const prev = [mk({ id: 'x', updatedAt: 1000 })];
+    const next = [mk({ id: 'x', updatedAt: 3000, done: true })];
+    expect(withMonotonicStamps(next, prev)[0].updatedAt).toBe(3000); // untouched
+  });
+
+  it('never touches an unchanged task (same updatedAt as prev), so it adds no spurious pushes', () => {
+    const prev = [mk({ id: 'x', updatedAt: 2000 }), mk({ id: 'y', updatedAt: 5 })];
+    const next = [mk({ id: 'x', updatedAt: 2000 }), mk({ id: 'y', updatedAt: 5 })];
+    const out = withMonotonicStamps(next, prev);
+    expect(out.map((t) => t.updatedAt)).toEqual([2000, 5]);
+  });
+
+  it('leaves a brand-new task (no prev) untouched', () => {
+    const out = withMonotonicStamps([mk({ id: 'new', updatedAt: 10 })], []);
+    expect(out[0].updatedAt).toBe(10);
   });
 });

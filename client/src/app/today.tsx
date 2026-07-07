@@ -57,7 +57,7 @@ import { spreadDueDates } from '@/lib/spread';
 import { loadClosedDate, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderHour, loadReminderOfferMade, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOfferMade, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { isAccountGone, localBelongsToAnother, syncOnce } from '@/lib/sync';
-import { completeOnDay, parseDump, sweepElapsedNudges, type Task } from '@/lib/tasks';
+import { completeOnDay, parseDump, sweepElapsedNudges, type Task, withMonotonicStamps } from '@/lib/tasks';
 import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
 import { updateWidget } from '@/widget/update';
@@ -398,9 +398,14 @@ export default function TodayScreen() {
   }
 
   function commit(next: Task[]) {
-    setTasks(next);
-    void saveTasks(next);
-    void updateWidget(next, closedDate); // keep any home-screen widget in sync (native; no-op on web)
+    // Monotonic updatedAt (see withMonotonicStamps): guarantees a task we changed beats the
+    // copy we synced, even one written by the MCP Worker's clock or another device, so a
+    // delete/edit can never lose last-write-wins to a future-timestamped remote row and
+    // silently resurrect on the next pull.
+    const stamped = withMonotonicStamps(next, tasks);
+    setTasks(stamped);
+    void saveTasks(stamped);
+    void updateWidget(stamped, closedDate); // keep any home-screen widget in sync (native; no-op on web)
   }
 
   // Remove is scoped to what Today shows: Today manages days, the Repeating drawer
