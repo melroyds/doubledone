@@ -43,8 +43,8 @@ async function callTool(name: string, args: object, auth = USER_JWT, e: McpEnv =
   return (await res.json()) as { result: { isError?: boolean; content: { text: string }[] } };
 }
 
-function mcpReq(payload: object, auth?: string): Request {
-  const headers: Record<string, string> = { 'content-type': 'application/json' };
+function mcpReq(payload: object, auth?: string, extra?: Record<string, string>): Request {
+  const headers: Record<string, string> = { 'content-type': 'application/json', ...extra };
   if (auth) headers.Authorization = auth;
   return new Request('https://doubledone-ai.example/mcp', { method: 'POST', headers, body: JSON.stringify(payload) });
 }
@@ -156,6 +156,19 @@ describe('handleMcp', () => {
     const res = await handleMcp(mcpReq({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }), env);
     const body = (await res.json()) as { result: { serverInfo: { name: string } } };
     expect(body.result.serverInfo.name).toBe('doubledone');
+  });
+
+  it('assigns a Streamable-HTTP session id on initialize and exposes it to browsers (claude.ai web)', async () => {
+    const res = await handleMcp(mcpReq({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }), env);
+    // The session id lets a browser client hold the connection; without CORS exposure it cannot read it.
+    expect(res.headers.get('Mcp-Session-Id')).toBeTruthy();
+    expect((res.headers.get('Access-Control-Expose-Headers') ?? '').toLowerCase()).toContain('mcp-session-id');
+    // Stateless: a follow-up call echoing that session id is still served (we do not validate it).
+    const followUp = await handleMcp(
+      mcpReq({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, undefined, { 'Mcp-Session-Id': res.headers.get('Mcp-Session-Id') as string }),
+      env,
+    );
+    expect(followUp.status).toBe(200);
   });
 
   it('lists tools without auth', async () => {

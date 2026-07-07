@@ -796,10 +796,18 @@ const MCP_CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'content-type, authorization, mcp-protocol-version, mcp-session-id',
+  // A BROWSER MCP client (claude.ai web) cannot read a response header unless it is exposed.
+  // The Streamable-HTTP session id rides Mcp-Session-Id; without this, claude.ai web completes
+  // the handshake (all 200s) but can never capture the session, so it re-handshakes forever and
+  // shows the connector as "Connect" (never connected). Non-browser clients (Cowork, ChatGPT,
+  // Claude Desktop) are not CORS-bound and worked without it, which is why only web broke.
+  'Access-Control-Expose-Headers': 'Mcp-Session-Id',
 };
 
-function mcpJson(payload: unknown): Response {
-  return new Response(JSON.stringify(payload), { headers: { 'content-type': 'application/json', ...MCP_CORS } });
+function mcpJson(payload: unknown, extraHeaders?: Record<string, string>): Response {
+  return new Response(JSON.stringify(payload), {
+    headers: { 'content-type': 'application/json', ...MCP_CORS, ...extraHeaders },
+  });
 }
 
 /** Where tools/call gets its Supabase access token. 'header' is the legacy pasted-token
@@ -844,7 +852,13 @@ export async function handleMcp(request: Request, env: McpEnv, source: McpTokenS
 
   if (method === 'initialize') {
     const pv = (body.params as { protocolVersion?: unknown } | undefined)?.protocolVersion;
-    return mcpJson(rpcResult(id, initializeResult(typeof pv === 'string' ? pv : undefined)));
+    // Assign a Streamable-HTTP session id so a browser client (claude.ai web) can hold the
+    // session and mark the connector connected. We stay STATELESS: the id is not stored and
+    // subsequent requests are still authorised solely by the bearer token, so we accept any
+    // Mcp-Session-Id the client echoes back (and clients that ignore it keep working).
+    return mcpJson(rpcResult(id, initializeResult(typeof pv === 'string' ? pv : undefined)), {
+      'Mcp-Session-Id': crypto.randomUUID(),
+    });
   }
   if (method === 'tools/list') return mcpJson(rpcResult(id, toolsListResult()));
   if (method === 'ping') return mcpJson(rpcResult(id, {}));
