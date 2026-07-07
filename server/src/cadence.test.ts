@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { asRecurrence, dayOfWeek, daysBetween, isDueOn, recurringDueToday } from './cadence';
+import { asRecurrence, buildRecurrence, dayOfWeek, daysBetween, isDueOn, recurringDueToday, type RepeatSpec } from './cadence';
 
 describe('date helpers (UTC calendar days)', () => {
   it('daysBetween counts whole days, signed, NaN on junk', () => {
@@ -71,5 +71,65 @@ describe('recurringDueToday (the whole MCP list rule)', () => {
   });
   it('tolerates non-array completed/skipped', () => {
     expect(recurringDueToday({ kind: 'daily' }, null, undefined, today)).toBe(true);
+  });
+});
+
+describe('buildRecurrence (the MCP repeat -> internal Recurrence gate)', () => {
+  const today = '2026-06-20';
+
+  it('daily carries a start, defaulting to today, mirroring scheduleFields', () => {
+    expect(buildRecurrence({ kind: 'daily' }, today)).toEqual({ kind: 'daily', start: today });
+    expect(buildRecurrence({ kind: 'daily', start: '2026-07-01' }, today)).toEqual({ kind: 'daily', start: '2026-07-01' });
+  });
+
+  it('weekly needs a non-empty weekdays array of ints 0..6, and carries a start', () => {
+    expect(buildRecurrence({ kind: 'weekly', weekdays: [1, 3, 5] }, today)).toEqual({
+      kind: 'weekly',
+      weekdays: [1, 3, 5],
+      start: today,
+    });
+    expect(buildRecurrence({ kind: 'weekly', weekdays: [6], start: '2026-07-01' }, today)).toEqual({
+      kind: 'weekly',
+      weekdays: [6],
+      start: '2026-07-01',
+    });
+    // Malformed weekly -> null (the tool turns this into a calm error, never a 500).
+    expect(buildRecurrence({ kind: 'weekly' }, today)).toBeNull(); // no weekdays
+    expect(buildRecurrence({ kind: 'weekly', weekdays: [] }, today)).toBeNull(); // empty
+    expect(buildRecurrence({ kind: 'weekly', weekdays: [7] }, today)).toBeNull(); // out of range
+    expect(buildRecurrence({ kind: 'weekly', weekdays: [-1] }, today)).toBeNull(); // out of range
+    expect(buildRecurrence({ kind: 'weekly', weekdays: [1.5] }, today)).toBeNull(); // non-integer
+    expect(buildRecurrence({ kind: 'weekly', weekdays: ['1'] }, today)).toBeNull(); // wrong type
+  });
+
+  it('every_n_days needs an integer days >= 1 and becomes an interval anchored to start ?? today', () => {
+    expect(buildRecurrence({ kind: 'every_n_days', days: 2 }, today)).toEqual({ kind: 'interval', days: 2, anchor: today });
+    expect(buildRecurrence({ kind: 'every_n_days', days: 3, start: '2026-07-01' }, today)).toEqual({
+      kind: 'interval',
+      days: 3,
+      anchor: '2026-07-01',
+    });
+    expect(buildRecurrence({ kind: 'every_n_days' }, today)).toBeNull(); // no days
+    expect(buildRecurrence({ kind: 'every_n_days', days: 0 }, today)).toBeNull(); // < 1
+    expect(buildRecurrence({ kind: 'every_n_days', days: -2 }, today)).toBeNull();
+    expect(buildRecurrence({ kind: 'every_n_days', days: 1.5 }, today)).toBeNull(); // non-integer
+  });
+
+  it('rejects an unknown kind, a bad start, and non-objects (null, never throws)', () => {
+    expect(buildRecurrence({ kind: 'monthly' }, today)).toBeNull();
+    expect(buildRecurrence({ kind: 'daily', start: 'not-a-date' }, today)).toBeNull();
+    expect(buildRecurrence({ kind: 'daily', start: 123 }, today)).toBeNull();
+    expect(buildRecurrence(null, today)).toBeNull();
+    expect(buildRecurrence(undefined, today)).toBeNull();
+    // A non-object (a bare string) is junk an agent could send; it must narrow to null, not throw.
+    expect(buildRecurrence('daily' as unknown as RepeatSpec, today)).toBeNull();
+    expect(buildRecurrence({}, today)).toBeNull();
+  });
+
+  it('the built recurrence round-trips through asRecurrence + isDueOn (shape parity with the app)', () => {
+    const r = buildRecurrence({ kind: 'weekly', weekdays: [6] }, today); // today is a Saturday
+    expect(r).not.toBeNull();
+    expect(asRecurrence(r)).toEqual(r); // the built shape is a valid internal Recurrence
+    expect(isDueOn(r!, today)).toBe(true); // and it reads as due on its weekday
   });
 });

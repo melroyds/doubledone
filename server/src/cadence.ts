@@ -93,3 +93,51 @@ export function recurringDueToday(
   const skip = Array.isArray(skipped) && skipped.includes(todayIso);
   return !done && !skip;
 }
+
+// The `repeat` object an MCP agent sends on add_task / update_task. Its own vocabulary
+// (agent-facing, stable) is looser than the internal Recurrence: 'every_n_days' instead of
+// 'interval', a `days` count instead of an anchor, an optional `start`. buildRecurrence is
+// the one place that translates it, mirroring the client's scheduleFields so a task an agent
+// makes and a task the app makes can never drift in shape.
+export type RepeatSpec = {
+  kind?: unknown;
+  weekdays?: unknown;
+  days?: unknown;
+  start?: unknown;
+};
+
+/** ISO 'YYYY-MM-DD' shape check (a real calendar day, parseable by isoToUtcMs). */
+function isIsoDay(v: unknown): v is string {
+  return typeof v === 'string' && !Number.isNaN(daysBetween(v, v));
+}
+
+/** Map an agent's `repeat` object to an internal Recurrence, relative to `todayIso`, or null
+ *  if it is malformed. Mirrors client/src/lib/recurrence.ts scheduleFields exactly:
+ *  daily/weekly carry a `start` (defaulting to today), every_n_days becomes an interval
+ *  anchored at `start ?? today`. Returning null (never throwing) lets the tool answer with a
+ *  calm error instead of a 500. Validation lives here so both add_task and update_task share it. */
+export function buildRecurrence(repeat: RepeatSpec | null | undefined, todayIso: string): Recurrence | null {
+  if (repeat == null || typeof repeat !== 'object') return null;
+  const start = repeat.start === undefined ? undefined : isIsoDay(repeat.start) ? repeat.start : null;
+  if (start === null) return null; // a start was given but is not a valid ISO day
+  const anchor = start ?? todayIso;
+
+  switch (repeat.kind) {
+    case 'daily':
+      return { kind: 'daily', start: anchor };
+    case 'weekly': {
+      // weekdays required, non-empty, each an integer 0..6 (0=Sun..6=Sat).
+      if (!Array.isArray(repeat.weekdays) || repeat.weekdays.length === 0) return null;
+      const wd = repeat.weekdays;
+      if (!wd.every((d) => typeof d === 'number' && Number.isInteger(d) && d >= 0 && d <= 6)) return null;
+      return { kind: 'weekly', weekdays: wd as number[], start: anchor };
+    }
+    case 'every_n_days': {
+      // days required, an integer >= 1.
+      if (typeof repeat.days !== 'number' || !Number.isInteger(repeat.days) || repeat.days < 1) return null;
+      return { kind: 'interval', days: repeat.days, anchor };
+    }
+    default:
+      return null;
+  }
+}
