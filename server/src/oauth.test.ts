@@ -351,7 +351,10 @@ describe('the /authorize flow (email step)', () => {
 
 describe('the /authorize flow (PKCE enforcement)', () => {
   function authorizeEnv(overrides: Partial<Env> = {}): Env {
-    return makeEnv({ OAUTH_KV: kvMock({ 'client:client-1': CLIENT }), ...overrides } as Partial<Env>);
+    // The verify->consent session carry is a stateless AES-GCM blob (no KV); the encrypted-carry
+    // path needs MCP_GRANT_KEY, else the flow falls back to plaintext hidden fields.
+    const carryKey = Buffer.from(new Uint8Array(32).fill(7)).toString('base64');
+    return makeEnv({ OAUTH_KV: kvMock({ 'client:client-1': CLIENT }), MCP_GRANT_KEY: carryKey, ...overrides } as Partial<Env>);
   }
   // The OAuth params WITHOUT any PKCE, and with S256-method-but-no-challenge (the gap that
   // slips past the library's allowPlainPKCE:false, then skips the /token PKCE check).
@@ -421,7 +424,10 @@ describe('the /authorize flow (code + consent steps)', () => {
   }
 
   function authorizeEnv(overrides: Partial<Env> = {}): Env {
-    return makeEnv({ OAUTH_KV: kvMock({ 'client:client-1': CLIENT }), ...overrides } as Partial<Env>);
+    // The verify->consent session carry is a stateless AES-GCM blob (no KV); the encrypted-carry
+    // path needs MCP_GRANT_KEY, else the flow falls back to plaintext hidden fields.
+    const carryKey = Buffer.from(new Uint8Array(32).fill(7)).toString('base64');
+    return makeEnv({ OAUTH_KV: kvMock({ 'client:client-1': CLIENT }), MCP_GRANT_KEY: carryKey, ...overrides } as Partial<Env>);
   }
 
   it('verifies the code against Supabase and renders consent with the exact promise copy, the redirect host, and a NONCE (no raw refresh token in the HTML)', async () => {
@@ -490,13 +496,16 @@ describe('the /authorize flow (code + consent steps)', () => {
     const params = insert?.params as [string, string, string, string, string, number];
     expect(await decryptSecret(KEY, params[3])).toBe('rt-rotating-1');
 
-    // The nonce is single-use: a second Allow with the same nonce finds nothing and mints nothing.
-    const replay = await worker.fetch(
-      formPost('/authorize' + AUTH_QS, { step: 'consent', decision: 'allow', email: 'mel@example.com', sb_nonce: nonce as string }),
+    // The carry is a stateless AES-GCM blob (no KV to miss), so the security property to hold
+    // is that a FORGED/TAMPERED carry will not decrypt and mints nothing (400). A verbatim
+    // replay within the TTL would succeed by design; that is the accepted trade-off for a carry
+    // that never fails on KV read-after-write (which is what broke real connections).
+    const tampered = await worker.fetch(
+      formPost('/authorize' + AUTH_QS, { step: 'consent', decision: 'allow', email: 'mel@example.com', sb_nonce: 'not-a-real-ciphertext' }),
       env,
       ctx,
     );
-    expect(replay.status).toBe(400);
+    expect(tampered.status).toBe(400);
   });
 
   it('re-renders the code page calmly on a wrong code', async () => {

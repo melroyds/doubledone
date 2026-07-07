@@ -22,7 +22,7 @@ import {
   OAuthProvider,
 } from '@cloudflare/workers-oauth-provider';
 
-import { deleteGrant, deleteGrantsForUser, getAccessToken, type GrantsEnv, jwtExp, putGrant } from './mcp-grants';
+import { decryptSecret, deleteGrant, deleteGrantsForUser, encryptSecret, getAccessToken, type GrantsEnv, jwtExp, putGrant } from './mcp-grants';
 import { decodeJwtEmail, handleMcp, type McpEnv } from './mcp';
 import { defaultVerifySub } from './premium';
 import { bearer } from './stripe';
@@ -148,59 +148,67 @@ ${body}
   });
 }
 
-// --- The verify->consent session stash (a single-use KV nonce, not a page field) -------
+// --- The verify->consent session carry (a stateless ENCRYPTED token, not KV) -----------
 //
 // Between the code-verify step and the Allow click, the user's OWN Supabase access +
-// refresh tokens must survive one HTTP round-trip. Carrying them in hidden form fields
-// puts a long-lived ROTATING refresh token into the rendered consent HTML, where an
-// extension, "view source", autofill, or an HTML-logging proxy could lift it. Instead we
-// stash the pair server-side in OAUTH_KV under a random single-use nonce with a short TTL,
-// and only the opaque nonce rides the page. Allow trades the nonce back for the pair and
-// deletes it (single-use). Keys are namespaced 'mcp:sess:' so they never collide with the
-// provider library's own OAUTH_KV keys. If KV is unbound (tests / local dev), the flow
-// falls back to the hidden-field carry so nothing breaks.
+// refresh tokens must survive one HTTP round-trip. Two things it must NOT be:
+//   1. Plaintext hidden fields, which put a long-lived rotating refresh token into the
+//      rendered HTML where an extension / "view source" / autofill / logging proxy sees it.
+//   2. A KV-stashed nonce, which we tried, and which BROKE for real users: the nonce is
+//      written in the code-step request and read back in the Allow-step request, and
+//      Cloudflare KV does NOT guarantee read-your-write across two requests (a read right
+//      after a write can miss). The miss surfaced as "that sign-in went stale" and looped.
+//
+// So the carry is STATELESS: the session is AES-GCM-encrypted (the same MCP_GRANT_KEY that
+// guards custody) into an opaque blob that rides the consent page. Allow decrypts it. No
+// KV write-then-read, so nothing to be inconsistent; ciphertext, so the refresh token is
+// never exposed even though it rides the page. A timestamp inside bounds it to a short
+// window (a stale carry is rejected). Trade-off vs the KV nonce: it is NOT single-use (a
+// replayed consent POST within the window could mint a second grant), which is a minor,
+// PKCE-and-state-bound risk we accept for a carry that actually works every time. If the
+// key is unbound (tests / local dev), the caller falls back to the plaintext hidden fields.
 
-const SESSION_STASH_PREFIX = 'mcp:sess:';
-const SESSION_STASH_TTL_SECONDS = 600; // 10 min: comfortably longer than a consent click, short enough to age out fast
+const SESSION_CARRY_TTL_MS = 600_000; // 10 min: comfortably longer than a consent click
 
 type StashedSession = { email: string; access: string; refresh: string };
 
-/** Stash the verified session under a fresh random nonce, returning the nonce (or null if
- *  KV is unbound or the write fails, so the caller can fall back to the hidden-field carry). */
+/** Encrypt the verified session into a stateless carry token (or null if the key is unbound
+ *  or encryption fails, so the caller can fall back to the hidden-field carry). No KV. */
 async function stashSession(env: OAuthEnv, s: StashedSession): Promise<string | null> {
-  if (!env.OAUTH_KV) return null;
-  const nonce = crypto.randomUUID();
-  try {
-    await env.OAUTH_KV.put(SESSION_STASH_PREFIX + nonce, JSON.stringify(s), { expirationTtl: SESSION_STASH_TTL_SECONDS });
-    return nonce;
-  } catch {
-    return null;
-  }
+  if (!env.MCP_GRANT_KEY) return null;
+  const enc = await encryptSecret(env.MCP_GRANT_KEY, JSON.stringify({ ...s, ts: Date.now() }));
+  // encryptSecret returns a JSON {"iv":..,"ct":..} string; base64 it so the carry is
+  // quote-free and safe inside the consent page's value="..." attribute and a form POST.
+  return enc ? btoa(enc) : null;
 }
 
-/** Trade a nonce back for the stashed session, deleting it so it cannot be replayed
- *  (single-use). Null for an unknown / expired / already-consumed nonce, or malformed data. */
-async function takeSession(env: OAuthEnv, nonce: string): Promise<StashedSession | null> {
-  if (!env.OAUTH_KV || !nonce) return null;
-  const key = SESSION_STASH_PREFIX + nonce;
-  let raw: unknown;
+/** Decrypt a carry token back to the session. Null for a bad key, a token that will not
+ *  decrypt (tampered / wrong key), malformed contents, or one older than the TTL. No KV,
+ *  so this can never miss a write that "has not propagated yet". */
+async function takeSession(env: OAuthEnv, token: string): Promise<StashedSession | null> {
+  if (!env.MCP_GRANT_KEY || !token) return null;
+  let enc: string;
   try {
-    raw = await env.OAUTH_KV.get(key, { type: 'json' });
+    enc = atob(token); // undo the base64 wrap from stashSession; garbage token -> throw -> null
   } catch {
     return null;
   }
-  // Consume it regardless of shape: a nonce is one-shot even on a malformed read.
+  const plain = await decryptSecret(env.MCP_GRANT_KEY, enc);
+  if (!plain) return null;
+  let o: Record<string, unknown>;
   try {
-    await env.OAUTH_KV.delete(key);
+    const parsed: unknown = JSON.parse(plain);
+    if (!parsed || typeof parsed !== 'object') return null;
+    o = parsed as Record<string, unknown>;
   } catch {
-    // best effort: the TTL still ages it out
+    return null;
   }
-  if (!raw || typeof raw !== 'object') return null;
-  const o = raw as Record<string, unknown>;
   const email = typeof o.email === 'string' ? o.email : '';
   const access = typeof o.access === 'string' ? o.access : '';
   const refresh = typeof o.refresh === 'string' ? o.refresh : '';
+  const ts = typeof o.ts === 'number' ? o.ts : 0;
   if (!access || !refresh) return null;
+  if (Date.now() - ts > SESSION_CARRY_TTL_MS) return null; // stale carry, make them reconnect
   return { email, access, refresh };
 }
 
@@ -455,7 +463,7 @@ async function stepConsent(env: OAuthEnv, helpers: OAuthHelpers, authReq: AuthRe
   // against Supabase's JWKS (the same verifier the money gate uses) and take sub/email
   // from its claims. A forged or expired consent POST dies here, minting nothing.
   const userId = await defaultVerifySub(access, env.SUPABASE_URL);
-  if (!userId) return plainErrorPage(400, 'That sign-in went stale. Go back to your AI assistant and connect again.');
+  if (!userId) return plainErrorPage(400, 'That sign-in could not be verified. Go back to your AI assistant and connect again.');
   const email = decodeJwtEmail(access) ?? String(form.get('email') ?? '');
 
   const grantId = crypto.randomUUID();
