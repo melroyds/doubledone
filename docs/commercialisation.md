@@ -2,7 +2,7 @@
 
 *The commercial story end to end: who it is for, how it makes money, whether the economics work, how it grows, and how we would know it is working. A strategy artifact, not a forecast. Pairs with [`cost-analysis.md`](cost-analysis.md) for the numbers.*
 
-**Status (June 2026): live and commercial.** DoubleDone ships at [doubledone.app](https://doubledone.app) with real paying subscribers on Stripe since 26 June 2026, an Android v1.0.0 build heading to the Play Store, and the launch control centre watching cost and health hourly. This document reflects the shipped reality, not a plan. The pricing, the trial, and the premium features below are all live.
+**Status (July 2026): live, commercial, multi-platform, and agent-operable.** DoubleDone ships at [doubledone.app](https://doubledone.app) with real paying subscribers on Stripe (since 26 June 2026). Since launch the reach has widened materially: an Android build is in **closed testing** on the Play Store with real testers giving feedback, an **iOS / TestFlight** build is in progress (second platform), and the app now speaks **four languages** (English, Italian, Spanish, French, device-follow, no setting). It is also **operable by AI agents**: Claude and ChatGPT can drive a user's tasks through a public MCP server (OAuth, acting as the user under row-level security), alongside a Swagger-documented public REST API. The launch control centre watches cost and health hourly. This document reflects the shipped reality, not a plan. The pricing, the trial, and the premium features below are all live.
 
 ---
 
@@ -11,7 +11,7 @@
 - **Value.** The first to-do app built *around* the ADHD / AuDHD / OCD failure modes rather than retrofitted onto a neurotypical optimiser, and it goes deep on each, including the OCD side most apps ignore. Founder-market-fit plus a never-shame architecture the incumbents cannot copy without rebuilding their core.
 - **Money.** Freemium. The whole core loop is free and genuinely useful. **Premium is A$5/month or A$50/year**, and it buys delight and power (the scrapbook, richer AI, custom themes), never core function. A **30-day card-free trial** lets the value land before a payment method is asked for.
 - **Economics.** ~$0.13/user/mo to run; a premium user pays ~25× their cost. Profitable from a conservative 5% conversion, and margin scales with conversion because cost/user is roughly flat. The one unbounded line, AI spend, is now **hard-capped at $25/mo and watched hourly**.
-- **Growth.** Community-led: the ADHD community is vocal, online, and shares tools, so low CAC, compounded by a cross-user completion-data **flywheel** that strengthens the product as it grows.
+- **Growth.** Community-led: the ADHD community is vocal, online, and shares tools, so low CAC, compounded by a cross-user completion-data **flywheel** that strengthens the product as it grows. The surface to grow into has widened since launch, four languages, iOS in progress, and a modern "operable by Claude and ChatGPT" hook that reaches the AI-tooling audience.
 - **Success = retention.** The north star is the **week-six bar**: is an ADHD person still opening this. Acquisition is easy in this niche; staying is the proof of fit. We now have real users to measure it against.
 
 ## 1. Value proposition
@@ -42,6 +42,7 @@ The promise in one line: *your brain can't tell you that you did nothing.*
 - **The moat.** A cross-user completion-data flywheel, instrumented from day one: every decomposition offered, and whether its steps got completed, flows into pseudonymous telemetry (no user id, no IP). It is what makes the product smarter as it scales and what a funded competitor cannot buy. Aggregate, anonymous, never sold.
 - **The calm/predictable design** fits the autistic side, where dopamine-streak apps actively repel.
 - **The wedge.** A reachable, high-need, tool-sharing community the incumbents ignore because it is "small" by their standards and hostile to their playbook.
+- **A platform, not just an app (the 2026 wedge).** DoubleDone is operable by the AI assistants people already use: paste one URL into Claude or ChatGPT and it can capture, plan, and complete a user's tasks, *as them*, under their own row-level security. Most to-do apps bolt AI *inside* the app; DoubleDone goes the other way and meets the user in the assistant they already live in, which for an executive-function-challenged audience is the calmest possible interface, no new app to open, no habit to build. A public, Swagger-documented REST API sits beside it for developers. This is easy to copy as a feature and hard to copy as a posture, and it is a marketing angle the incumbents are not using.
 
 ## 2. Monetisation model
 
@@ -97,6 +98,9 @@ The shape that matters: **flat per-user cost, conversion-driven revenue.** Growt
 - **Where the audience already is:** ADHD subreddits, ADHD-creator TikTok / Instagram / YouTube, Discord communities. The hook is authenticity, *built by one of us, around how our brains actually fail*.
 - **Content:** the founder's story and the never-shame philosophy are inherently shareable, and double as the portfolio narrative.
 - **Word of mouth:** this community shares tools that genuinely work, the cheapest and highest-trust channel.
+- **"Your AI can run your to-do list" (a modern, shareable hook).** DoubleDone connects to Claude and ChatGPT, so a user can add, plan, and finish tasks from inside the assistant they already use. Few calm/niche apps have this, so it is a genuine differentiator *and* a demo-able piece of content (the connect-it-live clip) that reaches the AI-tooling audience, adjacent to but wider than the ADHD core. Deliberately a wedge, not the core pitch: the never-shame story still leads.
+
+**Reach (widened since launch).** The addressable market is no longer Android-and-English only. The app now follows the device language across **English, Italian, Spanish, and French** (the AI answers in the user's language too), and an **iOS / TestFlight** build is in progress, a second platform and the larger share of the calm-premium demographic. Localised *store listings* and in-market marketing are a deliberate, separate step, taken only when a given market is actually pursued, not before.
 
 **The first-week go-to-market playbook (concrete):**
 - **Where:** r/ADHD and r/adhdwomen (read the rules, lead with the story not a link), ADHD Discords, and ADHD creators on TikTok / Instagram. Not Product Hunt first, the audience is not there.
@@ -149,4 +153,4 @@ How we watch it: weekly cohort pulls from the D1 telemetry (activation, return r
 - **The calm-vs-growth tension.** Every standard growth lever (streaks, nags, gamified referral) is one the spine forbids. Growth has to come from fit and word of mouth, slower but more durable, and a real constraint to hold under pressure.
 - **AI cost and FX** are now bounded (the cap plus the hourly sweep) rather than open, but heavy real usage will still test the per-user assumptions, which were modelled pre-launch and will be validated against live D1 telemetry.
 
-**Bottom line:** a genuinely differentiated product for an underserved, reachable audience, now live and commercial with real subscribers, flat per-user costs under a live cap, a conversion-driven model profitable from 5%, a compounding data moat, and one honest thing still to prove over time, that this audience stays.
+**Bottom line:** a genuinely differentiated product for an underserved, reachable audience, now live and commercial with real subscribers, multi-platform (Android in closed test, iOS in progress) and multi-lingual, agent-operable as a modern wedge, with flat per-user costs under a live cap, a conversion-driven model profitable from 5%, a compounding data moat, and one honest thing still to prove over time, that this audience stays.
