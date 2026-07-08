@@ -77,6 +77,18 @@ something the user cares about."* More than that is overhead; less is theatre.
   gains an app-level gate (onboarding, auth, a paywall), every screenshot/test fixture must
   also set the flag that bypasses it, or it silently captures or tests the wrong screen.
   Document it right where the seed payload lives.
+- **Verify with the real client across the real network, not a scripted same-origin repro.**
+  A curl/node reproduction runs from one machine, one region, no browser CORS, no
+  client-specific protocol quirks, so it passes while a browser user across the world fails.
+  Three MCP-connect bugs (2026-07) were invisible to a self-driven repro and only a distant
+  browser user surfaced them: two Cloudflare **KV read-after-write** races (a value written
+  in one request is not guaranteed readable in the next, worse the farther apart the writer
+  and reader edges are) and a **browser-only** need for a CORS-exposed session header
+  (`Mcp-Session-Id`). When a real user hits a failure your repro cannot reproduce, believe the
+  user: capture the actual request (`wrangler tail` while they retry, or drive their exact
+  client), and suspect the layers a script skips, browser CORS/expose-headers, cross-region
+  storage consistency, and client-specific handshake requirements. "Works from my script" is
+  not "works for a browser user in another country."
 
 ## 4. AI integration is testable, at the contract layer `[0]`
 
