@@ -120,7 +120,7 @@ export default function TodayScreen() {
   const brainDumpRef = useRef<BrainDumpHandle>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false); // the OCR photo-capture modal (premium)
-  const { width: winW } = useWindowDimensions();
+  const { width: winW, height: winH } = useWindowDimensions();
   const dockFooter = Platform.OS !== 'web' || winW < 700; // native + narrow web dock, wide web blends into the page
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
@@ -2078,7 +2078,7 @@ export default function TodayScreen() {
               },
             ]}
           >
-            <View style={styles.wrapCard}>
+            <View style={[styles.wrapCard, { maxHeight: winH * 0.9 }]}>
               <View style={styles.wrapArt}>
                 <Image
                   source={closeDayArt}
@@ -2097,14 +2097,24 @@ export default function TodayScreen() {
                       ? fmt.plural(todayDone.length, { one: t('closeDay.finishedWithBigOne'), other: t('closeDay.finishedWithBigOther') })
                       : fmt.plural(todayDone.length, { one: t('closeDay.finishedPlainOne'), other: t('closeDay.finishedPlainOther') })}
                   </Text>
-                  <View style={styles.wrapList}>
+                  {/* Scrollable + flex-shrinking: a long finished day (16+ done) used to push the
+                      goodnight button off-screen with no way to proceed. The card is capped to the
+                      viewport (maxHeight above); this list shrinks to the space that remains and
+                      scrolls inside it, so the roll-forward line, note, and button stay pinned and
+                      reachable no matter how many things got done. */}
+                  <ScrollView
+                    style={[styles.wrapList, { flexShrink: 1 }]}
+                    nestedScrollEnabled
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                  >
                     {todayDone.map((c) => (
                       <View key={c.id} style={styles.wrapItem}>
                         <Text style={styles.wrapCheck}>✓</Text>
                         <Text style={styles.wrapItemText}>{c.title}</Text>
                       </View>
                     ))}
-                  </View>
+                  </ScrollView>
                 </>
               ) : (
                 <Text style={styles.wrapLine}>{t('closeDay.quietDay')}</Text>
