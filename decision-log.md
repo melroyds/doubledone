@@ -3956,3 +3956,7 @@ The at-rest quiet surfaces, all pure style/JSX branches on `t.appearance === 'qu
 - **Deviation from the handoff's literal padding, recorded:** the spec said quiet rows are `12px 2px`, but that made them 11px SHORTER than the standard 62px card, so toggling reflowed the whole list, violating the spec's OWN top principle ("switching never moves anything, predictability matters for this audience"). Chose the principle over the literal: quiet rows keep standard's vertical padding, so the delta is ~3px (imperceptible) and the chrome is still gone. The stronger rule wins.
 
 Standard mode measured unchanged (62px card, white surface, 14px radius). Next at-rest piece: the capture line (BrainDump). Then held-state, coachmark, quiet close-the-day wrap, and the Settings selector.
+
+## 2026-07-10 Quiet interface (increment 5): the capture line
+
+The last at-rest surface. Quiet turns both the collapsed add-bar (`today.tsx`) and the expanded BrainDump input into a capture LINE: a 1px underline (`t.quiet.captureUnderline` = the active `line` token), no fill/border/radius, content near the margin, the faint placeholder unchanged. Verified in the preview: the add affordance renders with a bottom hairline only, no box. The focus-reveal accent send-arrow from the handoff is deferred as a refinement; the underline is the core transform and the existing Add/Sort actions already send. That closes Today-at-rest (increments 2-5); the interactive surfaces (held-state, coachmark), the quiet close-the-day wrap, and the Settings selector remain.

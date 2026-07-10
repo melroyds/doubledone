@@ -510,19 +510,25 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
 
 const makeStyles = (t: Theme) => StyleSheet.create({
   wrap: { gap: spacing.three },
+  // Quiet turns the bordered box into a capture line: a 1px underline, no fill/border/radius,
+  // content near the margin. The faint placeholder (set via placeholderTextColor) is unchanged.
   input: {
     minHeight: 64,
     maxHeight: 160,
-    backgroundColor: t.colors.surface,
-    borderWidth: border.hair,
-    borderColor: t.colors.line,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.four,
-    paddingVertical: spacing.three,
     fontSize: 16 * t.scale,
     fontFamily: fonts.body,
     lineHeight: 22 * t.scale,
     color: t.colors.ink,
+    ...(t.appearance === 'quiet'
+      ? { borderBottomWidth: border.hair, borderColor: t.quiet.captureUnderline, paddingHorizontal: 2, paddingVertical: spacing.three }
+      : {
+          backgroundColor: t.colors.surface,
+          borderWidth: border.hair,
+          borderColor: t.colors.line,
+          borderRadius: radius.md,
+          paddingHorizontal: spacing.four,
+          paddingVertical: spacing.three,
+        }),
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },
   weekdays: { flexDirection: 'row', gap: spacing.two },

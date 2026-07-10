@@ -2493,7 +2493,11 @@ const makeStyles = (t: Theme) =>
     seqReason: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale },
     planDismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two, fontFamily: fonts.body },
     pressed: { opacity: PRESSED_OPACITY },
-    addBar: { borderWidth: border.hair, borderColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.four, alignItems: 'center' },
+    // Quiet: the bordered box becomes a capture line (a 1px underline, left-aligned faint text).
+    addBar:
+      t.appearance === 'quiet'
+        ? { borderBottomWidth: border.hair, borderColor: t.quiet.captureUnderline, paddingVertical: spacing.four, paddingHorizontal: 2, alignItems: 'flex-start' }
+        : { borderWidth: border.hair, borderColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.four, alignItems: 'center' },
     capturePanel: { gap: spacing.two },
     captureHandle: { alignSelf: 'center', paddingVertical: spacing.two },
     alsoDidLink: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
@@ -2539,7 +2543,12 @@ const makeStyles = (t: Theme) =>
       marginBottom: spacing.four,
       alignItems: 'center',
     },
-    focusEntryText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    focusEntryText: {
+      color: t.appearance === 'quiet' ? t.colors.inkFaint : t.colors.accent,
+      fontSize: 16 * t.scale,
+      fontFamily: t.appearance === 'quiet' ? fonts.body : fonts.bodyBold,
+      fontWeight: t.appearance === 'quiet' ? '400' : '700',
+    },
     alsoDidUnderList: { marginTop: spacing.three, marginBottom: spacing.two, alignItems: 'center' },
     selectTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four, marginBottom: spacing.two },
     selectAllText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, textDecorationLine: 'underline' },
