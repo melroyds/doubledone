@@ -563,6 +563,23 @@ CASES = [
      "On /premium use the Monthly / Annual toggle, then Subscribe. Confirm the Stripe Checkout reflects the chosen plan. Complete a test annual checkout. Then, as an already-subscribed user, hit Subscribe again.",
      "The toggle shows 'A$50/year, about two months free' for annual; Checkout opens the YEARLY price for Annual and the monthly price for Monthly, and the success path grants Premium either way. An already-subscribed user is refused a second Checkout (the server 409s and the app says 'You're already on Premium', never a double charge). Prerequisite: the Worker deployed with STRIPE_PRICE_ID_ANNUAL and that price live in Stripe.", "Both"),
 
+    # --- Quiet interface (Premium) -------------------------------------------
+    ("QUI-01", "Interface", "P1", "Premium unlocks the Quiet interface; free is gated",
+     "As premium (or with the dev Premium override on), open Settings -> Comfort -> 'Interface' and tap 'Quiet', then reload. Then as a FREE user, tap 'Quiet'.",
+     "Premium: the whole Today surface goes borderless. Card outlines drop, anything that looked like a button or link renders as plain text, the header rooms pills and the weight-of-today bar lose their chrome, and the choice survives reload with 'Quiet' ringed. 'Standard' is the default and looks identical to the app today. Free: the block shows a 'Premium' tag and tapping 'Quiet' routes to the paywall with NO change applied ('appearance.locked' logged). A lapsed subscriber keeps whichever appearance they chose.", "Both"),
+    ("QUI-02", "Interface", "P2", "Switching Standard <-> Quiet never moves the layout",
+     "With a handful of tasks on Today (some open, one or two done), toggle Interface between Standard and Quiet a few times, watching the task rows and the capture line.",
+     "Content stays put: no visible jump in row height or position as you toggle. Quiet removes chrome (row borders, fills, the per-task progress bar, the capture underline weight) but preserves spacing, so nothing shifts under the finger. This is the promise the design makes ('switching never moves anything').", "Both"),
+    ("QUI-03", "Interface", "P2", "Quiet held-state: long-press reveals the row's actions in place",
+     "In Quiet, press and hold any task on Today.",
+     "The held row gets a soft wash and its actions appear inline ON the row (Tomorrow / Make tiny / Break down / Remove / Close), with NO full-screen select bar. Tapping an action or 'Close' dismisses it. Standard is unchanged: its long-press still opens the multi-select bar. The one-time 'hold a task for more' coachmark in Quiet is a faint line with a small accent dot, not a filled pill.", "Both"),
+    ("QUI-04", "Interface", "P2", "Quiet close-the-day reads as page text and stays reachable when full",
+     "In Quiet, finish several tasks, then also test a very full day (roughly 16+ finished), and tap 'Close the day'.",
+     "The wrap shows on the plain page colour with no dim scrim and no card outline, and 'Goodnight' is a plain accent text link, not a filled button. On a very full day the finished list still scrolls inside a bounded area and 'Goodnight' stays on screen and reachable, so the TOD-04d regression holds in Quiet too. Reopen / rested behaviour is unchanged.", "Both"),
+    ("QUI-05", "Interface", "P3", "Quiet honours reduce-motion and every colour theme",
+     "In Quiet, set Settings -> Motion -> Reduce (or the OS reduce-motion), then complete a task, open the held-state, and close the day. Separately, view Quiet across a couple of colour themes (e.g. Dusk and Sage) in BOTH light and dark.",
+     "Nothing animates beyond the app's reduce-motion baseline: the held-state and the wrap appear without motion. Quiet derives its hairlines and washes from the ACTIVE palette, so it looks right on every colour theme in light and dark (not only Dusk), with no washed-out or invisible text.", "Both"),
+
     # --- Prioritise / pin a task (Premium) -----------------------------------
     ("PIN-01", "Pin", "P1", "Premium: pin a task as the day's one thing",
      "As premium (or with the dev Premium override on), tap-and-hold a one-off task to select it, then tap 'Pin' in the select bar.",
