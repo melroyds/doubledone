@@ -11,14 +11,31 @@ export type RoutineWhen = 'morning' | 'evening' | 'anytime';
 
 export type RoutineStep = { id: string; title: string };
 
+// A Rhythm's preset is a fixed catalog id (never free text), so copy and the future
+// web-push payload can key off it without ever storing user text. 'custom' is a hand-set
+// interval with no preset-specific copy.
+export type RhythmPreset = 'water' | 'stand' | 'custom';
+
 export type Routine = {
   id: string;
   name: string;
-  when: RoutineWhen;
+  // Absent (or 'checklist') = the original morning/evening step checklist. 'rhythm' = a
+  // Rhythm: a gentle recurring nudge ("some water" every 2 hours) that is NEVER a task,
+  // never ticked, never tracked. A Rhythm always carries steps:[] and done:{}.
+  kind?: 'checklist' | 'rhythm';
+  when: RoutineWhen; // checklist grouping only; a Rhythm pins this to 'anytime' and ignores it
   steps: RoutineStep[];
   done: Record<string, string>; // stepId -> ISO date last ticked; "done today" iff === today's ISO
-  nudgeHour?: number | null; // optional once-a-day nudge hour (0-23); null / absent = no nudge
+  nudgeHour?: number | null; // checklist once-a-day nudge hour (0-23); null / absent = no nudge
   nudgeMinute?: number | null; // minute (0-59) for the nudge; meaningful only when nudgeHour is set; null / absent = :00
+  // --- Rhythm-only (kind === 'rhythm'); a fire-and-forget nudge, never a task ---
+  preset?: RhythmPreset; // fixed catalog id, drives copy
+  intervalHours?: number; // fire around every N whole hours (integer >= 1) within the window
+  windowStart?: number; // active-window start hour (0-23), inclusive; default 9, so it never fires at night
+  windowEnd?: number; // active-window end hour (0-23), inclusive; default 21; always > windowStart
+  paused?: boolean; // an honest, indefinite pause (a sick / off day); resumes only when the user resumes
+  // NOTE: there is deliberately NO count / streak / lastFired / history field. A Rhythm
+  // accumulates nothing, so there is nothing to "keep up" and nothing to feel behind on.
   createdAt: number;
   updatedAt: number;
 };
@@ -43,6 +60,71 @@ export function toggleStep(routine: Routine, stepId: string, todayIso: string, n
 export function routineProgress(routine: Routine, todayIso: string): { done: number; total: number } {
   const done = routine.steps.filter((s) => routine.done[s.id] === todayIso).length;
   return { done, total: routine.steps.length };
+}
+
+// --- Rhythms: gentle recurring nudges (kind === 'rhythm') ------------------------------
+// All the "when does it fire" math is pure and lives here, so the native scheduler and the
+// future web-push cron are thin layers over one source of truth and can never drift.
+
+export const RHYTHM_WINDOW_START_DEFAULT = 9;
+export const RHYTHM_WINDOW_END_DEFAULT = 21;
+
+/** True for a Rhythm (a nudge-only routine), false for a step checklist. */
+export function isRhythm(r: Pick<Routine, 'kind'>): boolean {
+  return r.kind === 'rhythm';
+}
+
+function clampHour(h: number): number {
+  if (!Number.isFinite(h)) return 0;
+  return Math.min(23, Math.max(0, Math.trunc(h)));
+}
+
+/**
+ * The discrete local hours an interval Rhythm fires, INCLUSIVE of both window ends.
+ * e.g. rhythmFireHours(9, 21, 2) -> [9, 11, 13, 15, 17, 19, 21]. Always includes
+ * windowStart; includes windowEnd only when it lands on the interval. Defensive: an
+ * inverted or empty window collapses to a single nudge at windowStart, and a junk interval
+ * falls back to hourly, so a corrupt config can never produce a night-time or empty schedule.
+ */
+export function rhythmFireHours(windowStart: number, windowEnd: number, intervalHours: number): number[] {
+  const start = clampHour(windowStart);
+  const end = clampHour(windowEnd);
+  const step = Number.isInteger(intervalHours) && intervalHours >= 1 ? intervalHours : 1;
+  if (end <= start) return [start];
+  const hours: number[] = [];
+  for (let h = start; h <= end; h += step) hours.push(h);
+  return hours;
+}
+
+/** The firing hours for a Rhythm, or [] for a checklist / a Rhythm with no interval. */
+export function rhythmSlotHours(r: Routine): number[] {
+  if (r.kind !== 'rhythm' || typeof r.intervalHours !== 'number') return [];
+  return rhythmFireHours(r.windowStart ?? RHYTHM_WINDOW_START_DEFAULT, r.windowEnd ?? RHYTHM_WINDOW_END_DEFAULT, r.intervalHours);
+}
+
+/**
+ * The stable notification identifier for one firing slot, and the prefix that enumerates
+ * ALL of a Rhythm's slots. Cancel matches by this prefix so it also sweeps slots orphaned
+ * by a later edit that shrank the window (the "it kept nagging after I deleted it" failure).
+ * makeId emits `r-<t>-<n>` (three hyphen-parts), so no id can be a `rhythm-<id>-` prefix of
+ * another and the sweep can never over-cancel a sibling Rhythm (asserted in the tests).
+ */
+export function rhythmSlotId(routineId: string, hour: number): string {
+  return `rhythm-${routineId}-${hour}`;
+}
+
+export function rhythmSlotIdPrefix(routineId: string): string {
+  return `rhythm-${routineId}-`;
+}
+
+/**
+ * The canonical due-rule, defined in terms of rhythmSlotHours so the (future) web-push path
+ * cannot drift from the native schedule: true iff the Rhythm is active and this local hour
+ * is one of its firing hours. A paused Rhythm is never due.
+ */
+export function rhythmDueAtHour(r: Routine, localHour: number): boolean {
+  if (r.kind !== 'rhythm' || r.paused) return false;
+  return rhythmSlotHours(r).includes(clampHour(localHour));
 }
 
 export type RoutineEdit = {
@@ -118,6 +200,41 @@ function isRoutine(v: unknown): v is Routine {
 // `when` from the allowed set, and backfilled timestamps. Defensive against old blobs.
 function cleanRoutine(r: Routine): Routine {
   const raw = r as unknown as Record<string, unknown>;
+  const createdAt = typeof raw.createdAt === 'number' ? raw.createdAt : 0;
+  const updatedAt = typeof raw.updatedAt === 'number' ? raw.updatedAt : createdAt;
+
+  if (raw.kind === 'rhythm') {
+    // A Rhythm is a nudge-only recurring cue: NEVER a task, never ticked, never tracked. We
+    // FORCE steps:[] and done:{} on parse so a corrupt or hand-edited blob can never
+    // resurrect a tick, and pin `when` to 'anytime' so a Rhythm can never fall into a
+    // morning/evening checklist group. With no count/streak/lastFired field in the type,
+    // scorekeeping is structurally impossible.
+    const preset: RhythmPreset = raw.preset === 'water' || raw.preset === 'stand' ? raw.preset : 'custom';
+    const intervalHours =
+      typeof raw.intervalHours === 'number' && Number.isInteger(raw.intervalHours) && raw.intervalHours >= 1 ? raw.intervalHours : 1;
+    let windowStart = clampHour(typeof raw.windowStart === 'number' ? raw.windowStart : RHYTHM_WINDOW_START_DEFAULT);
+    let windowEnd = clampHour(typeof raw.windowEnd === 'number' ? raw.windowEnd : RHYTHM_WINDOW_END_DEFAULT);
+    if (windowEnd <= windowStart) {
+      windowStart = RHYTHM_WINDOW_START_DEFAULT;
+      windowEnd = RHYTHM_WINDOW_END_DEFAULT;
+    }
+    return {
+      id: r.id,
+      name: r.name,
+      kind: 'rhythm',
+      when: 'anytime',
+      steps: [],
+      done: {},
+      preset,
+      intervalHours,
+      windowStart,
+      windowEnd,
+      paused: raw.paused === true,
+      createdAt,
+      updatedAt,
+    };
+  }
+
   const steps = (Array.isArray(raw.steps) ? raw.steps : []).filter(
     (s): s is RoutineStep =>
       s != null && typeof s === 'object' && typeof (s as RoutineStep).id === 'string' && typeof (s as RoutineStep).title === 'string',
@@ -134,7 +251,5 @@ function cleanRoutine(r: Routine): Routine {
     typeof raw.nudgeMinute === 'number' && Number.isInteger(raw.nudgeMinute) && raw.nudgeMinute >= 0 && raw.nudgeMinute <= 59
       ? raw.nudgeMinute
       : undefined;
-  const createdAt = typeof raw.createdAt === 'number' ? raw.createdAt : 0;
-  const updatedAt = typeof raw.updatedAt === 'number' ? raw.updatedAt : createdAt;
   return { id: r.id, name: r.name, when, steps, done, nudgeHour, nudgeMinute, createdAt, updatedAt };
 }

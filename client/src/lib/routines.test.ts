@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
-import { applyRoutineEdit, deserializeRoutines, isStepDoneToday, type Routine, routineProgress, serializeRoutines, toggleStep } from './routines';
+import {
+  applyRoutineEdit,
+  deserializeRoutines,
+  isRhythm,
+  isStepDoneToday,
+  type Routine,
+  rhythmDueAtHour,
+  rhythmFireHours,
+  rhythmSlotHours,
+  rhythmSlotId,
+  rhythmSlotIdPrefix,
+  routineProgress,
+  serializeRoutines,
+  toggleStep,
+} from './routines';
 
 const iso = '2026-06-22';
 const yest = '2026-06-21';
@@ -189,5 +203,110 @@ describe('deserializeRoutines', () => {
     expect(out[0].when).toBe('anytime'); // 'noon' is not a valid slot
     expect(out[0].steps).toEqual([{ id: 's', title: 'a' }]); // the malformed step is dropped
     expect(out[0].done).toEqual({});
+  });
+});
+
+describe('Rhythms', () => {
+  function mkRhythm(over: Partial<Routine> = {}): Routine {
+    return {
+      id: 'rh1',
+      name: 'Water',
+      kind: 'rhythm',
+      when: 'anytime',
+      steps: [],
+      done: {},
+      preset: 'water',
+      intervalHours: 2,
+      windowStart: 9,
+      windowEnd: 21,
+      paused: false,
+      createdAt: 0,
+      updatedAt: 0,
+      ...over,
+    };
+  }
+
+  it('isRhythm distinguishes a Rhythm from a checklist', () => {
+    expect(isRhythm(mkRhythm())).toBe(true);
+    expect(isRhythm(mk())).toBe(false);
+  });
+
+  describe('rhythmFireHours (inclusive both ends, defensive)', () => {
+    it('expands an interval across the window, including the end when it lands', () => {
+      expect(rhythmFireHours(9, 21, 2)).toEqual([9, 11, 13, 15, 17, 19, 21]);
+      expect(rhythmFireHours(9, 21, 5)).toEqual([9, 14, 19]);
+    });
+    it('supports an hourly cadence', () => {
+      expect(rhythmFireHours(9, 21, 1)).toEqual([9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]);
+    });
+    it('collapses an interval larger than the window to a single start nudge', () => {
+      expect(rhythmFireHours(9, 11, 5)).toEqual([9]);
+    });
+    it('guards an inverted window to a single start nudge, never night-time or empty', () => {
+      expect(rhythmFireHours(21, 9, 2)).toEqual([21]);
+    });
+    it('falls back to hourly on a junk interval', () => {
+      expect(rhythmFireHours(9, 21, 0)).toEqual(rhythmFireHours(9, 21, 1));
+      expect(rhythmFireHours(9, 21, 2.5)).toEqual(rhythmFireHours(9, 21, 1));
+    });
+  });
+
+  it('rhythmSlotHours resolves a Rhythm, and is empty for a checklist or an interval-less Rhythm', () => {
+    expect(rhythmSlotHours(mkRhythm({ intervalHours: 2 }))).toEqual([9, 11, 13, 15, 17, 19, 21]);
+    expect(rhythmSlotHours(mk())).toEqual([]);
+    expect(rhythmSlotHours(mkRhythm({ intervalHours: undefined }))).toEqual([]);
+  });
+
+  it('rhythmSlotId / prefix are stable and collision-safe across similar ids', () => {
+    expect(rhythmSlotId('r-x-1', 9)).toBe('rhythm-r-x-1-9');
+    expect(rhythmSlotIdPrefix('r-x-1')).toBe('rhythm-r-x-1-');
+    // The cancel sweep for id 'r-x-1' must never catch a sibling 'r-x-10' (the over-cancel bug)...
+    expect(rhythmSlotId('r-x-10', 9).startsWith(rhythmSlotIdPrefix('r-x-1'))).toBe(false);
+    // ...but must catch every one of its own slots.
+    for (const h of rhythmSlotHours(mkRhythm({ id: 'r-x-1' }))) {
+      expect(rhythmSlotId('r-x-1', h).startsWith(rhythmSlotIdPrefix('r-x-1'))).toBe(true);
+    }
+  });
+
+  it('rhythmDueAtHour equals rhythmSlotHours membership; a paused or checklist routine is never due', () => {
+    const r = mkRhythm({ intervalHours: 2, windowStart: 9, windowEnd: 21 });
+    const hours = rhythmSlotHours(r);
+    for (let h = 0; h <= 23; h += 1) expect(rhythmDueAtHour(r, h)).toBe(hours.includes(h));
+    expect(rhythmDueAtHour(mkRhythm({ paused: true }), 9)).toBe(false);
+    expect(rhythmDueAtHour(mk(), 9)).toBe(false);
+  });
+
+  describe('deserialize (the defensive parser)', () => {
+    it('round-trips a Rhythm', () => {
+      expect(deserializeRoutines(serializeRoutines([mkRhythm()]))).toEqual([mkRhythm()]);
+    });
+    it('coerces a junk interval, an inverted window, an unknown preset, and a non-boolean paused', () => {
+      const junk = JSON.stringify([
+        { id: 'rh1', name: 'Water', kind: 'rhythm', steps: [], done: {}, intervalHours: 0, windowStart: 22, windowEnd: 6, preset: 'meds', paused: 'yes', createdAt: 0, updatedAt: 0 },
+      ]);
+      const [r] = deserializeRoutines(junk);
+      expect(r.intervalHours).toBe(1); // junk interval -> hourly
+      expect(r.windowStart).toBe(9); // inverted window -> default 9-21
+      expect(r.windowEnd).toBe(21);
+      expect(r.preset).toBe('custom'); // an unknown preset id -> custom
+      expect(r.paused).toBe(false); // only a literal true pauses
+    });
+    it('FORCES a Rhythm to carry no steps and no ticks, so a tick can never resurrect (never-shame guarantee)', () => {
+      const contaminated = JSON.stringify([
+        { id: 'rh1', name: 'Water', kind: 'rhythm', when: 'morning', steps: [{ id: 's1', title: 'sneaky' }], done: { s1: iso }, preset: 'water', intervalHours: 2, windowStart: 9, windowEnd: 21, createdAt: 0, updatedAt: 0 },
+      ]);
+      const [r] = deserializeRoutines(contaminated);
+      expect(r.steps).toEqual([]);
+      expect(r.done).toEqual({});
+      expect(r.when).toBe('anytime'); // and can never fall into a morning/evening group
+      expect((r as Record<string, unknown>).count).toBeUndefined();
+      expect((r as Record<string, unknown>).streak).toBeUndefined();
+    });
+    it('treats an old blob with no kind as a checklist (backward-compatible)', () => {
+      const [r] = deserializeRoutines(serializeRoutines([mk()]));
+      expect(isRhythm(r)).toBe(false);
+      expect(r.kind).toBeUndefined();
+      expect(r.steps).toHaveLength(2); // its steps are untouched
+    });
   });
 });
