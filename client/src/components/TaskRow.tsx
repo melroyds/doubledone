@@ -24,6 +24,8 @@ type Props = {
   onBreakdown?: () => void;
   onDefer?: () => void;
   onMakeTiny?: () => void;
+  onBig?: () => void; // Quiet held-state: mark / unmark this task "a lot" (parity with the select bar)
+  onPin?: () => void; // Quiet held-state: pin / unpin as the day's one priority (Today one-offs only)
   suggestBreakdown?: boolean;
   selecting?: boolean;
   selected?: boolean;
@@ -58,6 +60,8 @@ export function TaskRow({
   onBreakdown,
   onDefer,
   onMakeTiny,
+  onBig,
+  onPin,
   suggestBreakdown,
   selecting,
   selected,
@@ -136,6 +140,11 @@ export function TaskRow({
               <Text style={styles.keep}>{t('common.tomorrow')}</Text>
             </Pressable>
           )}
+          {onBig && !recurring && (
+            <Pressable onPress={onBig} accessibilityRole="button" accessibilityLabel={big ? t('today.unmarkBigA11y') : t('today.markBigA11y')} hitSlop={{ top: 12, bottom: 12 }}>
+              <Text style={styles.keep}>{big ? t('today.notALot') : t('today.markAsALot')}</Text>
+            </Pressable>
+          )}
           {onMakeTiny && !recurring && (
             <Pressable onPress={onMakeTiny} accessibilityRole="button" accessibilityLabel={t('today.makeTinyLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
               <Text style={styles.keep}>{t('actions.makeItTiny')}</Text>
@@ -144,6 +153,11 @@ export function TaskRow({
           {onBreakdown && !recurring && (
             <Pressable onPress={onBreakdown} accessibilityRole="button" accessibilityLabel={t('breakdown.breakDownTaskLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
               <Text style={styles.keep}>{t('breakdown.breakDown')}</Text>
+            </Pressable>
+          )}
+          {onPin && !recurring && (
+            <Pressable onPress={onPin} accessibilityRole="button" accessibilityLabel={pinned ? t('today.unpinA11y') : t('today.pinA11y')} hitSlop={{ top: 12, bottom: 12 }}>
+              <Text style={styles.keep}>{pinned ? t('today.unpin') : t('today.pin')}</Text>
             </Pressable>
           )}
           <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={t('today.removeTaskLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>

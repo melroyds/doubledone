@@ -524,6 +524,24 @@ export default function TodayScreen() {
     if (theme.appearance === 'quiet') setConfirmingId(id);
     else enterSelectWith(id);
   }
+  // Quiet's held-state carries the single-task shaping actions the multi-select bar has.
+  // Both act-and-dismiss (the row stays put, so we close the held-state ourselves).
+  function bigRow(task: Task) {
+    markBig([task.id], !task.big);
+    setConfirmingId(null);
+  }
+  function pinRow(task: Task) {
+    if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
+    // Quiet is premium-gated, but a lapsed subscriber keeps the appearance, so honour the same gate.
+    if (task.pinnedAt == null && !premium) {
+      track('premium.gate_hit', { reason: 'pin' });
+      router.push('/premium');
+      setConfirmingId(null);
+      return;
+    }
+    pinTask(task.id);
+    setConfirmingId(null);
+  }
   function exitSelect() {
     setSelectMode(false);
     setSelected([]);
@@ -1446,6 +1464,8 @@ export default function TodayScreen() {
               onBreakdown={aiEnabled ? () => breakdownExisting(task.title, task.id) : () => openManualBreakdown(task.id, task.title)}
               onMakeTiny={aiEnabled ? () => makeTiny(task.id, task.title) : undefined}
               onDefer={() => deferTask(task.id)}
+              onBig={() => bigRow(task)}
+              onPin={() => pinRow(task)}
               suggestBreakdown={task.suggestBreakdown}
               selecting={selectMode}
               selected={selected.includes(task.id)}
@@ -1509,6 +1529,7 @@ export default function TodayScreen() {
                   onRetreat={() => step(task.id, -1)}
                   onBreakdown={aiEnabled ? () => breakdownExisting(task.title, task.id) : () => openManualBreakdown(task.id, task.title)}
                   onMakeTiny={aiEnabled ? () => makeTiny(task.id, task.title) : undefined}
+                  onBig={() => bigRow(task)}
                   selecting={selectMode}
                   selected={selected.includes(task.id)}
                   onSelect={() => toggleSelect(task.id)}
