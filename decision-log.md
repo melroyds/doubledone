@@ -3945,3 +3945,14 @@ Open-question calls (the plan's, taken while Melroy is away, recorded to challen
 - **Pinned/unique rows in quiet read via the star + faint tint / whitespace**, no chrome border (the spec drops the periwinkle/accent borders).
 
 Increment 1 gate: typecheck clean, 14 settings tests (new appearance parse-guard test included). Next: Today at rest (header, load sentence, borderless rows, capture line), web-verified via a localStorage appearance flip.
+
+## 2026-07-10 Quiet interface (increments 2-4): Today at rest, header, load, task rows
+
+The at-rest quiet surfaces, all pure style/JSX branches on `t.appearance === 'quiet'`, standard untouched. Verified in the web preview via a localStorage appearance flip: rows render transparent with a 1px 5%-ink bottom hairline and no card/shadow/radius, the header is "Menu" as plain accent text (dots hidden), the day's load is the sentence alone (gauge bar dropped), and a sliced task shows "2 / 5" with no progress bar.
+
+- **Header (`today.tsx`):** the Rooms pill drops its border/fill/radius to a plain accent text button; the 44px touch target stays via the EXISTING hitSlop (not new padding), and the quiet pill keeps standard's vertical padding, so the topBar height is unchanged and nothing shifts.
+- **Day's load:** the `weightTrack`/`weightFill` bar is hidden in quiet; `weightOfDay.label` (already a full sentence like "Today holds four things. Room to breathe.") renders alone; the low-day toggle becomes quiet accent text (no underline).
+- **Task rows (`TaskRow.tsx`):** card → whitespace + `t.quiet.hairline`; one-off loses its periwinkle border (whitespace only), pinned keeps a faint tint + the star (no border), the repeat mark and slice count go soft ink, the "a lot" tag drops its pill to plain accent text, and the sage progress bar is dropped (count only).
+- **Deviation from the handoff's literal padding, recorded:** the spec said quiet rows are `12px 2px`, but that made them 11px SHORTER than the standard 62px card, so toggling reflowed the whole list, violating the spec's OWN top principle ("switching never moves anything, predictability matters for this audience"). Chose the principle over the literal: quiet rows keep standard's vertical padding, so the delta is ~3px (imperceptible) and the chrome is still gone. The stronger rule wins.
+
+Standard mode measured unchanged (62px card, white surface, 14px radius). Next at-rest piece: the capture line (BrainDump). Then held-state, coachmark, quiet close-the-day wrap, and the Settings selector.

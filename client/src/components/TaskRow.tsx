@@ -183,10 +183,12 @@ export function TaskRow({
             {slices.done} / {slices.total}
           </Text>
         </View>
-        <View style={styles.track}>
-          <View style={{ flex: slices.done, backgroundColor: theme.colors.done }} />
-          <View style={{ flex: rest }} />
-        </View>
+        {theme.appearance !== 'quiet' && (
+          <View style={styles.track}>
+            <View style={{ flex: slices.done, backgroundColor: theme.colors.done }} />
+            <View style={{ flex: rest }} />
+          </View>
+        )}
         {/* A quiet sighted cue for the hold-to-adjust gesture, restoring parity with the spoken hint the screen
             reader already gives. Without it a mis-tapped slice has no visible way back. Incomplete rows only. */}
         {!complete && <Text style={styles.sliceAdjustHint}>{t('today.holdToAdjust')}</Text>}
@@ -277,35 +279,46 @@ export function TaskRow({
 }
 
 const makeStyles = (t: Theme) => StyleSheet.create({
+  // Quiet strips the card to whitespace + a 5%-ink bottom hairline; standard keeps the soft floating card.
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.four,
-    paddingVertical: spacing.four,
-    paddingHorizontal: spacing.four,
-    backgroundColor: t.colors.surfaceCard,
-    borderRadius: radius.md,
-    borderWidth: border.hair,
-    borderColor: t.colors.line,
-    // Soft elevation: rows float a hair above the living background (the redesign).
-    boxShadow: cardShadow(t),
+    ...(t.appearance === 'quiet'
+      ? // Match standard's vertical padding so toggling appearance never reflows the list (the spec's
+        // top principle "switching never moves anything" wins over its literal 12px, which did not match
+        // the card height). Chrome removed, vertical rhythm kept; content sits near the margin (no card inset).
+        { minHeight: 48, paddingVertical: spacing.four, paddingHorizontal: 2, borderBottomWidth: border.hair, borderColor: t.quiet.hairline }
+      : {
+          paddingVertical: spacing.four,
+          paddingHorizontal: spacing.four,
+          backgroundColor: t.colors.surfaceCard,
+          borderRadius: radius.md,
+          borderWidth: border.hair,
+          borderColor: t.colors.line,
+          // Soft elevation: rows float a hair above the living background (the redesign).
+          boxShadow: cardShadow(t),
+        }),
   },
-  rowUnique: { borderColor: t.colors.repeat, borderWidth: border.thick },
-  // The day's one pinned priority: a calm accent border + faint tint, with the star beside the title.
-  rowPinned: { borderColor: t.colors.accent, borderWidth: border.thick, backgroundColor: t.colors.accentSoft },
+  // One-off (unique): a thick periwinkle border in standard; in quiet, whitespace alone (no chrome).
+  rowUnique: t.appearance === 'quiet' ? {} : { borderColor: t.colors.repeat, borderWidth: border.thick },
+  // The day's one pinned priority: an accent border + tint in standard; in quiet, a faint tint + the star.
+  rowPinned:
+    t.appearance === 'quiet'
+      ? { backgroundColor: t.colors.accentSoft }
+      : { borderColor: t.colors.accent, borderWidth: border.thick, backgroundColor: t.colors.accentSoft },
   pinStar: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
   // A quiet accent tag (never danger red): the app agreeing this task is a lot, sized small so it never scolds.
+  // "a lot" tag: a soft accent pill in standard; plain accent text (no pill chrome) in quiet.
   bigMark: {
     color: t.colors.accent,
-    backgroundColor: t.colors.accentSoft,
     fontSize: 11 * t.scale,
     fontFamily: fonts.bodyBold,
     fontWeight: '700',
     letterSpacing: 0.3,
-    paddingHorizontal: spacing.two,
-    paddingVertical: 1,
-    borderRadius: radius.pill,
-    overflow: 'hidden',
+    ...(t.appearance === 'quiet'
+      ? {}
+      : { backgroundColor: t.colors.accentSoft, paddingHorizontal: spacing.two, paddingVertical: 1, borderRadius: radius.pill, overflow: 'hidden' }),
   },
   pressed: { opacity: PRESSED_OPACITY },
   confirmRow: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accentSoft },
@@ -331,7 +344,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   tick: { color: t.colors.onAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', lineHeight: 17 * t.scale },
   text: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale },
   textDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
-  repeatMark: { color: t.colors.repeat, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+  repeatMark: { color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
   nudgeMark: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   suggestColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
   suggestMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
@@ -339,10 +352,15 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   suggestHint: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   tinyColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
   tinyMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
-  tinyEyebrow: { ...t.type.eyebrow, color: t.colors.repeat },
+  tinyEyebrow: { ...t.type.eyebrow, color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat },
   sliceColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
   sliceTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
-  sliceCount: { color: t.colors.repeat, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+  sliceCount: {
+    color: t.appearance === 'quiet' ? t.quiet.nOfM : t.colors.repeat,
+    fontSize: (t.appearance === 'quiet' ? 13 : 14) * t.scale,
+    fontFamily: fonts.bodyBold,
+    fontWeight: t.appearance === 'quiet' ? '600' : '700',
+  },
   sliceAdjustHint: { color: t.colors.inkFaint, fontSize: 11 * t.scale, fontFamily: fonts.body, marginTop: spacing.half },
   track: {
     flexDirection: 'row',

@@ -1283,11 +1283,13 @@ export default function TodayScreen() {
             hitSlop={8}
             style={({ pressed }) => [styles.roomsPill, pressed && styles.pressed]}
           >
-            <View style={styles.roomsDots}>
-              <View style={styles.roomsDot} />
-              <View style={styles.roomsDot} />
-              <View style={styles.roomsDot} />
-            </View>
+            {theme.appearance !== 'quiet' && (
+              <View style={styles.roomsDots}>
+                <View style={styles.roomsDot} />
+                <View style={styles.roomsDot} />
+                <View style={styles.roomsDot} />
+              </View>
+            )}
             <Text style={styles.roomsLabel}>{t('today.menu')}</Text>
           </Pressable>
         </View>
@@ -1309,10 +1311,12 @@ export default function TodayScreen() {
         <Text style={styles.spine}>{phaseGreeting(today)}</Text>
         {loaded && !isClosed && spreadable.length > 0 && (
           <View style={styles.weight}>
-            <View style={styles.weightTrack}>
-              <View style={[styles.weightFill, { flex: weightOfDay.fill }]} />
-              <View style={{ flex: 1 - weightOfDay.fill }} />
-            </View>
+            {theme.appearance !== 'quiet' && (
+              <View style={styles.weightTrack}>
+                <View style={[styles.weightFill, { flex: weightOfDay.fill }]} />
+                <View style={{ flex: 1 - weightOfDay.fill }} />
+              </View>
+            )}
             <Text style={styles.weightLabel}>{weightOfDay.label}</Text>
             <Pressable
               onPress={toggleLowDay}
@@ -2319,17 +2323,22 @@ const makeStyles = (t: Theme) =>
     },
     topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.one },
     date: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    roomsPill: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.two,
-      borderWidth: border.hair,
-      borderColor: rgba(t.colors.ink, t.scheme === 'dark' ? 0.14 : 0.1), // derived so the Menu pill follows the active theme, not a baked-in Dusk tint
-      backgroundColor: rgba(t.colors.surface, 0.6),
-      borderRadius: radius.pill,
-      paddingVertical: spacing.two,
-      paddingHorizontal: 13,
-    },
+    // Quiet drops the pill chrome to a plain accent text button (the dots hide in the JSX); the 44px
+    // touch target stays via the existing hitSlop, and the height matches so the topBar never shifts.
+    roomsPill:
+      t.appearance === 'quiet'
+        ? { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.two, paddingHorizontal: 6 }
+        : {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.two,
+            borderWidth: border.hair,
+            borderColor: rgba(t.colors.ink, t.scheme === 'dark' ? 0.14 : 0.1), // derived so the Menu pill follows the active theme, not a baked-in Dusk tint
+            backgroundColor: rgba(t.colors.surface, 0.6),
+            borderRadius: radius.pill,
+            paddingVertical: spacing.two,
+            paddingHorizontal: 13,
+          },
     roomsDots: { flexDirection: 'row', gap: 3 },
     roomsDot: { width: 4, height: 4, borderRadius: radius.pill, backgroundColor: t.colors.accent },
     roomsLabel: { color: t.colors.accent, fontSize: 13 * t.scale, fontWeight: '700', fontFamily: fonts.bodyBold },
@@ -2418,7 +2427,13 @@ const makeStyles = (t: Theme) =>
     weightTrack: { flexDirection: 'row', height: 6, borderRadius: radius.pill, backgroundColor: t.colors.line, overflow: 'hidden' },
     weightFill: { backgroundColor: t.colors.accent },
     weightLabel: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
-    lowDayToggle: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.one, textDecorationLine: 'underline' },
+    lowDayToggle: {
+      color: t.appearance === 'quiet' ? t.colors.accent : t.colors.inkSoft,
+      fontSize: 14 * t.scale,
+      fontFamily: fonts.body,
+      marginTop: spacing.one,
+      textDecorationLine: t.appearance === 'quiet' ? 'none' : 'underline',
+    },
     lowDayStandalone: { alignSelf: 'center', marginTop: spacing.three, marginBottom: spacing.one },
     windDown: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     dayActions: { marginTop: spacing.seven, alignItems: 'center', gap: spacing.three },
