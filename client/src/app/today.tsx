@@ -1342,12 +1342,11 @@ export default function TodayScreen() {
         <Text style={styles.spine}>{phaseGreeting(today)}</Text>
         {loaded && !isClosed && spreadable.length > 0 && (
           <View style={styles.weight}>
-            {theme.appearance !== 'quiet' && (
-              <View style={styles.weightTrack}>
-                <View style={[styles.weightFill, { flex: weightOfDay.fill }]} />
-                <View style={{ flex: 1 - weightOfDay.fill }} />
-              </View>
-            )}
+            {/* The energy gauge stays in Quiet, just whisper-thin: a 3px hairline track (see styles). */}
+            <View style={styles.weightTrack}>
+              <View style={[styles.weightFill, { flex: weightOfDay.fill }]} />
+              <View style={{ flex: 1 - weightOfDay.fill }} />
+            </View>
             <Text style={styles.weightLabel}>{weightOfDay.label}</Text>
             <Pressable
               onPress={toggleLowDay}
@@ -1564,13 +1563,25 @@ export default function TodayScreen() {
                   </Pressable>
                 )}
                 {strategiseError && <Text style={styles.strategiseErr}>{strategiseError}</Text>}
-                <PremiumButton
-                  label={sequencing ? t('today.planning') : t('actions.planMyDay')}
-                  onPress={runSequence}
-                  disabled={sequencing}
-                  accessibilityLabel={t('today.planMyDayA11y')}
-                  style={styles.sequenceBtn}
-                />
+                {theme.appearance === 'quiet' ? (
+                  <Pressable
+                    onPress={runSequence}
+                    disabled={sequencing}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('today.planMyDayA11y')}
+                    style={({ pressed }) => [styles.quietDayAction, pressed && styles.pressed, sequencing && styles.disabledBtn]}
+                  >
+                    <Text style={styles.quietDayActionText}>{sequencing ? t('today.planning') : t('actions.planMyDay')}</Text>
+                  </Pressable>
+                ) : (
+                  <PremiumButton
+                    label={sequencing ? t('today.planning') : t('actions.planMyDay')}
+                    onPress={runSequence}
+                    disabled={sequencing}
+                    accessibilityLabel={t('today.planMyDayA11y')}
+                    style={styles.sequenceBtn}
+                  />
+                )}
                 {orderError && <Text style={styles.strategiseErr}>{orderError}</Text>}
               </>
             )}
@@ -2479,7 +2490,15 @@ const makeStyles = (t: Theme) =>
     reentryBody: { color: t.colors.ink, fontSize: 16 * t.scale, lineHeight: 24 * t.scale, fontFamily: fonts.body },
     reentryBtn: { alignSelf: 'flex-start', marginTop: spacing.one },
     weight: { marginTop: spacing.two, marginBottom: spacing.four, gap: spacing.two },
-    weightTrack: { flexDirection: 'row', height: 6, borderRadius: radius.pill, backgroundColor: t.colors.line, overflow: 'hidden' },
+    weightTrack: {
+      flexDirection: 'row',
+      // Quiet keeps the gauge but halves it to a 3px hairline on the faint quiet line, so the
+      // day's weight still reads at a glance without a loud filled bar.
+      height: t.appearance === 'quiet' ? 3 : 6,
+      borderRadius: radius.pill,
+      backgroundColor: t.appearance === 'quiet' ? t.quiet.hairline : t.colors.line,
+      overflow: 'hidden',
+    },
     weightFill: { backgroundColor: t.colors.accent },
     weightLabel: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
     lowDayToggle: {
@@ -2496,8 +2515,8 @@ const makeStyles = (t: Theme) =>
       paddingVertical: spacing.three,
       paddingHorizontal: spacing.five,
       borderRadius: radius.md,
-      borderWidth: border.hair,
-      borderColor: t.colors.line,
+      // Quiet drops the outline: "Close the day" becomes a plain calm text action.
+      ...(t.appearance === 'quiet' ? {} : { borderWidth: border.hair, borderColor: t.colors.line }),
     },
     closeDayText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
     rested: { alignItems: 'center', gap: spacing.three, paddingTop: spacing.five, paddingBottom: spacing.four },
@@ -2529,8 +2548,8 @@ const makeStyles = (t: Theme) =>
     strategiseNudge: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     strategiseBtn: {
       borderRadius: radius.md,
-      borderWidth: border.hair,
-      borderColor: t.colors.accent,
+      // Quiet drops the outline; the accent text remains, so "Lighten today" reads as a plain link.
+      ...(t.appearance === 'quiet' ? {} : { borderWidth: border.hair, borderColor: t.colors.accent }),
       paddingVertical: spacing.three,
       paddingHorizontal: spacing.five,
     },
@@ -2542,6 +2561,9 @@ const makeStyles = (t: Theme) =>
     planWhen: { color: t.colors.accent, fontSize: 14 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
     // "Plan my order" (premium): the big PremiumButton (the DoubleDone Premium gradient), the premium signal on Today.
     sequenceBtn: { alignSelf: 'stretch', marginTop: spacing.three },
+    // Quiet's replacement for the PremiumButton gradient: "Plan my day" as a plain accent text action.
+    quietDayAction: { alignSelf: 'center', paddingVertical: spacing.two, marginTop: spacing.two },
+    quietDayActionText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     seqItem: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.three },
     seqNum: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', minWidth: 16, textAlign: 'center', marginTop: 1 },
     seqText: { flex: 1, gap: 1 },
@@ -2590,8 +2612,8 @@ const makeStyles = (t: Theme) =>
     didActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.five, marginTop: spacing.two },
     didCancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     focusEntry: {
-      borderWidth: border.hair,
-      borderColor: t.colors.accent,
+      // Quiet drops the accent outline for a plain text action (the text is already quieted below).
+      ...(t.appearance === 'quiet' ? {} : { borderWidth: border.hair, borderColor: t.colors.accent }),
       borderRadius: radius.md,
       paddingVertical: spacing.three,
       paddingHorizontal: spacing.four,
