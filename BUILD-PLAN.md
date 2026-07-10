@@ -54,6 +54,10 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 The single home for consciously parked work. Nothing here is dropped; each item has a trigger for when it earns a place in the sequence. Premium-gated ideas live in [`docs/premium.md`](docs/premium.md).
 
+**Rhythms (recurring nudges)**
+- **Web-push delivery for Rhythms (Phase W).** Native local notifications ship at launch; cross-device web-push delivery is deferred. When built: a `rhythm_pushes` D1 table (endpoint + preset id + interval + window + tz, never task text), `sendRhythmNudges` on the existing hourly cron reusing the pure `rhythmDueAtHour`, and RFC 8291 payload encryption sending only the preset id (sw.js maps it to a canned string). Constraints to carry in: window inclusivity must match the native `rhythmFireHours` exactly, the stored tz offset drifts across DST (store an IANA name or refresh on app-open), and the cron needs a per-hour idempotency key so a double-invoke never double-nudges. Trigger: native Rhythms have real usage AND web users ask for them.
+- **Fixed-time "meds" Rhythm + finer cadence.** The atHours variant (nudge at set clock times, e.g. 8am and 8pm) with its add-a-time list, parked behind the interval presets + custom form. Trigger: a tester asks for set-time rather than every-N-hours nudges.
+
 **Growth and monetisation**
 - **Comp a month of premium for feedback.** *Owner path DONE (2026-06-26):* an email allowlist in `server/src/comp.ts` makes listed emails always-premium with no Stripe charge, checked on the verified money gate, so the owner can sign in and exercise the live app for free. What remains is the per-feedback-giver grant: a 30-day comp entitlement (premium with a 30-day current_period_end, marked so it does not auto-renew and reverts to free cleanly) via a grant path (a one-time redeemable code, or an owner action keyed to a user_id) plus a calm place to ask for the feedback. Trigger: when the feedback loop is wanted.
 

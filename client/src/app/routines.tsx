@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
@@ -8,9 +8,18 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, cardShadow, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { toISODate } from '@/lib/day';
 import { t } from '@/lib/locale';
-import { cancelRoutineNudge, scheduleRoutineNudge } from '@/lib/reminders';
+import { cancelRhythm, cancelRoutineNudge, scheduleRhythm, scheduleRoutineNudge } from '@/lib/reminders';
 import { clampHour, clampMinute, formatReminderTime, reminderReasonLine } from '@/lib/reminders-types';
-import { applyRoutineEdit, isStepDoneToday, type Routine, routineProgress, type RoutineWhen, toggleStep } from '@/lib/routines';
+import {
+  applyRoutineEdit,
+  isStepDoneToday,
+  RHYTHM_WINDOW_END_DEFAULT,
+  RHYTHM_WINDOW_START_DEFAULT,
+  type Routine,
+  routineProgress,
+  type RoutineWhen,
+  toggleStep,
+} from '@/lib/routines';
 import { loadRoutines, saveRoutines } from '@/lib/storage';
 import { parseDump } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
@@ -70,6 +79,16 @@ export default function RoutinesScreen() {
   const stepsInput = useRef<TextInput>(null);
   const [undo, setUndo] = useState<Routine | null>(null); // the just-removed routine, for a brief undo
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The custom-rhythm form (separate from the checklist form): name + interval + active window,
+  // so a Rhythm is anything you want, not just the two presets. editingRhythmId set = editing.
+  const [rhythmFormOpen, setRhythmFormOpen] = useState(false);
+  const [editingRhythmId, setEditingRhythmId] = useState<string | null>(null);
+  const [rhythmName, setRhythmName] = useState('');
+  const [rhythmInterval, setRhythmInterval] = useState(2);
+  const [rhythmWinStart, setRhythmWinStart] = useState(RHYTHM_WINDOW_START_DEFAULT);
+  const [rhythmWinEnd, setRhythmWinEnd] = useState(RHYTHM_WINDOW_END_DEFAULT);
+  const [rhythmHint, setRhythmHint] = useState<'name' | null>(null);
+  const rhythmNameInput = useRef<TextInput>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -233,8 +252,9 @@ export default function RoutinesScreen() {
     const removed = routines.find((r) => r.id === id);
     if (!removed) return;
     commit(routines.filter((r) => r.id !== id));
-    void cancelRoutineNudge(id); // no routine, no nudge
-    track('routine.removed');
+    if (removed.kind === 'rhythm') void cancelRhythm(id); // sweep every scheduled slot
+    else void cancelRoutineNudge(id); // no routine, no nudge
+    track(removed.kind === 'rhythm' ? 'rhythm.removed' : 'routine.removed');
     setUndo(removed);
     if (undoTimer.current) clearTimeout(undoTimer.current);
     undoTimer.current = setTimeout(() => setUndo(null), 6000);
@@ -244,14 +264,146 @@ export default function RoutinesScreen() {
     if (!undo) return;
     if (undoTimer.current) clearTimeout(undoTimer.current);
     commit([...routines, undo]);
-    if (undo.nudgeHour != null) void scheduleRoutineNudge(undo.id, undo.name, undo.nudgeHour, undo.nudgeMinute ?? 0); // best effort: the routine is back, so is its nudge
-    track('routine.remove.undone');
+    // Best effort: the thing is back, so is its nudge / its Rhythm slots.
+    if (undo.kind === 'rhythm') void scheduleRhythm(undo);
+    else if (undo.nudgeHour != null) void scheduleRoutineNudge(undo.id, undo.name, undo.nudgeHour, undo.nudgeMinute ?? 0);
+    track(undo.kind === 'rhythm' ? 'rhythm.remove.undone' : 'routine.remove.undone');
     setUndo(null);
   }
 
-  const groups = WHENS.map((w) => ({ ...w, items: routines.filter((r) => r.when === w.value) })).filter(
+  // Add a Rhythm from a preset: one tap creates AND activates it, never a form to fill.
+  // Presets are complete on their own (water every 2h, 9-21), keeping setup near-zero.
+  function addRhythm(preset: 'water' | 'stand') {
+    const now = Date.now();
+    const rhythm: Routine = {
+      id: makeId(),
+      name: preset === 'water' ? t('routines.rhythmNameWater') : t('routines.rhythmNameStand'),
+      kind: 'rhythm',
+      when: 'anytime',
+      steps: [],
+      done: {},
+      preset,
+      intervalHours: preset === 'water' ? 2 : 1,
+      windowStart: RHYTHM_WINDOW_START_DEFAULT,
+      windowEnd: RHYTHM_WINDOW_END_DEFAULT,
+      paused: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    commit([...routines, rhythm]);
+    // Schedule on device; on web this is a no-op ('unsupported') and the section already says
+    // reminders arrive on the phone, so only a real native failure (denied) surfaces a line.
+    void scheduleRhythm(rhythm).then((res) => {
+      if (!res.ok && res.reason !== 'unsupported') setNudgeNote(reminderReasonLine(res.reason));
+    });
+    track('rhythm.created', { preset });
+  }
+
+  // Pause / resume a Rhythm: an honest, indefinite pause (a sick or off day). Paused cancels
+  // every slot and schedules nothing; resume reschedules from the stored config. No telemetry
+  // on the pause itself, a nudge-only feature stays uninstrumented on behaviour.
+  function toggleRhythmPause(id: string) {
+    const target = routines.find((r) => r.id === id);
+    if (!target) return;
+    const updated: Routine = { ...target, paused: !target.paused, updatedAt: Date.now() };
+    commit(routines.map((r) => (r.id === id ? updated : r)));
+    void scheduleRhythm(updated);
+  }
+
+  // The plain-language cadence line ("Around every 2 hours, 9 am to 9 pm") in the device's own
+  // time convention. "Around" is deliberate: Android delivers inexactly. Accepts just the fields
+  // it reads, so the live form preview can pass its in-progress values without a full Routine.
+  function cadenceLine(r: Pick<Routine, 'intervalHours' | 'windowStart' | 'windowEnd'>): string {
+    const start = formatReminderTime(r.windowStart ?? RHYTHM_WINDOW_START_DEFAULT, 0);
+    const end = formatReminderTime(r.windowEnd ?? RHYTHM_WINDOW_END_DEFAULT, 0);
+    const hours = r.intervalHours ?? 1;
+    return hours === 1 ? t('routines.rhythmHourly', { start, end }) : t('routines.rhythmEvery', { hours, start, end });
+  }
+
+  // The "every N hours" label for the interval stepper, singular-aware.
+  function intervalLabel(n: number): string {
+    return n === 1 ? t('routines.rhythmEveryOne') : t('routines.rhythmEveryN', { hours: n });
+  }
+
+  // Open a blank custom-rhythm form (closing the checklist form if it was open).
+  function openNewRhythm() {
+    cancelAdd();
+    setEditingRhythmId(null);
+    setRhythmName('');
+    setRhythmInterval(2);
+    setRhythmWinStart(RHYTHM_WINDOW_START_DEFAULT);
+    setRhythmWinEnd(RHYTHM_WINDOW_END_DEFAULT);
+    setRhythmHint(null);
+    setRhythmFormOpen(true);
+  }
+
+  // Open the custom form prefilled from an existing Rhythm, so a preset is a starting point,
+  // not a fixed thing: its name, interval and window are all editable.
+  function startEditRhythm(r: Routine) {
+    cancelAdd();
+    setEditingRhythmId(r.id);
+    setRhythmName(r.name);
+    setRhythmInterval(r.intervalHours ?? 2);
+    setRhythmWinStart(r.windowStart ?? RHYTHM_WINDOW_START_DEFAULT);
+    setRhythmWinEnd(r.windowEnd ?? RHYTHM_WINDOW_END_DEFAULT);
+    setRhythmHint(null);
+    setRhythmFormOpen(true);
+  }
+
+  function cancelRhythmForm() {
+    setRhythmFormOpen(false);
+    setEditingRhythmId(null);
+    setRhythmName('');
+    setRhythmHint(null);
+  }
+
+  // Save the custom form, creating or editing. A missing name points there with a quiet hint
+  // and focus, never a silent bounce. The stored Rhythm is always nudge-only (steps:[], done:{})
+  // and reschedules on save so a changed interval or window takes effect immediately.
+  function saveRhythmForm() {
+    const trimmed = rhythmName.trim();
+    if (!trimmed) {
+      setRhythmHint('name');
+      rhythmNameInput.current?.focus();
+      return;
+    }
+    const now = Date.now();
+    const existing = editingRhythmId ? routines.find((r) => r.id === editingRhythmId) : undefined;
+    if (editingRhythmId && !existing) {
+      cancelRhythmForm();
+      return;
+    }
+    const id = existing ? existing.id : makeId();
+    const rhythm: Routine = {
+      id,
+      name: trimmed,
+      kind: 'rhythm',
+      when: 'anytime',
+      steps: [],
+      done: {},
+      preset: existing?.preset ?? 'custom',
+      intervalHours: rhythmInterval,
+      windowStart: rhythmWinStart,
+      windowEnd: rhythmWinEnd,
+      paused: existing?.paused ?? false,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+    commit(existing ? routines.map((r) => (r.id === id ? rhythm : r)) : [...routines, rhythm]);
+    void scheduleRhythm(rhythm).then((res) => {
+      if (!res.ok && res.reason !== 'unsupported') setNudgeNote(reminderReasonLine(res.reason));
+    });
+    track(existing ? 'rhythm.edited' : 'rhythm.created', { preset: rhythm.preset });
+    cancelRhythmForm();
+  }
+
+  // Rhythms are nudge-only and must NEVER flow through the checklist group/progress path (that
+  // path renders a "0 of 0" tick counter, the exact scorekeeping the spine forbids), so they
+  // are excluded here and rendered in their own section below.
+  const groups = WHENS.map((w) => ({ ...w, items: routines.filter((r) => r.when === w.value && r.kind !== 'rhythm') })).filter(
     (g) => g.items.length > 0,
   );
+  const rhythms = routines.filter((r) => r.kind === 'rhythm');
 
   return (
     <View style={styles.screen}>
@@ -345,6 +497,187 @@ export default function RoutinesScreen() {
             })}
           </View>
         ))}
+
+        {/* Rhythms: gentle recurring nudges, in their OWN section (never the checklist group
+            path), with no checkboxes, no progress, no streak. Presets create-and-activate in
+            one tap. On web scheduling is a no-op, so a calm line says reminders arrive on the phone. */}
+        <View style={styles.group}>
+          <Text style={styles.groupHeading}>{t('routines.rhythmSection')}</Text>
+          <Text style={styles.rhythmIntro}>{t('routines.rhythmIntro')}</Text>
+          {Platform.OS === 'web' && <Text style={styles.rhythmWebNote}>{t('routines.rhythmWebNote')}</Text>}
+          {rhythms.map((r) => (
+            <View key={r.id} style={styles.card}>
+              <View style={styles.cardHead}>
+                <Text style={styles.cardName}>{r.name}</Text>
+                {r.paused && <Text style={styles.cardProgress}>{t('routines.rhythmPaused')}</Text>}
+              </View>
+              <Text style={styles.cardNudge}>{cadenceLine(r)}</Text>
+              <View style={styles.cardActions}>
+                <Pressable
+                  onPress={() => startEditRhythm(r)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('routines.editA11y', { name: r.name })}
+                  hitSlop={6}
+                >
+                  <Text style={styles.edit}>{t('routines.edit')}</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => toggleRhythmPause(r.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={r.paused ? t('routines.rhythmResumeA11y', { name: r.name }) : t('routines.rhythmPauseA11y', { name: r.name })}
+                  hitSlop={6}
+                >
+                  <Text style={styles.edit}>{r.paused ? t('routines.rhythmResume') : t('routines.rhythmPause')}</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => removeRoutine(r.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('routines.removeA11y', { name: r.name })}
+                  hitSlop={6}
+                >
+                  <Text style={styles.remove}>{t('common.remove')}</Text>
+                </Pressable>
+              </View>
+            </View>
+          ))}
+          {rhythmFormOpen ? (
+            <View style={styles.form}>
+              <TextInput
+                ref={rhythmNameInput}
+                style={styles.input}
+                placeholder={t('routines.rhythmNamePlaceholder')}
+                placeholderTextColor={theme.colors.inkFaint}
+                value={rhythmName}
+                onChangeText={(v) => {
+                  setRhythmName(v);
+                  if (rhythmHint === 'name') setRhythmHint(null);
+                }}
+                accessibilityLabel={t('routines.nameA11y')}
+              />
+              {rhythmHint === 'name' && <Text style={styles.formHint}>{t('routines.nameFirstHint')}</Text>}
+
+              <Text style={styles.nudgeTitle}>{t('routines.rhythmHowOften')}</Text>
+              <View style={styles.stepper}>
+                <Pressable
+                  onPress={() => setRhythmInterval((n) => Math.max(1, n - 1))}
+                  disabled={rhythmInterval <= 1}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('routines.rhythmLessOftenA11y')}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.stepBtn, rhythmInterval <= 1 && styles.stepBtnOff, pressed && styles.pressed]}
+                >
+                  <Text style={styles.stepGlyph}>−</Text>
+                </Pressable>
+                <Text style={styles.stepValue}>{intervalLabel(rhythmInterval)}</Text>
+                <Pressable
+                  onPress={() => setRhythmInterval((n) => Math.min(12, n + 1))}
+                  disabled={rhythmInterval >= 12}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('routines.rhythmMoreOftenA11y')}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.stepBtn, rhythmInterval >= 12 && styles.stepBtnOff, pressed && styles.pressed]}
+                >
+                  <Text style={styles.stepGlyph}>+</Text>
+                </Pressable>
+              </View>
+
+              <Text style={styles.nudgeTitle}>{t('routines.rhythmActiveHours')}</Text>
+              <View style={styles.windowRow}>
+                <View style={styles.stepper}>
+                  <Pressable
+                    onPress={() => setRhythmWinStart((h) => Math.max(0, h - 1))}
+                    disabled={rhythmWinStart <= 0}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('settings.reminderEarlier')}
+                    hitSlop={8}
+                    style={({ pressed }) => [styles.stepBtn, rhythmWinStart <= 0 && styles.stepBtnOff, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.stepGlyph}>−</Text>
+                  </Pressable>
+                  <Text style={styles.windowValue}>{formatReminderTime(rhythmWinStart, 0)}</Text>
+                  <Pressable
+                    onPress={() => setRhythmWinStart((h) => Math.min(rhythmWinEnd - 1, h + 1))}
+                    disabled={rhythmWinStart >= rhythmWinEnd - 1}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('today.laterHeading')}
+                    hitSlop={8}
+                    style={({ pressed }) => [styles.stepBtn, rhythmWinStart >= rhythmWinEnd - 1 && styles.stepBtnOff, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.stepGlyph}>+</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.windowTo}>{t('routines.rhythmTo')}</Text>
+                <View style={styles.stepper}>
+                  <Pressable
+                    onPress={() => setRhythmWinEnd((h) => Math.max(rhythmWinStart + 1, h - 1))}
+                    disabled={rhythmWinEnd <= rhythmWinStart + 1}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('settings.reminderEarlier')}
+                    hitSlop={8}
+                    style={({ pressed }) => [styles.stepBtn, rhythmWinEnd <= rhythmWinStart + 1 && styles.stepBtnOff, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.stepGlyph}>−</Text>
+                  </Pressable>
+                  <Text style={styles.windowValue}>{formatReminderTime(rhythmWinEnd, 0)}</Text>
+                  <Pressable
+                    onPress={() => setRhythmWinEnd((h) => Math.min(23, h + 1))}
+                    disabled={rhythmWinEnd >= 23}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('today.laterHeading')}
+                    hitSlop={8}
+                    style={({ pressed }) => [styles.stepBtn, rhythmWinEnd >= 23 && styles.stepBtnOff, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.stepGlyph}>+</Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              <Text style={styles.timeResult}>{cadenceLine({ intervalHours: rhythmInterval, windowStart: rhythmWinStart, windowEnd: rhythmWinEnd })}</Text>
+
+              <View style={styles.formActions}>
+                <Pressable onPress={cancelRhythmForm} accessibilityRole="button" hitSlop={6}>
+                  <Text style={styles.cancel}>{t('common.cancel')}</Text>
+                </Pressable>
+                <PrimaryButton
+                  label={editingRhythmId ? t('routines.saveChanges') : t('routines.rhythmSave')}
+                  onPress={saveRhythmForm}
+                  pill
+                  accessibilityLabel={editingRhythmId ? t('routines.saveChanges') : t('routines.rhythmSave')}
+                />
+              </View>
+            </View>
+          ) : (
+            <View style={styles.rhythmPresets}>
+              <Pressable
+                onPress={() => addRhythm('water')}
+                accessibilityRole="button"
+                accessibilityLabel={t('routines.rhythmAddWater')}
+                style={styles.presetBtn}
+                hitSlop={6}
+              >
+                <Text style={styles.presetBtnText}>{t('routines.rhythmAddWater')}</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => addRhythm('stand')}
+                accessibilityRole="button"
+                accessibilityLabel={t('routines.rhythmAddStand')}
+                style={styles.presetBtn}
+                hitSlop={6}
+              >
+                <Text style={styles.presetBtnText}>{t('routines.rhythmAddStand')}</Text>
+              </Pressable>
+              <Pressable
+                onPress={openNewRhythm}
+                accessibilityRole="button"
+                accessibilityLabel={t('routines.rhythmNew')}
+                style={styles.presetBtn}
+                hitSlop={6}
+              >
+                <Text style={styles.presetBtnText}>{t('routines.rhythmNew')}</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
 
         {adding ? (
           <View style={styles.form}>
@@ -578,6 +911,21 @@ const makeStyles = (t: Theme) =>
     cardActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.five, marginTop: spacing.two },
     edit: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body },
     remove: { color: t.colors.danger, fontSize: 13 * t.scale, fontFamily: fonts.body },
+    rhythmIntro: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale, marginBottom: spacing.one },
+    rhythmWebNote: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two, fontStyle: 'italic' },
+    rhythmPresets: { gap: spacing.two, marginTop: spacing.one },
+    presetBtn: {
+      borderWidth: border.hair,
+      borderColor: t.colors.line,
+      borderRadius: radius.pill,
+      paddingVertical: spacing.three,
+      paddingHorizontal: spacing.four,
+      alignItems: 'center',
+    },
+    presetBtnText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    windowRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, flexWrap: 'wrap', marginTop: spacing.two },
+    windowValue: { ...t.type.bodyStrong, color: t.colors.ink, minWidth: 52, textAlign: 'center' },
+    windowTo: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     form: {
       backgroundColor: t.colors.surface,
       borderRadius: radius.lg,
