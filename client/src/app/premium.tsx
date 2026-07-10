@@ -213,6 +213,8 @@ export default function PremiumScreen() {
               {[
                 t('premium.featureScan'),
                 t('premium.featurePin'),
+                t('premium.featureQuiet'),
+                t('premium.featureThemes'),
                 t('premium.featureScrapbook'),
                 t('premium.featurePatterns'),
                 t('premium.featureChart'),

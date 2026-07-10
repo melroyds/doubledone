@@ -303,7 +303,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | ID | Pri | Platform | Test | Steps | Expected |
 |---|---|---|---|---|---|
 | PREM-00 | P1 | Setup | PREREQ: Stripe test keys + webhook | Set STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET as Worker secrets; register the /stripe-webhook URL in the Stripe sandbox. | Worker deployed with the keys; webhook endpoint registered and reachable. |
-| PREM-01 | P1 | Both | Paywall renders | Open Settings -> DoubleDone Premium. | The calm 'Keep every week' pitch, the A$5/mo price, the 1 -> 2 -> 4 tenure tiers. |
+| PREM-01 | P1 | Both | Paywall renders | Open Settings -> DoubleDone Premium. | The calm 'Keep every week' pitch, the A$5/mo price, the 1 -> 2 -> 4 tenure tiers. The feature list includes the personalisation pair (Quiet, the borderless look, and the seven colour themes) alongside Scan, Pin and the AI suite, so a user sent here from the Interface gate can see the thing they tapped. |
 | PREM-02 | P1 | Both | Free monthly gate routes to the paywall | As a free user who already made a scrapbook this month, tap 'Make a scrapbook'. | Routed to the Premium paywall, calm, never a shaming message. |
 | PREM-03 | P1 | Web | Checkout with a test card | Signed in, tap Go Premium, pay with Stripe test card 4242 4242 4242 4242 (any future expiry, any CVC). | Stripe Checkout opens, payment succeeds, returns to /premium?status=success. |
 | PREM-04 | P1 | Both | Entitlement flips to premium | After the test checkout, reopen Premium and the Lookback. | Premium shows active; the scrapbook is no longer monthly-gated (now weekly). |

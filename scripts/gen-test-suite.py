@@ -513,7 +513,7 @@ CASES = [
      "Worker deployed with the keys; webhook endpoint registered and reachable.", "Setup"),
     ("PREM-01", "Premium", "P1", "Paywall renders",
      "Open Settings -> DoubleDone Premium.",
-     "The calm 'Keep every week' pitch, the A$5/mo price, the 1 -> 2 -> 4 tenure tiers.", "Both"),
+     "The calm 'Keep every week' pitch, the A$5/mo price, the 1 -> 2 -> 4 tenure tiers. The feature list includes the personalisation pair (Quiet, the borderless look, and the seven colour themes) alongside Scan, Pin and the AI suite, so a user sent here from the Interface gate can see the thing they tapped.", "Both"),
     ("PREM-02", "Premium", "P1", "Free monthly gate routes to the paywall",
      "As a free user who already made a scrapbook this month, tap 'Make a scrapbook'.",
      "Routed to the Premium paywall, calm, never a shaming message.", "Both"),

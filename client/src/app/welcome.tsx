@@ -68,6 +68,7 @@ const PREMIUM_FEATURES: { name: string; what: string }[] = [
   { name: t('actions.planMyDay'), what: t('welcome.premiumPlanWhat') },
   { name: t('welcome.premiumPatternsName'), what: t('welcome.premiumPatternsWhat') },
   { name: t('welcome.premiumScanName'), what: t('welcome.premiumScanWhat') },
+  { name: t('welcome.premiumQuietName'), what: t('welcome.premiumQuietWhat') },
 ];
 
 // With AI off, the premium pitch drops the AI features (scrapbook, Chart, Plan my day, patterns, Scan) and shows
@@ -75,6 +76,7 @@ const PREMIUM_FEATURES: { name: string; what: string }[] = [
 const PREMIUM_FEATURES_NOAI: { name: string; what: string }[] = [
   { name: t('welcome.premiumColourName'), what: t('welcome.premiumColourWhat') },
   { name: t('welcome.premiumPinName'), what: t('welcome.premiumPinWhat') },
+  { name: t('welcome.premiumQuietName'), what: t('welcome.premiumQuietWhat') },
 ];
 
 export default function WelcomeScreen() {
