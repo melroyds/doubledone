@@ -2141,9 +2141,8 @@ export default function TodayScreen() {
                 returnKeyType="done"
                 accessibilityLabel={t('closeDay.noteA11y')}
               />
-              <PrimaryButton
-                label={t('closeDay.goodnight')}
-                onPress={() => {
+              {(() => {
+                const onGoodnight = () => {
                   const note = closeNote.trim();
                   if (note) {
                     const now = nowMs();
@@ -2156,10 +2155,27 @@ export default function TodayScreen() {
                   setClosedDate(toISODate(today));
                   void saveClosedDate(toISODate(today));
                   dayClosed(reduced); // the gentle close: a warm, soft confirmation
-                }}
-                accessibilityLabel={t('closeDay.goodnight')}
-                style={styles.wrapBtn}
-              />
+                };
+                // Quiet renders the close as a plain accent text link, matching the rest of
+                // the borderless surface; Standard keeps the filled primary button.
+                return theme.appearance === 'quiet' ? (
+                  <Pressable
+                    onPress={onGoodnight}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('closeDay.goodnight')}
+                    style={styles.wrapGoodnightQuiet}
+                  >
+                    <Text style={styles.wrapGoodnightQuietText}>{t('closeDay.goodnight')}</Text>
+                  </Pressable>
+                ) : (
+                  <PrimaryButton
+                    label={t('closeDay.goodnight')}
+                    onPress={onGoodnight}
+                    accessibilityLabel={t('closeDay.goodnight')}
+                    style={styles.wrapBtn}
+                  />
+                );
+              })()}
             </View>
           </Animated.View>
         </View>
@@ -2585,7 +2601,17 @@ const makeStyles = (t: Theme) =>
       justifyContent: 'center',
       padding: spacing.five,
     },
-    backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: t.colors.scrim },
+    backdrop: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      // Quiet drops the dim scrim for the plain page colour, so the wrap reads as
+      // text on the page rather than a card floating over a darkened Today. The
+      // card itself is already page-coloured, so the two blend into one calm surface.
+      backgroundColor: t.appearance === 'quiet' ? t.colors.bg : t.colors.scrim,
+    },
     wrapAnim: { width: '100%', maxWidth: 420 },
     wrapCard: {
       backgroundColor: t.colors.bg,
@@ -2604,4 +2630,6 @@ const makeStyles = (t: Theme) =>
     wrapItemText: { color: t.colors.inkSoft, fontSize: 16 * t.scale, flexShrink: 1, fontFamily: fonts.body },
     wrapRoll: { color: t.colors.inkFaint, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, marginTop: spacing.two, fontFamily: fonts.body },
     wrapBtn: { marginTop: spacing.three },
+    wrapGoodnightQuiet: { marginTop: spacing.four, alignItems: 'flex-start', paddingVertical: spacing.two },
+    wrapGoodnightQuietText: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   });
