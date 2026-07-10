@@ -517,6 +517,13 @@ export default function TodayScreen() {
     selectGuard.current = { id, at: nowMs() };
     track('select.opened');
   }
+  // Long-press splits by appearance: Standard opens the full-screen multi-select (batch actions in
+  // the footer); Quiet reveals the row's own inline held actions in place (the calmer per-row model),
+  // reusing the existing confirming state. Additive and reversible; Standard is unchanged.
+  function onRowLongPress(id: string) {
+    if (theme.appearance === 'quiet') setConfirmingId(id);
+    else enterSelectWith(id);
+  }
   function exitSelect() {
     setSelectMode(false);
     setSelected([]);
@@ -1427,7 +1434,7 @@ export default function TodayScreen() {
               title={task.title}
               done={isDoneOn(task, today)}
               onToggle={() => toggle(task.id)}
-              onLongPress={() => enterSelectWith(task.id)}
+              onLongPress={() => onRowLongPress(task.id)}
               confirming={confirmingId === task.id}
               onRemove={() => removeTask(task.id)}
               onKeep={() => setConfirmingId(null)}
@@ -1491,7 +1498,7 @@ export default function TodayScreen() {
                   title={task.title}
                   done={isDoneOn(task, today)}
                   onToggle={() => toggle(task.id)}
-                  onLongPress={() => enterSelectWith(task.id)}
+                  onLongPress={() => onRowLongPress(task.id)}
                   confirming={confirmingId === task.id}
                   onRemove={() => removeTask(task.id)}
                   onKeep={() => setConfirmingId(null)}

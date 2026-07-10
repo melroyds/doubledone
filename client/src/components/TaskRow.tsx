@@ -321,7 +321,11 @@ const makeStyles = (t: Theme) => StyleSheet.create({
       : { backgroundColor: t.colors.accentSoft, paddingHorizontal: spacing.two, paddingVertical: 1, borderRadius: radius.pill, overflow: 'hidden' }),
   },
   pressed: { opacity: PRESSED_OPACITY },
-  confirmRow: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accentSoft },
+  // The held row: quiet gets the soft press wash (accentSoft tint) with a rounded bleed; standard keeps the accent tint.
+  confirmRow:
+    t.appearance === 'quiet'
+      ? { backgroundColor: t.quiet.pressWash, borderRadius: radius.md, borderColor: 'transparent' }
+      : { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accentSoft },
   confirmText: { flex: 1, color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body },
   confirmColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.three },
   confirmTitle: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body },
