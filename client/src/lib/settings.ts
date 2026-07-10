@@ -11,23 +11,26 @@ export type ThemePref = 'system' | 'light' | 'dark';
 export type TextSize = 'small' | 'default' | 'large';
 export type MotionPref = 'system' | 'reduce';
 export type ThemeName = 'dusk' | 'sage' | 'slate' | 'heather' | 'fog' | 'honey' | 'rose';
+export type Appearance = 'standard' | 'quiet'; // Premium: the "Quiet interface" appearance (Standard is the default and free)
 
 export type Settings = {
   theme: ThemePref;
   textSize: TextSize;
   motion: MotionPref;
   themePreset: ThemeName; // Premium: the full colour theme (Dusk is the default and the free state)
+  appearance: Appearance; // Premium: Standard (full chrome, the default) or Quiet (chrome stripped to calm text)
   aiEnabled: boolean; // whether the AI features are offered at all; false = a fully offline, AI-free app
 };
 
 // System-following, default size, system-following motion: the calmest defaults,
 // and the same behaviour the app had before the page existed.
-export const DEFAULT_SETTINGS: Settings = { theme: 'system', textSize: 'default', motion: 'system', themePreset: 'dusk', aiEnabled: true };
+export const DEFAULT_SETTINGS: Settings = { theme: 'system', textSize: 'default', motion: 'system', themePreset: 'dusk', appearance: 'standard', aiEnabled: true };
 
 const THEME_PREFS: readonly ThemePref[] = ['system', 'light', 'dark'];
 const TEXT_SIZES: readonly TextSize[] = ['small', 'default', 'large'];
 const MOTION_PREFS: readonly MotionPref[] = ['system', 'reduce'];
 export const THEME_NAMES: readonly ThemeName[] = ['dusk', 'sage', 'slate', 'heather', 'fog', 'honey', 'rose'];
+export const APPEARANCES: readonly Appearance[] = ['standard', 'quiet'];
 
 /** The active colour scheme, from the preference and the device scheme. */
 export function resolveScheme(theme: ThemePref, system: 'light' | 'dark' | null | undefined): 'light' | 'dark' {
@@ -65,6 +68,7 @@ export function parseSettings(raw: string | null | undefined): Settings {
       textSize: TEXT_SIZES.includes(o.textSize as TextSize) ? (o.textSize as TextSize) : DEFAULT_SETTINGS.textSize,
       motion: MOTION_PREFS.includes(o.motion as MotionPref) ? (o.motion as MotionPref) : DEFAULT_SETTINGS.motion,
       themePreset: THEME_NAMES.includes(o.themePreset as ThemeName) ? (o.themePreset as ThemeName) : DEFAULT_SETTINGS.themePreset,
+      appearance: APPEARANCES.includes(o.appearance as Appearance) ? (o.appearance as Appearance) : DEFAULT_SETTINGS.appearance,
       aiEnabled: typeof o.aiEnabled === 'boolean' ? o.aiEnabled : DEFAULT_SETTINGS.aiEnabled,
     };
   } catch {

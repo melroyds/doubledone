@@ -266,6 +266,20 @@ export type TypeScale = ReturnType<typeof makeTypeScale>;
 export type Theme = {
   scheme: 'light' | 'dark';
   colors: Palette;
+  // The "Quiet interface" appearance (Premium): 'standard' (full chrome) or 'quiet' (chrome
+  // stripped to calm text). Components branch their makeStyles on this; the layout stays identical.
+  appearance: 'standard' | 'quiet';
+  // Derived usage tokens for quiet mode: no new colours, just usage (and alphas) of the ACTIVE
+  // palette, so components read t.quiet.* instead of hardcoding literals. Built always, used only in quiet.
+  quiet: {
+    hairline: string; // the 5%-ink row separator that replaces the card border
+    pressWash: string; // the soft press / hold wash (accentSoft tint)
+    captureUnderline: string; // the 1px capture-line underline
+    secondary: string; // quiet secondary actions (soft ink)
+    link: string; // the accent text links that stay coloured (rendered bold)
+    remove: string; // destructive text (muted brick, never red)
+    nOfM: string; // the "n of m" multi-step counter (soft ink)
+  };
   fonts: typeof fonts;
   spacing: typeof spacing;
   radius: typeof radius;
@@ -274,13 +288,32 @@ export type Theme = {
   reduceMotion: boolean;
 };
 
-export function buildTheme(scheme: 'light' | 'dark', scale: number, reduceMotion: boolean, preset: ThemeName = 'dusk'): Theme {
+export function buildTheme(
+  scheme: 'light' | 'dark',
+  scale: number,
+  reduceMotion: boolean,
+  preset: ThemeName = 'dusk',
+  appearance: 'standard' | 'quiet' = 'standard',
+): Theme {
   // Dusk (the default + free state) renders the canonical light/dark palettes UNCHANGED; the six Premium
   // presets derive their full Palette from their 12 preset tokens.
   const colors = preset === 'dusk' ? (scheme === 'dark' ? dark : light) : toPalette(THEME_PRESETS[preset][scheme], scheme);
+  // The quiet usage tokens, derived from the ACTIVE palette so Quiet works on every colour theme, not
+  // just Dusk. No new colours, just usage (and alphas) of what the theme already carries.
+  const quiet = {
+    hairline: rgba(colors.ink, scheme === 'light' ? 0.05 : 0.06),
+    pressWash: rgba(colors.accentSoft, scheme === 'light' ? 0.78 : 0.85),
+    captureUnderline: colors.line,
+    secondary: colors.inkSoft,
+    link: colors.accent,
+    remove: colors.danger,
+    nOfM: colors.inkSoft,
+  };
   return {
     scheme,
     colors,
+    appearance,
+    quiet,
     fonts,
     spacing,
     radius,

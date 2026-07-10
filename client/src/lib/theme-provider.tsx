@@ -93,6 +93,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         scaleFor(settings.textSize),
         resolveReduceMotion(settings.motion, systemReduce),
         settings.themePreset,
+        settings.appearance,
       ),
     [settings, systemScheme, systemReduce],
   );

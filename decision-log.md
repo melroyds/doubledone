@@ -3929,3 +3929,19 @@ The design, and what changed after a real test:
 - **Telemetry stays config-only.** `rhythm.created` / `rhythm.edited` / `rhythm.removed` (+ the remove-undo), NO pause/resume event and NO fire/response/outcome, so a nudge-only feature is genuinely uninstrumented on behaviour, the deliberate bend of the telemetry-before-traffic rule for this feature.
 
 Web-push cross-device delivery (Phase W) stays deferred to the Backlog with its known constraints (DST tz drift, cron idempotency, window inclusivity). Native local notifications are the real mechanism for launch. Gate green; the big-bang merge to main plus the Android build is Melroy's call after he tests the minimal-UI pass on PC.
+
+## 2026-07-10 Quiet interface (increment 1): the appearance flag on the theme rail
+
+The "Quiet interface" is a Premium appearance option that strips decorative chrome so DoubleDone reads as calm text on paper, same layout, same features, same warmth. Built from a Claude Design handoff (preserved in `docs/design-source/quiet-interface/`: the reference board, README spec, and light/dark frames), on the `quiet-interface` branch stacked on `rhythms` so the big-bang deploy ships both. Increment 1 is the foundation only, no visible change yet.
+
+The mechanism, decided to mirror the colour-theme rail exactly (no new pattern, no prop drilling): a persisted `Settings.appearance: 'standard' | 'quiet'` flows Settings -> `buildTheme` -> the resolved `Theme` as `t.appearance`, and every `makeStyles(t)` branches on it, exactly how `t.scheme` / `t.scale` / `t.reduceMotion` already reach leaf styles. Toggling re-paints live and layout-stable for free (the theme useMemo already depends on `settings`).
+
+- **The quiet tokens derive from the ACTIVE palette, not the handoff's Dusk-only hexes.** `buildTheme` builds a `t.quiet` group with the existing `rgba()` helper: `hairline = rgba(ink, 0.05/0.06)`, `pressWash = rgba(accentSoft, 0.78/0.85)`, `captureUnderline = line`, `secondary/nOfM = inkSoft`, `link = accent`, `remove = danger`. Decided against hardcoding the spec's literal hexes (#7A7066, #A1554C, etc.), which would look wrong on the six non-Dusk colour themes; deriving from the palette keeps "no new colours, usage only" honest AND makes Quiet correct on every theme.
+
+Open-question calls (the plan's, taken while Melroy is away, recorded to challenge):
+- **Held-state: revive the dead per-row `confirming` path in QUIET ONLY** (standard keeps the full-screen multi-select). The spec's held state (row wash + inline Steps/Later/Remove) does not exist today; `TaskRow`'s `confirming` branch is dead code (`setConfirmingId` is only ever called with null). Quiet's `onLongPress` will set it instead of entering select mode. Additive and reversible. Decided against restyling select mode itself for quiet. (Parity of the other select actions, Pin/tiny/Combine/Move, to be settled at the held-state increment.)
+- **Premium gate: write-time only**, matching `themePreset` (a lapsed subscriber's stored 'quiet' would still render, accepted only because it stays consistent with the themes). Decided against hardening appearance alone (would desync the two controls).
+- **CheckCircle stays 26px** (the shared hero size across TaskRow/BreakdownReview); not nudged to the spec's 24 per-appearance, which would desync.
+- **Pinned/unique rows in quiet read via the star + faint tint / whitespace**, no chrome border (the spec drops the periwinkle/accent borders).
+
+Increment 1 gate: typecheck clean, 14 settings tests (new appearance parse-guard test included). Next: Today at rest (header, load sentence, borderless rows, capture line), web-verified via a localStorage appearance flip.
