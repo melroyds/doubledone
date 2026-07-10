@@ -3906,3 +3906,12 @@ Decisions, and what was decided against:
 - **Device-local, no Supabase sync.** Routines already do not sync; a Rhythm stays on the phone, which is correct because native scheduled notifications are themselves device-local. Cross-device delivery is the deferred web-push phase, not a gap.
 
 Two scope cuts recommended by the adversarial pass, to confirm before they reach the UI (increment 3): drop the timed "pause today, auto-resume tomorrow" snooze in favour of an honest indefinite Pause/Resume, because a snooze that only re-arms when the user reopens the app can silently die for days, wrong for exactly this audience; and ship interval presets first (water, stand), with the fixed-times "meds" variant a fast-follow. Increment 1 gate green: typecheck, lint, 30 routines tests (13 new) covering the math, the collision-safety, the native/web parity, and the never-shame structural guarantees.
+
+## 2026-07-10 Rhythms (increment 2): the native scheduler
+
+`scheduleRhythm` / `cancelRhythm` in reminders.ts, thin layers over the pure `rhythmSlotHours`. Not unit-tested (native expo SDK); typecheck + lint gate it and a device E2E case proves the actual fire. Two implementation choices with their rejected alternatives:
+
+- **N discrete DAILY triggers (one per firing hour), NOT `SchedulableTriggerInputTypes.TIME_INTERVAL`.** TIME_INTERVAL repeats on a raw seconds interval that ignores the active window, so it would fire overnight and break respect-the-body's-day. Discrete DAILY slots can only fire at the hours we choose, all inside the waking window. Cancel enumerates the tray and sweeps every `rhythm-{id}-` slot (not a single id), so a shrunk window or a delete never orphans a slot that keeps nagging.
+- **The Rhythm notification carries NO task-shaped `data`.** The per-task nudge attaches `data:{taskId}` for its tap handler; a Rhythm deliberately attaches nothing, so a tapped Rhythm nudge just opens the app and can never be misrouted into creating a task. It also reuses the calm DEFAULT-importance daily channel (no sound, no badge) and the inexact-alarm posture (no USE_EXACT_ALARM), so copy promises "around", never a to-the-minute time.
+
+Permission follows the gentle get-then-request pattern (only prompts if not already granted), and every call is on a user gesture (save/edit), so there is no background permission prompt. Web stays a no-op returning `unsupported`, so the screen can say calmly that Rhythm reminders arrive on the phone until the deferred web-push phase.

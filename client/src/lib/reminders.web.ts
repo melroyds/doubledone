@@ -5,6 +5,7 @@
 // Metro resolves this .web.ts on web. Per-task nudges stay native-only (no-op here).
 
 import { type ReminderResult } from './reminders-types';
+import { type Routine } from './routines';
 
 export type { ReminderReason, ReminderResult } from './reminders-types';
 
@@ -95,5 +96,17 @@ export async function scheduleRoutineNudge(routineId: string, name: string, hour
 
 /** No-op on web. */
 export async function cancelRoutineNudge(routineId: string): Promise<void> {
+  // nothing scheduled on web
+}
+
+/** No-op on web: Rhythm nudges are native-only for now (web has no local scheduling), so the
+ *  screen can say calmly that Rhythm reminders arrive on the phone. Web-push delivery for
+ *  Rhythms is a deferred phase. */
+export async function scheduleRhythm(r: Routine): Promise<ReminderResult> {
+  return { ok: false, reason: 'unsupported' };
+}
+
+/** No-op on web. */
+export async function cancelRhythm(routineId: string): Promise<void> {
   // nothing scheduled on web
 }

@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 
 import { t } from './i18n-active';
 import { type ReminderResult } from './reminders-types';
+import { rhythmSlotHours, rhythmSlotId, rhythmSlotIdPrefix, type Routine } from './routines';
 
 export type { ReminderReason, ReminderResult } from './reminders-types';
 
@@ -121,6 +122,64 @@ export async function scheduleRoutineNudge(routineId: string, name: string, hour
 export async function cancelRoutineNudge(routineId: string): Promise<void> {
   try {
     await Notifications.cancelScheduledNotificationAsync(ROUTINE_NUDGE_PREFIX + routineId);
+  } catch {
+    // best effort
+  }
+}
+
+/**
+ * Schedule a Rhythm's gentle recurring nudges: one calm DAILY notification per firing hour
+ * across its active window (from the pure `rhythmSlotHours`), each keyed `rhythm-{id}-{hour}`
+ * so cancel can sweep every slot. Title is the Rhythm's own name (user data, never
+ * translated), body a gentle "when you're ready". It shares the DEFAULT-importance daily
+ * channel: a Rhythm is an offer, not an alarm, so no sound and no badge, and Android delivers
+ * it INEXACTLY (no USE_EXACT_ALARM, same posture as the other nudges), which is why the copy
+ * says "around", never a to-the-minute time. Discrete DAILY triggers, never a raw
+ * TIME_INTERVAL, so it can only fire inside the waking window and never overnight. Always
+ * cancels first, so a re-save or a shrunk window leaves no orphaned slot firing; a paused
+ * Rhythm schedules nothing (honestly silent until resumed). The notification carries NO
+ * task-shaped `data`, so a tap just opens the app and can never be misrouted into creating a
+ * task. Returns ok, or a reason it didn't.
+ */
+export async function scheduleRhythm(r: Routine): Promise<ReminderResult> {
+  try {
+    await ensureChannel(DAILY_CHANNEL_ID, t('settings.reminderLabel'));
+    let { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') ({ status } = await Notifications.requestPermissionsAsync());
+    if (status !== 'granted') return { ok: false, reason: 'denied' };
+    await cancelRhythm(r.id); // clear any stale slots first (including ones orphaned by a shrunk window)
+    if (r.paused) return { ok: true };
+    for (const hour of rhythmSlotHours(r)) {
+      await Notifications.scheduleNotificationAsync({
+        identifier: rhythmSlotId(r.id, hour),
+        content: { title: r.name, body: t('reminders.routineNudgeBody') },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          hour,
+          minute: 0,
+          channelId: DAILY_CHANNEL_ID,
+        },
+      });
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'error' };
+  }
+}
+
+/**
+ * Cancel ALL of a Rhythm's scheduled slots by enumerating the tray and matching the
+ * `rhythm-{id}-` prefix. Enumerate-and-cancel (not a single id) so it also removes slots
+ * orphaned by an earlier edit that shrank the window, the exact "it kept nagging after I
+ * deleted it" failure. Best effort, never throws.
+ */
+export async function cancelRhythm(routineId: string): Promise<void> {
+  try {
+    const prefix = rhythmSlotIdPrefix(routineId);
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    await Promise.all(
+      scheduled.filter((n) => n.identifier.startsWith(prefix)).map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)),
+    );
   } catch {
     // best effort
   }
