@@ -1423,6 +1423,7 @@ export default function TodayScreen() {
             accessibilityLabel={t('today.holdHintDismissA11y')}
             style={styles.holdHint}
           >
+            {theme.appearance === 'quiet' && <View style={styles.holdHintDot} />}
             <Text style={styles.holdHintText}>{aiEnabled ? t('today.holdHint') : t('today.holdHintNoAi')}</Text>
             <Text style={styles.holdHintDismiss}>{t('common.gotIt')}</Text>
           </Pressable>
@@ -2427,13 +2428,15 @@ const makeStyles = (t: Theme) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.three,
-      backgroundColor: t.colors.accentSoft,
-      borderRadius: radius.md,
-      paddingVertical: spacing.three,
-      paddingHorizontal: spacing.four,
       marginBottom: spacing.three,
+      // Quiet drops the soft-filled pill for a faint inline line (a 5px accent dot
+      // marks it, see holdHintDot); Standard keeps the reassuring accentSoft card.
+      ...(t.appearance === 'quiet'
+        ? { paddingVertical: spacing.two, paddingHorizontal: 2 }
+        : { backgroundColor: t.colors.accentSoft, borderRadius: radius.md, paddingVertical: spacing.three, paddingHorizontal: spacing.four }),
     },
-    holdHintText: { flex: 1, color: t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },
+    holdHintDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: t.colors.accent },
+    holdHintText: { flex: 1, color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },
     holdHintDismiss: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     reentry: {
       backgroundColor: t.colors.accentSoft,
