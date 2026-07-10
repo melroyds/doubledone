@@ -542,6 +542,12 @@ export default function TodayScreen() {
     pinTask(task.id);
     setConfirmingId(null);
   }
+  // The door out of the single-row held-state into multi-select, so Quiet keeps the bulk
+  // actions (Combine, move several to a day, tick several off) that only make sense on 2+.
+  function selectFromRow(id: string) {
+    setConfirmingId(null);
+    enterSelectWith(id);
+  }
   function exitSelect() {
     setSelectMode(false);
     setSelected([]);
@@ -1466,6 +1472,7 @@ export default function TodayScreen() {
               onDefer={() => deferTask(task.id)}
               onBig={() => bigRow(task)}
               onPin={() => pinRow(task)}
+              onSelectMore={() => selectFromRow(task.id)}
               suggestBreakdown={task.suggestBreakdown}
               selecting={selectMode}
               selected={selected.includes(task.id)}
@@ -1530,6 +1537,7 @@ export default function TodayScreen() {
                   onBreakdown={aiEnabled ? () => breakdownExisting(task.title, task.id) : () => openManualBreakdown(task.id, task.title)}
                   onMakeTiny={aiEnabled ? () => makeTiny(task.id, task.title) : undefined}
                   onBig={() => bigRow(task)}
+                  onSelectMore={() => selectFromRow(task.id)}
                   selecting={selectMode}
                   selected={selected.includes(task.id)}
                   onSelect={() => toggleSelect(task.id)}

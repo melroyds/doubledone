@@ -729,6 +729,8 @@ export const es: Catalog = {
     selectAll: 'Seleccionar todas',
     selectAllA11y: 'Seleccionar todas las tareas',
     selectHint: 'Toca tareas para seleccionarlas',
+    selectMore: 'Seleccionar más',
+    selectMoreA11y: 'Selecciona más tareas para gestionarlas juntas',
     selectRowLabel: 'Seleccionar {title}',
     selectedCount: '{count} seleccionadas',
     sequenceError: 'No pude planear un orden ahora mismo. Prueba otra vez.',

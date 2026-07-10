@@ -729,6 +729,8 @@ export const fr: Catalog = {
     selectAll: 'Tout sélectionner',
     selectAllA11y: 'Sélectionner toutes les tâches',
     selectHint: 'Touche les tâches pour les sélectionner',
+    selectMore: "Sélectionner d'autres",
+    selectMoreA11y: "Sélectionner d'autres tâches à gérer ensemble",
     selectRowLabel: 'Sélectionner {title}',
     selectedCount: '{count} sélectionnées',
     sequenceError: "Pas réussi à proposer un ordre pour l'instant. Réessaie.",

@@ -733,6 +733,8 @@ export const en = {
     selectAll: 'Select all',
     selectAllA11y: 'Select all tasks',
     selectHint: 'Tap tasks to select',
+    selectMore: 'Select more',
+    selectMoreA11y: 'Select more tasks to act on together',
     selectRowLabel: 'Select {title}',
     selectedCount: '{count} selected',
     sequenceError: 'Could not plan an order just now. Try again.',

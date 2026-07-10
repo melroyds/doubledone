@@ -729,6 +729,8 @@ export const it: Catalog = {
     selectAll: 'Seleziona tutte',
     selectAllA11y: 'Seleziona tutte le attività',
     selectHint: 'Tocca le attività per selezionarle',
+    selectMore: 'Seleziona altre',
+    selectMoreA11y: 'Seleziona altre attività da gestire insieme',
     selectRowLabel: 'Seleziona {title}',
     selectedCount: '{count} selezionate',
     sequenceError: 'Non sono riuscito a trovare un ordine. Riprova.',

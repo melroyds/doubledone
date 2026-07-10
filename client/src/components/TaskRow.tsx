@@ -26,6 +26,7 @@ type Props = {
   onMakeTiny?: () => void;
   onBig?: () => void; // Quiet held-state: mark / unmark this task "a lot" (parity with the select bar)
   onPin?: () => void; // Quiet held-state: pin / unpin as the day's one priority (Today one-offs only)
+  onSelectMore?: () => void; // Quiet held-state: the door into multi-select (Combine, bulk-move, bulk-complete)
   suggestBreakdown?: boolean;
   selecting?: boolean;
   selected?: boolean;
@@ -62,6 +63,7 @@ export function TaskRow({
   onMakeTiny,
   onBig,
   onPin,
+  onSelectMore,
   suggestBreakdown,
   selecting,
   selected,
@@ -158,6 +160,11 @@ export function TaskRow({
           {onPin && !recurring && (
             <Pressable onPress={onPin} accessibilityRole="button" accessibilityLabel={pinned ? t('today.unpinA11y') : t('today.pinA11y')} hitSlop={{ top: 12, bottom: 12 }}>
               <Text style={styles.keep}>{pinned ? t('today.unpin') : t('today.pin')}</Text>
+            </Pressable>
+          )}
+          {onSelectMore && (
+            <Pressable onPress={onSelectMore} accessibilityRole="button" accessibilityLabel={t('today.selectMoreA11y')} hitSlop={{ top: 12, bottom: 12 }}>
+              <Text style={styles.keep}>{t('today.selectMore')}</Text>
             </Pressable>
           )}
           <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={t('today.removeTaskLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
