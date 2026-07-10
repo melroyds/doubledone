@@ -17,7 +17,7 @@ import { t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { clampHour, formatReminderHour, reminderReasonLine } from '@/lib/reminders-types';
-import { type MotionPref, type TextSize, THEME_NAMES, type ThemePref } from '@/lib/settings';
+import { type Appearance, type MotionPref, type TextSize, THEME_NAMES, type ThemePref } from '@/lib/settings';
 import { loadLastSyncOk, loadReminderHour, loadReminderOn, loadScrapbooks, loadTasks, saveReminderHour, saveReminderOn, wipeLocalData } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
@@ -400,6 +400,34 @@ export default function SettingsScreen() {
                   </Pressable>
                 );
               })}
+            </View>
+          </View>
+          {/* The Quiet interface appearance, beside the colour themes: same Premium gate, the shared
+              Segmented toggle. Switching re-paints the whole app live and layout-stable. */}
+          <View style={styles.accentBlock}>
+            <View style={styles.accentHead}>
+              <Text style={styles.accentLabel}>{t('settings.appearanceLabel')}</Text>
+              {!premium && <Text style={styles.accentTag}>{t('common.premium')}</Text>}
+            </View>
+            <Text style={styles.rowHint}>{premium ? t('settings.appearanceHintPremium') : t('settings.appearanceHintFree')}</Text>
+            <View style={styles.segment}>
+              <Segmented<Appearance>
+                value={settings.appearance}
+                options={[
+                  { value: 'standard', label: t('settings.appearanceStandard') },
+                  { value: 'quiet', label: t('settings.appearanceQuiet') },
+                ]}
+                onChange={(ap) => {
+                  if (premium) {
+                    setSettings({ appearance: ap });
+                    track('appearance.set', { appearance: ap });
+                  } else {
+                    track('appearance.locked');
+                    router.push('/premium');
+                  }
+                }}
+                accessibilityLabel={t('settings.appearanceLabel')}
+              />
             </View>
           </View>
         </View>
