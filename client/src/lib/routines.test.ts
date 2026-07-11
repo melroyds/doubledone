@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   applyRoutineEdit,
+  cleanIntervalMinutes,
   cleanRhythmTimes,
   deserializeRoutines,
   isFixedTimeRhythm,
@@ -11,8 +12,8 @@ import {
   RHYTHM_MEDS_DEFAULT_TIMES,
   type Routine,
   rhythmDueAtHour,
-  rhythmFireHours,
   rhythmFireTimes,
+  rhythmFireTimesInWindow,
   rhythmSlotHours,
   rhythmSlotId,
   rhythmSlotIdPrefix,
@@ -221,7 +222,7 @@ describe('Rhythms', () => {
       steps: [],
       done: {},
       preset: 'water',
-      intervalHours: 2,
+      intervalMinutes: 120,
       windowStart: 9,
       windowEnd: 21,
       paused: false,
@@ -236,30 +237,67 @@ describe('Rhythms', () => {
     expect(isRhythm(mk())).toBe(false);
   });
 
-  describe('rhythmFireHours (inclusive both ends, defensive)', () => {
-    it('expands an interval across the window, including the end when it lands', () => {
-      expect(rhythmFireHours(9, 21, 2)).toEqual([9, 11, 13, 15, 17, 19, 21]);
-      expect(rhythmFireHours(9, 21, 5)).toEqual([9, 14, 19]);
+  describe('cleanIntervalMinutes (the canonical normaliser)', () => {
+    it('snaps to the nearest 15 minutes', () => {
+      expect(cleanIntervalMinutes(100)).toBe(105);
+      expect(cleanIntervalMinutes(95)).toBe(90);
+      expect(cleanIntervalMinutes(90)).toBe(90);
+    });
+    it('clamps to the 30-minute floor and the 12-hour cap', () => {
+      expect(cleanIntervalMinutes(10)).toBe(30);
+      expect(cleanIntervalMinutes(15)).toBe(30);
+      expect(cleanIntervalMinutes(10000)).toBe(720);
+    });
+    it('falls back to hourly on junk', () => {
+      expect(cleanIntervalMinutes(0)).toBe(60);
+      expect(cleanIntervalMinutes(-90)).toBe(60);
+      expect(cleanIntervalMinutes(NaN)).toBe(60);
+      expect(cleanIntervalMinutes('every hour')).toBe(60);
+      expect(cleanIntervalMinutes(null)).toBe(60);
+    });
+  });
+
+  describe('rhythmFireTimesInWindow (minutes walk, inclusive both ends, defensive)', () => {
+    it('expands a whole-hour interval across the window, including the end when it lands', () => {
+      expect(rhythmFireTimesInWindow(9, 21, 120).map((t) => t.hour)).toEqual([9, 11, 13, 15, 17, 19, 21]);
+      expect(rhythmFireTimesInWindow(9, 21, 120).every((t) => t.minute === 0)).toBe(true);
+      expect(rhythmFireTimesInWindow(9, 21, 300).map((t) => t.hour)).toEqual([9, 14, 19]);
+    });
+    it('walks sub-hour and mixed intervals off the hour (the granularity ask)', () => {
+      expect(rhythmFireTimesInWindow(9, 12, 90)).toEqual([
+        { hour: 9, minute: 0 },
+        { hour: 10, minute: 30 },
+        { hour: 12, minute: 0 },
+      ]);
+      expect(rhythmFireTimesInWindow(9, 10, 30)).toEqual([
+        { hour: 9, minute: 0 },
+        { hour: 9, minute: 30 },
+        { hour: 10, minute: 0 },
+      ]);
     });
     it('supports an hourly cadence', () => {
-      expect(rhythmFireHours(9, 21, 1)).toEqual([9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]);
+      expect(rhythmFireTimesInWindow(9, 21, 60).map((t) => t.hour)).toEqual([9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]);
     });
     it('collapses an interval larger than the window to a single start nudge', () => {
-      expect(rhythmFireHours(9, 11, 5)).toEqual([9]);
+      expect(rhythmFireTimesInWindow(9, 11, 300)).toEqual([{ hour: 9, minute: 0 }]);
     });
     it('guards an inverted window to a single start nudge, never night-time or empty', () => {
-      expect(rhythmFireHours(21, 9, 2)).toEqual([21]);
+      expect(rhythmFireTimesInWindow(21, 9, 120)).toEqual([{ hour: 21, minute: 0 }]);
     });
     it('falls back to hourly on a junk interval', () => {
-      expect(rhythmFireHours(9, 21, 0)).toEqual(rhythmFireHours(9, 21, 1));
-      expect(rhythmFireHours(9, 21, 2.5)).toEqual(rhythmFireHours(9, 21, 1));
+      expect(rhythmFireTimesInWindow(9, 21, 0)).toEqual(rhythmFireTimesInWindow(9, 21, 60));
+    });
+    it('never exceeds the slot cap, even at the densest legal cadence over the widest window', () => {
+      expect(rhythmFireTimesInWindow(0, 23, 30).length).toBeLessThanOrEqual(48);
     });
   });
 
   it('rhythmSlotHours resolves a Rhythm, and is empty for a checklist or an interval-less Rhythm', () => {
-    expect(rhythmSlotHours(mkRhythm({ intervalHours: 2 }))).toEqual([9, 11, 13, 15, 17, 19, 21]);
+    expect(rhythmSlotHours(mkRhythm({ intervalMinutes: 120 }))).toEqual([9, 11, 13, 15, 17, 19, 21]);
+    // A 90-minute cadence contributes each DISTINCT hour once (10:30 and 12:00 both fire).
+    expect(rhythmSlotHours(mkRhythm({ intervalMinutes: 90, windowStart: 9, windowEnd: 12 }))).toEqual([9, 10, 12]);
     expect(rhythmSlotHours(mk())).toEqual([]);
-    expect(rhythmSlotHours(mkRhythm({ intervalHours: undefined }))).toEqual([]);
+    expect(rhythmSlotHours(mkRhythm({ intervalMinutes: undefined }))).toEqual([]);
   });
 
   it('rhythmSlotId / prefix are stable and collision-safe across similar ids', () => {
@@ -274,7 +312,7 @@ describe('Rhythms', () => {
   });
 
   it('rhythmDueAtHour equals rhythmSlotHours membership; a paused or checklist routine is never due', () => {
-    const r = mkRhythm({ intervalHours: 2, windowStart: 9, windowEnd: 21 });
+    const r = mkRhythm({ intervalMinutes: 120, windowStart: 9, windowEnd: 21 });
     const hours = rhythmSlotHours(r);
     for (let h = 0; h <= 23; h += 1) expect(rhythmDueAtHour(r, h)).toBe(hours.includes(h));
     expect(rhythmDueAtHour(mkRhythm({ paused: true }), 9)).toBe(false);
@@ -287,18 +325,37 @@ describe('Rhythms', () => {
     });
     it('coerces a junk interval, an inverted window, an unknown preset, and a non-boolean paused', () => {
       const junk = JSON.stringify([
-        { id: 'rh1', name: 'Water', kind: 'rhythm', steps: [], done: {}, intervalHours: 0, windowStart: 22, windowEnd: 6, preset: 'coffee', paused: 'yes', createdAt: 0, updatedAt: 0 },
+        { id: 'rh1', name: 'Water', kind: 'rhythm', steps: [], done: {}, intervalMinutes: 0, windowStart: 22, windowEnd: 6, preset: 'coffee', paused: 'yes', createdAt: 0, updatedAt: 0 },
       ]);
       const [r] = deserializeRoutines(junk);
-      expect(r.intervalHours).toBe(1); // junk interval -> hourly
+      expect(r.intervalMinutes).toBe(60); // junk interval -> hourly
       expect(r.windowStart).toBe(9); // inverted window -> default 9-21
       expect(r.windowEnd).toBe(21);
       expect(r.preset).toBe('custom'); // an unknown preset id -> custom
       expect(r.paused).toBe(false); // only a literal true pauses
     });
+    it('migrates a pre-2026-07 whole-hour blob to minutes and never writes intervalHours back', () => {
+      const legacy = JSON.stringify([
+        { id: 'rh1', name: 'Water', kind: 'rhythm', steps: [], done: {}, preset: 'water', intervalHours: 2, windowStart: 9, windowEnd: 21, createdAt: 0, updatedAt: 0 },
+      ]);
+      const [r] = deserializeRoutines(legacy);
+      expect(r.intervalMinutes).toBe(120);
+      expect(r.intervalHours).toBeUndefined();
+      // The migrated Rhythm fires on the same schedule the old one did.
+      expect(rhythmSlotHours(r)).toEqual([9, 11, 13, 15, 17, 19, 21]);
+      // And the round trip stays minutes-only.
+      const [again] = deserializeRoutines(serializeRoutines([r]));
+      expect(again).toEqual(r);
+    });
+    it('an off-grid interval snaps to the 15-minute grid on parse', () => {
+      const off = JSON.stringify([
+        { id: 'rh1', name: 'Water', kind: 'rhythm', steps: [], done: {}, preset: 'water', intervalMinutes: 100, windowStart: 9, windowEnd: 21, createdAt: 0, updatedAt: 0 },
+      ]);
+      expect(deserializeRoutines(off)[0].intervalMinutes).toBe(105);
+    });
     it('FORCES a Rhythm to carry no steps and no ticks, so a tick can never resurrect (never-shame guarantee)', () => {
       const contaminated = JSON.stringify([
-        { id: 'rh1', name: 'Water', kind: 'rhythm', when: 'morning', steps: [{ id: 's1', title: 'sneaky' }], done: { s1: iso }, preset: 'water', intervalHours: 2, windowStart: 9, windowEnd: 21, createdAt: 0, updatedAt: 0 },
+        { id: 'rh1', name: 'Water', kind: 'rhythm', when: 'morning', steps: [{ id: 's1', title: 'sneaky' }], done: { s1: iso }, preset: 'water', intervalMinutes: 120, windowStart: 9, windowEnd: 21, createdAt: 0, updatedAt: 0 },
       ]);
       const [r] = deserializeRoutines(contaminated);
       expect(r.steps).toEqual([]);
@@ -321,7 +378,7 @@ describe('Rhythms', () => {
         id: 'rh2',
         name: 'Meds',
         preset: 'meds',
-        intervalHours: undefined,
+        intervalMinutes: undefined,
         windowStart: undefined,
         windowEnd: undefined,
         atTimes: [
@@ -370,12 +427,18 @@ describe('Rhythms', () => {
       expect(isFixedTimeRhythm(mk())).toBe(false); // checklist
     });
 
-    it('rhythmFireTimes is the unified schedule: fixed times as-is, interval hours at :00, checklist empty', () => {
+    it('rhythmFireTimes is the unified schedule: fixed times as-is, interval walked in minutes, checklist empty', () => {
       expect(rhythmFireTimes(mkMeds())).toEqual([
         { hour: 8, minute: 0 },
         { hour: 20, minute: 30 },
       ]);
-      expect(rhythmFireTimes(mkRhythm({ intervalHours: 5 }))).toEqual([
+      expect(rhythmFireTimes(mkRhythm({ intervalMinutes: 300 }))).toEqual([
+        { hour: 9, minute: 0 },
+        { hour: 14, minute: 0 },
+        { hour: 19, minute: 0 },
+      ]);
+      // An unparsed legacy shape (e.g. an in-memory object made before a reload) still resolves.
+      expect(rhythmFireTimes(mkRhythm({ intervalMinutes: undefined, intervalHours: 5 }))).toEqual([
         { hour: 9, minute: 0 },
         { hour: 14, minute: 0 },
         { hour: 19, minute: 0 },
@@ -416,21 +479,22 @@ describe('Rhythms', () => {
       });
       it('a blob carrying BOTH shapes keeps atTimes and strips the interval fields', () => {
         const both = JSON.stringify([
-          { id: 'rh2', name: 'Meds', kind: 'rhythm', steps: [], done: {}, preset: 'meds', intervalHours: 2, windowStart: 9, windowEnd: 21, atTimes: [{ hour: 8, minute: 0 }], createdAt: 0, updatedAt: 0 },
+          { id: 'rh2', name: 'Meds', kind: 'rhythm', steps: [], done: {}, preset: 'meds', intervalMinutes: 120, windowStart: 9, windowEnd: 21, atTimes: [{ hour: 8, minute: 0 }], createdAt: 0, updatedAt: 0 },
         ]);
         const [r] = deserializeRoutines(both);
         expect(r.atTimes).toEqual([{ hour: 8, minute: 0 }]);
+        expect(r.intervalMinutes).toBeUndefined();
         expect(r.intervalHours).toBeUndefined();
         expect(r.windowStart).toBeUndefined();
         expect(r.windowEnd).toBeUndefined();
       });
       it('junk atTimes falls back to the interval path exactly as before', () => {
         const junk = JSON.stringify([
-          { id: 'rh2', name: 'Meds', kind: 'rhythm', steps: [], done: {}, preset: 'meds', intervalHours: 2, atTimes: 'twice a day', createdAt: 0, updatedAt: 0 },
+          { id: 'rh2', name: 'Meds', kind: 'rhythm', steps: [], done: {}, preset: 'meds', intervalMinutes: 120, atTimes: 'twice a day', createdAt: 0, updatedAt: 0 },
         ]);
         const [r] = deserializeRoutines(junk);
         expect(r.atTimes).toBeUndefined();
-        expect(r.intervalHours).toBe(2);
+        expect(r.intervalMinutes).toBe(120);
         expect(r.windowStart).toBe(9);
       });
     });

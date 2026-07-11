@@ -17,6 +17,8 @@ import {
   isFixedTimeRhythm,
   isStepDoneToday,
   RHYTHM_AT_TIMES_MAX,
+  RHYTHM_INTERVAL_MAX,
+  RHYTHM_INTERVAL_MIN,
   RHYTHM_MEDS_DEFAULT_TIMES,
   RHYTHM_WINDOW_END_DEFAULT,
   RHYTHM_WINDOW_START_DEFAULT,
@@ -45,6 +47,16 @@ function defaultNudgeHour(when: RoutineWhen): number {
   if (when === 'morning') return 8;
   if (when === 'evening') return 20;
   return 9;
+}
+
+// The curated rungs the interval stepper walks, in minutes: dense at the short end where
+// granularity matters (Melroy's ask: 30 or 90 minutes, not only whole hours), sparser past
+// 3 hours. A migrated legacy value off the ladder (say 7 h) still displays as-is; stepping
+// from it snaps to the nearest rung in that direction, so the stepper never dead-ends.
+const INTERVAL_LADDER = [30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 480, 720];
+function stepInterval(current: number, dir: 1 | -1): number {
+  if (dir === 1) return INTERVAL_LADDER.find((v) => v > current) ?? RHYTHM_INTERVAL_MAX;
+  return [...INTERVAL_LADDER].reverse().find((v) => v < current) ?? RHYTHM_INTERVAL_MIN;
 }
 
 // Labels resolve through t() at render time (not module load), so a locale change is honoured.
@@ -90,7 +102,7 @@ export default function RoutinesScreen() {
   const [rhythmFormOpen, setRhythmFormOpen] = useState(false);
   const [editingRhythmId, setEditingRhythmId] = useState<string | null>(null);
   const [rhythmName, setRhythmName] = useState('');
-  const [rhythmInterval, setRhythmInterval] = useState(2);
+  const [rhythmInterval, setRhythmInterval] = useState(120); // minutes, walked along INTERVAL_LADDER
   const [rhythmWinStart, setRhythmWinStart] = useState(RHYTHM_WINDOW_START_DEFAULT);
   const [rhythmWinEnd, setRhythmWinEnd] = useState(RHYTHM_WINDOW_END_DEFAULT);
   const [rhythmHint, setRhythmHint] = useState<'name' | 'times' | null>(null);
@@ -298,7 +310,7 @@ export default function RoutinesScreen() {
     const shape: Partial<Routine> =
       preset === 'meds'
         ? { atTimes: RHYTHM_MEDS_DEFAULT_TIMES }
-        : { intervalHours: preset === 'water' ? 2 : 1, windowStart: RHYTHM_WINDOW_START_DEFAULT, windowEnd: RHYTHM_WINDOW_END_DEFAULT };
+        : { intervalMinutes: preset === 'water' ? 120 : 60, windowStart: RHYTHM_WINDOW_START_DEFAULT, windowEnd: RHYTHM_WINDOW_END_DEFAULT };
     const rhythm: Routine = {
       id: makeId(),
       name,
@@ -332,16 +344,22 @@ export default function RoutinesScreen() {
     void scheduleRhythm(updated);
   }
 
-  // The plain-language cadence line ("Around every 2 hours, 9 am to 9 pm") in the device's own
-  // time convention. "Around" is deliberate: Android delivers inexactly. Accepts just the fields
-  // it reads, so the live form preview can pass its in-progress values without a full Routine.
-  // A fixed-time Rhythm reads "At 8:00 am · 8:30 pm" instead (a locale-neutral dot join).
-  function cadenceLine(r: Pick<Routine, 'intervalHours' | 'windowStart' | 'windowEnd' | 'atTimes'>): string {
+  // The plain-language cadence line ("Around every 90 minutes, 9 am to 9 pm") in the device's
+  // own time convention. "Around" is deliberate: Android delivers inexactly. Accepts just the
+  // fields it reads, so the live form preview can pass its in-progress values without a full
+  // Routine. A fixed-time Rhythm reads "At 8:00 am · 8:30 pm" instead (a locale-neutral dot join).
+  function cadenceLine(r: Pick<Routine, 'intervalMinutes' | 'windowStart' | 'windowEnd' | 'atTimes'>): string {
     if (r.atTimes && r.atTimes.length > 0) return fixedTimesLine(r.atTimes);
     const start = formatReminderTime(r.windowStart ?? RHYTHM_WINDOW_START_DEFAULT, 0);
     const end = formatReminderTime(r.windowEnd ?? RHYTHM_WINDOW_END_DEFAULT, 0);
-    const hours = r.intervalHours ?? 1;
-    return hours === 1 ? t('routines.rhythmHourly', { start, end }) : t('routines.rhythmEvery', { hours, start, end });
+    const minutes = r.intervalMinutes ?? 60;
+    if (minutes < 60) return t('routines.rhythmEveryMinutesLine', { minutes, start, end });
+    if (minutes === 60) return t('routines.rhythmHourly', { start, end });
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return rest === 0
+      ? t('routines.rhythmEvery', { hours, start, end })
+      : t('routines.rhythmEveryMixedLine', { hours, minutes: rest, start, end });
   }
 
   function fixedTimesLine(times: RhythmTime[]): string {
@@ -359,9 +377,14 @@ export default function RoutinesScreen() {
     );
   }
 
-  // The "every N hours" label for the interval stepper, singular-aware.
-  function intervalLabel(n: number): string {
-    return n === 1 ? t('routines.rhythmEveryOne') : t('routines.rhythmEveryN', { hours: n });
+  // The "every …" label for the interval stepper: minutes under the hour, whole hours on
+  // the hour (singular-aware), a mixed "1 h 30 min" shape between.
+  function intervalLabel(minutes: number): string {
+    if (minutes < 60) return t('routines.rhythmEveryMinutes', { minutes });
+    if (minutes === 60) return t('routines.rhythmEveryOne');
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return rest === 0 ? t('routines.rhythmEveryN', { hours }) : t('routines.rhythmEveryMixed', { hours, minutes: rest });
   }
 
   // Open a blank custom-rhythm form (closing the checklist form if it was open).
@@ -370,7 +393,7 @@ export default function RoutinesScreen() {
     setEditingRhythmId(null);
     setRhythmName('');
     setRhythmMode('interval');
-    setRhythmInterval(2);
+    setRhythmInterval(120);
     setRhythmWinStart(RHYTHM_WINDOW_START_DEFAULT);
     setRhythmWinEnd(RHYTHM_WINDOW_END_DEFAULT);
     setRhythmTimeTexts([{ h: '8', m: '00' }]);
@@ -385,7 +408,7 @@ export default function RoutinesScreen() {
     setEditingRhythmId(r.id);
     setRhythmName(r.name);
     setRhythmMode(isFixedTimeRhythm(r) ? 'times' : 'interval');
-    setRhythmInterval(r.intervalHours ?? 2);
+    setRhythmInterval(r.intervalMinutes ?? 120);
     setRhythmWinStart(r.windowStart ?? RHYTHM_WINDOW_START_DEFAULT);
     setRhythmWinEnd(r.windowEnd ?? RHYTHM_WINDOW_END_DEFAULT);
     setRhythmTimeTexts(
@@ -444,7 +467,7 @@ export default function RoutinesScreen() {
     // interval carries interval + window only, so an edit that switches mode fully sheds the
     // old shape (no stale window fields riding along).
     const shape: Partial<Routine> =
-      rhythmMode === 'times' ? { atTimes: times } : { intervalHours: rhythmInterval, windowStart: rhythmWinStart, windowEnd: rhythmWinEnd };
+      rhythmMode === 'times' ? { atTimes: times } : { intervalMinutes: rhythmInterval, windowStart: rhythmWinStart, windowEnd: rhythmWinEnd };
     const rhythm: Routine = {
       id,
       name: trimmed,
@@ -640,23 +663,23 @@ export default function RoutinesScreen() {
               <>
               <View style={styles.stepper}>
                 <Pressable
-                  onPress={() => setRhythmInterval((n) => Math.max(1, n - 1))}
-                  disabled={rhythmInterval <= 1}
+                  onPress={() => setRhythmInterval((n) => stepInterval(n, -1))}
+                  disabled={rhythmInterval <= RHYTHM_INTERVAL_MIN}
                   accessibilityRole="button"
                   accessibilityLabel={t('routines.rhythmLessOftenA11y')}
                   hitSlop={8}
-                  style={({ pressed }) => [styles.stepBtn, rhythmInterval <= 1 && styles.stepBtnOff, pressed && styles.pressed]}
+                  style={({ pressed }) => [styles.stepBtn, rhythmInterval <= RHYTHM_INTERVAL_MIN && styles.stepBtnOff, pressed && styles.pressed]}
                 >
                   <Text style={styles.stepGlyph}>−</Text>
                 </Pressable>
                 <Text style={styles.stepValue}>{intervalLabel(rhythmInterval)}</Text>
                 <Pressable
-                  onPress={() => setRhythmInterval((n) => Math.min(12, n + 1))}
-                  disabled={rhythmInterval >= 12}
+                  onPress={() => setRhythmInterval((n) => stepInterval(n, 1))}
+                  disabled={rhythmInterval >= RHYTHM_INTERVAL_MAX}
                   accessibilityRole="button"
                   accessibilityLabel={t('routines.rhythmMoreOftenA11y')}
                   hitSlop={8}
-                  style={({ pressed }) => [styles.stepBtn, rhythmInterval >= 12 && styles.stepBtnOff, pressed && styles.pressed]}
+                  style={({ pressed }) => [styles.stepBtn, rhythmInterval >= RHYTHM_INTERVAL_MAX && styles.stepBtnOff, pressed && styles.pressed]}
                 >
                   <Text style={styles.stepGlyph}>+</Text>
                 </Pressable>
@@ -765,7 +788,7 @@ export default function RoutinesScreen() {
                       const parsed = parsedRhythmTimes(rhythmTimeTexts);
                       return parsed.length > 0 ? fixedTimesLine(parsed) : t('routines.rhythmTimesHint');
                     })()
-                  : cadenceLine({ intervalHours: rhythmInterval, windowStart: rhythmWinStart, windowEnd: rhythmWinEnd })}
+                  : cadenceLine({ intervalMinutes: rhythmInterval, windowStart: rhythmWinStart, windowEnd: rhythmWinEnd })}
               </Text>
 
               <View style={styles.formActions}>

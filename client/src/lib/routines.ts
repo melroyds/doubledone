@@ -33,7 +33,11 @@ export type Routine = {
   nudgeMinute?: number | null; // minute (0-59) for the nudge; meaningful only when nudgeHour is set; null / absent = :00
   // --- Rhythm-only (kind === 'rhythm'); a fire-and-forget nudge, never a task ---
   preset?: RhythmPreset; // fixed catalog id, drives copy
-  intervalHours?: number; // fire around every N whole hours (integer >= 1) within the window
+  // Fire around every N MINUTES within the window (Melroy's granularity ask: 30 or 90
+  // minutes, not only whole hours). Canonical going forward; a multiple of 15, floor 30,
+  // cap 720. Old blobs carrying the original whole-hour `intervalHours` migrate on parse.
+  intervalMinutes?: number;
+  intervalHours?: number; // LEGACY input only (pre-2026-07 blobs); parse converts to intervalMinutes and never writes it back
   windowStart?: number; // active-window start hour (0-23), inclusive; default 9, so it never fires at night
   windowEnd?: number; // active-window end hour (0-23), inclusive; default 21; always > windowStart
   // Fixed clock times (the meds shape). When present and non-empty the Rhythm fires at
@@ -75,6 +79,15 @@ export function routineProgress(routine: Routine, todayIso: string): { done: num
 
 export const RHYTHM_WINDOW_START_DEFAULT = 9;
 export const RHYTHM_WINDOW_END_DEFAULT = 21;
+// The interval's guard rails: a multiple of 15 between 30 minutes and 12 hours. The floor
+// keeps a Rhythm a nudge rather than an alarm clock (and inside what inexact Android
+// delivery can honour); the cap is a day's outer edge. 60 is the defensive fallback.
+export const RHYTHM_INTERVAL_MIN = 30;
+export const RHYTHM_INTERVAL_MAX = 720;
+export const RHYTHM_INTERVAL_FALLBACK = 60;
+// A defensive ceiling on slots per Rhythm (9-21 at every-30-min is 25; nothing sane
+// exceeds this), so a corrupt config can never mass-schedule notifications.
+const RHYTHM_MAX_INTERVAL_SLOTS = 48;
 // A fixed-time Rhythm carries at most this many times; enough for any real meds / care
 // schedule, small enough that a corrupt blob can never mass-schedule notifications.
 export const RHYTHM_AT_TIMES_MAX = 8;
@@ -132,27 +145,43 @@ export function isFixedTimeRhythm(r: Pick<Routine, 'kind' | 'atTimes'>): boolean
 export function rhythmFireTimes(r: Routine): RhythmTime[] {
   if (r.kind !== 'rhythm') return [];
   if (isFixedTimeRhythm(r)) return cleanRhythmTimes(r.atTimes);
-  if (typeof r.intervalHours !== 'number') return [];
-  return rhythmFireHours(r.windowStart ?? RHYTHM_WINDOW_START_DEFAULT, r.windowEnd ?? RHYTHM_WINDOW_END_DEFAULT, r.intervalHours).map(
-    (hour) => ({ hour, minute: 0 }),
-  );
+  const minutes = typeof r.intervalMinutes === 'number' ? r.intervalMinutes : typeof r.intervalHours === 'number' ? r.intervalHours * 60 : null;
+  if (minutes == null) return [];
+  return rhythmFireTimesInWindow(r.windowStart ?? RHYTHM_WINDOW_START_DEFAULT, r.windowEnd ?? RHYTHM_WINDOW_END_DEFAULT, minutes);
 }
 
 /**
- * The discrete local hours an interval Rhythm fires, INCLUSIVE of both window ends.
- * e.g. rhythmFireHours(9, 21, 2) -> [9, 11, 13, 15, 17, 19, 21]. Always includes
- * windowStart; includes windowEnd only when it lands on the interval. Defensive: an
- * inverted or empty window collapses to a single nudge at windowStart, and a junk interval
- * falls back to hourly, so a corrupt config can never produce a night-time or empty schedule.
+ * Normalise a raw interval to the canonical shape: an integer number of minutes, rounded
+ * to the nearest 15, clamped to [RHYTHM_INTERVAL_MIN, RHYTHM_INTERVAL_MAX]. Junk falls
+ * back to RHYTHM_INTERVAL_FALLBACK (hourly). Shared by the parser and the form so a value
+ * can never enter storage off-grid.
  */
-export function rhythmFireHours(windowStart: number, windowEnd: number, intervalHours: number): number[] {
+export function cleanIntervalMinutes(raw: unknown): number {
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) return RHYTHM_INTERVAL_FALLBACK;
+  const snapped = Math.round(raw / 15) * 15;
+  return Math.min(RHYTHM_INTERVAL_MAX, Math.max(RHYTHM_INTERVAL_MIN, snapped));
+}
+
+/**
+ * The discrete local times an interval Rhythm fires, walking the window in MINUTES,
+ * inclusive of both ends. e.g. (9, 21, 120) -> 9:00, 11:00 … 21:00 and (9, 12, 90) ->
+ * 9:00, 10:30, 12:00. Always includes windowStart; includes windowEnd only when it lands
+ * on the interval. Defensive: an inverted or empty window collapses to a single nudge at
+ * windowStart, a junk interval falls back through cleanIntervalMinutes to hourly, and the
+ * walk is hard-capped at RHYTHM_MAX_INTERVAL_SLOTS, so a corrupt config can never produce
+ * a night-time, empty, or runaway schedule.
+ */
+export function rhythmFireTimesInWindow(windowStart: number, windowEnd: number, intervalMinutes: number): RhythmTime[] {
   const start = clampHour(windowStart);
   const end = clampHour(windowEnd);
-  const step = Number.isInteger(intervalHours) && intervalHours >= 1 ? intervalHours : 1;
-  if (end <= start) return [start];
-  const hours: number[] = [];
-  for (let h = start; h <= end; h += step) hours.push(h);
-  return hours;
+  const step = cleanIntervalMinutes(intervalMinutes);
+  if (end <= start) return [{ hour: start, minute: 0 }];
+  const times: RhythmTime[] = [];
+  const endMinutes = end * 60;
+  for (let m = start * 60; m <= endMinutes && times.length < RHYTHM_MAX_INTERVAL_SLOTS; m += step) {
+    times.push({ hour: Math.floor(m / 60), minute: m % 60 });
+  }
+  return times;
 }
 
 /**
@@ -295,8 +324,16 @@ function cleanRoutine(r: Routine): Routine {
         updatedAt,
       };
     }
-    const intervalHours =
-      typeof raw.intervalHours === 'number' && Number.isInteger(raw.intervalHours) && raw.intervalHours >= 1 ? raw.intervalHours : 1;
+    // Canonical interval is MINUTES. A pre-2026-07 blob carries whole-hour intervalHours;
+    // it migrates here (hours × 60) and is never written back, so one parse round-trip
+    // upgrades every stored Rhythm in place. Junk in either field falls back to hourly.
+    const intervalMinutes = cleanIntervalMinutes(
+      typeof raw.intervalMinutes === 'number'
+        ? raw.intervalMinutes
+        : typeof raw.intervalHours === 'number'
+          ? raw.intervalHours * 60
+          : null,
+    );
     let windowStart = clampHour(typeof raw.windowStart === 'number' ? raw.windowStart : RHYTHM_WINDOW_START_DEFAULT);
     let windowEnd = clampHour(typeof raw.windowEnd === 'number' ? raw.windowEnd : RHYTHM_WINDOW_END_DEFAULT);
     if (windowEnd <= windowStart) {
@@ -311,7 +348,7 @@ function cleanRoutine(r: Routine): Routine {
       steps: [],
       done: {},
       preset,
-      intervalHours,
+      intervalMinutes,
       windowStart,
       windowEnd,
       paused: raw.paused === true,
