@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { Segmented } from '@/components/Segmented';
 import { border, cardShadow, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { toISODate } from '@/lib/day';
 import { t } from '@/lib/locale';
@@ -12,9 +13,14 @@ import { cancelRhythm, cancelRoutineNudge, scheduleRhythm, scheduleRoutineNudge 
 import { clampHour, clampMinute, formatReminderTime, reminderReasonLine } from '@/lib/reminders-types';
 import {
   applyRoutineEdit,
+  cleanRhythmTimes,
+  isFixedTimeRhythm,
   isStepDoneToday,
+  RHYTHM_AT_TIMES_MAX,
+  RHYTHM_MEDS_DEFAULT_TIMES,
   RHYTHM_WINDOW_END_DEFAULT,
   RHYTHM_WINDOW_START_DEFAULT,
+  type RhythmTime,
   type Routine,
   routineProgress,
   type RoutineWhen,
@@ -87,8 +93,13 @@ export default function RoutinesScreen() {
   const [rhythmInterval, setRhythmInterval] = useState(2);
   const [rhythmWinStart, setRhythmWinStart] = useState(RHYTHM_WINDOW_START_DEFAULT);
   const [rhythmWinEnd, setRhythmWinEnd] = useState(RHYTHM_WINDOW_END_DEFAULT);
-  const [rhythmHint, setRhythmHint] = useState<'name' | null>(null);
+  const [rhythmHint, setRhythmHint] = useState<'name' | 'times' | null>(null);
   const rhythmNameInput = useRef<TextInput>(null);
+  // Fixed-time mode (the meds shape): the form is EITHER every-N-hours OR at set clock
+  // times. Times are held as raw 24h text pairs (like the checklist's precise entry) and
+  // clamped / deduped / sorted by cleanRhythmTimes at save, so junk rows just drop out.
+  const [rhythmMode, setRhythmMode] = useState<'interval' | 'times'>('interval');
+  const [rhythmTimeTexts, setRhythmTimeTexts] = useState<{ h: string; m: string }[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -272,20 +283,25 @@ export default function RoutinesScreen() {
   }
 
   // Add a Rhythm from a preset: one tap creates AND activates it, never a form to fill.
-  // Presets are complete on their own (water every 2h, 9-21), keeping setup near-zero.
-  function addRhythm(preset: 'water' | 'stand') {
+  // Presets are complete on their own (water every 2h 9-21; meds at 8:00 + 20:00), keeping
+  // setup near-zero; Edit opens the form to reshape any of them.
+  function addRhythm(preset: 'water' | 'stand' | 'meds') {
     const now = Date.now();
+    const name =
+      preset === 'water' ? t('routines.rhythmNameWater') : preset === 'stand' ? t('routines.rhythmNameStand') : t('routines.rhythmNameMeds');
+    const shape: Partial<Routine> =
+      preset === 'meds'
+        ? { atTimes: RHYTHM_MEDS_DEFAULT_TIMES }
+        : { intervalHours: preset === 'water' ? 2 : 1, windowStart: RHYTHM_WINDOW_START_DEFAULT, windowEnd: RHYTHM_WINDOW_END_DEFAULT };
     const rhythm: Routine = {
       id: makeId(),
-      name: preset === 'water' ? t('routines.rhythmNameWater') : t('routines.rhythmNameStand'),
+      name,
       kind: 'rhythm',
       when: 'anytime',
       steps: [],
       done: {},
       preset,
-      intervalHours: preset === 'water' ? 2 : 1,
-      windowStart: RHYTHM_WINDOW_START_DEFAULT,
-      windowEnd: RHYTHM_WINDOW_END_DEFAULT,
+      ...shape,
       paused: false,
       createdAt: now,
       updatedAt: now,
@@ -313,11 +329,28 @@ export default function RoutinesScreen() {
   // The plain-language cadence line ("Around every 2 hours, 9 am to 9 pm") in the device's own
   // time convention. "Around" is deliberate: Android delivers inexactly. Accepts just the fields
   // it reads, so the live form preview can pass its in-progress values without a full Routine.
-  function cadenceLine(r: Pick<Routine, 'intervalHours' | 'windowStart' | 'windowEnd'>): string {
+  // A fixed-time Rhythm reads "At 8:00 am · 8:30 pm" instead (a locale-neutral dot join).
+  function cadenceLine(r: Pick<Routine, 'intervalHours' | 'windowStart' | 'windowEnd' | 'atTimes'>): string {
+    if (r.atTimes && r.atTimes.length > 0) return fixedTimesLine(r.atTimes);
     const start = formatReminderTime(r.windowStart ?? RHYTHM_WINDOW_START_DEFAULT, 0);
     const end = formatReminderTime(r.windowEnd ?? RHYTHM_WINDOW_END_DEFAULT, 0);
     const hours = r.intervalHours ?? 1;
     return hours === 1 ? t('routines.rhythmHourly', { start, end }) : t('routines.rhythmEvery', { hours, start, end });
+  }
+
+  function fixedTimesLine(times: RhythmTime[]): string {
+    return t('routines.rhythmAtTimes', { times: times.map((x) => formatReminderTime(x.hour, x.minute)).join(' · ') });
+  }
+
+  // Parse the form's raw 24h text pairs into clamped, deduped, clock-sorted times. An empty
+  // minute box reads as :00 (typed "8" and moved on); a row with no hour just drops out.
+  function parsedRhythmTimes(rows: { h: string; m: string }[]): RhythmTime[] {
+    return cleanRhythmTimes(
+      rows.map((row) => ({
+        hour: Number.parseInt(row.h, 10),
+        minute: row.m.trim() === '' ? 0 : Number.parseInt(row.m, 10),
+      })),
+    );
   }
 
   // The "every N hours" label for the interval stepper, singular-aware.
@@ -330,24 +363,45 @@ export default function RoutinesScreen() {
     cancelAdd();
     setEditingRhythmId(null);
     setRhythmName('');
+    setRhythmMode('interval');
     setRhythmInterval(2);
     setRhythmWinStart(RHYTHM_WINDOW_START_DEFAULT);
     setRhythmWinEnd(RHYTHM_WINDOW_END_DEFAULT);
+    setRhythmTimeTexts([{ h: '8', m: '00' }]);
     setRhythmHint(null);
     setRhythmFormOpen(true);
   }
 
   // Open the custom form prefilled from an existing Rhythm, so a preset is a starting point,
-  // not a fixed thing: its name, interval and window are all editable.
+  // not a fixed thing: its name, shape (interval or set times), and values are all editable.
   function startEditRhythm(r: Routine) {
     cancelAdd();
     setEditingRhythmId(r.id);
     setRhythmName(r.name);
+    setRhythmMode(isFixedTimeRhythm(r) ? 'times' : 'interval');
     setRhythmInterval(r.intervalHours ?? 2);
     setRhythmWinStart(r.windowStart ?? RHYTHM_WINDOW_START_DEFAULT);
     setRhythmWinEnd(r.windowEnd ?? RHYTHM_WINDOW_END_DEFAULT);
+    setRhythmTimeTexts(
+      (r.atTimes ?? []).length > 0
+        ? (r.atTimes ?? []).map((x) => ({ h: String(x.hour), m: String(x.minute).padStart(2, '0') }))
+        : [{ h: '8', m: '00' }],
+    );
     setRhythmHint(null);
     setRhythmFormOpen(true);
+  }
+
+  // The times-list editors: raw digits only, clamped later by parsedRhythmTimes at save.
+  function setRhythmTimeText(i: number, field: 'h' | 'm', v: string) {
+    const digits = v.replace(/\D/g, '').slice(0, 2);
+    setRhythmTimeTexts((rows) => rows.map((row, j) => (j === i ? { ...row, [field]: digits } : row)));
+    if (rhythmHint === 'times') setRhythmHint(null);
+  }
+  function addRhythmTimeRow() {
+    setRhythmTimeTexts((rows) => (rows.length >= RHYTHM_AT_TIMES_MAX ? rows : [...rows, { h: '', m: '00' }]));
+  }
+  function removeRhythmTimeRow(i: number) {
+    setRhythmTimeTexts((rows) => rows.filter((_, j) => j !== i));
   }
 
   function cancelRhythmForm() {
@@ -367,6 +421,12 @@ export default function RoutinesScreen() {
       rhythmNameInput.current?.focus();
       return;
     }
+    // Fixed-time mode must yield at least one real time; a quiet hint, never a silent nothing.
+    const times = rhythmMode === 'times' ? parsedRhythmTimes(rhythmTimeTexts) : [];
+    if (rhythmMode === 'times' && times.length === 0) {
+      setRhythmHint('times');
+      return;
+    }
     const now = Date.now();
     const existing = editingRhythmId ? routines.find((r) => r.id === editingRhythmId) : undefined;
     if (editingRhythmId && !existing) {
@@ -374,6 +434,11 @@ export default function RoutinesScreen() {
       return;
     }
     const id = existing ? existing.id : makeId();
+    // One shape or the other, mirroring the parser's rule: set-times carries atTimes only,
+    // interval carries interval + window only, so an edit that switches mode fully sheds the
+    // old shape (no stale window fields riding along).
+    const shape: Partial<Routine> =
+      rhythmMode === 'times' ? { atTimes: times } : { intervalHours: rhythmInterval, windowStart: rhythmWinStart, windowEnd: rhythmWinEnd };
     const rhythm: Routine = {
       id,
       name: trimmed,
@@ -382,9 +447,7 @@ export default function RoutinesScreen() {
       steps: [],
       done: {},
       preset: existing?.preset ?? 'custom',
-      intervalHours: rhythmInterval,
-      windowStart: rhythmWinStart,
-      windowEnd: rhythmWinEnd,
+      ...shape,
       paused: existing?.paused ?? false,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
@@ -393,7 +456,7 @@ export default function RoutinesScreen() {
     void scheduleRhythm(rhythm).then((res) => {
       if (!res.ok && res.reason !== 'unsupported') setNudgeNote(reminderReasonLine(res.reason));
     });
-    track(existing ? 'rhythm.edited' : 'rhythm.created', { preset: rhythm.preset });
+    track(existing ? 'rhythm.edited' : 'rhythm.created', { preset: rhythm.preset, mode: rhythmMode });
     cancelRhythmForm();
   }
 
@@ -557,6 +620,18 @@ export default function RoutinesScreen() {
               {rhythmHint === 'name' && <Text style={styles.formHint}>{t('routines.nameFirstHint')}</Text>}
 
               <Text style={styles.nudgeTitle}>{t('routines.rhythmHowOften')}</Text>
+              <Segmented
+                value={rhythmMode}
+                options={[
+                  { value: 'interval', label: t('routines.rhythmModeInterval') },
+                  { value: 'times', label: t('routines.rhythmModeTimes') },
+                ]}
+                onChange={setRhythmMode}
+                accessibilityLabel={t('routines.rhythmHowOften')}
+              />
+
+              {rhythmMode === 'interval' && (
+              <>
               <View style={styles.stepper}>
                 <Pressable
                   onPress={() => setRhythmInterval((n) => Math.max(1, n - 1))}
@@ -631,8 +706,61 @@ export default function RoutinesScreen() {
                   </Pressable>
                 </View>
               </View>
+              </>
+              )}
 
-              <Text style={styles.timeResult}>{cadenceLine({ intervalHours: rhythmInterval, windowStart: rhythmWinStart, windowEnd: rhythmWinEnd })}</Text>
+              {rhythmMode === 'times' && (
+                <View>
+                  <Text style={styles.nudgeTitle}>{t('routines.rhythmTimesTitle')}</Text>
+                  {rhythmTimeTexts.map((row, i) => (
+                    <View key={i} style={styles.timeEntryRow}>
+                      <TextInput
+                        style={[styles.input, styles.timeInput]}
+                        value={row.h}
+                        onChangeText={(v) => setRhythmTimeText(i, 'h', v)}
+                        keyboardType="number-pad"
+                        maxLength={2}
+                        accessibilityLabel={t('routines.timeHourA11y')}
+                      />
+                      <Text style={styles.timeColon}>:</Text>
+                      <TextInput
+                        style={[styles.input, styles.timeInput]}
+                        value={row.m}
+                        onChangeText={(v) => setRhythmTimeText(i, 'm', v)}
+                        keyboardType="number-pad"
+                        maxLength={2}
+                        accessibilityLabel={t('routines.timeMinuteA11y')}
+                      />
+                      {rhythmTimeTexts.length > 1 && (
+                        <Pressable
+                          onPress={() => removeRhythmTimeRow(i)}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('routines.rhythmRemoveTimeA11y')}
+                          hitSlop={8}
+                        >
+                          <Text style={styles.remove}>{t('common.remove')}</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  ))}
+                  {rhythmTimeTexts.length < RHYTHM_AT_TIMES_MAX && (
+                    <Pressable onPress={addRhythmTimeRow} accessibilityRole="button" accessibilityLabel={t('routines.rhythmAddTime')} hitSlop={6}>
+                      <Text style={styles.addTimeText}>{t('routines.rhythmAddTime')}</Text>
+                    </Pressable>
+                  )}
+                  <Text style={styles.timeResult}>{t('routines.timeEntry24hHint')}</Text>
+                  {rhythmHint === 'times' && <Text style={styles.formHint}>{t('routines.rhythmTimesHint')}</Text>}
+                </View>
+              )}
+
+              <Text style={styles.timeResult}>
+                {rhythmMode === 'times'
+                  ? (() => {
+                      const parsed = parsedRhythmTimes(rhythmTimeTexts);
+                      return parsed.length > 0 ? fixedTimesLine(parsed) : t('routines.rhythmTimesHint');
+                    })()
+                  : cadenceLine({ intervalHours: rhythmInterval, windowStart: rhythmWinStart, windowEnd: rhythmWinEnd })}
+              </Text>
 
               <View style={styles.formActions}>
                 <Pressable onPress={cancelRhythmForm} accessibilityRole="button" hitSlop={6}>
@@ -665,6 +793,15 @@ export default function RoutinesScreen() {
                 hitSlop={6}
               >
                 <Text style={styles.presetBtnText}>{t('routines.rhythmAddStand')}</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => addRhythm('meds')}
+                accessibilityRole="button"
+                accessibilityLabel={t('routines.rhythmAddMeds')}
+                style={styles.presetBtn}
+                hitSlop={6}
+              >
+                <Text style={styles.presetBtnText}>{t('routines.rhythmAddMeds')}</Text>
               </Pressable>
               <Pressable
                 onPress={openNewRhythm}
@@ -923,6 +1060,7 @@ const makeStyles = (t: Theme) =>
       alignItems: 'center',
     },
     presetBtnText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    addTimeText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, marginTop: spacing.two },
     windowRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, flexWrap: 'wrap', marginTop: spacing.two },
     windowValue: { ...t.type.bodyStrong, color: t.colors.ink, minWidth: 52, textAlign: 'center' },
     windowTo: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
