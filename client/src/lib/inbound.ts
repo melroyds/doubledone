@@ -36,15 +36,48 @@ export function subscribeInbound(listener: () => void): () => void {
   };
 }
 
+const URL_RE = /https?:\/\/\S+/gi;
+
+/**
+ * Turn a raw shared blob into ONE calm capture line. Browsers share a selection as
+ * `"Quoted Title"\n https://site/page#:~:text=...`, and dumping that into the capture
+ * ruins it (Melroy, launch week): a task is words, a link is reference noise. The rule:
+ * when the share contains words beyond its links, keep the words and drop the links
+ * (and the browser's wrapping quotes); when it is a bare link, keep just the first URL
+ * with any `#:~:text=` highlight fragment stripped. Whitespace collapses to one line.
+ * Pure and shared by BOTH intake paths (the Android intent and the web share_target),
+ * so the two sheets land identically. Returns null when nothing usable remains.
+ */
+export function cleanSharedText(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  // The #:~:text= highlight fragment is always the tail of a shared selection, and once
+  // URL-decoded it can contain spaces, so cut it to END OF BLOB before touching URLs
+  // (a \S+ URL match would stop at the first space and leak fragment residue as "words").
+  const text = raw.trim().replace(/#:~:text=[\s\S]*$/i, '');
+  if (!text) return null;
+  const urls = text.match(URL_RE) ?? [];
+  const words = text
+    .replace(URL_RE, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^["'“‘]+/, '')
+    .replace(/["'”’]+$/, '')
+    .trim();
+  if (words) return words;
+  const firstUrl = urls[0];
+  if (firstUrl) return firstUrl.replace(/[.,;)#]+$/, '');
+  return null;
+}
+
 /**
  * Normalise a web share_target's GET params (title / text / url) into the shared text,
- * mirroring the native rule (`shareIntent.text ?? shareIntent.webUrl`) exactly, so a share
- * from the web sheet and a share from the Android sheet land in the capture identically:
- * text wins, then the url, then the title as a last resort. One string, one capture line,
- * the user edits from there. Returns null when nothing usable was shared. Router params
- * can arrive as arrays; the first value wins.
+ * mirroring the native rule so a share from the web sheet and a share from the Android
+ * sheet land in the capture identically: text wins, then the url, then the title, each
+ * cleaned by cleanSharedText. One string, one capture line, the user edits from there.
+ * Returns null when nothing usable was shared. Router params can arrive as arrays; the
+ * first value wins.
  */
 export function shareTextFromParams(params: { title?: string | string[]; text?: string | string[]; url?: string | string[] }): string | null {
   const first = (v?: string | string[]): string => (Array.isArray(v) ? (v[0] ?? '') : (v ?? '')).trim();
-  return first(params.text) || first(params.url) || first(params.title) || null;
+  return cleanSharedText(first(params.text)) ?? cleanSharedText(first(params.url)) ?? cleanSharedText(first(params.title));
 }

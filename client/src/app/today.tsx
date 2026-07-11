@@ -359,9 +359,11 @@ export default function TodayScreen() {
   // root and consumed here: open Focus, or seed and focus the capture box. Drained once
   // on mount (a cold launch) and on each later arrival while Today is open.
   // The capture box renders only while captureOpen, so a seed arriving with it collapsed
-  // (the default on a cold launch) cannot go through the ref yet: it parks in pendingSeed,
-  // captureOpen flips on, and the effect below flushes it once BrainDump has mounted.
-  // Without this handoff the share was silently dropped whenever the box was closed.
+  // (the default on a cold launch) cannot go through the ref yet: it parks in pendingSeed
+  // and the CALLBACK REF below flushes it the moment BrainDump actually mounts. The
+  // earlier captureOpen-effect flush was the launch-week "share only works when the box
+  // is already open" bug: on a cold start the effect ran while BrainDump was not mounted
+  // yet, and its optional-chained seed silently swallowed the null AND cleared the park.
   const pendingSeed = useRef<string | null | undefined>(undefined); // undefined = nothing parked
   useEffect(
     () =>
@@ -386,11 +388,16 @@ export default function TodayScreen() {
     [],
   );
 
-  useEffect(() => {
-    if (!captureOpen || pendingSeed.current === undefined) return;
-    brainDumpRef.current?.seed(pendingSeed.current);
-    pendingSeed.current = undefined;
-  }, [captureOpen]);
+  // The ref both render sites pass to BrainDump: keeps .current in sync AND flushes any
+  // parked seed exactly when the box mounts, however late that is (a cold start's first
+  // load, the footer appearing, the capture panel opening). Timing can no longer lose it.
+  function attachBrainDump(h: BrainDumpHandle | null) {
+    brainDumpRef.current = h;
+    if (h && pendingSeed.current !== undefined) {
+      h.seed(pendingSeed.current);
+      pendingSeed.current = undefined;
+    }
+  }
 
   const visible = pinFirst(applyManualOrder(tasksForToday(tasks, today))); // the pin floats to the very top, then any accepted manual order
   const upcoming = upcomingTasks(tasks, today);
@@ -1528,17 +1535,9 @@ export default function TodayScreen() {
             <Text style={styles.focusEntryText}>{t('today.focusOne')}</Text>
           </Pressable>
         )}
-        {aiEnabled && spreadable.length >= 2 && (
-          <Pressable
-            onPress={openEnergy}
-            accessibilityRole="button"
-            accessibilityLabel={t('today.energyEntryA11y')}
-            hitSlop={6}
-            style={({ pressed }) => [styles.energyEntry, pressed && styles.pressed]}
-          >
-            <Text style={styles.energyEntryText}>{t('today.energyEntry')}</Text>
-          </Pressable>
-        )}
+        {/* Energy matching lives INSIDE Focus mode's "Which one?" picker (Melroy's call,
+            launch week): choosing what to focus on is the moment the question makes sense,
+            not a second standalone button competing with Focus on the Today surface. */}
         {!holdHintSeen && visible.length > 0 && (
           // The long-press is the only door to half the app (pin / remind / combine / make-it-tiny / bulk).
           // A one-time, dismissible coachmark teaches it, so a first-timer never misses the rescue tools.
@@ -1852,7 +1851,7 @@ export default function TodayScreen() {
                 <Text style={styles.optLink}>{t('common.close')}</Text>
               </Pressable>
               <BrainDump
-                ref={brainDumpRef}
+                ref={attachBrainDump}
                 onCapture={capture}
                 onBiteElephant={biteElephant}
                 onSort={sortDump}
@@ -1955,6 +1954,16 @@ export default function TodayScreen() {
               <Text style={styles.focusLabel}>{t('today.focusLabel')}</Text>
               <Text style={styles.focusTitle}>{t('today.focusWhichOne')}</Text>
               <View style={styles.focusPickList}>
+                {aiEnabled && spreadable.length >= 2 && (
+                  <Pressable
+                    onPress={openEnergy}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('today.energyEntryA11y')}
+                    style={({ pressed }) => [styles.focusPickItem, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.focusFitText}>{t('today.energyEntry')}</Text>
+                  </Pressable>
+                )}
                 {spreadable.map((task) => (
                   <Pressable
                     key={task.id}
@@ -2783,8 +2792,6 @@ const makeStyles = (t: Theme) =>
     },
     // Energy matching: a quiet text door under Focus (no chrome in either appearance),
     // and the three plain choice rows inside its modal.
-    energyEntry: { alignItems: 'center', marginTop: -spacing.two, marginBottom: spacing.four, paddingVertical: spacing.two },
-    energyEntryText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
     energyChoice: {
       borderWidth: border.hair,
       borderColor: t.colors.line,
@@ -2807,6 +2814,9 @@ const makeStyles = (t: Theme) =>
     focusPickList: { marginTop: spacing.five, gap: spacing.four, alignItems: 'center' },
     focusPickItem: { paddingVertical: spacing.two, paddingHorizontal: spacing.three },
     focusPickItemText: { color: t.colors.accent, fontFamily: fonts.sans, fontSize: 22 * t.scale, textAlign: 'center' },
+    // The "not sure?" helper in the Focus picker: softer than the task choices, so it reads
+    // as an offer beside them, not another task.
+    focusFitText: { color: t.colors.inkSoft, fontFamily: fonts.body, fontSize: 17 * t.scale, textAlign: 'center', fontStyle: 'italic' },
     closeNoteLabel: { color: t.colors.inkSoft, fontFamily: fonts.body, fontSize: 14 * t.scale, marginTop: spacing.three, marginBottom: spacing.two, textAlign: 'center' },
     focusScreen: { flex: 1, backgroundColor: t.colors.bg, padding: spacing.six, justifyContent: 'center', alignItems: 'center' },
     focusExit: { position: 'absolute', top: spacing.seven, left: spacing.five },

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { setInbound, shareTextFromParams, subscribeInbound, takeInbound } from './inbound';
+import { cleanSharedText, setInbound, shareTextFromParams, subscribeInbound, takeInbound } from './inbound';
 
 // The bridge is module-level state, so drain it between tests to keep them independent.
 afterEach(() => {
@@ -36,6 +36,25 @@ describe('inbound bridge', () => {
     const off = subscribeInbound(fn);
     expect(fn).toHaveBeenCalledTimes(1);
     off();
+  });
+});
+
+describe('cleanSharedText (one calm line: words kept, link noise dropped)', () => {
+  it("keeps the words and drops the link from a browser's quoted-selection share", () => {
+    const chrome = '"Project Hail Mary"\n https://en.wikipedia.org/wiki/Project_Hail_Mary_(film)#:~:text=Edit-,Project%20Hail%20Mary,-is%20a%202026';
+    expect(cleanSharedText(chrome)).toBe('Project Hail Mary');
+  });
+  it('collapses a multiline share into one line', () => {
+    expect(cleanSharedText('Buy oat milk\non the way home')).toBe('Buy oat milk on the way home');
+  });
+  it('keeps a bare link, with the #:~:text= highlight fragment stripped', () => {
+    expect(cleanSharedText('https://example.com/a#:~:text=some%20highlight')).toBe('https://example.com/a');
+    expect(cleanSharedText('https://example.com/plain')).toBe('https://example.com/plain');
+  });
+  it('returns null for empty or whitespace', () => {
+    expect(cleanSharedText('')).toBeNull();
+    expect(cleanSharedText('   ')).toBeNull();
+    expect(cleanSharedText(null)).toBeNull();
   });
 });
 

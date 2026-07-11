@@ -11,9 +11,11 @@
 import { useShareIntent } from 'expo-share-intent';
 import { useEffect } from 'react';
 
-import { setInbound } from './inbound';
+import { cleanSharedText, setInbound } from './inbound';
 
-/** Catch a share that launched (or reached) the app and queue it as a capture. */
+/** Catch a share that launched (or reached) the app and queue it as a capture. The raw
+ *  share is cleaned to one calm line (words kept, links dropped unless the share IS a
+ *  link) by the same cleanSharedText the web share_target uses. */
 export function useShareInbound(): void {
   const { hasShareIntent, shareIntent, resetShareIntent, error } = useShareIntent({ debug: true });
   useEffect(() => {
@@ -22,7 +24,7 @@ export function useShareInbound(): void {
   useEffect(() => {
     console.log('[share-inbound] state:', hasShareIntent, JSON.stringify(shareIntent));
     if (!hasShareIntent) return;
-    const text = shareIntent.text ?? shareIntent.webUrl;
+    const text = cleanSharedText(shareIntent.text ?? shareIntent.webUrl);
     console.log('[share-inbound] queueing capture, text length:', text?.length ?? 0);
     if (text) setInbound({ kind: 'capture', text });
     resetShareIntent();
