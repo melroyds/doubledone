@@ -1386,7 +1386,13 @@ export default function TodayScreen() {
   }
 
   return (
-    <View style={styles.screen}>
+    // Keyed by appearance: switching Standard <-> Quiet remounts Today's subtree so native
+    // lays it out fresh. Without this, a toggle made on the Settings screen re-styles Today
+    // while it sits DETACHED behind Settings in the native stack, and the round trip left
+    // rows at Quiet's (~3px shorter) measured height under Standard's styles, clipping the
+    // row bottoms ("eaten up a bit"). Web never detaches screens, which is why it could not
+    // reproduce. A remount on an appearance change is rare and invisible (same values).
+    <View key={theme.appearance} style={styles.screen}>
       <LivingBackground />
       <ScrollView
         style={styles.scroll}
