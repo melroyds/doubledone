@@ -30,7 +30,7 @@ function urlB64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
 /** Subscribe this browser to the daily web-push nudge: register the service worker, ask
  *  permission, subscribe, and store the subscription on the Worker. Returns ok, or a reason
  *  it didn't: unsupported (no push here), denied (permission), or error (transient). */
-export async function enableDailyReminder(hour = 9): Promise<ReminderResult> {
+export async function enableDailyReminder(hour = 9, opts: { quiet?: boolean } = {}): Promise<ReminderResult> {
   try {
     if (
       !VAPID_PUBLIC ||
@@ -90,7 +90,7 @@ export async function cancelNudge(id: string): Promise<void> {
 
 /** No-op on web: routine nudges are native-only (web has no local scheduling), so the
  *  screen can say calmly that they aren't available here. */
-export async function scheduleRoutineNudge(routineId: string, name: string, hour: number, minute = 0): Promise<ReminderResult> {
+export async function scheduleRoutineNudge(routineId: string, name: string, hour: number, minute = 0, opts: { quiet?: boolean } = {}): Promise<ReminderResult> {
   return { ok: false, reason: 'unsupported' };
 }
 
@@ -102,11 +102,21 @@ export async function cancelRoutineNudge(routineId: string): Promise<void> {
 /** No-op on web: Rhythm nudges are native-only for now (web has no local scheduling), so the
  *  screen can say calmly that Rhythm reminders arrive on the phone. Web-push delivery for
  *  Rhythms is a deferred phase. */
-export async function scheduleRhythm(r: Routine): Promise<ReminderResult> {
+export async function scheduleRhythm(r: Routine, opts: { quiet?: boolean } = {}): Promise<ReminderResult> {
   return { ok: false, reason: 'unsupported' };
 }
 
 /** No-op on web. */
 export async function cancelRhythm(routineId: string): Promise<void> {
   // nothing scheduled on web
+}
+
+/** No-op on web: the resilience sweep re-schedules NATIVE nudges; web has none to settle. */
+export async function rescheduleAllNudges(routines: Routine[], dailyReminderHour: number | null): Promise<void> {
+  // nothing scheduled on web
+}
+
+/** No-op on web: the nudge health line is a native (this-phone) truth; web shows nothing. */
+export async function getNudgeHealth(): Promise<{ count: number; next: { hour: number; minute: number } | null }> {
+  return { count: 0, next: null };
 }

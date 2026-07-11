@@ -17,7 +17,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { setInbound } from '@/lib/inbound';
 import { t } from '@/lib/locale';
 import { PremiumProvider } from '@/lib/premium-provider';
+import { rescheduleAllNudges } from '@/lib/reminders';
 import { useShareInbound } from '@/lib/share-intent';
+import { loadReminderHour, loadReminderOn, loadRoutines } from '@/lib/storage';
 import { ThemeProvider, useTheme } from '@/lib/theme-provider';
 
 // Hold the native splash until the Dusk fonts load. On web the families come from
@@ -67,6 +69,18 @@ function RootStack() {
 
   // Catch a share from another app (text or a URL) and queue it for Today's capture box.
   useShareInbound();
+
+  // The nudge resilience sweep (native): once per app open, quietly re-schedule every
+  // active Rhythm, checklist nudge, and the daily reminder from their stored config.
+  // Heals OEM alarm wipes and migrates Rhythms onto their HIGH-importance channel;
+  // quiet, so it can never surprise anyone with a permission prompt. Best effort.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    void (async () => {
+      const [routines, reminderOn, reminderHour] = await Promise.all([loadRoutines(), loadReminderOn(), loadReminderHour()]);
+      await rescheduleAllNudges(routines, reminderOn ? reminderHour : null);
+    })();
+  }, []);
 
   // Paint the native window background to match the theme so launch, transitions, and
   // overscroll never flash the wrong colour. Native only; web has its own page background.

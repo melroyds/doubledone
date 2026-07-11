@@ -44,3 +44,26 @@ export function formatReminderHour(hour: number): string {
 export function formatReminderTime(hour: number, minute: number): string {
   return fmt.time(new Date(2000, 0, 1, clampHour(hour), clampMinute(minute)));
 }
+
+/**
+ * Of the given daily slots, the one that fires SOONEST after `now` (a slot exactly at `now`
+ * counts as tomorrow, matching a DAILY trigger that has just fired). Pure, for the nudge
+ * health line ("next around 7:00 pm"): the OS holds the real schedule, this only picks
+ * which slot to name. Returns null for no slots.
+ */
+export function nextDailySlot(slots: { hour: number; minute: number }[], now: Date): { hour: number; minute: number } | null {
+  if (slots.length === 0) return null;
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  let best: { hour: number; minute: number } | null = null;
+  let bestDelta = Number.POSITIVE_INFINITY;
+  for (const s of slots) {
+    const slotMin = clampHour(s.hour) * 60 + clampMinute(s.minute);
+    let delta = (slotMin - nowMin + 1440) % 1440;
+    if (delta === 0) delta = 1440;
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      best = { hour: clampHour(s.hour), minute: clampMinute(s.minute) };
+    }
+  }
+  return best;
+}

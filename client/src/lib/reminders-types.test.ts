@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { clampHour, clampMinute, formatReminderHour, formatReminderTime, type ReminderReason, reminderReasonLine } from './reminders-types';
+import { clampHour, clampMinute, formatReminderHour, formatReminderTime, nextDailySlot, type ReminderReason, reminderReasonLine } from './reminders-types';
 
 describe('reminderReasonLine', () => {
   it('gives a distinct, non-empty, never-alarming line for each reason', () => {
@@ -85,5 +85,29 @@ describe('formatReminderTime', () => {
     expect(label(30, 99)).toBe('11:59 pm');
     expect(label(-1, -1)).toBe('12:00 am');
     expect(label(9, NaN)).toBe('9:00 am');
+  });
+});
+
+describe('nextDailySlot (the nudge health "next around" pick)', () => {
+  const at = (h: number, m: number) => new Date(2026, 6, 12, h, m);
+
+  it('picks the soonest slot after now, across midnight when needed', () => {
+    const slots = [
+      { hour: 9, minute: 0 },
+      { hour: 13, minute: 0 },
+      { hour: 21, minute: 0 },
+    ];
+    expect(nextDailySlot(slots, at(10, 30))).toEqual({ hour: 13, minute: 0 });
+    expect(nextDailySlot(slots, at(22, 0))).toEqual({ hour: 9, minute: 0 }); // wraps to tomorrow
+  });
+
+  it('a slot exactly at now counts as tomorrow (it just fired)', () => {
+    expect(nextDailySlot([{ hour: 9, minute: 0 }, { hour: 9, minute: 5 }], at(9, 0))).toEqual({ hour: 9, minute: 5 });
+  });
+
+  it('handles minutes and clamps junk; empty is null', () => {
+    expect(nextDailySlot([{ hour: 20, minute: 30 }], at(20, 29))).toEqual({ hour: 20, minute: 30 });
+    expect(nextDailySlot([{ hour: 30, minute: 99 }], at(12, 0))).toEqual({ hour: 23, minute: 59 });
+    expect(nextDailySlot([], at(12, 0))).toBeNull();
   });
 });

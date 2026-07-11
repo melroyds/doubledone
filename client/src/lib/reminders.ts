@@ -2,7 +2,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { t } from './i18n-active';
-import { type ReminderResult } from './reminders-types';
+import { nextDailySlot, type ReminderResult } from './reminders-types';
 import { rhythmFireTimes, rhythmSlotId, rhythmSlotIdPrefix, type Routine } from './routines';
 
 export type { ReminderReason, ReminderResult } from './reminders-types';
@@ -20,6 +20,12 @@ const DAILY_ID = 'doubledone-daily'; // fixed id so we cancel only the daily, le
 const DAILY_CHANNEL_ID = 'daily-reminder';
 const ROUTINE_NUDGE_PREFIX = 'routine-'; // + routineId: one daily nudge per routine, cancellable alone
 const NUDGE_CHANNEL_ID = 'task-nudge-v2'; // v2 forces a fresh HIGH-importance channel, since Android ignores importance changes to an already-created channel
+// Rhythms get their OWN channel at HIGH importance: a Rhythm is a nudge the user explicitly
+// asked for ("water every 2 hours", meds at 8), and on the shared DEFAULT channel it landed
+// silently in the tray and was never noticed (the launch-week "I only got one alarm" bug).
+// HIGH surfaces a heads-up peek, same posture as the task nudges someone explicitly sets.
+// Its own channel also means the user can tune Rhythms alone in system settings.
+const RHYTHM_CHANNEL_ID = 'rhythm-nudge';
 
 // Show notifications even when the app is foregrounded. Without this, expo-notifications
 // drops a notification that fires while the app is open (the default), so a reminder set
@@ -49,16 +55,24 @@ async function ensureChannel(
   await Notifications.setNotificationChannelAsync(id, { name, importance });
 }
 
+// Permission for a scheduling call. The interactive path (a user just tapped "add") may
+// PROMPT; the quiet path (the app-open resilience sweep) only CHECKS, so an app launch can
+// never surprise someone with a permission dialog they did not ask for.
+async function hasNotifPermission(quiet: boolean): Promise<boolean> {
+  let { status } = await Notifications.getPermissionsAsync();
+  if (status !== 'granted' && !quiet) ({ status } = await Notifications.requestPermissionsAsync());
+  return status === 'granted';
+}
+
 /** Request permission and schedule a calm daily reminder at `hour`. Returns ok, or a reason it didn't. */
-export async function enableDailyReminder(hour = 9): Promise<ReminderResult> {
+export async function enableDailyReminder(hour = 9, opts: { quiet?: boolean } = {}): Promise<ReminderResult> {
   try {
     // Channel first: on Android 13 the permission prompt does not appear until a channel
     // exists, so creating it before requesting is what lets a first-time user grant.
     // The channel NAME localises for new installs only: Android fixes it at creation,
     // and we never bump the channel id just to rename it.
     await ensureChannel(DAILY_CHANNEL_ID, t('settings.reminderLabel'));
-    const { status } = await Notifications.requestPermissionsAsync();
-    if (status !== 'granted') return { ok: false, reason: 'denied' };
+    if (!(await hasNotifPermission(opts.quiet === true))) return { ok: false, reason: 'denied' };
     await Notifications.cancelScheduledNotificationAsync(DAILY_ID);
     await Notifications.scheduleNotificationAsync({
       identifier: DAILY_ID,
@@ -94,13 +108,12 @@ export async function disableDailyReminder(): Promise<void> {
  * delivers these inexactly (see scheduleNudge on exact alarms), so the UI copy says
  * "around", never a to-the-minute promise. Returns ok, or a reason it didn't.
  */
-export async function scheduleRoutineNudge(routineId: string, name: string, hour: number, minute = 0): Promise<ReminderResult> {
+export async function scheduleRoutineNudge(routineId: string, name: string, hour: number, minute = 0, opts: { quiet?: boolean } = {}): Promise<ReminderResult> {
   try {
     // Channel first (see enableDailyReminder): the Android 13 permission prompt needs a
     // channel to exist before it will appear.
     await ensureChannel(DAILY_CHANNEL_ID, t('settings.reminderLabel'));
-    const { status } = await Notifications.requestPermissionsAsync();
-    if (status !== 'granted') return { ok: false, reason: 'denied' };
+    if (!(await hasNotifPermission(opts.quiet === true))) return { ok: false, reason: 'denied' };
     await Notifications.cancelScheduledNotificationAsync(ROUTINE_NUDGE_PREFIX + routineId);
     await Notifications.scheduleNotificationAsync({
       identifier: ROUTINE_NUDGE_PREFIX + routineId,
@@ -132,22 +145,21 @@ export async function cancelRoutineNudge(routineId: string): Promise<void> {
  * (from the pure `rhythmFireTimes`: window hours at :00 for an interval Rhythm, exact clock
  * times for a fixed-time / meds Rhythm), each keyed under the `rhythm-{id}-` prefix
  * so cancel can sweep every slot. Title is the Rhythm's own name (user data, never
- * translated), body a gentle "when you're ready". It shares the DEFAULT-importance daily
- * channel: a Rhythm is an offer, not an alarm, so no sound and no badge, and Android delivers
- * it INEXACTLY (no USE_EXACT_ALARM, same posture as the other nudges), which is why the copy
- * says "around", never a to-the-minute time. Discrete DAILY triggers, never a raw
+ * translated), body a gentle "when you're ready". It uses its OWN channel at HIGH importance
+ * (a heads-up peek): a Rhythm is a nudge the user explicitly asked for, and at DEFAULT it
+ * sat silently in the tray and was never noticed. Android still delivers it INEXACTLY (no
+ * USE_EXACT_ALARM, same posture as the other nudges), which is why the copy says "around",
+ * never a to-the-minute time. Discrete DAILY triggers, never a raw
  * TIME_INTERVAL, so it can only fire inside the waking window and never overnight. Always
  * cancels first, so a re-save or a shrunk window leaves no orphaned slot firing; a paused
  * Rhythm schedules nothing (honestly silent until resumed). The notification carries NO
  * task-shaped `data`, so a tap just opens the app and can never be misrouted into creating a
  * task. Returns ok, or a reason it didn't.
  */
-export async function scheduleRhythm(r: Routine): Promise<ReminderResult> {
+export async function scheduleRhythm(r: Routine, opts: { quiet?: boolean } = {}): Promise<ReminderResult> {
   try {
-    await ensureChannel(DAILY_CHANNEL_ID, t('settings.reminderLabel'));
-    let { status } = await Notifications.getPermissionsAsync();
-    if (status !== 'granted') ({ status } = await Notifications.requestPermissionsAsync());
-    if (status !== 'granted') return { ok: false, reason: 'denied' };
+    await ensureChannel(RHYTHM_CHANNEL_ID, t('routines.rhythmChannelLabel'), Notifications.AndroidImportance.HIGH);
+    if (!(await hasNotifPermission(opts.quiet === true))) return { ok: false, reason: 'denied' };
     await cancelRhythm(r.id); // clear any stale slots first (including ones orphaned by a shrunk window)
     if (r.paused) return { ok: true };
     // rhythmFireTimes is the unified schedule: interval Rhythms yield their window hours at
@@ -160,7 +172,7 @@ export async function scheduleRhythm(r: Routine): Promise<ReminderResult> {
           type: Notifications.SchedulableTriggerInputTypes.DAILY,
           hour,
           minute,
-          channelId: DAILY_CHANNEL_ID,
+          channelId: RHYTHM_CHANNEL_ID,
         },
       });
     }
@@ -228,5 +240,56 @@ export async function cancelNudge(id: string): Promise<void> {
     await Notifications.cancelScheduledNotificationAsync(id);
   } catch {
     // best effort
+  }
+}
+
+/**
+ * The nudge resilience sweep, run once per app open (from the root layout): quietly
+ * re-schedule every active Rhythm, every checklist nudge, and the daily reminder from
+ * their stored config. The OS is supposed to keep schedules alive across reboots and app
+ * updates, but aggressive OEM battery managers wipe alarms, and this sweep also migrates
+ * existing Rhythms onto their new HIGH-importance channel (Android fixes a channel's
+ * importance at creation, so only a re-schedule onto a new channel id can raise it).
+ * QUIET throughout: it never prompts for permission, so an app launch can never surprise
+ * anyone with a dialog; if permission is missing it simply does nothing. Idempotent
+ * (every schedule call cancels its own ids first). Best effort, never throws.
+ */
+export async function rescheduleAllNudges(routines: Routine[], dailyReminderHour: number | null): Promise<void> {
+  try {
+    if (Platform.OS === 'web') return;
+    for (const r of routines) {
+      if (r.kind === 'rhythm') {
+        if (!r.paused) await scheduleRhythm(r, { quiet: true });
+      } else if (r.nudgeHour != null) {
+        await scheduleRoutineNudge(r.id, r.name, r.nudgeHour, r.nudgeMinute ?? 0, { quiet: true });
+      }
+    }
+    if (dailyReminderHour != null) await enableDailyReminder(dailyReminderHour, { quiet: true });
+  } catch {
+    // best effort
+  }
+}
+
+/**
+ * Ground truth for the Routines screen's nudge health line: how many notifications the OS
+ * actually has scheduled for this app on THIS device, and the soonest daily slot. This is
+ * the debug surface for "the nudge never came": if the count is zero while Rhythms exist,
+ * scheduling is the problem; if the count is right and nothing arrives, the OS (battery
+ * management) is. Returns zeros on web / on any failure.
+ */
+export async function getNudgeHealth(): Promise<{ count: number; next: { hour: number; minute: number } | null }> {
+  try {
+    if (Platform.OS === 'web') return { count: 0, next: null };
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const slots: { hour: number; minute: number }[] = [];
+    for (const n of scheduled) {
+      const trig = n.trigger as { hour?: unknown; minute?: unknown } | null;
+      if (trig && typeof trig.hour === 'number' && typeof trig.minute === 'number') {
+        slots.push({ hour: trig.hour, minute: trig.minute });
+      }
+    }
+    return { count: scheduled.length, next: nextDailySlot(slots, new Date()) };
+  } catch {
+    return { count: 0, next: null };
   }
 }

@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
@@ -9,7 +9,7 @@ import { Segmented } from '@/components/Segmented';
 import { border, cardShadow, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { toISODate } from '@/lib/day';
 import { t } from '@/lib/locale';
-import { cancelRhythm, cancelRoutineNudge, scheduleRhythm, scheduleRoutineNudge } from '@/lib/reminders';
+import { cancelRhythm, cancelRoutineNudge, getNudgeHealth, scheduleRhythm, scheduleRoutineNudge } from '@/lib/reminders';
 import { clampHour, clampMinute, formatReminderTime, reminderReasonLine } from '@/lib/reminders-types';
 import {
   applyRoutineEdit,
@@ -100,12 +100,18 @@ export default function RoutinesScreen() {
   // clamped / deduped / sorted by cleanRhythmTimes at save, so junk rows just drop out.
   const [rhythmMode, setRhythmMode] = useState<'interval' | 'times'>('interval');
   const [rhythmTimeTexts, setRhythmTimeTexts] = useState<{ h: string; m: string }[]>([]);
+  // The OS's scheduled-notification truth for this phone (the nudge health line, native only).
+  const [nudgeHealth, setNudgeHealth] = useState<{ count: number; next: { hour: number; minute: number } | null } | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
       void loadRoutines().then((r) => {
         if (active) setRoutines(r);
+      });
+      // The nudge health line (native): what the OS actually has scheduled on this phone.
+      void getNudgeHealth().then((h) => {
+        if (active) setNudgeHealth(h);
       });
       return () => {
         active = false;
@@ -814,6 +820,32 @@ export default function RoutinesScreen() {
               </Pressable>
             </View>
           )}
+          {/* Nudge health (native): the OS's own ground truth for this phone, the debug line
+              for "the nudge never came". Zero scheduled while Rhythms exist = scheduling is
+              broken; a right count with nothing arriving = the OS (battery management) is
+              holding them, hence the battery hint and the door to the app's system settings. */}
+          {Platform.OS !== 'web' && rhythms.length > 0 && (
+            <View style={styles.nudgeHealth}>
+              <Text style={styles.nudgeHealthText}>
+                {nudgeHealth == null
+                  ? ' '
+                  : nudgeHealth.count === 0
+                    ? t('routines.nudgeHealthNone')
+                    : nudgeHealth.next
+                      ? `${t('routines.nudgeHealthCount', { count: nudgeHealth.count })} ${t('routines.nudgeHealthNext', { time: formatReminderTime(nudgeHealth.next.hour, nudgeHealth.next.minute) })}`
+                      : t('routines.nudgeHealthCount', { count: nudgeHealth.count })}
+              </Text>
+              <Text style={styles.nudgeHealthText}>{t('routines.batteryHint')}</Text>
+              <Pressable
+                onPress={() => void Linking.openSettings()}
+                accessibilityRole="button"
+                accessibilityLabel={t('routines.batteryOpen')}
+                hitSlop={6}
+              >
+                <Text style={styles.batteryLink}>{t('routines.batteryOpen')}</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
 
         {adding ? (
@@ -1051,6 +1083,9 @@ const makeStyles = (t: Theme) =>
     rhythmIntro: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale, marginBottom: spacing.one },
     rhythmWebNote: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two, fontStyle: 'italic' },
     rhythmPresets: { gap: spacing.two, marginTop: spacing.one },
+    nudgeHealth: { gap: spacing.one, marginTop: spacing.four },
+    nudgeHealthText: { color: t.colors.inkFaint, fontSize: 13 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body },
+    batteryLink: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     presetBtn: {
       borderWidth: border.hair,
       borderColor: t.colors.line,
