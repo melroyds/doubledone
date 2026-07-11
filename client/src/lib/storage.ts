@@ -22,6 +22,7 @@ const SYNCOK_KEY = 'doubledone.syncok.v1'; // result of the last sync attempt, s
 const REMINDEROFFER_KEY = 'doubledone.reminderoffer.v1'; // one-time "offer the reminder after the first close-day"
 const REMINDERHOUR_KEY = 'doubledone.reminderhour.v1'; // the hour (0-23) the daily reminder fires; default 9am
 const DEV_PREMIUM_KEY = 'doubledone.devPremium.v1'; // DEV/preview only: the premium-flag override (see premium-flag.ts)
+const ENERGY_USES_KEY = 'doubledone.energyUses.v1'; // energy-match use timestamps (the freemium meter, see lib/energy.ts)
 
 /**
  * Load Today's tasks. On a brand-new install (nothing ever stored) seed once so
@@ -255,6 +256,28 @@ export async function loadScrapbooks(): Promise<Scrapbook[]> {
 export async function saveScrapbooks(books: Scrapbook[]): Promise<void> {
   try {
     await AsyncStorage.setItem(SCRAPBOOKS_KEY, JSON.stringify(books));
+  } catch {
+    // best effort
+  }
+}
+
+/** Load the energy-match use timestamps (the freemium meter's local record). Defensive: junk yields []. */
+export async function loadEnergyUses(): Promise<number[]> {
+  try {
+    const raw = await AsyncStorage.getItem(ENERGY_USES_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((t): t is number => typeof t === 'number' && Number.isFinite(t));
+  } catch {
+    return [];
+  }
+}
+
+/** Persist the energy-match use timestamps. Best effort. */
+export async function saveEnergyUses(uses: number[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(ENERGY_USES_KEY, JSON.stringify(uses));
   } catch {
     // best effort
   }

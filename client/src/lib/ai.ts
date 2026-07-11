@@ -329,6 +329,30 @@ export async function sequence(tasks: { id: string; title: string }[], energy?: 
   }
 }
 
+/** Energy matching: today's open tasks plus how much the person has right now, ONE pick back
+ *  with a warm line on why it fits. Propose-only (the user chooses to start it). Returns null
+ *  on any failure so the caller shows one calm line. The freemium meter lives in lib/energy.ts
+ *  and is the caller's job BEFORE calling, so a refused gate never spends a network call. */
+export async function matchEnergy(
+  tasks: { id: string; title: string; big?: boolean }[],
+  energy: Energy,
+  language?: string,
+): Promise<{ id: string; line: string } | null> {
+  try {
+    const res = await fetch(`${AI_URL}/energy`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ tasks, energy, language }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { id?: unknown; line?: unknown };
+    if (typeof data.id !== 'string' || !tasks.some((t) => t.id === data.id)) return null;
+    return { id: data.id, line: typeof data.line === 'string' ? data.line : '' };
+  } catch {
+    return null;
+  }
+}
+
 /** Shrink a dreaded task to its 2-minute version via the AI backend (the wall of awful,
  *  lowered). Throws on a failed call; the caller shows a calm error. */
 export async function tiny(task: string): Promise<string> {

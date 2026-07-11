@@ -603,6 +603,14 @@ CASES = [
      "Select a recurring task, then separately look at a task in the 'Later' list.",
      "No 'Pin' action appears for a recurring task, and Later rows carry no pin affordance (pinning is Today-only and one-offs only).", "Both"),
 
+    # --- Energy matching (freemium) -------------------------------------------
+    ("NRG-01", "Energy", "P1", "What fits right now: one question, one pick, propose-only",
+     "With AI on and 2+ open one-off tasks on Today, tap 'What fits right now?' under 'Focus on one thing'. Pick an energy level (Running low / Somewhere in between / Feeling good). Then tap 'Start with this'; separately try 'Not now'.",
+     "A calm one-question card with the privacy line ('Your open tasks go to Claude to pick one. Nothing is added or changed.'). Choosing a level shows ONE task from today's list with a short warm line on why it fits (never shaming, never about what's undone). 'Start with this' opens Focus mode on exactly that task; 'Not now' just closes, nothing changed. A failed call shows a calm 'Couldn't find a pick just now.' line and does NOT spend a free pick. The entry hides when AI is off or fewer than 2 tasks are open. Needs the Worker deployed with /energy.", "Both"),
+    ("NRG-02", "Energy", "P1", "The freemium meter: 15 a month, reminders at 10 and 5, then the paywall",
+     "As a FREE user, use energy matching repeatedly in one calendar month (seed doubledone.energyUses.v1 to fast-forward). Watch the 10-left and 5-left moments, then the 16th tap. Then as premium, use it well past 15.",
+     "Each successful pick spends one of 15 free picks a calendar month (counted locally, like the scrapbook gate). Exactly at 10 left and at 5 left, the result shows one calm line: '10 of your 15 free picks left this month.' (then 5). Past 15, tapping the entry routes to the paywall (which lists 'Energy matching without limits'), never a shaming wall, and no AI call is made ('premium.gate_hit' reason 'energy' logs). The counter resets on the 1st of the month with no carry-over. Premium is unlimited and never sees a counter line.", "Both"),
+
     # --- Scan a list (OCR, Premium) ------------------------------------------
     ("OCR-01", "Scan", "P1", "Premium: the Scan button opens the camera",
      "As premium, open the add panel and tap the Scan (camera) pill beside Speak.",

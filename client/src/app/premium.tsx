@@ -219,6 +219,7 @@ export default function PremiumScreen() {
                 t('premium.featurePatterns'),
                 t('premium.featureChart'),
                 t('premium.featurePlanMyDay'),
+                t('premium.featureEnergy'),
               ].map((f) => (
                 <View key={f} style={styles.featureRow}>
                   <View style={styles.featureDot} />

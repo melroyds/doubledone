@@ -24,6 +24,8 @@ import {
   clarify,
   combine,
   DEFAULT_QUESTIONS,
+  type Energy,
+  matchEnergy,
   plan as planBreakdown,
   purgeScrapbookImages,
   reportOutcome,
@@ -35,6 +37,7 @@ import {
   type PlanItem,
   type Questions,
 } from '@/lib/ai';
+import { canMatchEnergy, recordEnergyUse, shouldWarnEnergy } from '@/lib/energy';
 import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
 import { celebrationTier, doneAffirmation, finishContext } from '@/lib/celebrate';
@@ -54,7 +57,7 @@ import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge }
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadClosedDate, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderHour, loadReminderOfferMade, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOfferMade, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData } from '@/lib/storage';
+import { loadClosedDate, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderHour, loadReminderOfferMade, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOfferMade, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { isAccountGone, localBelongsToAnother, syncOnce } from '@/lib/sync';
 import { completeOnDay, parseDump, sweepElapsedNudges, type Task, withMonotonicStamps } from '@/lib/tasks';
@@ -116,6 +119,14 @@ export default function TodayScreen() {
   const [sliceEditId, setSliceEditId] = useState<string | null>(null); // captured so confirm/clear survive exitSelect
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusPick, setFocusPick] = useState<string | null>(null);
+  // Energy matching ("What fits right now?"): the one-question modal, its pick, and the
+  // freemium meter's local use history (15 a month free; see lib/energy.ts).
+  const [energyOpen, setEnergyOpen] = useState(false);
+  const [energyBusy, setEnergyBusy] = useState(false);
+  const [energyPick, setEnergyPick] = useState<{ id: string; line: string } | null>(null);
+  const [energyErr, setEnergyErr] = useState<string | null>(null);
+  const [energyNote, setEnergyNote] = useState<string | null>(null); // the calm "n left this month" line, at 10 and 5
+  const [energyUses, setEnergyUses] = useState<number[]>([]);
   const { premium, loading: premiumLoading } = usePremium(); // gates Pin; a dev override drives it locally
   const brainDumpRef = useRef<BrainDumpHandle>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
@@ -506,6 +517,63 @@ export default function TodayScreen() {
     setFocusOpen(true);
     track('focus.opened');
   }
+
+  // --- Energy matching: "What fits right now?" ------------------------------------------
+  // One question (how much have you got), one Haiku pick, propose-only. Free is 15 a
+  // calendar month, metered locally (lib/energy.ts, the scrapbook-gate precedent); the
+  // gate is checked BEFORE any network call, and past the cap the tap routes to the
+  // paywall exactly like Pin / Quiet. Reminders surface at 10 and 5 picks left.
+  function openEnergy() {
+    if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
+    const gate = canMatchEnergy(premium, energyUses, nowMs());
+    if (!gate.allowed) {
+      track('premium.gate_hit', { reason: 'energy' });
+      router.push('/premium');
+      return;
+    }
+    setEnergyPick(null);
+    setEnergyErr(null);
+    setEnergyNote(null);
+    setEnergyOpen(true);
+    track('energy.opened');
+  }
+
+  async function runEnergy(level: Energy) {
+    if (energyBusy) return;
+    setEnergyBusy(true);
+    setEnergyErr(null);
+    const pick = await matchEnergy(
+      spreadable.map((x) => ({ id: x.id, title: x.title, big: x.big })),
+      level,
+      aiLanguage,
+    );
+    setEnergyBusy(false);
+    if (!pick) {
+      setEnergyErr(aiErrorLine(t('today.energyError')));
+      return;
+    }
+    // A use is spent only on a successful pick, never on an error, so a flaky network
+    // can never quietly drain the month's allowance.
+    const nextUses = recordEnergyUse(energyUses, nowMs());
+    setEnergyUses(nextUses);
+    void saveEnergyUses(nextUses);
+    const after = canMatchEnergy(premium, nextUses, nowMs());
+    setEnergyNote(after.remaining != null && shouldWarnEnergy(after.remaining) ? t('today.energyLeft', { count: after.remaining }) : null);
+    setEnergyPick(pick);
+    track('energy.used', { energy: level, remaining: after.remaining ?? -1 });
+  }
+
+  function startEnergyPick() {
+    if (!energyPick) return;
+    setEnergyOpen(false);
+    setFocusPick(energyPick.id);
+    setFocusOpen(true);
+    track('energy.started');
+  }
+
+  useEffect(() => {
+    void loadEnergyUses().then(setEnergyUses);
+  }, []);
 
   function closeFocus() {
     setFocusOpen(false);
@@ -1454,6 +1522,17 @@ export default function TodayScreen() {
             <Text style={styles.focusEntryText}>{t('today.focusOne')}</Text>
           </Pressable>
         )}
+        {aiEnabled && spreadable.length >= 2 && (
+          <Pressable
+            onPress={openEnergy}
+            accessibilityRole="button"
+            accessibilityLabel={t('today.energyEntryA11y')}
+            hitSlop={6}
+            style={({ pressed }) => [styles.energyEntry, pressed && styles.pressed]}
+          >
+            <Text style={styles.energyEntryText}>{t('today.energyEntry')}</Text>
+          </Pressable>
+        )}
         {!holdHintSeen && visible.length > 0 && (
           // The long-press is the only door to half the app (pin / remind / combine / make-it-tiny / bulk).
           // A one-time, dismissible coachmark teaches it, so a first-timer never misses the rescue tools.
@@ -2242,6 +2321,56 @@ export default function TodayScreen() {
         </View>
       </Modal>
 
+      {/* Energy matching: one calm question, one pick, propose-only. The task title comes
+          from the local list by id (the AI only ever returns an id we sent + a short line). */}
+      <ModalCard visible={energyOpen} onClose={() => setEnergyOpen(false)}>
+        {energyPick == null ? (
+          <>
+            <Text style={styles.wrapTitle}>{t('today.energyTitle')}</Text>
+            <Text style={styles.wrapRoll}>{t('today.energyPrivacy')}</Text>
+            {energyBusy ? (
+              <Text style={styles.wrapLine}>{t('today.energyThinking')}</Text>
+            ) : (
+              <>
+                {(
+                  [
+                    ['low', t('today.energyLow')],
+                    ['medium', t('today.energyMedium')],
+                    ['good', t('today.energyGood')],
+                  ] as const
+                ).map(([level, label]) => (
+                  <Pressable
+                    key={level}
+                    onPress={() => void runEnergy(level)}
+                    accessibilityRole="button"
+                    accessibilityLabel={label}
+                    style={({ pressed }) => [styles.energyChoice, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.energyChoiceText}>{label}</Text>
+                  </Pressable>
+                ))}
+              </>
+            )}
+            {energyErr != null && <Text style={styles.strategiseErr}>{energyErr}</Text>}
+          </>
+        ) : (
+          <>
+            <Text style={styles.wrapTitle}>{tasks.find((x) => x.id === energyPick.id)?.title ?? ''}</Text>
+            {energyPick.line.length > 0 && <Text style={styles.wrapLine}>{energyPick.line}</Text>}
+            {energyNote != null && <Text style={styles.wrapRoll}>{energyNote}</Text>}
+            <PrimaryButton
+              label={t('today.energyStart')}
+              onPress={startEnergyPick}
+              accessibilityLabel={t('today.energyStart')}
+              style={styles.wrapBtn}
+            />
+            <Pressable onPress={() => setEnergyOpen(false)} accessibilityRole="button" accessibilityLabel={t('today.energyNotNow')} hitSlop={6}>
+              <Text style={styles.energyNotNow}>{t('today.energyNotNow')}</Text>
+            </Pressable>
+          </>
+        )}
+      </ModalCard>
+
       <ModalCard visible={plan != null} onClose={() => setPlan(null)}>
             <Text style={styles.wrapTitle}>{t('today.spreadTitle')}</Text>
             <Text style={styles.wrapLine}>{t('today.spreadLine')}</Text>
@@ -2646,6 +2775,20 @@ const makeStyles = (t: Theme) =>
       fontFamily: t.appearance === 'quiet' ? fonts.body : fonts.bodyBold,
       fontWeight: t.appearance === 'quiet' ? '400' : '700',
     },
+    // Energy matching: a quiet text door under Focus (no chrome in either appearance),
+    // and the three plain choice rows inside its modal.
+    energyEntry: { alignItems: 'center', marginTop: -spacing.two, marginBottom: spacing.four, paddingVertical: spacing.two },
+    energyEntryText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    energyChoice: {
+      borderWidth: border.hair,
+      borderColor: t.colors.line,
+      borderRadius: radius.md,
+      paddingVertical: spacing.three,
+      paddingHorizontal: spacing.four,
+      alignItems: 'center',
+    },
+    energyChoiceText: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    energyNotNow: { color: t.colors.inkFaint, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', paddingVertical: spacing.two },
     alsoDidUnderList: { marginTop: spacing.three, marginBottom: spacing.two, alignItems: 'center' },
     selectTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four, marginBottom: spacing.two },
     selectAllText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, textDecorationLine: 'underline' },

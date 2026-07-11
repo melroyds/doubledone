@@ -20,6 +20,7 @@ import { handleTrial, requirePremium } from './premium';
 import { deleteSub, parsePushSub, saveSub, sendDailyNudges } from './push';
 import { runMonitor } from './monitor';
 import { dataUrl, IMAGE_MODEL, imagePrompt, overDailyCap, parseImage, parseScene, SCENE_MODEL, sceneMessages } from './scrapbook';
+import { buildEnergyRequest, ENERGY_MODEL, parseEnergyLevel, parseEnergyResponse, parseEnergyTasks } from './energy';
 import { buildSequenceRequest, parseEnergy, parseSequenceResponse, SEQUENCE_MODEL } from './sequence';
 import { buildSplitRequest, parseSplitResponse, SPLIT_MODEL } from './split';
 import { buildTinyRequest, parseTinyResponse, TINY_MODEL } from './tiny';
@@ -118,7 +119,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:8081',
   'http://localhost:19006',
 ];
-const AI_ROUTES = new Set(['/chart', '/clarify', '/combine', '/decompose', '/plan', '/sequence', '/split', '/tiny', '/strategise', '/triage', '/scrapbook', '/ocr', '/lookback-summary']);
+const AI_ROUTES = new Set(['/chart', '/clarify', '/combine', '/decompose', '/energy', '/plan', '/sequence', '/split', '/tiny', '/strategise', '/triage', '/scrapbook', '/ocr', '/lookback-summary']);
 // Max request-body size (bytes) on the TEXT AI routes, so one giant payload cannot run up the Anthropic
 // bill (the rate limiter bounds frequency, this bounds size). 100 KB is far above any real brain-dump or
 // goal. /ocr is exempt below: it legitimately carries a photo.
@@ -850,6 +851,57 @@ const router = {
         }),
       );
       return Response.json({ items }, { headers: cors });
+    }
+
+    // AI energy matching: today's open tasks plus how much the person has right now, ONE
+    // task back with a warm line on why it fits. Propose-only; the client decides to start.
+    // Free tier is metered CLIENT-side (15 a calendar month, the scrapbook precedent); this
+    // route stays unauthenticated like /tiny, bounded by the shared rate cap and body cap.
+    if (pathname === '/energy' && request.method === 'POST') {
+      let tasks: ReturnType<typeof parseEnergyTasks> = [];
+      let energy: ReturnType<typeof parseEnergyLevel> = 'medium';
+      let language: string | undefined;
+      try {
+        const body = (await request.json()) as { tasks?: unknown; energy?: unknown; language?: unknown };
+        tasks = parseEnergyTasks(body.tasks);
+        energy = parseEnergyLevel(body.energy);
+        language = parseLanguage(body.language);
+      } catch {
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
+      }
+      if (tasks.length === 0) {
+        return Response.json({ error: 'tasks are required' }, { status: 400, headers: cors });
+      }
+      if (!env.ANTHROPIC_API_KEY) {
+        return Response.json({ error: 'server not configured' }, { status: 500, headers: cors });
+      }
+
+      const { url, init } = buildEnergyRequest(tasks, energy, env.ANTHROPIC_API_KEY, language);
+      const started = Date.now();
+      const upstream = await fetch(url, init as RequestInit);
+      if (!upstream.ok) {
+        ctx.waitUntil(
+          logAiCall(env, {
+            endpoint: 'energy', model: ENERGY_MODEL, input: { count: tasks.length, energy }, output: null,
+            inputTokens: null, outputTokens: null, latencyMs: Date.now() - started,
+            ok: false, error: `upstream ${upstream.status}`,
+          }),
+        );
+        return Response.json({ error: 'upstream error' }, { status: 502, headers: cors });
+      }
+      const raw = await upstream.json();
+      const pick = parseEnergyResponse(raw, new Set(tasks.map((t) => t.id)));
+      const usage = extractUsage(raw);
+      ctx.waitUntil(
+        logAiCall(env, {
+          endpoint: 'energy', model: ENERGY_MODEL, input: { count: tasks.length, energy }, output: pick ? { picked: true } : null,
+          inputTokens: usage.input, outputTokens: usage.output, latencyMs: Date.now() - started, ok: pick != null,
+        }),
+      );
+      if (!pick) {
+        return Response.json({ error: 'no pick' }, { status: 502, headers: cors });
+      }
+      return Response.json(pick, { headers: cors });
     }
 
     // AI "make it tiny": a dreaded task in, a 2-minute starter version out (the wall of
