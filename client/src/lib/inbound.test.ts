@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { setInbound, subscribeInbound, takeInbound } from './inbound';
+import { setInbound, shareTextFromParams, subscribeInbound, takeInbound } from './inbound';
 
 // The bridge is module-level state, so drain it between tests to keep them independent.
 afterEach(() => {
@@ -36,5 +36,23 @@ describe('inbound bridge', () => {
     const off = subscribeInbound(fn);
     expect(fn).toHaveBeenCalledTimes(1);
     off();
+  });
+});
+
+describe('shareTextFromParams (the web share_target rule, mirrors native text ?? webUrl)', () => {
+  it('text wins over url and title', () => {
+    expect(shareTextFromParams({ title: 'An article', text: 'read this', url: 'https://x.example' })).toBe('read this');
+  });
+  it('falls back to the url, then the title', () => {
+    expect(shareTextFromParams({ title: 'An article', url: 'https://x.example' })).toBe('https://x.example');
+    expect(shareTextFromParams({ title: 'An article' })).toBe('An article');
+  });
+  it('returns null when nothing usable was shared (empty or whitespace)', () => {
+    expect(shareTextFromParams({})).toBeNull();
+    expect(shareTextFromParams({ text: '   ', title: '' })).toBeNull();
+  });
+  it('takes the first value when a router param arrives as an array', () => {
+    expect(shareTextFromParams({ text: ['first', 'second'] })).toBe('first');
+    expect(shareTextFromParams({ text: [], url: 'https://x.example' })).toBe('https://x.example');
   });
 });

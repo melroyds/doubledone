@@ -35,3 +35,16 @@ export function subscribeInbound(listener: () => void): () => void {
     listeners.delete(listener);
   };
 }
+
+/**
+ * Normalise a web share_target's GET params (title / text / url) into the shared text,
+ * mirroring the native rule (`shareIntent.text ?? shareIntent.webUrl`) exactly, so a share
+ * from the web sheet and a share from the Android sheet land in the capture identically:
+ * text wins, then the url, then the title as a last resort. One string, one capture line,
+ * the user edits from there. Returns null when nothing usable was shared. Router params
+ * can arrive as arrays; the first value wins.
+ */
+export function shareTextFromParams(params: { title?: string | string[]; text?: string | string[]; url?: string | string[] }): string | null {
+  const first = (v?: string | string[]): string => (Array.isArray(v) ? (v[0] ?? '') : (v ?? '')).trim();
+  return first(params.text) || first(params.url) || first(params.title) || null;
+}

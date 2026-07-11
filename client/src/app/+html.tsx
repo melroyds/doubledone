@@ -25,6 +25,7 @@ export default function Root({ children }: PropsWithChildren) {
         <title>{TITLE}</title>
         <meta name="description" content={DESCRIPTION} />
         <meta name="theme-color" content="#FAF6F1" />
+        <link rel="manifest" href="/manifest.json" />
 
         {/* Open Graph (iMessage, Slack, LinkedIn, Facebook, ...) */}
         <meta property="og:type" content="website" />

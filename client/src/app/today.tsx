@@ -45,7 +45,7 @@ import { phaseGreeting } from '@/lib/phase';
 import { addDaysISO, daysBetween, formatTodayLabel, friendlyDate, fromISODate, isReentry, presetDate, toISODate } from '@/lib/day';
 import { dayWeight, weightedLoad } from '@/lib/estimate';
 import { dayCleared, dayClosed, stepsLanded, taskDone } from '@/lib/haptics';
-import { type Inbound, subscribeInbound, takeInbound } from '@/lib/inbound';
+import { subscribeInbound, takeInbound } from '@/lib/inbound';
 import { aiLanguage, fmt, t } from '@/lib/locale';
 import { buildOutcome } from '@/lib/outcome';
 import { scheduleFields, type CaptureSchedule, type Recurrence } from '@/lib/recurrence';
@@ -347,19 +347,39 @@ export default function TodayScreen() {
   // Inbound launch intents (a launcher shortcut, or shared text) are stashed at the app
   // root and consumed here: open Focus, or seed and focus the capture box. Drained once
   // on mount (a cold launch) and on each later arrival while Today is open.
-  const applyInbound = useCallback((i: Inbound | null) => {
-    if (!i) return;
-    if (i.kind === 'focus') {
-      setFocusPick(null);
-      setFocusOpen(true);
-      track('focus.opened', { via: 'shortcut' });
-      return;
-    }
-    brainDumpRef.current?.seed(i.kind === 'capture' ? i.text : null);
-    track(i.kind === 'capture' ? 'capture.shared' : 'capture.shortcut');
-  }, []);
+  // The capture box renders only while captureOpen, so a seed arriving with it collapsed
+  // (the default on a cold launch) cannot go through the ref yet: it parks in pendingSeed,
+  // captureOpen flips on, and the effect below flushes it once BrainDump has mounted.
+  // Without this handoff the share was silently dropped whenever the box was closed.
+  const pendingSeed = useRef<string | null | undefined>(undefined); // undefined = nothing parked
+  useEffect(
+    () =>
+      subscribeInbound(() => {
+        const i = takeInbound();
+        if (!i) return;
+        if (i.kind === 'focus') {
+          setFocusPick(null);
+          setFocusOpen(true);
+          track('focus.opened', { via: 'shortcut' });
+          return;
+        }
+        const text = i.kind === 'capture' ? i.text : null;
+        if (brainDumpRef.current) {
+          brainDumpRef.current.seed(text);
+        } else {
+          pendingSeed.current = text;
+          setCaptureOpen(true);
+        }
+        track(i.kind === 'capture' ? 'capture.shared' : 'capture.shortcut');
+      }),
+    [],
+  );
 
-  useEffect(() => subscribeInbound(() => applyInbound(takeInbound())), [applyInbound]);
+  useEffect(() => {
+    if (!captureOpen || pendingSeed.current === undefined) return;
+    brainDumpRef.current?.seed(pendingSeed.current);
+    pendingSeed.current = undefined;
+  }, [captureOpen]);
 
   const visible = pinFirst(applyManualOrder(tasksForToday(tasks, today))); // the pin floats to the very top, then any accepted manual order
   const upcoming = upcomingTasks(tasks, today);

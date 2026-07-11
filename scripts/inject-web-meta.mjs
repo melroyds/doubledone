@@ -31,6 +31,7 @@ const esc = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 const META = `
     <meta name="description" content="${esc(DESCRIPTION)}" />
     <meta name="theme-color" content="#FAF6F1" />
+    <link rel="manifest" href="/manifest.json" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="${SITE}" />
     <meta property="og:site_name" content="DoubleDone" />
