@@ -17,6 +17,7 @@ import { lookbackStats } from '@/lib/insights';
 import { fmt, t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
 import { findScrapbook, type Scrapbook, upsertScrapbook, weekCompletions, weekLabel, weekStartISO } from '@/lib/scrapbook';
+import { shareScrapbook } from '@/lib/share';
 import { loadScrapbooks, loadTasks, saveScrapbooks } from '@/lib/storage';
 import { type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
@@ -97,6 +98,17 @@ export default function LookbackScreen() {
   // Premium insights: calm current-period stats (from `today`). The per-week AI reflection is tagged with
   // the week it belongs to (summaryWeek), so it shows only on its own week and never lingers on another.
   const stats = useMemo(() => lookbackStats(byDay, today), [byDay, today]);
+  // The one calm line the share action ever shows (web download / no share path); shared = quiet.
+  const [shareNote, setShareNote] = useState<string | null>(null);
+
+  // Share the keepsake image itself, never a link and never the caption text: what leaves
+  // the device is exactly the picture, to the app the user picks on the system sheet.
+  async function shareWeekScrapbook() {
+    if (!existingBook) return;
+    const how = await shareScrapbook(existingBook.image);
+    track('scrapbook.shared', { how });
+    setShareNote(how === 'saved' ? t('lookback.keepsakeSaved') : how === 'unavailable' ? t('lookback.shareUnavailable') : null);
+  }
 
   async function makeWeekScrapbook() {
     const titles = weekList.map((c) => c.title);
@@ -320,6 +332,15 @@ export default function LookbackScreen() {
               {existingBook.caption.length > 0 && <Text style={styles.scrapbookCaption}>{existingBook.caption}</Text>}
             </View>
             <Text style={styles.scrapbookMeta}>{t('lookback.madeWithAi', { week: weekLabel(weekStart) })}</Text>
+            <Pressable
+              onPress={() => void shareWeekScrapbook()}
+              accessibilityRole="button"
+              accessibilityLabel={t('lookback.shareKeepsakeA11y')}
+              hitSlop={8}
+            >
+              <Text style={styles.shareKeepsake}>{t('lookback.shareKeepsake')}</Text>
+            </Pressable>
+            {shareNote != null && <Text style={styles.scrapbookMeta}>{shareNote}</Text>}
           </>
         ) : weekList.length > 0 ? (
           <View style={styles.inviteWrap}>
@@ -531,6 +552,15 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingHorizontal: spacing.two,
   },
   scrapbookMeta: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+  shareKeepsake: {
+    color: t.colors.accent,
+    fontSize: 15 * t.scale,
+    fontFamily: fonts.bodyBold,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: spacing.two,
+    paddingVertical: spacing.two,
+  },
   inviteWrap: { gap: spacing.three, alignItems: 'center' },
   inviteFrame: {
     width: '100%',

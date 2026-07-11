@@ -42,7 +42,12 @@
       [
         "expo-localization",
         {
-          "supportedLocales": ["en", "it", "es", "fr"],
+          "supportedLocales": [
+            "en",
+            "it",
+            "es",
+            "fr"
+          ],
           "allowDynamicLocaleChangesAndroid": false
         }
       ],
@@ -124,7 +129,8 @@
             "compileSdkVersion": 36
           }
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -329,6 +329,9 @@ CASES = [
     ("SB-07", "Scrapbook", "P2", "A missing keepsake image degrades gracefully",
      "Open a week whose scrapbook image is gone (e.g. the R2 object was purged on an account delete while the local entry survived, or the stored image is corrupt).",
      "No blank polaroid. The week falls back to the calm 'That keepsake's picture isn't available anymore. Make a new one?' invite, and remaking overwrites it with a fresh image. Never a broken frame.", "Both"),
+    ("SB-08", "Scrapbook", "P2", "Share the keepsake (image only, never a link)",
+     "Under a week's keepsake, tap 'Share this keepsake'. On Android pick an app from the system sheet; on the web try a browser WITH the Web Share API (Chrome/Edge/Safari) and one without (Firefox desktop). Also cancel the share sheet once.",
+     "What is shared is the keepsake IMAGE FILE itself (doubledone-week.jpg), never a public link (the image never leaves the device until the user sends it) and never the caption text (task-derived words are not silently attached). On Android the system share sheet opens with the picture. On a Web Share browser the sheet opens the same way; without it the jpeg simply downloads and one calm line says 'Saved. Share it anywhere you like.' Cancelling the sheet is quiet, no error and no line. A 'scrapbook.shared' event logs the how (shared / saved), never any content.", "Both"),
 
     # --- Auth & sync ----------------------------------------------------------
     ("AUTH-01", "Auth & sync", "P1", "Email sign-in (OTP)",
