@@ -14,7 +14,10 @@ export type RoutineStep = { id: string; title: string };
 // A Rhythm's preset is a fixed catalog id (never free text), so copy and the future
 // web-push payload can key off it without ever storing user text. 'custom' is a hand-set
 // interval with no preset-specific copy.
-export type RhythmPreset = 'water' | 'stand' | 'custom';
+export type RhythmPreset = 'water' | 'stand' | 'meds' | 'custom';
+
+// A fixed clock time a Rhythm fires at (the meds shape: 8:00 and 20:00, not "every N hours").
+export type RhythmTime = { hour: number; minute: number };
 
 export type Routine = {
   id: string;
@@ -33,6 +36,10 @@ export type Routine = {
   intervalHours?: number; // fire around every N whole hours (integer >= 1) within the window
   windowStart?: number; // active-window start hour (0-23), inclusive; default 9, so it never fires at night
   windowEnd?: number; // active-window end hour (0-23), inclusive; default 21; always > windowStart
+  // Fixed clock times (the meds shape). When present and non-empty the Rhythm fires at
+  // exactly these times and intervalHours / window are ignored; a Rhythm is EITHER
+  // interval-based OR fixed-time, never both (enforced on parse, like due vs repeat).
+  atTimes?: RhythmTime[];
   paused?: boolean; // an honest, indefinite pause (a sick / off day); resumes only when the user resumes
   // NOTE: there is deliberately NO count / streak / lastFired / history field. A Rhythm
   // accumulates nothing, so there is nothing to "keep up" and nothing to feel behind on.
@@ -68,6 +75,15 @@ export function routineProgress(routine: Routine, todayIso: string): { done: num
 
 export const RHYTHM_WINDOW_START_DEFAULT = 9;
 export const RHYTHM_WINDOW_END_DEFAULT = 21;
+// A fixed-time Rhythm carries at most this many times; enough for any real meds / care
+// schedule, small enough that a corrupt blob can never mass-schedule notifications.
+export const RHYTHM_AT_TIMES_MAX = 8;
+// The default fixed times a new meds Rhythm starts with (a common twice-a-day shape);
+// the form edits from here, it is a starting point, never a constraint.
+export const RHYTHM_MEDS_DEFAULT_TIMES: RhythmTime[] = [
+  { hour: 8, minute: 0 },
+  { hour: 20, minute: 0 },
+];
 
 /** True for a Rhythm (a nudge-only routine), false for a step checklist. */
 export function isRhythm(r: Pick<Routine, 'kind'>): boolean {
@@ -77,6 +93,49 @@ export function isRhythm(r: Pick<Routine, 'kind'>): boolean {
 function clampHour(h: number): number {
   if (!Number.isFinite(h)) return 0;
   return Math.min(23, Math.max(0, Math.trunc(h)));
+}
+
+/**
+ * Validate raw fixed times defensively: only well-formed {hour 0-23, minute 0-59} integer
+ * pairs survive, duplicates collapse, the result is sorted by clock order and capped at
+ * RHYTHM_AT_TIMES_MAX. Junk in, [] out, so a corrupt blob falls back to the interval path
+ * rather than scheduling nonsense.
+ */
+export function cleanRhythmTimes(raw: unknown): RhythmTime[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<number>();
+  const times: RhythmTime[] = [];
+  for (const v of raw) {
+    if (v == null || typeof v !== 'object') continue;
+    const { hour, minute } = v as Record<string, unknown>;
+    if (typeof hour !== 'number' || !Number.isInteger(hour) || hour < 0 || hour > 23) continue;
+    if (typeof minute !== 'number' || !Number.isInteger(minute) || minute < 0 || minute > 59) continue;
+    const key = hour * 60 + minute;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    times.push({ hour, minute });
+  }
+  times.sort((a, b) => a.hour * 60 + a.minute - (b.hour * 60 + b.minute));
+  return times.slice(0, RHYTHM_AT_TIMES_MAX);
+}
+
+/** True for a fixed-time Rhythm (fires at set clock times, the meds shape). */
+export function isFixedTimeRhythm(r: Pick<Routine, 'kind' | 'atTimes'>): boolean {
+  return r.kind === 'rhythm' && Array.isArray(r.atTimes) && r.atTimes.length > 0;
+}
+
+/**
+ * The unified firing schedule, THE single source the native scheduler (and any future
+ * web-push cron) consumes: a fixed-time Rhythm returns its own times; an interval Rhythm
+ * returns its window hours each at :00. A checklist returns [].
+ */
+export function rhythmFireTimes(r: Routine): RhythmTime[] {
+  if (r.kind !== 'rhythm') return [];
+  if (isFixedTimeRhythm(r)) return cleanRhythmTimes(r.atTimes);
+  if (typeof r.intervalHours !== 'number') return [];
+  return rhythmFireHours(r.windowStart ?? RHYTHM_WINDOW_START_DEFAULT, r.windowEnd ?? RHYTHM_WINDOW_END_DEFAULT, r.intervalHours).map(
+    (hour) => ({ hour, minute: 0 }),
+  );
 }
 
 /**
@@ -96,10 +155,13 @@ export function rhythmFireHours(windowStart: number, windowEnd: number, interval
   return hours;
 }
 
-/** The firing hours for a Rhythm, or [] for a checklist / a Rhythm with no interval. */
+/**
+ * The firing HOURS for a Rhythm (hour-level truth, what an hourly cron can honour), or []
+ * for a checklist / a Rhythm with no schedule. A fixed-time Rhythm contributes each
+ * distinct hour of its times; the minute is a native-scheduler nicety on top.
+ */
 export function rhythmSlotHours(r: Routine): number[] {
-  if (r.kind !== 'rhythm' || typeof r.intervalHours !== 'number') return [];
-  return rhythmFireHours(r.windowStart ?? RHYTHM_WINDOW_START_DEFAULT, r.windowEnd ?? RHYTHM_WINDOW_END_DEFAULT, r.intervalHours);
+  return [...new Set(rhythmFireTimes(r).map((t) => t.hour))];
 }
 
 /**
@@ -109,8 +171,11 @@ export function rhythmSlotHours(r: Routine): number[] {
  * makeId emits `r-<t>-<n>` (three hyphen-parts), so no id can be a `rhythm-<id>-` prefix of
  * another and the sweep can never over-cancel a sibling Rhythm (asserted in the tests).
  */
-export function rhythmSlotId(routineId: string, hour: number): string {
-  return `rhythm-${routineId}-${hour}`;
+export function rhythmSlotId(routineId: string, hour: number, minute = 0): string {
+  // Minute 0 keeps the ORIGINAL `rhythm-<id>-<hour>` shape byte-for-byte, so notifications
+  // already scheduled on devices by the interval-only build still match their ids (edits and
+  // cancels keep working across the update). Only an off-the-hour time grows a segment.
+  return minute === 0 ? `rhythm-${routineId}-${hour}` : `rhythm-${routineId}-${hour}-${minute}`;
 }
 
 export function rhythmSlotIdPrefix(routineId: string): string {
@@ -209,7 +274,27 @@ function cleanRoutine(r: Routine): Routine {
     // resurrect a tick, and pin `when` to 'anytime' so a Rhythm can never fall into a
     // morning/evening checklist group. With no count/streak/lastFired field in the type,
     // scorekeeping is structurally impossible.
-    const preset: RhythmPreset = raw.preset === 'water' || raw.preset === 'stand' ? raw.preset : 'custom';
+    const preset: RhythmPreset =
+      raw.preset === 'water' || raw.preset === 'stand' || raw.preset === 'meds' ? raw.preset : 'custom';
+    // Fixed times win: a blob carrying both shapes keeps atTimes and DROPS the interval
+    // fields, so a Rhythm is provably one shape or the other after every parse. Junk or
+    // empty atTimes falls back to the interval path exactly as before.
+    const atTimes = cleanRhythmTimes(raw.atTimes);
+    if (atTimes.length > 0) {
+      return {
+        id: r.id,
+        name: r.name,
+        kind: 'rhythm',
+        when: 'anytime',
+        steps: [],
+        done: {},
+        preset,
+        atTimes,
+        paused: raw.paused === true,
+        createdAt,
+        updatedAt,
+      };
+    }
     const intervalHours =
       typeof raw.intervalHours === 'number' && Number.isInteger(raw.intervalHours) && raw.intervalHours >= 1 ? raw.intervalHours : 1;
     let windowStart = clampHour(typeof raw.windowStart === 'number' ? raw.windowStart : RHYTHM_WINDOW_START_DEFAULT);
