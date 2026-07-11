@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 
 import { t } from './i18n-active';
 import { type ReminderResult } from './reminders-types';
-import { rhythmSlotHours, rhythmSlotId, rhythmSlotIdPrefix, type Routine } from './routines';
+import { rhythmFireTimes, rhythmSlotId, rhythmSlotIdPrefix, type Routine } from './routines';
 
 export type { ReminderReason, ReminderResult } from './reminders-types';
 
@@ -128,8 +128,9 @@ export async function cancelRoutineNudge(routineId: string): Promise<void> {
 }
 
 /**
- * Schedule a Rhythm's gentle recurring nudges: one calm DAILY notification per firing hour
- * across its active window (from the pure `rhythmSlotHours`), each keyed `rhythm-{id}-{hour}`
+ * Schedule a Rhythm's gentle recurring nudges: one calm DAILY notification per firing time
+ * (from the pure `rhythmFireTimes`: window hours at :00 for an interval Rhythm, exact clock
+ * times for a fixed-time / meds Rhythm), each keyed under the `rhythm-{id}-` prefix
  * so cancel can sweep every slot. Title is the Rhythm's own name (user data, never
  * translated), body a gentle "when you're ready". It shares the DEFAULT-importance daily
  * channel: a Rhythm is an offer, not an alarm, so no sound and no badge, and Android delivers
@@ -149,14 +150,16 @@ export async function scheduleRhythm(r: Routine): Promise<ReminderResult> {
     if (status !== 'granted') return { ok: false, reason: 'denied' };
     await cancelRhythm(r.id); // clear any stale slots first (including ones orphaned by a shrunk window)
     if (r.paused) return { ok: true };
-    for (const hour of rhythmSlotHours(r)) {
+    // rhythmFireTimes is the unified schedule: interval Rhythms yield their window hours at
+    // :00 (identical to before), fixed-time Rhythms their exact clock times (the meds shape).
+    for (const { hour, minute } of rhythmFireTimes(r)) {
       await Notifications.scheduleNotificationAsync({
-        identifier: rhythmSlotId(r.id, hour),
+        identifier: rhythmSlotId(r.id, hour, minute),
         content: { title: r.name, body: t('reminders.routineNudgeBody') },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DAILY,
           hour,
-          minute: 0,
+          minute,
           channelId: DAILY_CHANNEL_ID,
         },
       });
