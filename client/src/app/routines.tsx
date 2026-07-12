@@ -136,6 +136,14 @@ export default function RoutinesScreen() {
     void saveRoutines(next);
   }
 
+  // Re-read the OS's scheduled truth after anything (re)schedules or cancels, so the
+  // "Next nudge around ..." line updates in place rather than waiting for the next screen
+  // focus (Melroy's catch: edit a rhythm, the line sat stale). Cheap: one OS list read.
+  // Callers chain it AFTER the scheduling promise settles, or the read races the write.
+  function refreshNudgeHealth() {
+    void getNudgeHealth().then(setNudgeHealth);
+  }
+
   function tick(routineId: string, stepId: string) {
     commit(routines.map((r) => (r.id === routineId ? toggleStep(r, stepId, today, Date.now()) : r)));
     track('routine.step.toggled');
@@ -179,9 +187,10 @@ export default function RoutinesScreen() {
         note = reminderReasonLine(result.reason);
       }
     } else {
-      void cancelRoutineNudge(id);
+      await cancelRoutineNudge(id); // awaited so the health refresh below reads the post-cancel truth
       if (existing?.nudgeHour != null) track('routine.nudge.cleared');
     }
+    refreshNudgeHealth();
     if (existing) {
       const edited = applyRoutineEdit(existing, { name: trimmed, when, stepTitles, nudgeHour: hour, nudgeMinute: minute, now }, makeId);
       commit(routines.map((r) => (r.id === existing.id ? edited : r)));
@@ -281,8 +290,8 @@ export default function RoutinesScreen() {
     const removed = routines.find((r) => r.id === id);
     if (!removed) return;
     commit(routines.filter((r) => r.id !== id));
-    if (removed.kind === 'rhythm') void cancelRhythm(id); // sweep every scheduled slot
-    else void cancelRoutineNudge(id); // no routine, no nudge
+    if (removed.kind === 'rhythm') void cancelRhythm(id).then(refreshNudgeHealth); // sweep every scheduled slot
+    else void cancelRoutineNudge(id).then(refreshNudgeHealth); // no routine, no nudge
     track(removed.kind === 'rhythm' ? 'rhythm.removed' : 'routine.removed');
     setUndo(removed);
     if (undoTimer.current) clearTimeout(undoTimer.current);
@@ -294,8 +303,8 @@ export default function RoutinesScreen() {
     if (undoTimer.current) clearTimeout(undoTimer.current);
     commit([...routines, undo]);
     // Best effort: the thing is back, so is its nudge / its Rhythm slots.
-    if (undo.kind === 'rhythm') void scheduleRhythm(undo);
-    else if (undo.nudgeHour != null) void scheduleRoutineNudge(undo.id, undo.name, undo.nudgeHour, undo.nudgeMinute ?? 0);
+    if (undo.kind === 'rhythm') void scheduleRhythm(undo).then(refreshNudgeHealth);
+    else if (undo.nudgeHour != null) void scheduleRoutineNudge(undo.id, undo.name, undo.nudgeHour, undo.nudgeMinute ?? 0).then(refreshNudgeHealth);
     track(undo.kind === 'rhythm' ? 'rhythm.remove.undone' : 'routine.remove.undone');
     setUndo(null);
   }
@@ -329,6 +338,7 @@ export default function RoutinesScreen() {
     // reminders arrive on the phone, so only a real native failure (denied) surfaces a line.
     void scheduleRhythm(rhythm).then((res) => {
       if (!res.ok && res.reason !== 'unsupported') setNudgeNote(reminderReasonLine(res.reason));
+      refreshNudgeHealth();
     });
     track('rhythm.created', { preset });
   }
@@ -341,7 +351,7 @@ export default function RoutinesScreen() {
     if (!target) return;
     const updated: Routine = { ...target, paused: !target.paused, updatedAt: Date.now() };
     commit(routines.map((r) => (r.id === id ? updated : r)));
-    void scheduleRhythm(updated);
+    void scheduleRhythm(updated).then(refreshNudgeHealth);
   }
 
   // The exact-alarm door, and the re-arm on return. The resilience sweep runs on COLD start
@@ -501,6 +511,7 @@ export default function RoutinesScreen() {
     commit(existing ? routines.map((r) => (r.id === id ? rhythm : r)) : [...routines, rhythm]);
     void scheduleRhythm(rhythm).then((res) => {
       if (!res.ok && res.reason !== 'unsupported') setNudgeNote(reminderReasonLine(res.reason));
+      refreshNudgeHealth();
     });
     track(existing ? 'rhythm.edited' : 'rhythm.created', { preset: rhythm.preset, mode: rhythmMode });
     cancelRhythmForm();
