@@ -866,14 +866,19 @@ export default function RoutinesScreen() {
               holding them, hence the battery hint and the door to the app's system settings. */}
           {Platform.OS !== 'web' && rhythms.length > 0 && (
             <View style={styles.nudgeHealth}>
+              {/* One calm line, never a count: "Next nudge around 3:00 pm." The raw scheduled-
+                  notification number (39!) was honest but overwhelming for exactly this
+                  audience (Melroy, 2026-07-12), so it is gone. The ZERO state stays: nothing-
+                  scheduled-while-Rhythms-exist is the one red flag this line exists to surface,
+                  and getNudgeHealth still returns the count for that check alone. */}
               <Text style={styles.nudgeHealthText}>
                 {nudgeHealth == null
                   ? ' '
                   : nudgeHealth.count === 0
                     ? t('routines.nudgeHealthNone')
                     : nudgeHealth.next
-                      ? `${t('routines.nudgeHealthCount', { count: nudgeHealth.count })} ${t('routines.nudgeHealthNext', { time: formatReminderTime(nudgeHealth.next.hour, nudgeHealth.next.minute) })}`
-                      : t('routines.nudgeHealthCount', { count: nudgeHealth.count })}
+                      ? t('routines.nudgeHealthNext', { time: formatReminderTime(nudgeHealth.next.hour, nudgeHealth.next.minute) })
+                      : ' '}
               </Text>
               {/* The exact-alarm door (Android 12+): without the "Alarms & reminders" special
                   access every trigger is an INEXACT alarm that Doze holds until the app next
