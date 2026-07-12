@@ -41,6 +41,11 @@ Order is a craft skill, practise it.
 - **Work in verified increments.** One surface at a time: gates green **and** the behaviour
   preview-verified *before* the commit, never more than one change in flight. Trivial to
   review, trivial to revert, and the decision-log why-trail stays honest.
+- **Re-cost parked work when its premise changes.** A deferral is priced against the world
+  at deferral time. When a structural change lands (heavy blobs become small URLs, a new
+  storage layer appears), re-read the whys of everything parked near it: the expensive
+  "later slice" may have quietly become cheap (that is how cross-device scrapbook sync
+  shipped in an afternoon, 2026-07-12).
 
 ## 2. Quality gates, make the right thing automatic `[0]`
 
@@ -89,6 +94,12 @@ something the user cares about."* More than that is overhead; less is theatre.
   client), and suspect the layers a script skips, browser CORS/expose-headers, cross-region
   storage consistency, and client-specific handshake requirements. "Works from my script" is
   not "works for a browser user in another country."
+- **A browser preview is not the device.** Anything platform-split (native modules, share
+  sheets, notification and alarm delivery, JS-engine gaps) can stay green in the preview for
+  days while every real phone breaks; one release week (2026-07) surfaced three such breaks,
+  all invisible to the web build. The fix loop is a person on the device reporting, logs
+  (adb) for ground truth, then elimination. A platform-split feature earns a real-device
+  pass before it is called verified.
 
 ## 4. AI integration is testable, at the contract layer `[0]`
 

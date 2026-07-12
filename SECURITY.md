@@ -15,8 +15,9 @@ with the details, and a proof-of-concept if you have one. You will get an acknow
 - **Anonymous and local-first.** The app is fully usable with no account. Tasks live on the
   device (AsyncStorage). Nothing is uploaded unless you choose to sign in.
 - **Opt-in sync, scoped by row-level security.** Sign-in is passwordless (email OTP). Once
-  signed in, tasks sync to Supabase Postgres where **row-level security** scopes every row to
-  its owner. A user's token can only ever read or write that user's own rows.
+  signed in, tasks and scrapbook keepsake records sync to Supabase Postgres where
+  **row-level security** scopes every row to its owner. A user's token can only ever read or
+  write that user's own rows.
 - **The AI key never reaches the client.** Every Claude call goes through a Cloudflare Worker
   that holds the Anthropic key as a Worker secret. The app talks to the Worker, never to the
   model provider, so the key cannot leak from a client bundle.
@@ -30,6 +31,11 @@ with the details, and a proof-of-concept if you have one. You will get an acknow
 - **Web push carries no content.** The daily reminder is payloadless: the message lives in the
   service worker. The server stores only a subscription, a preferred hour, and a timezone
   offset, never task text.
+- **Keepsake images are read-only bytes behind unguessable keys.** Generated scrapbook images
+  live in object storage (R2) under random UUID keys and are served read-only through the
+  Worker, with no listing path. The route is CORS-open by design (the web share path fetches
+  the image to compose the shareable page); the unguessable key, not the origin, is what
+  guards the image.
 - **Right to erasure.** Deleting your account removes your synced rows, wipes the local store on
   the originating device, and purges any generated keepsake images from object storage.
 

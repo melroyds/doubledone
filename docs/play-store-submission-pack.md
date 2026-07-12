@@ -6,6 +6,10 @@ search, refreshed listing). This is the current source of truth. It **supersedes
 Work the "Before you can submit" list during the 14-day closed-test window, nothing here blocks starting
 the test.
 
+**Updated 2026-07-12** for the versionCode 11 release (the production AAB cut from git tag `android-v11`):
+the "Before you can submit" items are done and dated below, the What's-new copy is current for v11, and the
+exact-alarm posture changed (see the standing checklist). The listing copy itself is live and unchanged.
+
 ---
 
 ## The timeline reality (read first)
@@ -41,7 +45,7 @@ engagement, paid fake testers are a flag risk, and you do not need them.
 
 ## Before you can submit (the real to-do list)
 
-### 1. Privacy policy: disclose the rate-limit IP  — *needs your OK (it is the live policy), then I apply it*
+### 1. Privacy policy: disclose the rate-limit IP. *Done 2026-06-28: the line is live in both policy copies, the 24h purge is real.*
 The audit found the **only** Data-Safety-vs-policy gap: the premium scrapbook route briefly logs the request
 IP (24h) for abuse rate-limiting (`server/d1/schema.sql` scrapbook_log, write in `server/src/index.ts`), but
 the policy leans hard on "no IP". The specific "no IP" claims it makes are true, but this log is never
@@ -55,13 +59,13 @@ Then also **prune scrapbook_log rows older than 24h** (currently they are only f
 deleted) so retention matches the claim. Belt-and-braces: widen the policy's AI-features list to "such as
 Break it down, Sort, Combine, and the photo scan" so no reviewer thinks an undisclosed feature sends data.
 
-### 2. Pin target API 36  — *MEDIUM, do before the production AAB*
-`app.json` pins no `targetSdkVersion`, so it inherits the Expo SDK 56 default (API 35). From **31 Aug 2026**
+### 2. Pin target API 36. *Done 2026-06-28, pinned via expo-build-properties, riding every build since.*
+`app.json` pinned no `targetSdkVersion`, so it inherited the Expo SDK 56 default (API 35). From **31 Aug 2026**
 new apps must target Android 16 (API 36). Pin it now via `expo-build-properties` (SDK 56 supports it) so the
 launch build is already on the soon-mandatory level and no forced mid-launch rebuild can happen. About half a
 day plus a device smoke-test. (Android 16 also brings the 16 KB page-size requirement, the smoke-test covers it.)
 
-### 3. One-time AI consent before the first call  — *RECOMMENDED, your call*
+### 3. One-time AI consent before the first call. *Resolved 2026-06-29: a point-of-use line, not a modal.*
 You are 90% there: capture names Claude, the handoff line is honest, AI-off stops every call before it fires,
 and the app is fully usable AI-free. The gap Google's late-2025 third-party-AI guidance prefers: AI is **on by
 default**, so the first call can fire on a tap to "Sort for me" rather than a dedicated tap-to-accept. Cheap
@@ -69,19 +73,30 @@ insurance (~a day): a one-time card naming Anthropic / Claude before the first A
 "Stay offline". Debatable, the tap on "Sort for me" with the disclosure right above it arguably already
 counts as the affirmative action. Worth a decision, not urgent.
 
+*Resolution (2026-06-29): Melroy chose the point-of-use line. A faint line above the AI actions reads "Sort
+and Break it down send what you type to Anthropic's Claude", shown only when AI is on and there is text.
+Escalate to a modal only if a reviewer ever flags it.*
+
 ### 4. The standing checklist
 - Privacy URL returns HTTP 200 in an incognito browser (it is static HTML, just confirm after the deploy).
 - Update the policy "Last updated" date to the submission date.
 - Account verification complete (done).
-- Exact-alarm and POST_NOTIFICATIONS justifications entered in the Console (see play-store-release.md 5a/5b).
+- Exact alarms, current posture (versionCode 11, 2026-07-12): the app declares **`SCHEDULE_EXACT_ALARM`
+  only**. `USE_EXACT_ALARM` stays out, it blocked the 2026-06-29 release because Play reserves it for
+  alarm-clock and calendar apps. If the console asks for an exact-alarm declaration, the answer is
+  **user-set reminders as core functionality**. POST_NOTIFICATIONS declared as before. Full text and the
+  why-trail in play-store-release.md 5a/5b.
 
 ---
 
 ## Good news (no action needed)
 
 - **The generative-AI content policy does NOT apply.** It targets apps whose purpose is generating content;
-  DoubleDone uses AI to improve existing features, which is excluded. Just keep the scrapbook keepsake image
-  private and do not market it as shareable AI image generation.
+  DoubleDone uses AI to improve existing features, which is excluded. (Updated 2026-07-12: the keepsake
+  gained a share action on 2026-07-11 and now shares as a captioned page, so "keep it private" no longer
+  describes the app. The exclusion still holds, a user sharing their own week's record does not make image
+  generation the app's purpose. The listing guidance stands: never market DoubleDone as an AI image
+  generator.)
 - **External Stripe checkout is fine** for a productivity subscription. Never say "subscribe in-app" or "via
   Google Play". The listing already frames it correctly.
 - **The data footprint is small and clean** and matches the privacy policy on everything except the one IP
@@ -98,7 +113,7 @@ data-deletion URL. No ads, no third-party analytics/trackers, no advertising ID.
 | Data type | Collected | Shared | Optional? | Purpose | Note |
 |---|---|---|---|---|---|
 | Personal info > Email address | Yes | No | Optional | Account management | Only if the user turns on sync. OTP sign-in, no password. Supabase (Sydney). Deletable in-app. |
-| App activity > Other user content (task text) | Yes | **Yes** | Optional | App functionality, personalization | Two opt-in flows: sync (to Supabase) and AI (to Anthropic). "Shared" because text leaves to Anthropic when AI is on. AI off = nothing sent. Pseudonymous AI-call copy in D1, no user_id, no IP. |
+| App activity > Other user content (task text) | Yes | **Yes** | Optional | App functionality, personalization | Two opt-in flows: sync (to Supabase) and AI (to Anthropic). "Shared" because text leaves to Anthropic when AI is on. AI off = nothing sent. Pseudonymous AI-call copy in D1, no user_id, no IP. Since 2026-07-12 the weekly scrapbook keepsake (a short caption derived from finished tasks, plus its image link) also syncs to Supabase under the same sync opt-in. |
 | Photos > Photos | Yes | **Yes** | Optional | App functionality (OCR scan) | Premium photo-to-tasks. Sent to Anthropic (vision), then discarded, not stored as an image. Only on explicit action, AI on. |
 | Financial info > Payment info | Yes | **Yes** | Optional | Manage subscription, purchases | Billed by **Stripe** (external web checkout), not Play Billing. Stripe holds card data; DoubleDone never sees it. Be honest: Stripe retains payment records after deletion (tax/legal). |
 | Device or other IDs (push endpoint; rate-limit IP) | Yes | No | Optional | Deliver reminders; **security/anti-fraud** | Push subscription only if reminders enabled (no user_id, no task text). The scrapbook rate-limit IP is the item in to-do #1. Declare the security use, not silence. |
@@ -155,7 +170,9 @@ you're allowed to go slowly
 Read the plain-English privacy policy at doubledone.app/privacy.
 ```
 
-**What's new:** `New: AI is now fully optional. One tap turns it off and nothing you type is ever sent anywhere, the whole app still works on your device. Plus a calmer onboarding and small fixes.`
+**What's new (versionCode 11, 2026-07-12):** `Keepsakes now follow your account across devices, and they share as a proper page with their caption on the picture. Rhythms can nudge every 30 or 90 minutes and arrive on time once 'Alarms & reminders' is allowed. Plus calmer details and small fixes throughout.`
+
+*(Earlier release note, kept for the record: "New: AI is now fully optional. One tap turns it off and nothing you type is ever sent anywhere, the whole app still works on your device. Plus a calmer onboarding and small fixes.")*
 
 **Category:** Productivity. **Tags:** adhd, to-do list, task manager, calm productivity, focus, neurodivergent, autism, ocd, planner, reminders, anti-overwhelm, daily tasks.
 
@@ -171,13 +188,16 @@ I can generate these from the app (the screenshot harness in `scripts/screenshot
 4. **Close the day** at dusk — "Close the day kindly. It honours what you did, never what you didn't."
 5. **Lookback** with finished tasks — "Everything you finish, you keep. Proof your brain can't argue with."
 
+*(v11 note, 2026-07-12: if the set is ever refreshed, the strongest new candidates are Rhythms, the gentle
+recurring nudges on the Routines screen, and the Quiet interface.)*
+
 ---
 
 ## Who does what
 
 **You, in order:**
 1. (Now, in parallel) Line up ~14-15 testers' Gmail addresses. Just a list, no Console action.
-2. `eas build --profile production` (your EAS account, minds the build-credit cap) -> the AAB.
+2. `eas build --profile production` (your EAS account, on a paid Expo plan since July 2026, so the old free-tier build cap no longer bites) -> the AAB.
 3. Create the app in Play Console.
 4. Upload the AAB to a **Closed-testing** track; complete Data Safety (answers above) + content rating; submit the track for review.
 5. Add your testers or enable the opt-in link, and share it. Each tester clicks "Become a tester" and installs. **This starts the 14-day clock.**

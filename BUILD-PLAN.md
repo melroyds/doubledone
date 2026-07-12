@@ -2,7 +2,7 @@
 
 *The operational doc: what DoubleDone is, what has shipped, what is deliberately deferred, and what is next. A fresh working session reads [`CLAUDE.md`](CLAUDE.md), then this. A reader from outside gets the arc of the build and the product thinking behind it. The full chronological why-trail lives in [`decision-log.md`](decision-log.md); the what-and-why of the product in [`docs/product-spec.md`](docs/product-spec.md).*
 
-**Status (2026-06-27): v1.0.0, live and commercial.** Live at [doubledone.app](https://doubledone.app) with real paying Stripe subscribers, Android v1.0.0 sideloadable via EAS and heading to the Play Store. Premium (Tiers 1 and 2) and the launch control centre are merged and live; all launch code is done. Active thread: the Google Play Store listing (Melroy's).
+**Status (2026-07-12): versionCode 11 cut and code-frozen (git tag `android-v11`, from commit d983bbf); web is deployed from the same code.** Live at [doubledone.app](https://doubledone.app) with real paying Stripe subscribers. Active thread: submit the v11 AAB in the Play Console, then post-release monitoring; the Apple In-App-Purchase strategy decision is queued behind it.
 
 ---
 
@@ -40,11 +40,15 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 **v1.0.0 (2026-06-25).** Combine shipped; the Android home-screen widget disabled (react-native-android-widget 0.20.3 does not support RN 0.85's new architecture, so it never rendered, source kept for a re-enable); the daily reminder verified firing on a real device; the test-reminder debug scaffold removed; the version cut from 0.1.0.
 
-**The active work: the Google Play Store listing.** The full step-by-step (researched and adversarially reviewed) is in **[`docs/play-store-release.md`](docs/play-store-release.md)**. Everything code-side is done: the `production` EAS profile builds an AAB, the privacy policy is served as a crawlable static page at `/privacy`, and the exact-alarm justification and Data Safety form guidance are written. What remains is Melroy's: the $25 developer account, the feature graphic (done, in `docs/store-assets/`) plus screenshots, the policy forms, then build and submit.
+**versionCode 11 (2026-07-12).** The production AAB, cut from commit d983bbf and code-frozen under the `android-v11` git tag, device-verified on the matching APK before the cut, web deployed from the same commit. It carries the 2026-07-07 to 07-12 wave: the Quiet interface and custom colour themes (premium), Rhythms grown to a fixed-time meds mode and minutes-granular intervals (the curated 30-minute-to-12-hour ladder), the exact-alarm reliability arc (`SCHEDULE_EXACT_ALARM` declared, the "Allow alarms & reminders" door on Android 12+, the app-open resilience sweep, the one-sentence nudge health line), energy matching inside Focus mode (freemium, 15 free picks a calendar month), share-to-capture on both platforms, cross-device sync for the big flag and for scrapbooks, and the keepsake sharing as a page with its caption baked into the pixels.
+
+**The active work: the Play Console submission of versionCode 11, then post-release monitoring.** The AAB is built and frozen; what remains is Melroy's console pass: upload, the release note (written), and the exact-alarm declaration if the console asks for one (user-set reminders are core functionality, the accepted answer per the 2026-07-12 decision-log entry). After it ships, watch the field: the control centre's alerts and daily pulse, plus real-device reports on nudge delivery now that exact alarms are in. The full listing step-by-step remains in **[`docs/play-store-release.md`](docs/play-store-release.md)**.
+
+**Queued behind it: the Apple IAP strategy decision.** The codebase is iOS-ready (platform-split seams throughout), but Premium is sold through Stripe, so an App Store release needs the In-App-Purchase call made first. The staged TestFlight path and the Apple 3.1.3(b) reasoning live in the Backlog's iOS entry.
 
 **Pre-launch, already done:** Stripe Premium **live** (real charges, the 30-day trial, the annual plan), the launch control centre, account deletion (live-tested), web push (live), the AI-endpoint lockdown (CORS + origin gate + rate limit), and the privacy policy + Terms (in-app and crawlable).
 
-**Pre-launch, remaining (config and ops, not code):** swap to a dedicated transactional email sender for the sign-in code (vs Supabase's shared sender), and let the crowd-pace estimate graduate to real cross-user data once there is volume.
+**Pre-launch, remaining (config and ops, not code):** let the crowd-pace estimate graduate to real cross-user data once there is volume. (The dedicated transactional sender was already done 2026-06-23: Resend SMTP with DKIM + DMARC and a branded OTP template; this line previously listed it stale.)
 
 **Premium.** Tier 1 (the feature flag, pin-a-task, the server-side requirePremium guard, OCR photo capture, and the owner comp allowlist) is **merged to main and live (2026-06-26)**. The native OCR viewfinder still awaits an EAS Android device test. **Tier 2 is LIVE (2026-06-26):** Richer Lookback insights, Chart a course, and Plan my order / sequencing, each gate-green, verified in preview, and shipped (the Worker deployed with the `/lookback-summary`, `/chart`, `/sequence` routes, and `premium` merged to main), with the Premium page reframed to sell the whole suite. **Unlimited AI is deliberately HELD** for a product decision (building it would bake an irreversible D1 schema around an unanswered question, for no user-visible value, see the decision-log). The full stack-ranked roadmap, the triggers, and the free-versus-premium wall are in [`docs/premium.md`](docs/premium.md).
 
@@ -67,7 +71,7 @@ The single home for consciously parked work. Nothing here is dropped; each item 
 
 **AI, beyond the core**
 - **Honour an explicit step count in Break-it-down.** When the user says "just 3 parts", the breakdown ignores it. The spine-friendly fix is a one-line prompt instruction ("if the person names a number of steps, use exactly that many"), not a new control. Trigger: the next prompt-tuning pass.
-- **"Plan my day."** On request, arrange today's tasks into a calm suggested order and rough timing, propose-then-accept. Distinct from Strategise and Break-it-down. Trigger: pairs with the shipped energy matching (What fits right now, 2026-07-10).
+- **"Plan my day."** On request, arrange today's tasks into a calm suggested order and rough timing, propose-then-accept. Distinct from Strategise and Break-it-down. Trigger: pairs with the shipped energy matching (What fits right now, 2026-07-11).
 - **Calendar read, then two-way calendar sync.** See the day's meetings to size Today, later sync tasks to Google / phone calendar (needs OAuth). Trigger: time-blindness needs calendar context (Melroy confirmed the two-way as wanted).
 
 **Lists and collections**

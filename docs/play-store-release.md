@@ -5,6 +5,11 @@
 > policy + timeline). **Correction to section 6 below:** for a new personal account, closed testing is NOT
 > optional, it is a mandatory 12-tester / 14-day gate before production. Read the pack first; use this guide
 > for the step-by-step Play Console mechanics.
+>
+> **Release state (2026-07-12):** the current production AAB is **versionCode 11** (version name 1.0.0),
+> cut from commit `d983bbf` and code-frozen under the git tag `android-v11`. Web deploys from the same code.
+> Section 5a below has been updated in place: after Play blocked `USE_EXACT_ALARM` on 2026-06-29, the app
+> now declares `SCHEDULE_EXACT_ALARM` alone (since versionCode 11).
 
 A first-release guide for DoubleDone (Expo SDK 56 / EAS, Android package `app.doubledone`, currently
 v1.0.0). Researched and adversarially reviewed 2026-06-24. Work top to bottom. The handful of things most
@@ -60,6 +65,8 @@ eas build --platform android --profile production
   users, just untidy).
 - Version name stays 1.0.0 (set in `app.json`). For future releases bump it there (1.0.1, 1.1.0); the
   versionCode auto-increments on its own.
+- As of 2026-07-12 the production AAB is **versionCode 11**, cut from commit `d983bbf` and code-frozen
+  under the git tag `android-v11`. To reproduce or inspect exactly what shipped, check out that tag.
 
 ---
 
@@ -129,33 +136,48 @@ Read the plain-English privacy policy at doubledone.app/privacy.
 
 ## 5. Policy declarations (the part that gets apps rejected)
 
-### 5a. BLOCKER: exact-alarm permission
+### 5a. BLOCKER: exact alarms, the corrected declaration (SCHEDULE_EXACT_ALARM only)
 
-DoubleDone ships `USE_EXACT_ALARM` + `SCHEDULE_EXACT_ALARM` (via `client/plugins/with-exact-alarm.js`) for
-the daily reminder and per-task nudges. Play scrutinises this. Declare it under
-**Policy > App content > "Permissions and APIs that access sensitive information"** and justify it around
-**user-requested timing**, not as a Doze workaround (reviewers reject the workaround framing):
+This section has a history, kept because the first attempt was blocked and the lesson matters:
+
+- **2026-06-24:** the app shipped `USE_EXACT_ALARM` + `SCHEDULE_EXACT_ALARM` via a config plugin, on the
+  belief that reminder apps qualify.
+- **2026-06-29:** Play **blocked the release**. `USE_EXACT_ALARM` is reserved for apps whose core function
+  is an alarm clock or a calendar, and those two are the only declaration options the console offers. A
+  to-do app is neither, so both permissions and the plugin were removed and reminders ran on inexact alarms.
+- **2026-07-12 (versionCode 11):** inexact delivery failed in the field. On Android 12+, expo-notifications
+  arms an exact alarm only when the OS has granted it; otherwise it silently falls back to an inexact alarm
+  that Doze defers, so nudges only arrived when the app next opened. The app now declares
+  **`SCHEDULE_EXACT_ALARM` alone**, in `app.json` under `android.permissions` (no plugin). It is
+  pre-granted on Android 12-13; on Android 14+ the user grants it through the app's "Allow alarms &
+  reminders" door (the nudge-health block opens the system toggle, and returning from it re-arms every
+  schedule). `USE_EXACT_ALARM` stays deliberately avoided.
+
+If the console asks for an exact-alarm declaration, the answer is **user-set reminders as core
+functionality**. Justification text, current for versionCode 11:
 
 ```
-DoubleDone is a task and reminder app. The exact-alarm permissions are used only for two
+DoubleDone is a task and reminder app. SCHEDULE_EXACT_ALARM is used only for
 user-initiated reminder features:
 
 1. Daily reminder: the user picks a time (e.g. 9am) to be shown their tasks.
-2. Per-task nudges: the user explicitly asks to be reminded of a task at a chosen time
-   (e.g. "remind me in 2 hours").
+2. Per-task nudges: the user explicitly asks to be reminded of a task at a chosen
+   time (e.g. "remind me in 2 hours").
+3. Rhythms: gentle recurring nudges the user sets up themselves, either every so
+   often within waking hours (30 minutes to 12 hours) or at fixed clock times
+   (e.g. medication at 8:00 and 20:00).
 
-Exact alarms honour the time the user asked for. Without them, Android 12+ batches the
-notification into a roughly 15-minute window, so a reminder the user set for a specific
-time fires late, breaking the feature. The permissions are never used for background
-tracking, ads, or unsolicited notifications, and the app runs fully if reminders are off.
+Exact alarms honour the time the user asked for. Without them, Android 12+ defers
+the notification under Doze, so a nudge the user set can arrive hours late or only
+when the app next opens, breaking the feature. On Android 14+ the permission is
+granted by the user via the system "Alarms & reminders" toggle; the app runs fully
+if they decline, delivery is just less punctual. The permission is never used for
+background tracking, ads, or unsolicited notifications.
 ```
 
-If it is still rejected, you can appeal with evidence: on a Samsung/Galaxy device with Doze forced
-(`adb shell dumpsys deviceidle force-idle`), an inexact alarm delays 30+ minutes while the exact alarm fires
-on time. Reminder apps (Todoist, Google Tasks) are permitted this, so it is defensible.
-
-> Note for later: `USE_EXACT_ALARM` carries an ongoing Play policy expectation that the app genuinely is an
-> alarm/reminder app. DoubleDone qualifies. If a future version ever drops reminders, drop this permission too.
+> Do not re-add `USE_EXACT_ALARM`, ever. It carries a hard eligibility gate (alarm clock or calendar as
+> core function), the 2026-06-29 block proved DoubleDone does not pass it, and `SCHEDULE_EXACT_ALARM` with
+> a user grant covers the need honestly.
 
 ### 5b. POST_NOTIFICATIONS
 
@@ -169,7 +191,8 @@ Declare these data flows, each **optional / user-initiated**, and **word every l
 doubledone.app/privacy** (do not invent retention periods, use whatever your policy actually states):
 
 1. **Task text -> Anthropic (Claude).** Sent only when the user uses an AI feature (Break it down, Combine,
-   Strategise, Sort, and the premium Chart a course / Plan my day / Lookback insights / photo scan, which
+   Strategise, Sort, energy matching ("What fits right now?" inside Focus, which sends today's open task
+   titles), and the premium Chart a course / Plan my day / Lookback insights / photo scan, which
    also send task titles or a photo). Disclose it as collected + shared with a service provider (Anthropic)
    for app functionality. Before submitting, re-check Anthropic's current data-handling terms and make sure
    your privacy policy's wording still matches them.
@@ -248,7 +271,7 @@ block in `eas.json`, and run `eas submit --platform android --latest`.
 
 | Rejection | Why | Fix / response |
 |---|---|---|
-| Exact-alarm not justified | Generic to-do apps are scrutinised | Use the user-requested-timing justification (5a); appeal with the Doze test evidence |
+| Exact-alarm declaration blocked | `USE_EXACT_ALARM` is reserved for alarm-clock/calendar apps (this blocked the release on 2026-06-29) | Declare `SCHEDULE_EXACT_ALARM` only, answer "user-set reminders as core functionality" (5a) |
 | Privacy policy unreachable | The SPA served only a JS shell to the crawler | Serve a static/prerendered /privacy page (section 3) |
 | Data Safety mismatch | Form contradicts the policy | Align the policy and the form word for word |
 | "Requires sign-in" | Reviewer could not use it without an account | It is offline-first, verify on a clean device + the "Works offline" line is in the listing |

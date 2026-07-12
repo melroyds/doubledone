@@ -1,9 +1,10 @@
 # Scrapbook image persistence to R2 (staged plan)
 
-**Status: designed and ready, NOT yet executed.** This is the one backlog item that
-cannot be blind-built: it spans an R2 bucket, a Supabase migration, and a Worker
-deploy (all on Melroy's accounts), and it must be verified live, not shipped untested.
-Run it as one ~25-minute joint session and verify the round-trip on a real device.
+**Status: executed, in two halves.** The R2 half (upload on generation, serve by URL)
+went live in a joint session on 2026-06-20 and was verified against the live Worker.
+The sync half (the Supabase `scrapbooks` table, keepsakes following the account) shipped
+on 2026-07-12, once R2 had made a keepsake row cheap enough to sync. The plan below is
+preserved as written; the as-built deltas are at the end.
 
 ## Why
 
@@ -71,3 +72,36 @@ create policy "own scrapbooks" on public.scrapbooks
 Existing device-local base64 scrapbooks keep rendering (the `<Image>` reads `data:`
 URIs). They are not back-filled to R2; only new ones go to R2. No data loss, no
 migration of old blobs needed.
+
+## As built (deltas from the plan)
+
+What actually shipped, where it differs from the steps above. Full reasoning in the
+decision-log (2026-06-20 "built and live" and the 2026-07-12 scrapbook entries).
+
+- **The R2 half (live 2026-06-20).** The Worker `put`s the generated jpeg under a
+  random UUID key (`<uuid>.jpg`), not the planned `user/week-hash.png`, and returns
+  `/scrapbook-img/<key>`. The route serves long-cached immutable bytes and falls back
+  to the inline data-URL if R2 is unbound or errors. No client change was needed for
+  this half; the stored image string just shrank ~5000x.
+- **CORS on the image route (added 2026-07-12).** `GET /scrapbook-img/:key` now sends
+  `access-control-allow-origin: *`, because the web share path `fetch()`es the image to
+  composite the shareable keepsake page (the caption baked into the pixels); without it
+  that cross-origin fetch failed and web sharing of R2 keepsakes silently degraded.
+  Safe to open: public read-only bytes behind an unguessable key, already loadable
+  cross-origin by any `<img>` tag.
+- **The sync half (live 2026-07-12).** The `scrapbooks` table exists on live (real
+  schema in `supabase/schema.sql`: `user_id` + `week_start` primary key, RLS all four
+  ways). Two deltas from the step-3 sketch: the image column is `image`, and
+  `created_at` is CLIENT-written, the last-write-wins truth for a remade week (the same
+  no-`now()` rule as `tasks.updated_at`), not a `default now()`. The merge is a pure
+  per-week LWW by `createdAt` (newer replaces everywhere, ties quiescent, capped at the
+  newest weeks), and `syncScrapbooks` rides best-effort behind the task sync at both
+  call sites, internally caught so its failure can never mark task sync failed.
+- **Only R2-URL keepsakes sync.** Legacy `data:` keepsakes predate persistence and stay
+  on the device that made them (syncing them would bloat every pull); they keep
+  rendering locally, as the backward-compatibility section promised. Every consumer of
+  `Scrapbook.image` must accept both shapes, the rule the 2026-07-12 native-share fix
+  established.
+- **Deletion.** Account deletion purges the R2 objects the deleting device knows about
+  (`/scrapbook/purge`); table rows die by cascade. An object known only to another
+  device can orphan behind its unguessable key, accepted and parked (2026-07-12).

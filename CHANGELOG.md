@@ -11,6 +11,32 @@ versioning: [SemVer](https://semver.org/).
 
 _Post-v1 work lands here._
 
+## [1.2.0] - 2026-07-12
+
+_The Android production release, versionCode 11 (git tag `android-v11`, code-frozen from `d983bbf`), with web deployed from the same code. Rhythms grow up (minutes-granular cadence, fixed times, and exact-alarm delivery that actually arrives on time), the Quiet interface and energy matching land, keepsakes share as a proper page and follow the account, and text shared from any app becomes one calm capture line._
+
+### Added
+- **Rhythms** (free): gentle recurring self-care nudges ("some water" every 2 hours, meds at 8 and 8) built as an extension of Routines. Interval cadence on a curated ladder from every 30 minutes to every 12 hours inside an active-hours window, or fixed clock times (up to 8, the meds shape), one-tap Water / Stand / Meds presets plus a fully editable custom form, and pause / resume. Never-shame is structural: the model stores no count, no streak and no history, so there is nothing to break.
+- **Exact alarms on Android**: `SCHEDULE_EXACT_ALARM` declared, the real fix for nudges that only fired on app-open (expo-notifications silently falls back to inexact alarms that Doze defers when the permission is absent). Android 12+ gets a calm "Allow alarms & reminders" door (the toggle ships off on Android 14+) that re-arms every schedule the moment the user returns from the toggle; Rhythms get their own HIGH-importance channel (a heads-up peek, tunable alone in system settings); a once-per-app-open resilience sweep quietly re-schedules everything from stored config; and the nudge-health line is one calm sentence, "Next nudge around {time}.", updating in place after any change (deliberately no count).
+- **The Quiet interface** (premium): a borderless appearance where nothing looks like a button and the app reads as calm text on paper. Same layout, same features; covers the whole Today surface (rows, capture line, header, the day's load, held-state, coachmark, close-the-day) plus the Settings toggle; derives from the active palette so it is correct on all seven colour themes; the held-state reaches every Standard capability, including a "Select more" door into the bulk actions.
+- **Energy matching** (freemium): "What fits right now?" inside Focus mode's picker. One calm question (running low / somewhere in between / feeling good), Haiku picks one task from today's open list with a short warm line, and "Start with this" opens Focus on it. Propose-only, never a reorder. Free gets 15 picks a calendar month, metered locally with gentle reminders at 10 and 5 left; a use is spent only on a successful pick; premium is unlimited.
+- **Share-to-capture**: share text into DoubleDone from any app, via the Android share sheet (expo-share-intent) or the installed web app (a PWA `share_target`). Both paths land on the same inbound rule, and the shared text is cleaned to one calm line (the words kept, links and highlight fragments dropped) before seeding the capture box. Nothing is ever auto-added; the user confirms.
+- **The keepsake shares as a page**: the scrapbook share is exactly one jpeg with its caption and a small "DoubleDone · Week of {date}" line baked into the pixels (a cream band under the picture), so a receiving app can never strip the context. Native snapshots a hidden page card (react-native-view-shot); web composites the identical page on a canvas. Raw task titles still never leave the device, and it is still never a link.
+- **Scrapbooks follow the account**: a `scrapbooks` Supabase table (RLS, per-week last-write-wins by creation time) syncs R2-backed keepsakes across devices, riding behind the task sync and internally caught so it can never fail it. Legacy device-local keepsakes from before R2 persistence stay where they were made.
+- **The "big" mark follows the account**: a new nullable Supabase column with plain last-write-wins, plus a one-time tie-seed on first sync so no existing mark is lost.
+
+### Changed
+- The energy-matching entry moved from a standalone Today button into Focus mode's "Which one?" picker: choosing what to focus on is the moment the question makes sense, and Today loses a competing button.
+- The paywall, onboarding, and the "You're Premium" panel caught up with the release: Quiet, the seven colour themes, and unlimited energy matching are now pitched everywhere Premium is explained, in all four languages.
+- The R2 keepsake-image route now sends CORS (`access-control-allow-origin: *`), which the web page-composite fetch requires.
+
+### Fixed
+- Sharing into the app on a cold start no longer loses the text: the parked share now seeds the capture box at the exact moment it mounts (a callback ref), however late that is.
+- "Share this keepsake" works on Android for R2-persisted images: the native path assumed data:-URL keepsakes only, so an https keepsake reported "Sharing isn't available here"; https images now download to cache and share the same jpeg.
+- Toggling Quiet on Android no longer clips task-row bottoms after a Standard → Quiet → Standard round trip (Today remounts on an appearance change, forcing a fresh native layout).
+- MCP `list_today` now includes recurring tasks due today, so an agent sees the same Today the app shows.
+- Sync: `updatedAt` is monotonic, so an app-side delete or edit can never lose last-write-wins to the MCP Worker's clock; and the cloud sync waits for the local store to load, so a premature sync can never wipe un-pushed deletions.
+
 ## [1.1.0] - 2026-07-07
 
 _The agent + developer surface reaches parity: the public REST API is now a Swagger-documented CRUD-plus-query surface, and the MCP server grows to nine OAuth-capable tools. Both share one cadence engine, so a repeating task made by an agent, a script, or the app is indistinguishable in shape._

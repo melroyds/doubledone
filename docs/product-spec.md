@@ -2,7 +2,7 @@
 
 *A calm, ADHD-friendly daily to-do app that makes today feel finite and achievable, and quietly remembers everything you actually got done.*
 
-> Live at doubledone.app (registered, parked). Sibling in posture to Chronoloria, which is the grand, narrative, "turn your week into a story" version. DoubleDone is the deliberately un-grand one: get the dishes started, see what you did, feel okay.
+> Live at doubledone.app, web and an installable Android app from one codebase, with real Stripe subscribers since 2026-06-26. Sibling in posture to Chronoloria, which is the grand, narrative, "turn your week into a story" version. DoubleDone is the deliberately un-grand one: get the dishes started, see what you did, feel okay.
 
 ---
 
@@ -48,7 +48,7 @@ Two implied promises: lower the stakes of starting, and provide evidence against
 ## The core loop (the daily ritual)
 
 1. **Open** in the morning, see Today, already sized to be achievable
-2. **Brain-dump** anything rattling around, typed or spoken (getting it out of your head is the relief). On web you can talk it out, and one tap tidies a rambling sentence into clean task lines.
+2. **Brain-dump** anything rattling around, typed or spoken (getting it out of your head is the relief). On web you can talk it out, and one tap tidies a rambling sentence into clean task lines. You can also share into DoubleDone from any other app, via the Android share sheet or the installed web app: whatever arrives is cleaned to one calm line, words kept, links dropped, and waits in the capture box for your yes. Nothing is ever auto-added.
 3. **AI triages** the dump into today / later / needs-decomposing
 4. **Work the day**, recurring tracker tasks sitting right there. Finishing anything earns a brief, calm "Done is done. Recorded." that quiets the "did I really do it?" loop.
 5. **Stuck?** Bite the elephant (AI breaks the dreaded task into atomic, time-boxed steps and drops them into today). When even that is too much, **Make it tiny** returns one two-minute starter, and the real task waits quietly until you have momentum.
@@ -61,10 +61,10 @@ Two implied promises: lower the stakes of starting, and provide evidence against
 
 | Tier | Feature | Note |
 |---|---|---|
-| **1, build first** | Today view, brain-dump capture (typed and spoken), AI hydration, Bite the Elephant, recurring daily tracker | The whole core loop. Nothing ships without these. Voice capture and the AI "tidy this into tasks" split shipped on top. |
+| **1, build first** | Today view, brain-dump capture (typed and spoken), AI hydration, Bite the Elephant, recurring daily tracker | The whole core loop. Nothing ships without these. Voice capture, the AI "tidy this into tasks" split, and share-to-capture (share from any app, one calm line lands in the capture box) shipped on top. |
 | **2, soon after** | Strategise reshuffle, finished-old-task celebration, close-the-day wrap, the Lookback, gentle nudges | What makes it sticky rather than merely functional. |
-| **2, the ADHD seam** | Done-is-done and Good-enough (OCD reassurance), the silent-parent chain and Make-it-tiny (task initiation), low-capacity day and the wind-down nudge (honouring the day), Routines | The features that make it fit this audience, not a generic app with ADHD bolted on. All shipped (see the seam section below). |
-| **3, defer** | Calendar read, energy-level matching | Real, not day-one. Each gets a build trigger. (Cross-device sync, the MCP server, and the public REST API, also originally Tier 3, have since shipped.) |
+| **2, the ADHD seam** | Done-is-done and Good-enough (OCD reassurance), the silent-parent chain and Make-it-tiny (task initiation), low-capacity day, energy matching and the wind-down nudge (honouring the day), Routines and Rhythms | The features that make it fit this audience, not a generic app with ADHD bolted on. All shipped (see the seam section below). |
+| **3, defer** | Calendar read | Real, not day-one. It keeps its build trigger. (Cross-device sync, the MCP server, the public REST API, and energy matching, all originally Tier 3, have since shipped.) |
 | **4, skip** | Teams, assignees, dependencies, Gantt, social feed, habit streaks, user-facing project trees | Wrong product. The streak machine and the folder tree are not omissions, they are the traps this audience needs avoided. |
 
 ---
@@ -89,16 +89,21 @@ The wall of awful, met two ways. The shared idea: the app holds the thread so th
 
 ### C. Honouring the day (time blindness, gentle structure)
 
-Two bookends that respect the day's real shape without adding a single setting.
+Two bookends, and a mid-day companion, that respect the day's real shape without adding a single setting.
 
 - **Low day.** One tap, "Low on energy? Make it a low day," recalibrates the weight-of-today gauge to a gentler capacity. It does not defer or hide anything on the list, it lowers the bar for what counts as a good day ("A low day. A couple of things is plenty."). It is per-day and self-clears at midnight, so there is no low-capacity mode to manage and no risk of it quietly becoming a self-label.
+- **What fits right now? (energy matching, shipped 2026-07-11).** Inside Focus mode, the full-screen "just this one" view, the "which one?" picker opens with a question rather than a task: Running low / Somewhere in between / Feeling good. The AI picks one task from today's open list with a short warm line, and "Start with this" opens Focus on it. Propose-only: nothing is added, reordered, or changed. It is the freemium AI feature: 15 picks a calendar month free, metered locally (the count is the user's own record, no server bookkeeping), with calm reminders at exactly 10 and 5 left, never a nag, and a pick is spent only on a successful answer so a flaky network cannot drain the month. Premium removes the limit.
 - **The wind-down nudge.** From the evening, a calm in-app line appears above Close the day: "Evening's here. Close the day when you're ready, even a little counts." It is an invitation toward the close-the-day ritual and its Lookback payoff, never a scold for an unfinished list. It is in-app, not a notification, so it costs no permission and no extra toggle, and it lands exactly when you open the app in the evening.
 
-### D. Routines (gentle checklists, never a streak)
+### D. Routines and Rhythms (gentle structure, never a streak)
 
 A morning, evening, or anytime checklist on its own screen, for the days that go better with a known sequence. The autism side leans on routine and predictability, and this serves it directly.
 
 The hard line: this is **not** a habit tracker. The model keeps only each step's last-ticked date, never a count and never a history. A step ticked today is done for today, and tomorrow the routine is simply fresh. There is no streak to break, no chain to protect, and no "you missed N days" anywhere in the data to surface later. The habit-streak shame mechanic is exactly what this audience is built to avoid, so it does not exist in the shape of the data, not just the UI.
+
+**Rhythms (built 2026-07-10 to 2026-07-12)** extend Routines with gentle, recurring self-care nudges, free for everyone because self-care is accessibility, not a perk. ADHD makes internal cues unreliable (interoception and object permanence), so an external, timed, gentle cue genuinely helps: some water around every two hours, stand up every hour, meds at 8 am and 8 pm. A Rhythm takes one of two shapes: an interval inside your waking window, chosen from a curated ladder (every 30 minutes up to every 12 hours, dense at the short end where granularity matters), or a short list of fixed clock times, the meds shape. The ladder is a stepper, not a free-text picker, so a Rhythm can never be configured into an alarm-clock nag. The never-shame rule is structural here too: a Rhythm carries no count, no streak, and no history of fires, so scorekeeping is impossible to even write, and pausing is honest and indefinite, never a snooze that silently dies.
+
+Reliability earned its own arc, because for this audience a nudge that quietly fails to arrive is worse than none. Rhythm nudges ride their own high-importance channel so they peek instead of sitting unnoticed in the tray, the app re-arms every schedule on open (healing the alarm wipes that aggressive battery managers perform), and on Android 12+ a calm "Allow alarms & reminders" door asks for exact alarm delivery (SCHEDULE_EXACT_ALARM), so nudges arrive on time once it is allowed rather than whenever the OS gets around to batching them. The health read under Rhythms is a single sentence, "Next nudge around 3:00 pm.", deliberately no counts, because even a diagnostic surface must not overwhelm the person it serves.
 
 ---
 
@@ -107,6 +112,8 @@ The hard line: this is **not** a habit tracker. The model keeps only each step's
 The single feature that does the most for this audience. ADHD brains discount past accomplishment, so the lived experience is constant low-grade failure even after a productive week. The Lookback shows "here is everything you actually finished this week, including the dreaded old things you finally closed." It is evidence against the brain's lie. It is the payoff that makes someone open the app again tomorrow.
 
 It also grows into the moat (below): a week of history is nice, a year of history is switching cost.
+
+The Lookback now ends in a keepsake: the **scrapbook** (shipped 2026-06-20). One tap turns a finished week into a calm still-life image whose soft objects gently evoke what you actually finished, framed as a polaroid with its scene line underneath. It shares as a proper page, the caption and a small "DoubleDone · Week of {date}" baked into the picture itself (2026-07-12), never loose text a receiving app can strip, and raw task titles never leave the device. Shame-safe by construction, since a keepsake only ever depicts finished things, and every proud share is a person showing a friend the app, the first organic acquisition loop. Keepsakes follow the account across devices (2026-07-12), so a week made on the phone is waiting on the web. Free makes one a month; premium makes them weekly, growing with tenure, never a streak.
 
 ---
 
@@ -128,9 +135,13 @@ Two loops.
 
 ## Monetisation (native, not bolted on)
 
-- **Free:** Today view, manual capture, basic recurring tasks, a few AI elephant-bites a month. Enough to prove it fits your brain, because this audience will not pay before they trust it.
-- **Paid, roughly 6 to 9 AUD/month:** unlimited AI decomposition and hydration, Strategise, the full Lookback, the celebration and momentum system, alerts.
-- **The honest paywall:** the AI features cost real tokens. You gate the thing that genuinely costs money, not an arbitrary wall. Reads as fair, which matters doubly for an audience sensitive to feeling exploited.
+Live and real: Stripe subscriptions have been charging actual money since 2026-06-26.
+
+- **Free:** the whole core loop. Today, capture in every form (typed, spoken, shared-in), Routines and Rhythms, the full Lookback calendar and celebration, a generous AI allowance (a cap of about ten Break-it-downs a month is designed, sized to never bite on a crisis day, and deliberately unenforced until real usage data settles it), one scrapbook keepsake a month, and 15 energy-matching picks a month. Enough to prove it fits your brain, because this audience will not pay before they trust it.
+- **Paid, A$5/month or A$50/year:** the unlimited AI suite (decomposition and hydration, Strategise, Chart a course, Plan my day, scanning a photographed list, energy matching without limits), richer Lookback insights with a warm weekly reflection, and weekly scrapbook keepsakes that grow with tenure, never a streak.
+- **The honest paywall:** the AI features cost real tokens. You gate the thing that genuinely costs money, not an arbitrary wall. Reads as fair, which matters doubly for an audience sensitive to feeling exploited. The wall is never at friction (Sort, Break-it-down, and Close-the-day stay free) and never at the moment of relief, and data export and the public API/MCP are never gated, because trust is the product.
+- **Personalisation, the second paid layer:** Pin the day's one thing (2026-06-25), seven calm colour themes (2026-06-27), and the Quiet interface (2026-07-10), a borderless appearance that strips the decorative chrome so DoubleDone reads as calm text on paper, same layout, same features, same warmth. For the sensory side of the audience, chrome is noise, and Quiet is the strongest make-it-yours signal on the paywall. It gates comfort, never capability.
+- **What stays free on principle:** Rhythms. Self-care nudges are accessibility, and they never appear behind the premium framing.
 
 Subscription is native because the value is daily and ongoing, not one-shot. This is the thing SubToll could never manufacture and DoubleDone does not have to.
 
@@ -160,15 +171,17 @@ Two hard rules from this:
 ## Stack
 
 - **Client:** React Native + Expo, one codebase to native Android (the daily-habit differentiator) and web (the demoable surface). Carried from Chronoloria.
-- **Backend:** small AI service holding the Anthropic key, on Render. Never call Claude from the client.
+- **Backend:** small AI service holding the Anthropic key, a Cloudflare Worker at api.doubledone.app (the original Render plan was superseded before launch). Never call Claude from the client. The scrapbook's image pipeline runs on Workers AI, so keepsakes never touch the Anthropic budget.
 - **Data + auth:** Supabase (Postgres + Auth + Row Level Security). Postgres suits the Lookback, delta, and flywheel queries; RLS gives privacy by architecture.
-- **AI, tiered for cost:** Haiku for cheap frequent triage, Sonnet for decomposition and Strategise, Opus for the premium Lookback narrative moments.
-- **Local-first, anonymous-first:** every feature works without an account; cloud is opt-in durability.
+- **AI, tiered for cost:** Haiku for cheap frequent triage and the energy-matching pick, Sonnet for decomposition and Strategise, Opus for the premium Lookback narrative moments.
+- **Local-first, anonymous-first:** every feature works without an account; cloud is opt-in durability. Sync now carries the whole record, tasks, the "a lot" marks, and scrapbook keepsakes (the marks and keepsakes joined 2026-07-12), so signing in on a second device brings your history with you.
 - **Harness:** the golden-path playbook. Tier 0 to start (single main, Inspector + gitleaks + CI badge, risk-targeted tests, telemetry before traffic, cost alarm, journal from day one).
 
 ---
 
 ## Success criteria for the portfolio piece
+
+> All seven were met. DoubleDone went live 2026-06-23 and moved from portfolio piece to live commercial product when Stripe went live on 2026-06-26, so this section now reads as history rather than a target.
 
 In rough priority order:
 
@@ -182,13 +195,14 @@ In rough priority order:
 
 ---
 
-## Open questions (decide in the first sprint)
+## Open questions
 
-- Visual identity. Calm, low-friction, not grand. Likely soft and warm, the opposite of Chronoloria's epic palette.
-- How much of the Lookback ships in v1 versus Tier 2.
+- The App Store path. The codebase is iOS-ready (the platform seams are split), but Premium runs on Stripe, so an in-app-purchase strategy decision is needed before any App Store release. Decided before an iOS build, not urgent.
 
 **Resolved since v1 of this spec:**
 
+- **Visual identity:** calm warm paper (the Dusk palette), soft and grounded, the opposite of Chronoloria's epic look. Then personal on top of calm: seven colour themes (2026-06-27) and the premium Quiet interface (2026-07-10), so calm is the default and personal is the option.
+- **How much of the Lookback ships in v1:** all of it. The calendar and celebration shipped free and stay free; premium adds the richer insights, the warm weekly reflection, and the weekly scrapbook cadence.
 - **Voice brain-dump:** shipped on web. Speak the dump, and one AI tap tidies a rambling sentence into clean task lines. Text-first held for native, where the keyboard mic already covers it.
 - **The celebration mechanic for aged tasks:** the reward is complexity-weighted warmth, never points or streaks. A long-dreaded or chunky task earns a warmer, more prominent acknowledgement, and a decomposed mountain that finally completes lands in the Lookback as "You finished X. The whole thing." It motivates without ever shaming the task for having existed.
 
