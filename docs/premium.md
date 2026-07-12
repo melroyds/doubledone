@@ -19,7 +19,7 @@ DoubleDone is free to use, completely: the whole daily loop, all the AI relief, 
 - The ADHD seam: Done-is-done / Good-enough, the low-capacity day, Routines, shame-free re-entry, gentle reminders
 - The public REST API and the MCP server
 
-> \*The AI features carry a **generous** free allowance (about 10 breakdowns a month, enough to feel unlimited in normal use). Premium lifts the cap. The allowance is deliberately never tight enough to bite on a crisis day, because that would gate the relief, which the spine forbids. (The breakdown cap itself is designed but not yet enforced, see Unlimited AI in the roadmap; energy matching's 15-a-month meter is the one that is live.)
+> \*The AI features carry a **generous** free allowance (about 10 breakdowns a month, enough to feel unlimited in normal use). Premium lifts the cap. The allowance is deliberately never tight enough to bite on a crisis day, because that would gate the relief, which the spine forbids. (Energy matching's 15-a-month meter is live; the breakdown meter uses the same proven pattern and is queued, see Unlimited AI in the roadmap and the BUILD-PLAN Backlog.)
 
 **Premium (A$5 / month, or A$50 / year)** (abundance, power, and optional polish; this list matches the live paywall as of the 2026-07-12 release):
 - The **AI Scrapbook**: a weekly keepsake image, scaling 1 to 2 to 4 a week by tenure; free keeps a monthly taste *(shipped)*

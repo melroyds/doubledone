@@ -7,7 +7,8 @@
 > for the step-by-step Play Console mechanics.
 >
 > **Release state (2026-07-12):** the current production AAB is **versionCode 11** (version name 1.0.0),
-> cut from commit `d983bbf` and code-frozen under the git tag `android-v11`. Web deploys from the same code.
+> cut from commit `d983bbf`, code-frozen under the git tag `android-v11`, and **submitted and live on
+> Google Play the same day**. Web deploys from the same code.
 > Section 5a below has been updated in place: after Play blocked `USE_EXACT_ALARM` on 2026-06-29, the app
 > now declares `SCHEDULE_EXACT_ALARM` alone (since versionCode 11).
 

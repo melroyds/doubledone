@@ -10,7 +10,7 @@
 - **~$0.13 per registered user per month**, all-in, dominated by AI usage, scaling **linearly** (no large fixed costs to amortise).
 - **The unit economics work at every scale.** A conservative 5% premium conversion at A$5/mo covers cost with ~20% gross margin, and margin widens fast as conversion rises (revenue scales with conversion; cost per user stays flat).
 - **Watch-items:** the Anthropic token bill (tiered, capped at $25/mo, and now watched hourly by the control centre), the scrapbook image (the priciest single AI op, deliberately gated), and Stripe's flat US$0.30 fee, charged in USD regardless of billing currency, so ~9% of a ~US$3.30 sub on its own before the percentage fee.
-- **One new fixed line (July 2026):** a paid Expo (EAS) subscription for build capacity, replacing the free-tier build quota. Flat with scale, so it behaves like the domain: a fixed line that dilutes as users grow. The exact figure is on the Expo invoice, not modelled here.
+- **One new fixed line (July 2026):** a paid Expo (EAS) subscription for build capacity, **US$19/month** (US$228/yr), replacing the free-tier build quota. Flat with scale, so it behaves like the domain: at 100 users it is ~$0.19/user/mo (briefly the biggest single line), by 10,000 it is $0.002 and noise.
 
 ## Assumptions
 
@@ -72,7 +72,7 @@ Monthly, by registered-user count (50% active):
 | **Gross margin / mo** | ~$2 | ~$33 | ~$335 | ~$3,388 |
 | **Gross margin %** | ~15% | ~20% | ~21% | ~21% |
 
-*Not in the totals above: the paid Expo (EAS) subscription (July 2026). It is a flat monthly tooling line whose exact price lives on the Expo invoice, and being flat it matters most at the 100-user column and dilutes to noise by 10,000. Fold it in when re-running this table against live telemetry. Energy matching (`/energy`) IS in the shape: it rides inside the Claude row, bounded by its own free-tier meter.*
+*Not in the totals above: the paid Expo (EAS) subscription (July 2026), **US$19/month** flat. Being flat it matters most at the 100-user column (~$0.19/user/mo there, more than the AI line) and dilutes to $0.002 by 10,000. Fold it into the totals when re-running this table against live telemetry. Energy matching (`/energy`) IS in the shape: it rides inside the Claude row, bounded by its own free-tier meter.*
 
 ## Where the money goes
 

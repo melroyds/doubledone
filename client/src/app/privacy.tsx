@@ -22,7 +22,7 @@ export default function PrivacyScreen() {
         <BackLink fallback="/settings" />
 
         <Text style={styles.title}>Privacy</Text>
-        <Text style={styles.updated}>Last updated 28 June 2026.</Text>
+        <Text style={styles.updated}>Last updated 12 July 2026.</Text>
 
         <Text style={styles.lead}>
           DoubleDone is built to need almost nothing from you. It runs on your device, and nothing leaves it unless you
@@ -37,7 +37,9 @@ export default function PrivacyScreen() {
         <Section styles={styles} heading="If you choose to sync">
           Syncing across devices is optional. If you turn it on, the only personal information held is your email
           address, used to send a one-time sign-in code. There is no password. Your tasks are stored in rows only you
-          can read (row-level security scopes every row to your account). You can sign out, or stop syncing, any time.
+          can read (row-level security scopes every row to your account). Your scrapbook keepsakes sync the same way;
+          the keepsake picture itself is stored at an unguessable address so each of your devices can show it. You can
+          sign out, or stop syncing, any time.
         </Section>
 
         <View style={styles.section}>

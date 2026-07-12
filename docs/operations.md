@@ -77,8 +77,9 @@ The process used for the 2026-07-12 Play release (versionCode 11), the template 
 1. **Device-verify on a matching preview APK first.** The AAB should carry only code a device pass has already proven (versionCode 11 was cut after the APK pass on the same JS).
 2. **Queue the production AAB**: `eas build -p android --profile production` from `client/`. EAS holds the version remotely (`appVersionSource: "remote"` plus `autoIncrement: true` in [`client/eas.json`](../client/eas.json)), so every production build bumps `versionCode` by itself and the repo never carries it.
 3. **Tag the frozen commit**: `git tag android-vN <commit>`, then push the tag. `android-v11` marks `d983bbf`, so a store bug can always be reproduced from exactly the code that shipped.
-4. **Web ships from the same commit** (versionCode 11's web deploy came from `d983bbf` too), so the two surfaces never drift within a release.
-5. **Builds only on Melroy's explicit ask** (rule, 2026-07-12): never queue an EAS build (APK or AAB, any profile) on your own initiative, and ask before any cancel-and-requeue consolidation. EAS moved to a paid Expo subscription in the week of this release; the ask-first rule stands regardless.
+4. **Align the version name at the cut** (decided 2026-07-12): set `expo.version` in [`client/app.json`](../client/app.json) to match the CHANGELOG heading before queueing the AAB. versionCode 11 shipped with the name lagging at 1.0.0 while the changelog read 1.2.0; from the next release the two move together.
+5. **Web ships from the same commit** (versionCode 11's web deploy came from `d983bbf` too), so the two surfaces never drift within a release.
+6. **Builds only on Melroy's explicit ask** (rule, 2026-07-12): never queue an EAS build (APK or AAB, any profile) on your own initiative, and ask before any cancel-and-requeue consolidation. EAS moved to a paid Expo subscription (US$19/month) in the week of this release; the ask-first rule stands regardless.
 
 ## The exact-alarm Play declaration
 
