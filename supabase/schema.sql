@@ -105,6 +105,35 @@ create index if not exists tasks_user_id_idx on public.tasks (user_id);
 --   add column if not exists big boolean;
 
 -- ---------------------------------------------------------------------------
+-- scrapbooks: cross-device keepsakes (added 2026-07-12). One row per user per
+-- week; the image is the R2-served https URL (legacy data: keepsakes stay
+-- device-local and never sync). created_at is CLIENT-written and is the LWW
+-- truth for a remade week, same no-now()-trigger rule as tasks.updated_at.
+-- MUST run on live before the client that syncs it ships (the column-first
+-- ordering rule). Run once in the Supabase SQL editor; idempotent.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.scrapbooks (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  week_start text not null,        -- ISO Sunday of the keepsake's week
+  image text not null,             -- R2-served https URL
+  caption text not null default '',
+  created_at timestamptz not null, -- client-written; newer replaces (a remade week)
+  primary key (user_id, week_start)
+);
+
+alter table public.scrapbooks enable row level security;
+
+create policy "scrapbooks_select_own" on public.scrapbooks
+  for select using (auth.uid() = user_id);
+create policy "scrapbooks_insert_own" on public.scrapbooks
+  for insert with check (auth.uid() = user_id);
+create policy "scrapbooks_update_own" on public.scrapbooks
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "scrapbooks_delete_own" on public.scrapbooks
+  for delete using (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
 -- ai_calls: pseudonymous AI-call telemetry (the moat). The Worker writes one
 -- row per Claude call (decompose / strategise / triage) with its input, the
 -- returned JSON, model, token usage and latency. DELIBERATELY no user_id, no IP:

@@ -59,6 +59,7 @@ import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } f
 import { spreadDueDates } from '@/lib/spread';
 import { loadClosedDate, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderHour, loadReminderOfferMade, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOfferMade, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData } from '@/lib/storage';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
+import { syncScrapbooks } from '@/lib/scrapbook-sync';
 import { isAccountGone, localBelongsToAnother, syncOnce } from '@/lib/sync';
 import { completeOnDay, parseDump, sweepElapsedNudges, type Task, withMonotonicStamps } from '@/lib/tasks';
 import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
@@ -294,6 +295,10 @@ export default function TodayScreen() {
         setTasks(merged);
         void saveTasks(merged);
         void saveSyncedOwner(uid);
+        // Keepsakes ride behind the task sync, best effort and internally caught, so a
+        // scrapbook hiccup can never mark the task sync failed. `foreign` mirrors the
+        // cross-account guard above: another account's local books never migrate up.
+        void syncScrapbooks(client, uid, foreign);
         track('sync.completed', { count: merged.length });
         setSyncOk(true);
         void saveLastSyncOk(true);
@@ -790,6 +795,7 @@ export default function TodayScreen() {
       if (uid) {
         try {
           await syncOnce(client, tasksRef.current, uid);
+          await syncScrapbooks(client, uid); // flush unpushed keepsakes too, same best effort
         } catch {
           // offline / transient: keep local intact, never lose work
         }
