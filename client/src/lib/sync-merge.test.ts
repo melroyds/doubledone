@@ -114,13 +114,75 @@ describe('mergeTasks', () => {
     expect(ids(res.toPush)).toEqual(['x']); // local won, so push so the server is corrected
   });
 
-  it('preserves local-only big and manualOrder when the remote row wins', () => {
-    const local = [task('x', 10, { big: true, manualOrder: 2 })];
+  it('preserves local-only manualOrder when the remote row wins', () => {
+    const local = [task('x', 10, { manualOrder: 2 })];
     const remote = [task('x', 20, { title: 'remote' })];
     const res = mergeTasks(local, remote);
     expect(res.merged[0].title).toBe('remote'); // remote won LWW
-    expect(res.merged[0].big).toBe(true); // local-only field carried, not dropped
-    expect(res.merged[0].manualOrder).toBe(2);
-    expect(res.toPush).toEqual([]); // local-only fields are not synced, so nothing to push
+    expect(res.merged[0].manualOrder).toBe(2); // local-only field carried, not dropped
+    expect(res.toPush).toEqual([]); // manualOrder is not synced, so nothing to push
+  });
+
+  describe('big (synced by LWW since the column landed, with the tie-seed migration)', () => {
+    it('a big marked on another device arrives (remote newer carries big down, no push)', () => {
+      const res = mergeTasks([task('x', 10)], [task('x', 20, { big: true })]);
+      expect(res.merged[0].big).toBe(true);
+      expect(res.toPush).toEqual([]);
+    });
+
+    it('a big marked locally (newer) wins and is pushed', () => {
+      const res = mergeTasks([task('x', 20, { big: true })], [task('x', 10)]);
+      expect(res.merged[0].big).toBe(true);
+      expect(ids(res.toPush)).toEqual(['x']);
+    });
+
+    it('a NEWER remote clear beats a stale local big (no resurrection)', () => {
+      // Device B unmarked big (bumping updatedAt); device A still holds the old mark. The clear wins.
+      const res = mergeTasks([task('x', 10, { big: true })], [task('x', 20)]);
+      expect(res.merged[0].big).toBeUndefined();
+      expect(res.toPush).toEqual([]);
+    });
+
+    it('a TIE seeds a pre-column local big into the column and pushes it (the migration sync)', () => {
+      // Before the column existed, big lived on-device only, so a synced row holds big locally while
+      // the server row (same updatedAt) has none. The first sync must seed, never erase.
+      const res = mergeTasks([task('x', 15, { big: true })], [task('x', 15)]);
+      expect(res.merged[0].big).toBe(true);
+      expect(ids(res.toPush)).toEqual(['x']);
+    });
+
+    it('a tie where only the remote holds big keeps it and pushes nothing', () => {
+      const res = mergeTasks([task('x', 15)], [task('x', 15, { big: true })]);
+      expect(res.merged[0].big).toBe(true);
+      expect(res.toPush).toEqual([]);
+    });
+
+    it('a tie where BOTH sides hold big stays big and pushes nothing (the converged steady state)', () => {
+      // After the migration every marked task lives in this state on every sync forever; if this ever
+      // pushed, each sync would re-upsert every big task in an endless write loop.
+      const res = mergeTasks([task('x', 15, { big: true })], [task('x', 15, { big: true })]);
+      expect(res.merged[0].big).toBe(true);
+      expect(res.toPush).toEqual([]);
+    });
+
+    it('a NEWER local clear beats a stale remote big and is pushed (the clear propagates)', () => {
+      const res = mergeTasks([task('x', 20)], [task('x', 10, { big: true })]);
+      expect(res.merged[0].big).toBeUndefined();
+      expect(ids(res.toPush)).toEqual(['x']);
+    });
+
+    it('two corrupt (non-finite) stamps never fake a tie-seed', () => {
+      // rank() maps both to -Infinity for LWW, but -Inf === -Inf is NOT a logical-version tie;
+      // the seed requires finite equality, so corrupt rows cannot smuggle a big in.
+      const res = mergeTasks([task('x', NaN, { big: true })], [task('x', NaN)]);
+      expect(res.merged[0].big).toBeUndefined();
+    });
+
+    it('a tie-seed on a tombstone stays deleted (the seed can never un-delete)', () => {
+      const res = mergeTasks([task('x', 15, { deletedAt: 15, big: true })], [task('x', 15, { deletedAt: 15 })]);
+      expect(res.merged[0].deletedAt).toBe(15);
+      expect(res.merged[0].big).toBe(true); // inert on a tombstone, but seeded consistently
+      expect(ids(res.toPush)).toEqual(['x']);
+    });
   });
 });

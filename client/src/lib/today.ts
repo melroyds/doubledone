@@ -166,7 +166,8 @@ export function setSequence<T extends { id: string; manualOrder?: number; update
  * Mark (or unmark) tasks as "big": the user saying this one thing is a lot. Multi-select, so it stamps
  * `big` on every given id at once, or clears it when `on` is false (deleting the key so the field stays
  * absent, not false, mirroring setPin). Bumps updatedAt; untouched tasks are returned by reference.
- * LOCAL-ONLY for now (big is not mapped in sync.ts), so it persists on-device; cross-device is a follow-up.
+ * SYNCED by plain LWW since 2026-07-12 (mapped in sync.ts). The updatedAt bump here is load-bearing:
+ * it is what lets a clear outrank the merge's pre-column tie-seed (sync-merge.ts), do not remove it.
  */
 export function setBig<T extends { id: string; big?: boolean; updatedAt: number }>(
   tasks: T[],

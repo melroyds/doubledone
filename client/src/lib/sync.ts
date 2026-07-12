@@ -31,9 +31,13 @@ export type TaskRow = {
   updated_at: string;
   deleted_at: string | null;
   pinned_at: string | null;
+  big: boolean | null;
 };
 
-/** Local Task -> remote row, stamped with the owner's id for RLS. */
+/** Local Task -> remote row, stamped with the owner's id for RLS. Every field is emitted
+ *  UNCONDITIONALLY (null, never an absent key): supabase-js batch upsert unions keys across
+ *  the rows in one call and defaults the gaps to NULL, so a conditionally-emitted field
+ *  would silently null that column on every other row in the batch. */
 export function taskToRow(task: Task, userId: string): TaskRow {
   return {
     id: task.id,
@@ -53,6 +57,7 @@ export function taskToRow(task: Task, userId: string): TaskRow {
     updated_at: new Date(task.updatedAt).toISOString(),
     deleted_at: task.deletedAt ? new Date(task.deletedAt).toISOString() : null,
     pinned_at: task.pinnedAt ? new Date(task.pinnedAt).toISOString() : null,
+    big: task.big ?? null,
   };
 }
 
@@ -84,6 +89,7 @@ export function rowToTask(row: TaskRow): Task {
   if (row.parent_id != null) task.parentId = row.parent_id;
   if (row.deleted_at != null) task.deletedAt = finiteOr(Date.parse(row.deleted_at), createdAt);
   if (row.pinned_at != null) task.pinnedAt = finiteOr(Date.parse(row.pinned_at), createdAt);
+  if (row.big) task.big = true;
   return task;
 }
 

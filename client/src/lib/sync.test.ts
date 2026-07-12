@@ -45,6 +45,15 @@ describe('taskToRow / rowToTask', () => {
     expect(rowToTask(taskToRow(plain, 'user-1'))).not.toHaveProperty('pinnedAt');
   });
 
+  it('round-trips a big task, and a plain task never gains big (a null / false column stays absent)', () => {
+    const big: Task = { id: 'g', title: 'Do the tax return', done: false, createdAt: 0, updatedAt: 1000, big: true };
+    expect(rowToTask(taskToRow(big, 'user-1'))).toEqual(big);
+    const plain: Task = { id: 'h', title: 'Buy milk', done: false, createdAt: 0, updatedAt: 1000 };
+    expect(taskToRow(plain, 'user-1').big).toBeNull();
+    expect(rowToTask(taskToRow(plain, 'user-1'))).not.toHaveProperty('big');
+    expect(rowToTask({ ...taskToRow(plain, 'user-1'), big: false })).not.toHaveProperty('big');
+  });
+
   it('round-trips a full task (due, recurrence, completedDates, skippedDates, tombstone)', () => {
     const t: Task = {
       id: 'b',

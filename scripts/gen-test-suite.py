@@ -687,6 +687,9 @@ CASES = [
     ("BIG-04", "Big task", "P2", "Finishing a big task is a big-win in the Lookback",
      "Mark a task big, complete it, then open the Lookback to its day.",
      "The completed task carries the warmer 'a big one' treatment on its day, the same payoff a long-dreaded or chunky task earns. The big flag never adds disappointment if the task is left unfinished.", "Both"),
+    ("BIG-05", "Big task", "P2", "Big syncs across devices (and old marks survive the upgrade)",
+     "Signed in on two devices (e.g. web + Android). Mark a task big on device 1, wait for or trigger a sync, then open device 2. Then unmark it on device 2 and check device 1. Prerequisite: an account with the same task on both.",
+     "The Big tag appears on device 2 (with its weight-gauge effect), and the unmark travels back: no resurrection, the newest change wins. Marks made BEFORE this build (when big was device-only) are seeded up to the account on that device's first sync rather than erased. One known transition quirk: a device still on a PRE-sync build can re-surface a cleared big once when it upgrades; clearing it again sticks everywhere. Manual order (Plan my order) remains per-device by design.", "Both"),
 
     # --- Navigation / responsive ---------------------------------------------
     ("NAV-01", "Rooms", "P3", "Rooms sheet caps its width on wide web",

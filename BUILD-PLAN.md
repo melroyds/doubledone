@@ -80,7 +80,7 @@ The single home for consciously parked work. Nothing here is dropped; each item 
 
 **Sync, beyond v1** (v1 is tasks-only)
 - Realtime updates, Google one-tap sign-in, a web magic-link, and syncing the moat completion-data to its own anonymised store. Triggers: the respective friction shows up, or volume makes the aggregate worth mining.
-- **Sync the `big` flag across devices.** "Big task" ships local-only (the flag lives on-device, like `manualOrder`), because adding it to the sync payload before the Supabase column exists would break every task upsert. To make it cross-device: (1) run `alter table public.tasks add column if not exists big boolean;` on the live Supabase project, then (2) add `big: boolean | null` to `TaskRow` in `client/src/lib/sync.ts`, set `big: task.big ?? null` in `taskToRow`, and `if (row.big) task.big = true;` in `rowToTask`. Trigger: the column is applied (needs the Supabase dashboard), or a multi-device user reports a big mark not carrying over.
+- **Sync `manualOrder` across devices.** DONE for `big` (2026-07-12: column applied by Melroy, sync.ts mapping + the merge's tie-seed shipped; the trigger fired when his reinstall lost the marks). `manualOrder` ("Plan my order") is now the one remaining local-only field: on-device it survives sync (the merge carries it), but the order does not follow the account. Same recipe if wanted: a `manual_order integer` column first, then the sync.ts mapping. Trigger: a multi-device user reports their plan-my-order arrangement not carrying over, weighed against per-device order arguably being fine.
 - Sharing a list with another person. Trigger: a real second-user case, weighed hard against the team-tool trap the spec warns against.
 
 **Platform and build**

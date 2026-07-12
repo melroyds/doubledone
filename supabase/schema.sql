@@ -29,6 +29,7 @@ create table if not exists public.tasks (
   silent_parent boolean,          -- a decompose umbrella (Cluster B), hidden from Today/Later until its children finish
   parent_id text,                 -- set when this task is a decomposition step / tiny-version of another task
   pinned_at timestamptz,          -- when this one-off was pinned as the day's ONE priority (premium); null = not pinned
+  big boolean,                    -- user-marked "this one is a lot"; null/false = not big (LWW like any field)
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz          -- soft-delete tombstone; null = live
@@ -96,6 +97,12 @@ create index if not exists tasks_user_id_idx on public.tasks (user_id);
 -- live table has it, every signed-in push fails (the app stays usable, but sync shows pending):
 -- alter table public.tasks
 --   add column if not exists skipped_dates jsonb;
+--
+-- Big-task sync added the big column (RUN ON LIVE by Melroy 2026-07-12, before the client
+-- change shipped, same MUST-run-first rule as skipped_dates). Pre-column marks are seeded by
+-- the merge's tie rule (sync-merge.ts) on each device's first sync after this:
+-- alter table public.tasks
+--   add column if not exists big boolean;
 
 -- ---------------------------------------------------------------------------
 -- ai_calls: pseudonymous AI-call telemetry (the moat). The Worker writes one

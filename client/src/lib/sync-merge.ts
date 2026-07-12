@@ -32,14 +32,16 @@ export function mergeTasks(local: Task[], remote: Task[]): MergeResult {
       // Whole-row LWW would silently lose a synced completion or slices progress the loser holds, and would
       // drop the local-only fields when the remote row wins. Reconcile instead: take the LWW winner, but
       // union completedDates (grow-only, so an offline recurring tick is never erased), keep the max
-      // slices.done, and carry the local-only big / manualOrder. Push when local won OR the union grew the
-      // synced data beyond the server's remote copy, so the server converges to the union too.
+      // slices.done, seed a tie-held big (the pre-column migration, see reconcileConflict), and carry the
+      // local-only manualOrder. Push when local won OR the reconciliation grew the synced data beyond the
+      // server's remote copy, so the server converges too.
       const reconciled = reconcileConflict(l, r);
       merged.push(reconciled);
       const localNewer = rank(l.updatedAt) > rank(r.updatedAt);
       const grewBeyondRemote =
         (reconciled.completedDates?.length ?? 0) > (r.completedDates?.length ?? 0) ||
-        (reconciled.slices?.done ?? 0) > (r.slices?.done ?? 0);
+        (reconciled.slices?.done ?? 0) > (r.slices?.done ?? 0) ||
+        (reconciled.big === true && r.big !== true);
       if (localNewer || grewBeyondRemote) toPush.push(reconciled);
     } else if (l) {
       merged.push(l);
@@ -57,9 +59,9 @@ export function mergeTasks(local: Task[], remote: Task[]): MergeResult {
 
 // Reconcile a task present on both sides. The LWW winner is the base, but the synced completion data is made
 // monotonic so a tick or progress made on one device is never erased by a newer unrelated edit on another:
-// completedDates is unioned (grow-only) and slices.done takes the max. The local-only fields (big,
-// manualOrder, never sent to the server) are carried from the local copy instead of being dropped when the
-// remote row wins. This is the never-lose-a-task, never-shame-by-disappearance guarantee, made real in sync.
+// completedDates is unioned (grow-only) and slices.done takes the max. The local-only field manualOrder
+// (never sent to the server) is carried from the local copy instead of being dropped when the remote row
+// wins. This is the never-lose-a-task, never-shame-by-disappearance guarantee, made real in sync.
 function reconcileConflict(l: Task, r: Task): Task {
   const out: Task = rank(l.updatedAt) > rank(r.updatedAt) ? { ...l } : { ...r };
 
@@ -71,8 +73,19 @@ function reconcileConflict(l: Task, r: Task): Task {
     out.slices = { total: out.slices.total, done: Math.min(done, out.slices.total) };
   }
 
-  if (l.big) out.big = true;
-  else delete out.big;
+  // big syncs by plain LWW (marking or clearing bumps updatedAt, so the winner's value is the truth), with
+  // ONE exception: on a timestamp tie the two rows are the same logical version, so a big held by only one
+  // side can only be a mark from the pre-column era, when big lived on-device and never synced. OR it in,
+  // so the first sync after the column lands SEEDS every existing mark instead of erasing it. Between NEW
+  // clients this cannot resurrect a cleared big (a real clear bumps updatedAt and never ties). Two accepted
+  // transition edges, both biased keep-not-lose on purpose (adversarial review 2026-07-12): a pre-column
+  // client's old local-carry re-attaches big to rows it adopts, manufacturing a tie that re-seeds a cleared
+  // big ONCE when that device upgrades (a re-clear then sticks by LWW); and a pre-column mark is lost if
+  // another writer edited that row before the device's first new-client sync (no tie, remote wins). Seeding
+  // wider than exact ties would turn the second edge into permanent resurrection, the worse failure.
+  // Finite equality, not rank equality: two corrupt (non-finite) stamps must not fake a tie.
+  if (Number.isFinite(l.updatedAt) && l.updatedAt === r.updatedAt && (l.big || r.big)) out.big = true;
+
   if (l.manualOrder != null) out.manualOrder = l.manualOrder;
   else delete out.manualOrder;
 
