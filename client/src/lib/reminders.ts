@@ -1,5 +1,7 @@
+import Constants from 'expo-constants';
+import * as IntentLauncher from 'expo-intent-launcher';
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 
 import { t } from './i18n-active';
 import { nextDailySlot, type ReminderResult } from './reminders-types';
@@ -291,5 +293,43 @@ export async function getNudgeHealth(): Promise<{ count: number; next: { hour: n
     return { count: scheduled.length, next: nextDailySlot(slots, new Date()) };
   } catch {
     return { count: 0, next: null };
+  }
+}
+
+/**
+ * Whether this device gates on-the-dot delivery behind the "Alarms & reminders" special
+ * access (Android 12+). expo-notifications arms an alarm EXACTLY only when the OS says
+ * canScheduleExactAlarms() (ExpoSchedulingDelegate.setupAlarm); without the grant every
+ * trigger is an INEXACT alarm, which Doze defers and releases when the app process wakes,
+ * i.e. the field bug "nudges only arrive when I open the app", on battery-unrestricted
+ * phones too. Android 12-13 pre-grant the declared permission; 14+ ship it OFF until the
+ * user flips the toggle. The grant state is not readable from JS, so the Routines screen
+ * offers the door whenever it could matter instead of pretending to know.
+ */
+export function exactAlarmDoorRelevant(): boolean {
+  return Platform.OS === 'android' && typeof Platform.Version === 'number' && Platform.Version >= 31;
+}
+
+/**
+ * Open THIS app's "Alarms & reminders" toggle (the SCHEDULE_EXACT_ALARM special access),
+ * falling back to the all-apps list, then plain app settings, so the tap always lands
+ * somewhere useful. The returned promise resolves when the user comes BACK from settings
+ * (OnActivityResult), which is the caller's hook to re-arm: the cold-start resilience
+ * sweep alone would leave alarms inexact until the next full app kill, because granting
+ * the access resumes the same process. (Per-task one-off nudges stay outside the sweep by
+ * design: they are single-shot and short-lived; the user re-sets one if it mattered.)
+ */
+export async function openExactAlarmSettings(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  const action = 'android.settings.REQUEST_SCHEDULE_EXACT_ALARM';
+  const pkg = Constants.expoConfig?.android?.package;
+  try {
+    await IntentLauncher.startActivityAsync(action, pkg ? { data: `package:${pkg}` } : undefined);
+  } catch {
+    try {
+      await IntentLauncher.startActivityAsync(action);
+    } catch {
+      await Linking.openSettings().catch(() => {});
+    }
   }
 }

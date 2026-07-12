@@ -479,6 +479,8 @@ export const es: Catalog = {
     rhythmNameWater: 'Agua',
     batteryHint: '¿Los avisos llegan tarde, o no llegan? Deja que DoubleDone funcione sin límites de batería en los ajustes del sistema.',
     batteryOpen: 'Abrir ajustes de la app',
+    exactHint: 'Para que los avisos lleguen puntuales, permite "Alarmas y recordatorios" a DoubleDone.',
+    exactOpen: 'Permitir alarmas y recordatorios',
     nudgeHealthCount: 'Programados en este teléfono: {count}.',
     nudgeHealthNext: 'El próximo hacia las {time}.',
     nudgeHealthNone: 'No hay avisos programados en este teléfono. Prueba a guardar un ritmo de nuevo.',

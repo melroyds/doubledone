@@ -120,3 +120,13 @@ export async function rescheduleAllNudges(routines: Routine[], dailyReminderHour
 export async function getNudgeHealth(): Promise<{ count: number; next: { hour: number; minute: number } | null }> {
   return { count: 0, next: null };
 }
+
+/** Never relevant on web: "Alarms & reminders" is an Android 12+ special access. */
+export function exactAlarmDoorRelevant(): boolean {
+  return false;
+}
+
+/** No-op on web. */
+export async function openExactAlarmSettings(): Promise<void> {
+  // nothing to open on web
+}

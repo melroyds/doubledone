@@ -479,6 +479,8 @@ export const fr: Catalog = {
     rhythmNameWater: 'Eau',
     batteryHint: "Les rappels arrivent en retard, ou pas du tout ? Laisse DoubleDone tourner sans limite de batterie dans les réglages système.",
     batteryOpen: "Ouvrir les réglages de l'appli",
+    exactHint: 'Pour des rappels à l\'heure, autorise « Alarmes et rappels » pour DoubleDone.',
+    exactOpen: 'Autoriser alarmes et rappels',
     nudgeHealthCount: 'Programmés sur ce téléphone : {count}.',
     nudgeHealthNext: 'Le prochain vers {time}.',
     nudgeHealthNone: "Aucun rappel n'est programmé sur ce téléphone. Réessaie d'enregistrer un rythme.",

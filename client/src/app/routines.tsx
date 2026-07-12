@@ -9,7 +9,7 @@ import { Segmented } from '@/components/Segmented';
 import { border, cardShadow, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { toISODate } from '@/lib/day';
 import { t } from '@/lib/locale';
-import { cancelRhythm, cancelRoutineNudge, getNudgeHealth, scheduleRhythm, scheduleRoutineNudge } from '@/lib/reminders';
+import { cancelRhythm, cancelRoutineNudge, exactAlarmDoorRelevant, getNudgeHealth, openExactAlarmSettings, rescheduleAllNudges, scheduleRhythm, scheduleRoutineNudge } from '@/lib/reminders';
 import { clampHour, clampMinute, formatReminderTime, reminderReasonLine } from '@/lib/reminders-types';
 import {
   applyRoutineEdit,
@@ -28,7 +28,7 @@ import {
   type RoutineWhen,
   toggleStep,
 } from '@/lib/routines';
-import { loadRoutines, saveRoutines } from '@/lib/storage';
+import { loadReminderHour, loadReminderOn, loadRoutines, saveRoutines } from '@/lib/storage';
 import { parseDump } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -342,6 +342,23 @@ export default function RoutinesScreen() {
     const updated: Routine = { ...target, paused: !target.paused, updatedAt: Date.now() };
     commit(routines.map((r) => (r.id === id ? updated : r)));
     void scheduleRhythm(updated);
+  }
+
+  // The exact-alarm door, and the re-arm on return. The resilience sweep runs on COLD start
+  // only, and granting "Alarms & reminders" resumes the SAME process, so without this re-arm
+  // every alarm would stay inexact until the app was fully killed (the adversarial review's
+  // blocker, 2026-07-12). startActivityAsync resolves exactly when the user returns
+  // (OnActivityResult), so the await below IS the "they came back" hook: re-schedule
+  // everything from stored config (now armed exact if they granted) and refresh the health line.
+  async function grantExactAlarms() {
+    await openExactAlarmSettings();
+    try {
+      const [rts, reminderOn, reminderHour] = await Promise.all([loadRoutines(), loadReminderOn(), loadReminderHour()]);
+      await rescheduleAllNudges(rts, reminderOn ? reminderHour : null);
+      setNudgeHealth(await getNudgeHealth());
+    } catch {
+      // best effort; the cold-start sweep remains the backstop
+    }
   }
 
   // The plain-language cadence line ("Around every 90 minutes, 9 am to 9 pm") in the device's
@@ -858,6 +875,23 @@ export default function RoutinesScreen() {
                       ? `${t('routines.nudgeHealthCount', { count: nudgeHealth.count })} ${t('routines.nudgeHealthNext', { time: formatReminderTime(nudgeHealth.next.hour, nudgeHealth.next.minute) })}`
                       : t('routines.nudgeHealthCount', { count: nudgeHealth.count })}
               </Text>
+              {/* The exact-alarm door (Android 12+): without the "Alarms & reminders" special
+                  access every trigger is an INEXACT alarm that Doze holds until the app next
+                  wakes, i.e. nudges only arrive when the app is opened, battery settings
+                  notwithstanding. Android 14+ ships the toggle OFF, so this is the fix door. */}
+              {exactAlarmDoorRelevant() && (
+                <>
+                  <Text style={styles.nudgeHealthText}>{t('routines.exactHint')}</Text>
+                  <Pressable
+                    onPress={() => void grantExactAlarms()}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('routines.exactOpen')}
+                    hitSlop={6}
+                  >
+                    <Text style={styles.batteryLink}>{t('routines.exactOpen')}</Text>
+                  </Pressable>
+                </>
+              )}
               <Text style={styles.nudgeHealthText}>{t('routines.batteryHint')}</Text>
               <Pressable
                 onPress={() => void Linking.openSettings()}

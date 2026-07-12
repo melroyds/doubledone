@@ -479,6 +479,8 @@ export const it: Catalog = {
     rhythmNameWater: 'Acqua',
     batteryHint: 'I promemoria arrivano in ritardo, o per niente? Lascia che DoubleDone giri senza limiti di batteria nelle impostazioni di sistema.',
     batteryOpen: "Apri le impostazioni dell'app",
+    exactHint: 'Perché i promemoria arrivino puntuali, consenti "Sveglie e promemoria" a DoubleDone.',
+    exactOpen: 'Consenti sveglie e promemoria',
     nudgeHealthCount: 'Impostati su questo telefono: {count}.',
     nudgeHealthNext: 'Il prossimo verso le {time}.',
     nudgeHealthNone: 'Nessun promemoria è programmato su questo telefono. Prova a salvare di nuovo un ritmo.',

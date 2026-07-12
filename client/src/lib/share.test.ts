@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { shareScrapbook } from './share';
+
 // The native share seam is thin, but it broke in the field in a way pure review missed
 // (an R2-served https keepsake hit the base64 split and reported "Sharing isn't available
 // here"), so both image shapes are pinned here with the expo modules mocked out.
+// vi.mock is hoisted above every import, so declaring the mocks below the import is safe.
 const mocks = vi.hoisted(() => ({
   isAvailableAsync: vi.fn(),
   shareAsync: vi.fn(),
@@ -21,8 +24,6 @@ vi.mock('expo-file-system/legacy', () => ({
   writeAsStringAsync: mocks.writeAsStringAsync,
   downloadAsync: mocks.downloadAsync,
 }));
-
-import { shareScrapbook } from './share';
 
 beforeEach(() => {
   vi.clearAllMocks();

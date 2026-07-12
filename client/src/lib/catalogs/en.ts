@@ -483,6 +483,8 @@ export const en = {
     rhythmNameWater: 'Water',
     batteryHint: 'Nudges arriving late, or not at all? Let DoubleDone run without battery limits in system settings.',
     batteryOpen: 'Open app settings',
+    exactHint: 'For nudges that arrive on time, allow "Alarms & reminders" for DoubleDone.',
+    exactOpen: 'Allow alarms & reminders',
     nudgeHealthCount: 'Set on this phone: {count}.',
     nudgeHealthNext: 'Next around {time}.',
     nudgeHealthNone: 'No nudges are scheduled on this phone yet. Try re-saving a rhythm.',
