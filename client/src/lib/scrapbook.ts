@@ -10,7 +10,7 @@ import { fmt, t } from './i18n-active';
 
 export type Scrapbook = {
   weekStart: string; // ISO of the week's Sunday (weeks start Sunday, like the calendar)
-  image: string; // a data: URL (base64 jpeg) from the Worker
+  image: string; // a data: URL (base64 jpeg, local-only) OR an R2-served https URL (the persisted shape); every consumer (render, share, purge) must accept BOTH — the share path once assumed data:-only and broke on device
   caption: string; // the calm scene the image was made from
   createdAt: number; // epoch ms
 };

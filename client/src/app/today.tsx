@@ -1959,7 +1959,7 @@ export default function TodayScreen() {
                     onPress={openEnergy}
                     accessibilityRole="button"
                     accessibilityLabel={t('today.energyEntryA11y')}
-                    style={({ pressed }) => [styles.focusPickItem, pressed && styles.pressed]}
+                    style={({ pressed }) => [styles.focusFitEntry, pressed && styles.pressed]}
                   >
                     <Text style={styles.focusFitText}>{t('today.energyEntry')}</Text>
                   </Pressable>
@@ -2815,7 +2815,9 @@ const makeStyles = (t: Theme) =>
     focusPickItem: { paddingVertical: spacing.two, paddingHorizontal: spacing.three },
     focusPickItemText: { color: t.colors.accent, fontFamily: fonts.sans, fontSize: 22 * t.scale, textAlign: 'center' },
     // The "not sure?" helper in the Focus picker: softer than the task choices, so it reads
-    // as an offer beside them, not another task.
+    // as an offer beside them, not another task. The hairline pill (Melroy, device round:
+    // plain italic text wasn't dynamic enough) makes it read as tappable without shouting.
+    focusFitEntry: { paddingVertical: spacing.two, paddingHorizontal: spacing.four, borderWidth: border.hair, borderColor: t.colors.line, borderRadius: radius.pill },
     focusFitText: { color: t.colors.inkSoft, fontFamily: fonts.body, fontSize: 17 * t.scale, textAlign: 'center', fontStyle: 'italic' },
     closeNoteLabel: { color: t.colors.inkSoft, fontFamily: fonts.body, fontSize: 14 * t.scale, marginTop: spacing.three, marginBottom: spacing.two, textAlign: 'center' },
     focusScreen: { flex: 1, backgroundColor: t.colors.bg, padding: spacing.six, justifyContent: 'center', alignItems: 'center' },
