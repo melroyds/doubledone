@@ -9,7 +9,32 @@ import {
   weekDates,
   weekStartISO,
   weekTitles,
+  wrapLines,
 } from './scrapbook';
+
+describe('wrapLines (the keepsake page caption wrap)', () => {
+  // A deterministic measure: 10 units per character, so widths are easy to reason about.
+  const measure = (s: string) => s.length * 10;
+
+  it('keeps a short caption on one line', () => {
+    expect(wrapLines('a quiet week', 200, measure)).toEqual(['a quiet week']);
+  });
+
+  it('wraps greedily at the width limit, never mid-word', () => {
+    // 'a quiet week of' = 15 chars = 150 > 140, so 'of' starts line two.
+    expect(wrapLines('a quiet week of small wins', 140, measure)).toEqual(['a quiet week', 'of small wins']);
+  });
+
+  it('gives a single over-wide word its own line instead of looping', () => {
+    expect(wrapLines('tiny extraordinarily-long-word end', 120, measure)).toEqual(['tiny', 'extraordinarily-long-word', 'end']);
+  });
+
+  it('collapses whitespace and returns [] for an empty caption', () => {
+    expect(wrapLines('  spaced   out  ', 500, measure)).toEqual(['spaced out']);
+    expect(wrapLines('', 500, measure)).toEqual([]);
+    expect(wrapLines('   ', 500, measure)).toEqual([]);
+  });
+});
 
 describe('weekStartISO', () => {
   it('returns the Sunday of the week containing the date', () => {

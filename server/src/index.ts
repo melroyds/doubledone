@@ -224,6 +224,11 @@ const router = {
         headers: {
           'content-type': obj.httpMetadata?.contentType ?? 'image/jpeg',
           'cache-control': 'public, max-age=31536000, immutable',
+          // The web client fetch()es this image to composite the shareable keepsake page
+          // (share.web.ts); without CORS that cross-origin fetch fails and the share
+          // silently degrades. Safe to open: public read-only bytes behind an
+          // unguessable key, already loadable cross-origin by any <img> tag.
+          'access-control-allow-origin': '*',
         },
       });
     }

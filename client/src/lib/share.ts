@@ -15,9 +15,16 @@ import * as Sharing from 'expo-sharing';
 // 'saved' = web-only, the image downloaded instead; 'unavailable' = no path worked.
 export type ShareOutcome = 'shared' | 'saved' | 'unavailable';
 
-export async function shareScrapbook(image: string): Promise<ShareOutcome> {
+export async function shareScrapbook(image: string, _caption?: string, _weekMeta?: string): Promise<ShareOutcome> {
   try {
     if (!(await Sharing.isAvailableAsync())) return 'unavailable';
+    // A captured keepsake PAGE (the view-shot tmpfile, caption already in its pixels)
+    // shares as-is. The caption/meta params exist for the web variant's canvas composite
+    // and are unused here on purpose: on native the words are baked in before this call.
+    if (/^file:/i.test(image)) {
+      await Sharing.shareAsync(image, { mimeType: 'image/jpeg' });
+      return 'shared';
+    }
     const uri = `${FileSystem.cacheDirectory}doubledone-week.jpg`;
     if (/^https?:/i.test(image)) {
       const dl = await FileSystem.downloadAsync(image, uri);

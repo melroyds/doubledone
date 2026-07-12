@@ -58,6 +58,29 @@ export function weekTitles(byDay: Map<string, { title: string; big?: boolean }[]
   return weekCompletions(byDay, weekStart).map((c) => c.title);
 }
 
+/**
+ * Greedy word-wrap for the keepsake page's caption: break `text` into lines no wider
+ * than `maxWidth` under the injected `measure` (the canvas's measureText on web). A
+ * single over-wide word gets its own line rather than looping forever. Pure, so the
+ * share page's typography is unit-testable without a canvas.
+ */
+export function wrapLines(text: string, maxWidth: number, measure: (s: string) => number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = '';
+  for (const w of words) {
+    const candidate = line ? `${line} ${w}` : w;
+    if (line && measure(candidate) > maxWidth) {
+      lines.push(line);
+      line = w;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
 /** The scrapbook for a given week, if one has been made. */
 export function findScrapbook(books: Scrapbook[], weekStart: string): Scrapbook | undefined {
   return books.find((b) => b.weekStart === weekStart);

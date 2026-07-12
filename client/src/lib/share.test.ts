@@ -42,6 +42,14 @@ describe('shareScrapbook (native): both keepsake image shapes must share', () =>
     expect(mocks.shareAsync).toHaveBeenCalledWith('file:///cache/doubledone-week.jpg', { mimeType: 'image/jpeg' });
   });
 
+  it('a captured keepsake page (file:// tmpfile) shares as-is: no download, no rewrite', async () => {
+    const out = await shareScrapbook('file:///cache/keepsake-page.jpg', 'a quiet week', 'DoubleDone · Week of 6 July');
+    expect(out).toBe('shared');
+    expect(mocks.downloadAsync).not.toHaveBeenCalled();
+    expect(mocks.writeAsStringAsync).not.toHaveBeenCalled();
+    expect(mocks.shareAsync).toHaveBeenCalledWith('file:///cache/keepsake-page.jpg', { mimeType: 'image/jpeg' });
+  });
+
   it('a local data: URL writes its base64 to the cache, then shares', async () => {
     const out = await shareScrapbook('data:image/jpeg;base64,AAAA');
     expect(out).toBe('shared');

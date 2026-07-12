@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
@@ -13,6 +13,7 @@ import { aiErrorLine } from '@/lib/connection';
 import { formatTodayLabel, fromISODate, toISODate } from '@/lib/day';
 import { canMakeScrapbook } from '@/lib/entitlement';
 import { scrapbookReady } from '@/lib/haptics';
+import { captureKeepsakeCard } from '@/lib/keepsake-capture';
 import { lookbackStats } from '@/lib/insights';
 import { fmt, t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
@@ -100,12 +101,20 @@ export default function LookbackScreen() {
   const stats = useMemo(() => lookbackStats(byDay, today), [byDay, today]);
   // The one calm line the share action ever shows (web download / no share path); shared = quiet.
   const [shareNote, setShareNote] = useState<string | null>(null);
+  // The offscreen keepsake PAGE (image + caption band) view-shot captures for sharing (native).
+  const shareCardRef = useRef<View>(null);
 
-  // Share the keepsake image itself, never a link and never the caption text: what leaves
-  // the device is exactly the picture, to the app the user picks on the system sheet.
+  // Share the keepsake PAGE: the image with its caption baked into the pixels (Melroy,
+  // device round 2026-07-12: a bare image with no context is half a keepsake). In pixels,
+  // not as attached message text, because receiving apps (WhatsApp foremost) freely drop
+  // text sent beside an image, while nobody can strip what is part of the picture. Still
+  // never a link, and never raw task titles: the caption is the user-visible scene line
+  // already shown under the keepsake. Native captures the hidden card; web composites the
+  // same page on a canvas; if either fails, the bare image shares exactly as before.
   async function shareWeekScrapbook() {
     if (!existingBook) return;
-    const how = await shareScrapbook(existingBook.image);
+    const page = Platform.OS === 'web' ? null : await captureKeepsakeCard(shareCardRef);
+    const how = await shareScrapbook(page ?? existingBook.image, existingBook.caption, `DoubleDone · ${weekLabel(weekStart)}`);
     track('scrapbook.shared', { how });
     setShareNote(how === 'saved' ? t('lookback.keepsakeSaved') : how === 'unavailable' ? t('lookback.shareUnavailable') : null);
   }
@@ -341,6 +350,20 @@ export default function LookbackScreen() {
               <Text style={styles.shareKeepsake}>{t('lookback.shareKeepsake')}</Text>
             </Pressable>
             {shareNote != null && <Text style={styles.scrapbookMeta}>{shareNote}</Text>}
+            {/* The offscreen keepsake PAGE the share captures (native only; web composites the
+                same page on a canvas). Parked far off-screen, never interactive, and rendered
+                whenever the visible card is, so its image rides the warm cache and view-shot
+                can snapshot it on demand at full 1080 width. Fixed cream palette on purpose:
+                a keepsake page is the same artifact whatever theme the sender was in. */}
+            {Platform.OS !== 'web' && (
+              <View ref={shareCardRef} collapsable={false} pointerEvents="none" style={styles.shareCard}>
+                <Image source={{ uri: existingBook.image }} style={styles.shareCardImage} resizeMode="cover" />
+                <View style={styles.shareCardBand}>
+                  {existingBook.caption.length > 0 && <Text style={styles.shareCardCaption}>{existingBook.caption}</Text>}
+                  <Text style={styles.shareCardMeta}>{`DoubleDone · ${weekLabel(weekStart)}`}</Text>
+                </View>
+              </View>
+            )}
           </>
         ) : weekList.length > 0 ? (
           <View style={styles.inviteWrap}>
@@ -552,6 +575,14 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     paddingHorizontal: spacing.two,
   },
   scrapbookMeta: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+  // The offscreen share page (see the render comment). Fixed cream artifact palette and
+  // fixed 1080 metrics: deliberately NOT theme- or text-scale-dependent, matching the web
+  // canvas composite in share.web.ts so both platforms produce the same keepsake page.
+  shareCard: { position: 'absolute', left: -4000, top: 0, width: 1080, backgroundColor: '#F6F2E9' },
+  shareCardImage: { width: 1080, height: 1080 },
+  shareCardBand: { paddingVertical: 56, paddingHorizontal: 72, gap: 24, alignItems: 'center' },
+  shareCardCaption: { color: '#2F2A23', fontSize: 44, lineHeight: 62, fontFamily: fonts.sans, fontStyle: 'italic', textAlign: 'center' },
+  shareCardMeta: { color: '#8A8172', fontSize: 30, lineHeight: 40, fontFamily: fonts.body, textAlign: 'center' },
   shareKeepsake: {
     color: t.colors.accent,
     fontSize: 15 * t.scale,
