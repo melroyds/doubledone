@@ -347,9 +347,11 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     t.appearance === 'quiet'
       ? { backgroundColor: t.quiet.pressWash, borderRadius: radius.md, borderColor: 'transparent' }
       : { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accentSoft },
-  confirmText: { flex: 1, color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body },
+  // userSelect:'none' on every title-bearing Text so a tap-and-hold (the held-state gesture)
+  // can never start an iOS text selection on the title, native or web (see MarqueeText).
+  confirmText: { flex: 1, color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body, userSelect: 'none' },
   confirmColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.three },
-  confirmTitle: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body },
+  confirmTitle: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body, userSelect: 'none' },
   confirmActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.three },
   keep: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', paddingHorizontal: spacing.two },
   controlOff: { color: t.colors.inkFaint },
@@ -367,7 +369,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   selectDotOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
   tick: { color: t.colors.onAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', lineHeight: 17 * t.scale },
-  text: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale },
+  text: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale, userSelect: 'none' },
   textDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
   repeatMark: { color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
   nudgeMark: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },

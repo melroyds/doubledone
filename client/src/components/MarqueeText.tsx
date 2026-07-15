@@ -11,8 +11,12 @@ type Props = {
 // shows the whole title with zero measurement, zero animation, and no platform quirks. The
 // name is kept to avoid churn, it simply no longer scrolls.
 export function MarqueeText({ text, style }: Props) {
+  // selectable={false} + userSelect:'none': a tap-and-hold on a task (the row's held-state
+  // gesture) otherwise let iOS start a text selection on the title, on the NATIVE app too,
+  // not just iOS Safari (Melroy, TestFlight, 2026-07-15). userSelect is honoured on native
+  // in this RN version, so it forces the title non-selectable on every platform.
   return (
-    <Text numberOfLines={3} style={[styles.title, style]}>
+    <Text numberOfLines={3} selectable={false} style={[styles.title, style]}>
       {text}
     </Text>
   );
@@ -21,5 +25,5 @@ export function MarqueeText({ text, style }: Props) {
 const styles = StyleSheet.create({
   // flex:1 so the title takes the row's remaining width, minWidth:0 so a long word wraps
   // instead of forcing the row (and the page) wider than a narrow viewport.
-  title: { flex: 1, minWidth: 0 },
+  title: { flex: 1, minWidth: 0, userSelect: 'none' },
 });
