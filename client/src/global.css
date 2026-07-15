@@ -22,3 +22,30 @@ body,
 #root {
   font-family: var(--font-body);
 }
+
+/* Native-app feel: DoubleDone is an app, not a document. On iOS Safari (and the
+   home-screen PWA) a tap-and-hold, which is the Today row's held-state gesture,
+   otherwise fires the text-selection loupe plus the Copy / Look Up callout, so the
+   hold both reveals the row actions AND selects the title (Melroy, iOS, 2026-07-15).
+   Suppress selection and the long-press callout app-wide, then re-enable both on
+   real editable fields so the capture box, sign-in, and any input still work
+   normally. Web only: native RN <Text> is non-selectable by default, which is
+   exactly why this bug was iOS-web-specific and never appeared in the native app. */
+html,
+body,
+#root {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+input,
+textarea,
+[contenteditable='true'],
+[contenteditable=''] {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
