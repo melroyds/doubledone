@@ -16,6 +16,23 @@
 
 ## Melroy's dashboard tasks: ALL DONE. From here it is code (Claude).
 
+## OPEN, awaiting Melroy's call: long-press flips the whole screen (iOS, 2026-07-15)
+
+**Symptom (Melroy, TestFlight):** "tapping and holding just forces the screen to the top... it seems very forced." Scroll down, long-press a task, the page jumps back to the top.
+
+**Diagnosis (not primarily a scroll bug).** `onRowLongPress` in `today.tsx` branches on appearance:
+- **Quiet** -> `setConfirmingId(id)`: reveals that row's inline held actions *in place*. Calm, no mode change.
+- **Standard** (what Melroy runs) -> `enterSelectWith(id)`: flips the ENTIRE screen into multi-select. Rows become checkboxes, the action bar appears, other furniture hides, so the content height changes and the ScrollView clamps back to the top. The jump is a symptom; the mode-hijack is the cause.
+
+**Worth noting:** the hold coachmark reads "Hold a task for more: pin it, set a reminder, break it down, or make it tiny", which describes the QUIET held-state actions. Verify whether Standard's select bar actually offers those for a single selection; if not, the coachmark is promising Standard users something long-press does not do, which would argue the Quiet behaviour was the design intent all along.
+
+**Options.**
+- **A (Claude's rec): unify on Quiet's behaviour.** Standard long-press reveals the row's inline held actions; multi-select stays reachable via the existing "Select more" door. Kills the mode-flip AND the scroll jump at the root, makes the gesture consistent across appearances, and matches the coachmark.
+- **B: keep the mode-flip, try to preserve scroll.** Weak: the content genuinely shrinks, so there may be nowhere to hold the position, and it leaves the "very forced" feeling untouched.
+- **C: leave it.**
+
+**Status: NOT changed.** Melroy said park it; this is a design decision, not a patch. Decide, then build.
+
 ## Left for Claude (the code)
 - `react-native-purchases` SDK in the client; App User ID = Supabase id; iOS paywall showing the two products + a "sign in to restore" path for existing Stripe subscribers.
 - Worker route: RevenueCat webhook -> write Apple-sourced Premium into the D1 `entitlements` table (reuse the Stripe entitlement path).

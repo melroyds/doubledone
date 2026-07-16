@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, InputAccessoryView, Keyboard, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { border, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { split } from '@/lib/ai';
@@ -17,6 +17,13 @@ import { Chip } from './Chip';
 import { DatePicker } from './DatePicker';
 import { Mark } from './Mark';
 import { PrimaryButton } from './PrimaryButton';
+
+// The iOS keyboard toolbar's id. The capture is multiline, so iOS's Return key inserts a
+// newline and there is NO native way to put the keyboard away, leaving it stuck over the page
+// (Melroy, iOS, 2026-07-15). InputAccessoryView is the standard iOS answer: a small bar riding
+// above the keyboard with an explicit Done. iOS-only by design (the component does not exist on
+// Android/web, and neither platform has the problem: Android has its back gesture, web a click out).
+const CAPTURE_ACCESSORY_ID = 'ddCaptureAccessory';
 
 type Props = {
   onCapture: (text: string, schedule: CaptureSchedule, slices?: number) => void;
@@ -259,7 +266,17 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
           multiline
           textAlignVertical="top"
           accessibilityLabel={t('capture.inputA11y')}
+          inputAccessoryViewID={Platform.OS === 'ios' ? CAPTURE_ACCESSORY_ID : undefined}
         />
+        {Platform.OS === 'ios' && (
+          <InputAccessoryView nativeID={CAPTURE_ACCESSORY_ID}>
+            <View style={styles.kbBar}>
+              <Pressable onPress={() => Keyboard.dismiss()} accessibilityRole="button" accessibilityLabel={t('common.done')} hitSlop={10}>
+                <Text style={styles.kbDone}>{t('common.done')}</Text>
+              </Pressable>
+            </View>
+          </InputAccessoryView>
+        )}
         {canDictate && (
           <Pressable
             onPress={toggleDictation}
@@ -605,6 +622,18 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body },
   captureRow: { flexDirection: 'row', gap: spacing.two, alignItems: 'flex-start' },
   inputFlex: { flex: 1 },
+  // The iOS keyboard toolbar (see CAPTURE_ACCESSORY_ID): a calm surface strip, Done right-aligned
+  // where an iOS thumb expects it. Never a "cancel", it only lowers the keyboard, it keeps the text.
+  kbBar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    backgroundColor: t.colors.surface,
+    borderTopWidth: border.hair,
+    borderTopColor: t.colors.line,
+    paddingHorizontal: spacing.four,
+    paddingVertical: spacing.two,
+  },
+  kbDone: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
   speak: {
     flexDirection: 'row',
     alignItems: 'center',

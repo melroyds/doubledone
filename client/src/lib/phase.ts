@@ -29,10 +29,19 @@ export const PHASE_GRADIENT: Record<Phase, { light: Stops; dark: Stops }> = {
 };
 
 /** The two light-pool colours per theme: a prominent warm hero glow (peach in light, amber
- *  in dark, anchored at the top like the dawn wash) then a softer rose / mauve lower down. */
+ *  in dark, anchored at the top like the dawn wash) then a softer rose / mauve lower down.
+ *
+ *  DARK is deliberately much softer than light (halved in 2026-07-15). In light the text is
+ *  dark, so a brighter pool only lifts contrast; in dark the text is pale, so a bright pool
+ *  behind BARE text (the close-the-day line, the gauge caption, the foot phrase, none of which
+ *  sit on a card) collapses contrast and the words stop being readable. Melroy hit exactly
+ *  that on iOS, and iOS is where it first showed: the pools are suppressed on Android for an
+ *  unrelated svg bug, so dark-mode phones had never actually rendered them. The legibility
+ *  rule in LivingBackground ("only ever shows in the margins") only holds for card-backed
+ *  text, so the dark pools have to stay quiet enough for bare text to win. */
 export const PHASE_POOLS = {
   light: ['rgba(245,178,116,0.60)', 'rgba(214,148,172,0.34)'] as const,
-  dark: ['rgba(232,150,92,0.36)', 'rgba(170,120,152,0.30)'] as const,
+  dark: ['rgba(232,150,92,0.18)', 'rgba(170,120,152,0.14)'] as const,
 };
 
 /** Geometry for the two light pools, given the viewport. The big hero glow scales with the

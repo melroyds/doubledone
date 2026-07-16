@@ -1411,6 +1411,11 @@ export default function TodayScreen() {
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.seven }]}
         keyboardShouldPersistTaps="handled"
+        // Swipe anywhere on the page to put the keyboard away. The capture box is multiline, so
+        // iOS's Return key inserts a newline instead of dismissing, which left the keyboard stuck
+        // unless you found bare background to tap (Melroy, iOS, 2026-07-15). This is the gesture
+        // iOS users already expect, and it works from anywhere, not just the strip above the box.
+        keyboardDismissMode="on-drag"
       >
         <View style={styles.topBar}>
           <Text style={styles.date}>{formatTodayLabel(today)}</Text>
