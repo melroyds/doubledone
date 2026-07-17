@@ -24,9 +24,14 @@ type Props = {
   onBreakdown?: () => void;
   onDefer?: () => void;
   onMakeTiny?: () => void;
-  onBig?: () => void; // Quiet held-state: mark / unmark this task "a lot" (parity with the select bar)
-  onPin?: () => void; // Quiet held-state: pin / unpin as the day's one priority (Today one-offs only)
-  onSelectMore?: () => void; // Quiet held-state: the door into multi-select (Combine, bulk-move, bulk-complete)
+  onBig?: () => void; // held-state: mark / unmark this task "a lot"
+  onPin?: () => void; // held-state: pin / unpin as the day's one priority (Today one-offs only)
+  onSelectMore?: () => void; // held-state: the door into multi-select (Combine, bulk-move, bulk-complete)
+  onNudge?: () => void; // held-state: set a reminder on this task (native only; the caller gates it)
+  onSteps?: () => void; // held-state: open the "track in steps" editor (split or re-size)
+  onMoveTo?: () => void; // held-state: move this one task to a day of its own
+  onDoneOn?: () => void; // held-state, DONE tasks only: attribute the finish to the earlier day it happened
+  pinDim?: boolean; // free user: Pin shows dimmed rather than absent, so the feature is discoverable, never a wall
   suggestBreakdown?: boolean;
   selecting?: boolean;
   selected?: boolean;
@@ -38,7 +43,8 @@ type Props = {
 };
 
 // A single row. Tap to complete (a soft sage check, gentle fade, never a shaming
-// strike). Long-press to remove, behind a calm Keep / Remove confirm. One-off
+// strike). Long-press to reveal this task's own actions in place (the held card
+// below), which is the ONE single-task surface in both appearances. One-off
 // (unique) tasks get a solid coloured border; repeating tasks stay plain but carry
 // the repeat mark. Same periwinkle accent either way.
 //
@@ -64,6 +70,11 @@ export function TaskRow({
   onBig,
   onPin,
   onSelectMore,
+  onNudge,
+  onSteps,
+  onMoveTo,
+  onDoneOn,
+  pinDim,
   suggestBreakdown,
   selecting,
   selected,
@@ -103,71 +114,122 @@ export function TaskRow({
     );
   }
   if (confirming) {
-    // A sliced task's hold reveals its quiet controls: step a slice back (the only
-    // place the "minus" lives now), or remove. The count updates live as you step.
-    if (slices) {
-      return (
-        <View style={[styles.row, styles.confirmRow]}>
-          <Text style={styles.confirmText} numberOfLines={1}>
-            {`${title}  ·  ${slices.done} / ${slices.total}`}
-          </Text>
-          <Pressable
-            onPress={onRetreat}
-            disabled={slices.done <= 0}
-            accessibilityRole="button"
-            accessibilityLabel={t('today.stepBackLabel', { title })}
-            hitSlop={{ top: 12, bottom: 12 }}
-          >
-            <Text style={[styles.keep, slices.done <= 0 && styles.controlOff]}>{t('today.undoAStep')}</Text>
-          </Pressable>
-          <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={t('today.removeTaskLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
-            <Text style={styles.remove}>{t('common.remove')}</Text>
-          </Pressable>
-          <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel={t('common.close')} hitSlop={{ top: 12, bottom: 12 }}>
-            <Text style={styles.close}>{t('common.close')}</Text>
-          </Pressable>
-        </View>
-      );
-    }
-    // Title over a row of actions, so the one-off case (Tomorrow / Break down /
-    // Keep / Remove) fits without crushing the title on a narrow phone.
+    // THE single-task surface, identical in both appearances: this task's own actions, in
+    // place, from one hold. Nothing else on the screen moves, so there is no mode to leave
+    // and nothing to scroll back to. Multi-select is a deliberate door ("Select more"), not
+    // what a hold does to you.
+    //
+    // Grouped by the question the user is actually asking, because eleven flat links is the
+    // overwhelm the spine forbids: WHEN (not today?), SIZE (too big?), WEIGHT (does this
+    // matter?), then the terminal pair under a hairline so a reflex tap never lands on
+    // Remove. Never more than three to a line, and each line renders only if it holds
+    // something. No line labels: the grouping is carried by the breaks alone (words there
+    // would be the clutter they are meant to prevent).
+    const canDefer = Boolean(onDefer && !recurring);
+    const canMoveTo = Boolean(onMoveTo && !recurring);
+    const canUndoStep = Boolean(onRetreat && slices);
+    // A task already split into steps does not need decomposing again.
+    const canBreakdown = Boolean(onBreakdown && !recurring && !slices);
+    const canSteps = Boolean(onSteps && !recurring);
+    const canTiny = Boolean(onMakeTiny && !recurring);
+    const canPin = Boolean(onPin && !recurring);
+    // "a lot" is a leaf mark and a recurring chore can absolutely be a lot (the bulk bar has
+    // always allowed it), so this one carries no recurring guard.
+    const whenLine = done ? Boolean(onDoneOn) : canDefer || canMoveTo || Boolean(onNudge);
+    const sizeLine = !done && (canUndoStep || canBreakdown || canSteps || canTiny);
+    const weightLine = !done && (canPin || Boolean(onBig));
     return (
       <View style={[styles.row, styles.confirmRow, styles.confirmColumn]}>
         <Text style={styles.confirmTitle} numberOfLines={2}>
-          {title}
+          {slices ? `${title}  ·  ${slices.done} / ${slices.total}` : title}
         </Text>
-        <View style={styles.confirmActions}>
-          {onDefer && !recurring && (
-            <Pressable onPress={onDefer} accessibilityRole="button" accessibilityLabel={t('today.moveToTomorrowLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
-              <Text style={styles.keep}>{t('common.tomorrow')}</Text>
-            </Pressable>
-          )}
-          {onBig && !recurring && (
-            <Pressable onPress={onBig} accessibilityRole="button" accessibilityLabel={big ? t('today.unmarkBigA11y') : t('today.markBigA11y')} hitSlop={{ top: 12, bottom: 12 }}>
-              <Text style={styles.keep}>{big ? t('today.notALot') : t('today.markAsALot')}</Text>
-            </Pressable>
-          )}
-          {onMakeTiny && !recurring && (
-            <Pressable onPress={onMakeTiny} accessibilityRole="button" accessibilityLabel={t('today.makeTinyLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
-              <Text style={styles.keep}>{t('actions.makeItTiny')}</Text>
-            </Pressable>
-          )}
-          {onBreakdown && !recurring && (
-            <Pressable onPress={onBreakdown} accessibilityRole="button" accessibilityLabel={t('breakdown.breakDownTaskLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
-              <Text style={styles.keep}>{t('breakdown.breakDown')}</Text>
-            </Pressable>
-          )}
-          {onPin && !recurring && (
-            <Pressable onPress={onPin} accessibilityRole="button" accessibilityLabel={pinned ? t('today.unpinA11y') : t('today.pinA11y')} hitSlop={{ top: 12, bottom: 12 }}>
-              <Text style={styles.keep}>{pinned ? t('today.unpin') : t('today.pin')}</Text>
-            </Pressable>
-          )}
+        {whenLine && (
+          <View style={styles.confirmActions}>
+            {/* A finished task is offered no Done (tapping the row is the one way to finish
+                a thing), only the honest correction: which day it actually happened. */}
+            {done && onDoneOn && (
+              <Pressable onPress={onDoneOn} accessibilityRole="button" accessibilityLabel={t('today.doneOnA11y', { title })} hitSlop={{ top: 12, bottom: 12 }}>
+                <Text style={styles.keep}>{t('today.doneOn')}</Text>
+              </Pressable>
+            )}
+            {!done && canDefer && (
+              <Pressable onPress={onDefer} accessibilityRole="button" accessibilityLabel={t('today.moveToTomorrowLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
+                <Text style={styles.keep}>{t('common.tomorrow')}</Text>
+              </Pressable>
+            )}
+            {!done && canMoveTo && (
+              <Pressable onPress={onMoveTo} accessibilityRole="button" accessibilityLabel={t('today.moveSelectedA11y')} hitSlop={{ top: 12, bottom: 12 }}>
+                <Text style={styles.keep}>{t('today.moveTo')}</Text>
+              </Pressable>
+            )}
+            {!done && onNudge && (
+              <Pressable onPress={onNudge} accessibilityRole="button" accessibilityLabel={t('reminders.remindMeA11y')} hitSlop={{ top: 12, bottom: 12 }}>
+                <Text style={styles.keep}>{t('reminders.remindMe')}</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+        {sizeLine && (
+          <View style={styles.confirmActions}>
+            {canUndoStep && slices && (
+              <Pressable
+                onPress={onRetreat}
+                disabled={slices.done <= 0}
+                accessibilityRole="button"
+                accessibilityLabel={t('today.stepBackLabel', { title })}
+                hitSlop={{ top: 12, bottom: 12 }}
+              >
+                <Text style={[styles.keep, slices.done <= 0 && styles.controlOff]}>{t('today.undoAStep')}</Text>
+              </Pressable>
+            )}
+            {canBreakdown && (
+              <Pressable onPress={onBreakdown} accessibilityRole="button" accessibilityLabel={t('breakdown.breakDownTaskLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
+                <Text style={styles.keep}>{t('breakdown.breakDown')}</Text>
+              </Pressable>
+            )}
+            {canSteps && (
+              <Pressable onPress={onSteps} accessibilityRole="button" accessibilityLabel={slices ? t('today.changeStepsA11y') : t('today.splitStepsA11y')} hitSlop={{ top: 12, bottom: 12 }}>
+                <Text style={styles.keep}>{t('today.steps')}</Text>
+              </Pressable>
+            )}
+            {canTiny && (
+              <Pressable onPress={onMakeTiny} accessibilityRole="button" accessibilityLabel={t('today.makeTinyLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
+                <Text style={styles.keep}>{t('actions.makeItTiny')}</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+        {weightLine && (
+          <View style={styles.confirmActions}>
+            {canPin && (
+              <Pressable onPress={onPin} accessibilityRole="button" accessibilityLabel={pinned ? t('today.unpinA11y') : t('today.pinA11y')} hitSlop={{ top: 12, bottom: 12 }}>
+                {/* Dimmed, not hidden, for a free user: a visible feature that costs a calm
+                    detour is kinder than one that is simply absent. */}
+                <Text style={[styles.keep, pinDim && styles.controlOff]}>{pinned ? t('today.unpin') : t('today.pin')}</Text>
+              </Pressable>
+            )}
+            {onBig && (
+              <Pressable onPress={onBig} accessibilityRole="button" accessibilityLabel={big ? t('today.unmarkBigA11y') : t('today.markBigA11y')} hitSlop={{ top: 12, bottom: 12 }}>
+                <Text style={styles.keep}>{big ? t('today.notALot') : t('today.markAsALot')}</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+        <View style={styles.terminalLine}>
+          {/* A door, not a verb, so it reads faint and left. Leaving is always the safe act, so
+              Close takes the accent and the thumb's corner. */}
           {onSelectMore && (
             <Pressable onPress={onSelectMore} accessibilityRole="button" accessibilityLabel={t('today.selectMoreA11y')} hitSlop={{ top: 12, bottom: 12 }}>
               <Text style={styles.keep}>{t('today.selectMore')}</Text>
             </Pressable>
           )}
-          <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={t('today.removeTaskLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
+          <View style={styles.spacer} />
+          <Pressable
+            onPress={onRemove}
+            accessibilityRole="button"
+            accessibilityLabel={recurring ? t('repeat.skipTodayA11y', { title }) : t('today.removeTaskLabel', { title })}
+            hitSlop={{ top: 12, bottom: 12 }}
+          >
             <Text style={styles.remove}>{t('common.remove')}</Text>
           </Pressable>
           <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel={t('common.close')} hitSlop={{ top: 12, bottom: 12 }}>
@@ -347,12 +409,23 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     t.appearance === 'quiet'
       ? { backgroundColor: t.quiet.pressWash, borderRadius: radius.md, borderColor: 'transparent' }
       : { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accentSoft },
+  confirmColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.three },
   // userSelect:'none' on every title-bearing Text so a tap-and-hold (the held-state gesture)
   // can never start an iOS text selection on the title, native or web (see MarqueeText).
-  confirmText: { flex: 1, color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body, userSelect: 'none' },
-  confirmColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.three },
   confirmTitle: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body, userSelect: 'none' },
   confirmActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.three },
+  // The way out, held below a hairline and away from the rest, so a reflex tap after an
+  // action can never land on Remove.
+  terminalLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.three,
+    borderTopWidth: border.hair,
+    borderColor: t.appearance === 'quiet' ? t.quiet.hairline : t.colors.line,
+    paddingTop: spacing.two,
+  },
+  spacer: { flex: 1 },
   keep: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', paddingHorizontal: spacing.two },
   controlOff: { color: t.colors.inkFaint },
   close: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', paddingHorizontal: spacing.two },

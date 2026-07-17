@@ -16,7 +16,13 @@
 
 ## Melroy's dashboard tasks: ALL DONE. From here it is code (Claude).
 
-## OPEN, awaiting Melroy's call: long-press flips the whole screen (iOS, 2026-07-15)
+## RESOLVED 2026-07-17 (branch `held-state`, awaiting Melroy's device pass): long-press flipped the whole screen (iOS, 2026-07-15)
+
+**The fix that shipped: A+.** One in-place held card, both appearances, carrying every single-task action (Remind me / Steps / Move to… now wired to the row's own id, which is what made plain "A" a regression). Grouped into four lines (when / size / weight / terminal-under-a-hairline) so 11 controls read as four chunks; measured at 375px, no line wraps. The select bar is demoted to genuinely-bulk (Done / Move to… / A lot / Combine / Remove). The jump dies at the root: a hold no longer changes modes, so the day-action blocks never unmount and the page never shortens. Full reasoning in `decision-log.md` (2026-07-17). The analysis below is KEPT deliberately: it is the record of why the obvious fix was the wrong one.
+
+---
+
+### The original analysis (kept: the wrong first diagnosis is the useful part)
 
 **Symptom (Melroy, TestFlight):** "tapping and holding just forces the screen to the top... it seems very forced." Scroll down, long-press a task, the page jumps back to the top.
 
@@ -35,7 +41,7 @@
 - **B: stop the jump only.** Would mean not hiding those blocks (clutter, and they are wrong in select mode) or reserving their height with a spacer (a hack that leaves a gap). Does not touch the "forced" feeling.
 - **C: leave it.** It is an annoyance, not breakage, and everything works.
 
-**Status: NOT changed, nothing shipped.** Recommendation: **C for now, A+ queued as a proper design increment.** Do not patch this one.
+**Status (superseded 2026-07-17): A+ was built.** Melroy: "I want a real fix. Do that." See the RESOLVED note at the top of this section.
 
 ## Left for Claude (the code)
 - `react-native-purchases` SDK in the client; App User ID = Supabase id; iOS paywall showing the two products + a "sign in to restore" path for existing Stripe subscribers.

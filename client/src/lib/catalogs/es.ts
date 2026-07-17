@@ -877,7 +877,7 @@ export const es: Catalog = {
     promiseBody: 'Y nada aquí te hará sentir mal por una tarea que simplemente existe. Sin rachas, sin culpa, sin rojos.',
     revealAllTodayNote: 'Todo empieza en hoy. Mueve lo que necesites a mañana, o más adelante, cuando quieras.',
     revealBreakdownHint: '¿Parece grande? ¿La dividimos en pasos?',
-    revealCombineHint: '¿Varias tareas que van juntas? Mantén pulsada una, elige las demás y combínalas.',
+    revealCombineHint: '¿Varias tareas que van juntas? Mantén pulsada una, toca Seleccionar más, elige las demás y combínalas.',
     revealCount: '{count} para hoy.',
     revealHeading: 'Aquí está tu hoy, en su justa medida.',
     revealLaterLine: 'Después · {count} en espera',
