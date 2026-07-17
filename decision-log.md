@@ -1393,13 +1393,13 @@ Melroy's question, ahead of building Cluster B: do we permanently decompose a ta
 
 The first ADHD-seam cluster, built first because it is small, zero-token (pure client UI, copy, and state, no Claude call), and serves the most underserved corner of the audience. Both are completion-moment micro-interactions.
 
-**Done is done.** The OCD checking loop ("did I really do it?") is countered by a brief, calm affirmation on completion: "Done is done. Recorded." It fires from every completion path (a single tap, the select-bar "Done", and both Good-enough entries), auto-clears after 3.5s, and renders as a quiet centred line by the capture (the `sortSummary` slot). Consistent, NOT rotating: the "do NOT build" list forbids variable / surprise rewards (autism needs predictability), so the same line every time is the on-brand call, reassurance over delight.
+**Done is done.** The OCD checking loop ("did I really do it?") is countered by a brief, calm affirmation on completion: "Done is done. Recorded." It fires from every completion path (a single tap, the select-bar "Done", and both Good-enough entries), auto-clears after 3.5s, and renders as a quiet centred line by the capture (the `sortSummary` slot). Consistent, NOT rotating: the "do NOT build" list forbids variable / surprise rewards (autism needs predictability), so the same line every time is the on-brand call, reassurance over delight. **[SUPERSEDED 2026-06-27, see that entry: Melroy reversed this and the line now rotates through a fixed pool of eight. The guardrail it cites survives, a deterministic rotation is not a variable reward, but this paragraph is no longer what the code does.]**
 
 **Good enough.** Permission to release a task you are stuck perfecting (the OCD perfectionism that stops you ticking it). A "Good enough" action completes the task with a gentler line ("Good enough is done. Let it go."). Placed in the two per-task action surfaces: the long-press confirm menu in `TaskRow` (reaches the Later list) and the select bar as a single-select action (the Today path, since Today's long-press enters select mode, not the confirm menu). Gated to incomplete one-offs.
 
 Implementation: a small `affirmation` state + an `affirm()` helper (one `setTimeout`, a ref so a fresh completion is never cut short by an older clear, and no effect so the React Compiler stays clean). `goodEnough(id)` reuses `toggle`, then overrides the affirmation. Telemetry `goodenough.used` (the moat; `task.toggled` / `bulk.completed` already fire). Zero AI, zero tokens, zero new dependency.
 
-Decided against: a rotating set of affirmations (the predictability guardrail); a popup or modal (friction, and the spine removes friction); and a persistent "recorded" badge on every done row (clutter). The ephemeral line is enough.
+Decided against: a rotating set of affirmations (the predictability guardrail) **[REVERSED 2026-06-27]**; a popup or modal (friction, and the spine removes friction); and a persistent "recorded" badge on every done row (clutter). The ephemeral line is enough.
 
 Verification: typecheck / lint / 363 tests green, and the app loads with no console errors. The headless preview cannot drive RN web's pointer-responder taps, so the in-the-moment affirmation and the Good-enough flow are Melroy's on-device check (like the live mic was). Manual cases OCD-01 / OCD-02 added.
 
@@ -3052,6 +3052,18 @@ Melroy's review of the overnight work, three calls:
   "Good enough is done. Let it go.", and more), so the reassurance never feels canned and still carries the
   gentle release. Pure + tested (doneAffirmation rotates and wraps; every line calm, no exclamation); the
   counter is a ref on the screen.
+  **[Annotated 2026-07-18. This REVERSES the 2026-06-22 call above, which chose one fixed line precisely
+  because "the do NOT build list forbids variable / surprise rewards (autism needs predictability)" and
+  explicitly decided against "a rotating set of affirmations (the predictability guardrail)". The reversal
+  stands: it is Melroy's own review call and it is defensible. `doneAffirmation(n)` is `KEYS[n % 8]`, a
+  DETERMINISTIC cycle by completion count, with no randomness, no escalation, no score, and every line in
+  the same calm register, so there is nothing to chase and the anti-variable-reward guardrail is intact.
+  What the reversal did NOT address is the other half of the original reasoning, literal predictability for
+  the autistic side: you no longer know which of eight lines you will see, even though you can never be
+  surprised by one. Judged an acceptable trade (variety of WORDING, not of reward), and written down here
+  rather than left implicit. The cost of never recording it was real: manual case OCD-01 went on asserting
+  "the SAME line every time" for three weeks, because the 06-22 entry still read as authoritative. A tester
+  following it would have filed a false bug against correct code. Both fixed 2026-07-18.]**
 - **Onboarding list symmetry** (screens 4 + 6). The netRow flex-wrapped name + description inline, so a short
   pair ("Chart a course", "Lighten today") sat on one line while longer ones wrapped, an asymmetry Melroy
   disliked. Now a column: name on its own line, description beneath, every item identical.
