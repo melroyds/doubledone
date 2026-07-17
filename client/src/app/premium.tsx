@@ -8,9 +8,11 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { useSession } from '@/lib/auth';
 import { weeklyAllowance } from '@/lib/entitlement';
+import { purchaseGate } from '@/lib/iap';
 import { t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
-import { startCheckout, startPortal, startTrial } from '@/lib/stripe';
+import { buy, IAP_AVAILABLE, loadOffers, openAppleSubscriptions, restore, type StoreOffer } from '@/lib/purchases';
+import { loadEntitlement, startCheckout, startPortal, startTrial } from '@/lib/stripe';
 import { track } from '@/lib/telemetry';
 import { useThemedStyles } from '@/lib/theme-provider';
 
@@ -60,6 +62,20 @@ export default function PremiumScreen() {
   const [stuck, setStuck] = useState(false);
   const [plan, setPlan] = useState<'monthly' | 'annual'>('monthly'); // which price the checkout opens
   const [trialNote, setTrialNote] = useState<string | null>(null); // gentle note after a trial tap (e.g. already used)
+
+  // --- Apple IAP (iOS only). Every line below is inert on web + Android: IAP_AVAILABLE is a
+  // compile-time false there (it comes from lib/purchases.ts, not lib/purchases.ios.ts), so the
+  // Stripe path this screen has always run is untouched by construction. ---
+  const [offers, setOffers] = useState<StoreOffer[]>([]); // from the StoreKit offering; empty off iOS
+  const [restoreMsg, setRestoreMsg] = useState<string | null>(null); // the honest, visible outcome of a Restore tap
+  useEffect(() => {
+    if (!IAP_AVAILABLE) return;
+    void loadOffers().then(setOffers);
+  }, []);
+  const offer = offers.find((o) => o.plan === plan);
+  // What the primary CTA should do, given sign-in + entitlement state. On web/Android this is
+  // always 'hidden' (IAP off), so the existing Stripe CTA renders instead.
+  const gate = purchaseGate({ iapAvailable: IAP_AVAILABLE, signedIn: Boolean(session), loading, premium });
   useEffect(() => {
     if (status !== 'success' || premium) return;
     let tries = 0;
@@ -74,10 +90,59 @@ export default function PremiumScreen() {
     return () => clearInterval(timer);
   }, [status, premium, refresh]);
 
+  // iOS purchase via StoreKit (RevenueCat). The RevenueCat webhook flips D1, then the existing
+  // success-poll below picks it up. The DOUBLE-CHARGE GUARD is the fresh entitlement read right
+  // before buy(): a user who bought on the web (Stripe) then opens iOS reads as free from an
+  // anonymous client, and Apple cannot know about that Stripe sub. The provider's refresh() does
+  // not block the UI, so we re-read HERE, synchronously in this flow, before any charge.
+  async function subscribeApple() {
+    const offer = offers.find((o) => o.plan === plan);
+    if (!offer) {
+      setError(t('premium.iapUnavailable'));
+      return;
+    }
+    const fresh = await loadEntitlement();
+    if (fresh.premium) {
+      refresh(); // already entitled (Stripe, trial, comp): never charge a second time
+      return;
+    }
+    track('premium.checkout_started', { plan, store: 'apple' });
+    const res = await buy(offer.packageId);
+    if (res.ok) {
+      router.setParams({ status: 'success' }); // reuse the existing "setting up" poll for the webhook lag
+      refresh();
+      return;
+    }
+    // A cancel shows nothing at all (the user backed out). Everything else gets a calm, specific line.
+    switch (res.code) {
+      case 'cancelled':
+        break;
+      case 'pending':
+        setError(t('premium.purchasePending'));
+        break;
+      case 'already_owned':
+        setError(t('premium.purchaseAlreadyOwned'));
+        break;
+      case 'not_allowed':
+        setError(t('premium.purchaseNotAllowed'));
+        break;
+      case 'store_down':
+        setError(t('premium.purchaseStoreDown'));
+        break;
+      default:
+        setError(t('premium.purchaseCouldNotFinish'));
+    }
+  }
+
   async function subscribe() {
     if (busy) return;
     setBusy(true);
     setError(null);
+    if (IAP_AVAILABLE) {
+      await subscribeApple();
+      setBusy(false);
+      return;
+    }
     track('premium.checkout_started', { plan });
     const res = await startCheckout(plan);
     if (!res.ok) {
@@ -96,6 +161,33 @@ export default function PremiumScreen() {
     } else {
       void Linking.openURL(res.url);
       setBusy(false);
+    }
+  }
+
+  // Restore a purchase already made on this Apple ID. Gated behind sign-in for the SAME reason as
+  // Buy: an anonymous restore lands the receipt on the anonymous RevenueCat customer, the webhook
+  // refuses to write it, and the user stays free. Always shows a visible, honest outcome (Apple
+  // rejects a Restore control that appears to do nothing).
+  async function restorePurchases() {
+    if (busy) return;
+    if (!session) {
+      setRestoreMsg(t('premium.restoreSignIn'));
+      router.push('/sign-in');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setRestoreMsg(t('premium.restoring'));
+    track('premium.restore_tapped');
+    const res = await restore();
+    setBusy(false);
+    if (res.ok && res.premium) {
+      setRestoreMsg(t('premium.restoreRestored'));
+      refresh();
+    } else if (res.ok) {
+      setRestoreMsg(t('premium.restoreNothingFound'));
+    } else {
+      setRestoreMsg(t('premium.restoreFailed'));
     }
   }
 
@@ -123,9 +215,20 @@ export default function PremiumScreen() {
 
   async function manage() {
     if (busy) return;
+    track('premium.manage_opened');
+    // An Apple subscription is managed in Apple's settings, never Stripe's portal.
+    if (effectiveEntitlement.source === 'apple') {
+      if (IAP_AVAILABLE) {
+        void openAppleSubscriptions(); // on the iPhone: opens Apple's Manage Subscriptions sheet
+      } else {
+        // an Apple subscriber looking at the web / Android app: no portal exists for them, so say
+        // where it lives rather than 404ing Stripe's portal (the bug the `source` column fixes)
+        setError(t('premium.appleManageElsewhere'));
+      }
+      return;
+    }
     setBusy(true);
     setError(null);
-    track('premium.manage_opened');
     const res = await startPortal();
     if (!res.ok) {
       setError(res.error === 'sign_in' ? t('premium.errorPortalSignIn') : t('premium.errorPortalFailed'));
@@ -260,15 +363,32 @@ export default function PremiumScreen() {
                 </Pressable>
               </View>
             )}
+            {/* On iOS the price MUST come from StoreKit (currency-correct for the viewer's storefront,
+                and the real A$4.99, not the catalog's rounded "A$5"). Off iOS, the catalog price. */}
             <Text style={styles.price}>
-              {plan === 'annual' ? t('premium.priceAnnual') : t('premium.priceMonthly')}
+              {IAP_AVAILABLE
+                ? offer
+                  ? plan === 'annual'
+                    ? t('premium.applePerYear', { price: offer.priceString })
+                    : t('premium.applePerMonth', { price: offer.priceString })
+                  : t('premium.iapUnavailable')
+                : plan === 'annual'
+                  ? t('premium.priceAnnual')
+                  : t('premium.priceMonthly')}
             </Text>
 
-            {session ? (
+            {gate === 'sign_in' ? (
+              <PrimaryButton
+                label={t('premium.signInToGoPremium')}
+                onPress={() => router.push('/sign-in')}
+                accessibilityLabel={t('premium.signInToGoPremium')}
+                style={styles.ctaSpace}
+              />
+            ) : session ? (
               <PrimaryButton
                 label={busy ? t('premium.openingCheckout') : t('premium.goPremium')}
                 onPress={subscribe}
-                disabled={busy}
+                disabled={busy || (IAP_AVAILABLE && !offer)}
                 accessibilityLabel={plan === 'annual' ? t('premium.subscribeAnnualA11y') : t('premium.subscribeMonthlyA11y')}
                 style={styles.ctaSpace}
               />
@@ -296,14 +416,45 @@ export default function PremiumScreen() {
             <Text style={styles.foot}>
               {session ? t('premium.footSignedIn') : t('premium.footSignedOut')}
             </Text>
-            <Pressable
-              onPress={() => router.push('/terms')}
-              accessibilityRole="button"
-              accessibilityLabel={t('premium.termsLinkA11y')}
-              hitSlop={6}
-            >
-              <Text style={styles.foot}>{t('premium.billedViaStripe')}</Text>
-            </Pressable>
+
+            {IAP_AVAILABLE ? (
+              // Apple's App Store requires the paywall itself to carry: how it renews, and functional
+              // Terms + Privacy links (Schedule 2 §3.8(b)). Price + period are shown above from StoreKit.
+              // A visible Restore is here too (Apple rejects a paywall with no restore path). No Stripe.
+              <>
+                <Text style={styles.foot}>{t('premium.appleRenewalTerms')}</Text>
+                <Text style={styles.foot}>{t('premium.appleStoreNote')}</Text>
+                <View style={styles.legalRow}>
+                  <Pressable onPress={() => router.push('/terms')} accessibilityRole="button" accessibilityLabel={t('premium.termsLinkA11y')} hitSlop={6}>
+                    <Text style={styles.legalLink}>{t('premium.termsLink')}</Text>
+                  </Pressable>
+                  <Text style={styles.foot}>·</Text>
+                  <Pressable onPress={() => router.push('/privacy')} accessibilityRole="button" accessibilityLabel={t('premium.privacyLinkA11y')} hitSlop={6}>
+                    <Text style={styles.legalLink}>{t('premium.privacyLink')}</Text>
+                  </Pressable>
+                </View>
+                <Pressable
+                  onPress={restorePurchases}
+                  disabled={busy}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('premium.restorePurchasesA11y')}
+                  hitSlop={6}
+                  style={styles.restoreLink}
+                >
+                  <Text style={styles.restoreLinkText}>{t('premium.restorePurchases')}</Text>
+                </Pressable>
+                {restoreMsg ? <Text style={styles.trialNoteText}>{restoreMsg}</Text> : null}
+              </>
+            ) : (
+              <Pressable
+                onPress={() => router.push('/terms')}
+                accessibilityRole="button"
+                accessibilityLabel={t('premium.termsLinkA11y')}
+                hitSlop={6}
+              >
+                <Text style={styles.foot}>{t('premium.billedViaStripe')}</Text>
+              </Pressable>
+            )}
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </View>
         )}
@@ -360,6 +511,12 @@ const makeStyles = (t: Theme) =>
     trialLink: { marginTop: spacing.three, alignSelf: 'center' },
     trialLinkText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     trialNoteText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.two },
+    // iOS Apple-disclosure block: the Terms · Privacy row (required, functional links) and the
+    // visible Restore control.
+    legalRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, marginTop: spacing.one },
+    legalLink: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textDecorationLine: 'underline' },
+    restoreLink: { marginTop: spacing.three, alignSelf: 'center' },
+    restoreLinkText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     ctaSpace: { marginTop: spacing.two },
     foot: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },
     subStatus: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale },
