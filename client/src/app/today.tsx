@@ -103,7 +103,10 @@ export default function TodayScreen() {
   const [didOpen, setDidOpen] = useState(false);
   const [didText, setDidText] = useState('');
   const [closeNote, setCloseNote] = useState('');
-  const [moveToOpen, setMoveToOpen] = useState(false);
+  // The tasks the Move-to picker is about, captured when it opens: one task from a held card, or
+  // the whole selection from the bulk bar. Non-null opens the picker. Held as ids (not read back
+  // off `selected`) so a single-task move is not silently a zero-task move.
+  const [moveIds, setMoveIds] = useState<string[] | null>(null);
   const [doneOnId, setDoneOnId] = useState<string | null>(null); // the task being marked "Done on…" an earlier day; non-null opens the picker modal
   const [combineOpen, setCombineOpen] = useState(false); // the Combine review modal
   const [combineTitle, setCombineTitle] = useState(''); // the editable umbrella title (AI-suggested)
@@ -114,6 +117,7 @@ export default function TodayScreen() {
   const [manualBdTitle, setManualBdTitle] = useState(''); // its title, for the modal heading
   const [manualBdText, setManualBdText] = useState(''); // the typed steps, one per line
   const [nudgeOpen, setNudgeOpen] = useState(false);
+  const [nudgeId, setNudgeId] = useState<string | null>(null); // the task the reminder is for, captured at open time (pickNudge awaits, so a derived read could shift under it)
   const [nudgePresets, setNudgePresets] = useState<NudgePreset[]>([]);
   const [sliceEditOpen, setSliceEditOpen] = useState(false); // the "track in steps" editor (split a task into parts)
   const [sliceEditCount, setSliceEditCount] = useState(MIN_SLICES);
@@ -414,7 +418,10 @@ export default function TodayScreen() {
   const todayDone = useMemo(() => completionsByDay(tasks).get(toISODate(today)) ?? [], [tasks, today]);
   // One-off, undone tasks on Today: the ones Strategise can re-spread (recurring stay by cadence).
   const spreadable = visible.filter((t) => !isRecurring(t) && !isDoneOn(t, today));
-  const onlyTask = selected.length === 1 ? visible.find((t) => t.id === selected[0]) : undefined;
+  // Kept for exactly ONE consumer now that every single-task action lives on the held card: the
+  // recurring-aware Remove label on the bulk bar. Searches all tasks (not just Today's) so a lone
+  // selected Later repeat is still labelled honestly.
+  const onlyTask = selected.length === 1 ? tasks.find((t) => t.id === selected[0] && !t.deletedAt) : undefined;
   // For the multi-select "Big" toggle: true when every selected task is already big, so the action flips to
   // "Not big" (clear); a mixed or empty selection marks all big (the additive, validating default).
   const allBig = selected.length > 0 && selected.every((id) => tasks.find((t) => t.id === id)?.big);
@@ -491,8 +498,7 @@ export default function TodayScreen() {
   // finished, so the Lookback attributes it honestly. This is bookkeeping, not a fresh
   // win: the quiet affirmation only, never the bloom or a haptic celebration.
   function openDoneOn(id: string) {
-    setConfirmingId(null);
-    exitSelect(); // reached from the select bar; the picker takes over from here
+    dismissActions(); // the picker takes over from here
     setDoneOnId(id);
   }
 
@@ -601,12 +607,11 @@ export default function TodayScreen() {
     commit(setPin(tasks, id, nowMs())); // the at-most-one invariant + the updatedAt bumps live in setPin (pure, tested)
     track(wasPinned ? 'task.unpinned' : 'task.pinned');
     affirm(wasPinned ? t('today.unpinnedAffirm') : t('today.pinnedAffirm'));
-    exitSelect();
+    dismissActions();
   }
 
-  // Tap-and-hold a task to enter selection with that task already picked, then act
-  // on one or several at once. This is the calm "clear a few quickly" path; it
-  // replaces both the old long-press single-task menu and the Select-several button.
+  // Multi-select: act on several tasks at once. Only ever reached deliberately, from a held
+  // row's "Select more", so it always starts at 1 and is meant for 2+.
   // Android carries the long-press through the row's re-render into select mode, so the
   // thumb-lift then fires onSelect on the now-select row and would toggle the id straight
   // back off. selectGuard remembers the just-selected id so toggleSelect swallows that one.
@@ -615,35 +620,36 @@ export default function TodayScreen() {
     setSelectMode(true);
     setSelected([id]);
     selectGuard.current = { id, at: nowMs() };
-    track('select.opened');
+    // Kept as "select.opened" (renaming forfeits the history), but its meaning narrows here from
+    // "someone held a task" to "someone wants BULK": the prop keeps that legible in the data.
+    track('select.opened', { from: 'select_more' });
   }
-  // Long-press splits by appearance: Standard opens the full-screen multi-select (batch actions in
-  // the footer); Quiet reveals the row's own inline held actions in place (the calmer per-row model),
-  // reusing the existing confirming state. Additive and reversible; Standard is unchanged.
+  // ONE gesture, ONE meaning: a hold reveals that row's own actions, in place, in both
+  // appearances. It deliberately changes NOTHING else on the screen, which is the whole
+  // point: the page keeps its height, so it can never lurch back to the top the way the
+  // old mode-flip did (that hid the day actions, shortened the page, and the ScrollView
+  // clamped to 0). Bulk is a door you walk through, not a room you get thrown into.
   function onRowLongPress(id: string) {
-    if (theme.appearance === 'quiet') setConfirmingId(id);
-    else enterSelectWith(id);
+    setConfirmingId(id);
+    track('hold.opened');
   }
-  // Quiet's held-state carries the single-task shaping actions the multi-select bar has.
-  // Both act-and-dismiss (the row stays put, so we close the held-state ourselves).
+  // The held card carries the single-task shaping actions. All act-and-dismiss (the row stays
+  // put, so we close the card ourselves).
   function bigRow(task: Task) {
     markBig([task.id], !task.big);
-    setConfirmingId(null);
   }
   function pinRow(task: Task) {
     if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
-    // Quiet is premium-gated, but a lapsed subscriber keeps the appearance, so honour the same gate.
     if (task.pinnedAt == null && !premium) {
       track('premium.gate_hit', { reason: 'pin' });
       router.push('/premium');
-      setConfirmingId(null);
+      dismissActions();
       return;
     }
     pinTask(task.id);
-    setConfirmingId(null);
   }
-  // The door out of the single-row held-state into multi-select, so Quiet keeps the bulk
-  // actions (Combine, move several to a day, tick several off) that only make sense on 2+.
+  // The door out of the single-row held-state into multi-select, for the bulk actions
+  // (Combine, move several to a day, tick several off) that only make sense on 2+.
   function selectFromRow(id: string) {
     setConfirmingId(null);
     enterSelectWith(id);
@@ -651,6 +657,13 @@ export default function TodayScreen() {
   function exitSelect() {
     setSelectMode(false);
     setSelected([]);
+  }
+  // Close whatever single-task surface is open, without the caller having to know which one it
+  // was: an action can now be reached from the held card OR from the bulk bar, and each half is
+  // a no-op when the other is what is showing.
+  function dismissActions() {
+    setConfirmingId(null);
+    exitSelect();
   }
   function toggleSelect(id: string) {
     const g = selectGuard.current;
@@ -700,13 +713,14 @@ export default function TodayScreen() {
     exitSelect();
   }
   function bulkMoveTo(iso: string) {
-    if (selected.length === 0) return;
+    const ids = moveIds;
+    if (!ids?.length) return;
     const now = nowMs();
-    const set = new Set(selected);
+    const set = new Set(ids);
     commit(tasks.map((t) => (set.has(t.id) && !isRecurring(t) ? clearNudgeIfAny({ ...deferTo(t, iso), updatedAt: now }) : t)));
-    track('bulk.moved', { count: selected.length });
-    setMoveToOpen(false);
-    exitSelect();
+    track('bulk.moved', { count: ids.length });
+    setMoveIds(null);
+    dismissActions();
   }
 
   // Mark (or unmark) the selected tasks as big: the user saying these weigh heavily. Free, multi-select,
@@ -717,7 +731,7 @@ export default function TodayScreen() {
     commit(setBig(tasks, ids, on, nowMs()));
     track('bulk.big', { count: ids.length, on });
     affirm(on ? t('today.markedBigAffirm') : t('today.easedOffAffirm'));
-    exitSelect();
+    dismissActions();
   }
 
   // Combine (the inverse of Break-it-down): the structural fold (combineTasks) is AI-free, so this works
@@ -763,15 +777,17 @@ export default function TodayScreen() {
   }
 
   // "Remind me": a calm preset chooser (the late-night guard hides anything that would fire
-  // past 9pm), then a local nudge for the single selected task, stamped so the row shows it
-  // and so done / remove / defer can cancel it. Native only; the web build no-ops.
-  function openNudge() {
+  // past 9pm), then a local nudge for the held task, stamped so the row shows it and so done /
+  // remove / defer can cancel it. Native only; the web build no-ops.
+  function openNudge(id: string) {
+    setNudgeId(id);
     setNudgePresets(availableNudgePresets(new Date()));
     setNudgeOpen(true);
   }
   async function pickNudge(presetId: string) {
-    const task = onlyTask;
+    const task = tasks.find((x) => x.id === nudgeId);
     setNudgeOpen(false);
+    setNudgeId(null);
     if (!task) return;
     const target = nudgeTargetFor(presetId, new Date());
     if (!target) return;
@@ -780,7 +796,7 @@ export default function TodayScreen() {
       commit(tasks.map((t) => (t.id === task.id ? { ...t, nudgeAt: target.getTime(), nudgeId: id, updatedAt: nowMs() } : t)));
       track('nudge.set', { preset: presetId });
     }
-    exitSelect();
+    dismissActions();
   }
 
   function signOut() {
@@ -1094,10 +1110,10 @@ export default function TodayScreen() {
     setDidOpen(false);
   }
 
-  // Open the "track in steps" editor for the one selected task (capture its id so the editor survives the
-  // selection clearing on confirm). Pre-fills the current count, or MIN_SLICES for a still-whole task.
-  function openSliceEdit() {
-    const t = onlyTask;
+  // Open the "track in steps" editor for one task (capture its id so the editor survives the held card
+  // closing on confirm). Pre-fills the current count, or MIN_SLICES for a still-whole task.
+  function openSliceEdit(id: string) {
+    const t = tasks.find((x) => x.id === id);
     if (!t) return;
     setSliceEditId(t.id);
     setSliceEditCount(t.slices ? Math.min(MAX_SLICES, Math.max(MIN_SLICES, t.slices.total)) : MIN_SLICES);
@@ -1113,7 +1129,7 @@ export default function TodayScreen() {
     track(wasSliced ? 'slices.resized' : 'slices.defined', { total: sliceEditCount });
     setSliceEditOpen(false);
     setSliceEditId(null);
-    exitSelect();
+    dismissActions();
     affirm(t('today.slicesSetAffirm', { count: sliceEditCount }));
   }
   // Drop the parts, back to one whole task (keeps whatever done state it had).
@@ -1124,7 +1140,7 @@ export default function TodayScreen() {
     track('slices.cleared');
     setSliceEditOpen(false);
     setSliceEditId(null);
-    exitSelect();
+    dismissActions();
     affirm(t('today.backToOneTaskAffirm'));
   }
 
@@ -1328,7 +1344,7 @@ export default function TodayScreen() {
     commit([...withParent, ...stepTasks]);
     track('breakdown.manual', { added: lines.length });
     closeManualBreakdown();
-    exitSelect();
+    dismissActions();
     stepsLanded(reduced); // the dreaded task just got smaller
   }
 
@@ -1340,14 +1356,12 @@ export default function TodayScreen() {
     // Guard against infinite pebbles: if a tiny step for this task is still open, do not
     // spawn another. One pebble at a time.
     if (hasActiveTinyChild(tasks, id)) {
-      setConfirmingId(null);
-      exitSelect();
+      dismissActions();
       affirm(t('today.tinyAlreadyActive'));
       return;
     }
     tinyBusy.current = true;
-    setConfirmingId(null);
-    exitSelect();
+    dismissActions();
     affirm(t('today.tinyShrinking'));
     try {
       const tinyTitle = await tiny(title);
@@ -1587,6 +1601,11 @@ export default function TodayScreen() {
               onBig={() => bigRow(task)}
               onPin={() => pinRow(task)}
               onSelectMore={() => selectFromRow(task.id)}
+              onNudge={Platform.OS !== 'web' && !isDoneOn(task, today) ? () => openNudge(task.id) : undefined}
+              onSteps={!isRecurring(task) && !isDoneOn(task, today) ? () => openSliceEdit(task.id) : undefined}
+              onMoveTo={!isRecurring(task) ? () => setMoveIds([task.id]) : undefined}
+              onDoneOn={isDoneOn(task, today) && !isRecurring(task) ? () => openDoneOn(task.id) : undefined}
+              pinDim={!premium && task.pinnedAt == null}
               suggestBreakdown={task.suggestBreakdown}
               selecting={selectMode}
               selected={selected.includes(task.id)}
@@ -1636,6 +1655,11 @@ export default function TodayScreen() {
                 {(i === 0 || upcoming[i - 1].due !== task.due) && task.due && (
                   <Text style={styles.laterDate}>{friendlyDate(task.due, today)}</Text>
                 )}
+                {/* A Later task holds into the SAME card as a Today one, which is a net gain: the old
+                    bar's single-task actions searched only Today, so they were already silently dead
+                    here. Move to… is the honest way to re-date it. No Tomorrow (an ambiguous pull
+                    backward on a future task), no Remind me (the presets are today-shaped), no Pin
+                    (Today-only by design). */}
                 <TaskRow
                   title={task.title}
                   done={isDoneOn(task, today)}
@@ -1652,6 +1676,8 @@ export default function TodayScreen() {
                   onMakeTiny={aiEnabled ? () => makeTiny(task.id, task.title) : undefined}
                   onBig={() => bigRow(task)}
                   onSelectMore={() => selectFromRow(task.id)}
+                  onSteps={!isRecurring(task) ? () => openSliceEdit(task.id) : undefined}
+                  onMoveTo={!isRecurring(task) ? () => setMoveIds([task.id]) : undefined}
                   selecting={selectMode}
                   selected={selected.includes(task.id)}
                   onSelect={() => toggleSelect(task.id)}
@@ -1728,94 +1754,21 @@ export default function TodayScreen() {
                 <Text style={styles.selectAllText}>{t('today.selectAll')}</Text>
               </Pressable>
             </View>
+            {/* GENUINELY BULK, and nothing else. Every single-task action now lives on the held card,
+                where it sits on the thing it acts on; duplicating them here is what made a hold mean
+                two different things and put ten ungrouped links 300px from the task. Six honest
+                actions, one row. Combine is the one that justifies multi-select existing at all. */}
             <View style={styles.selectActions}>
               <View style={styles.actionRow}>
-                {/* Correction is a property of a COMPLETED task: muscle memory taps it done first, THEN
-                    attributes the day. A single already-done one-off swaps the (pointless) Done for
-                    "Done on…"; every other selection keeps the bulk complete. */}
-                {onlyTask && isDoneOn(onlyTask, today) && !isRecurring(onlyTask) ? (
-                  <Pressable onPress={() => openDoneOn(onlyTask.id)} accessibilityRole="button" accessibilityLabel={t('today.doneOnA11y', { title: onlyTask.title })} hitSlop={6}>
-                    <Text style={styles.selectDone}>{t('today.doneOn')}</Text>
-                  </Pressable>
-                ) : (
-                  <Pressable onPress={bulkComplete} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={t('today.markSelectedDoneA11y')} hitSlop={6}>
-                    <Text style={[styles.selectDone, selected.length === 0 && styles.selectActionOff]}>{t('common.done')}</Text>
-                  </Pressable>
-                )}
-                <Pressable onPress={() => setMoveToOpen(true)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={t('today.moveSelectedA11y')} hitSlop={6}>
+                <Pressable onPress={bulkComplete} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={t('today.markSelectedDoneA11y')} hitSlop={6}>
+                  <Text style={[styles.selectDone, selected.length === 0 && styles.selectActionOff]}>{t('common.done')}</Text>
+                </Pressable>
+                <Pressable onPress={() => setMoveIds(selected)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={t('today.moveSelectedA11y')} hitSlop={6}>
                   <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>{t('today.moveTo')}</Text>
                 </Pressable>
                 <Pressable onPress={() => markBig(selected, !allBig)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={allBig ? t('today.unmarkBigA11y') : t('today.markBigA11y')} hitSlop={6}>
                   <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>{allBig ? t('today.notALot') : t('today.markAsALot')}</Text>
                 </Pressable>
-                {Platform.OS !== 'web' && onlyTask && !isDoneOn(onlyTask, today) && (
-                  <Pressable onPress={openNudge} accessibilityRole="button" accessibilityLabel={t('reminders.remindMeA11y')} hitSlop={6}>
-                    <Text style={styles.selectAction}>{t('reminders.remindMe')}</Text>
-                  </Pressable>
-                )}
-              </View>
-              <View style={styles.actionRow}>
-                {selected.length === 1 && (
-                  <Pressable
-                    onPress={() => {
-                      const one = tasks.find((y) => y.id === selected[0]);
-                      if (!one) return;
-                      if (aiEnabled) breakdownExisting(one.title, one.id);
-                      else openManualBreakdown(one.id, one.title);
-                      exitSelect();
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('breakdown.breakDownSelectedA11y')}
-                    hitSlop={6}
-                  >
-                    <Text style={styles.selectAction}>{t('breakdown.breakDown')}</Text>
-                  </Pressable>
-                )}
-                {onlyTask && !isRecurring(onlyTask) && !isDoneOn(onlyTask, today) && (
-                  <Pressable
-                    onPress={() => {
-                      const t = onlyTask;
-                      if (!t) return;
-                      if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
-                      // Gate only SETTING a fresh pin (abundance). Clearing a pin you set is always free, so a
-                      // lapsed sub can still unpin. A free tap routes calmly to the upsell, never a wall.
-                      if (!t.pinnedAt && !premium) {
-                        track('premium.gate_hit', { reason: 'pin' });
-                        router.push('/premium');
-                        return;
-                      }
-                      pinTask(t.id);
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={onlyTask.pinnedAt ? t('today.unpinA11y') : t('today.pinA11y')}
-                    hitSlop={6}
-                  >
-                    <Text style={[styles.selectAction, !premium && !onlyTask.pinnedAt && styles.selectActionDim]}>{onlyTask.pinnedAt ? t('today.unpin') : t('today.pin')}</Text>
-                  </Pressable>
-                )}
-                {aiEnabled && selected.length === 1 && (
-                  <Pressable
-                    onPress={() => {
-                      const one = tasks.find((y) => y.id === selected[0]);
-                      if (one) void makeTiny(one.id, one.title);
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('today.makeTinyA11y')}
-                    hitSlop={6}
-                  >
-                    <Text style={styles.selectAction}>{t('actions.makeItTiny')}</Text>
-                  </Pressable>
-                )}
-                {onlyTask && !isRecurring(onlyTask) && !isDoneOn(onlyTask, today) && (
-                  <Pressable
-                    onPress={openSliceEdit}
-                    accessibilityRole="button"
-                    accessibilityLabel={onlyTask.slices ? t('today.changeStepsA11y') : t('today.splitStepsA11y')}
-                    hitSlop={6}
-                  >
-                    <Text style={styles.selectAction}>{t('today.steps')}</Text>
-                  </Pressable>
-                )}
                 {combinable.length >= 2 && (
                   <Pressable
                     onPress={() => void openCombine()}
@@ -2103,10 +2056,10 @@ export default function TodayScreen() {
             </View>
       </ModalCard>
 
-      <ModalCard visible={moveToOpen} onClose={() => setMoveToOpen(false)}>
+      <ModalCard visible={moveIds != null} onClose={() => setMoveIds(null)}>
             <Text style={styles.didTitle}>{t('today.moveTo')}</Text>
             <Text style={styles.didHint}>
-              {fmt.plural(selected.length, { one: t('today.moveToHintOne'), other: t('today.moveToHintOther') })}
+              {fmt.plural(moveIds?.length ?? 0, { one: t('today.moveToHintOne'), other: t('today.moveToHintOther') })}
             </Text>
             <View style={styles.moveToPresets}>
               <Pressable
@@ -2136,7 +2089,7 @@ export default function TodayScreen() {
             </View>
             <DatePicker value={null} onChange={(iso) => bulkMoveTo(iso)} today={today} />
             <Pressable
-              onPress={() => setMoveToOpen(false)}
+              onPress={() => setMoveIds(null)}
               accessibilityRole="button"
               accessibilityLabel={t('common.cancel')}
               hitSlop={8}
@@ -2168,7 +2121,7 @@ export default function TodayScreen() {
             </Pressable>
       </ModalCard>
 
-      <ModalCard visible={nudgeOpen} onClose={() => setNudgeOpen(false)}>
+      <ModalCard visible={nudgeOpen} onClose={() => { setNudgeOpen(false); setNudgeId(null); }}>
             <Text style={styles.didTitle}>{t('reminders.nudgeTitle')}</Text>
             <Text style={styles.didHint}>{t('reminders.nudgeHint')}</Text>
             {nudgePresets.length === 0 ? (
@@ -2189,7 +2142,7 @@ export default function TodayScreen() {
               </View>
             )}
             <Pressable
-              onPress={() => setNudgeOpen(false)}
+              onPress={() => { setNudgeOpen(false); setNudgeId(null); }}
               accessibilityRole="button"
               accessibilityLabel={t('common.notNow')}
               hitSlop={8}
@@ -2632,7 +2585,6 @@ const makeStyles = (t: Theme) =>
     sliceStepBtnOff: { opacity: 0.4 },
     sliceStepGlyph: { fontSize: 26 * t.scale, lineHeight: 30 * t.scale, color: t.colors.accent, fontFamily: fonts.body },
     sliceStepValue: { ...t.type.heading, color: t.colors.ink, minWidth: 110, textAlign: 'center' },
-    selectActionDim: { opacity: 0.5 }, // a premium action shown to a free user: dimmed but tappable, routes to the upsell
     selectDone: { color: t.colors.doneText, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     selectRemove: { color: t.colors.danger, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     selectActionOff: { color: t.colors.inkFaint },
