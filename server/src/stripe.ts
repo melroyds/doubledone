@@ -11,9 +11,9 @@
 // premium status; only a verified webhook grants it.
 
 import { isCompEmail } from './comp';
+import { type D1LikeDatabase, type Entitlement, type EntitlementView, readEntitlement, writeEntitlement } from './entitlements';
 import { decodeJwtEmail, decodeJwtSub } from './mcp';
 import { buildOwnerEmail } from './monitor';
-import { type D1LikeDatabase } from './telemetry';
 import { activeTrial } from './trials';
 
 export type StripeEnv = {
@@ -94,7 +94,10 @@ async function hmacSha256Hex(secret: string, data: string): Promise<string> {
   return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-function timingSafeEqual(a: string, b: string): boolean {
+// Exported so the RevenueCat webhook (which has no HMAC, only a shared-secret Authorization
+// header) can reuse the same constant-time compare. A crypto helper, not the entitlement writer,
+// so this shared use does not couple RevenueCat to Stripe's business logic.
+export function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let out = 0;
   for (let i = 0; i < a.length; i++) out |= a.charCodeAt(i) ^ b.charCodeAt(i);
@@ -125,15 +128,6 @@ export async function signPayload(rawBody: string, secret: string, t: number): P
 
 // --- Event -> entitlement --------------------------------------------------
 
-export type Entitlement = {
-  userId: string;
-  premium: boolean;
-  status: string;
-  currentPeriodEnd: number | null;
-  cancelAtPeriodEnd: boolean;
-  customerId: string | null;
-};
-
 // dahlia (2026-04) moved current_period_end off the subscription top-level and into
 // its items; read whichever is present.
 function subscriptionPeriodEnd(obj: Record<string, unknown>): number | null {
@@ -160,7 +154,7 @@ export function entitlementFromEvent(event: unknown): Entitlement | null {
     // legitimate free starts (a 100%-off promo or a trial). The customer.subscription.* events that follow
     // are the authoritative source either way; this is the initial grant, kept strict.
     const paid = obj.payment_status === 'paid' || obj.payment_status === 'no_payment_required';
-    return { userId, premium: paid, status: paid ? 'active' : 'incomplete', currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId };
+    return { userId, premium: paid, status: paid ? 'active' : 'incomplete', currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId, source: 'stripe' };
   }
 
   if (type.startsWith('customer.subscription.')) {
@@ -177,6 +171,7 @@ export function entitlementFromEvent(event: unknown): Entitlement | null {
       // (a timestamp), leaving the old cancel_at_period_end boolean false. Accept either.
       cancelAtPeriodEnd: obj.cancel_at_period_end === true || typeof obj.cancel_at === 'number',
       customerId,
+      source: 'stripe',
     };
   }
 
@@ -218,62 +213,11 @@ export function moneyAlertFromEvent(event: unknown): MoneyAlert | null {
   return null;
 }
 
-// --- D1 entitlement store --------------------------------------------------
-
-// The D1 shape is shared with telemetry; re-exported so tests can import it here.
-export type { D1LikeDatabase };
-
-/** Upsert an entitlement. `started_at` (tenure) is set once, on first premium grant,
- *  and preserved thereafter so a lapse never resets the loyalty clock. */
-export async function writeEntitlement(db: D1LikeDatabase, ent: Entitlement, nowISO: string): Promise<void> {
-  await db
-    .prepare(
-      `INSERT INTO entitlements (user_id, premium, status, current_period_end, cancel_at_period_end, started_at, stripe_customer_id, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-       ON CONFLICT(user_id) DO UPDATE SET
-         premium = ?2,
-         status = ?3,
-         current_period_end = COALESCE(?4, entitlements.current_period_end),
-         cancel_at_period_end = ?5,
-         started_at = COALESCE(entitlements.started_at, ?6),
-         stripe_customer_id = COALESCE(?7, entitlements.stripe_customer_id),
-         updated_at = ?8`,
-    )
-    .bind(ent.userId, ent.premium ? 1 : 0, ent.status, ent.currentPeriodEnd, ent.cancelAtPeriodEnd ? 1 : 0, ent.premium ? nowISO : null, ent.customerId, nowISO)
-    .run();
-}
-
-export type EntitlementView = {
-  premium: boolean;
-  status: string | null;
-  since: string | null;
-  currentPeriodEnd: number | null;
-  cancelAtPeriodEnd: boolean;
-  customerId: string | null;
-};
-
-export async function readEntitlement(db: D1LikeDatabase, userId: string): Promise<EntitlementView> {
-  const row = await db
-    .prepare('SELECT premium, status, started_at, current_period_end, cancel_at_period_end, stripe_customer_id FROM entitlements WHERE user_id = ?1')
-    .bind(userId)
-    .first<{
-      premium: number;
-      status: string | null;
-      started_at: string | null;
-      current_period_end: number | null;
-      cancel_at_period_end: number | null;
-      stripe_customer_id: string | null;
-    }>();
-  if (!row) return { premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null };
-  return {
-    premium: row.premium === 1,
-    status: row.status,
-    since: row.started_at,
-    currentPeriodEnd: row.current_period_end,
-    cancelAtPeriodEnd: row.cancel_at_period_end === 1,
-    customerId: row.stripe_customer_id,
-  };
-}
+// --- D1 entitlement store ---------------------------------------------------
+// The store moved to entitlements.ts (2026-07-18) so Apple IAP can write the same rows without
+// coupling to Stripe. Re-exported here so existing importers of stripe.ts keep working.
+export { readEntitlement, writeEntitlement };
+export type { D1LikeDatabase, Entitlement, EntitlementView };
 
 // --- HTTP handlers ---------------------------------------------------------
 
@@ -441,12 +385,12 @@ export async function handleEntitlement(request: Request, env: FullEnv, cors: Re
   // full tenure-based scrapbook allowance.
   if (isCompEmail(decodeJwtEmail(token), env.COMP_EMAILS)) {
     return new Response(
-      JSON.stringify({ premium: true, status: 'comp', since: '2025-01-01T00:00:00.000Z', currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null }),
+      JSON.stringify({ premium: true, status: 'comp', since: '2025-01-01T00:00:00.000Z', currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null, source: 'stripe' }),
       { headers: { ...JSON_HEADERS, ...cors } },
     );
   }
   if (!env.DB) {
-    return new Response(JSON.stringify({ premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null }), {
+    return new Response(JSON.stringify({ premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null, source: null }), {
       headers: { ...JSON_HEADERS, ...cors },
     });
   }
@@ -457,7 +401,7 @@ export async function handleEntitlement(request: Request, env: FullEnv, cors: Re
   try {
     view = await readEntitlement(env.DB, sub);
   } catch {
-    return new Response(JSON.stringify({ premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null }), {
+    return new Response(JSON.stringify({ premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null, source: null }), {
       headers: { ...JSON_HEADERS, ...cors },
     });
   }
@@ -467,7 +411,7 @@ export async function handleEntitlement(request: Request, env: FullEnv, cors: Re
     const nowSec = Math.floor(Date.now() / 1000);
     const trial = await activeTrial(env.DB, sub, nowSec);
     if (trial.active) {
-      view = { premium: true, status: 'trial', since: new Date(nowSec * 1000).toISOString(), currentPeriodEnd: trial.expiresAt, cancelAtPeriodEnd: true, customerId: null };
+      view = { premium: true, status: 'trial', since: new Date(nowSec * 1000).toISOString(), currentPeriodEnd: trial.expiresAt, cancelAtPeriodEnd: true, customerId: null, source: 'stripe' };
     }
   }
   return new Response(JSON.stringify(view), { headers: { ...JSON_HEADERS, ...cors } });

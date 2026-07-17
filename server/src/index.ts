@@ -25,6 +25,7 @@ import { buildSequenceRequest, parseEnergy, parseSequenceResponse, SEQUENCE_MODE
 import { buildSplitRequest, parseSplitResponse, SPLIT_MODEL } from './split';
 import { buildTinyRequest, parseTinyResponse, TINY_MODEL } from './tiny';
 import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
+import { handleRcWebhook } from './revenuecat';
 import { handleCheckout, handleEntitlement, handlePortal, handleWebhook } from './stripe';
 import { type D1LikeDatabase, extractUsage, logAiCall, logOutcome } from './telemetry';
 import { buildTriageRequest, parseTriageResponse, TRIAGE_MODEL } from './triage';
@@ -176,6 +177,12 @@ const router = {
     // the auth, and the raw body is needed to verify it, so it runs before anything else.
     if (pathname === '/stripe-webhook' && request.method === 'POST') {
       return handleWebhook(request, env, new Date().toISOString());
+    }
+
+    // RevenueCat webhook (Apple IAP): also server-to-server, no Origin. The Authorization
+    // header (a shared secret) is the auth. Writes the same D1 entitlements row as Stripe.
+    if (pathname === '/rc-webhook' && request.method === 'POST') {
+      return handleRcWebhook(request, env, new Date().toISOString(), Date.now());
     }
 
     if (request.method === 'OPTIONS') {

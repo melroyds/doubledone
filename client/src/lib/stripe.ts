@@ -68,6 +68,7 @@ export async function loadEntitlement(): Promise<Entitlement> {
       since: typeof v.since === 'string' ? v.since : null,
       currentPeriodEnd: typeof v.currentPeriodEnd === 'number' ? v.currentPeriodEnd : null,
       cancelAtPeriodEnd: Boolean(v.cancelAtPeriodEnd),
+      source: v.source === 'stripe' || v.source === 'apple' ? v.source : null,
     };
   } catch {
     return FREE_ENTITLEMENT;

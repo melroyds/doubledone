@@ -68,7 +68,7 @@ describe('entitlementFromEvent', () => {
       type: 'checkout.session.completed',
       data: { object: { client_reference_id: 'u1', payment_status: 'paid', status: 'complete', customer: 'cus_1' } },
     });
-    expect(ent).toEqual({ userId: 'u1', premium: true, status: 'active', currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: 'cus_1' });
+    expect(ent).toEqual({ userId: 'u1', premium: true, status: 'active', currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: 'cus_1', source: 'stripe' });
   });
 
   it('does NOT grant premium on a complete-but-unpaid checkout session', () => {
@@ -144,7 +144,7 @@ function fakeDb(): D1LikeDatabase & { rows: Map<string, Record<string, unknown>>
           return stmt;
         },
         async run() {
-          const [userId, premium, status, cpe, cancelAtEnd, startedAt, customerId, updatedAt] = args as [
+          const [userId, premium, status, cpe, cancelAtEnd, startedAt, customerId, source, updatedAt] = args as [
             string,
             number,
             string,
@@ -152,6 +152,7 @@ function fakeDb(): D1LikeDatabase & { rows: Map<string, Record<string, unknown>>
             number,
             string | null,
             string | null,
+            string,
             string,
           ];
           const existing = rows.get(userId);
@@ -163,6 +164,7 @@ function fakeDb(): D1LikeDatabase & { rows: Map<string, Record<string, unknown>>
             cancel_at_period_end: cancelAtEnd,
             started_at: (existing?.started_at as string | null) ?? startedAt, // COALESCE(existing, new)
             stripe_customer_id: customerId ?? (existing?.stripe_customer_id as string | null) ?? null,
+            source,
             updated_at: updatedAt,
           });
         },
@@ -182,13 +184,13 @@ function fakeDb(): D1LikeDatabase & { rows: Map<string, Record<string, unknown>>
 describe('entitlement store', () => {
   it('writes premium then reads it back, preserving the tenure start and customer across a cancel', async () => {
     const db = fakeDb();
-    await writeEntitlement(db, { userId: 'u1', premium: true, status: 'active', currentPeriodEnd: 123, cancelAtPeriodEnd: false, customerId: 'cus_1' }, '2026-06-20T00:00:00Z');
+    await writeEntitlement(db, { userId: 'u1', premium: true, status: 'active', currentPeriodEnd: 123, cancelAtPeriodEnd: false, customerId: 'cus_1', source: 'stripe' }, '2026-06-20T00:00:00Z');
     let view = await readEntitlement(db, 'u1');
-    expect(view).toEqual({ premium: true, status: 'active', since: '2026-06-20T00:00:00Z', currentPeriodEnd: 123, cancelAtPeriodEnd: false, customerId: 'cus_1' });
+    expect(view).toEqual({ premium: true, status: 'active', since: '2026-06-20T00:00:00Z', currentPeriodEnd: 123, cancelAtPeriodEnd: false, customerId: 'cus_1', source: 'stripe' });
 
     // a cancel-at-period-end keeps premium active but flags the pending cancel, and must
     // NOT reset the tenure clock or lose the customer (a null customer must not clobber it)
-    await writeEntitlement(db, { userId: 'u1', premium: true, status: 'active', currentPeriodEnd: 123, cancelAtPeriodEnd: true, customerId: null }, '2026-09-01T00:00:00Z');
+    await writeEntitlement(db, { userId: 'u1', premium: true, status: 'active', currentPeriodEnd: 123, cancelAtPeriodEnd: true, customerId: null, source: 'stripe' }, '2026-09-01T00:00:00Z');
     view = await readEntitlement(db, 'u1');
     expect(view.cancelAtPeriodEnd).toBe(true);
     expect(view.since).toBe('2026-06-20T00:00:00Z');
@@ -196,7 +198,7 @@ describe('entitlement store', () => {
   });
 
   it('reports not-premium for an unknown user', async () => {
-    expect(await readEntitlement(fakeDb(), 'nobody')).toEqual({ premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null });
+    expect(await readEntitlement(fakeDb(), 'nobody')).toEqual({ premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null, source: null });
   });
 });
 
@@ -308,14 +310,14 @@ describe('Stripe handler flows (mocked fetch / signed webhook)', () => {
   it('handleCheckout refuses an already-subscribed user (409) but lets a trial user convert', async () => {
     // An active PAID subscriber (premium + a Stripe customer) must not open a second Checkout.
     const paidEnv = { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_123', DB: fakeDb() };
-    await writeEntitlement(paidEnv.DB, { userId: 'u1', premium: true, status: 'active', currentPeriodEnd: 123, cancelAtPeriodEnd: false, customerId: 'cus_1' }, '2026-06-20T00:00:00Z');
+    await writeEntitlement(paidEnv.DB, { userId: 'u1', premium: true, status: 'active', currentPeriodEnd: 123, cancelAtPeriodEnd: false, customerId: 'cus_1', source: 'stripe' }, '2026-06-20T00:00:00Z');
     const req = () => new Request('https://w/checkout', { method: 'POST', headers: { Authorization: `Bearer ${tokenFor('u1')}` }, body: '{}' });
     expect((await handleCheckout(req(), paidEnv, cors)).status).toBe(409);
 
     // A trial user (premium, but NO Stripe customer yet) is intentionally allowed to convert: the guard falls
     // through to Stripe, so "Go Premium to keep it" still works.
     const trialEnv = { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_123', DB: fakeDb() };
-    await writeEntitlement(trialEnv.DB, { userId: 'u1', premium: true, status: 'trial', currentPeriodEnd: null, cancelAtPeriodEnd: true, customerId: null }, '2026-06-20T00:00:00Z');
+    await writeEntitlement(trialEnv.DB, { userId: 'u1', premium: true, status: 'trial', currentPeriodEnd: null, cancelAtPeriodEnd: true, customerId: null, source: 'stripe' }, '2026-06-20T00:00:00Z');
     vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ url: 'https://checkout.stripe.com/c/y' }), { status: 200 }));
     expect((await handleCheckout(req(), trialEnv, cors)).status).toBe(200);
   });
@@ -418,7 +420,7 @@ describe('Stripe handler flows (mocked fetch / signed webhook)', () => {
     expect((await handlePortal(portalReq(), {}, cors)).status).toBe(503);
 
     const db = fakeDb();
-    await writeEntitlement(db, { userId: 'u1', premium: true, status: 'active', currentPeriodEnd: 1, cancelAtPeriodEnd: false, customerId: 'cus_1' }, '2026-06-20T00:00:00Z');
+    await writeEntitlement(db, { userId: 'u1', premium: true, status: 'active', currentPeriodEnd: 1, cancelAtPeriodEnd: false, customerId: 'cus_1', source: 'stripe' }, '2026-06-20T00:00:00Z');
     vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ url: 'https://billing.stripe.com/p/2' }), { status: 200 }));
     const res = await handlePortal(portalReq(), { STRIPE_SECRET_KEY: SK, DB: db }, cors);
     expect(res.status).toBe(200);
