@@ -60,10 +60,11 @@ export default function PrivacyScreen() {
         </View>
 
         <Section styles={styles} heading="Payment events">
-          Payments for Premium are processed by Stripe, not by us. We never see or store your card details. When a
-          payment event happens on your subscription, a payment succeeding or failing, a refund, or a chargeback,
-          Stripe sends us an automated note of the event type, the amount, and a Stripe event id, so we can keep your
-          Premium status correct. We never sell or share it.
+          Payments for Premium are processed by Stripe (on our website and on Android) or by Apple (on iPhone and iPad),
+          never by us. We never see or store your card details. When a payment event happens on your subscription, a
+          payment succeeding or failing, a refund, or a chargeback, our payment processor sends us an automated note of
+          the event type, the amount, and an event id, so we can keep your Premium status correct. We never sell or
+          share it.
         </Section>
 
         <Section styles={styles} heading="Keeping the service running">
