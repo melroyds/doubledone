@@ -24,14 +24,18 @@
 - **Quiet** -> `setConfirmingId(id)`: reveals that row's inline held actions *in place*. Calm, no mode change.
 - **Standard** (what Melroy runs) -> `enterSelectWith(id)`: flips the ENTIRE screen into multi-select. Rows become checkboxes, the action bar appears, other furniture hides, so the content height changes and the ScrollView clamps back to the top. The jump is a symptom; the mode-hijack is the cause.
 
-**Worth noting:** the hold coachmark reads "Hold a task for more: pin it, set a reminder, break it down, or make it tiny", which describes the QUIET held-state actions. Verify whether Standard's select bar actually offers those for a single selection; if not, the coachmark is promising Standard users something long-press does not do, which would argue the Quiet behaviour was the design intent all along.
+**CORRECTION (2026-07-17), the first analysis had this backwards.** I claimed the coachmark ("Hold a task for more: pin it, **set a reminder**, break it down, or make it tiny") described the QUIET held-state. It does not. `openNudge()` operates on `onlyTask`, so **"Remind me" exists ONLY in select mode**, as do **Steps** and **Move to...**. The Quiet held-state has none of the three. So the coachmark describes **Standard's select-bar-with-one-task**, accurately, and Standard's behaviour is by design, not a mistake. Melroy approved "A" on my wrong premise; it was implemented, caught, and reverted before it shipped. **Option A as originally written is a REGRESSION**: it would push setting a reminder, editing Steps, and Move-to from one gesture to two (hold -> Select more -> action).
 
-**Options.**
-- **A (Claude's rec): unify on Quiet's behaviour.** Standard long-press reveals the row's inline held actions; multi-select stays reachable via the existing "Select more" door. Kills the mode-flip AND the scroll jump at the root, makes the gesture consistent across appearances, and matches the coachmark.
-- **B: keep the mode-flip, try to preserve scroll.** Weak: the content genuinely shrinks, so there may be nowhere to hold the position, and it leaves the "very forced" feeling untouched.
-- **C: leave it.**
+**The jump's real mechanism (confirmed).** Entering select mode hides two blocks in `today.tsx`: the "+ I also did that" button (~line 1619) and the ENTIRE `dayActions` cluster (~line 1664: the heavy nudge, Lighten today, Plan my day, Close the day). On a short page (Melroy had 2 tasks) the content then becomes shorter than the viewport, so the ScrollView clamps its offset to 0. The jump is a side effect of content legitimately disappearing, so there is no honest "just restore the scroll offset" fix; the offset no longer exists.
 
-**Status: NOT changed.** Melroy said park it; this is a design decision, not a patch. Decide, then build.
+**The deeper thing Melroy's instinct caught.** There are TWO models for acting on ONE task: Standard borrows the bulk multi-select UI for single-task work (full actions, whole-screen takeover), while Quiet has an in-place held-state (calm, but missing Remind me / Steps / Move to). That inconsistency IS the "very forced" feeling. The gesture is per-row; the response is whole-screen.
+
+**Options, re-ranked.**
+- **A+ (Claude's rec, but a DESIGN INCREMENT, not a patch): one in-place held-state for both appearances**, carrying every single-task action including Remind me / Steps / Move to, with select mode demoted to genuinely-bulk work (2+) reached via "Select more". Fixes the jump at the root, kills the two-models split, and finally makes one gesture mean one thing. The design problem to solve first: the held-state already shows 8 actions; adding 3 more inline is overwhelm, which the spine forbids. Needs a real layout answer (compact wrap, or a small sheet anchored to the row), not a flag flip.
+- **B: stop the jump only.** Would mean not hiding those blocks (clutter, and they are wrong in select mode) or reserving their height with a spacer (a hack that leaves a gap). Does not touch the "forced" feeling.
+- **C: leave it.** It is an annoyance, not breakage, and everything works.
+
+**Status: NOT changed, nothing shipped.** Recommendation: **C for now, A+ queued as a proper design increment.** Do not patch this one.
 
 ## Left for Claude (the code)
 - `react-native-purchases` SDK in the client; App User ID = Supabase id; iOS paywall showing the two products + a "sign in to restore" path for existing Stripe subscribers.
