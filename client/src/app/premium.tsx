@@ -392,8 +392,8 @@ export default function PremiumScreen() {
                 </Pressable>
               </View>
             )}
-            {/* On iOS the price MUST come from StoreKit (currency-correct for the viewer's storefront,
-                and the real A$4.99, not the catalog's rounded "A$5"). Off iOS, the catalog price. */}
+            {/* On iOS the price MUST come from StoreKit, so it is currency-correct for the viewer's
+                storefront (A$5.00 on the Australian one, converted elsewhere). Off iOS, the catalog price. */}
             <Text style={styles.price}>
               {IAP_AVAILABLE
                 ? offer

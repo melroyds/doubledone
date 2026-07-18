@@ -20,7 +20,7 @@ export const IAP_AVAILABLE = false;
 export type StoreOffer = {
   packageId: string;
   plan: 'monthly' | 'annual';
-  priceString: string; // already localised + currency-symboled by the store (e.g. "A$4.99")
+  priceString: string; // already localised + currency-symboled by the store (e.g. "A$5.00")
 };
 
 // A purchase / restore outcome, deliberately plain: no SDK types leak past this seam.

@@ -4,7 +4,7 @@
 
 ## Decisions locked
 - **Ship Apple IAP from iOS v1** (not the hide-everything path). Melroy: "15% of 0 is 0, I want a path to convert iOS users."
-- **Parity pricing** on iOS (absorb Apple's 15%): monthly ~A$4.99, annual ~A$49.99, matching the Stripe price.
+- **Parity pricing** on iOS (absorb Apple's 15%): monthly A$5, annual A$50, matching the Stripe price. (An early draft of this line assumed .99-style pricing; that invented number leaked into several docs before being swept out on 2026-07-19. The price is flat A$5 / A$50 everywhere.)
 - **Sign in at the point of purchase** (not before), so the entitlement follows the user across web/Android/iOS. Everything else stays anonymous-first.
 - Architecture (RevenueCat Path C): RevenueCat is **iOS StoreKit plumbing only**. Stripe stays the source of truth. A RevenueCat webhook writes Apple purchases into the existing D1 `entitlements` table. App User ID = Supabase user id.
 

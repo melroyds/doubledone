@@ -45,16 +45,16 @@ describe('packagesToOffers (RevenueCat offering -> paywall offers)', () => {
   const good = {
     current: {
       availablePackages: [
-        { identifier: '$rc_monthly', product: { priceString: 'A$4.99' } },
-        { identifier: '$rc_annual', product: { priceString: 'A$49.99' } },
+        { identifier: '$rc_monthly', product: { priceString: 'A$5.00' } },
+        { identifier: '$rc_annual', product: { priceString: 'A$50.00' } },
       ],
     },
   };
 
   it('maps the two known packages, price from the store', () => {
     expect(packagesToOffers(good)).toEqual([
-      { packageId: '$rc_monthly', plan: 'monthly', priceString: 'A$4.99' },
-      { packageId: '$rc_annual', plan: 'annual', priceString: 'A$49.99' },
+      { packageId: '$rc_monthly', plan: 'monthly', priceString: 'A$5.00' },
+      { packageId: '$rc_annual', plan: 'annual', priceString: 'A$50.00' },
     ]);
   });
 
@@ -74,11 +74,11 @@ describe('packagesToOffers (RevenueCat offering -> paywall offers)', () => {
       current: {
         availablePackages: [
           { identifier: '$rc_weekly', product: { priceString: 'A$1.99' } },
-          { identifier: '$rc_monthly', product: { priceString: 'A$4.99' } },
+          { identifier: '$rc_monthly', product: { priceString: 'A$5.00' } },
         ],
       },
     };
-    expect(packagesToOffers(mixed)).toEqual([{ packageId: '$rc_monthly', plan: 'monthly', priceString: 'A$4.99' }]);
+    expect(packagesToOffers(mixed)).toEqual([{ packageId: '$rc_monthly', plan: 'monthly', priceString: 'A$5.00' }]);
   });
 
   it('drops a package with no priceString rather than rendering it broken', () => {
@@ -86,11 +86,11 @@ describe('packagesToOffers (RevenueCat offering -> paywall offers)', () => {
       current: {
         availablePackages: [
           { identifier: '$rc_monthly', product: {} },
-          { identifier: '$rc_annual', product: { priceString: 'A$49.99' } },
+          { identifier: '$rc_annual', product: { priceString: 'A$50.00' } },
         ],
       },
     };
-    expect(packagesToOffers(noPrice)).toEqual([{ packageId: '$rc_annual', plan: 'annual', priceString: 'A$49.99' }]);
+    expect(packagesToOffers(noPrice)).toEqual([{ packageId: '$rc_annual', plan: 'annual', priceString: 'A$50.00' }]);
   });
 });
 

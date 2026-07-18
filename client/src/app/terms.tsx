@@ -44,7 +44,7 @@ export default function TermsScreen() {
         </Section>
 
         <Section styles={styles} heading="Premium and billing">
-          Premium is optional. It costs A$4.99 per month or A$49.99 per year, and it renews automatically until you
+          Premium is optional. It costs A$5 per month or A$50 per year, and it renews automatically until you
           cancel. New accounts get a 30-day trial with no card required. Where you bought it decides who handles the
           billing. If you subscribed on our website or on Android, payment is handled by Stripe, and you can cancel any
           time in the Stripe billing portal, reachable from the app. If you subscribed on an iPhone or iPad, payment is
