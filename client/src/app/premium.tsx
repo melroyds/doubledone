@@ -160,7 +160,9 @@ export default function PremiumScreen() {
           ? t('premium.errorCheckoutSignIn')
           : res.error === 'already'
             ? t('premium.errorAlreadyPremium')
-            : t('premium.errorCheckoutFailed'),
+            : res.error === 'billing_issue'
+              ? t('premium.errorBillingIssue') // dunning: the fix is the card, never a second subscription
+              : t('premium.errorCheckoutFailed'),
       );
       setBusy(false);
       return;
@@ -334,6 +336,20 @@ export default function PremiumScreen() {
               )
             ) : status === 'cancelled' ? (
               <Text style={styles.note}>{t('premium.checkoutCancelled')}</Text>
+            ) : null}
+
+            {/* Dunning: the subscription still exists at Stripe but a payment is failing, so
+                premium reads false and this user lands on the upsell. Without this block they
+                would have NO path to fix their card from here (the server now refuses them a
+                second checkout, correctly). The fix lives in the portal; manage() routes there
+                for a Stripe source, and the customer id exists in this state so it opens. */}
+            {effectiveEntitlement.status === 'past_due' || effectiveEntitlement.status === 'unpaid' ? (
+              <View style={styles.attentionBox}>
+                <Text style={styles.attentionText}>{t('premium.paymentAttention')}</Text>
+                <Pressable onPress={manage} disabled={busy} accessibilityRole="button" accessibilityLabel={t('premium.paymentAttentionLinkA11y')} hitSlop={6}>
+                  <Text style={styles.attentionLink}>{t('premium.paymentAttentionLink')}</Text>
+                </Pressable>
+              </View>
             ) : null}
 
             <Text style={styles.panelHead}>{t('premium.upsellHead')}</Text>
@@ -518,6 +534,10 @@ const makeStyles = (t: Theme) =>
       padding: spacing.three,
       overflow: 'hidden',
     },
+    // The dunning notice (same calm accent wash as `note`, but a container: a line + a link).
+    attentionBox: { backgroundColor: t.colors.accentSoft, borderRadius: radius.md, padding: spacing.three, gap: spacing.two },
+    attentionText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale },
+    attentionLink: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', textDecorationLine: 'underline' },
     tiers: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.two, marginTop: spacing.one },
     tier: {
       color: t.colors.accent,

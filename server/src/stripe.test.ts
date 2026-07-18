@@ -322,6 +322,37 @@ describe('Stripe handler flows (mocked fetch / signed webhook)', () => {
     expect((await handleCheckout(req(), trialEnv, cors)).status).toBe(200);
   });
 
+  it('handleCheckout refuses a DUNNING subscriber (the past_due double-subscription bug)', async () => {
+    // past_due: premium reads false (access lapsed) but the subscription is ALIVE at Stripe and
+    // retrying the card. Selling this user a second subscription would double-charge them and the
+    // webhook upsert would overwrite stripe_customer_id, orphaning the first. The old guard keyed
+    // on premium && customerId, so this exact state slipped through. 409 with the DISTINCT body,
+    // so the client can say "fix the card" instead of the wrong "you're already on Premium".
+    const req = () => new Request('https://w/checkout', { method: 'POST', headers: { Authorization: `Bearer ${tokenFor('u1')}` }, body: '{}' });
+    for (const status of ['past_due', 'unpaid']) {
+      const env = { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_123', DB: fakeDb() };
+      await writeEntitlement(env.DB, { userId: 'u1', premium: false, status, currentPeriodEnd: 123, cancelAtPeriodEnd: false, customerId: 'cus_1', source: 'stripe' }, '2026-06-20T00:00:00Z');
+      const res = await handleCheckout(req(), env, cors);
+      expect(res.status, status).toBe(409);
+      expect(await res.json(), status).toEqual({ error: 'billing_issue' });
+    }
+  });
+
+  it('handleCheckout still lets a LAPSED subscriber re-subscribe (customerId alone must never block)', async () => {
+    // status canceled: the old subscription no longer exists at Stripe, but the customer id is
+    // kept for history (the COALESCE in writeEntitlement). A fresh Checkout is the CORRECT path
+    // back to paying; the portal would have nothing to restart. Same for an abandoned checkout
+    // (incomplete), which self-expires at Stripe and must not lock the user out of ever buying.
+    // These two are why the guard keys on premium-or-dunning, not on customerId alone.
+    const req = () => new Request('https://w/checkout', { method: 'POST', headers: { Authorization: `Bearer ${tokenFor('u1')}` }, body: '{}' });
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ url: 'https://checkout.stripe.com/c/z' }), { status: 200 }));
+    for (const status of ['canceled', 'incomplete', 'incomplete_expired']) {
+      const env = { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_123', DB: fakeDb() };
+      await writeEntitlement(env.DB, { userId: 'u1', premium: false, status, currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: 'cus_old', source: 'stripe' }, '2026-06-20T00:00:00Z');
+      expect((await handleCheckout(req(), env, cors)).status, status).toBe(200);
+    }
+  });
+
   it('handleEntitlement returns a default view when DB is unbound', async () => {
     const res = await handleEntitlement(
       new Request('https://w/entitlement', { headers: { Authorization: `Bearer ${tokenFor('u1')}` } }),
