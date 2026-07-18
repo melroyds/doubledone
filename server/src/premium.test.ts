@@ -118,13 +118,13 @@ describe('requirePremium', () => {
 
   it('403 when the user is verified but premium is false (lapsed / cancelled)', async () => {
     const db = fakeDb();
-    await writeEntitlement(db, { userId: 'user-1', premium: false, status: 'canceled', currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null }, '2026-06-20T00:00:00Z');
+    await writeEntitlement(db, { userId: 'user-1', premium: false, status: 'canceled', currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null, source: 'stripe' }, '2026-06-20T00:00:00Z');
     expect(await requirePremium(req('t'), env(db), verifiesTo('user-1'))).toEqual({ ok: false, status: 403 });
   });
 
   it('ok with the verified userId when the user is premium', async () => {
     const db = fakeDb();
-    await writeEntitlement(db, { userId: 'user-1', premium: true, status: 'active', currentPeriodEnd: 123, cancelAtPeriodEnd: false, customerId: 'cus_1' }, '2026-06-20T00:00:00Z');
+    await writeEntitlement(db, { userId: 'user-1', premium: true, status: 'active', currentPeriodEnd: 123, cancelAtPeriodEnd: false, customerId: 'cus_1', source: 'stripe' }, '2026-06-20T00:00:00Z');
     expect(await requirePremium(req('t'), env(db), verifiesTo('user-1'))).toEqual({ ok: true, userId: 'user-1' });
   });
 

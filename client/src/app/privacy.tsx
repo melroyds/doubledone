@@ -46,9 +46,9 @@ export default function PrivacyScreen() {
           <Text style={styles.heading}>The AI features</Text>
           <Text style={styles.body}>
             The AI features (such as Break it down, Sort, Combine, and the photo scan) send the text or photo you
-            choose to our server, which passes it to Anthropic&apos;s Claude to do the work. Anthropic does not train their models on it, and does not keep your
-            text or the response by default. Anything flagged for safety or legal reasons can be held by Anthropic for
-            up to two years. Separately, we keep a copy on our side, without your name, account, or IP address, to
+            choose to our server, which passes it to Anthropic&apos;s Claude to do the work. Anthropic does not train their
+            models on it, and deletes it within 30 days. Anything flagged for safety or legal reasons can be held by
+            Anthropic for up to two years. Separately, we keep a copy on our side, without your name, account, or IP address, to
             improve how the app breaks tasks down for everyone. It is pseudonymous and aggregate, never tied to you and
             never sold.
           </Text>
@@ -60,10 +60,23 @@ export default function PrivacyScreen() {
         </View>
 
         <Section styles={styles} heading="Payment events">
-          Payments for Premium are processed by Stripe, not by us. We never see or store your card details. When a
-          payment event happens on your subscription, a payment succeeding or failing, a refund, or a chargeback,
-          Stripe sends us an automated note of the event type, the amount, and a Stripe event id, so we can keep your
-          Premium status correct. We never sell or share it.
+          Payments for Premium are processed by Stripe (on our website and on Android) or by Apple (on iPhone and iPad),
+          never by us. We never see or store your card details. On iPhone and iPad we use RevenueCat, a subscription
+          service based in the United States, to confirm with Apple that a purchase is genuine. It receives the purchase
+          receipt, your DoubleDone account id, and an identifier for your device, so your subscription can follow your
+          account across your devices. When something happens on your subscription, a payment succeeding or failing, a
+          refund, a cancellation, or a renewal, we keep a record against your account: whether Premium is on, its
+          status, when the current period ends, whether it is set to stop, when you first subscribed, and which store it
+          came from. That is what keeps your Premium status correct. We never sell or share it.
+        </Section>
+
+        <Section styles={styles} heading="Connecting an AI assistant">
+          DoubleDone can connect to an AI assistant you already use, such as Claude or ChatGPT, so it can read and add
+          your tasks for you. This is off until you turn it on. Once you connect one, that assistant can read the tasks
+          it asks for, and those tasks travel to whichever company runs it. To hold the connection open we store your
+          email address and sign-in keys for your account: the long-lived key is encrypted, and a short-lived one
+          (about an hour) is kept as-is so you are not asked to reconnect constantly. You can cut the connection at any
+          time in Settings, and it stops working straight away.
         </Section>
 
         <Section styles={styles} heading="Keeping the service running">
@@ -76,7 +89,7 @@ export default function PrivacyScreen() {
         </Section>
 
         <Section styles={styles} heading="What we never do">
-          No ads. No third-party trackers or analytics identities. No selling or sharing your data. We never ask for
+          No ads. No advertising identifiers and no cross-app tracking. No selling or sharing your data. We never ask for
           your name, phone number, location, or contacts.
         </Section>
 

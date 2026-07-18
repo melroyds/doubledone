@@ -29,6 +29,7 @@ describe('gateEntitlement', () => {
     since: '2026-01-01T00:00:00.000Z',
     currentPeriodEnd: 1_800_000_000,
     cancelAtPeriodEnd: false,
+    source: 'stripe' as const,
   };
 
   it('forces premium on under an allowed on-override, keeping the real tenure and period', () => {

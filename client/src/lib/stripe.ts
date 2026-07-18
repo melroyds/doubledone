@@ -7,7 +7,11 @@ import { authHeader } from './supabase';
 
 const API_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
 
-export type CheckoutResult = { ok: true; url: string } | { ok: false; error: 'sign_in' | 'failed' | 'already' };
+// 'no_subscription' is portal-only (startCheckout never returns it): premium with no Stripe
+// customer, so no portal exists. The UI reads it as "nothing to manage", never as a retryable failure.
+// 'billing_issue' is checkout-only: the server refused a SECOND subscription because the existing
+// one is in dunning (past_due/unpaid, card failing). The fix is the portal, not a new purchase.
+export type CheckoutResult = { ok: true; url: string } | { ok: false; error: 'sign_in' | 'failed' | 'already' | 'no_subscription' | 'billing_issue' };
 
 /** Ask the Worker to create a Checkout Session for the chosen plan; returns its hosted URL to open. */
 export async function startCheckout(plan: 'monthly' | 'annual' = 'monthly'): Promise<CheckoutResult> {
@@ -15,7 +19,17 @@ export async function startCheckout(plan: 'monthly' | 'annual' = 'monthly'): Pro
   if (!auth) return { ok: false, error: 'sign_in' };
   try {
     const res = await fetch(`${API_URL}/checkout`, { method: 'POST', headers: { 'content-type': 'application/json', ...auth }, body: JSON.stringify({ plan }) });
-    if (res.status === 409) return { ok: false, error: 'already' }; // already subscribed: the UI routes to Manage, never a second charge
+    if (res.status === 409) {
+      // Two different refusals share the status: already subscribed (route to Manage) vs a
+      // subscription in dunning (route to the portal to fix the card). The body says which,
+      // and telling the second user "you're already on Premium" would be false, so read it.
+      try {
+        const { error } = (await res.json()) as { error?: unknown };
+        return { ok: false, error: error === 'billing_issue' ? 'billing_issue' : 'already' };
+      } catch {
+        return { ok: false, error: 'already' };
+      }
+    }
     if (!res.ok) return { ok: false, error: 'failed' };
     const { url } = (await res.json()) as { url?: unknown };
     return typeof url === 'string' ? { ok: true, url } : { ok: false, error: 'failed' };
@@ -30,6 +44,7 @@ export async function startPortal(): Promise<CheckoutResult> {
   if (!auth) return { ok: false, error: 'sign_in' };
   try {
     const res = await fetch(`${API_URL}/portal`, { method: 'POST', headers: { 'content-type': 'application/json', ...auth }, body: '{}' });
+    if (res.status === 404) return { ok: false, error: 'no_subscription' }; // premium but no Stripe customer (comp / dev override): nothing to manage, not a failure to retry
     if (!res.ok) return { ok: false, error: 'failed' };
     const { url } = (await res.json()) as { url?: unknown };
     return typeof url === 'string' ? { ok: true, url } : { ok: false, error: 'failed' };
@@ -68,6 +83,7 @@ export async function loadEntitlement(): Promise<Entitlement> {
       since: typeof v.since === 'string' ? v.since : null,
       currentPeriodEnd: typeof v.currentPeriodEnd === 'number' ? v.currentPeriodEnd : null,
       cancelAtPeriodEnd: Boolean(v.cancelAtPeriodEnd),
+      source: v.source === 'stripe' || v.source === 'apple' ? v.source : null,
     };
   } catch {
     return FREE_ENTITLEMENT;

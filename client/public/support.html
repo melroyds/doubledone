@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<!--
+  Static, crawlable support page, served at https://doubledone.app/support.
+
+  WHY THIS EXISTS: App Store Connect requires a Support URL, and a bare mailto (or the SPA's
+  empty no-JS shell) is a common App Review rejection. Same static pattern as privacy.html /
+  terms.html: a real page a reviewer or a user can load anywhere, no JS needed.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="index, follow" />
+    <title>Support · DoubleDone</title>
+    <style>
+      :root {
+        --bg: #faf6f1;
+        --ink: #2b2722;
+        --ink-soft: #5f574d;
+        --ink-faint: #8a7f73;
+        --accent: #9b6a7d;
+        --line: #ece4d8;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #1b1917;
+          --ink: #f2ebe0;
+          --ink-soft: #c9c0b4;
+          --ink-faint: #8a7f73;
+          --accent: #c68ba0;
+          --line: #322d28;
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; background: var(--bg); }
+      body {
+        color: var(--ink-soft);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.6;
+        font-size: 17px;
+        -webkit-font-smoothing: antialiased;
+      }
+      main { max-width: 640px; margin: 0 auto; padding: 48px 22px 96px; }
+      h1 { color: var(--ink); font-size: 40px; font-weight: 600; letter-spacing: -0.5px; margin: 0; font-family: Georgia, "Times New Roman", serif; }
+      .lead { color: var(--ink); font-size: 18px; margin-top: 28px; }
+      h2 { color: var(--ink); font-size: 20px; font-weight: 700; margin: 40px 0 8px; }
+      p { margin: 0 0 14px; }
+      a { color: var(--accent); }
+      .foot { color: var(--ink-faint); font-size: 14px; text-align: center; margin-top: 64px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Support</h1>
+      <p class="lead">
+        DoubleDone is built and looked after by one person, and your message lands with him, not a ticket
+        queue. Whatever it is, a bug, a question, or something that felt wrong, it is welcome.
+      </p>
+
+      <h2>Get in touch</h2>
+      <p>
+        Email <a href="mailto:support@doubledone.app">support@doubledone.app</a> and you will hear back,
+        usually within a day or two. You can also send feedback from inside the app: open the Menu, then
+        Settings, and use the feedback link near the bottom. Nothing you send is ever used for marketing.
+      </p>
+
+      <h2>Common questions</h2>
+      <p>
+        <strong>Where are my tasks?</strong> They live on your device. If you signed in and turned on sync,
+        they also follow your account across devices. Signing out never deletes what is on the device.
+      </p>
+      <p>
+        <strong>Managing or cancelling Premium.</strong> If you subscribed on an iPhone or iPad, Apple
+        handles it: open Settings on the device, tap your name, then Subscriptions. If you subscribed on
+        our website or on Android, open the app's Premium screen and tap Manage subscription. You keep
+        Premium until the end of the period you paid for, and your free monthly scrapbook stays either way.
+      </p>
+      <p>
+        <strong>Refunds.</strong> Purchases made through Apple are refunded by Apple, at
+        <a href="https://reportaproblem.apple.com">reportaproblem.apple.com</a>. For purchases made on our
+        website or on Android, email us within 7 days of the charge, see the
+        <a href="/terms">terms</a> for the details.
+      </p>
+      <p>
+        <strong>Deleting your account.</strong> In the app: Menu, Settings, then Delete account. It removes
+        your synced data and keepsake images. Tasks stored only on your device stay yours.
+      </p>
+      <p>
+        <strong>Your data.</strong> The short version: no ads, no selling data, tasks stay yours. The long
+        version is the <a href="/privacy">privacy policy</a>.
+      </p>
+
+      <p class="foot">DoubleDone · Melbourne, Australia · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
+    </main>
+  </body>
+</html>

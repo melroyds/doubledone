@@ -14,9 +14,13 @@ export type Entitlement = {
   since: string | null; // ISO of the first premium grant (the tenure clock)
   currentPeriodEnd: number | null; // epoch seconds
   cancelAtPeriodEnd: boolean; // scheduled to cancel at the period end
+  // Which store sold it: 'apple' subscriptions are managed in Apple's settings, not Stripe's
+  // portal, so the "Manage subscription" control must route by this. null = a pre-2026-07 row
+  // (always Stripe).
+  source: 'stripe' | 'apple' | null;
 };
 
-export const FREE_ENTITLEMENT: Entitlement = { premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false };
+export const FREE_ENTITLEMENT: Entitlement = { premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, source: null };
 
 const WEEK_MS = 7 * 86_400_000;
 const MONTH_MS = 30 * 86_400_000;

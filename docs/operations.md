@@ -52,6 +52,10 @@ The D1 schema (the `alerts_sent` dedup table) is additive and safe. Key rotation
 
 *Everything above is the monitor. The notes below are the rest of the operator's picture, added after the 2026-07-12 release (versionCode 11).*
 
+## The RevenueCat webhook (Apple IAP), added 2026-07-18
+
+`POST /rc-webhook` (`server/src/revenuecat.ts`) is a second billing webhook beside `/stripe-webhook`. It writes the SAME D1 `entitlements` row (via the `source` column) when an Apple subscription changes. It is authed by the **`RC_WEBHOOK_AUTH`** Worker secret, which RevenueCat has no HMAC for, so the secret IS the auth: it must be a long random string set both here AND as the webhook's Authorization header in the RevenueCat dashboard, and the two must match. No secret set → the route 503s (safe default). A wrong header → 401, no write. If Apple purchases stop unlocking Premium, check (1) the two secrets still match, (2) the Worker is deployed, (3) the RevenueCat dashboard shows the webhook delivering 2xx. A TRANSFER event (should never fire under keep-with-original Restore Behavior) emails `FEEDBACK_TO` and writes nothing. The webhook is idempotent (the `rc:`-namespaced event id in `processed_events`) and fails open, like the Stripe one, so a redelivery or a dedup hiccup is harmless.
+
 ## The /energy route in the spend picture
 
 Energy matching ("What fits right now?", shipped 2026-07-11, living inside Focus mode's picker since 2026-07-12) calls `POST /energy` on the Worker: today's open tasks plus an energy level in, ONE picked task with a short warm line out ([`server/src/energy.ts`](../server/src/energy.ts)). What an operator needs to know:

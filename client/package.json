@@ -40,6 +40,7 @@
     "react-native": "0.85.3",
     "react-native-android-widget": "^0.20.3",
     "react-native-gesture-handler": "~2.31.1",
+    "react-native-purchases": "^10.4.3",
     "react-native-reanimated": "4.3.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "4.25.2",
@@ -67,6 +68,16 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
+  },
+  "expo": {
+    "autolinking": {
+      "android": {
+        "comment": "react-native-purchases is an iOS-ONLY leaf here: Apple IAP is the only store we sell through in-app. Android sells via Stripe and is LIVE on Google Play. Without this exclusion the autolinker would pull the module (and Google Play Billing) into the Android build of an app that never calls it. The JS side is guarded separately by the purchases.ts / purchases.ios.ts split; that split does not stop autolinking, which is why this exists too.",
+        "exclude": [
+          "react-native-purchases"
+        ]
+      }
+    }
   },
   "private": true
 }

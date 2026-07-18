@@ -14,9 +14,11 @@ import { useEffect } from 'react';
 import { Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { useSession } from '@/lib/auth';
 import { setInbound } from '@/lib/inbound';
 import { t } from '@/lib/locale';
 import { PremiumProvider } from '@/lib/premium-provider';
+import { configurePurchases, forgetPurchaser, identifyPurchaser } from '@/lib/purchases';
 import { rescheduleAllNudges } from '@/lib/reminders';
 import { useShareInbound } from '@/lib/share-intent';
 import { loadReminderHour, loadReminderOn, loadRoutines } from '@/lib/storage';
@@ -66,9 +68,24 @@ function routeQuickAction(action: QuickActions.Action) {
 function RootStack() {
   const theme = useTheme();
   const isDark = theme.scheme === 'dark';
+  const session = useSession();
 
   // Catch a share from another app (text or a URL) and queue it for Today's capture box.
   useShareInbound();
+
+  // Apple IAP (iOS only). Both calls are compile-time no-ops on web + Android: they come from
+  // lib/purchases.ts (the inert stub), not lib/purchases.ios.ts, so the native module is never in
+  // those bundles. configure once, early; then attach the RevenueCat customer to the signed-in
+  // Supabase id so a purchase belongs to the account. We deliberately do NOT configure a web
+  // RevenueCat app (web sells via Stripe), so there is nothing to "fix" here for web.
+  useEffect(() => {
+    void configurePurchases();
+  }, []);
+  useEffect(() => {
+    const id = session?.user?.id;
+    if (id) void identifyPurchaser(id);
+    else void forgetPurchaser();
+  }, [session?.user?.id]);
 
   // The nudge resilience sweep (native): once per app open, quietly re-schedule every
   // active Rhythm, checklist nudge, and the daily reminder from their stored config.

@@ -39,24 +39,27 @@ create table if not exists outcomes (
 );
 create index if not exists outcomes_corr on outcomes (corr_id);
 
--- Premium entitlements, written ONLY by the verified Stripe webhook. Separate from
--- ai_calls (which is pseudonymous): this legitimately holds a user id because it
--- gates a paid feature for that specific user. The client reads its own row via an
--- authed Worker endpoint, never directly.
+-- Premium entitlements, written ONLY by the verified Stripe webhook AND the verified RevenueCat
+-- webhook (Apple IAP). One row per user, one place premium is decided, whichever store sold it.
+-- Separate from ai_calls (which is pseudonymous): this legitimately holds a user id because it
+-- gates a paid feature for that specific user. The client reads its own row via an authed Worker
+-- endpoint, never directly.
 create table if not exists entitlements (
   user_id text primary key,             -- Supabase auth uid (the JWT sub)
   premium integer not null default 0,   -- 0/1
-  status text,                          -- Stripe subscription status (active, canceled, ...)
+  status text,                          -- subscription status (active, canceled, past_due, expired, ...)
   current_period_end integer,           -- epoch seconds, when the paid period ends
   cancel_at_period_end integer not null default 0,  -- 0/1, scheduled to cancel at the period end
   started_at text,                      -- ISO, first premium grant (the tenure clock)
-  stripe_customer_id text,              -- cus_..., needed to open the billing portal (cancel/manage)
+  stripe_customer_id text,              -- cus_..., needed to open the billing portal (Stripe rows only)
+  source text,                          -- 'stripe' | 'apple' | null; null = a pre-2026-07 row, always Stripe
   updated_at text not null default (datetime('now'))
 );
 -- For a DB created before these columns existed, add them once (errors harmlessly if
 -- already present):
 --   ALTER TABLE entitlements ADD COLUMN stripe_customer_id text;
 --   ALTER TABLE entitlements ADD COLUMN cancel_at_period_end integer not null default 0;
+--   ALTER TABLE entitlements ADD COLUMN source text;   -- null = stripe (every pre-2026-07 row)
 
 -- Web Push subscriptions (Phase 2 of reminders): the browser's PushSubscription plus the
 -- user's preferred LOCAL nudge hour and tz offset, so a daily "your today is here" nudge
