@@ -362,6 +362,7 @@ export const es: Catalog = {
     headTrialActive: 'Tu mes gratis ✓',
     manageSubscription: 'Gestionar suscripción',
     manageSubscriptionA11y: 'Gestionar o cancelar tu suscripción',
+    nothingToManage: 'Tu Premium es cortesía nuestra, así que aquí no hay nada que gestionar.',
     opening: 'Abriendo…',
     openingCheckout: 'Abriendo el pago…',
     planAnnual: 'Anual · ahorra un 17%',

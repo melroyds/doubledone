@@ -362,6 +362,7 @@ export const fr: Catalog = {
     headTrialActive: 'Ton mois gratuit ✓',
     manageSubscription: "Gérer l'abonnement",
     manageSubscriptionA11y: 'Gérer ou résilier ton abonnement',
+    nothingToManage: "Ton Premium est offert, il n'y a donc rien à gérer ici.",
     opening: 'Ouverture…',
     openingCheckout: 'Ouverture du paiement…',
     planAnnual: "Annuel · 17 % d'économie",

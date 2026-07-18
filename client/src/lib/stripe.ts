@@ -7,7 +7,9 @@ import { authHeader } from './supabase';
 
 const API_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
 
-export type CheckoutResult = { ok: true; url: string } | { ok: false; error: 'sign_in' | 'failed' | 'already' };
+// 'no_subscription' is portal-only (startCheckout never returns it): premium with no Stripe
+// customer, so no portal exists. The UI reads it as "nothing to manage", never as a retryable failure.
+export type CheckoutResult = { ok: true; url: string } | { ok: false; error: 'sign_in' | 'failed' | 'already' | 'no_subscription' };
 
 /** Ask the Worker to create a Checkout Session for the chosen plan; returns its hosted URL to open. */
 export async function startCheckout(plan: 'monthly' | 'annual' = 'monthly'): Promise<CheckoutResult> {
@@ -30,6 +32,7 @@ export async function startPortal(): Promise<CheckoutResult> {
   if (!auth) return { ok: false, error: 'sign_in' };
   try {
     const res = await fetch(`${API_URL}/portal`, { method: 'POST', headers: { 'content-type': 'application/json', ...auth }, body: '{}' });
+    if (res.status === 404) return { ok: false, error: 'no_subscription' }; // premium but no Stripe customer (comp / dev override): nothing to manage, not a failure to retry
     if (!res.ok) return { ok: false, error: 'failed' };
     const { url } = (await res.json()) as { url?: unknown };
     return typeof url === 'string' ? { ok: true, url } : { ok: false, error: 'failed' };

@@ -366,6 +366,7 @@ export const en = {
     headTrialActive: 'Your free month ✓',
     manageSubscription: 'Manage subscription',
     manageSubscriptionA11y: 'Manage or cancel your subscription',
+    nothingToManage: "Your Premium is on us, so there's nothing to manage here.",
     opening: 'Opening…',
     openingCheckout: 'Opening checkout…',
     planAnnual: 'Annual · save 17%',

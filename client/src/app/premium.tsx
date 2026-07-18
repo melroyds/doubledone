@@ -11,6 +11,7 @@ import { weeklyAllowance } from '@/lib/entitlement';
 import { purchaseGate } from '@/lib/iap';
 import { t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
+import { premiumPrimaryAction } from '@/lib/premium-ui';
 import { buy, IAP_AVAILABLE, loadOffers, openAppleSubscriptions, restore, type StoreOffer } from '@/lib/purchases';
 import { loadEntitlement, startCheckout, startPortal, startTrial } from '@/lib/stripe';
 import { track } from '@/lib/telemetry';
@@ -78,6 +79,9 @@ export default function PremiumScreen() {
   // Offers are loaded in the focus effect above (not once on mount), so the displayed price is a
   // fresh read every time the screen is seen.
   const offer = offers.find((o) => o.plan === plan);
+  // Which primary control the entitled panel shows. Pure and tested (lib/premium-ui): trial
+  // converts where Stripe can (web/Android), comp gets a calm no-portal line, everyone else manages.
+  const primaryAction = premiumPrimaryAction(effectiveEntitlement.status, IAP_AVAILABLE);
   // What the primary CTA should do, given sign-in + entitlement state. On web/Android this is
   // always 'hidden' (IAP off), so the existing Stripe CTA renders instead.
   const gate = purchaseGate({ iapAvailable: IAP_AVAILABLE, signedIn: Boolean(session), loading, premium });
@@ -236,7 +240,15 @@ export default function PremiumScreen() {
     setError(null);
     const res = await startPortal();
     if (!res.ok) {
-      setError(res.error === 'sign_in' ? t('premium.errorPortalSignIn') : t('premium.errorPortalFailed'));
+      // 'no_subscription' means premium with no Stripe customer (a comp, or the dev override):
+      // there is genuinely nothing to manage, so never show a retry-implying error for it.
+      setError(
+        res.error === 'sign_in'
+          ? t('premium.errorPortalSignIn')
+          : res.error === 'no_subscription'
+            ? t('premium.nothingToManage')
+            : t('premium.errorPortalFailed'),
+      );
       setBusy(false);
       return;
     }
@@ -258,7 +270,11 @@ export default function PremiumScreen() {
           <ActivityIndicator color={styles.spinner.color} style={styles.loadingPad} />
         ) : premium ? (
           <View style={styles.panel}>
-            <Text style={styles.panelHead}>{status === 'trial' ? t('premium.headTrialActive') : t('premium.headPremiumActive')}</Text>
+            {/* The heading, sub-status and primary control key on the ENTITLEMENT status, never on
+                `status` (which is the URL's ?status= param and only ever 'success'/'cancelled').
+                Reading the URL here is the bug that told trial users they were fully Premium and
+                offered them a Manage button that could only 404. */}
+            <Text style={styles.panelHead}>{effectiveEntitlement.status === 'trial' ? t('premium.headTrialActive') : t('premium.headPremiumActive')}</Text>
             <Text style={styles.body}>
               {allowance === 1
                 ? t('premium.unlockedBodyOneGrowing', { allowance })
@@ -266,7 +282,7 @@ export default function PremiumScreen() {
                   ? t('premium.unlockedBodyGrowing', { allowance })
                   : t('premium.unlockedBodyFull', { allowance })}
             </Text>
-            {status === 'trial' && periodLabel ? (
+            {effectiveEntitlement.status === 'trial' && periodLabel ? (
               <Text style={styles.subStatus}>{t('premium.trialUntil', { periodLabel })}</Text>
             ) : effectiveEntitlement.cancelAtPeriodEnd && periodLabel ? (
               <Text style={styles.subStatus}>{t('premium.premiumUntil', { periodLabel })}</Text>
@@ -274,7 +290,11 @@ export default function PremiumScreen() {
               <Text style={styles.subStatus}>{t('premium.renews', { periodLabel })}</Text>
             ) : null}
             <Text style={styles.foot}>{t('premium.freeScrapbookEvenIfCancel')}</Text>
-            {status === 'trial' ? (
+            {primaryAction === 'convert' ? (
+              // The card-free trial converts via Stripe checkout (the server's already-subscribed
+              // guard deliberately lets a trial through). Web and Android only: on iOS StoreKit
+              // refuses a second purchase while premium and the trial never auto-charges, so there
+              // is nothing actionable mid-trial and the "Free until {date}" line above carries it.
               <PrimaryButton
                 label={busy ? t('premium.openingCheckout') : t('premium.goPremiumKeepIt')}
                 onPress={subscribe}
@@ -282,7 +302,11 @@ export default function PremiumScreen() {
                 accessibilityLabel={t('premium.goPremiumKeepItA11y')}
                 style={styles.ctaSpace}
               />
-            ) : (
+            ) : primaryAction === 'nothing' ? (
+              // A comp / allowlisted account is premium with no Stripe customer, so no portal
+              // exists. Never render a Manage button whose only outcome is a 404: say so calmly.
+              <Text style={styles.subStatus}>{t('premium.nothingToManage')}</Text>
+            ) : primaryAction === 'manage' ? (
               <PrimaryButton
                 label={busy ? t('premium.opening') : t('premium.manageSubscription')}
                 onPress={manage}
@@ -290,7 +314,7 @@ export default function PremiumScreen() {
                 accessibilityLabel={t('premium.manageSubscriptionA11y')}
                 style={styles.ctaSpace}
               />
-            )}
+            ) : null}
             <Pressable onPress={() => router.replace('/today')} accessibilityRole="button" accessibilityLabel={t('common.backToToday')} hitSlop={8} style={styles.backLink}>
               <Text style={styles.backLinkText}>{t('common.backToToday')}</Text>
             </Pressable>
