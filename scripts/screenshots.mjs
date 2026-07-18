@@ -27,8 +27,17 @@ import { chromium } from 'playwright-core';
 
 const BASE = process.env.SHOT_URL ?? 'http://localhost:8081';
 const AI_URL = process.env.AI_URL ?? 'https://api.doubledone.app';
-const OUT = path.join(process.cwd(), 'docs', 'screenshots');
-const VIEWPORT = { width: 390, height: 844 };
+// IOS=1: App Store listing mode. Apple's 6.9-inch requirement is 1320x2868 portrait, produced
+// here as 440x956 CSS px at a scale of 3 (exactly 1320x2868), written as JPEG because a JPEG
+// carries no alpha channel (App Store Connect rejects transparency). The default (Play) mode is
+// untouched: 390x844 at scale 2, PNG, docs/screenshots/. NOTE the iOS set deliberately excludes
+// the Premium screen: the WEB paywall shows the Stripe line (IAP_AVAILABLE is false on web), and
+// an App Store screenshot pointing at external purchase is a review flag, not a marketing shot.
+const IOS = process.env.IOS === '1';
+const OUT = path.join(process.cwd(), 'docs', IOS ? 'appstore' : 'screenshots');
+const VIEWPORT = IOS ? { width: 440, height: 956 } : { width: 390, height: 844 };
+const SCALE = IOS ? 3 : 2;
+const EXT = IOS ? 'jpeg' : 'png';
 
 function chromePath() {
   if (process.env.CHROME && existsSync(process.env.CHROME)) return process.env.CHROME;
@@ -111,7 +120,7 @@ function seedLocalStorage(payload) {
 async function capture(browser, shot) {
   const ctx = await browser.newContext({
     viewport: VIEWPORT,
-    deviceScaleFactor: 2,
+    deviceScaleFactor: SCALE,
     colorScheme: shot.theme === 'dark' ? 'dark' : 'light',
   });
   const payload = {
@@ -131,14 +140,15 @@ async function capture(browser, shot) {
   await page.evaluate(() => document.fonts.ready.then(() => true));
   await page.waitForTimeout(700); // let the calm fades settle
 
-  const file = path.join(OUT, `${shot.name}.png`);
+  const file = path.join(OUT, `${shot.name}.${EXT}`);
+  const opts = EXT === 'jpeg' ? { path: file, type: 'jpeg', quality: 92 } : { path: file };
   if (shot.testid) {
     const el = page.locator(`[data-testid="${shot.testid}"]`);
     await el.scrollIntoViewIfNeeded();
     await page.waitForTimeout(250);
-    await el.screenshot({ path: file });
+    await el.screenshot(opts);
   } else {
-    await page.screenshot({ path: file });
+    await page.screenshot(opts);
   }
   await ctx.close();
   console.log(`  ✓ ${shot.name}`);
@@ -149,16 +159,27 @@ async function run() {
   // Capture a subset with SHOTS=name1,name2 (handy while iterating on one screen).
   const only = process.env.SHOTS ? new Set(process.env.SHOTS.split(',').map((s) => s.trim())) : null;
 
-  const shots = [
-    { name: 'today-light', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Drink a glass of water' },
-    { name: 'today-dark', route: '/today', tasks: TODAY_TASKS, theme: 'dark', waitText: 'Drink a glass of water' },
-    { name: 'lookback-light', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'light', waitText: 'Water the plants' },
-    { name: 'lookback-dark', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'dark', waitText: 'Water the plants' },
-    { name: 'scrapbook-light', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'light', testid: 'scrapbook-card', waitText: 'Scrapbook' },
-    { name: 'settings-light', route: '/settings', tasks: TODAY_TASKS, theme: 'light', motion: 'system', waitText: 'Theme' },
-    { name: 'settings-dark', route: '/settings', tasks: TODAY_TASKS, theme: 'dark', motion: 'system', waitText: 'Theme' },
-    { name: 'welcome', route: '/welcome', tasks: TODAY_TASKS, theme: 'light', waitText: 'A calmer kind of to-do' },
-  ].filter((s) => !only || only.has(s.name));
+  // The iOS (App Store) set is FULL-PAGE shots only: an element crop (the scrapbook card) would
+  // not be 1320x2868, and App Store Connect enforces exact dimensions.
+  const shots = (IOS
+    ? [
+        { name: 'today-light', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Drink a glass of water' },
+        { name: 'today-dark', route: '/today', tasks: TODAY_TASKS, theme: 'dark', waitText: 'Drink a glass of water' },
+        { name: 'lookback-light', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'light', waitText: 'Water the plants' },
+        { name: 'welcome', route: '/welcome', tasks: TODAY_TASKS, theme: 'light', waitText: 'A calmer kind of to-do' },
+        { name: 'settings-light', route: '/settings', tasks: TODAY_TASKS, theme: 'light', motion: 'system', waitText: 'Theme' },
+      ]
+    : [
+        { name: 'today-light', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Drink a glass of water' },
+        { name: 'today-dark', route: '/today', tasks: TODAY_TASKS, theme: 'dark', waitText: 'Drink a glass of water' },
+        { name: 'lookback-light', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'light', waitText: 'Water the plants' },
+        { name: 'lookback-dark', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'dark', waitText: 'Water the plants' },
+        { name: 'scrapbook-light', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'light', testid: 'scrapbook-card', waitText: 'Scrapbook' },
+        { name: 'settings-light', route: '/settings', tasks: TODAY_TASKS, theme: 'light', motion: 'system', waitText: 'Theme' },
+        { name: 'settings-dark', route: '/settings', tasks: TODAY_TASKS, theme: 'dark', motion: 'system', waitText: 'Theme' },
+        { name: 'welcome', route: '/welcome', tasks: TODAY_TASKS, theme: 'light', waitText: 'A calmer kind of to-do' },
+      ]
+  ).filter((s) => !only || only.has(s.name));
 
   // The scrapbook image is the only thing that needs the network; fetch it only if
   // that shot is in the set.
@@ -174,7 +195,7 @@ async function run() {
   } finally {
     await browser.close();
   }
-  console.log(`\nwrote ${shots.length} screenshot(s) to docs/screenshots/`);
+  console.log(`\nwrote ${shots.length} screenshot(s) to ${path.relative(process.cwd(), OUT)}/`);
 }
 
 run().catch((e) => {
