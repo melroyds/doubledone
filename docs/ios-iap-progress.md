@@ -58,6 +58,11 @@ Done, see `decision-log.md` (2026-07-18) for the full why:
 - ✅ **Worker DEPLOYED** (version `0c54d840`, `api.doubledone.app`). Verified: a wrong-auth POST → 401 (route live, secret set, auth enforced); RevenueCat's "Send test event" → 200 `{"received":true,"ignored":true}` (secret matches, test correctly ignored, no entitlement touched).
 - ⚠️ Subscription **group localization** added, products moved Missing Metadata → "Prepare for Submission" (not yet fully "Ready to Submit"; the individual review screenshot + localization remain, do them from the real paywall after the build). Does NOT block sandbox testing or the build.
 
+## Build state (2026-07-18 night)
+- **Build 10** (v1.0.0, EAS build 7bf51e03) uploaded to TestFlight: the IAP paywall, the approved privacy + terms text (RevenueCat disclosed, Anthropic 30-day retention, A$5/A$50), the trial/comp Manage fixes, the held card, the icon. **This is the submission candidate.**
+- Build 8 was the purchase-test build: sandbox purchase succeeded end to end, entitlement row written with `source='apple'`, verified in D1.
+- Known TestFlight artifacts, NOT bugs (documented in decision-log + PREM-32): the paywall shows US-storefront prices in TestFlight; notifications show the TestFlight icon. Both resolve in a production App Store install; gate the RELEASE on PREM-32's price check.
+
 ## Still left for Melroy (device / submission)
 - **Sandbox Apple ID**: not yet created. App Store Connect → Users and Access → Sandbox → Testers → +. A `+alias` Gmail works. Create it while the iOS build bakes.
 - **In-App-Purchase key + ASC API key + vendor number** uploaded to RevenueCat (mostly done per "Done" above).
