@@ -614,6 +614,10 @@ CASES = [
     ("PREM-30", "Premium", "P1", "The web build is unchanged and still sells via Stripe",
      "Build the production web export (expo export --platform web). Open /premium on web.",
      "The export succeeds (the native purchases module never enters the web bundle, proving the purchases.ts / purchases.ios.ts split). The web paywall shows the catalog price, the 'Billed securely via Stripe' line, NO Restore control, and the Stripe checkout path is unchanged. The regression guard on the paywall rewrite.", "Web"),
+    ("PREM-32", "Premium", "P1", "PRODUCTION paywall price matches App Store Connect",
+     "After the app is RELEASED, install it from the App Store (not TestFlight) on an Australian account and open Premium. Read the monthly and annual prices.",
+     "The paywall reads A$5.00 / month and A$50.00 / year, matching the App Store Connect price schedule for Australia, and matching what Apple's purchase sheet charges. CRITICAL: TestFlight and sandbox CANNOT verify this. They are known to answer product queries for the US storefront regardless of the account's real region, so a TestFlight paywall showing US dollars is expected and is NOT the bug. Only a production App Store install proves it. If production still disagrees with the sheet, that is a misleading pre-purchase price (an Australian Consumer Law problem, not just a display bug): pull the release via Pricing and Availability, Remove from sale. Prerequisite: app released. Gate the RELEASE on this, never the submission.", "iOS"),
+
     ("PREM-31", "Premium", "P2", "Sandbox tester + Restore Behavior confirmed in the RevenueCat dashboard", "",
      "In the RevenueCat dashboard: Restore Behavior is set to keep-with-original (so TRANSFER never fires), the App Store Connect API key + In-App-Purchase key are uploaded, both products read 'Ready to Submit', and the IAPs are attached to the SAME App Store submission as the first binary (a first-time subscription submitted separately is not reviewed). A Sandbox Apple ID exists for testing.", "Setup"),
 

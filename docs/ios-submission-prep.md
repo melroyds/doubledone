@@ -2,6 +2,8 @@
 
 Everything below is in the order you will actually do it. Section 1 is the device test, do that first while the phone is in your hand. Sections 2 and 3 are paste-and-answer. Sections 4 and 5 are the run sheet.
 
+**Price correction (2026-07-19):** an earlier draft of this pack said A$4.99 / A$49.99. The real App Store Connect prices are **A$5.00 / A$50.00**, confirmed by Apple's own purchase sheet showing $50.00. Every price below has been corrected.
+
 **Read this before you start:** the privacy draft had an adversarial verification run against it. Where they disagreed I have gone with the verification and marked each one, so you can see what changed and why.
 
 **The one thing that reshapes the plan.** The RevenueCat disclosure gap has to be fixed in two places: `client/public/privacy.html` (the web page, deploys instantly via Pages) and `client/src/app/privacy.tsx` (the in-app screen, which is what the paywall's "Privacy policy" link opens, and which is therefore your 3.1.2 compliance surface). The in-app one needs a new build. So **build 8 is probably not your submission build**. Your call, and I am not queuing anything. Options are at the top of section 4.
@@ -41,7 +43,7 @@ Do this rather than signing in when the purchase sheet prompts you. The account 
 | Must be there | Exact text |
 |---|---|
 | Heading | "More of what you love." |
-| Price | **A$4.99 / month**, from StoreKit, not "A$5" |
+| Price | **A$5.00 / month**, from StoreKit, not "A$5" |
 | Renewal line | "It renews on its own until you cancel it. You can cancel any time in your Apple ID settings, up to a day before it renews." |
 | Store line | "Billed through your Apple ID." |
 | Legal row | **Terms of use · Privacy policy**, both tappable, both open a real screen |
@@ -70,7 +72,7 @@ Do this rather than signing in when the purchase sheet prompts you. The account 
 
 **Do:** enter your email, send, get the 6-digit code, enter it.
 
-**Expect:** "Signed in", then it returns you after about 1.5 seconds. Because sign-in was pushed from the paywall, you land back **on the paywall**. The plan toggle now appears, tapping Annual flips the price to **A$49.99 / year**, the button now says **"Go Premium"**, and "Or try Premium free for a month" appears below it.
+**Expect:** "Signed in", then it returns you after about 1.5 seconds. Because sign-in was pushed from the paywall, you land back **on the paywall**. The plan toggle now appears, tapping Annual flips the price to **A$50.00 / year**, the button now says **"Go Premium"**, and "Or try Premium free for a month" appears below it.
 
 **If wrong:**
 - Code never arrives: Supabase auth, separate problem.
@@ -96,7 +98,7 @@ One screenshot per product, with the matching plan selected. Reusing one for bot
 
 **Expect, in order:**
 1. Button reads "Opening checkout…".
-2. Apple's native sheet, with **[Environment: Sandbox]** at the top. A$4.99. Confirm with Face ID or the sandbox password.
+2. Apple's native sheet, with **[Environment: Sandbox]** at the top. A$5.00. Confirm with Face ID or the sandbox password.
 3. Sheet dismisses, the paywall shows "Thanks. Setting up your Premium, this updates in a moment."
 4. It polls every 2 seconds, up to 10 times. **Within about 20 seconds** the screen flips to **"You're Premium ✓"** with a Manage subscription button and a renewal date.
 
@@ -222,7 +224,7 @@ insights, Chart a course, Plan my day, and energy matching. The scrapbook
 and the insights accrue over time (a week, then two months, then six
 months), so the value is ongoing rather than a one-off unlock.
 
-Plan: A$4.99 per month, auto-renewing monthly.
+Plan: A$5.00 per month, auto-renewing monthly.
 
 HOW TO REACH THE PURCHASE
 1. Open the app and complete the short welcome.
@@ -263,7 +265,7 @@ Privacy Policy are all shown on the purchase screen before purchase.
 
 For the annual product, change the plan line to:
 ```
-Plan: A$49.99 per year, auto-renewing yearly.
+Plan: A$50.00 per year, auto-renewing yearly.
 ```
 
 Two notes on this:
@@ -285,7 +287,7 @@ App Store screenshot rules: 1 to 10, PNG or JPEG, sRGB, **no alpha channel**. A 
 
 ### What Apple forbids in these fields
 
-- **No prices** in the display name or description. Apple renders those from your price tier. Putting "A$4.99" in a description is a metadata violation. Neither draft above has any.
+- **No prices** in the display name or description. Apple renders those from your price tier. Putting "A$5.00" in a description is a metadata violation. Neither draft above has any.
 - **No other platforms.** Never mention Android, Google Play, the web app, or doubledone.app in these fields. Given DoubleDone sells on Stripe on the web, this matters more than usual. No alternative purchase route, no "also available on the web". That is 3.1.1 and 3.1.3(b).
 - **No duration or renewal terms** in the description. Apple renders them itself and restating them reads as redundant metadata.
 - **No emoji, HTML, or special Unicode** in the display name.

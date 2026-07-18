@@ -48,11 +48,23 @@ export default function PremiumScreen() {
   const allowance = weeklyAllowance(effectiveEntitlement.since, now);
   const periodLabel = formatPeriod(effectiveEntitlement.currentPeriodEnd);
 
+  // --- Apple IAP (iOS only). Every line below is inert on web + Android: IAP_AVAILABLE is a
+  // compile-time false there (it comes from lib/purchases.ts, not lib/purchases.ios.ts), so the
+  // Stripe path this screen has always run is untouched by construction. Declared HERE, above the
+  // focus effect that fills it, because that effect calls setOffers. ---
+  const [offers, setOffers] = useState<StoreOffer[]>([]); // from the StoreKit offering; empty off iOS
+  const [restoreMsg, setRestoreMsg] = useState<string | null>(null); // the honest, visible outcome of a Restore tap
+
   // Re-check the entitlement when the screen gains focus, e.g. after returning from checkout.
   useFocusEffect(
     useCallback(() => {
       track('premium.viewed', { status: status ?? 'open' });
       refresh();
+      // Re-read the store prices too, not just the entitlement. buy() fetches the offering AGAIN at
+      // tap time, so a price read once on mount can drift from the price actually charged (a store
+      // price change, or a storefront that resolved late). Refreshing here keeps the number on
+      // screen and the number on Apple's sheet the same read. No-op off iOS.
+      if (IAP_AVAILABLE) void loadOffers().then(setOffers);
     }, [status, refresh]),
   );
 
@@ -63,15 +75,8 @@ export default function PremiumScreen() {
   const [plan, setPlan] = useState<'monthly' | 'annual'>('monthly'); // which price the checkout opens
   const [trialNote, setTrialNote] = useState<string | null>(null); // gentle note after a trial tap (e.g. already used)
 
-  // --- Apple IAP (iOS only). Every line below is inert on web + Android: IAP_AVAILABLE is a
-  // compile-time false there (it comes from lib/purchases.ts, not lib/purchases.ios.ts), so the
-  // Stripe path this screen has always run is untouched by construction. ---
-  const [offers, setOffers] = useState<StoreOffer[]>([]); // from the StoreKit offering; empty off iOS
-  const [restoreMsg, setRestoreMsg] = useState<string | null>(null); // the honest, visible outcome of a Restore tap
-  useEffect(() => {
-    if (!IAP_AVAILABLE) return;
-    void loadOffers().then(setOffers);
-  }, []);
+  // Offers are loaded in the focus effect above (not once on mount), so the displayed price is a
+  // fresh read every time the screen is seen.
   const offer = offers.find((o) => o.plan === plan);
   // What the primary CTA should do, given sign-in + entitlement state. On web/Android this is
   // always 'hidden' (IAP off), so the existing Stripe CTA renders instead.

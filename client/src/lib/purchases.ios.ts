@@ -11,6 +11,7 @@ import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 
 import { packagesToOffers, purchaseOutcome } from './iap';
 import type { BuyResult, RestoreResult, StoreOffer } from './purchases';
+import { track } from './telemetry';
 
 // The RevenueCat entitlement id (configured in the dashboard). A purchase counts as Premium only
 // when this key is active in the returned CustomerInfo.
@@ -76,7 +77,25 @@ export async function loadOffers(): Promise<StoreOffer[]> {
   if (!configured) return [];
   try {
     const offerings = await Purchases.getOfferings();
-    return packagesToOffers(offerings);
+    const offers = packagesToOffers(offerings);
+    // Record WHICH storefront Apple answered for, alongside the price string it gave us. Sandbox and
+    // TestFlight are known to answer for the US storefront regardless of the account's real region,
+    // which makes the displayed price disagree with the price Apple actually charges. That is
+    // environmental, not ours, but it is invisible without this line, so measure instead of infer.
+    // Diagnostic only: no user-facing surface, and it never blocks the offers returning.
+    try {
+      const storefront = await Purchases.getStorefront();
+      const first = offerings.current?.availablePackages?.[0]?.product;
+      track('iap.offers_loaded', {
+        storefront: storefront?.countryCode ?? 'unknown',
+        currency: first?.currencyCode ?? 'unknown',
+        price: first?.priceString ?? 'none',
+        count: offers.length,
+      });
+    } catch {
+      // a diagnostic must never break the paywall
+    }
+    return offers;
   } catch {
     return []; // treated as "store not answering" by the caller, never a crash
   }
