@@ -51,9 +51,16 @@ Done, see `decision-log.md` (2026-07-18) for the full why:
 - ✅ `/rc-webhook` (`server/src/revenuecat.ts`, 23 tests) → the shared D1 `entitlements` row via the new `source` column (migration applied live). CANCELLATION keeps premium ON; sandbox events grant; TRANSFER alerts the owner; idempotent + fail-open.
 - ✅ Four catalogs (~21 `premium.*` keys), source-aware legal drafts in `terms.tsx` / `privacy.tsx` (DRAFT, Melroy + lawyer), E2E PREM-18..31.
 
-## Left for Melroy (dashboard / device / deploy — cannot be done from code)
-- **`RC_WEBHOOK_AUTH`**: a long random string, set as BOTH a Worker secret (`npx wrangler secret put RC_WEBHOOK_AUTH --name doubledone-ai`) AND the RevenueCat dashboard webhook's Authorization header value. They must match. The webhook 503s until it is set.
-- **RevenueCat dashboard**: Restore Behavior = keep-with-original; the In-App-Purchase key + ASC API key + vendor number uploaded (mostly done per "Done" above); the webhook URL set to `https://api.doubledone.app/rc-webhook`.
+## LIVE as of 2026-07-18 (backend confirmed end-to-end)
+- ✅ **`RC_WEBHOOK_AUTH`** set on the Worker AND as the RevenueCat webhook Authorization header (they match).
+- ✅ **RevenueCat webhook** configured: URL `https://api.doubledone.app/rc-webhook`, Both Production and Sandbox, All events, paywall events off.
+- ✅ **Restore Behavior = keep-with-original** ("Transferring purchases seen on multiple App User IDs" → keep with original).
+- ✅ **Worker DEPLOYED** (version `0c54d840`, `api.doubledone.app`). Verified: a wrong-auth POST → 401 (route live, secret set, auth enforced); RevenueCat's "Send test event" → 200 `{"received":true,"ignored":true}` (secret matches, test correctly ignored, no entitlement touched).
+- ⚠️ Subscription **group localization** added, products moved Missing Metadata → "Prepare for Submission" (not yet fully "Ready to Submit"; the individual review screenshot + localization remain, do them from the real paywall after the build). Does NOT block sandbox testing or the build.
+
+## Still left for Melroy (device / submission)
+- **Sandbox Apple ID**: not yet created. App Store Connect → Users and Access → Sandbox → Testers → +. A `+alias` Gmail works. Create it while the iOS build bakes.
+- **In-App-Purchase key + ASC API key + vendor number** uploaded to RevenueCat (mostly done per "Done" above).
 - **App Store Connect**: both products to "Ready to Submit" and **attached to the SAME submission as the first binary** (a first-time subscription submitted separately is not reviewed); App Privacy labels; a Sandbox Apple ID (Settings → Developer) for test purchases.
 - **The reviewer sign-in note** (App Review Information): recommended path is the reviewer signs in with their OWN email (OTP self-provisions any address, `shouldCreateUser:true`), so it touches no production auth. Draft note in `decision-log.md` / the ios-critical-path workflow output.
 - **Deploy the Worker** (`npx wrangler deploy` from `server/`) once you OK it, so `/rc-webhook` goes live.
