@@ -26,6 +26,7 @@ import { buildSplitRequest, parseSplitResponse, SPLIT_MODEL } from './split';
 import { buildTinyRequest, parseTinyResponse, TINY_MODEL } from './tiny';
 import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
 import { handleRcWebhook } from './revenuecat';
+import { handleReviewCode, handleReviewEmail } from './review-otp';
 import { handleCheckout, handleEntitlement, handlePortal, handleWebhook } from './stripe';
 import { type D1LikeDatabase, extractUsage, logAiCall, logOutcome } from './telemetry';
 import { buildTriageRequest, parseTriageResponse, TRIAGE_MODEL } from './triage';
@@ -183,6 +184,13 @@ const router = {
     // header (a shared secret) is the auth. Writes the same D1 entitlements row as Stripe.
     if (pathname === '/rc-webhook' && request.method === 'POST') {
       return handleRcWebhook(request, env, new Date().toISOString(), Date.now());
+    }
+
+    // App Review sign-in relay: the latest OTP emailed to the review account, readable by
+    // Apple's reviewer in a browser. Fed by the email() handler below; lives only while the
+    // Email Routing rule for the review address exists. See review-otp.ts for the posture.
+    if (pathname === '/review-code' && request.method === 'GET') {
+      return handleReviewCode(env.DB, Date.now());
     }
 
     if (request.method === 'OPTIONS') {
@@ -1159,6 +1167,13 @@ export default {
     // documents) belong to the provider; every other path is the app's, untouched.
     if (isOAuthPath(pathname)) return oauthFetch(request, env, ctx);
     return router.fetch(request, env, ctx);
+  },
+
+  // Inbound email: Cloudflare Email Routing can route an address to this Worker. The only
+  // address that should ever be routed here is the App Review sign-in relay (see review-otp.ts);
+  // anything else is dropped. Removing the routing rule in the dashboard is the kill switch.
+  async email(message: { to: string; raw: ReadableStream; rawSize: number }, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(handleReviewEmail(message, env.DB, new Date().toISOString()));
   },
 
   // Daily web-push nudge (Phase 2). A Cloudflare Cron Trigger fires hourly; this sends a
