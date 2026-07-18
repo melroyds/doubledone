@@ -20,13 +20,13 @@ A calmer kind of to-do list
 ```
 Today is finite and achievable. The whole calm daily loop is free, forever. Premium adds the extras, a weekly AI scrapbook and gentle insights, never anything you need.
 ```
-(167 chars.)
+(168 chars.)
 
 ## Keywords (100 max, comma-separated, no spaces)
 ```
 adhd,focus,planner,tasks,routine,autism,neurodivergent,gentle,overwhelm,daily,habits,simple
 ```
-(92 chars. Deliberately no "calm", "to-do" or "list": the subtitle already indexes those, and
+(91 chars. Deliberately no "calm", "to-do" or "list": the subtitle already indexes those, and
 repeating name or subtitle words wastes the budget.)
 
 ## Description (4000 max; ends with the terms URL, which doubles as the EULA link)
