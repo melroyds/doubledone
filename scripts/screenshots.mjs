@@ -35,7 +35,10 @@ const AI_URL = process.env.AI_URL ?? 'https://api.doubledone.app';
 // an App Store screenshot pointing at external purchase is a review flag, not a marketing shot.
 const IOS = process.env.IOS === '1';
 const OUT = path.join(process.cwd(), 'docs', IOS ? 'appstore' : 'screenshots');
-const VIEWPORT = IOS ? { width: 440, height: 956 } : { width: 390, height: 844 };
+// The iOS size is overridable: IOS_W/IOS_H CSS px at scale 3. 440x956 -> 1320x2868 (6.9-inch);
+// 428x926 -> 1284x2778 (6.5-inch, what some ASC records ask for instead).
+const IOS_VP = { width: Number(process.env.IOS_W ?? 440), height: Number(process.env.IOS_H ?? 956) };
+const VIEWPORT = IOS ? IOS_VP : { width: 390, height: 844 };
 const SCALE = IOS ? 3 : 2;
 const EXT = IOS ? 'jpeg' : 'png';
 
