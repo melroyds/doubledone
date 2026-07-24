@@ -701,6 +701,8 @@ export const fr: Catalog = {
     didTitle: "Qu'est-ce que tu as fait ?",
     doneOn: 'Faite le…',
     doneOnA11y: 'Marquer {title} comme faite un jour précédent',
+    editTitleA11y: 'Modifier le titre : {title}',
+    editTitleInputA11y: 'Le titre de la tâche',
     doneOnAffirm: 'Notée pour le {day}. Ta Rétrospective dit vrai.',
     doneOnTitle: "Quel jour l'as-tu faite ?",
     easedOffAffirm: "Allégé. Ce n'est plus marqué.",

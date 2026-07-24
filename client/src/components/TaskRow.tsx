@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { border, cardShadow, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { t } from '@/lib/locale';
@@ -28,6 +29,7 @@ type Props = {
   onPin?: () => void; // held-state: pin / unpin as the day's one priority (Today one-offs only)
   onSelectMore?: () => void; // held-state: the door into multi-select (Combine, bulk-move, bulk-complete)
   onNudge?: () => void; // held-state: set a reminder on this task (native only; the caller gates it)
+  onRename?: (title: string) => void; // held-state: tap the card's title to edit it in place (trim/no-op rules live in lib/today renameTask)
   onSteps?: () => void; // held-state: open the "track in steps" editor (split or re-size)
   onMoveTo?: () => void; // held-state: move this one task to a day of its own
   onDoneOn?: () => void; // held-state, DONE tasks only: attribute the finish to the earlier day it happened
@@ -71,6 +73,7 @@ export function TaskRow({
   onPin,
   onSelectMore,
   onNudge,
+  onRename,
   onSteps,
   onMoveTo,
   onDoneOn,
@@ -86,6 +89,20 @@ export function TaskRow({
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
+  // Inline title editing on the held card: tap the title, it becomes a field, enter or blur saves.
+  // The draft starts from the RAW title (never the sliced "· n/N" suffix, which is render-only).
+  // Editing state resets whenever the card closes (the adjust-during-render pattern, not an
+  // effect, so a half-typed draft never survives a reopen and the React Compiler stays happy).
+  const [editingTitle, setEditingTitle] = useState<string | null>(null);
+  const [wasConfirming, setWasConfirming] = useState(confirming);
+  if (wasConfirming !== confirming) {
+    setWasConfirming(confirming);
+    if (!confirming) setEditingTitle(null);
+  }
+  function saveTitle() {
+    if (editingTitle != null && onRename) onRename(editingTitle);
+    setEditingTitle(null);
+  }
   // The default + suggest rows share an accessibility label that names the pin and the big mark, so a
   // screen reader hears "marked as a big task" as validation (suppressed in select mode, like the marks).
   // The repeat and reminder state are folded in too, so a recurring task or one with a nudge no longer
@@ -140,9 +157,33 @@ export function TaskRow({
     const weightLine = !done && (canPin || Boolean(onBig));
     return (
       <View style={[styles.row, styles.confirmRow, styles.confirmColumn]}>
-        <Text style={styles.confirmTitle} numberOfLines={2}>
-          {slices ? `${title}  ·  ${slices.done} / ${slices.total}` : title}
-        </Text>
+        {editingTitle != null && onRename ? (
+          <TextInput
+            value={editingTitle}
+            onChangeText={setEditingTitle}
+            onSubmitEditing={saveTitle}
+            onBlur={saveTitle}
+            autoFocus
+            returnKeyType="done"
+            style={[styles.confirmTitle, styles.confirmTitleInput]}
+            accessibilityLabel={t('today.editTitleInputA11y')}
+          />
+        ) : (
+          // The title is the edit control: tap the thing to change the thing, no extra button on an
+          // already-full card. The faint underline is the whole affordance; onRename absent (no
+          // handler wired) leaves it a plain title.
+          <Pressable
+            onPress={onRename ? () => setEditingTitle(title) : undefined}
+            disabled={!onRename}
+            accessibilityRole={onRename ? 'button' : undefined}
+            accessibilityLabel={onRename ? t('today.editTitleA11y', { title }) : undefined}
+            hitSlop={{ top: 8, bottom: 8 }}
+          >
+            <Text style={[styles.confirmTitle, onRename && styles.confirmTitleEditable]} numberOfLines={2}>
+              {slices ? `${title}  ·  ${slices.done} / ${slices.total}` : title}
+            </Text>
+          </Pressable>
+        )}
         {whenLine && (
           <View style={styles.confirmActions}>
             {/* A finished task is offered no Done (tapping the row is the one way to finish
@@ -413,6 +454,10 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   // userSelect:'none' on every title-bearing Text so a tap-and-hold (the held-state gesture)
   // can never start an iOS text selection on the title, native or web (see MarqueeText).
   confirmTitle: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body, userSelect: 'none' },
+  // The tappable-title affordance: a faint dotted-feeling underline in soft ink, calm enough to
+  // never shout, present enough that "this is editable" is discoverable.
+  confirmTitleEditable: { textDecorationLine: 'underline', textDecorationColor: t.colors.inkFaint },
+  confirmTitleInput: { paddingVertical: 0, borderBottomWidth: border.hair, borderColor: t.colors.accent },
   confirmActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.three },
   // The way out, held below a hairline and away from the rest, so a reflex tap after an
   // action can never land on Remove.

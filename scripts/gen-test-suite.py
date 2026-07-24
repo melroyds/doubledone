@@ -206,6 +206,10 @@ CASES = [
     ("REP-03", "Repeating", "P2", "Remove a series from the drawer (recoverable)",
      "In the Repeating drawer tap Remove on a series, then Undo within ~6 seconds.",
      "The series tombstones with a calm 'Repeating task removed. Undo' bar, never a confirm dialog. Undo restores it fully (and re-syncs). Letting the bar lapse keeps it removed.", "Both"),
+    ("TOD-24", "Today", "P2", "Edit a task's title from the held card",
+     "Hold a task. On its card, the title carries a faint underline: tap it, type a new name, press enter (or tap away). Also try: clearing the text entirely and tapping away; holding a SLICED task (the title shows '· n / N') and editing it; and editing a repeating task.",
+     "Tapping the title turns it into a text field in place, pre-filled with the RAW title (never the '· n / N' step counter, which is display-only). Enter or tapping away saves; the row updates immediately and the card STAYS open (fix a typo, then keep acting). An emptied or unchanged title saves nothing (no sync write). Renaming a repeating task renames the series, as the single visible row implies. The rename syncs across devices like any edit. Screen readers hear 'Edit the title: {title}' on the tap target.", "Both"),
+
     ("TOD-23", "Today", "P2", "Done on… corrects a COMPLETED task's day",
      "Tap a rolled-over task done (it records today). Long-press the completed task: its card is deliberately SMALL, offering only 'Done on…' then Select more / Remove / Close, with no Done at all (tapping the row is the one way to finish a thing) and no shaping actions (a finished thing needs nothing shaped). Pick a past day (yesterday to 14 back; today is not offered). Also long-press an OPEN task and confirm 'Done on…' is NOT offered there.",
      "Correction is a property of a completed task: the natural flow is tap-done first, refine after. Picking a day re-stamps the completion to that day's noon; the Lookback attributes it honestly on every device; the affirm reads 'Recorded for {day}. Your Lookback tells it true.', no bloom, no haptic. Recurring tasks never offer it.", "Both"),

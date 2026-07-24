@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { type Recurrence } from './recurrence';
-import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, pinFirst, resurfaceOpenParent, setBig, setPin, setSequence, skipOn, tinyParentTitle, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
+import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, skipOn, tinyParentTitle, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
 
 const today = new Date(2026, 5, 17);
 const iso = '2026-06-17';
@@ -123,6 +123,32 @@ describe('setSequence', () => {
     const before = mk('a');
     const out = setSequence([before, mk('b')], ['b'], 500);
     expect(out.find((x) => x.id === 'a')).toBe(before);
+  });
+});
+
+describe('renameTask', () => {
+  const mk = (id: string, title: string) => ({ id, title, updatedAt: 0 });
+
+  it('renames the one task, trims, and bumps updatedAt so the rename syncs', () => {
+    const out = renameTask([mk('a', 'Old name'), mk('b', 'Keep me')], 'a', '  New name  ', 900);
+    expect(out.find((t) => t.id === 'a')).toMatchObject({ title: 'New name', updatedAt: 900 });
+    expect(out.find((t) => t.id === 'b')).toMatchObject({ title: 'Keep me', updatedAt: 0 });
+  });
+
+  it('an empty or whitespace title is a no-op returning the SAME array (no commit, no sync write)', () => {
+    const tasks = [mk('a', 'Old name')];
+    expect(renameTask(tasks, 'a', '   ', 900)).toBe(tasks);
+    expect(renameTask(tasks, 'a', '', 900)).toBe(tasks);
+  });
+
+  it('an unchanged title (after trimming) is a no-op returning the SAME array', () => {
+    const tasks = [mk('a', 'Same')];
+    expect(renameTask(tasks, 'a', ' Same ', 900)).toBe(tasks);
+  });
+
+  it('an unknown id is a no-op returning the SAME array', () => {
+    const tasks = [mk('a', 'Old name')];
+    expect(renameTask(tasks, 'zzz', 'New', 900)).toBe(tasks);
   });
 });
 

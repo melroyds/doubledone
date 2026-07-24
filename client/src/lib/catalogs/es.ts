@@ -701,6 +701,8 @@ export const es: Catalog = {
     didTitle: '¿Qué hiciste?',
     doneOn: 'Hecha el…',
     doneOnA11y: 'Marcar {title} como hecha un día anterior',
+    editTitleA11y: 'Editar el título: {title}',
+    editTitleInputA11y: 'El título de la tarea',
     doneOnAffirm: 'Registrada para el {day}. Tu Mirada atrás cuenta la verdad.',
     doneOnTitle: '¿Qué día la hiciste?',
     easedOffAffirm: 'Aligerada. Ya no está marcada.',

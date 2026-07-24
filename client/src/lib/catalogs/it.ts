@@ -701,6 +701,8 @@ export const it: Catalog = {
     didTitle: 'Cosa hai fatto?',
     doneOn: 'Fatta il…',
     doneOnA11y: 'Segna {title} come fatta un giorno passato',
+    editTitleA11y: 'Modifica il titolo: {title}',
+    editTitleInputA11y: "Il titolo dell'attività",
     doneOnAffirm: 'Registrata per {day}. Il tuo Sguardo indietro dice il vero.',
     doneOnTitle: "Che giorno l'hai fatta?",
     easedOffAffirm: 'Alleggerita. Non è più segnata.',

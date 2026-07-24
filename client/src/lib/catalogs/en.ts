@@ -705,6 +705,8 @@ export const en = {
     didTitle: 'What did you do?',
     doneOn: 'Done on…',
     doneOnA11y: 'Mark {title} done on an earlier day',
+    editTitleA11y: 'Edit the title: {title}',
+    editTitleInputA11y: 'The task title',
     doneOnAffirm: 'Recorded for {day}. Your Lookback tells it true.',
     doneOnTitle: 'Which day did you do it?',
     easedOffAffirm: 'Eased off. No longer marked.',

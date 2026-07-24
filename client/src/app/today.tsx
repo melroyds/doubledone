@@ -67,7 +67,7 @@ import { track } from '@/lib/telemetry';
 import { updateWidget } from '@/widget/update';
 import { useReducedMotion, useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { usePremium } from '@/lib/premium-provider';
-import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, isRecurring, pinFirst, resurfaceOpenParent, setBig, setPin, setSequence, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, upcomingTasks } from '@/lib/today';
+import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, isRecurring, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, upcomingTasks } from '@/lib/today';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
@@ -637,6 +637,16 @@ export default function TodayScreen() {
   // put, so we close the card ourselves).
   function bigRow(task: Task) {
     markBig([task.id], !task.big);
+  }
+  // Rename from the card's tappable title. Deliberately NOT act-and-dismiss: fixing a typo then
+  // continuing to another action is the natural flow, and the changed title is its own feedback.
+  // renameTask returns the same array on a no-op (empty / unchanged), so nothing commits or syncs.
+  function renameRow(id: string, title: string) {
+    const next = renameTask(tasks, id, title, nowMs());
+    if (next !== tasks) {
+      commit(next);
+      track('task.renamed');
+    }
   }
   function pinRow(task: Task) {
     if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
@@ -1601,6 +1611,7 @@ export default function TodayScreen() {
               onBig={() => bigRow(task)}
               onPin={() => pinRow(task)}
               onSelectMore={() => selectFromRow(task.id)}
+              onRename={(title) => renameRow(task.id, title)}
               onNudge={Platform.OS !== 'web' && !isDoneOn(task, today) ? () => openNudge(task.id) : undefined}
               onSteps={!isRecurring(task) && !isDoneOn(task, today) ? () => openSliceEdit(task.id) : undefined}
               onMoveTo={!isRecurring(task) ? () => setMoveIds([task.id]) : undefined}
@@ -1676,6 +1687,7 @@ export default function TodayScreen() {
                   onMakeTiny={aiEnabled ? () => makeTiny(task.id, task.title) : undefined}
                   onBig={() => bigRow(task)}
                   onSelectMore={() => selectFromRow(task.id)}
+                  onRename={(title) => renameRow(task.id, title)}
                   onSteps={!isRecurring(task) ? () => openSliceEdit(task.id) : undefined}
                   onMoveTo={!isRecurring(task) ? () => setMoveIds([task.id]) : undefined}
                   selecting={selectMode}

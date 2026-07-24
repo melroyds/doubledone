@@ -186,6 +186,26 @@ export function setBig<T extends { id: string; big?: boolean; updatedAt: number 
 }
 
 /**
+ * Rename a task in place. The title is trimmed; an empty or unchanged result is a no-op that
+ * returns the SAME array reference, so callers can skip a commit (and a sync write) when nothing
+ * really changed. Bumps updatedAt on a real change so the rename syncs by plain LWW. Works for
+ * any task kind: a recurring row IS its series, so renaming it renames the series, which is what
+ * the one visible row implies.
+ */
+export function renameTask<T extends { id: string; title: string; updatedAt: number }>(
+  tasks: T[],
+  id: string,
+  title: string,
+  now: number,
+): T[] {
+  const next = title.trim();
+  if (next.length === 0) return tasks;
+  const target = tasks.find((t) => t.id === id);
+  if (!target || target.title === next) return tasks;
+  return tasks.map((t) => (t.id === id ? { ...t, title: next, updatedAt: now } : t));
+}
+
+/**
  * Defer a one-off to tomorrow: set its due to the day after `date`, so it drops
  * off Today and returns tomorrow. A calm "not today", the single-task sibling of
  * close-the-day's roll forward, with no counter and no penalty (the never-shame
