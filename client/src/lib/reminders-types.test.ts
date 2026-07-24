@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { clampHour, clampMinute, formatReminderHour, formatReminderTime, nextDailySlot, type ReminderReason, reminderReasonLine } from './reminders-types';
+import { clampHour, clampMinute, formatReminderHour, formatReminderTime, nextDailySlot, type ReminderReason, reminderReasonLine , staleNudgeIdentifiers, RHYTHM_CHANNEL, DAILY_CHANNEL, TASK_NUDGE_CHANNEL } from './reminders-types';
 
 describe('reminderReasonLine', () => {
   it('gives a distinct, non-empty, never-alarming line for each reason', () => {
@@ -109,5 +109,29 @@ describe('nextDailySlot (the nudge health "next around" pick)', () => {
     expect(nextDailySlot([{ hour: 20, minute: 30 }], at(20, 29))).toEqual({ hour: 20, minute: 30 });
     expect(nextDailySlot([{ hour: 30, minute: 99 }], at(12, 0))).toEqual({ hour: 23, minute: 59 });
     expect(nextDailySlot([], at(12, 0))).toBeNull();
+  });
+});
+
+describe('staleNudgeIdentifiers (the app-open guilt-pile sweep)', () => {
+  const n = (identifier: string, channelId: string | null) => ({ identifier, channelId });
+
+  it('dismisses delivered Rhythm and daily/routine nudges: offers to open the app, and the app is open', () => {
+    const presented = [n('r1', RHYTHM_CHANNEL), n('r2', RHYTHM_CHANNEL), n('d1', DAILY_CHANNEL)];
+    expect(staleNudgeIdentifiers(presented)).toEqual(['r1', 'r2', 'd1']);
+  });
+
+  it('KEEPS per-task nudges: they point at one specific task and stay actionable', () => {
+    const presented = [n('t1', TASK_NUDGE_CHANNEL), n('r1', RHYTHM_CHANNEL)];
+    expect(staleNudgeIdentifiers(presented)).toEqual(['r1']);
+  });
+
+  it('falls back to the stable identifier families when channels are absent (iOS)', () => {
+    const presented = [n('rhythm-abc-9', null), n('routine-xyz', null), n('doubledone-daily', null), n('nudge-task1', null)];
+    expect(staleNudgeIdentifiers(presented)).toEqual(['rhythm-abc-9', 'routine-xyz', 'doubledone-daily']);
+  });
+
+  it('keeps anything unrecognised: never over-dismiss', () => {
+    expect(staleNudgeIdentifiers([n('x', null), n('y', 'some-future-channel'), n('nudge-task1', null)])).toEqual([]);
+    expect(staleNudgeIdentifiers([])).toEqual([]);
   });
 });

@@ -4,7 +4,7 @@ import * as Notifications from 'expo-notifications';
 import { Linking, Platform } from 'react-native';
 
 import { t } from './i18n-active';
-import { nextDailySlot, type ReminderResult } from './reminders-types';
+import { DAILY_CHANNEL, nextDailySlot, type ReminderResult, RHYTHM_CHANNEL, staleNudgeIdentifiers, TASK_NUDGE_CHANNEL } from './reminders-types';
 import { rhythmFireTimes, rhythmSlotId, rhythmSlotIdPrefix, type Routine } from './routines';
 
 export type { ReminderReason, ReminderResult } from './reminders-types';
@@ -19,15 +19,15 @@ export type { ReminderReason, ReminderResult } from './reminders-types';
 // Notification title/body copy resolves via t() at schedule time, so it follows the device
 // locale. The ids below are NOT copy: they are stable identifiers and must never localise.
 const DAILY_ID = 'doubledone-daily'; // fixed id so we cancel only the daily, leaving nudges alone
-const DAILY_CHANNEL_ID = 'daily-reminder';
+const DAILY_CHANNEL_ID = DAILY_CHANNEL; // shared with the pure stale-sweep logic (reminders-types)
 const ROUTINE_NUDGE_PREFIX = 'routine-'; // + routineId: one daily nudge per routine, cancellable alone
-const NUDGE_CHANNEL_ID = 'task-nudge-v2'; // v2 forces a fresh HIGH-importance channel, since Android ignores importance changes to an already-created channel
+const NUDGE_CHANNEL_ID = TASK_NUDGE_CHANNEL; // v2 forces a fresh HIGH-importance channel, since Android ignores importance changes to an already-created channel
 // Rhythms get their OWN channel at HIGH importance: a Rhythm is a nudge the user explicitly
 // asked for ("water every 2 hours", meds at 8), and on the shared DEFAULT channel it landed
 // silently in the tray and was never noticed (the launch-week "I only got one alarm" bug).
 // HIGH surfaces a heads-up peek, same posture as the task nudges someone explicitly sets.
 // Its own channel also means the user can tune Rhythms alone in system settings.
-const RHYTHM_CHANNEL_ID = 'rhythm-nudge';
+const RHYTHM_CHANNEL_ID = RHYTHM_CHANNEL;
 
 // Show notifications even when the app is foregrounded. Without this, expo-notifications
 // drops a notification that fires while the app is open (the default), so a reminder set
@@ -256,9 +256,31 @@ export async function cancelNudge(id: string): Promise<void> {
  * anyone with a dialog; if permission is missing it simply does nothing. Idempotent
  * (every schedule call cancels its own ids first). Best effort, never throws.
  */
+/**
+ * Dismiss the stale nudge pile: every DELIVERED Rhythm / daily / routine notification still
+ * sitting in the tray when the app opens. They are offers to open the app, and the app is open;
+ * left behind they read as a guilt-heap of missed reminders (the never-shame violation a power
+ * user reported, 2026-07-24). Per-task nudges are deliberately kept (see staleNudgeIdentifiers).
+ * Best effort, never throws; the decision of WHAT to dismiss is pure and tested.
+ */
+export async function dismissStaleNudges(): Promise<void> {
+  try {
+    if (Platform.OS === 'web') return;
+    const presented = await Notifications.getPresentedNotificationsAsync();
+    const shaped = presented.map((n) => ({
+      identifier: n.request.identifier,
+      channelId: ((n.request.trigger as { channelId?: string } | null)?.channelId ?? (n.request.content as { channelId?: string }).channelId) || null,
+    }));
+    for (const id of staleNudgeIdentifiers(shaped)) await Notifications.dismissNotificationAsync(id);
+  } catch {
+    // best effort: a failed sweep just leaves the tray as it was
+  }
+}
+
 export async function rescheduleAllNudges(routines: Routine[], dailyReminderHour: number | null): Promise<void> {
   try {
     if (Platform.OS === 'web') return;
+    await dismissStaleNudges(); // clear the missed pile FIRST, so re-scheduling never races the sweep
     for (const r of routines) {
       if (r.kind === 'rhythm') {
         if (!r.paused) await scheduleRhythm(r, { quiet: true });

@@ -4264,3 +4264,13 @@ Melroy, on device: "I can't even edit the task. What the hell?" He was right, an
 **Decided against:** a rename entry in the card's action lines (a twelfth control, the overwhelm ceiling says no); an edit modal (a whole surface for one field); and long-press-the-title-to-edit (a hold inside a hold is gesture soup).
 
 4 new pure tests (521 client), TOD-24 added (218 cases), two catalog keys x4. Preview-verified end to end: tap title -> field pre-filled with the raw title -> retype -> enter saves, storage + updatedAt bump confirmed, card stays open; emptied input is a proven no-op (same stamp, no write). Blur-to-save is unverifiable in the headless preview (focus never lands there) but is the identical pattern already shipped in chart.tsx, routines.tsx and BreakdownReview.tsx; TOD-24's tap-away step covers it in the device pass.
+
+## 2026-07-24 Missed nudges are dismissed on app open, never left as a guilt-heap
+
+The power user's spine violation, closed to the extent JS can reach: she opened her phone to "a backlog of missed reminders, which actually makes me feel a bit guilty rather than helping me remember to drink." A pile of missed nudges is the never-shame rule breaking in the notification tray.
+
+**Decided: on every app open (riding the existing resilience sweep), dismiss every DELIVERED Rhythm, daily-reminder, and routine-checklist notification.** They are offers to open the app; once it is open they are honoured or moot, and either way they should vanish quietly. Per-TASK nudges are deliberately KEPT: they point at one specific task and stay actionable while it does. The decision of what to dismiss is pure and tested (staleNudgeIdentifiers in reminders-types, 4 tests): matched by notification channel on Android and by the stable identifier families (rhythm-*, routine-*, the fixed daily id) on iOS, with anything unrecognised kept, never over-dismissed. The channel ids moved into the pure module so the sweep and the scheduler agree by construction rather than by string luck.
+
+**The honest limit, written down:** this clears the pile the moment the app opens (her exact reported experience), but nudges that fire while the app stays closed still accumulate until then. True tray auto-expiry needs Android's timeoutAfter, which expo-notifications does not expose; that is a native config-plugin follow-up, filed in the Backlog next to the delivery pass. Decided against shipping a plugin now: it forks the build config during two live store reviews for an increment the sweep already halves.
+
+AND-06 added (219 cases). Native behaviour, so the web preview cannot verify it; it rides the next builds' device pass.
