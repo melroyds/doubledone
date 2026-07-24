@@ -30,7 +30,7 @@ export default function PrivacyScreen() {
         </Text>
 
         <Section styles={styles} heading="On your device by default">
-          Your tasks live on your device. You can use the whole app, capture, break things down, the Lookback, all of
+          Your tasks live on your device. You can use the whole app, capture, break things down, the Calendar, all of
           it, with no account and nothing sent anywhere.
         </Section>
 

@@ -86,6 +86,7 @@ The single home for consciously parked work. Nothing here is dropped; each item 
 
 **Scheduling and deferral**
 - **Set / clear a date on an existing task** (one-off dating works at capture only). Trigger: you reach to re-date something already captured.
+- **Tap a future day on the Calendar to add a task to it.** RAISED 2026-07-25 by the "Lookback → Calendar" rename: the new name quietly promises you can schedule INTO a day, but the forward view is read-only (it shows what is already planned). The calm build is a future-day detail that offers an "Add for this day" affordance, dropping a one-off dated task onto that date (reusing the capture path + the existing `due` field), never a full drag-and-drop calendar. Trigger: the first "why can't I tap a day to add something" report, or the next Calendar-screen polish pass. Pairs naturally with "Set / clear a date on an existing task" above.
 - **Open question: an "outstanding" section of Today** (how persistent multi-day tasks relate to must-happen-today ones). Deferred on purpose in the decision-log.
 
 **Sync, beyond v1** (v1 is tasks-only)
