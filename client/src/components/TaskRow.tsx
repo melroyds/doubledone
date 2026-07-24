@@ -258,24 +258,29 @@ export function TaskRow({
         )}
         <View style={styles.terminalLine}>
           {/* A door, not a verb, so it reads faint and left. Leaving is always the safe act, so
-              Close takes the accent and the thumb's corner. */}
+              Close takes the accent and the thumb's corner. Remove + Close are ONE content-sized
+              group pinned right by the group's own flex, NOT separated by a zero-width flex spacer:
+              on dense Android a fractional spacer starved the middle label's box and hard-clipped
+              its trailing glyph ("Remove" -> "Remov" on an S22, and worse for longer locales like
+              fr "Retirer"). Content-sizing each label means no label's width is ever leftover-space. */}
           {onSelectMore && (
             <Pressable onPress={onSelectMore} accessibilityRole="button" accessibilityLabel={t('today.selectMoreA11y')} hitSlop={{ top: 12, bottom: 12 }}>
               <Text style={styles.keep}>{t('today.selectMore')}</Text>
             </Pressable>
           )}
-          <View style={styles.spacer} />
-          <Pressable
-            onPress={onRemove}
-            accessibilityRole="button"
-            accessibilityLabel={recurring ? t('repeat.skipTodayA11y', { title }) : t('today.removeTaskLabel', { title })}
-            hitSlop={{ top: 12, bottom: 12 }}
-          >
-            <Text style={styles.remove}>{t('common.remove')}</Text>
-          </Pressable>
-          <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel={t('common.close')} hitSlop={{ top: 12, bottom: 12 }}>
-            <Text style={styles.close}>{t('common.close')}</Text>
-          </Pressable>
+          <View style={styles.terminalRight}>
+            <Pressable
+              onPress={onRemove}
+              accessibilityRole="button"
+              accessibilityLabel={recurring ? t('repeat.skipTodayA11y', { title }) : t('today.removeTaskLabel', { title })}
+              hitSlop={{ top: 12, bottom: 12 }}
+            >
+              <Text style={styles.remove}>{t('common.remove')}</Text>
+            </Pressable>
+            <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel={t('common.close')} hitSlop={{ top: 12, bottom: 12 }}>
+              <Text style={styles.close}>{t('common.close')}</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     );
@@ -470,7 +475,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     borderColor: t.appearance === 'quiet' ? t.quiet.hairline : t.colors.line,
     paddingTop: spacing.two,
   },
-  spacer: { flex: 1 },
+  terminalRight: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.three },
   keep: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', paddingHorizontal: spacing.two },
   controlOff: { color: t.colors.inkFaint },
   close: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', paddingHorizontal: spacing.two },
