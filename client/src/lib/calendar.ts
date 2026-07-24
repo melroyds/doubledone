@@ -3,8 +3,9 @@
 // Leap years and month lengths come from the platform Date, so they are correct
 // by construction. Week starts on Sunday, matching the capture weekday chips.
 
-import { toISODate } from './day';
+import { fromISODate, toISODate } from './day';
 import { fmt } from './i18n-active';
+import { isDueOn } from './recurrence';
 import { isBigWin } from './reward';
 import { isRecurring, type Scheduled } from './today';
 
@@ -80,23 +81,33 @@ export function completionsByDay<T extends Completable>(tasks: T[]): Map<string,
   return byDay;
 }
 
-export type ScheduledItem = { id: string; title: string };
+export type ScheduledItem = { id: string; title: string; recurring?: boolean };
 
 /**
- * Map of ISO date -> one-off tasks scheduled for that FUTURE day (a deferred or
- * "Date…" task). Only future-dated, not-done, not-tombstoned one-offs; recurring
- * tasks live in the Repeating drawer, so they are not marked on the calendar here.
- * Mirrors the "Later" list, but grouped by due date for the month grid.
+ * Map of ISO date -> tasks PLANNED for that FUTURE day: one-off dues (a deferred or
+ * "Date…" task) plus, when the visible grid's `days` are given, each recurring task's
+ * occurrences projected onto them ("wash hair every 4 days" marks every 4th day, the
+ * glance-at-the-calendar ask from the 2026-07 feedback wave). Skip-today'd instances
+ * are honoured (the series continues, that day is not planned). Future-only: the past
+ * belongs to completions, and today belongs to Today.
  */
-export function scheduledByDay<T extends Completable>(tasks: T[], today: Date): Map<string, ScheduledItem[]> {
+export function scheduledByDay<T extends Completable>(tasks: T[], today: Date, days?: (string | null)[]): Map<string, ScheduledItem[]> {
   const todayIso = toISODate(today);
   const byDay = new Map<string, ScheduledItem[]>();
+  const add = (iso: string, item: ScheduledItem) => {
+    const list = byDay.get(iso);
+    if (list) list.push(item);
+    else byDay.set(iso, [item]);
+  };
+  const futureDays = (days ?? []).filter((d): d is string => d != null && d > todayIso);
   for (const t of tasks) {
-    if (t.deletedAt || isRecurring(t) || t.done) continue;
-    if (t.due != null && t.due > todayIso) {
-      const list = byDay.get(t.due);
-      if (list) list.push({ id: t.id, title: t.title });
-      else byDay.set(t.due, [{ id: t.id, title: t.title }]);
+    if (t.deletedAt || t.done) continue;
+    if (isRecurring(t)) {
+      for (const iso of futureDays) {
+        if (isDueOn(t, fromISODate(iso)) && !(t.skippedDates ?? []).includes(iso)) add(iso, { id: t.id, title: t.title, recurring: true });
+      }
+    } else if (t.due != null && t.due > todayIso) {
+      add(t.due, { id: t.id, title: t.title });
     }
   }
   return byDay;

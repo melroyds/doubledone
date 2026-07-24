@@ -100,6 +100,12 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | REP-02 | P2 | Both | Edit a series from the Repeating drawer | Open the Repeating drawer, tap Edit on a series. Change the title, the cadence (daily / weekdays / every N), and the start date. Save. | The drawer manages the series: the edit sheet prefills everything, saving updates the series in place (shape identical to a captured one), and Today reflects the new cadence. An empty title cannot save. |
 | REP-03 | P2 | Both | Remove a series from the drawer (recoverable) | In the Repeating drawer tap Remove on a series, then Undo within ~6 seconds. | The series tombstones with a calm 'Repeating task removed. Undo' bar, never a confirm dialog. Undo restores it fully (and re-syncs). Letting the bar lapse keeps it removed. |
 
+## Lookback
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| LB-10 | P2 | Both | Repeating tasks project onto the calendar ('hair washing day') | Create a repeating task with an interval (e.g. 'Wash hair' every 4 days) and a daily one. Open the Lookback and look at the days ahead. Tap a future day that carries the planned dot. Then skip-today one occurrence (hold the task on Today on its due day, Remove) and re-check that day in the calendar. | Every future day a repeat lands on carries the planned (outline) dot, exactly like a dated one-off, so 'is it hair washing day?' is answered by a glance at the calendar (the power user's ask, 2026-07). Tapping the day lists the repeat under the planned heading with the ○ mark and a small ↻ so a repeat reads as a repeat. A skip-today'd occurrence does NOT mark its day (the series continues; that day is not planned). Today and past days never carry planned marks: the past belongs to completions, today to Today. One-off planned dots and the day-detail behave exactly as before. |
+
 ## Today
 
 | ID | Pri | Platform | Test | Steps | Expected |

@@ -80,8 +80,10 @@ export default function LookbackScreen() {
 
   const byDay = useMemo(() => completionsByDay(tasks), [tasks]);
   const isFirstRun = byDay.size === 0; // no completion ever recorded: a fresh account, show one warm line, not stacked empties
-  const scheduled = useMemo(() => scheduledByDay(tasks, today), [tasks, today]);
   const weeks = useMemo(() => monthMatrix(view.year, view.month), [view]);
+  // Planned marks for the visible month: one-off dues plus each repeat's projected occurrences
+  // (the "wash hair every 4 days shows on the calendar" ask), skip-today'd instances excluded.
+  const scheduled = useMemo(() => scheduledByDay(tasks, today, weeks.flat()), [tasks, today, weeks]);
   const todayIso = toISODate(today);
   const selectedItems = byDay.get(selected) ?? [];
   const selectedScheduled = scheduled.get(selected) ?? [];
@@ -308,6 +310,7 @@ export default function LookbackScreen() {
               <View key={s.id} style={styles.item}>
                 <Text style={styles.itemMarkScheduled}>○</Text>
                 <Text style={styles.itemTitle}>{s.title}</Text>
+                {s.recurring && <Text style={styles.itemRepeat} accessible={false} importantForAccessibility="no">↻</Text>}
               </View>
             ))}
           </>
@@ -525,6 +528,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   item: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
   itemMark: { color: t.colors.doneText, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
   itemMarkScheduled: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+  itemRepeat: { color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
   detailScheduledHead: {
     color: t.colors.accent,
     fontSize: 12 * t.scale,

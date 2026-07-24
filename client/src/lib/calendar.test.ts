@@ -79,6 +79,38 @@ describe('scheduledByDay', () => {
   const today = new Date(2026, 5, 20); // 20 Jun 2026
   const base = { done: false, createdAt: 0 };
 
+  it("projects a repeat's occurrences onto the given days: 'wash hair every 4 days' marks every 4th day", () => {
+    const hair = { ...base, id: 'h', title: 'Wash hair', recurrence: { kind: 'interval' as const, days: 4, anchor: '2026-06-20' } };
+    const days = ['2026-06-21', '2026-06-22', '2026-06-23', '2026-06-24', '2026-06-25', '2026-06-28', null];
+    const m = scheduledByDay([hair], today, days);
+    expect(m.get('2026-06-24')).toEqual([{ id: 'h', title: 'Wash hair', recurring: true }]);
+    expect(m.get('2026-06-28')).toEqual([{ id: 'h', title: 'Wash hair', recurring: true }]);
+    expect(m.has('2026-06-21')).toBe(false);
+    expect(m.has('2026-06-23')).toBe(false);
+  });
+
+  it('never projects a repeat onto today or the past, and honours skip-today', () => {
+    const daily = { ...base, id: 'd', title: 'Meds', recurrence: { kind: 'daily' as const }, skippedDates: ['2026-06-22'] };
+    const days = ['2026-06-19', '2026-06-20', '2026-06-21', '2026-06-22'];
+    const m = scheduledByDay([daily], today, days);
+    expect(m.has('2026-06-19')).toBe(false); // past: completions territory
+    expect(m.has('2026-06-20')).toBe(false); // today: Today's territory
+    expect(m.get('2026-06-21')).toEqual([{ id: 'd', title: 'Meds', recurring: true }]);
+    expect(m.has('2026-06-22')).toBe(false); // skip-today'd: the series continues, that day is not planned
+  });
+
+  it('without a days grid, behaves exactly as before: one-offs only, repeats unmarked', () => {
+    const m = scheduledByDay(
+      [
+        { ...base, id: 'a', title: 'A', due: '2026-06-21' },
+        { ...base, id: 'd', title: 'Meds', recurrence: { kind: 'daily' as const } },
+      ],
+      today,
+    );
+    expect(m.get('2026-06-21')).toEqual([{ id: 'a', title: 'A' }]);
+    expect(m.size).toBe(1);
+  });
+
   it('groups future-dated one-offs by their due date', () => {
     const m = scheduledByDay(
       [

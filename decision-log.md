@@ -4284,3 +4284,15 @@ The user report: "Once the day is closed, we don't see what's coming up in futur
 **Part 2 (queued next): the Lookback's calendar learns to show PLANNED tasks alongside completed ones**, which is what makes the door worth opening, and which unifies this report with the power user's recurring-tasks-in-a-calendar ask and the earlier ICS instinct.
 
 Four keys x4 catalogs. TOD-25 added (220 cases). Preview-verified on the exact seed that exposed the gap: count line renders ("2 things are waiting..."), no future titles anywhere on the closed screen, absent at zero. The tap-through could not be fired in the headless preview (the documented Pressable gotcha); accepted by structure, it is the same router.push pattern as the adjacent working Reopen button, and TOD-25 covers the tap on device.
+
+## 2026-07-24 The Lookback learns repeats: 'hair washing day' at a glance (Path C, part 2)
+
+The wave's last piece, and smaller than planned because the audit-before-building found most of it already existed: the Lookback has had planned-day dots, a legend entry, and a future-day detail list for one-off dues since the redesign. The genuine gap was exactly the power user's literal ask: RECURRING tasks ("wash my hair every four days... I can glance at my calendar and immediately see that it's hair washing day") never appeared, because scheduledByDay explicitly skipped repeats.
+
+**Decided: project each repeat's occurrences onto the visible month grid.** scheduledByDay gains an optional days param (the month matrix the Lookback already computes); for each future day, isDueOn answers whether the repeat lands there (the same predicate that decides Today, so the calendar and Today can never disagree about a cadence), with skip-today'd instances excluded (the series continues; that day is not planned). Future-only stays absolute: the past belongs to completions, today to Today. Rendering: the SAME planned dot (planned is planned), and the day detail marks a repeat with a small ↻ after the ○, so a repeat reads as a repeat. Without the days param the function behaves byte-for-byte as before (locked by test), so nothing else that might ever call it moves.
+
+**Decided against** a separate repeat-dot colour (a third legend entry for a distinction the ↻ in the detail already carries) and against projecting past occurrences (the Lookback's past is what you DID, never what you were supposed to do, which is the never-shame line).
+
+3 new pure tests incl. her literal every-4-days case and the skip-today exclusion (528 client). LB-10 added (221 cases). Preview-verified end to end on her scenario: the day 4 days out reads "0 finished, 1 scheduled", tapping it lists "Wash hair ↻" under the planned heading.
+
+**The wave (2026-07-24), all four shipped to web in one day:** edit a task title in place; the missed-nudge pile dismissed on app open; the closed day's calm forward count; and repeats on the calendar. All four came from real users inside the target audience, and all four ride the next native builds.
