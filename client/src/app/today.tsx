@@ -1532,6 +1532,22 @@ export default function TodayScreen() {
                 : t('closeDay.restedQuiet')}
             </Text>
             <Text style={styles.restedSub}>{t('closeDay.restedSub')}</Text>
+            {/* The calm forward view's door (Path C, 2026-07-24): a COUNT, never a list. Closing the
+                day means setting it down, so the future is one quiet reassurance ("your captures are
+                safe") with an opt-in peek via the Lookback, not tomorrow's weight re-loaded here. */}
+            {upcoming.length > 0 && (
+              <Pressable
+                onPress={() => router.push('/lookback')}
+                accessibilityRole="button"
+                accessibilityLabel={t('closeDay.waitingAheadA11y')}
+                hitSlop={8}
+                style={({ pressed }) => [pressed && styles.pressed]}
+              >
+                <Text style={styles.restedWaiting}>
+                  {fmt.plural(upcoming.length, { one: t('closeDay.waitingAheadOne'), other: t('closeDay.waitingAheadOther', { count: upcoming.length }) })}
+                </Text>
+              </Pressable>
+            )}
             <BedtimeCapture onCapture={capture} today={today} />
             <Pressable
               onPress={reopenDay}
@@ -2670,6 +2686,9 @@ const makeStyles = (t: Theme) =>
     restedTitle: { ...t.type.heading, color: t.colors.ink, letterSpacing: -0.3, textAlign: 'center' },
     restedLine: { color: t.colors.ink, fontSize: 17 * t.scale, lineHeight: 24 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     restedSub: { color: t.colors.inkFaint, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+    // The forward-view door on the rested screen: quiet soft ink, underlined like every other
+    // tappable text action (TOD-18), a reassuring count that never becomes a list.
+    restedWaiting: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body, textAlign: 'center', textDecorationLine: 'underline' },
     restedReopen: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.three },
     reminderOffer: {
       alignSelf: 'stretch',

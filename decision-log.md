@@ -4274,3 +4274,13 @@ The power user's spine violation, closed to the extent JS can reach: she opened 
 **The honest limit, written down:** this clears the pile the moment the app opens (her exact reported experience), but nudges that fire while the app stays closed still accumulate until then. True tray auto-expiry needs Android's timeoutAfter, which expo-notifications does not expose; that is a native config-plugin follow-up, filed in the Backlog next to the delivery pass. Decided against shipping a plugin now: it forks the build config during two live store reviews for an increment the sweep already halves.
 
 AND-06 added (219 cases). Native behaviour, so the web preview cannot verify it; it rides the next builds' device pass.
+
+## 2026-07-24 The closed day gains its forward view: a count and a door, never the list (Path C, part 1)
+
+The user report: "Once the day is closed, we don't see what's coming up in future days because I don't know if I added a task or not." Verified on device before building: a closed day with tasks due tomorrow and in three days showed NEITHER, so a capture could not be confirmed safe, which is the exact "did I even add that?" anxiety the app exists to remove.
+
+**Decided (Path C, Melroy's pick over two alternatives): the rested screen shows one quiet underlined line, "N things are waiting for the days ahead. They are safe.", tappable through to the Lookback.** A COUNT, never a list: closing the day means setting it down, and rendering the Later list on the goodnight screen would re-load tomorrow's weight at the moment of release (rejected as Path A). The copy carries the actual job, reassurance of safety, not a preview of burden. Hidden entirely at zero. The count is `upcomingTasks` (future-due one-offs), already computed for the Later list, so this is presentation only.
+
+**Part 2 (queued next): the Lookback's calendar learns to show PLANNED tasks alongside completed ones**, which is what makes the door worth opening, and which unifies this report with the power user's recurring-tasks-in-a-calendar ask and the earlier ICS instinct.
+
+Four keys x4 catalogs. TOD-25 added (220 cases). Preview-verified on the exact seed that exposed the gap: count line renders ("2 things are waiting..."), no future titles anywhere on the closed screen, absent at zero. The tap-through could not be fired in the headless preview (the documented Pressable gotcha); accepted by structure, it is the same router.push pattern as the adjacent working Reopen button, and TOD-25 covers the tap on device.

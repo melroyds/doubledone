@@ -206,6 +206,10 @@ CASES = [
     ("REP-03", "Repeating", "P2", "Remove a series from the drawer (recoverable)",
      "In the Repeating drawer tap Remove on a series, then Undo within ~6 seconds.",
      "The series tombstones with a calm 'Repeating task removed. Undo' bar, never a confirm dialog. Undo restores it fully (and re-syncs). Letting the bar lapse keeps it removed.", "Both"),
+    ("TOD-25", "Today", "P2", "The closed day shows a calm forward COUNT, never the list",
+     "With tasks due tomorrow and in a few days, close the day. Read the rested screen. Tap the waiting-ahead line. Then reopen the day, remove all future tasks, close again.",
+     "The rested screen shows one quiet underlined line: 'N things are waiting for the days ahead. They are safe.' (singular at 1). It is a COUNT only: no future task titles appear anywhere on the closed screen, because closing the day means setting it down, and the line exists to answer 'did I actually add that?' without re-loading tomorrow's weight. Tapping it opens the Lookback. With nothing upcoming, the line is absent entirely. (Found 2026-07-24: closing the day used to hide ALL future tasks with no reassurance at all.)", "Both"),
+
     ("TOD-24", "Today", "P2", "Edit a task's title from the held card",
      "Hold a task. On its card, the title carries a faint underline: tap it, type a new name, press enter (or tap away). Also try: clearing the text entirely and tapping away; holding a SLICED task (the title shows '· n / N') and editing it; and editing a repeating task.",
      "Tapping the title turns it into a text field in place, pre-filled with the RAW title (never the '· n / N' step counter, which is display-only). Enter or tapping away saves; the row updates immediately and the card STAYS open (fix a typo, then keep acting). An emptied or unchanged title saves nothing (no sync write). Renaming a repeating task renames the series, as the single visible row implies. The rename syncs across devices like any edit. Screen readers hear 'Edit the title: {title}' on the tap target.", "Both"),
