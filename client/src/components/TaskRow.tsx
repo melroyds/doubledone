@@ -23,7 +23,7 @@ type Props = {
   onAdvance?: () => void;
   onRetreat?: () => void;
   onBreakdown?: () => void;
-  onDefer?: () => void;
+  onDefer?: () => void; // push-to-tomorrow; the held card no longer shows a standalone Tomorrow (folded into the Move-to picker's chip), but the prop stays for that wiring
   onMakeTiny?: () => void;
   onBig?: () => void; // held-state: mark / unmark this task "a lot"
   onPin?: () => void; // held-state: pin / unpin as the day's one priority (Today one-offs only)
@@ -67,7 +67,6 @@ export function TaskRow({
   onAdvance,
   onRetreat,
   onBreakdown,
-  onDefer,
   onMakeTiny,
   onBig,
   onPin,
@@ -91,13 +90,18 @@ export function TaskRow({
   const theme = useTheme();
   // Inline title editing on the held card: tap the title, it becomes a field, enter or blur saves.
   // The draft starts from the RAW title (never the sliced "· n/N" suffix, which is render-only).
-  // Editing state resets whenever the card closes (the adjust-during-render pattern, not an
-  // effect, so a half-typed draft never survives a reopen and the React Compiler stays happy).
+  // Editing state (and the "More" disclosure) reset whenever the card closes (the adjust-during-render
+  // pattern, not an effect, so a half-typed draft or an opened drawer never survives a reopen and the
+  // React Compiler stays happy).
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [wasConfirming, setWasConfirming] = useState(confirming);
   if (wasConfirming !== confirming) {
     setWasConfirming(confirming);
-    if (!confirming) setEditingTitle(null);
+    if (!confirming) {
+      setEditingTitle(null);
+      setMoreOpen(false);
+    }
   }
   function saveTitle() {
     if (editingTitle != null && onRename) onRename(editingTitle);
@@ -131,30 +135,77 @@ export function TaskRow({
     );
   }
   if (confirming) {
-    // THE single-task surface, identical in both appearances: this task's own actions, in
-    // place, from one hold. Nothing else on the screen moves, so there is no mode to leave
-    // and nothing to scroll back to. Multi-select is a deliberate door ("Select more"), not
-    // what a hold does to you.
-    //
-    // Grouped by the question the user is actually asking, because eleven flat links is the
-    // overwhelm the spine forbids: WHEN (not today?), SIZE (too big?), WEIGHT (does this
-    // matter?), then the terminal pair under a hairline so a reflex tap never lands on
-    // Remove. Never more than three to a line, and each line renders only if it holds
-    // something. No line labels: the grouping is carried by the breaks alone (words there
-    // would be the clutter they are meant to prevent).
-    const canDefer = Boolean(onDefer && !recurring);
+    // THE single-task surface, identical in both appearances: this task's own actions, in place,
+    // from one hold. Nothing else on the screen moves, so there is no mode to leave. Design 1a
+    // (2026-07-25): the stuck-helpers LEAD (Break it down as the tinted hero, then Make it tiny,
+    // Move to, Mark as a lot), the rarer actions RECEDE behind a "More" disclosure, and the way out
+    // sits under a hairline with Close in the easy thumb reach and Remove far from it. Fewer visible
+    // labels (11 -> 4), same feature set. Each action is its own full-width row (label left, a quiet
+    // sub-label or state right), never a tight equal-width column, so a long label or a large system
+    // font can never clip (the old grid's bug).
     const canMoveTo = Boolean(onMoveTo && !recurring);
     const canUndoStep = Boolean(onRetreat && slices);
-    // A task already split into steps does not need decomposing again.
+    // A task already split into steps does not need decomposing or shrinking again.
     const canBreakdown = Boolean(onBreakdown && !recurring && !slices);
     const canSteps = Boolean(onSteps && !recurring);
-    const canTiny = Boolean(onMakeTiny && !recurring);
+    const canTiny = Boolean(onMakeTiny && !recurring && !slices);
     const canPin = Boolean(onPin && !recurring);
-    // "a lot" is a leaf mark and a recurring chore can absolutely be a lot (the bulk bar has
-    // always allowed it), so this one carries no recurring guard.
-    const whenLine = done ? Boolean(onDoneOn) : canDefer || canMoveTo || Boolean(onNudge);
-    const sizeLine = !done && (canUndoStep || canBreakdown || canSteps || canTiny);
-    const weightLine = !done && (canPin || Boolean(onBig));
+
+    // The way out, shared by both variants: Close (safe, easy reach, bottom-left), Select more, then
+    // Remove (far right, out of the reflex path). On a repeating task, Remove is "Skip today": the
+    // series continues, so the label must say so.
+    const terminalRow = (
+      <View style={styles.terminalRow}>
+        <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel={t('common.close')} hitSlop={{ top: 12, bottom: 12 }}>
+          <Text style={styles.close}>{t('common.close')}</Text>
+        </Pressable>
+        {onSelectMore && (
+          <Pressable onPress={onSelectMore} accessibilityRole="button" accessibilityLabel={t('today.selectMoreA11y')} hitSlop={{ top: 12, bottom: 12 }}>
+            <Text style={styles.selectMore}>{t('today.selectMore')}</Text>
+          </Pressable>
+        )}
+        <Pressable
+          onPress={onRemove}
+          accessibilityRole="button"
+          accessibilityLabel={recurring ? t('repeat.skipTodayA11y', { title }) : t('today.removeTaskLabel', { title })}
+          hitSlop={{ top: 12, bottom: 12 }}
+        >
+          <Text style={styles.remove}>{recurring ? t('repeat.skipToday') : t('common.remove')}</Text>
+        </Pressable>
+      </View>
+    );
+
+    // A finished task: a deliberately minimal card. The honest correction (which day it happened) and
+    // the way out, nothing to shape (a finished thing needs nothing shaped) and no "Done". A calm close.
+    if (done) {
+      return (
+        <View style={[styles.row, styles.confirmRow, styles.confirmColumn]}>
+          <View style={styles.doneTitleRow}>
+            <Text style={styles.doneCheck} accessible={false} importantForAccessibility="no">✓</Text>
+            <Text style={[styles.confirmTitle, styles.confirmTitleDone]} numberOfLines={2}>{title}</Text>
+          </View>
+          {onDoneOn && (
+            <Pressable
+              onPress={onDoneOn}
+              style={styles.actionRow}
+              accessibilityRole="button"
+              accessibilityLabel={t('today.doneOnA11y', { title })}
+              hitSlop={{ top: 6, bottom: 6 }}
+            >
+              <Text style={styles.actionLabel}>{t('today.doneOn')}</Text>
+            </Pressable>
+          )}
+          {terminalRow}
+          <Text style={styles.doneIsDone}>{t('today.heldDoneIsDone')}</Text>
+        </View>
+      );
+    }
+
+    // An open task: the curated 1a card.
+    const hasMore = canSteps || canUndoStep || canPin || Boolean(onNudge);
+    const morePreview = [canSteps && t('today.steps'), canPin && t('today.pin'), onNudge && t('reminders.remindMe')]
+      .filter(Boolean)
+      .join(' · ');
     return (
       <View style={[styles.row, styles.confirmRow, styles.confirmColumn]}>
         {editingTitle != null && onRename ? (
@@ -170,8 +221,7 @@ export function TaskRow({
           />
         ) : (
           // The title is the edit control: tap the thing to change the thing, no extra button on an
-          // already-full card. The faint underline is the whole affordance; onRename absent (no
-          // handler wired) leaves it a plain title.
+          // already-full card. The faint underline is the whole affordance; onRename absent leaves it plain.
           <Pressable
             onPress={onRename ? () => setEditingTitle(title) : undefined}
             disabled={!onRename}
@@ -184,104 +234,136 @@ export function TaskRow({
             </Text>
           </Pressable>
         )}
-        {whenLine && (
-          <View style={styles.confirmActions}>
-            {/* A finished task is offered no Done (tapping the row is the one way to finish
-                a thing), only the honest correction: which day it actually happened. */}
-            {done && onDoneOn && (
-              <Pressable onPress={onDoneOn} accessibilityRole="button" accessibilityLabel={t('today.doneOnA11y', { title })} hitSlop={{ top: 12, bottom: 12 }}>
-                <Text style={styles.keep}>{t('today.doneOn')}</Text>
-              </Pressable>
-            )}
-            {!done && canDefer && (
-              <Pressable onPress={onDefer} accessibilityRole="button" accessibilityLabel={t('today.moveToTomorrowLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
-                <Text style={styles.keep}>{t('common.tomorrow')}</Text>
-              </Pressable>
-            )}
-            {!done && canMoveTo && (
-              <Pressable onPress={onMoveTo} accessibilityRole="button" accessibilityLabel={t('today.moveSelectedA11y')} hitSlop={{ top: 12, bottom: 12 }}>
-                <Text style={styles.keep}>{t('today.moveTo')}</Text>
-              </Pressable>
-            )}
-            {!done && onNudge && (
-              <Pressable onPress={onNudge} accessibilityRole="button" accessibilityLabel={t('reminders.remindMeA11y')} hitSlop={{ top: 12, bottom: 12 }}>
-                <Text style={styles.keep}>{t('reminders.remindMe')}</Text>
-              </Pressable>
-            )}
-          </View>
+
+        {/* Lead actions: the helpers you reach for when stuck. Break it down is the tinted hero. */}
+        {canBreakdown && (
+          <Pressable
+            onPress={onBreakdown}
+            style={[styles.actionRow, styles.heroRow]}
+            accessibilityRole="button"
+            accessibilityLabel={t('breakdown.breakDownTaskLabel', { title })}
+            hitSlop={{ top: 6, bottom: 6 }}
+          >
+            <Text style={[styles.actionLabel, styles.heroLabel]}>{t('breakdown.breakDown')}</Text>
+            <Text style={[styles.actionSub, styles.heroSub]}>{t('breakdown.intoSmallSteps')}</Text>
+          </Pressable>
         )}
-        {sizeLine && (
-          <View style={styles.confirmActions}>
-            {canUndoStep && slices && (
-              <Pressable
-                onPress={onRetreat}
-                disabled={slices.done <= 0}
-                accessibilityRole="button"
-                accessibilityLabel={t('today.stepBackLabel', { title })}
-                hitSlop={{ top: 12, bottom: 12 }}
-              >
-                <Text style={[styles.keep, slices.done <= 0 && styles.controlOff]}>{t('today.undoAStep')}</Text>
-              </Pressable>
-            )}
-            {canBreakdown && (
-              <Pressable onPress={onBreakdown} accessibilityRole="button" accessibilityLabel={t('breakdown.breakDownTaskLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
-                <Text style={styles.keep}>{t('breakdown.breakDown')}</Text>
-              </Pressable>
-            )}
-            {canSteps && (
-              <Pressable onPress={onSteps} accessibilityRole="button" accessibilityLabel={slices ? t('today.changeStepsA11y') : t('today.splitStepsA11y')} hitSlop={{ top: 12, bottom: 12 }}>
-                <Text style={styles.keep}>{t('today.steps')}</Text>
-              </Pressable>
-            )}
-            {canTiny && (
-              <Pressable onPress={onMakeTiny} accessibilityRole="button" accessibilityLabel={t('today.makeTinyLabel', { title })} hitSlop={{ top: 12, bottom: 12 }}>
-                <Text style={styles.keep}>{t('actions.makeItTiny')}</Text>
-              </Pressable>
-            )}
-          </View>
+        {canTiny && (
+          <Pressable
+            onPress={onMakeTiny}
+            style={styles.actionRow}
+            accessibilityRole="button"
+            accessibilityLabel={t('today.makeTinyLabel', { title })}
+            hitSlop={{ top: 6, bottom: 6 }}
+          >
+            <Text style={styles.actionLabel}>{t('actions.makeItTiny')}</Text>
+            <Text style={styles.actionSub}>{t('today.tinyHint')}</Text>
+          </Pressable>
         )}
-        {weightLine && (
-          <View style={styles.confirmActions}>
-            {canPin && (
-              <Pressable onPress={onPin} accessibilityRole="button" accessibilityLabel={pinned ? t('today.unpinA11y') : t('today.pinA11y')} hitSlop={{ top: 12, bottom: 12 }}>
-                {/* Dimmed, not hidden, for a free user: a visible feature that costs a calm
-                    detour is kinder than one that is simply absent. */}
-                <Text style={[styles.keep, pinDim && styles.controlOff]}>{pinned ? t('today.unpin') : t('today.pin')}</Text>
-              </Pressable>
-            )}
-            {onBig && (
-              <Pressable onPress={onBig} accessibilityRole="button" accessibilityLabel={big ? t('today.unmarkBigA11y') : t('today.markBigA11y')} hitSlop={{ top: 12, bottom: 12 }}>
-                <Text style={styles.keep}>{big ? t('today.notALot') : t('today.markAsALot')}</Text>
-              </Pressable>
-            )}
-          </View>
+        {canMoveTo && (
+          <Pressable
+            onPress={onMoveTo}
+            style={styles.actionRow}
+            accessibilityRole="button"
+            accessibilityLabel={t('today.moveSelectedA11y')}
+            hitSlop={{ top: 6, bottom: 6 }}
+          >
+            <Text style={styles.actionLabel}>{t('today.moveTo')}</Text>
+          </Pressable>
         )}
-        <View style={styles.terminalLine}>
-          {/* A door, not a verb, so it reads faint and left. Leaving is always the safe act, so
-              Close takes the accent and the thumb's corner. Remove + Close are ONE content-sized
-              group pinned right by the group's own flex, NOT separated by a zero-width flex spacer:
-              on dense Android a fractional spacer starved the middle label's box and hard-clipped
-              its trailing glyph ("Remove" -> "Remov" on an S22, and worse for longer locales like
-              fr "Retirer"). Content-sizing each label means no label's width is ever leftover-space. */}
-          {onSelectMore && (
-            <Pressable onPress={onSelectMore} accessibilityRole="button" accessibilityLabel={t('today.selectMoreA11y')} hitSlop={{ top: 12, bottom: 12 }}>
-              <Text style={styles.keep}>{t('today.selectMore')}</Text>
-            </Pressable>
-          )}
-          <View style={styles.terminalRight}>
+        {onBig && (
+          <Pressable
+            onPress={onBig}
+            style={[styles.actionRow, big && styles.actionRowActive]}
+            accessibilityRole="button"
+            accessibilityLabel={big ? t('today.unmarkBigA11y') : t('today.markBigA11y')}
+            hitSlop={{ top: 6, bottom: 6 }}
+          >
+            <Text style={[styles.actionLabel, big && styles.actionLabelActive]}>{t('today.markAsALot')}</Text>
+            <Text style={[styles.actionSub, big && styles.actionLabelActive]}>{big ? '✓' : t('today.weightHint')}</Text>
+          </Pressable>
+        )}
+
+        {/* More: the rarer actions, folded away by default so the card reads as four calm helpers. */}
+        {hasMore && (
+          <>
             <Pressable
-              onPress={onRemove}
+              onPress={() => setMoreOpen(!moreOpen)}
+              style={styles.actionRow}
               accessibilityRole="button"
-              accessibilityLabel={recurring ? t('repeat.skipTodayA11y', { title }) : t('today.removeTaskLabel', { title })}
-              hitSlop={{ top: 12, bottom: 12 }}
+              accessibilityState={{ expanded: moreOpen }}
+              accessibilityLabel={moreOpen ? t('today.moreCollapseA11y') : t('today.moreExpandA11y')}
+              hitSlop={{ top: 6, bottom: 6 }}
             >
-              <Text style={styles.remove}>{t('common.remove')}</Text>
+              <View style={styles.moreLead}>
+                <Text style={styles.moreLabel}>{t('today.more')}</Text>
+                {!moreOpen && (
+                  <Text style={styles.actionSub} numberOfLines={1}>
+                    {morePreview}
+                  </Text>
+                )}
+              </View>
+              <Text style={styles.moreCaret} accessible={false} importantForAccessibility="no">
+                {moreOpen ? '▴' : '▾'}
+              </Text>
             </Pressable>
-            <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel={t('common.close')} hitSlop={{ top: 12, bottom: 12 }}>
-              <Text style={styles.close}>{t('common.close')}</Text>
-            </Pressable>
-          </View>
-        </View>
+            {moreOpen && (
+              <>
+                {canSteps && (
+                  <Pressable
+                    onPress={onSteps}
+                    style={[styles.actionRow, styles.moreItem]}
+                    accessibilityRole="button"
+                    accessibilityLabel={slices ? t('today.changeStepsA11y') : t('today.splitStepsA11y')}
+                    hitSlop={{ top: 6, bottom: 6 }}
+                  >
+                    <Text style={styles.actionLabel}>{t('today.steps')}</Text>
+                    {slices && <Text style={styles.actionSub}>{t('today.stepsOf', { done: slices.done, total: slices.total })}</Text>}
+                  </Pressable>
+                )}
+                {canUndoStep && slices && (
+                  <Pressable
+                    onPress={onRetreat}
+                    disabled={slices.done <= 0}
+                    style={[styles.actionRow, styles.moreItem]}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('today.stepBackLabel', { title })}
+                    hitSlop={{ top: 6, bottom: 6 }}
+                  >
+                    <Text style={[styles.actionLabel, slices.done <= 0 && styles.controlOff]}>{t('today.undoAStep')}</Text>
+                  </Pressable>
+                )}
+                {canPin && (
+                  <Pressable
+                    onPress={onPin}
+                    style={[styles.actionRow, styles.moreItem]}
+                    accessibilityRole="button"
+                    accessibilityLabel={pinned ? t('today.unpinA11y') : t('today.pinA11y')}
+                    hitSlop={{ top: 6, bottom: 6 }}
+                  >
+                    {/* Dimmed, not hidden, for a free user: a visible feature that costs a calm detour
+                        is kinder than one that is simply absent. */}
+                    <Text style={[styles.actionLabel, pinDim && styles.controlOff]}>{pinned ? t('today.unpin') : t('today.pin')}</Text>
+                    <Text style={styles.actionSub}>{t('today.pinHint')}</Text>
+                  </Pressable>
+                )}
+                {onNudge && (
+                  <Pressable
+                    onPress={onNudge}
+                    style={[styles.actionRow, styles.moreItem]}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('reminders.remindMeA11y')}
+                    hitSlop={{ top: 6, bottom: 6 }}
+                  >
+                    <Text style={styles.actionLabel}>{t('reminders.remindMe')}</Text>
+                  </Pressable>
+                )}
+              </>
+            )}
+          </>
+        )}
+
+        {terminalRow}
       </View>
     );
   }
@@ -407,116 +489,155 @@ export function TaskRow({
   );
 }
 
-const makeStyles = (t: Theme) => StyleSheet.create({
-  // Quiet strips the card to whitespace + a 5%-ink bottom hairline; standard keeps the soft floating card.
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.four,
-    ...(t.appearance === 'quiet'
-      ? // Match standard's vertical padding so toggling appearance never reflows the list (the spec's
-        // top principle "switching never moves anything" wins over its literal 12px, which did not match
-        // the card height). Chrome removed, vertical rhythm kept; content sits near the margin (no card inset).
-        { minHeight: 48, paddingVertical: spacing.four, paddingHorizontal: 2, borderBottomWidth: border.hair, borderColor: t.quiet.hairline }
-      : {
-          paddingVertical: spacing.four,
-          paddingHorizontal: spacing.four,
-          backgroundColor: t.colors.surfaceCard,
-          borderRadius: radius.md,
-          borderWidth: border.hair,
-          borderColor: t.colors.line,
-          // Soft elevation: rows float a hair above the living background (the redesign).
-          boxShadow: cardShadow(t),
-        }),
-  },
-  // One-off (unique): a thick periwinkle border in standard; in quiet, whitespace alone (no chrome).
-  rowUnique: t.appearance === 'quiet' ? {} : { borderColor: t.colors.repeat, borderWidth: border.thick },
-  // The day's one pinned priority: an accent border + tint in standard; in quiet, a faint tint + the star.
-  rowPinned:
-    t.appearance === 'quiet'
-      ? { backgroundColor: t.colors.accentSoft }
-      : { borderColor: t.colors.accent, borderWidth: border.thick, backgroundColor: t.colors.accentSoft },
-  pinStar: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-  // A quiet accent tag (never danger red): the app agreeing this task is a lot, sized small so it never scolds.
-  // "a lot" tag: a soft accent pill in standard; plain accent text (no pill chrome) in quiet.
-  bigMark: {
-    color: t.colors.accent,
-    fontSize: 11 * t.scale,
-    fontFamily: fonts.bodyBold,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-    ...(t.appearance === 'quiet'
-      ? {}
-      : { backgroundColor: t.colors.accentSoft, paddingHorizontal: spacing.two, paddingVertical: 1, borderRadius: radius.pill, overflow: 'hidden' }),
-  },
-  pressed: { opacity: PRESSED_OPACITY },
-  // The held row: quiet gets the soft press wash (accentSoft tint) with a rounded bleed; standard keeps the accent tint.
-  confirmRow:
-    t.appearance === 'quiet'
-      ? { backgroundColor: t.quiet.pressWash, borderRadius: radius.md, borderColor: 'transparent' }
-      : { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accentSoft },
-  confirmColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.three },
-  // userSelect:'none' on every title-bearing Text so a tap-and-hold (the held-state gesture)
-  // can never start an iOS text selection on the title, native or web (see MarqueeText).
-  confirmTitle: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body, userSelect: 'none' },
-  // The tappable-title affordance: a faint dotted-feeling underline in soft ink, calm enough to
-  // never shout, present enough that "this is editable" is discoverable.
-  confirmTitleEditable: { textDecorationLine: 'underline', textDecorationColor: t.colors.inkFaint },
-  confirmTitleInput: { paddingVertical: 0, borderBottomWidth: border.hair, borderColor: t.colors.accent },
-  confirmActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.three },
-  // The way out, held below a hairline and away from the rest, so a reflex tap after an
-  // action can never land on Remove.
-  terminalLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: spacing.three,
-    borderTopWidth: border.hair,
-    borderColor: t.appearance === 'quiet' ? t.quiet.hairline : t.colors.line,
-    paddingTop: spacing.two,
-  },
-  terminalRight: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.three },
-  keep: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', paddingHorizontal: spacing.two },
-  controlOff: { color: t.colors.inkFaint },
-  close: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', paddingHorizontal: spacing.two },
-  remove: { color: t.colors.danger, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', paddingHorizontal: spacing.two },
-  rowSelected: { borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
-  selectDot: {
-    width: 26,
-    height: 26,
-    borderRadius: radius.pill,
-    borderWidth: border.thick,
-    borderColor: t.colors.inkFaint,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  selectDotOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
-  tick: { color: t.colors.onAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', lineHeight: 17 * t.scale },
-  text: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale, userSelect: 'none' },
-  textDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
-  repeatMark: { color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-  nudgeMark: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  suggestColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
-  suggestMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
-  suggestHintBtn: { alignSelf: 'flex-start' },
-  suggestHint: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  tinyColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
-  tinyMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
-  tinyEyebrow: { ...t.type.eyebrow, color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat },
-  sliceColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
-  sliceTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
-  sliceCount: {
-    color: t.appearance === 'quiet' ? t.quiet.nOfM : t.colors.repeat,
-    fontSize: (t.appearance === 'quiet' ? 13 : 14) * t.scale,
-    fontFamily: fonts.bodyBold,
-    fontWeight: t.appearance === 'quiet' ? '600' : '700',
-  },
-  sliceAdjustHint: { color: t.colors.inkFaint, fontSize: 11 * t.scale, fontFamily: fonts.body, marginTop: spacing.half },
-  track: {
-    flexDirection: 'row',
-    height: 4,
-    borderRadius: radius.pill,
-    backgroundColor: t.colors.doneSoft,
-    overflow: 'hidden',
-  },
-});
+const makeStyles = (t: Theme) => {
+  // The hero (Break it down) fills in light, tints in dark, and drops its fill entirely in Quiet, so the
+  // text colour on it follows: white on the light fill, accent on the dark tint / in Quiet. Computed once
+  // so heroLabel and heroSub can't drift apart.
+  const heroText = t.appearance === 'quiet' ? t.colors.accent : t.scheme === 'dark' ? t.colors.accent : t.colors.onAccent;
+  return StyleSheet.create({
+    // Quiet strips the card to whitespace + a 5%-ink bottom hairline; standard keeps the soft floating card.
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.four,
+      ...(t.appearance === 'quiet'
+        ? // Match standard's vertical padding so toggling appearance never reflows the list (the spec's
+          // top principle "switching never moves anything" wins over its literal 12px, which did not match
+          // the card height). Chrome removed, vertical rhythm kept; content sits near the margin (no card inset).
+          { minHeight: 48, paddingVertical: spacing.four, paddingHorizontal: 2, borderBottomWidth: border.hair, borderColor: t.quiet.hairline }
+        : {
+            paddingVertical: spacing.four,
+            paddingHorizontal: spacing.four,
+            backgroundColor: t.colors.surfaceCard,
+            borderRadius: radius.md,
+            borderWidth: border.hair,
+            borderColor: t.colors.line,
+            // Soft elevation: rows float a hair above the living background (the redesign).
+            boxShadow: cardShadow(t),
+          }),
+    },
+    // One-off (unique): a thick periwinkle border in standard; in quiet, whitespace alone (no chrome).
+    rowUnique: t.appearance === 'quiet' ? {} : { borderColor: t.colors.repeat, borderWidth: border.thick },
+    // The day's one pinned priority: an accent border + tint in standard; in quiet, a faint tint + the star.
+    rowPinned:
+      t.appearance === 'quiet'
+        ? { backgroundColor: t.colors.accentSoft }
+        : { borderColor: t.colors.accent, borderWidth: border.thick, backgroundColor: t.colors.accentSoft },
+    pinStar: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    // A quiet accent tag (never danger red): the app agreeing this task is a lot, sized small so it never scolds.
+    // "a lot" tag: a soft accent pill in standard; plain accent text (no pill chrome) in quiet.
+    bigMark: {
+      color: t.colors.accent,
+      fontSize: 11 * t.scale,
+      fontFamily: fonts.bodyBold,
+      fontWeight: '700',
+      letterSpacing: 0.3,
+      ...(t.appearance === 'quiet'
+        ? {}
+        : { backgroundColor: t.colors.accentSoft, paddingHorizontal: spacing.two, paddingVertical: 1, borderRadius: radius.pill, overflow: 'hidden' }),
+    },
+    pressed: { opacity: PRESSED_OPACITY },
+    // The held row: quiet gets the soft press wash (accentSoft tint) with a rounded bleed; standard keeps the accent tint.
+    confirmRow:
+      t.appearance === 'quiet'
+        ? { backgroundColor: t.quiet.pressWash, borderRadius: radius.md, borderColor: 'transparent' }
+        : { backgroundColor: t.colors.surfaceCard, borderColor: t.colors.line },
+    confirmColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.half },
+    // userSelect:'none' on every title-bearing Text so a tap-and-hold (the held-state gesture)
+    // can never start an iOS text selection on the title, native or web (see MarqueeText).
+    confirmTitle: { ...t.type.subheading, color: t.colors.ink, userSelect: 'none', paddingHorizontal: spacing.two, paddingBottom: spacing.one },
+    // The tappable-title affordance: a faint dotted-feeling underline in soft ink, calm enough to
+    // never shout, present enough that "this is editable" is discoverable.
+    confirmTitleEditable: { textDecorationLine: 'underline', textDecorationColor: t.colors.inkFaint },
+    confirmTitleInput: { paddingVertical: 0, borderBottomWidth: border.hair, borderColor: t.colors.accent },
+    doneTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, paddingHorizontal: spacing.two, paddingBottom: spacing.one },
+    doneCheck: { color: t.colors.done, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    confirmTitleDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through', paddingHorizontal: 0, paddingBottom: 0, flexShrink: 1 },
+    doneIsDone: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, fontStyle: 'italic', textAlign: 'center', paddingTop: spacing.two },
+    // Every held-card action is a full-width row: label left, a quiet sub-label / state right. Content-sized
+    // text at both ends (never a tight equal-width column), so a long label or a large font can't clip.
+    actionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.three,
+      minHeight: 44,
+      paddingVertical: spacing.one,
+      paddingHorizontal: spacing.two,
+    },
+    actionLabel: { ...t.type.label, color: t.colors.ink },
+    actionSub: { fontSize: 13 * t.scale, fontFamily: fonts.body, color: t.colors.inkSoft, textAlign: 'right' },
+    // The hero: Break it down. Filled accent in light-standard (white label), a soft tint in dark-standard
+    // (accent label), and no fill at all in Quiet (accent label, held by whitespace like every other quiet action).
+    heroRow:
+      t.appearance === 'quiet'
+        ? {}
+        : { backgroundColor: t.scheme === 'dark' ? t.colors.accentSoft : t.colors.accent, borderRadius: radius.sm },
+    heroLabel: { color: heroText, fontWeight: '700' },
+    heroSub: { color: heroText, opacity: 0.82 },
+    // Mark-as-a-lot, active: the row tints and its text lifts to accent, the app quietly agreeing.
+    actionRowActive: t.appearance === 'quiet' ? {} : { backgroundColor: t.colors.accentSoft, borderRadius: radius.sm },
+    actionLabelActive: { color: t.colors.accent },
+    // The More disclosure: the label plus a faint preview of what is inside, and a caret that flips.
+    moreLead: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, flexShrink: 1 },
+    moreLabel: { ...t.type.label, color: t.colors.accent },
+    moreCaret: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    // The revealed More items sit slightly indented, so they read as belonging under the disclosure.
+    moreItem: { paddingLeft: spacing.four },
+    controlOff: { color: t.colors.inkFaint },
+    // The way out, under a hairline: Close (left, easy reach), Select more (middle), Remove (far right).
+    terminalRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.three,
+      borderTopWidth: border.hair,
+      borderColor: t.appearance === 'quiet' ? t.quiet.hairline : t.colors.line,
+      paddingTop: spacing.three,
+      paddingHorizontal: spacing.two,
+      marginTop: spacing.one,
+    },
+    close: { ...t.type.label, color: t.colors.accent, fontWeight: '700' },
+    selectMore: { ...t.type.label, color: t.colors.inkSoft },
+    remove: { ...t.type.label, color: t.colors.danger },
+    rowSelected: { borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
+    selectDot: {
+      width: 26,
+      height: 26,
+      borderRadius: radius.pill,
+      borderWidth: border.thick,
+      borderColor: t.colors.inkFaint,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    selectDotOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
+    tick: { color: t.colors.onAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', lineHeight: 17 * t.scale },
+    text: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale, userSelect: 'none' },
+    textDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
+    repeatMark: { color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    nudgeMark: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    suggestColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
+    suggestMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
+    suggestHintBtn: { alignSelf: 'flex-start' },
+    suggestHint: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    tinyColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
+    tinyMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
+    tinyEyebrow: { ...t.type.eyebrow, color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat },
+    sliceColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
+    sliceTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
+    sliceCount: {
+      color: t.appearance === 'quiet' ? t.quiet.nOfM : t.colors.repeat,
+      fontSize: (t.appearance === 'quiet' ? 13 : 14) * t.scale,
+      fontFamily: fonts.bodyBold,
+      fontWeight: t.appearance === 'quiet' ? '600' : '700',
+    },
+    sliceAdjustHint: { color: t.colors.inkFaint, fontSize: 11 * t.scale, fontFamily: fonts.body, marginTop: spacing.half },
+    track: {
+      flexDirection: 'row',
+      height: 4,
+      borderRadius: radius.pill,
+      backgroundColor: t.colors.doneSoft,
+      overflow: 'hidden',
+    },
+  });
+};

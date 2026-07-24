@@ -2098,6 +2098,16 @@ export default function TodayScreen() {
               >
                 <Text style={styles.moveChipText}>{t('common.today')}</Text>
               </Pressable>
+              {/* Tomorrow: the common push kept one tap here, since the held card dropped its standalone
+                  Tomorrow to reduce density (design 1a). Same semantics as the old card action. */}
+              <Pressable
+                onPress={() => bulkMoveTo(addDaysISO(today, 1))}
+                style={({ pressed }) => [styles.moveChip, pressed && styles.pressed]} hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.tomorrow')}
+              >
+                <Text style={styles.moveChipText}>{t('common.tomorrow')}</Text>
+              </Pressable>
               <Pressable
                 onPress={() => bulkMoveTo(presetDate(today, 'thisWeekend'))}
                 style={({ pressed }) => [styles.moveChip, pressed && styles.pressed]} hitSlop={6}
