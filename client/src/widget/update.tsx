@@ -1,13 +1,29 @@
+import { requestWidgetUpdate } from 'react-native-android-widget';
+
 import type { Task } from '@/lib/tasks';
+import { buildWidgetModel } from '@/lib/widget-model';
 
-// The Android home-screen widget is DISABLED (see decision-log 2026-06-24: the
-// react-native-android-widget 0.20.3 / RN 0.85 incompatibility left it rendering nothing).
-// updateWidget is still called from commit() on every task change, so it stays a no-op rather
-// than firing a native requestWidgetUpdate against a widget that is no longer registered. The
-// render call (see git history) comes back here when the widget is re-enabled. Signature mirrors
-// update.web.ts so the call site stays platform-agnostic.
+import { TodayWidget } from './TodayWidget';
 
-/** No-op while the widget is disabled. */
-export function updateWidget(tasks: Task[], closedISO: string | null): Promise<void> {
-  return Promise.resolve();
+const WIDGET_NAME = 'Today';
+
+// Push a fresh render to any placed Today widget for an instant refresh when tasks change (the
+// 30-minute periodic update is only the fallback). Called from commit() on every task change.
+// This runs in the APP's JS context (not the headless one), so it is not the diagnostic path; its
+// job is only to never disturb the task save that triggered it, hence the swallow. A missing widget
+// is the common case (widgetNotFound), never an error.
+export async function updateWidget(tasks: Task[], closedISO: string | null): Promise<void> {
+  try {
+    const model = buildWidgetModel(tasks, new Date(), closedISO);
+    await requestWidgetUpdate({
+      widgetName: WIDGET_NAME,
+      renderWidget: () => ({
+        light: <TodayWidget model={model} scheme="light" />,
+        dark: <TodayWidget model={model} scheme="dark" />,
+      }),
+      widgetNotFound: () => {},
+    });
+  } catch {
+    // A widget refresh must never break the task save that triggered it.
+  }
 }

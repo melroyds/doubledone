@@ -1,6 +1,6 @@
 import { FlexWidget, type HexColor, TextWidget } from 'react-native-android-widget';
 
-import { t } from '@/lib/locale';
+import { t } from '@/lib/i18n-active';
 import { type WidgetModel } from '@/lib/widget-model';
 
 // The Today widget's UI, in the constrained widget component model (not RN views). Colors
