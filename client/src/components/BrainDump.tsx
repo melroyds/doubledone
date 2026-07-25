@@ -3,8 +3,9 @@ import { ActivityIndicator, InputAccessoryView, Keyboard, Modal, Platform, Press
 
 import { border, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { split } from '@/lib/ai';
+import { addButtonLabel, type CaptureRepeat, type CaptureWhen, doorSummary, whenLabel } from '@/lib/capture-door';
 import { aiErrorLine } from '@/lib/connection';
-import { friendlyDate, toISODate } from '@/lib/day';
+import { addDaysISO, toISODate } from '@/lib/day';
 import { appendPhrase } from '@/lib/dictation';
 import { t } from '@/lib/locale';
 import { type CaptureSchedule } from '@/lib/recurrence';
@@ -29,6 +30,9 @@ type Props = {
   onCapture: (text: string, schedule: CaptureSchedule, slices?: number) => void;
   onBiteElephant: (text: string) => Promise<void>;
   onSort: (text: string) => Promise<void>;
+  // Close the panel (the parent owns visibility). The panel's own Close resets the door
+  // (back to Today · no repeat · no steps) but NEVER the typed text: text is never lost.
+  onClose: () => void;
   today: Date;
   // OCR (premium): open the photo-capture modal. The parent premium-gates the tap; this just shows the
   // button as the upsell surface. Absent (undefined) hides the button entirely.
@@ -38,17 +42,6 @@ type Props = {
 // What a parent can do to the capture box via ref: drop in text (or null to just focus)
 // and focus the input. Used by the launcher "Brain dump" shortcut and by shared text.
 export type BrainDumpHandle = { seed: (text: string | null) => void };
-
-type Mode = 'today' | 'tomorrow' | 'date' | 'daily' | 'weekly' | 'everyN';
-
-const MODES: { mode: Mode; labelKey: string }[] = [
-  { mode: 'today', labelKey: 'common.today' },
-  { mode: 'tomorrow', labelKey: 'common.tomorrow' },
-  { mode: 'date', labelKey: 'capture.modeDate' },
-  { mode: 'daily', labelKey: 'capture.modeDaily' },
-  { mode: 'weekly', labelKey: 'capture.modeWeekly' },
-  { mode: 'everyN', labelKey: 'capture.modeEveryN' },
-];
 
 // index 0=Sun .. 6=Sat
 const WEEKDAY_KEYS = [
@@ -61,26 +54,24 @@ const WEEKDAY_KEYS = [
   'capture.weekdayShortSat',
 ];
 
-const ADD_LABEL_KEY: Record<Mode, string> = {
-  today: 'capture.add',
-  tomorrow: 'capture.addForTomorrow',
-  date: 'capture.addForThatDay',
-  daily: 'capture.addDaily',
-  weekly: 'capture.addWeekly',
-  everyN: 'capture.addRepeating',
-};
-
-// Capture, with a calm "when" (the chips, for adding) and a "break it down" path
-// (hand a dreaded task to the AI and get small steps into Today). Default is one
-// gesture; everything else is there only when wanted.
-export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({ onCapture, onBiteElephant, onSort, today, onCamera }, ref) {
+// Capture, rebuilt to "Reflex first, one door" (Claude Design capture handoff, Melroy's pick
+// 2026-07-26). The reflex path is input + Add and nothing else demanding attention. Every
+// shaping power (when, repeating, steps) lives behind ONE constant, labelled door whose value
+// line always says what is currently set, and the Add button repeats the consequential part
+// ("Add · Weekly on Mo") so nothing surprising ever lands. The composer inside the door is a
+// FIXED set of rows (When / Repeats / Steps, always in that order): content changes in place,
+// controls never appear from nowhere. Iron rules: the first keystroke never waits, typed text
+// survives every tap and collapse, and the door resets to Today · no repeat · no steps after
+// every Add and every Close.
+export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({ onCapture, onBiteElephant, onSort, onClose, today, onCamera }, ref) {
   const [value, setValue] = useState('');
-  const [mode, setMode] = useState<Mode>('today');
+  const [doorOpen, setDoorOpen] = useState(false);
+  const [when, setWhen] = useState<CaptureWhen>('today');
+  const [repeat, setRepeat] = useState<CaptureRepeat>(null);
   const [weekdays, setWeekdays] = useState<number[]>([today.getDay()]);
   const [everyNDays, setEveryNDays] = useState(2);
-  const [start, setStart] = useState(() => toISODate(today)); // ISO start for a recurring task
-  const [dueDate, setDueDate] = useState(() => toISODate(today)); // ISO due for a one-off "Date…" task
-  const [pickerFor, setPickerFor] = useState<'start' | 'due' | null>(null); // which date the modal edits
+  const [dueDate, setDueDate] = useState(() => toISODate(today)); // ISO for a picked day (due date, or a repeat's start)
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [sliceCount, setSliceCount] = useState(0); // 0 = whole task; >=MIN_SLICES = tracked in steps
   const [busyKind, setBusyKind] = useState<'bite' | 'sort' | 'split' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -116,38 +107,91 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   // A single long line is probably several things said in one breath; offer an AI split.
   const wordCount = value.trim() ? value.trim().split(/\s+/).length : 0;
   const canSplit = lineCount === 1 && wordCount >= 6;
-  // Steps only make sense for a single, one-off task (a thing with parts). Hidden
-  // for a multi-line dump or a repeating task, so it never clutters those.
-  const canSlice = lineCount <= 1 && (mode === 'today' || mode === 'tomorrow' || mode === 'date');
-  const isRecurringMode = mode === 'daily' || mode === 'weekly' || mode === 'everyN';
+  // Steps only make sense for a single, one-off task (a thing with parts). The row stays in
+  // place regardless (fixed regions, not appearing controls); it goes quiet and says why.
+  const stepsAllowed = lineCount <= 1 && repeat === null;
   const todayIso = toISODate(today);
-  const addLabel = mode === 'date' ? t('capture.addForDate', { date: friendlyDate(dueDate, today) }) : t(ADD_LABEL_KEY[mode]);
+
+  // The one door state the summary, the Add label, and buildSchedule all read. The weekday
+  // fallback mirrors buildSchedule, so an all-untoggled Weekly still names today's day.
+  const doorState = {
+    when,
+    dueDate,
+    repeat,
+    weekdays: weekdays.length > 0 ? weekdays : [today.getDay()],
+    everyNDays,
+    steps: stepsAllowed && sliceCount >= MIN_SLICES ? sliceCount : 0,
+  };
+  const summary = doorSummary(doorState, today);
+  const addLabel = addButtonLabel(doorState, today, lineCount);
+  const whenLbl = whenLabel(doorState, today);
+
+  // ONE rule composes WHEN with REPEATS: the when IS a repeat's start date ("Tomorrow · Daily"
+  // starts tomorrow). "Starting from" in the Repeats row reads the same value; never two truths.
+  const startIso = when === 'today' ? todayIso : when === 'tomorrow' ? addDaysISO(today, 1) : dueDate;
 
   function buildSchedule(): CaptureSchedule {
-    if (mode === 'daily') {
-      return { mode: 'daily', start };
+    if (repeat === 'daily') {
+      return { mode: 'daily', start: startIso };
     }
-    if (mode === 'weekly') {
-      return { mode: 'weekly', weekdays: weekdays.length > 0 ? weekdays : [today.getDay()], start };
+    if (repeat === 'weekly') {
+      return { mode: 'weekly', weekdays: weekdays.length > 0 ? weekdays : [today.getDay()], start: startIso };
     }
-    if (mode === 'everyN') {
-      return { mode: 'everyN', days: everyNDays, start };
+    if (repeat === 'everyN') {
+      return { mode: 'everyN', days: everyNDays, start: startIso };
     }
-    if (mode === 'date') {
+    if (when === 'date') {
       return { mode: 'date', date: dueDate };
     }
-    return { mode };
+    return { mode: when };
+  }
+
+  // Back to the calm default: Today, no repeat, no steps, door shut. Runs after every Add
+  // and every Close. Never touches the typed text; reset() below clears that too (post-Add).
+  function resetDoor() {
+    setDoorOpen(false);
+    setWhen('today');
+    setRepeat(null);
+    setWeekdays([today.getDay()]);
+    setEveryNDays(2);
+    setDueDate(todayIso);
+    setPickerOpen(false);
+    setSliceCount(0);
   }
 
   function reset() {
     stopDictation();
     setValue('');
-    setMode('today');
-    setWeekdays([today.getDay()]);
-    setStart(todayIso);
-    setDueDate(todayIso);
-    setPickerFor(null);
-    setSliceCount(0);
+    resetDoor();
+  }
+
+  function close() {
+    stopDictation();
+    resetDoor();
+    setError(null);
+    onClose();
+  }
+
+  function toggleDoor() {
+    if (!doorOpen) {
+      Keyboard.dismiss(); // the composer needs the room; the text is untouched
+      track('capture.door.opened');
+    }
+    setDoorOpen((o) => !o);
+  }
+
+  // The picker answers one question ("which day"), so picking today or tomorrow lands on
+  // those chips, keeping them truthful; anything else becomes the picked date.
+  function pickDate(iso: string) {
+    if (iso === todayIso) {
+      setWhen('today');
+    } else if (iso === addDaysISO(today, 1)) {
+      setWhen('tomorrow');
+    } else {
+      setWhen('date');
+      setDueDate(iso);
+    }
+    setPickerOpen(false);
   }
 
   // Talk-to-capture: tap to start, tap to stop. Each final phrase becomes a line;
@@ -190,7 +234,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
 
   function add() {
     if (!value.trim() || busy) return;
-    onCapture(value, buildSchedule(), canSlice && sliceCount >= MIN_SLICES ? sliceCount : undefined);
+    onCapture(value, buildSchedule(), stepsAllowed && sliceCount >= MIN_SLICES ? sliceCount : undefined);
     reset();
   }
 
@@ -252,8 +296,25 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
     setWeekdays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
   }
 
+  // The one fixed hint line under the actions: content swaps in place, position never moves.
+  // Priority: an error > the Tidy offer (a run-on line) > the AI egress disclosure (any text).
+  const showTidy = aiEnabled && canSplit && (busyKind === 'split' || !busy);
+
   return (
     <View style={styles.wrap}>
+      <View style={styles.headerRow}>
+        <Text style={styles.headerOverline}>{t('capture.add')}</Text>
+        <Pressable
+          onPress={close}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel={t('capture.collapseA11y')}
+          style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
+        >
+          <Text style={styles.closeText}>{t('common.close')}</Text>
+        </Pressable>
+      </View>
+
       <View style={styles.captureRow}>
         <TextInput
           ref={inputRef}
@@ -277,247 +338,268 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
             </View>
           </InputAccessoryView>
         )}
-        {canDictate && (
-          <Pressable
-            onPress={toggleDictation}
-            disabled={busy}
-            style={({ pressed }) => [styles.speak, listening && styles.speakOn, pressed && styles.pressed, busy && styles.disabled]}
-            accessibilityRole="button"
-            accessibilityState={{ selected: listening }}
-            accessibilityLabel={listening ? t('capture.speakListeningA11y') : t('capture.speakA11y')}
-          >
-            {listening ? <View style={styles.liveDot} /> : <Mark name="mic" size={16} color={theme.colors.inkSoft} />}
-            <Text style={[styles.speakText, listening && styles.speakTextOn]}>
-              {listening ? t('capture.listening') : t('capture.speak')}
-            </Text>
-          </Pressable>
-        )}
-        {onCamera && aiEnabled && (
-          <Pressable
-            onPress={onCamera}
-            disabled={busy}
-            style={({ pressed }) => [styles.speak, pressed && styles.pressed, busy && styles.disabled]}
-            accessibilityRole="button"
-            accessibilityLabel={t('capture.scanA11y')}
-          >
-            <Mark name="camera" size={16} color={theme.colors.inkSoft} />
-            <Text style={styles.speakText}>{t('capture.scan')}</Text>
-          </Pressable>
-        )}
-      </View>
-
-      <View style={styles.chips}>
-        {MODES.map(({ mode: m, labelKey }) => (
-          <Chip
-            key={m}
-            label={t(labelKey)}
-            selected={mode === m}
-            onPress={() => {
-              setMode(m);
-              if (m === 'date') setPickerFor('due');
-            }}
-          />
-        ))}
-      </View>
-
-      {mode === 'weekly' && (
-        <View style={styles.weekdays}>
-          {WEEKDAY_KEYS.map((key, d) => (
-            <Pressable
-              key={d}
-              onPress={() => toggleWeekday(d)}
-              style={[styles.day, weekdays.includes(d) && styles.dayOn]}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityState={{ selected: weekdays.includes(d) }}
-              accessibilityLabel={t('capture.repeatOnDayA11y', { day: t(key) })}
-            >
-              <Text style={[styles.dayText, weekdays.includes(d) && styles.dayTextOn]}>{t(key)}</Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
-
-      {mode === 'everyN' && (
-        <View style={styles.stepperRow}>
-          <Pressable
-            onPress={() => setEveryNDays((n) => Math.max(2, n - 1))}
-            style={styles.stepBtn}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={t('capture.fewerDaysA11y')}
-          >
-            <Text style={styles.stepBtnText}>−</Text>
-          </Pressable>
-          <Text style={styles.stepLabel}>{t('capture.everyNDays', { count: everyNDays })}</Text>
-          <Pressable
-            onPress={() => setEveryNDays((n) => Math.min(30, n + 1))}
-            style={styles.stepBtn}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={t('capture.moreDaysA11y')}
-          >
-            <Text style={styles.stepBtnText}>+</Text>
-          </Pressable>
-        </View>
-      )}
-
-      {mode === 'date' && (
-        <View style={styles.startRow}>
-          <Text style={styles.startLabel}>{t('common.on')}</Text>
-          <Pressable
-            onPress={() => setPickerFor('due')}
-            style={styles.startBtn}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={t('capture.onDateA11y', { date: friendlyDate(dueDate, today) })}
-          >
-            <Text style={styles.startBtnText}>{friendlyDate(dueDate, today)}</Text>
-          </Pressable>
-        </View>
-      )}
-
-      {isRecurringMode && (
-        <View style={styles.startRow}>
-          <Text style={styles.startLabel}>{t('capture.startingFrom')}</Text>
-          <Pressable
-            onPress={() => setPickerFor('start')}
-            style={styles.startBtn}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={t('capture.startingFromA11y', { date: start === todayIso ? t('common.today') : friendlyDate(start, today) })}
-          >
-            <Text style={styles.startBtnText}>{start === todayIso ? t('common.today') : friendlyDate(start, today)}</Text>
-          </Pressable>
-        </View>
-      )}
-
-      {canSlice && (
-        <View style={styles.sliceField}>
-          <Text style={styles.sliceHint}>
-            {sliceCount === 0 ? t('capture.stepsHintOff') : t('capture.stepsHintOn')}
-          </Text>
-          <View style={styles.stepperRow}>
-            <Pressable
-              onPress={() => setSliceCount((n) => (n <= MIN_SLICES ? 0 : n - 1))}
-              style={styles.stepBtn}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={t('today.fewerStepsA11y')}
-            >
-              <Text style={styles.stepBtnText}>−</Text>
-            </Pressable>
-            <Text style={styles.stepLabel}>{sliceCount === 0 ? t('capture.noSteps') : t('today.stepsCount', { count: sliceCount })}</Text>
-            <Pressable
-              onPress={() => setSliceCount((n) => (n === 0 ? MIN_SLICES : Math.min(MAX_SLICES, n + 1)))}
-              style={styles.stepBtn}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={t('today.moreStepsA11y')}
-            >
-              <Text style={styles.stepBtnText}>+</Text>
-            </Pressable>
+        {(canDictate || (onCamera && aiEnabled)) && (
+          <View style={styles.sideCol}>
+            {canDictate && (
+              <Pressable
+                onPress={toggleDictation}
+                disabled={busy}
+                style={({ pressed }) => [styles.speak, listening && styles.speakOn, pressed && styles.pressed, busy && styles.disabled]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: listening }}
+                accessibilityLabel={listening ? t('capture.speakListeningA11y') : t('capture.speakA11y')}
+              >
+                {listening ? <View style={styles.liveDot} /> : <Mark name="mic" size={16} color={theme.colors.inkSoft} />}
+                <Text style={[styles.speakText, listening && styles.speakTextOn]}>
+                  {listening ? t('capture.listening') : t('capture.speak')}
+                </Text>
+              </Pressable>
+            )}
+            {onCamera && aiEnabled && (
+              <Pressable
+                onPress={onCamera}
+                disabled={busy}
+                style={({ pressed }) => [styles.speak, pressed && styles.pressed, busy && styles.disabled]}
+                accessibilityRole="button"
+                accessibilityLabel={t('capture.scanA11y')}
+              >
+                <Mark name="camera" size={16} color={theme.colors.inkSoft} />
+                <Text style={styles.speakText}>{t('capture.scan')}</Text>
+              </Pressable>
+            )}
           </View>
-        </View>
-      )}
+        )}
+      </View>
 
-      {aiEnabled && lineCount === 1 && !busy && !canSplit && (
-        <Text style={styles.sortHint}>{t('capture.sortHint')}</Text>
-      )}
-      {aiEnabled && canSplit && (busyKind === 'split' || !busy) && (
+      {/* THE DOOR. One constant, bordered row: the overline names the three powers, the value
+          line says what is currently set (wraps, never truncates), the caret opens the composer
+          below it. User-initiated disclosure in a fixed place; the door itself never moves. */}
+      <View style={styles.doorWrap}>
         <Pressable
-          onPress={splitDump}
-          disabled={busy}
-          style={({ pressed }) => [styles.split, pressed && styles.pressed, busy && styles.disabled]}
+          onPress={toggleDoor}
           accessibilityRole="button"
-          accessibilityLabel={t('capture.tidyA11y')}
+          accessibilityState={{ expanded: doorOpen }}
+          accessibilityLabel={t('capture.doorA11y', { summary })}
+          style={({ pressed }) => [styles.doorRow, pressed && styles.pressed]}
         >
-          {busyKind === 'split' ? (
-            <View style={styles.biteBusy}>
-              <ActivityIndicator size="small" color={theme.colors.accent} />
-              <Text style={styles.splitText}>{t('capture.tidying')}</Text>
-            </View>
-          ) : (
-            <Text style={styles.splitText}>{t('capture.tidy')}</Text>
-          )}
+          <View style={styles.doorTextCol}>
+            <Text style={styles.doorOverline}>{t('capture.doorOverline')}</Text>
+            <Text style={styles.doorValue}>{summary}</Text>
+          </View>
+          <Text style={styles.doorCaret}>{doorOpen ? '⌄' : '›'}</Text>
         </Pressable>
-      )}
 
-      {aiEnabled && value.trim().length > 0 && (
-        <Text style={styles.aiNote}>{t('capture.aiNote')}</Text>
-      )}
+        {doorOpen && (
+          <View style={styles.composer}>
+            {/* WHEN. Three chips and a fixed detail line: the resolved day plus one Change
+                link into the date picker (the held card's Move-to picker component). */}
+            <View style={styles.compRow}>
+              <Text style={styles.compOverline}>{t('capture.rowWhen')}</Text>
+              <View style={styles.chips}>
+                <Chip label={t('common.today')} selected={when === 'today'} onPress={() => setWhen('today')} />
+                <Chip label={t('common.tomorrow')} selected={when === 'tomorrow'} onPress={() => setWhen('tomorrow')} />
+                <Chip
+                  label={t('capture.pickDate')}
+                  selected={when === 'date'}
+                  onPress={() => setPickerOpen(true)}
+                />
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailValue}>{whenLbl}</Text>
+                <Pressable
+                  onPress={() => setPickerOpen(true)}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('capture.pickDate')}
+                >
+                  <Text style={styles.changeLink}>{t('capture.change')} ›</Text>
+                </Pressable>
+              </View>
+            </View>
 
+            {/* REPEATS. Three toggles (tap again to clear); the detail region holds each
+                cadence's one control plus the Starting-from read-through of the WHEN. */}
+            <View style={styles.compRow}>
+              <Text style={styles.compOverline}>{t('capture.rowRepeats')}</Text>
+              <View style={styles.chips}>
+                <Chip label={t('capture.modeDaily')} selected={repeat === 'daily'} onPress={() => setRepeat((r) => (r === 'daily' ? null : 'daily'))} />
+                <Chip label={t('capture.modeWeekly')} selected={repeat === 'weekly'} onPress={() => setRepeat((r) => (r === 'weekly' ? null : 'weekly'))} />
+                <Chip label={t('capture.modeEveryN')} selected={repeat === 'everyN'} onPress={() => setRepeat((r) => (r === 'everyN' ? null : 'everyN'))} />
+              </View>
+              {repeat === 'weekly' && (
+                <View style={styles.weekdays}>
+                  {WEEKDAY_KEYS.map((key, d) => (
+                    <Pressable
+                      key={d}
+                      onPress={() => toggleWeekday(d)}
+                      style={[styles.day, weekdays.includes(d) && styles.dayOn]}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: weekdays.includes(d) }}
+                      accessibilityLabel={t('capture.repeatOnDayA11y', { day: t(key) })}
+                    >
+                      <Text style={[styles.dayText, weekdays.includes(d) && styles.dayTextOn]}>{t(key)}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+              {repeat === 'everyN' && (
+                <View style={styles.stepperRow}>
+                  <Pressable
+                    onPress={() => setEveryNDays((n) => Math.max(2, n - 1))}
+                    style={styles.stepBtn}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('capture.fewerDaysA11y')}
+                  >
+                    <Text style={styles.stepBtnText}>−</Text>
+                  </Pressable>
+                  <Text style={styles.stepLabel}>{t('capture.everyNDays', { count: everyNDays })}</Text>
+                  <Pressable
+                    onPress={() => setEveryNDays((n) => Math.min(30, n + 1))}
+                    style={styles.stepBtn}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('capture.moreDaysA11y')}
+                  >
+                    <Text style={styles.stepBtnText}>+</Text>
+                  </Pressable>
+                </View>
+              )}
+              {repeat !== null && (
+                <Pressable
+                  onPress={() => setPickerOpen(true)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('capture.startingFromA11y', { date: whenLbl })}
+                  style={styles.detailRow}
+                >
+                  <Text style={styles.detailValue}>{t('capture.startingFrom')}</Text>
+                  <Text style={styles.changeLink}>{whenLbl} ›</Text>
+                </Pressable>
+              )}
+            </View>
+
+            {/* STEPS. The stepper holds its place always; when steps cannot apply (a multi-line
+                dump, or a repeat) it goes quiet and the hint line says why, in plain words. */}
+            <View style={styles.compRow}>
+              <Text style={styles.compOverline}>{t('capture.rowSteps')}</Text>
+              <View style={[styles.stepperRow, !stepsAllowed && styles.quiet]}>
+                <Pressable
+                  onPress={() => setSliceCount((n) => (n <= MIN_SLICES ? 0 : n - 1))}
+                  disabled={!stepsAllowed}
+                  style={styles.stepBtn}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !stepsAllowed }}
+                  accessibilityLabel={t('today.fewerStepsA11y')}
+                >
+                  <Text style={styles.stepBtnText}>−</Text>
+                </Pressable>
+                <Text style={styles.stepLabel}>{sliceCount === 0 ? t('capture.noSteps') : t('today.stepsCount', { count: sliceCount })}</Text>
+                <Pressable
+                  onPress={() => setSliceCount((n) => (n === 0 ? MIN_SLICES : Math.min(MAX_SLICES, n + 1)))}
+                  disabled={!stepsAllowed}
+                  style={styles.stepBtn}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !stepsAllowed }}
+                  accessibilityLabel={t('today.moreStepsA11y')}
+                >
+                  <Text style={styles.stepBtnText}>+</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.stepsHint}>
+                {!stepsAllowed
+                  ? lineCount > 1
+                    ? t('capture.stepsOneThing')
+                    : t('capture.stepsOneOff')
+                  : sliceCount === 0
+                    ? t('capture.stepsHintOff')
+                    : t('capture.stepsHintOn')}
+              </Text>
+            </View>
+          </View>
+        )}
+      </View>
+
+      {/* The action row. The AI slot swaps its label by line count (one thing -> Break it
+          down, a dump -> Sort for me) but keeps its position, size and role; Add carries the
+          consequence. With AI off the slot is absent and Add takes the full row. */}
       <View style={styles.actions}>
         {aiEnabled &&
           (lineCount >= 2 ? (
-          <Pressable
-            onPress={sortDump}
-            disabled={busy}
-            style={({ pressed }) => [styles.bite, pressed && styles.pressed, busy && styles.disabled]}
-            accessibilityRole="button"
-            accessibilityLabel={t('capture.sortA11y')}
-          >
-            {busyKind === 'sort' ? (
-              <View style={styles.biteBusy}>
-                <ActivityIndicator size="small" color={theme.colors.accent} />
-                <Text style={styles.biteText}>{t('capture.sorting')}</Text>
-              </View>
-            ) : (
-              <Text style={styles.biteText}>{t('actions.sortForMe')}</Text>
-            )}
-          </Pressable>
-        ) : (
-          <Pressable
-            onPress={biteElephant}
-            disabled={busy}
-            style={({ pressed }) => [styles.bite, pressed && styles.pressed, busy && styles.disabled]}
-            accessibilityRole="button"
-            accessibilityLabel={t('capture.breakDownA11y')}
-          >
-            {busyKind === 'bite' ? (
-              <View style={styles.biteBusy}>
-                <ActivityIndicator size="small" color={theme.colors.accent} />
-                <Text style={styles.biteText}>{t('capture.breakingDown')}</Text>
-              </View>
-            ) : (
-              <Text style={styles.biteText}>{t('actions.breakItDown')}</Text>
-            )}
-          </Pressable>
+            <Pressable
+              onPress={sortDump}
+              disabled={busy}
+              style={({ pressed }) => [styles.bite, pressed && styles.pressed, busy && styles.disabled]}
+              accessibilityRole="button"
+              accessibilityLabel={t('capture.sortA11y')}
+            >
+              {busyKind === 'sort' ? (
+                <View style={styles.biteBusy}>
+                  <ActivityIndicator size="small" color={theme.colors.accent} />
+                  <Text style={styles.biteText}>{t('capture.sorting')}</Text>
+                </View>
+              ) : (
+                <Text style={styles.biteText}>{t('actions.sortForMe')}</Text>
+              )}
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={biteElephant}
+              disabled={busy}
+              style={({ pressed }) => [styles.bite, pressed && styles.pressed, busy && styles.disabled]}
+              accessibilityRole="button"
+              accessibilityLabel={t('capture.breakDownA11y')}
+            >
+              {busyKind === 'bite' ? (
+                <View style={styles.biteBusy}>
+                  <ActivityIndicator size="small" color={theme.colors.accent} />
+                  <Text style={styles.biteText}>{t('capture.breakingDown')}</Text>
+                </View>
+              ) : (
+                <Text style={styles.biteText}>{t('actions.breakItDown')}</Text>
+              )}
+            </Pressable>
           ))}
 
-        <PrimaryButton label={addLabel} onPress={add} disabled={busy} accessibilityLabel={addLabel} />
+        <PrimaryButton label={addLabel} onPress={add} disabled={busy} accessibilityLabel={addLabel} style={styles.addFlex} />
       </View>
 
-      {error && <Text style={styles.error}>{error}</Text>}
+      <View style={styles.hintRegion}>
+        {error ? (
+          <Text style={styles.error}>{error}</Text>
+        ) : showTidy ? (
+          <Pressable
+            onPress={splitDump}
+            disabled={busy}
+            style={({ pressed }) => [styles.split, pressed && styles.pressed, busy && styles.disabled]}
+            accessibilityRole="button"
+            accessibilityLabel={t('capture.tidyA11y')}
+          >
+            {busyKind === 'split' ? (
+              <View style={styles.biteBusy}>
+                <ActivityIndicator size="small" color={theme.colors.accent} />
+                <Text style={styles.splitText}>{t('capture.tidying')}</Text>
+              </View>
+            ) : (
+              <Text style={styles.splitText}>{t('capture.tidy')}</Text>
+            )}
+          </Pressable>
+        ) : aiEnabled && value.trim().length > 0 ? (
+          <Text style={styles.aiNote}>{t('capture.aiNote')}</Text>
+        ) : null}
+      </View>
 
-      <Modal visible={pickerFor !== null} transparent animationType="fade" onRequestClose={() => setPickerFor(null)}>
+      <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
         <View style={styles.pickerRoot}>
           {/* The scrim is a SIBLING of the card (an absolute-fill dismiss layer behind it), so the picker's
               day buttons are never nested inside the scrim <button> (invalid HTML on web). */}
-          <Pressable style={styles.backdrop} onPress={() => setPickerFor(null)} accessibilityRole="button" accessibilityLabel={t('common.dismiss')} />
+          <Pressable style={styles.backdrop} onPress={() => setPickerOpen(false)} accessibilityRole="button" accessibilityLabel={t('common.dismiss')} />
           <View style={styles.pickerCard}>
-            <Text style={styles.pickerTitle}>{pickerFor === 'due' ? t('capture.pickerTitleDue') : t('capture.startingFrom')}</Text>
-            <DatePicker
-              value={pickerFor === 'due' ? dueDate : start}
-              today={today}
-              onChange={(iso) => {
-                if (pickerFor === 'due') setDueDate(iso);
-                else setStart(iso);
-                setPickerFor(null);
-              }}
-            />
-            {pickerFor === 'start' && (
-              <Pressable
-                onPress={() => {
-                  setStart(todayIso);
-                  setPickerFor(null);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={t('capture.startToday')}
-              >
-                <Text style={styles.pickerToday}>{t('capture.startToday')}</Text>
-              </Pressable>
-            )}
+            <Text style={styles.pickerTitle}>{repeat !== null ? t('capture.startingFrom') : t('capture.pickerTitleDue')}</Text>
+            <DatePicker value={when === 'date' ? dueDate : startIso} today={today} onChange={pickDate} />
           </View>
         </View>
       </Modal>
@@ -527,6 +609,18 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
 
 const makeStyles = (t: Theme) => StyleSheet.create({
   wrap: { gap: spacing.three },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerOverline: {
+    color: t.colors.inkFaint,
+    fontSize: 11 * t.scale,
+    fontFamily: fonts.body,
+    fontWeight: '600',
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  // A generous close target (44px rule) that still reads as a quiet link.
+  closeBtn: { minHeight: 32, justifyContent: 'center', paddingHorizontal: spacing.two },
+  closeText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   // Quiet turns the bordered box into a capture line: a 1px underline, no fill/border/radius,
   // content near the margin. The faint placeholder (set via placeholderTextColor) is unchanged.
   input: {
@@ -547,8 +641,56 @@ const makeStyles = (t: Theme) => StyleSheet.create({
           paddingVertical: spacing.three,
         }),
   },
+  captureRow: { flexDirection: 'row', gap: spacing.two, alignItems: 'flex-start' },
+  inputFlex: { flex: 1 },
+  sideCol: { gap: spacing.two, alignItems: 'stretch' },
+  // The door: one bordered group holding the summary row and, when open, the composer.
+  doorWrap: {
+    borderWidth: border.hair,
+    borderColor: t.colors.line,
+    borderRadius: radius.md,
+    backgroundColor: t.colors.surface,
+  },
+  doorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.three,
+    paddingHorizontal: spacing.four,
+    paddingVertical: spacing.three,
+    minHeight: 44,
+  },
+  doorTextCol: { flex: 1, gap: 2 },
+  doorOverline: {
+    color: t.colors.inkFaint,
+    fontSize: 10 * t.scale,
+    fontFamily: fonts.body,
+    fontWeight: '600',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  doorValue: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body, fontWeight: '500' },
+  doorCaret: { color: t.colors.inkSoft, fontSize: 18 * t.scale, fontFamily: fonts.body },
+  composer: {
+    borderTopWidth: border.hair,
+    borderTopColor: t.colors.line,
+    paddingHorizontal: spacing.four,
+    paddingVertical: spacing.four,
+    gap: spacing.five,
+  },
+  compRow: { gap: spacing.two },
+  compOverline: {
+    color: t.colors.inkFaint,
+    fontSize: 10 * t.scale,
+    fontFamily: fonts.body,
+    fontWeight: '600',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },
-  weekdays: { flexDirection: 'row', gap: spacing.two },
+  detailRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.one },
+  detailValue: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+  changeLink: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+  weekdays: { flexDirection: 'row', gap: spacing.two, marginTop: spacing.one },
   day: {
     width: 34,
     height: 34,
@@ -575,21 +717,29 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   stepBtnText: { color: t.colors.accent, fontSize: 20 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   stepLabel: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body, fontWeight: '500', minWidth: 110, textAlign: 'center' },
-  sliceField: { gap: spacing.two },
-  sliceHint: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body },
-  sortHint: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.one },
-  aiNote: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
-  startRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
-  startLabel: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
-  startBtn: {
-    paddingHorizontal: spacing.three,
-    paddingVertical: spacing.one,
-    borderRadius: radius.pill,
+  // Quiet-unavailable (the constant-frame treatment): the control keeps its place at lowered
+  // contrast; the line below says why. Never absent, never locked.
+  quiet: { opacity: 0.45 },
+  stepsHint: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
+  addFlex: { flex: 1 },
+  bite: {
+    borderRadius: radius.md,
     borderWidth: border.hair,
     borderColor: t.colors.accent,
-    backgroundColor: t.colors.accentSoft,
+    paddingHorizontal: spacing.four,
+    paddingVertical: spacing.three,
   },
-  startBtnText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+  biteBusy: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
+  biteText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+  // One fixed hint region: an error, the Tidy offer, or the AI egress note, in that priority.
+  hintRegion: { minHeight: 20, justifyContent: 'center' },
+  aiNote: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+  split: { alignSelf: 'center', alignItems: 'center', paddingVertical: spacing.one, paddingHorizontal: spacing.three },
+  splitText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center' },
+  error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body },
+  pressed: { opacity: PRESSED_OPACITY },
+  disabled: { opacity: 0.5 },
   pickerRoot: {
     flex: 1,
     alignItems: 'center',
@@ -606,22 +756,6 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     gap: spacing.three,
   },
   pickerTitle: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
-  pickerToday: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center' },
-  actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
-  bite: {
-    borderRadius: radius.md,
-    borderWidth: border.hair,
-    borderColor: t.colors.accent,
-    paddingHorizontal: spacing.four,
-    paddingVertical: spacing.three,
-  },
-  biteBusy: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-  biteText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  pressed: { opacity: PRESSED_OPACITY },
-  disabled: { opacity: 0.5 },
-  error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body },
-  captureRow: { flexDirection: 'row', gap: spacing.two, alignItems: 'flex-start' },
-  inputFlex: { flex: 1 },
   // The iOS keyboard toolbar (see CAPTURE_ACCESSORY_ID): a calm surface strip, Done right-aligned
   // where an iOS thumb expects it. Never a "cancel", it only lowers the keyboard, it keeps the text.
   kbBar: {
@@ -637,8 +771,8 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   speak: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: spacing.two,
-    alignSelf: 'flex-start',
     paddingHorizontal: spacing.three,
     paddingVertical: spacing.two,
     borderRadius: radius.pill,
@@ -650,6 +784,4 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   speakText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, fontWeight: '500' },
   speakTextOn: { color: t.colors.accent },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.colors.accent },
-  split: { alignSelf: 'center', alignItems: 'center', paddingVertical: spacing.two, paddingHorizontal: spacing.three, marginTop: spacing.one },
-  splitText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center' },
 });

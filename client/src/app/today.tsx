@@ -391,12 +391,13 @@ export default function TodayScreen() {
   // Inbound launch intents (a launcher shortcut, or shared text) are stashed at the app
   // root and consumed here: open Focus, or seed and focus the capture box. Drained once
   // on mount (a cold launch) and on each later arrival while Today is open.
-  // The capture box renders only while captureOpen, so a seed arriving with it collapsed
-  // (the default on a cold launch) cannot go through the ref yet: it parks in pendingSeed
-  // and the CALLBACK REF below flushes it the moment BrainDump actually mounts. The
-  // earlier captureOpen-effect flush was the launch-week "share only works when the box
-  // is already open" bug: on a cold start the effect ran while BrainDump was not mounted
-  // yet, and its optional-chained seed silently swallowed the null AND cleared the park.
+  // Since the capture redesign, BrainDump stays MOUNTED while the panel is hidden (typed
+  // text survives a collapse), so the ref usually exists even with the panel closed: the
+  // seed goes through it directly, and setCaptureOpen(true) reveals the panel. pendingSeed
+  // still covers the one true gap (an intent arriving before the first mount on a cold
+  // start), flushed by the CALLBACK REF below the moment BrainDump actually mounts. That
+  // callback-ref flush cured the launch-week "share only works when the box is already
+  // open" bug; do not go back to flushing from an effect.
   const pendingSeed = useRef<string | null | undefined>(undefined); // undefined = nothing parked
   useEffect(
     () =>
@@ -410,16 +411,23 @@ export default function TodayScreen() {
           return;
         }
         const text = i.kind === 'capture' ? i.text : null;
+        setCaptureOpen(true);
         if (brainDumpRef.current) {
           brainDumpRef.current.seed(text);
         } else {
           pendingSeed.current = text;
-          setCaptureOpen(true);
         }
         track(i.kind === 'capture' ? 'capture.shared' : 'capture.shortcut');
       }),
     [],
   );
+
+  // The panel opens focused: the first keystroke never waits (capture iron rule). Focus can
+  // only land after the reveal renders (a hidden input ignores focus on web), so it runs as
+  // an effect on the flip, not inside the tap handler.
+  useEffect(() => {
+    if (captureOpen) brainDumpRef.current?.seed(null);
+  }, [captureOpen]);
 
   // The ref both render sites pass to BrainDump: keeps .current in sync AND flushes any
   // parked seed exactly when the box mounts, however late that is (a cold start's first
@@ -1886,8 +1894,10 @@ export default function TodayScreen() {
             (clock only, resolved at open, never mid-session), and a caret opening the same tools in
             the same day order, always. An unavailable tool keeps its place at lowered contrast and
             explains itself in one plain line when tapped: never absent, never locked. This is what
-            lets muscle memory form on a screen that used to reshape itself with the task count. */}
-        {loaded && !selectMode && !isClosed && (
+            lets muscle memory form on a screen that used to reshape itself with the task count.
+            While the capture panel is open the slot YIELDS (the capture redesign's one frame
+            exception): the person is mid-thought, and the frame returns the moment capture closes. */}
+        {loaded && !selectMode && !isClosed && !captureOpen && (
           <>
             {toolsOpen && (
               <View style={styles.toolsPanel}>
@@ -1951,6 +1961,28 @@ export default function TodayScreen() {
             {orderError != null && <Text style={styles.strategiseErr}>{orderError}</Text>}
           </>
         )}
+        {/* The capture panel stays MOUNTED while hidden (display none, not unmount) so typed
+            text survives a collapse: the capture iron rule that text is never lost. The panel's
+            own Close resets the door to Today · no repeat · no steps but keeps the words. */}
+        <View style={[styles.capturePanel, (!captureOpen || selectMode || isClosed) && styles.capturePanelHidden]}>
+          <BrainDump
+            ref={attachBrainDump}
+            onCapture={capture}
+            onBiteElephant={biteElephant}
+            onSort={sortDump}
+            onClose={() => setCaptureOpen(false)}
+            today={today}
+            onCamera={() => {
+              if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
+              if (!premium) {
+                track('premium.gate_hit', { reason: 'ocr' });
+                router.push('/premium');
+                return;
+              }
+              setCameraOpen(true);
+            }}
+          />
+        </View>
         {selectMode ? (
           <View style={styles.selectBar}>
             <View style={styles.selectTop}>
@@ -2007,45 +2039,16 @@ export default function TodayScreen() {
           <>
         {!isClosed && sortSummary && <Text style={styles.sortSummary}>{sortSummary}</Text>}
         {!isClosed && affirmation && <Text style={styles.affirmation}>{affirmation}</Text>}
-        {!isClosed &&
-          (captureOpen ? (
-            <View style={styles.capturePanel}>
-              <Pressable
-                onPress={() => setCaptureOpen(false)}
-                accessibilityRole="button"
-                accessibilityLabel={t('capture.collapseA11y')}
-                hitSlop={8}
-                style={styles.captureHandle}
-              >
-                <Text style={styles.optLink}>{t('common.close')}</Text>
-              </Pressable>
-              <BrainDump
-                ref={attachBrainDump}
-                onCapture={capture}
-                onBiteElephant={biteElephant}
-                onSort={sortDump}
-                today={today}
-                onCamera={() => {
-                  if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
-                  if (!premium) {
-                    track('premium.gate_hit', { reason: 'ocr' });
-                    router.push('/premium');
-                    return;
-                  }
-                  setCameraOpen(true);
-                }}
-              />
-            </View>
-          ) : (
-            <Pressable
-              onPress={() => setCaptureOpen(true)}
-              accessibilityRole="button"
-              accessibilityLabel={t('capture.addA11y')}
-              style={({ pressed }) => [styles.addBar, pressed && styles.pressed]}
-            >
-              <Text style={styles.focusEntryText}>{t('today.addToToday')}</Text>
-            </Pressable>
-          ))}
+        {!isClosed && !captureOpen && (
+          <Pressable
+            onPress={() => setCaptureOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={t('capture.addA11y')}
+            style={({ pressed }) => [styles.addBar, pressed && styles.pressed]}
+          >
+            <Text style={styles.focusEntryText}>{t('today.addToToday')}</Text>
+          </Pressable>
+        )}
         <View style={styles.ethos}>
           {/* In the evening the rotating inscription yields to the wind-down line: the same single
               italic breath under capture, saying the one thing the hour actually calls for. It is
@@ -3079,7 +3082,8 @@ const makeStyles = (t: Theme) =>
         ? { borderBottomWidth: border.hair, borderColor: t.quiet.captureUnderline, paddingVertical: spacing.four, paddingHorizontal: 2, alignItems: 'flex-start' }
         : { borderWidth: border.hair, borderColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.four, alignItems: 'center' },
     capturePanel: { gap: spacing.two },
-    captureHandle: { alignSelf: 'center', paddingVertical: spacing.two },
+    // display none (not unmount): BrainDump keeps its typed text while the panel is away.
+    capturePanelHidden: { display: 'none' },
     alsoDidLink: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     didTitle: { ...t.type.subheading, color: t.colors.ink, letterSpacing: -0.3 },
     didHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body },
