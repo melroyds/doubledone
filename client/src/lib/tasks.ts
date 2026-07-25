@@ -176,3 +176,29 @@ export function withMonotonicStamps(next: Task[], prev: Task[]): Task[] {
     return p && t.updatedAt < p.updatedAt ? { ...t, updatedAt: p.updatedAt + 1 } : t;
   });
 }
+
+// A task id: the millisecond plus a counter, so two tasks captured in the same tick still differ.
+//
+// This lives here, shared, rather than beside the screen that captures. It used to be module-scope
+// in today.tsx, which was fine while Today was the ONLY place a task could be born. The Calendar can
+// now create one too, and two screens each holding their own counter both start at 1, so a task made
+// on each within the same millisecond would collide on `t-<ms>-1`. One counter for the whole app
+// removes that by construction rather than by luck.
+let addCounter = 0;
+
+export function makeId(): string {
+  addCounter += 1;
+  return `t-${Date.now().toString(36)}-${addCounter.toString(36)}`;
+}
+
+/**
+ * The clock read used to stamp createdAt / updatedAt / tombstones.
+ *
+ * It lives here, outside any component, for the same reason makeId does: the React Compiler's purity
+ * rule rejects `Date.now()` called from a function defined during render, since a re-render would
+ * silently produce a different value. Module scope keeps every screen's handlers pure by construction
+ * rather than by each one remembering to declare its own copy.
+ */
+export function nowMs(): number {
+  return Date.now();
+}

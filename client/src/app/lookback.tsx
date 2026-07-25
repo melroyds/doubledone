@@ -1,14 +1,14 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
 import { PremiumButton } from '@/components/PremiumButton';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { lookbackSummary, makeScrapbook } from '@/lib/ai';
-import { addMonths, completionsByDay, monthLabel, monthMatrix, scheduledByDay, WEEKDAY_LABELS } from '@/lib/calendar';
+import { addMonths, canAddToDay, completionsByDay, monthLabel, monthMatrix, scheduledByDay, WEEKDAY_LABELS } from '@/lib/calendar';
 import { aiErrorLine } from '@/lib/connection';
 import { formatTodayLabel, fromISODate, toISODate } from '@/lib/day';
 import { canMakeScrapbook } from '@/lib/entitlement';
@@ -19,8 +19,9 @@ import { fmt, t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
 import { findScrapbook, type Scrapbook, upsertScrapbook, weekCompletions, weekLabel, weekStartISO } from '@/lib/scrapbook';
 import { shareScrapbook } from '@/lib/share';
-import { loadScrapbooks, loadTasks, saveScrapbooks } from '@/lib/storage';
-import { type Task } from '@/lib/tasks';
+import { loadScrapbooks, loadTasks, saveScrapbooks, saveTasks } from '@/lib/storage';
+import { makeId, nowMs, type Task, withMonotonicStamps } from '@/lib/tasks';
+import { updateWidget } from '@/widget/update';
 import { track } from '@/lib/telemetry';
 import { useReducedMotion, useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
@@ -46,6 +47,12 @@ export default function LookbackScreen() {
   // delete, leaving a local entry that points at a now-missing image). Such a week falls back to the calm
   // "make one" invite instead of a blank polaroid.
   const [brokenImages, setBrokenImages] = useState<Set<string>>(new Set());
+  // Adding into a future day (Tier 1, the promise the "Calendar" rename made). `addedNote` is a
+  // quiet confirmation that the thing landed on the day the person chose, since after adding they
+  // are still looking at the calendar rather than at Today where it will appear.
+  const [addingForDay, setAddingForDay] = useState(false);
+  const [addText, setAddText] = useState('');
+  const [addedNote, setAddedNote] = useState<string | null>(null);
   const [summary, setSummary] = useState('');
   const [summaryWeek, setSummaryWeek] = useState<string | null>(null);
   const [summaryBusy, setSummaryBusy] = useState(false);
@@ -198,7 +205,36 @@ export default function LookbackScreen() {
 
   function openDay(iso: string) {
     setSelected(iso);
+    // Moving to a different day abandons any half-typed add: the input is bound to the day the
+    // person opened it on, and silently re-pointing it at a new date is how a task lands somewhere
+    // nobody asked for.
+    setAddingForDay(false);
+    setAddText('');
+    setAddedNote(null);
     track('lookback.day_opened', { count: byDay.get(iso)?.length ?? 0 });
+  }
+
+  /**
+   * Drop a one-off dated task onto the selected FUTURE day. Same shape the Today capture builds, so
+   * the task is ordinary in every respect and syncs, exports and appears on Today when the day comes.
+   *
+   * `canAddToDay` is re-checked here rather than trusted from the render: the button cannot be shown
+   * for a past day, but a day can be re-selected while the input is open, and a guard that only lives
+   * in JSX is one state change away from being wrong.
+   */
+  function addForSelectedDay() {
+    const title = addText.trim();
+    if (!title || !canAddToDay(selected, todayIso)) return;
+    const now = nowMs();
+    const added: Task = { id: makeId(), title, done: false, createdAt: now, updatedAt: now, due: selected };
+    const next = withMonotonicStamps([...tasks, added], tasks);
+    setTasks(next);
+    void saveTasks(next);
+    void updateWidget(next, null); // the widget shows TODAY, so a future add cannot change it; kept for store parity
+    setAddText('');
+    setAddingForDay(false);
+    setAddedNote(t('lookback.addedForDay', { date: formatTodayLabel(fromISODate(selected)) }));
+    track('task.added', { count: 1, schedule: 'calendar_day' });
   }
 
   return (
@@ -317,6 +353,55 @@ export default function LookbackScreen() {
         ) : isFirstRun ? null : (
           <Text style={styles.detailEmpty}>{t('lookback.dayEmpty')}</Text>
         )}
+
+        {/* Adding INTO a future day. Renaming Lookback to "Calendar" made the screen promise this:
+            a person taps a day ahead expecting to put something there. Future days only (canAddToDay);
+            the past is a shame-free record, and today already has capture permanently docked.
+            One line, one tap, no date picker: the day IS the date, which is the whole point of
+            arriving here by tapping it. */}
+        {canAddToDay(selected, todayIso) && (
+          addingForDay ? (
+            <View style={styles.addDayBox}>
+              <TextInput
+                value={addText}
+                onChangeText={setAddText}
+                placeholder={t('lookback.addForDayPlaceholder')}
+                placeholderTextColor={theme.colors.inkSoft}
+                style={styles.addDayInput}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={addForSelectedDay}
+                accessibilityLabel={t('lookback.addForDayA11y', { date: formatTodayLabel(fromISODate(selected)) })}
+              />
+              <View style={styles.addDayRow}>
+                <Pressable
+                  onPress={() => { setAddingForDay(false); setAddText(''); }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.cancel')}
+                  hitSlop={8}
+                >
+                  <Text style={styles.addDayCancel}>{t('common.cancel')}</Text>
+                </Pressable>
+                <PrimaryButton
+                  label={t('capture.add')}
+                  onPress={addForSelectedDay}
+                  disabled={addText.trim().length === 0}
+                />
+              </View>
+            </View>
+          ) : (
+            <Pressable
+              onPress={() => setAddingForDay(true)}
+              accessibilityRole="button"
+              accessibilityLabel={t('lookback.addForDayA11y', { date: formatTodayLabel(fromISODate(selected)) })}
+              style={({ pressed }) => [styles.addDayEntry, pressed && styles.pressed]}
+              hitSlop={6}
+            >
+              <Text style={styles.addDayEntryText}>{t('lookback.addForDay')}</Text>
+            </Pressable>
+          )
+        )}
+        {addedNote != null && <Text style={styles.addDayDone}>{addedNote}</Text>}
       </View>
 
       {aiEnabled && (
@@ -525,6 +610,26 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   detail: { marginTop: spacing.six, gap: spacing.two },
   detailDate: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginBottom: spacing.one },
   detailEmpty: { color: t.colors.inkFaint, fontSize: 15 * t.scale, fontFamily: fonts.body },
+  // "Add for this day": plain accent text, never a filled button. This is an offer on a screen whose
+  // job is reflection, so it should be findable and quiet, not the loudest thing in view.
+  pressed: { opacity: PRESSED_OPACITY },
+  addDayEntry: { marginTop: spacing.three, alignSelf: 'flex-start' },
+  addDayEntryText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+  addDayBox: { marginTop: spacing.three, gap: spacing.two },
+  addDayInput: {
+    borderWidth: border.hair,
+    borderColor: t.colors.line,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.three,
+    paddingVertical: spacing.two,
+    color: t.colors.ink,
+    fontSize: 15 * t.scale,
+    fontFamily: fonts.body,
+    backgroundColor: t.colors.surface,
+  },
+  addDayRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
+  addDayCancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
+  addDayDone: { marginTop: spacing.two, color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
   item: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
   itemMark: { color: t.colors.doneText, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
   itemMarkScheduled: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },

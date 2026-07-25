@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { completeOnDay, deserialize, parseDump, serialize, sweepElapsedNudges, type Task, withMonotonicStamps } from './tasks';
+import { completeOnDay, deserialize, makeId, parseDump, serialize, sweepElapsedNudges, type Task, withMonotonicStamps } from './tasks';
 
 const sample: Task[] = [
   { id: 'a', title: 'Water the plants', done: false, createdAt: 10, updatedAt: 10 },
@@ -201,5 +201,19 @@ describe('withMonotonicStamps (delete/edit must win LWW against a foreign clock)
   it('leaves a brand-new task (no prev) untouched', () => {
     const out = withMonotonicStamps([mk({ id: 'new', updatedAt: 10 })], []);
     expect(out[0].updatedAt).toBe(10);
+  });
+});
+
+describe('makeId', () => {
+  // The reason this moved out of today.tsx: the Calendar can now create tasks too, and two screens
+  // each with their own counter both start at 1, so same-millisecond captures on each would collide.
+  // One shared counter makes that impossible rather than unlikely.
+  it('never repeats, even for ids minted in the same millisecond', () => {
+    const ids = Array.from({ length: 500 }, () => makeId());
+    expect(new Set(ids).size).toBe(500);
+  });
+
+  it('is shaped as a task id', () => {
+    expect(makeId()).toMatch(/^t-[0-9a-z]+-[0-9a-z]+$/);
   });
 });

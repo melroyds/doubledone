@@ -64,7 +64,7 @@ import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { syncScrapbooks } from '@/lib/scrapbook-sync';
 import { isAccountGone, localBelongsToAnother, syncOnce } from '@/lib/sync';
-import { completeOnDay, parseDump, sweepElapsedNudges, type Task, withMonotonicStamps } from '@/lib/tasks';
+import { completeOnDay, makeId, nowMs, parseDump, sweepElapsedNudges, type Task, withMonotonicStamps } from '@/lib/tasks';
 import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
 import { updateWidget } from '@/widget/update';
@@ -75,19 +75,7 @@ import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiv
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
 
-let addCounter = 0;
 const REENTRY_GAP_DAYS = 4; // a calm "welcome back" shows on the first open after this many days away
-
-function makeId(): string {
-  addCounter += 1;
-  return `t-${Date.now().toString(36)}-${addCounter.toString(36)}`;
-}
-
-// Clock read, kept at module scope so handlers stay pure for the render linter
-// (same reason makeId lives here). Bumps updatedAt / stamps tombstones.
-function nowMs(): number {
-  return Date.now();
-}
 
 export default function TodayScreen() {
   const insets = useSafeAreaInsets();

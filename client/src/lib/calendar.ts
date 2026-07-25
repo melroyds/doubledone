@@ -112,3 +112,20 @@ export function scheduledByDay<T extends Completable>(tasks: T[], today: Date, d
   }
   return byDay;
 }
+
+/**
+ * Can something be added TO this day from the Calendar? Future days only.
+ *
+ * The past is a record of what happened and must stay read-only: offering to add to a day that has
+ * already gone would either quietly lie about when the task was made or invite back-filling a day to
+ * look busier, and both are the wrong shape for a screen whose whole job is a shame-free record.
+ * TODAY is excluded too, but for a plainer reason: Today already has capture, permanently docked, and
+ * a second door to the same thing in a different place is how an app teaches two habits for one action.
+ *
+ * Comparison is lexicographic on ISO `YYYY-MM-DD`, which sorts chronologically by construction, so
+ * this needs no Date parsing and cannot drift across a timezone boundary the way a Date maths version
+ * could. Empty or malformed input simply fails the compare and returns false, which is the safe answer.
+ */
+export function canAddToDay(iso: string, todayIso: string): boolean {
+  return iso > todayIso;
+}

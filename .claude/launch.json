@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 8081
+    },
+    {
+      "name": "invest-dashboard",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8123", "--directory", "C:/Users/molte/OneDrive/Claude Output/Investments/dashboard"],
+      "port": 8123
     }
   ]
 }

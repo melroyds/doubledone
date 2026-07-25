@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { addMonths, completionsByDay, monthLabel, monthMatrix, scheduledByDay } from './calendar';
+import { addMonths, canAddToDay, completionsByDay, monthLabel, monthMatrix, scheduledByDay } from './calendar';
 import { type Recurrence } from './recurrence';
 
 describe('monthMatrix', () => {
@@ -137,5 +137,44 @@ describe('scheduledByDay', () => {
       today,
     );
     expect(m.size).toBe(0);
+  });
+});
+
+describe('canAddToDay', () => {
+  const today = '2026-07-25';
+
+  it('allows a future day, which is the whole point', () => {
+    expect(canAddToDay('2026-07-26', today)).toBe(true);
+    expect(canAddToDay('2026-12-31', today)).toBe(true);
+    expect(canAddToDay('2027-01-01', today)).toBe(true);
+  });
+
+  // The past is a shame-free RECORD. Adding to it would either lie about when the task was made
+  // or invite back-filling a day to look busier, and the Lookback exists to do neither.
+  it('refuses the past', () => {
+    expect(canAddToDay('2026-07-24', today)).toBe(false);
+    expect(canAddToDay('2025-01-01', today)).toBe(false);
+  });
+
+  // Not a bug: Today already has capture, permanently docked. A second door to the same action in a
+  // different place teaches two habits for one thing.
+  it('refuses today itself, because Today already has capture', () => {
+    expect(canAddToDay(today, today)).toBe(false);
+  });
+
+  it('crosses month and year boundaries the right way', () => {
+    expect(canAddToDay('2026-08-01', '2026-07-31')).toBe(true);
+    expect(canAddToDay('2026-07-31', '2026-08-01')).toBe(false);
+    expect(canAddToDay('2027-01-01', '2026-12-31')).toBe(true);
+    expect(canAddToDay('2026-12-31', '2027-01-01')).toBe(false);
+  });
+
+  // The only guarantee for non-ISO input is that it never throws: this sits on a render path, and a
+  // predicate that can explode is worse than one that answers oddly. It is NOT a validator, and the
+  // callers only ever hand it ISO strings out of monthMatrix, so garbage-in is not a real case.
+  it('never throws, whatever it is handed', () => {
+    expect(canAddToDay('', today)).toBe(false);
+    expect(() => canAddToDay('', '')).not.toThrow();
+    expect(() => canAddToDay('not-a-date', today)).not.toThrow();
   });
 });
