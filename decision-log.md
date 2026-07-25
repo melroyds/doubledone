@@ -4428,3 +4428,19 @@ Tier 1's only code item, and the whole of it turned out to be one thing rather t
 **Switching days mid-type discards what was typed**, deliberately: the input belongs to the day it was opened on, and silently re-pointing it at a newly selected date is how a task lands somewhere nobody asked for.
 
 Verified in the preview end to end: a future day offers the add, the past and today do not, typing and adding writes an ordinary one-off with `due` set to the chosen day, it appears immediately under that day's SCHEDULED list, and the confirmation names the date. **The preview caught a real bug the gate could not:** the button read `common.add`, the literal key, because `add` lives under `capture`, not `common`. Typecheck and lint were both green with it. 7 new unit tests (5 `canAddToDay`, 2 `makeId`), 568 client + 425 server green. E2E LB-11. **The visual styling is unverified**, the screenshot tool cannot composite here, so it wants a human glance.
+
+## 2026-07-25 There is no Break-it-down cap, and now there is no claim of one either
+
+The build plan had carried an item for months: a "~10 a month" fair-use cap on Break-it-down was policy, with no meter behind it, so build the meter. `lib/energy.ts` already had the pattern; it looked like a tidy afternoon.
+
+**Checking before building found there was no policy.** The number appears in no user-facing copy, not in `docs/premium.md`, not in the Terms, and nowhere in the code. It existed in one document, describing itself.
+
+That inverts the job. It was never "enforce a promise we made", it was "**introduce a restriction on a feature that has always been unlimited**", on a live product with paying subscribers, for an audience where a takeaway lands especially hard. Shipping it would have meant a free user who broke down twenty tasks last month meeting a wall this month for a rule nobody had told them.
+
+**Melroy's call: delete the claim, keep the feature uncapped.** Both BUILD-PLAN entries are gone.
+
+Worth recording what the actual exposure was, since the old wording overstated it and that overstatement is what nearly bought a feature. `/decompose` already sits behind an origin gate, a per-IP rate limiter and a 100KB body cap. Scripted abuse, the thing that could actually drain a $25 monthly budget, was covered the whole time. What was missing was a per-user count of *legitimate* use by a human clicking a button, which is slow, self-limiting, and not what the budget was ever at risk from.
+
+**If cost does become real, the first move is an alert on the D1 spend telemetry we already collect**, so we would know before it mattered. A limit is the last resort, not the first, and one nobody was told about is not a limit, it is a surprise.
+
+The general lesson, and the second time today it applied: a backlog item that describes the world can go stale, and then the plan is the only thing still saying the world looks like that. Both this and "scheduling gets hands" were smaller or different than the document claimed, and both times the cost of checking was minutes.
