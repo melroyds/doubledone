@@ -19,6 +19,13 @@ const WIDGET_COLORS = {
 } as const;
 
 export function TodayWidget({ model, scheme }: { model: WidgetModel; scheme: 'light' | 'dark' }) {
+  // react-native-android-widget renders this in its OWN hook-less reconciler, not React's. The React
+  // Compiler (experiments.reactCompiler in app.json) otherwise injects a memoization hook into every
+  // compiled component, and that hook throws "Invalid hook call" here and blanks the widget. This
+  // opt-out is what lets the widget render at all. Proven on device 2026-07-25: the self-diagnosing
+  // handler caught this exact error (the lowercase diagnosticWidget is not compiled, so it survived to
+  // report it), which was almost certainly the original 2026-06 "blank widget" misread as a new-arch bug.
+  'use no memo';
   const c = WIDGET_COLORS[scheme];
 
   const children = [
