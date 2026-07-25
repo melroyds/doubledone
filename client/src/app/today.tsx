@@ -57,7 +57,9 @@ import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge }
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadClosedDate, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderHour, loadReminderOfferMade, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOfferMade, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData } from '@/lib/storage';
+import { loadClosedDate, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderHour, loadReminderOfferMade, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOfferMade, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
+import { restedOffer } from '@/lib/offers';
+import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { syncScrapbooks } from '@/lib/scrapbook-sync';
 import { isAccountGone, localBelongsToAnother, syncOnce } from '@/lib/sync';
@@ -154,6 +156,11 @@ export default function TodayScreen() {
   const [holdHintSeen, setHoldHintSeen] = useState(true); // default true: don't flash the coachmark before it loads
   const [syncOk, setSyncOk] = useState<boolean | null>(null); // last sync result; null until known, false = local-only
   const [reminderOfferMade, setReminderOfferMade] = useState(true); // default true: don't flash the close-day reminder offer
+  // The home-screen widget offer (the "app comes to you" pass). Both default to the quiet answer so
+  // nothing flashes before the real values load, matching the reminder offer above.
+  const [widgetOfferMade, setWidgetOfferMade] = useState(true);
+  const [widgetPlaced, setWidgetPlaced] = useState(true);
+  const [widgetHowShown, setWidgetHowShown] = useState(false); // the ask swaps to the instructions in place
   // Break it down, the two-call flow: qualify (questions) -> decompose (review).
   const [bdPhase, setBdPhase] = useState<'off' | 'questions' | 'review'>('off');
   const [bdTask, setBdTask] = useState('');
@@ -246,6 +253,14 @@ export default function TodayScreen() {
     });
     void loadReminderOfferMade().then((made) => {
       if (active) setReminderOfferMade(made);
+    });
+    void loadWidgetOfferMade().then((made) => {
+      if (active) setWidgetOfferMade(made);
+    });
+    // Asks the launcher whether a DoubleDone widget is actually on the home screen, so someone who
+    // already has one is never offered it. No-ops to "placed" on web and on any error.
+    void hasWidgetPlaced().then((placed) => {
+      if (active) setWidgetPlaced(placed);
     });
     return () => {
       active = false;
@@ -925,6 +940,18 @@ export default function TodayScreen() {
     void saveReminderOfferMade();
     track('reminder.offer_declined');
   }
+  // The widget offer can only TEACH the gesture: Android gives no way to place a widget for someone.
+  // So "yes" swaps the ask for the instructions in place, and spends the one-time offer either way.
+  function acceptWidgetOffer() {
+    setWidgetHowShown(true);
+    void saveWidgetOfferMade();
+    track('widget.offer_accepted');
+  }
+  function dismissWidgetOffer() {
+    setWidgetOfferMade(true);
+    void saveWidgetOfferMade();
+    track('widget.offer_declined');
+  }
 
   // Strategise: hand today's one-offs to the AI, get a calm re-spread, then PROPOSE
   // it (the user accepts). Never rearranges the day on its own.
@@ -1558,7 +1585,10 @@ export default function TodayScreen() {
             >
               <Text style={styles.restedReopen}>{t('closeDay.reopen')}</Text>
             </Pressable>
-            {!reminderOn && !reminderOfferMade && (
+            {/* At most ONE lifeline offer, ever, decided by the pure `restedOffer` rules: the app is
+                so calm that its own opt-in lifelines are invisible (a returning user asked for four
+                things that already existed), but the goodnight screen must never become a pitch. */}
+            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade }) === 'reminder' && (
               <View style={styles.reminderOffer}>
                 <Text style={styles.reminderOfferText}>{t('reminders.offerText')}</Text>
                 <View style={styles.reminderOfferRow}>
@@ -1569,6 +1599,25 @@ export default function TodayScreen() {
                     <Text style={styles.reminderOfferNo}>{t('common.notNow')}</Text>
                   </Pressable>
                 </View>
+              </View>
+            )}
+            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade }) === 'widget' && (
+              <View style={styles.reminderOffer}>
+                {widgetHowShown ? (
+                  <Text style={styles.reminderOfferText}>{t('reminders.widgetOfferHow')}</Text>
+                ) : (
+                  <>
+                    <Text style={styles.reminderOfferText}>{t('reminders.widgetOfferText')}</Text>
+                    <View style={styles.reminderOfferRow}>
+                      <Pressable onPress={acceptWidgetOffer} accessibilityRole="button" accessibilityLabel={t('reminders.widgetOfferYesA11y')} hitSlop={6}>
+                        <Text style={styles.reminderOfferYes}>{t('reminders.widgetOfferYes')}</Text>
+                      </Pressable>
+                      <Pressable onPress={dismissWidgetOffer} accessibilityRole="button" accessibilityLabel={t('common.notNow')} hitSlop={6}>
+                        <Text style={styles.reminderOfferNo}>{t('common.notNow')}</Text>
+                      </Pressable>
+                    </View>
+                  </>
+                )}
               </View>
             )}
           </View>
