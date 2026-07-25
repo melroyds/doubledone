@@ -60,11 +60,25 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps): Promise<
     // The card is `wrap_content`, so it never stretches into a taller slot. Instead the HEIGHT the
     // launcher gives us decides how many tasks to show: drag the widget taller and more of today
     // appears. WIDGET_RESIZED reaches this handler, so the answer updates as the drag lands.
+    //
+    // The font scale is the OTHER half of the sum, and leaving it out is what clipped the card on
+    // device: titles grow with the device's font setting while the card's padding does not, so a
+    // budget computed at scale 1.0 overflows a phone set larger. Read defensively and on its own:
+    // this is a headless JS context that has already proven hostile to innocent-looking imports, so
+    // a failure here must cost a slightly smaller card, never the whole widget.
+    let fontScale = 1;
+    try {
+      const { PixelRatio } = await import('react-native');
+      const read = PixelRatio.getFontScale();
+      if (Number.isFinite(read) && read > 0) fontScale = read;
+    } catch {
+      // Keep 1. widgetLineCapacity's safety margin still applies, so the card stays inside its slot.
+    }
     const model = buildWidgetModel(
       rawTasks ? deserialize(rawTasks) : [],
       new Date(),
       closedISO,
-      widgetLineCapacity(props.widgetInfo.height),
+      widgetLineCapacity(props.widgetInfo.height, fontScale),
     );
     // Two widgets share this handler, told apart by name. "Today" follows the phone's light/dark
     // setting (the sensible default). "TodayLight" is ALWAYS the light card, because a widget's

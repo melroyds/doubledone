@@ -63,13 +63,52 @@ describe('widgetLineCapacity', () => {
   });
 
   it('caps out, because past a point a widget is a list and not a glance', () => {
-    expect(widgetLineCapacity(5000)).toBe(10);
+    expect(widgetLineCapacity(5000)).toBe(6);
   });
 
   it('falls back to the fixed default when the height is unknown or nonsense', () => {
     expect(widgetLineCapacity(0)).toBe(MAX_WIDGET_LINES);
     expect(widgetLineCapacity(-50)).toBe(MAX_WIDGET_LINES);
     expect(widgetLineCapacity(Number.NaN)).toBe(MAX_WIDGET_LINES);
+  });
+
+  // THE REGRESSION. Device-reported twice (2026-07-25). A budget computed at font scale 1.0 was
+  // rendered on a phone set larger, the wrap_content card grew past its slot, and Android sliced the
+  // rounded bottom off: the "tombstone", with a task title cut through the middle.
+  it('asks for fewer lines as the font scale grows, because titles grow and padding does not', () => {
+    const h = 200;
+    const normal = widgetLineCapacity(h, 1);
+    const large = widgetLineCapacity(h, 1.3);
+    const huge = widgetLineCapacity(h, 1.6);
+    expect(large).toBeLessThan(normal);
+    expect(huge).toBeLessThanOrEqual(large);
+  });
+
+  // A scale below 1 (or a garbage reading) must never INFLATE the budget: that is the one direction
+  // that clips the card, so nonsense is clamped to the safe end rather than trusted.
+  it('never lets a small or nonsense font scale buy extra lines', () => {
+    const base = widgetLineCapacity(200, 1);
+    expect(widgetLineCapacity(200, 0.5)).toBe(base);
+    expect(widgetLineCapacity(200, 0)).toBe(base);
+    expect(widgetLineCapacity(200, Number.NaN)).toBe(base);
+    expect(widgetLineCapacity(200, -3)).toBe(base);
+  });
+
+  // The whole point of the rewrite: it must be STRICTLY more cautious than the version that clipped.
+  // The old sum was floor((h - 56) / 24) with a ceiling of 10.
+  it('is never more generous than the budget that overflowed the slot', () => {
+    for (const h of [110, 140, 180, 200, 250, 300, 400]) {
+      const old = Math.max(1, Math.min(10, Math.floor((h - 56) / 24)));
+      for (const scale of [1, 1.15, 1.3, 1.5]) {
+        expect(widgetLineCapacity(h, scale)).toBeLessThanOrEqual(old);
+      }
+    }
+  });
+
+  it('still grows with height at any one font scale, so resizing keeps meaning something', () => {
+    for (const scale of [1, 1.3]) {
+      expect(widgetLineCapacity(300, scale)).toBeGreaterThan(widgetLineCapacity(140, scale));
+    }
   });
 });
 
