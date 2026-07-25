@@ -1,7 +1,7 @@
 import { requestWidgetUpdate } from 'react-native-android-widget';
 
 import type { Task } from '@/lib/tasks';
-import { buildWidgetModel } from '@/lib/widget-model';
+import { buildWidgetModel, widgetLineCapacity } from '@/lib/widget-model';
 
 import { LIGHT_WIDGET, WIDGET_NAMES } from './names';
 import { TodayWidget } from './TodayWidget';
@@ -18,15 +18,21 @@ import { TodayWidget } from './TodayWidget';
 // darken it.
 export async function updateWidget(tasks: Task[], closedISO: string | null): Promise<void> {
   try {
-    const model = buildWidgetModel(tasks, new Date(), closedISO);
+    const now = new Date();
     await Promise.all(
       WIDGET_NAMES.map((widgetName) =>
         requestWidgetUpdate({
           widgetName,
-          renderWidget: () => ({
-            light: <TodayWidget model={model} scheme="light" />,
-            dark: <TodayWidget model={model} scheme={widgetName === LIGHT_WIDGET ? 'light' : 'dark'} />,
-          }),
+          // Built per widget, INSIDE the callback, because the line count depends on the height of
+          // the placed widget (`info.height`) and two widgets can be sized differently on the same
+          // home screen. Mirrors the headless handler, so an in-app edit and an OS refresh agree.
+          renderWidget: (info) => {
+            const model = buildWidgetModel(tasks, now, closedISO, widgetLineCapacity(info.height));
+            return {
+              light: <TodayWidget model={model} scheme="light" />,
+              dark: <TodayWidget model={model} scheme={widgetName === LIGHT_WIDGET ? 'light' : 'dark'} />,
+            };
+          },
           widgetNotFound: () => {},
         }),
       ),

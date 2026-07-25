@@ -48,7 +48,7 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps): Promise<
   if (props.widgetAction === 'WIDGET_DELETED' || props.widgetAction === 'WIDGET_CLICK') return;
   try {
     // Imported here, not at module top, so a headless-context load throw is caught (see header).
-    const [{ deserialize }, { buildWidgetModel }, { TodayWidget }] = await Promise.all([
+    const [{ deserialize }, { buildWidgetModel, widgetLineCapacity }, { TodayWidget }] = await Promise.all([
       import('@/lib/tasks'),
       import('@/lib/widget-model'),
       import('./TodayWidget'),
@@ -57,7 +57,15 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps): Promise<
       AsyncStorage.getItem(TASKS_KEY),
       AsyncStorage.getItem(CLOSED_KEY),
     ]);
-    const model = buildWidgetModel(rawTasks ? deserialize(rawTasks) : [], new Date(), closedISO);
+    // The card is `wrap_content`, so it never stretches into a taller slot. Instead the HEIGHT the
+    // launcher gives us decides how many tasks to show: drag the widget taller and more of today
+    // appears. WIDGET_RESIZED reaches this handler, so the answer updates as the drag lands.
+    const model = buildWidgetModel(
+      rawTasks ? deserialize(rawTasks) : [],
+      new Date(),
+      closedISO,
+      widgetLineCapacity(props.widgetInfo.height),
+    );
     // Two widgets share this handler, told apart by name. "Today" follows the phone's light/dark
     // setting (the sensible default). "TodayLight" is ALWAYS the light card, because a widget's
     // contrast is set by the WALLPAPER, which the system theme knows nothing about: dark mode over a
