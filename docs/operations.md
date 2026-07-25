@@ -52,6 +52,16 @@ The D1 schema (the `alerts_sent` dedup table) is additive and safe. Key rotation
 
 *Everything above is the monitor. The notes below are the rest of the operator's picture, added after the 2026-07-12 release (versionCode 11).*
 
+## Refunding a subscriber: refund AND cancel, always both
+
+**A refund does not revoke premium.** `charge.refunded` is wired to the money-trouble ALERT only (it emails you); it never touches the `entitlements` row. Nothing else does either: premium is changed by `checkout.session.completed` and the `customer.subscription.*` events, and a refund is none of those. So a customer refunded mid-period keeps their access, and if the subscription itself is still live they will simply be charged again next cycle.
+
+**The rule: whenever you refund in the Stripe dashboard, cancel the subscription in the same visit.** The cancellation fires `customer.subscription.*`, which is what actually writes `premium=0`. One extra click, and the webhook does the rest correctly.
+
+**This is deliberately NOT automated.** Auto-revoking on `charge.refunded` looks tidy and is a trap: Stripe fires that same event for PARTIAL refunds, so a few dollars returned as goodwill would strip a paying subscriber's access entirely. Wrongly revoking someone who paid is the worst failure this particular app can have, and a refund is already a rare, deliberate, human action taken with the dashboard open. A documented click beats a clever webhook that can misfire. Revisit only if refund volume ever makes the manual step unreliable.
+
+*Verified 2026-07-25 on the live table: the Apple sandbox EXPIRATION had landed correctly (premium 0, status `expired`, written 72 seconds after the expiry), and a stale TEST-mode Stripe row that had been left granting premium to a real user id was zeroed by hand. Test-mode Stripe events go to a separate endpoint with a separate signing secret, so a test subscription ending in production listens to nothing: never read a test-mode row as evidence about the live path.*
+
 ## The RevenueCat webhook (Apple IAP), added 2026-07-18
 
 `POST /rc-webhook` (`server/src/revenuecat.ts`) is a second billing webhook beside `/stripe-webhook`. It writes the SAME D1 `entitlements` row (via the `source` column) when an Apple subscription changes. It is authed by the **`RC_WEBHOOK_AUTH`** Worker secret, which RevenueCat has no HMAC for, so the secret IS the auth: it must be a long random string set both here AND as the webhook's Authorization header in the RevenueCat dashboard, and the two must match. No secret set → the route 503s (safe default). A wrong header → 401, no write. If Apple purchases stop unlocking Premium, check (1) the two secrets still match, (2) the Worker is deployed, (3) the RevenueCat dashboard shows the webhook delivering 2xx. A TRANSFER event (should never fire under keep-with-original Restore Behavior) emails `FEEDBACK_TO` and writes nothing. The webhook is idempotent (the `rc:`-namespaced event id in `processed_events`) and fails open, like the Stripe one, so a redelivery or a dedup hiccup is harmless.
