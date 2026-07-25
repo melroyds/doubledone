@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { clampHour, clampMinute, formatReminderHour, formatReminderTime, nextDailySlot, type ReminderReason, reminderReasonLine , staleNudgeIdentifiers, RHYTHM_CHANNEL, DAILY_CHANNEL, TASK_NUDGE_CHANNEL } from './reminders-types';
+import { clampHour, clampMinute, formatReminderHour, formatReminderTime, nextDailySlot, type ReminderReason, reminderReasonLine , staleNudgeIdentifiers, RHYTHM_CHANNEL, DAILY_CHANNEL, TASK_NUDGE_CHANNEL, MAX_NUDGE_LIFETIME_MS, slotTimeoutsMs } from './reminders-types';
 
 describe('reminderReasonLine', () => {
   it('gives a distinct, non-empty, never-alarming line for each reason', () => {
@@ -133,5 +133,42 @@ describe('staleNudgeIdentifiers (the app-open guilt-pile sweep)', () => {
   it('keeps anything unrecognised: never over-dismiss', () => {
     expect(staleNudgeIdentifiers([n('x', null), n('y', 'some-future-channel'), n('nudge-task1', null)])).toEqual([]);
     expect(staleNudgeIdentifiers([])).toEqual([]);
+  });
+});
+
+describe('slotTimeoutsMs (the closed-app half of "missed nudges never stack")', () => {
+  it('a lone daily slot wraps to tomorrow and takes the 12h cap', () => {
+    expect(slotTimeoutsMs([{ hour: 9, minute: 0 }])).toEqual([MAX_NUDGE_LIFETIME_MS]);
+  });
+
+  it('each slot expires exactly when its successor arrives, so two can never sit in the tray', () => {
+    // A water Rhythm: 9:00, 9:30, 11:00. Gaps: 30min, 90min, and 22h (capped).
+    const out = slotTimeoutsMs([
+      { hour: 9, minute: 0 },
+      { hour: 9, minute: 30 },
+      { hour: 11, minute: 0 },
+    ]);
+    expect(out).toEqual([30 * 60_000, 90 * 60_000, MAX_NUDGE_LIFETIME_MS]);
+  });
+
+  it('answers in input order, not sorted order', () => {
+    const out = slotTimeoutsMs([
+      { hour: 11, minute: 0 },
+      { hour: 9, minute: 0 },
+    ]);
+    expect(out).toEqual([MAX_NUDGE_LIFETIME_MS, 2 * 60 * 60_000]);
+  });
+
+  it('wraps across midnight: an evening slot expires when the morning one lands', () => {
+    const out = slotTimeoutsMs([
+      { hour: 22, minute: 0 },
+      { hour: 8, minute: 0 },
+    ]);
+    expect(out[0]).toBe(10 * 60 * 60_000); // 22:00 -> 8:00 is 10h, under the cap
+    expect(out[1]).toBe(MAX_NUDGE_LIFETIME_MS); // 8:00 -> 22:00 is 14h, capped
+  });
+
+  it('an empty schedule stays empty', () => {
+    expect(slotTimeoutsMs([])).toEqual([]);
   });
 });

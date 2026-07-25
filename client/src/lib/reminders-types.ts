@@ -97,3 +97,36 @@ export function nextDailySlot(slots: { hour: number; minute: number }[], now: Da
   }
   return best;
 }
+
+// --- Nudge shelf life (the closed-app half of "missed nudges never stack") -------------------
+//
+// The app-open sweep clears delivered daily / routine / Rhythm notifications the moment the app
+// opens. This is the OTHER half: each of those notifications carries its own expiry, so it removes
+// itself from the tray even when the app is never reopened. The value rides the notification's
+// data payload as `timeoutAfterMs`, and a patched expo-notifications builder (see
+// patches/expo-notifications*) hands it to Android's NotificationCompat.setTimeoutAfter.
+// Per-task nudges deliberately carry NO expiry: they are actionable, not "come back" invitations,
+// and the sweep leaves them alone for the same reason.
+
+/** No swept-class nudge outlives half a day: past that it is a guilt-heap entry, not a nudge. */
+export const MAX_NUDGE_LIFETIME_MS = 12 * 60 * 60 * 1000;
+
+/**
+ * For each daily-repeating slot, the milliseconds until the NEXT slot fires (wrapping to tomorrow),
+ * capped at MAX_NUDGE_LIFETIME_MS. This is what makes "never two in the tray" structural: a slot
+ * expires no later than the moment its successor arrives, so a Rhythm that fires every 30 minutes
+ * can never pile up while the phone sits untouched. A single daily slot wraps to 24h and takes the
+ * cap. Returned in INPUT order, so callers can zip it against the schedule they already hold.
+ */
+export function slotTimeoutsMs(times: { hour: number; minute: number }[]): number[] {
+  const DAY_MIN = 24 * 60;
+  const mins = times.map((x) => x.hour * 60 + x.minute);
+  return mins.map((m) => {
+    let gap = DAY_MIN;
+    for (const other of mins) {
+      const d = (other - m + DAY_MIN) % DAY_MIN;
+      if (d > 0 && d < gap) gap = d;
+    }
+    return Math.min(gap * 60_000, MAX_NUDGE_LIFETIME_MS);
+  });
+}

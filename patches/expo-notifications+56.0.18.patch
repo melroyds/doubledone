@@ -1,0 +1,17 @@
+diff --git a/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/presentation/builders/ExpoNotificationBuilder.kt b/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/presentation/builders/ExpoNotificationBuilder.kt
+index 610d303..daf1ff3 100644
+--- a/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/presentation/builders/ExpoNotificationBuilder.kt
++++ b/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/presentation/builders/ExpoNotificationBuilder.kt
+@@ -121,6 +121,12 @@ open class ExpoNotificationBuilder(
+       builder.setExtras(extras)
+     }
+ 
++    // DoubleDone (patch-package): a notification may carry its own shelf life in the JS data
++    // payload as `timeoutAfterMs`. Android then removes it from the tray after that long, so a
++    // missed nudge expires quietly even when the app is never reopened (the closed-app half of
++    // "missed nudges never stack"; the app-open sweep is the other). Ignored below API 26.
++    content.body?.optLong("timeoutAfterMs", 0L)?.takeIf { it > 0L }?.let { builder.setTimeoutAfter(it) }
++
+     // Save the notification request in extras for later usage
+     // eg. in ExpoPresentationDelegate when we fetch active notifications.
+     // Otherwise we'd have to create expo.Notification from android.Notification

@@ -19,9 +19,11 @@
     "test:watch": "npm --workspace client run test:watch",
     "shots": "node scripts/screenshots.mjs",
     "stats": "node scripts/stats.mjs",
-    "setup": "git config core.hooksPath .githooks"
+    "setup": "git config core.hooksPath .githooks",
+    "postinstall": "patch-package"
   },
   "devDependencies": {
+    "patch-package": "^8.0.1",
     "playwright-core": "^1.61.0"
   }
 }

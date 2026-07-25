@@ -4,7 +4,7 @@ import * as Notifications from 'expo-notifications';
 import { Linking, Platform } from 'react-native';
 
 import { t } from './i18n-active';
-import { DAILY_CHANNEL, nextDailySlot, type ReminderResult, RHYTHM_CHANNEL, staleNudgeIdentifiers, TASK_NUDGE_CHANNEL } from './reminders-types';
+import { DAILY_CHANNEL, nextDailySlot, type ReminderResult, RHYTHM_CHANNEL, staleNudgeIdentifiers, TASK_NUDGE_CHANNEL, slotTimeoutsMs } from './reminders-types';
 import { rhythmFireTimes, rhythmSlotId, rhythmSlotIdPrefix, type Routine } from './routines';
 
 export type { ReminderReason, ReminderResult } from './reminders-types';
@@ -78,7 +78,9 @@ export async function enableDailyReminder(hour = 9, opts: { quiet?: boolean } = 
     await Notifications.cancelScheduledNotificationAsync(DAILY_ID);
     await Notifications.scheduleNotificationAsync({
       identifier: DAILY_ID,
-      content: { title: t('reminders.dailyTitle'), body: t('reminders.dailyBody') },
+      // The nudge carries its own shelf life (see slotTimeoutsMs): if the phone never opens the
+      // app, the notification removes itself from the tray instead of waiting to become guilt.
+      content: { title: t('reminders.dailyTitle'), body: t('reminders.dailyBody'), data: { timeoutAfterMs: slotTimeoutsMs([{ hour, minute: 0 }])[0] } },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour,
@@ -119,7 +121,7 @@ export async function scheduleRoutineNudge(routineId: string, name: string, hour
     await Notifications.cancelScheduledNotificationAsync(ROUTINE_NUDGE_PREFIX + routineId);
     await Notifications.scheduleNotificationAsync({
       identifier: ROUTINE_NUDGE_PREFIX + routineId,
-      content: { title: name, body: t('reminders.routineNudgeBody') },
+      content: { title: name, body: t('reminders.routineNudgeBody'), data: { timeoutAfterMs: slotTimeoutsMs([{ hour, minute }])[0] } },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour,
@@ -166,10 +168,15 @@ export async function scheduleRhythm(r: Routine, opts: { quiet?: boolean } = {})
     if (r.paused) return { ok: true };
     // rhythmFireTimes is the unified schedule: interval Rhythms yield their window hours at
     // :00 (identical to before), fixed-time Rhythms their exact clock times (the meds shape).
-    for (const { hour, minute } of rhythmFireTimes(r)) {
+    // Each slot expires the moment its successor fires (slotTimeoutsMs), so a 30-minute water
+    // Rhythm can never pile notifications into the tray while the phone sits untouched. This is
+    // the closed-app half of "missed nudges never stack"; the app-open sweep is the other.
+    const fireTimes = rhythmFireTimes(r);
+    const slotTimeouts = slotTimeoutsMs(fireTimes);
+    for (const [slotIndex, { hour, minute }] of fireTimes.entries()) {
       await Notifications.scheduleNotificationAsync({
         identifier: rhythmSlotId(r.id, hour, minute),
-        content: { title: r.name, body: t('reminders.routineNudgeBody') },
+        content: { title: r.name, body: t('reminders.routineNudgeBody'), data: { timeoutAfterMs: slotTimeouts[slotIndex] } },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DAILY,
           hour,
