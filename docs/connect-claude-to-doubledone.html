@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+@page{size:A4;margin:11mm}
+*{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{background:#F6F2F4}
+.card,.dev,.trust,.prereq,.try{break-inside:avoid}
+@media print{
+  html,body{font-size:15px}
+  .wrap{padding:0 !important;max-width:100% !important}
+  h1{font-size:29px !important;margin-bottom:8px !important}
+  .lede{margin-bottom:12px !important}
+  .thread{margin-bottom:16px !important}
+  .prereq{margin-bottom:16px !important;padding:13px 15px !important}
+  .card,.dev{padding:17px 20px !important;margin-bottom:15px !important}
+  ol.steps>li{padding-bottom:12px !important}
+  .h2-sub{margin-bottom:10px !important}
+  .try{margin-bottom:15px !important}
+  .trust{margin-top:16px !important}
+  footer{margin-top:20px !important}
+}
+</style>
+</head>
+<body>
+<title>Connect Claude to DoubleDone</title>
+<style>
+  :root {
+    --paper: #F6F2F4;
+    --surface: #FDFBFC;
+    --surface-2: #F0E9EE;
+    --ink: #2E2632;
+    --ink-soft: #665C6B;
+    --ink-faint: #968B9A;
+    --mauve: #8F5F73;
+    --honey: #D9A778;
+    --rose: #C088A0;
+    --hairline: #E4DAE0;
+    --code-bg: #ECE3EA;
+    --code-ink: #5E4A69;
+    --ok: #5E8A6B;
+    --shadow: 0 1px 2px rgba(46,38,50,0.05), 0 8px 24px rgba(46,38,50,0.06);
+    --bloom: linear-gradient(90deg, #8F5F73 0%, #C088A0 54%, #D9A778 100%);
+    --serif: 'Newsreader', 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+    --sans: 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+    --maxw: 780px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #191320; --surface: #221B2A; --surface-2: #2A2233;
+      --ink: #ECE4EC; --ink-soft: #ABA0B0; --ink-faint: #7E7385;
+      --mauve: #C99AAE; --honey: #DEAE81; --rose: #D6A2B6; --hairline: #362C3F;
+      --code-bg: #2C2436; --code-ink: #C7B4D0; --ok: #8FBF9E;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 30px rgba(0,0,0,0.32);
+    }
+  }
+  :root[data-theme="light"] {
+    --paper: #F6F2F4; --surface: #FDFBFC; --surface-2: #F0E9EE;
+    --ink: #2E2632; --ink-soft: #665C6B; --ink-faint: #968B9A;
+    --mauve: #8F5F73; --honey: #D9A778; --rose: #C088A0; --hairline: #E4DAE0;
+    --code-bg: #ECE3EA; --code-ink: #5E4A69; --ok: #5E8A6B;
+    --shadow: 0 1px 2px rgba(46,38,50,0.05), 0 8px 24px rgba(46,38,50,0.06);
+  }
+  :root[data-theme="dark"] {
+    --paper: #191320; --surface: #221B2A; --surface-2: #2A2233;
+    --ink: #ECE4EC; --ink-soft: #ABA0B0; --ink-faint: #7E7385;
+    --mauve: #C99AAE; --honey: #DEAE81; --rose: #D6A2B6; --hairline: #362C3F;
+    --code-bg: #2C2436; --code-ink: #C7B4D0; --ok: #8FBF9E;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 30px rgba(0,0,0,0.32);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: var(--sans); font-size: 16.5px; line-height: 1.58;
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: clamp(26px, 6vw, 60px) clamp(20px, 5vw, 48px) 60px; }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--mauve); margin: 0 0 14px;
+  }
+  h1 {
+    font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 5.4vw, 44px);
+    line-height: 1.08; letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 12px;
+  }
+  .lede { font-size: clamp(16px, 2vw, 18px); color: var(--ink-soft); margin: 0 0 22px; max-width: 56ch; }
+  .lede b { color: var(--ink); font-weight: 700; }
+  .thread { height: 3px; width: 108px; border: 0; border-radius: 3px; background: var(--bloom); margin: 0 0 30px; }
+
+  /* prereq callout */
+  .prereq {
+    display: flex; gap: 13px; align-items: flex-start;
+    background: var(--surface-2); border-radius: 13px; padding: 16px 18px; margin: 0 0 30px;
+  }
+  .prereq .n { flex: none; font-size: 20px; line-height: 1.2; }
+  .prereq p { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--ink-soft); }
+  .prereq b { color: var(--ink); font-weight: 700; }
+  .prereq a { color: var(--mauve); text-decoration: none; border-bottom: 1px solid var(--hairline); }
+  .prereq a:hover { border-color: var(--mauve); }
+
+  h2 {
+    font-family: var(--serif); font-weight: 500; font-size: clamp(20px, 3vw, 25px);
+    margin: 0 0 4px; letter-spacing: -0.01em;
+  }
+  .h2-sub { color: var(--ink-faint); font-size: 14px; margin: 0 0 18px; }
+
+  /* main card */
+  .card {
+    background: var(--surface); border: 1px solid var(--hairline); border-radius: 16px;
+    padding: clamp(22px, 4vw, 30px); box-shadow: var(--shadow); margin-bottom: 26px;
+  }
+  ol.steps { list-style: none; counter-reset: s; margin: 0; padding: 0; }
+  ol.steps > li {
+    counter-increment: s; position: relative; padding: 0 0 20px 44px;
+  }
+  ol.steps > li:last-child { padding-bottom: 0; }
+  ol.steps > li::before {
+    content: counter(s); position: absolute; left: 0; top: -2px;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--surface-2); color: var(--mauve);
+    font-family: var(--mono); font-size: 13px; font-weight: 600;
+    display: grid; place-items: center;
+    border: 1px solid var(--hairline);
+  }
+  ol.steps > li .st { font-size: 15.5px; line-height: 1.5; color: var(--ink); margin: 0; }
+  ol.steps > li .st b { font-weight: 700; }
+  ol.steps > li .hint { font-size: 13px; color: var(--ink-faint); margin: 4px 0 0; }
+
+  .path { font-family: var(--mono); font-size: 13px; color: var(--code-ink); background: var(--code-bg); padding: 1px 7px; border-radius: 5px; white-space: nowrap; }
+  .urlline {
+    display: block; font-family: var(--mono); font-size: 13.5px; color: var(--code-ink);
+    background: var(--code-bg); border-radius: 8px; padding: 9px 12px; margin: 8px 0 0;
+    overflow-x: auto; word-break: break-all;
+  }
+
+  .selfnote {
+    margin-top: 20px; padding-top: 16px; border-top: 1px dashed var(--hairline);
+    font-size: 13.5px; color: var(--ink-soft); display: flex; gap: 10px; align-items: flex-start;
+  }
+  .selfnote .t { color: var(--honey); flex: none; }
+
+  /* try saying */
+  .try h2 { margin-bottom: 12px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 9px; }
+  .chip {
+    font-size: 14px; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--hairline); border-radius: 20px; padding: 7px 14px;
+    font-style: italic; font-family: var(--serif);
+  }
+  .chip .lead { font-style: normal; font-family: var(--sans); color: var(--mauve); font-size: 12px; margin-right: 5px; }
+
+  /* dev section */
+  .dev { background: var(--surface); border: 1px solid var(--hairline); border-radius: 16px; padding: clamp(20px, 4vw, 26px); box-shadow: var(--shadow); }
+  .dev p { font-size: 14.5px; line-height: 1.55; color: var(--ink-soft); margin: 0 0 12px; }
+  .dev p b { color: var(--ink); font-weight: 700; }
+  .dev .path { white-space: normal; }
+  pre {
+    margin: 0; background: var(--code-bg); border-radius: 10px; padding: 14px 16px;
+    overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.55; color: var(--code-ink);
+  }
+  pre .cmt { color: var(--ink-faint); }
+
+  /* trust footer */
+  .trust { margin-top: 26px; }
+  .trust h2 { margin-bottom: 14px; }
+  .tgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .titem { display: flex; gap: 11px; align-items: flex-start; font-size: 14px; line-height: 1.5; color: var(--ink-soft); }
+  .titem .tick { flex: none; color: var(--ok); font-weight: 700; margin-top: 1px; }
+  .titem b { color: var(--ink); font-weight: 700; }
+
+  footer {
+    margin-top: 34px; padding-top: 20px; border-top: 1px solid var(--hairline);
+    display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 18px;
+    font-size: 12.5px; color: var(--ink-faint);
+  }
+  footer a { font-family: var(--mono); font-size: 12px; color: var(--mauve); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+  a:focus-visible { outline: 2px solid var(--mauve); outline-offset: 2px; border-radius: 3px; }
+
+  @media (max-width: 640px) { .tgrid { grid-template-columns: 1fr; } }
+</style>
+
+<main class="wrap">
+
+  <p class="eyebrow">DoubleDone × Claude · setup</p>
+  <h1>Connect Claude to DoubleDone</h1>
+  <p class="lede">Let Claude add tasks, see your day, tick things off, and break a dreaded task into steps, all in your DoubleDone. It acts <b>only as you</b>, and it takes about a minute.</p>
+  <hr class="thread" />
+
+  <div class="prereq">
+    <span class="n">🔑</span>
+    <p><b>First, one thing:</b> you need a DoubleDone account. If you have never signed in, open <a href="https://doubledone.app">doubledone.app</a> and sign in with your email once. A connector signs you in, it can't create the account for you.</p>
+  </div>
+
+  <div class="card">
+    <h2>In Claude (claude.ai or Cowork)</h2>
+    <p class="h2-sub">The easy path. Paste a link, sign in with a code, done. No token to copy.</p>
+    <ol class="steps">
+      <li>
+        <p class="st">Open <b>Settings → Connectors → Add custom connector.</b></p>
+      </li>
+      <li>
+        <p class="st">Name it <b>DoubleDone</b>, and paste this URL:</p>
+        <code class="urlline">https://api.doubledone.app/mcp</code>
+      </li>
+      <li>
+        <p class="st">Claude opens a small DoubleDone sign-in page. Enter your <b>account email</b>, then the <b>6-digit code</b> it emails you.</p>
+      </li>
+      <li>
+        <p class="st">A consent screen shows exactly what it may do (add, list, and complete your tasks) and <b>where access is sent</b>. Read it, then click <b>Allow</b>.</p>
+      </li>
+      <li>
+        <p class="st">That's it. Ask Claude something like <i>"what's on my DoubleDone today?"</i></p>
+      </li>
+    </ol>
+    <div class="selfnote">
+      <span class="t">◆</span>
+      <span>Nothing to re-paste later. The connection quietly refreshes itself, so it keeps working day to day.</span>
+    </div>
+  </div>
+
+  <div class="try" style="margin-bottom: 26px;">
+    <h2>Try saying</h2>
+    <div class="chips">
+      <span class="chip"><span class="lead">Add</span>Add "book the dentist" to my DoubleDone</span>
+      <span class="chip"><span class="lead">Today</span>What's on my DoubleDone today?</span>
+      <span class="chip"><span class="lead">Week</span>What's coming up this week?</span>
+      <span class="chip"><span class="lead">Done</span>Tick off the groceries</span>
+      <span class="chip"><span class="lead">Break down</span>Break "do my tax return" into small steps</span>
+    </div>
+  </div>
+
+  <div class="dev">
+    <h2>Using Claude Code instead?</h2>
+    <p>Developer clients connect with a token rather than the sign-in page. Grab yours in the app: <span class="path">Settings → AI agent access (MCP) → Copy my token</span> (you must be signed in). Then run one line:</p>
+    <pre><span class="cmt"># paste your token where shown</span>
+claude mcp add --transport http doubledone https://api.doubledone.app/mcp \
+  --header "Authorization: Bearer YOUR_TOKEN_HERE"</pre>
+    <p style="margin-top:12px;">The token refreshes about hourly; if the agent ever stops connecting, re-copy it. (Cursor and the MCP Inspector work the same way, Streamable HTTP transport, same URL, same bearer header.)</p>
+  </div>
+
+  <div class="trust">
+    <h2>Good to know</h2>
+    <div class="tgrid">
+      <div class="titem"><span class="tick">✓</span><span><b>It only ever acts as you.</b> The server holds no master key; every action runs under your own account's security and can't touch anyone else's tasks.</span></div>
+      <div class="titem"><span class="tick">✓</span><span><b>Break-it-down proposes, never adds.</b> It shows you the steps and adds nothing until you say yes.</span></div>
+      <div class="titem"><span class="tick">✓</span><span><b>Delete is recoverable.</b> A removed task is tucked away and syncs, never truly destroyed.</span></div>
+      <div class="titem"><span class="tick">✓</span><span><b>Disconnect anytime.</b> <span class="path">Settings → AI agent access (MCP) → Disconnect AI connectors</span> cuts access immediately.</span></div>
+    </div>
+  </div>
+
+  <footer>
+    <span>DoubleDone · connect guide</span>
+    <span><a href="https://doubledone.app">doubledone.app</a></span>
+  </footer>
+
+</main>
+</body>
+</html>
