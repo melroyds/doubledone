@@ -53,3 +53,45 @@ describe('parseEnergy', () => {
     expect(parseEnergy(3)).toBeUndefined();
   });
 });
+
+// The day's CONTEXT (2026-07-25). "Plan my day" used to send only task titles, so it ordered the day
+// knowing nothing about the person having it. These assert the SHAPE of the ask, never the model's
+// answer: each fact appears only when the person actually gave it.
+describe('buildSequenceRequest day context', () => {
+  const tasks = [{ id: 'a', title: 'Ring the dentist' }];
+  const userText = (r: ReturnType<typeof buildSequenceRequest>) =>
+    (JSON.parse(r.init.body) as { messages: { content: string }[] }).messages[0].content;
+
+  it('says nothing about the day when nothing was answered', () => {
+    const text = userText(buildSequenceRequest(tasks, 'k'));
+    expect(text).not.toMatch(/work day|day off|indoors|out and about/i);
+  });
+
+  it('carries a work day and a day off distinctly', () => {
+    expect(userText(buildSequenceRequest(tasks, 'k', undefined, undefined, 'work'))).toContain('Today is a work day.');
+    expect(userText(buildSequenceRequest(tasks, 'k', undefined, undefined, 'off'))).toContain('Today is a day off.');
+  });
+
+  it('carries each setting distinctly', () => {
+    expect(userText(buildSequenceRequest(tasks, 'k', undefined, undefined, undefined, 'indoors'))).toContain('staying indoors');
+    expect(userText(buildSequenceRequest(tasks, 'k', undefined, undefined, undefined, 'out'))).toContain('out and about');
+    expect(userText(buildSequenceRequest(tasks, 'k', undefined, undefined, undefined, 'either'))).toContain('indoor or outdoor');
+  });
+
+  it('combines energy, day and setting without losing the task list', () => {
+    const text = userText(buildSequenceRequest(tasks, 'k', 'low', undefined, 'off', 'indoors'));
+    expect(text).toContain('[a] Ring the dentist');
+    expect(text).toContain('energy right now is low');
+    expect(text).toContain('Today is a day off.');
+    expect(text).toContain('staying indoors');
+  });
+
+  it('tells the model to use the context but never to comment on how they feel', () => {
+    const sys = (JSON.parse(buildSequenceRequest(tasks, 'k').init.body) as { system: string }).system;
+    expect(sys).toMatch(/kind of day is given/i);
+    expect(sys).toMatch(/where they are/i);
+    expect(sys).toMatch(/never comment on how they feel/i);
+    // It must still refuse to move anything off today: context changes the ORDER, not the day.
+    expect(sys).toMatch(/Order in place only/i);
+  });
+});

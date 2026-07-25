@@ -59,6 +59,7 @@ import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } f
 import { spreadDueDates } from '@/lib/spread';
 import { loadClosedDate, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderHour, loadReminderOfferMade, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOfferMade, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
 import { restedOffer } from '@/lib/offers';
+import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/plan-day';
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { syncScrapbooks } from '@/lib/scrapbook-sync';
@@ -150,6 +151,10 @@ export default function TodayScreen() {
   const [strategiseError, setStrategiseError] = useState<string | null>(null);
   const [offerDefer, setOfferDefer] = useState(false); // after "Plan my day" orders a heavy day, offer to lighten it
   const [order, setOrder] = useState<OrderItem[] | null>(null);
+  // "Plan my day" asks about the day BEFORE it sorts (energy / work-or-off / indoors-or-out), so the
+  // order fits the day the person is actually having. Every answer is optional.
+  const [planAskOpen, setPlanAskOpen] = useState(false);
+  const [dayContext, setDayContext] = useState<DayContext>({});
   const [sequencing, setSequencing] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [reminderOn, setReminderOn] = useState(false);
@@ -987,18 +992,35 @@ export default function TodayScreen() {
 
   // Plan my order: hand today's one-offs to the AI, get a calm suggested SEQUENCE, then PROPOSE it (the user
   // accepts). Never reorders the day on its own. Premium-gated at the moment of asking (abundance).
-  async function runSequence() {
+  // Tapping "Plan my day" opens the ask FIRST (premium and the gate are checked before the sheet, so
+  // nobody answers three questions and then hits a paywall).
+  function openPlanAsk() {
     if (sequencing || premiumLoading) return;
     if (!premium) {
       track('premium.gate_hit', { reason: 'sequence' });
       router.push('/premium');
       return;
     }
+    setDayContext({});
+    setPlanAskOpen(true);
+  }
+
+  async function runSequence(context: DayContext = {}) {
+    if (sequencing) return;
+    setPlanAskOpen(false);
     setOrderError(null);
     setSequencing(true);
     try {
-      const result = await sequence(spreadable.map((t) => ({ id: t.id, title: t.title })), undefined, aiLanguage);
-      track('sequence.requested', { count: spreadable.length });
+      const result = await sequence(
+        spreadable.map((t) => ({ id: t.id, title: t.title })),
+        context.energy,
+        aiLanguage,
+        context.day,
+        context.setting,
+      );
+      // The SHAPE of the ask only (which questions got answered), never what they answered about
+      // themselves beyond the three values, and never any task text.
+      track('sequence.requested', { count: spreadable.length, tailored: hasContext(context) });
       if (result.length > 0) setOrder(result);
       else setOrderError(aiErrorLine(t('today.sequenceError')));
     } catch {
@@ -1008,8 +1030,18 @@ export default function TodayScreen() {
     }
   }
 
+  // Editing the PROPOSAL, before any of it touches the day. Both are pure array ops (lib/plan-day),
+  // and a no-op returns the same reference, so nudging the top item up changes nothing at all.
+  // Dropping a task removes it from THIS PLAN only: it stays on Today, untouched and undated.
+  function movePlanItem(index: number, direction: -1 | 1) {
+    setOrder((prev) => (prev ? moveInOrder(prev, index, direction) : prev));
+  }
+  function dropPlanItem(index: number) {
+    setOrder((prev) => (prev ? dropFromOrder(prev, index) : prev));
+  }
+
   function acceptOrder() {
-    if (!order) return;
+    if (!order || order.length === 0) return;
     commit(setSequence(tasks, order.map((o) => o.id), nowMs()));
     track('sequence.accepted', { count: order.length });
     setOrder(null);
@@ -1783,7 +1815,7 @@ export default function TodayScreen() {
                 {strategiseError && <Text style={styles.strategiseErr}>{strategiseError}</Text>}
                 {theme.appearance === 'quiet' ? (
                   <Pressable
-                    onPress={runSequence}
+                    onPress={openPlanAsk}
                     disabled={sequencing}
                     accessibilityRole="button"
                     accessibilityLabel={t('today.planMyDayA11y')}
@@ -1794,7 +1826,7 @@ export default function TodayScreen() {
                 ) : (
                   <PremiumButton
                     label={sequencing ? t('today.planning') : t('actions.planMyDay')}
-                    onPress={runSequence}
+                    onPress={openPlanAsk}
                     disabled={sequencing}
                     accessibilityLabel={t('today.planMyDayA11y')}
                     style={styles.sequenceBtn}
@@ -2474,9 +2506,57 @@ export default function TodayScreen() {
             </Pressable>
       </ModalCard>
 
+      {/* The ask, before the sort. Three optional questions about the day the person is actually
+          having, so the order fits it. No question is required and none has a default: skipping
+          simply sends nothing, and the sort behaves exactly as it always did. */}
+      <ModalCard visible={planAskOpen} onClose={() => setPlanAskOpen(false)}>
+        <Text style={styles.wrapTitle}>{t('today.planAskTitle')}</Text>
+        <Text style={styles.wrapRoll}>{t('today.planAskHint')}</Text>
+        {(
+          [
+            ['planAskEnergy', 'energy', [['low', 'today.energyLow'], ['medium', 'today.energyMedium'], ['good', 'today.energyGood']]],
+            ['planAskDay', 'day', [['work', 'today.planDayWork'], ['off', 'today.planDayOff']]],
+            ['planAskSetting', 'setting', [['indoors', 'today.planSettingIn'], ['out', 'today.planSettingOut'], ['either', 'today.planSettingEither']]],
+          ] as const
+        ).map(([question, field, options]) => (
+          <View key={field} style={styles.planAskGroup}>
+            <Text style={styles.planAskLabel}>{t(`today.${question}`)}</Text>
+            <View style={styles.planAskRow}>
+              {options.map(([value, labelKey]) => {
+                const on = dayContext[field] === value;
+                return (
+                  <Pressable
+                    key={value}
+                    // Tapping the chosen answer again clears it, so a mis-tap is undone the same
+                    // way it was made and nobody is stuck with a fact they did not mean to state.
+                    onPress={() => setDayContext((c) => ({ ...c, [field]: on ? undefined : value }))}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    accessibilityLabel={t(labelKey)}
+                    style={({ pressed }) => [styles.planChip, on && styles.planChipOn, pressed && styles.pressed]}
+                  >
+                    <Text style={[styles.planChipText, on && styles.planChipTextOn]}>{t(labelKey)}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ))}
+        <PrimaryButton
+          label={t('today.planAskGo')}
+          onPress={() => void runSequence(dayContext)}
+          accessibilityLabel={t('today.planAskGo')}
+          style={styles.wrapBtn}
+        />
+        <Pressable onPress={() => setPlanAskOpen(false)} accessibilityRole="button" accessibilityLabel={t('common.notNow')}>
+          <Text style={styles.planDismiss}>{t('common.notNow')}</Text>
+        </Pressable>
+      </ModalCard>
+
       <ModalCard visible={order != null} onClose={() => setOrder(null)}>
             <Text style={styles.wrapTitle}>{t('today.orderTitle')}</Text>
             <Text style={styles.wrapLine}>{t('today.orderLine')}</Text>
+            <Text style={styles.wrapRoll}>{t('today.planEditHint')}</Text>
             <View style={styles.wrapList}>
               {(order ?? []).map((o, i) => {
                 const task = tasks.find((x) => x.id === o.id);
@@ -2492,16 +2572,56 @@ export default function TodayScreen() {
                         {o.reason}
                       </Text>
                     </View>
+                    {/* Disagreeing with the suggestion has to be as easy as taking it. Up/down
+                        rather than drag: dragging is fiddly for shaky hands and unusable with a
+                        screen reader, and nobody should need to be dextrous to say "not that one
+                        first". The arrows are disabled at the ends rather than hidden, so the row
+                        never changes shape as things move. */}
+                    <View style={styles.seqEdit}>
+                      <Pressable
+                        onPress={() => movePlanItem(i, -1)}
+                        disabled={i === 0}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('today.planMoveUpA11y', { title: task.title })}
+                        hitSlop={8}
+                        style={({ pressed }) => [pressed && styles.pressed]}
+                      >
+                        <Text style={[styles.seqEditGlyph, i === 0 && styles.seqEditOff]}>↑</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => movePlanItem(i, 1)}
+                        disabled={i === (order ?? []).length - 1}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('today.planMoveDownA11y', { title: task.title })}
+                        hitSlop={8}
+                        style={({ pressed }) => [pressed && styles.pressed]}
+                      >
+                        <Text style={[styles.seqEditGlyph, i === (order ?? []).length - 1 && styles.seqEditOff]}>↓</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => dropPlanItem(i)}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('today.planDropA11y', { title: task.title })}
+                        hitSlop={8}
+                        style={({ pressed }) => [pressed && styles.pressed]}
+                      >
+                        <Text style={styles.seqEditGlyph}>×</Text>
+                      </Pressable>
+                    </View>
                   </View>
                 );
               })}
             </View>
-            <PrimaryButton
-              label={t('today.useOrder')}
-              onPress={acceptOrder}
-              accessibilityLabel={t('today.useOrder')}
-              style={styles.wrapBtn}
-            />
+            {/* Editing every task out of the plan is a legitimate answer, not an error state. */}
+            {(order ?? []).length === 0 && <Text style={styles.wrapLine}>{t('today.planEmpty')}</Text>}
+            {(order ?? []).length > 0 && (
+              <PrimaryButton
+                label={t('today.useOrder')}
+                onPress={acceptOrder}
+                accessibilityLabel={t('today.useOrder')}
+                style={styles.wrapBtn}
+              />
+            )}
             <Pressable onPress={() => setOrder(null)} accessibilityRole="button" accessibilityLabel={t('common.notNow')}>
               <Text style={styles.planDismiss}>{t('common.notNow')}</Text>
             </Pressable>
@@ -2792,6 +2912,27 @@ const makeStyles = (t: Theme) =>
     seqItem: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.three },
     seqNum: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', minWidth: 16, textAlign: 'center', marginTop: 1 },
     seqText: { flex: 1, gap: 1 },
+    // The per-row edit controls. Quiet by default (soft ink, not the accent) so the proposal still
+    // reads as a plan rather than a form, and content-sized so a long title never squeezes them out.
+    seqEdit: { flexDirection: 'row', alignItems: 'center', gap: spacing.three, paddingLeft: spacing.two },
+    seqEditGlyph: { color: t.colors.inkSoft, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', minWidth: 18, textAlign: 'center' },
+    seqEditOff: { color: t.colors.inkFaint, opacity: 0.4 },
+    // The pre-sort questions: one group per question, chips that toggle.
+    planAskGroup: { gap: spacing.two, marginTop: spacing.three, alignSelf: 'stretch' },
+    planAskLabel: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+    planAskRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },
+    planChip: {
+      borderWidth: border.hair,
+      borderColor: t.colors.line,
+      borderRadius: radius.pill,
+      paddingVertical: spacing.two,
+      paddingHorizontal: spacing.three,
+      minHeight: 44,
+      justifyContent: 'center',
+    },
+    planChipOn: { borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
+    planChipText: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    planChipTextOn: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '700' },
     seqReason: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale },
     planDismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two, fontFamily: fonts.body },
     pressed: { opacity: PRESSED_OPACITY },

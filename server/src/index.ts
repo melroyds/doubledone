@@ -637,8 +637,10 @@ const router = {
       let seqTasks: { id: string; title: string }[] = [];
       let energy: 'low' | 'medium' | 'good' | undefined;
       let language: string | undefined;
+      let day: 'work' | 'off' | undefined;
+      let setting: 'indoors' | 'out' | 'either' | undefined;
       try {
-        const body = (await request.json()) as { tasks?: unknown; energy?: unknown; language?: unknown };
+        const body = (await request.json()) as { tasks?: unknown; energy?: unknown; language?: unknown; day?: unknown; setting?: unknown };
         seqTasks = Array.isArray(body.tasks)
           ? body.tasks
               .filter(
@@ -649,6 +651,10 @@ const router = {
           : [];
         energy = parseEnergy(body.energy);
         language = parseLanguage(body.language);
+        // Anything unrecognised stays undefined, so a junk value is silently "they did not say"
+        // rather than a wrong assumption baked into the plan.
+        day = body.day === 'work' || body.day === 'off' ? body.day : undefined;
+        setting = body.setting === 'indoors' || body.setting === 'out' || body.setting === 'either' ? body.setting : undefined;
       } catch {
         return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
       }
@@ -662,13 +668,13 @@ const router = {
       if (!env.ANTHROPIC_API_KEY) {
         return Response.json({ error: 'server not configured' }, { status: 500, headers: cors });
       }
-      const { url, init } = buildSequenceRequest(seqTasks, env.ANTHROPIC_API_KEY, energy, language);
+      const { url, init } = buildSequenceRequest(seqTasks, env.ANTHROPIC_API_KEY, energy, language, day, setting);
       const started = Date.now();
       const upstream = await fetch(url, init as RequestInit);
       if (!upstream.ok) {
         ctx.waitUntil(
           logAiCall(env, {
-            endpoint: 'sequence', model: SEQUENCE_MODEL, input: { count: seqTasks.length, energy: energy ?? null }, output: null,
+            endpoint: 'sequence', model: SEQUENCE_MODEL, input: { count: seqTasks.length, energy: energy ?? null, day: day ?? null, setting: setting ?? null }, output: null,
             inputTokens: null, outputTokens: null, latencyMs: Date.now() - started,
             ok: false, error: `upstream ${upstream.status}`,
           }),

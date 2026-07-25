@@ -9,6 +9,14 @@ export const SEQUENCE_MODEL = 'claude-sonnet-4-6';
 
 export type Energy = 'low' | 'medium' | 'good';
 
+// The day's CONTEXT, asked in one calm sheet before sorting (Melroy, 2026-07-25: "Plan my day
+// should take the user's feelings into account"). Deliberately three cheap facts the person
+// already knows, never anything detected: there is no weather API and no location permission
+// here, because "indoors or out" is what the sort actually needs and the weather was only ever
+// a proxy for it. Every field is optional; omitted means "they did not say", never a default.
+export type DayType = 'work' | 'off';
+export type Setting = 'indoors' | 'out' | 'either';
+
 // Calm, never-cram, energy-aware. WORDING IS A PLACEHOLDER for Melroy to tune (like strategise/decompose).
 export const SYSTEM_PROMPT = [
   'Someone with ADHD and autism wants a calm order for the tasks already on their plate today.',
@@ -16,6 +24,9 @@ export const SYSTEM_PROMPT = [
   'Every task you were given must appear exactly once. Never drop, merge, add, or reword a task.',
   'Order in place only. Do NOT move anything to another day; this is only the order for today.',
   'When an energy level is given, match the order to it: for low energy, start with one or two small, low-friction wins; for good energy, a meatier task can go first while momentum is high; for medium, a balanced mix.',
+  'When the kind of day is given, respect it: on a work day put work-shaped tasks in the working hours and personal ones around them; on a day off do not front-load work, let the day start gently.',
+  'When they say where they are, group by that: put tasks that suit the stated setting earlier, and cluster errands that need going out together so they can be done in one trip. Never drop or move a task to another day for not fitting.',
+  'Say nothing about their energy, their day, or their circumstances. Give the order and the reasons only, and never comment on how they feel.',
   'Return the order with the record_order tool: each task id (copied exactly) and a short, plain reason for where it sits.',
   'Keep each reason a single short, matter-of-fact sentence. No pep talk, no shame, no exclamation marks.',
 ].join(' ');
@@ -56,16 +67,29 @@ export function buildSequenceRequest(
   apiKey: string,
   energy?: Energy,
   language?: string,
+  day?: DayType,
+  setting?: Setting,
 ): SequenceRequest {
   const list = tasks.map((t) => `- [${t.id}] ${t.title}`).join('\n');
   const energyLine = energy ? `\nMy energy right now is ${energy}.` : '';
+  // Each line is added ONLY when the person actually answered, so a skipped question never becomes
+  // an assumption the model then plans the day around.
+  const dayLine = day === 'work' ? '\nToday is a work day.' : day === 'off' ? '\nToday is a day off.' : '';
+  const settingLine =
+    setting === 'indoors'
+      ? '\nI am staying indoors today.'
+      : setting === 'out'
+        ? '\nI am out and about today.'
+        : setting === 'either'
+          ? '\nI can do indoor or outdoor things today.'
+          : '';
   const body = {
     model: SEQUENCE_MODEL,
     max_tokens: 1024,
     system: withLanguage(SYSTEM_PROMPT, language),
     tools: [ORDER_TOOL],
     tool_choice: { type: 'tool', name: 'record_order' },
-    messages: [{ role: 'user', content: `Order today's tasks:\n${list}${energyLine}` }],
+    messages: [{ role: 'user', content: `Order today's tasks:\n${list}${energyLine}${dayLine}${settingLine}` }],
   };
   return {
     url: 'https://api.anthropic.com/v1/messages',

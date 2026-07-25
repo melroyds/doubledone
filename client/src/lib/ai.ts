@@ -3,6 +3,7 @@
 // hardcoded fallback keeps the deployed build working; EXPO_PUBLIC_AI_URL
 // overrides it for local dev.
 
+import type { DayType, Setting } from './plan-day';
 import { authHeader } from './supabase';
 
 const AI_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
@@ -300,6 +301,9 @@ export async function chart(goal: string, context?: { dueDate?: string | null },
 
 export type Energy = 'low' | 'medium' | 'good';
 export type OrderItem = { id: string; reason: string };
+// The day's context travels with a sequence request. Defined in lib/plan-day (pure, tested) and
+// re-exported here so callers of `sequence` get the whole contract from one import.
+export type { DayContext, DayType, Setting } from './plan-day';
 
 /** Pull the suggested order out of the backend response, defensively (never throws). */
 export function parseOrder(data: unknown): OrderItem[] {
@@ -313,14 +317,20 @@ export function parseOrder(data: unknown): OrderItem[] {
 /** Plan my order (PREMIUM): today's tasks in, a calm suggested order out, optionally matched to an energy
  *  level. Sends the user's token (the /sequence route is premium-gated). Returns [] on any failure or when
  *  signed out, so the caller shows one calm line and never reorders on an error. */
-export async function sequence(tasks: { id: string; title: string }[], energy?: Energy, language?: string): Promise<OrderItem[]> {
+export async function sequence(
+  tasks: { id: string; title: string }[],
+  energy?: Energy,
+  language?: string,
+  day?: DayType,
+  setting?: Setting,
+): Promise<OrderItem[]> {
   const auth = await authHeader();
   if (!auth) return [];
   try {
     const res = await fetch(`${AI_URL}/sequence`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...auth },
-      body: JSON.stringify({ tasks, energy, language }),
+      body: JSON.stringify({ tasks, energy, language, day, setting }),
     });
     if (!res.ok) return [];
     return parseOrder(await res.json());
