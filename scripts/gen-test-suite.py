@@ -144,7 +144,7 @@ CASES = [
     ("TOD-19", "Today", "P2", "Long titles wrap and stay fully visible (incl. with a reminder)",
      "Add a task with a very long title. Set a reminder on it (tap-and-hold, Remind me). Look at the row, at the held card, and at the same task in select mode (reached via 'Select more'). Try it on web and on Android.",
      "The long title wraps onto up to three lines on the calm row and stays fully visible, including when a reminder bell shares the row (it never collapses to a blank line). It behaves identically with or without the reminder, in select mode, and on both platforms. No scrolling, just a calm static wrap. The HELD CARD clamps the same title at two lines (intended: the card's job is the actions, and the full title is one tap away on the row behind it).", "Both"),
-    ("VIS-01", "Visual", "P2", "The living background (Today's signature, calm, reduced-motion aware)",
+    ("VIS-04", "Visual", "P2", "The living background (Today's signature, calm, reduced-motion aware)",
      "Open Today at different times of day, on light and dark. Turn on Reduce Motion (in Settings or the OS) and watch the Today background. Then move to Routines, Calendar, Settings.",
      "On Today, a soft time-of-day gradient (dawn / day / dusk / night) with a warm top glow and a softer lower pool sits behind the screen. It only ever shows in the margins: cards and rows stay on near-opaque surfaces, so text is always full-contrast, never washed out. With Reduce Motion on, the colour still resolves to the time of day but the drift stops. The other screens (Routines, Calendar, Settings, etc.) sit on a solid, calm Dusk background, with no grey flash.", "Both"),
 
@@ -737,10 +737,10 @@ CASES = [
     ("SEQ-01", "Sequence", "P1", "Premium: Plan my day suggests a calm sequence",
      "As premium with 3+ open one-off tasks on Today, tap 'Plan my day'. Answer the questions it asks first (or skip them).",
      "A proposal card lists today's tasks in a suggested order, each with a short calm reason. Nothing reorders until 'Use this order' is tapped, then the list re-sequences in place (no dates change, no task moves to another day). A 'sequence.accepted' event is logged.", "Both"),
-    ("SEQ-05", "Sequence", "P1", "Plan my day asks about the day BEFORE it sorts",
+    ("SEQ-07", "Sequence", "P1", "Plan my day asks about the day BEFORE it sorts",
      "As premium, tap 'Plan my day'. Read the sheet that opens. Tap an answer, then tap the SAME answer again. Try sorting with all three answered, with only one answered, and with none answered ('Sort today' straight away). Also tap 'Not now'. Separately, as a FREE user, tap 'Plan my day'.",
      "Before any sorting, a calm sheet asks three OPTIONAL questions: 'How's your energy?' (Running low / Somewhere in between / Feeling good), 'What kind of day?' (Work day / Day off) and 'Where are you?' (Indoors / Out and about / Either), under 'Answer what you like. Skip what you don't.'. A chosen answer tints (accent border, fill and bold accent text); tapping it AGAIN clears it, so a mis-tap is undone the way it was made. Skipping a question sends nothing for it, so it never becomes an assumption, and skipping all three sorts exactly as it always did. The order that comes back reflects what was said (a low-energy day starts small; a day off does not front-load work; 'out and about' clusters the errands), but the app NEVER comments on how you feel. 'Not now' closes with nothing sent and the day untouched. A FREE user hits the Premium screen BEFORE the questions, never after answering them. NOTE: there is deliberately no weather question. A model has no live weather data, and a forecast would need an API plus a location permission; 'Where are you?' is what the sort actually needs.", "Both"),
-    ("SEQ-06", "Sequence", "P1", "The suggested order can be edited before it is used",
+    ("SEQ-08", "Sequence", "P1", "The suggested order can be edited before it is used",
      "Get a proposal from 'Plan my day'. Use the up and down arrows on a row. Try the up arrow on the FIRST row and the down arrow on the LAST. Remove a row with x. Remove every row. Then tap 'Use this order'.",
      "Each row carries up / down / x. Up and down swap the row with its neighbour immediately, renumbering as they go; the first row's up and the last row's down are visibly dimmed and do nothing (they are disabled, not hidden, so rows never change shape as things move). 'x' takes that task OUT OF THIS PLAN ONLY: the task stays on Today untouched, is not deleted, and is not moved to another day. Removing everything is allowed and says 'Nothing left in the plan. That's allowed.' with the accept button gone (an empty plan cannot be applied). Nothing at all changes on Today until 'Use this order' is tapped; 'Not now' or closing discards every edit. Editing is by buttons, never drag: dragging is unusable with a screen reader and hard with shaky hands.", "Both"),
     ("SEQ-02", "Sequence", "P1", "Free: Plan my day routes to the upsell, never reorders",
@@ -781,6 +781,19 @@ CASES = [
      "On a wide desktop browser, open Rooms (the header pill).",
      "The sheet is a centred column (about 560px, matching the page content), not full-bleed, so the 'Premium' gradient pill on 'Chart a course' sits beside its label rather than at the far screen edge. On a phone the sheet stays full-width with the pill at the row's edge.", "Web"),
 ]
+
+# A case id is how a tester records a pass or a fail, so two rows sharing one makes the
+# result ambiguous and the suite stops being a usable launch gate. This bit twice: a new
+# case was appended with the next number in its own block without checking the whole list
+# (SEQ-05, SEQ-06, VIS-01 all collided, found 2026-07-25). Fail loudly at generation time
+# rather than shipping an .xlsx that reads fine and grades wrong.
+_dupes = sorted({c[0] for c in CASES if [x[0] for x in CASES].count(c[0]) > 1})
+if _dupes:
+    raise SystemExit(
+        f"duplicate case ids: {', '.join(_dupes)}\n"
+        "Give the NEW case the next free number; leave the existing id alone "
+        "(it may already be cited in a past test run)."
+    )
 
 HEADERS = ["ID", "Area", "Priority", "Test", "Steps", "Expected result",
            "Platform", "Result", "Findings", "Date"]
