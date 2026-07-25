@@ -52,6 +52,16 @@ WHATS-LEFT.md
 # Kept out of git: they can hold real task text and would bloat history. OneDrive backs them up.
 bugs/
 
+# Pitch and portfolio exports: the HTML/PDF/PNG pieces made to show DoubleDone to a
+# particular audience (an interview, a narrative walk-through), not to run or document it.
+# They are regenerable from their design source, several are 500KB binaries that would sit
+# in history forever, and some name a specific company. Product docs are NOT covered here:
+# the Connect-Claude user guide and the design-source design prompts are repo material and
+# stay trackable. The `docs/doubledone-*` prefix is the export pipeline's own naming.
+docs/doubledone-*
+docs/design-source/sinch-brief.html
+docs/design-source/insight-map.html
+
 # Wrangler local dev secrets (never commit)
 .dev.vars
 
