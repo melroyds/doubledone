@@ -1964,6 +1964,13 @@ export default function TodayScreen() {
           >
             <Text style={styles.focusExitText}>{t('today.focusExit')}</Text>
           </Pressable>
+          {/* The content SCROLLS, the Close button does not (it is positioned against the screen,
+              outside this view). Without this the picker was a centred, non-scrolling column: a list
+              taller than the screen was clipped at BOTH ends with no way to reach the cut rows, so a
+              user with a full Today literally could not select some of their own tasks. `flexGrow: 1`
+              plus centring on the CONTENT container keeps the short case centred exactly as before,
+              and lets the tall case scroll from the top. */}
+          <ScrollView contentContainerStyle={styles.focusScrollContent} showsVerticalScrollIndicator={false}>
           {focusTask ? (
             <View style={styles.focusBody}>
               <Text style={styles.focusLabel}>{t('today.focusLabel')}</Text>
@@ -2025,6 +2032,7 @@ export default function TodayScreen() {
               <PrimaryButton label={t('common.backToToday')} onPress={closeFocus} accessibilityLabel={t('common.backToToday')} />
             </View>
           )}
+          </ScrollView>
         </View>
       </Modal>
 
@@ -2873,7 +2881,10 @@ const makeStyles = (t: Theme) =>
     focusFitEntry: { paddingVertical: spacing.two, paddingHorizontal: spacing.four, borderWidth: border.hair, borderColor: t.colors.line, borderRadius: radius.pill },
     focusFitText: { color: t.colors.inkSoft, fontFamily: fonts.body, fontSize: 17 * t.scale, textAlign: 'center', fontStyle: 'italic' },
     closeNoteLabel: { color: t.colors.inkSoft, fontFamily: fonts.body, fontSize: 14 * t.scale, marginTop: spacing.three, marginBottom: spacing.two, textAlign: 'center' },
-    focusScreen: { flex: 1, backgroundColor: t.colors.bg, padding: spacing.six, justifyContent: 'center', alignItems: 'center' },
+    // The screen is now just the backdrop; the centring and padding moved to the ScrollView's CONTENT
+    // container (focusScrollContent) so a long list can scroll instead of being clipped at both ends.
+    focusScreen: { flex: 1, backgroundColor: t.colors.bg },
+    focusScrollContent: { flexGrow: 1, padding: spacing.six, justifyContent: 'center', alignItems: 'center' },
     focusExit: { position: 'absolute', top: spacing.seven, left: spacing.five },
     focusExitText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     focusBody: { alignItems: 'center', gap: spacing.four, maxWidth: 440, width: '100%' },
