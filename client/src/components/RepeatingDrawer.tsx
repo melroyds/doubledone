@@ -187,6 +187,13 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle, onEditS
           </Pressable>
         </View>
         <Text style={styles.sub}>{t('repeat.subtitle')}</Text>
+        {/* The naming fix. A repeating TASK and a NOTIFICATION are two different things, and the app
+            calls both of them a kind of "reminder", so a person who sets a task to repeat can
+            reasonably expect to be told when it is due, and then is not. That confusion is ours to
+            fix, not theirs to work out. Said once here, where the expectation is actually formed,
+            rather than renaming anything: "Repeating" is the right word, it just needed its limit
+            stated, and it points at the two real ways to be notified. */}
+        <Text style={styles.notNotify}>{t('repeat.notANotification')}</Text>
         {undoId != null && (
           <View style={styles.undoBar}>
             <Text style={styles.undoText}>{t('repeat.removed')}</Text>
@@ -360,6 +367,8 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   title: { ...t.type.heading, color: t.colors.ink, letterSpacing: -0.3 },
   done: { color: t.colors.accent, fontSize: 16 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
   sub: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body },
+  // Fainter than the subtitle: it is a clarification, not a warning, and nothing here is wrong.
+  notNotify: { color: t.colors.inkFaint, fontSize: 13 * t.scale, lineHeight: 19 * t.scale, fontFamily: fonts.body, marginTop: spacing.two },
   // The brief undo bar after removing a series, one shape with routines.tsx's.
   undoBar: {
     flexDirection: 'row',

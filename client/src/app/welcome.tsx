@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -7,21 +7,17 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { triage } from '@/lib/ai';
 import { t } from '@/lib/locale';
-import { loadTasks, saveOnboarded, saveTasks } from '@/lib/storage';
-import { type Task } from '@/lib/tasks';
+import { enableDailyReminder } from '@/lib/reminders';
+import { reminderReasonLine } from '@/lib/reminders-types';
+import { loadReminderHour, loadReminderOfferMade, loadTasks, saveOnboarded, saveReminderOfferMade, saveReminderOn, saveTasks } from '@/lib/storage';
+import { makeId, type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
 import { useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { allOnToday, triageToTasks } from '@/lib/triage';
+import { WIDGETS_SUPPORTED } from '@/widget/presence';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
-
-// Module scope so the id generator stays pure for the render linter (same as Today's makeId).
-let seq = 0;
-function makeId(): string {
-  seq += 1;
-  return `t-${Date.now().toString(36)}-${seq.toString(36)}`;
-}
 
 // The six onboarding screens, in order (the "Dusk, evolved" Introduction). It teaches the
 // core loop by DOING it (the user's own dump runs through the real triage), then makes one
@@ -96,7 +92,52 @@ export default function WelcomeScreen() {
   const [revealed, setRevealed] = useState<Task[]>([]);
   const committed = useRef(false); // save the triaged tasks exactly once, on exit
 
+  // The daily-reminder offer, made HERE on the last screen rather than as a new onboarding step.
+  //
+  // The finding behind it (post-launch feedback): a returning user asked for four things the app
+  // already had, because every lifeline is opt-in and none is ever surfaced. The reminder is the
+  // named lever against the week-three cliff, and until now it was only offered on a rested screen
+  // after the first close-the-day, which a person who never gets that far never sees.
+  //
+  // Why not its own step: this screen's heading is "That's it. No setup." An eighth step asking the
+  // user to configure something would make the app contradict itself on the way out the door. One
+  // line on a screen that already says "tomorrow it opens ready" is the same offer without the lie.
+  //
+  // `offerMade` starts TRUE so the offer cannot flash before the stored flag is read (the same
+  // default Today uses); the effect below relaxes it only if the offer is genuinely still owed.
+  const [reminderOfferMade, setReminderOfferMade] = useState(true);
+  const [reminderJustOn, setReminderJustOn] = useState(false);
+  const [reminderNote, setReminderNote] = useState<string | null>(null);
+
   const stepIndex = STEPS.indexOf(step);
+
+  // Read the one-time flag once. A replay from Settings must NOT re-offer something already
+  // answered, and someone who reached the rested-screen offer first has already spent it.
+  useEffect(() => {
+    void loadReminderOfferMade().then((made) => setReminderOfferMade(made));
+  }, []);
+
+  /**
+   * Turn the daily reminder on from here. Spends the one-time offer either way, exactly as the
+   * rested-screen offer does, so the two surfaces share one budget and nobody is asked twice.
+   * A refusal at the OS permission prompt is reported plainly and still spends the offer: asking
+   * again later would be nagging someone who has already said no once, to the system dialog.
+   */
+  async function acceptReminder() {
+    setReminderOfferMade(true);
+    void saveReminderOfferMade();
+    const result = await enableDailyReminder(await loadReminderHour());
+    void saveReminderOn(result.ok);
+    setReminderJustOn(result.ok);
+    setReminderNote(result.ok ? null : reminderReasonLine(result.reason));
+    track('reminder.enabled', { granted: result.ok, via: 'onboarding_offer' });
+  }
+
+  function declineReminder() {
+    setReminderOfferMade(true);
+    void saveReminderOfferMade();
+    track('reminder.offer_declined', { via: 'onboarding_offer' });
+  }
 
   // Persist what was captured exactly once, then leave. Replay merges (never overwrites);
   // first-run replaces and sets onboarded. Idempotent, so going back then forward, or
@@ -365,6 +406,42 @@ export default function WelcomeScreen() {
               {t('welcome.handoffLead1')}
             </Text>
             <Text style={styles.lead}>{t('welcome.handoffLead2')}</Text>
+
+            {/* The one lifeline worth surfacing before the app goes quiet. Offered once, ever,
+                sharing its budget with the rested-screen offer via the same stored flag. */}
+            {!reminderOfferMade ? (
+              <View style={styles.lifeline}>
+                <Text style={styles.lifelineAsk}>{t('welcome.reminderOffer')}</Text>
+                <View style={styles.lifelineRow}>
+                  <Pressable
+                    onPress={acceptReminder}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('reminders.offerYesA11y')}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.lifelineYes}>{t('reminders.offerYes')}</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={declineReminder}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('welcome.reminderNoThanks')}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.lifelineNo}>{t('welcome.reminderNoThanks')}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : reminderJustOn ? (
+              <Text style={styles.lifelineDone}>{t('welcome.reminderOn')}</Text>
+            ) : null}
+            {reminderNote != null && <Text style={styles.lifelineDone}>{reminderNote}</Text>}
+
+            {/* Android only, and deliberately a MENTION rather than an offer: the widget offer is
+                NOT spent here. An empty widget on day one sells nothing, so the real ask waits for
+                the rested screen, by which point there is a day in it worth looking at. This line
+                exists only so nobody reaches week three not knowing the widget is there at all. */}
+            {WIDGETS_SUPPORTED && <Text style={styles.fine}>{t('welcome.widgetMention')}</Text>}
+
             <Text style={styles.ethos}>{t('welcome.handoffEthos')}</Text>
             <Text style={styles.fine}>
               {aiEnabled ? t('welcome.handoffFineAi') : t('welcome.handoffFineNoAi')}
@@ -474,6 +551,14 @@ const makeStyles = (t: Theme) =>
     check: { width: 44, height: 44, borderRadius: radius.pill, backgroundColor: t.colors.done, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.one },
     checkMark: { color: t.colors.onDone, fontSize: 24 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     ethos: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', marginTop: spacing.two },
+    // The lifeline offer: an aside on the handoff screen, not a form. Deliberately quieter than the
+    // Begin button, because the way out of onboarding must stay the loudest thing here.
+    lifeline: { marginTop: spacing.four, gap: spacing.two },
+    lifelineAsk: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 26 * t.scale },
+    lifelineRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.five },
+    lifelineYes: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    lifelineNo: { color: t.colors.inkSoft, fontSize: 17 * t.scale, fontFamily: fonts.body },
+    lifelineDone: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, marginTop: spacing.three },
     footer: { marginTop: spacing.five, gap: spacing.four },
     dots: { flexDirection: 'row', justifyContent: 'center', gap: spacing.two },
     dot: { width: 7, height: 7, borderRadius: radius.pill, backgroundColor: t.scheme === 'dark' ? '#4A443C' : '#D8CFC4' },
