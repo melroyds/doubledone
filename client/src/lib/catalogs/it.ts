@@ -810,6 +810,7 @@ export const it: Catalog = {
     planNeedsTwo: 'Organizza la giornata ha bisogno di due o più attività.',
     focusNeedsOne: 'Concentrarti ha bisogno prima di qualcosa in oggi.',
     lightenNeedsFull: 'Alleggerisci la giornata serve per una giornata piena.',
+    energyOverline: 'Energia',
     energyTitleA11y: "Com'è la tua energia oggi?",
     energyPillLow: 'Bassa',
     energyPillNormal: 'Normale',

@@ -1594,7 +1594,13 @@ export default function TodayScreen() {
         )}
         <Text style={styles.title}>{t('common.today')}</Text>
         <Text style={styles.spine}>{phaseGreeting(today)}</Text>
-        {loaded && !isClosed && spreadable.length > 0 && (
+        {/* The day panel, ALWAYS rendered on an open day (real-user report, 2026-07-26: with the
+            gauge gated on having tasks, an empty day left the pills floating with no anchor and no
+            header, "not so good"). dayWeight(0) already answers the empty day calmly ("A clear
+            day."), so the gate predated the redesign and no longer earned its keep: the constant
+            frame's own rule, nothing appears or vanishes with the task count, now covers the top
+            of the screen too. */}
+        {loaded && !isClosed && (
           <View style={styles.weight}>
             {/* The energy gauge stays in Quiet, just whisper-thin: a 3px hairline track (see styles). */}
             <View style={styles.weightTrack}>
@@ -1608,8 +1614,11 @@ export default function TodayScreen() {
             the same place, on every open day (the old low-day toggle vanished on exactly the days it
             served). Low is the low-capacity day; High is more room, never a target: it scales what
             "full" means, so the gauge and the Lighten offer move with the person, not against them.
-            Resets to Normal each morning, so it can never become configuration debt. */}
+            Resets to Normal each morning, so it can never become configuration debt. The visible
+            overline is the same feedback: three bare words with no header read as lost text. */}
         {loaded && !isClosed && (
+          <View>
+          <Text style={styles.energyOverline}>{t('today.energyOverline')}</Text>
           <View
             style={styles.energyRow}
             accessibilityRole="radiogroup"
@@ -1633,6 +1642,7 @@ export default function TodayScreen() {
                 </Pressable>
               );
             })}
+          </View>
           </View>
         )}
 
@@ -2943,6 +2953,17 @@ const makeStyles = (t: Theme) =>
     weightLabel: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
     // The Energy pills: a segmented day-state beside the gauge. Selected = accent on accent-tint
     // with a soft accent border; unselected = plain soft ink, no border (the design's own spec).
+    // The pills' visible header, in the same overline voice as RIGHT NOW: without it, three bare
+    // words under the greeting read as lost text (real-user report, 2026-07-26).
+    energyOverline: {
+      color: t.colors.inkFaint,
+      fontSize: 10.5 * t.scale,
+      fontFamily: fonts.bodyBold,
+      fontWeight: '700',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+      marginBottom: spacing.one,
+    },
     energyRow: { flexDirection: 'row', gap: spacing.two, marginBottom: spacing.four, flexWrap: 'wrap' },
     energyPill: {
       minHeight: 44,

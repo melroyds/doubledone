@@ -815,6 +815,7 @@ export const en = {
     planNeedsTwo: 'Plan my day needs two or more tasks.',
     focusNeedsOne: 'Focus needs something on today first.',
     lightenNeedsFull: 'Lighten today is for a full day.',
+    energyOverline: 'Energy',
     energyTitleA11y: "How's your energy today?",
     energyPillLow: 'Low',
     energyPillNormal: 'Normal',
