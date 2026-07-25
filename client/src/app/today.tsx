@@ -2080,21 +2080,12 @@ export default function TodayScreen() {
 
       <Modal visible={focusOpen} animationType="fade" onRequestClose={closeFocus}>
         <View style={styles.focusScreen}>
-          <Pressable
-            onPress={closeFocus}
-            accessibilityRole="button"
-            accessibilityLabel={t('today.focusExitA11y')}
-            hitSlop={10}
-            style={({ pressed }) => [styles.focusExit, pressed && styles.pressed]}
-          >
-            <Text style={styles.focusExitText}>{t('today.focusExit')}</Text>
-          </Pressable>
-          {/* The content SCROLLS, the Close button does not (it is positioned against the screen,
-              outside this view). Without this the picker was a centred, non-scrolling column: a list
-              taller than the screen was clipped at BOTH ends with no way to reach the cut rows, so a
-              user with a full Today literally could not select some of their own tasks. `flexGrow: 1`
-              plus centring on the CONTENT container keeps the short case centred exactly as before,
-              and lets the tall case scroll from the top. */}
+          {/* The content SCROLLS, the Exit button does not. The Exit is rendered AFTER this
+              ScrollView (bottom of the modal), because stacking follows sibling order: when the
+              scroll fix made the picker a full-bleed ScrollView, an Exit rendered BEFORE it sat
+              UNDERNEATH the scroll surface and every click landed on the scroller instead, so Focus
+              could not be left by mouse at all (Melroy, on web, 2026-07-25). The fix that freed the
+              clipped list buried the door; order plus zIndex now keeps the door on top. */}
           <ScrollView contentContainerStyle={styles.focusScrollContent} showsVerticalScrollIndicator={false}>
           {focusTask ? (
             <View style={styles.focusBody}>
@@ -2158,6 +2149,15 @@ export default function TodayScreen() {
             </View>
           )}
           </ScrollView>
+          <Pressable
+            onPress={closeFocus}
+            accessibilityRole="button"
+            accessibilityLabel={t('today.focusExitA11y')}
+            hitSlop={10}
+            style={({ pressed }) => [styles.focusExit, pressed && styles.pressed]}
+          >
+            <Text style={styles.focusExitText}>{t('today.focusExit')}</Text>
+          </Pressable>
         </View>
       </Modal>
 
@@ -3142,7 +3142,8 @@ const makeStyles = (t: Theme) =>
     // container (focusScrollContent) so a long list can scroll instead of being clipped at both ends.
     focusScreen: { flex: 1, backgroundColor: t.colors.bg },
     focusScrollContent: { flexGrow: 1, padding: spacing.six, justifyContent: 'center', alignItems: 'center' },
-    focusExit: { position: 'absolute', top: spacing.seven, left: spacing.five },
+    // zIndex belts the sibling-order braces: this button must ALWAYS beat the scroller.
+    focusExit: { position: 'absolute', top: spacing.seven, left: spacing.five, zIndex: 1 },
     focusExitText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     focusBody: { alignItems: 'center', gap: spacing.four, maxWidth: 440, width: '100%' },
     focusLabel: { ...t.type.eyebrow, color: t.colors.accent, textTransform: 'uppercase' },
