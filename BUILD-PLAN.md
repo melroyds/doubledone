@@ -64,6 +64,26 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 The single home for consciously parked work. Nothing here is dropped; each item has a trigger for when it earns a place in the sequence. Premium-gated ideas live in [`docs/premium.md`](docs/premium.md).
 
+### The tiering (re-cut 2026-07-25)
+
+*The old Tier 1 is finished: the whole first feedback wave shipped, and the widget works. This re-cut is made under a changed constraint, **Melroy is employed again**, so the scarce resource is now hours, not ideas. The test for Tier 1 is no longer "is this the best thing we could build" but "does this protect trust, money, or the week-six retention bar." Craft that can wait, waits.*
+
+**Tier 1, must.**
+1. **The "app comes to you" pass.** The honest answer to the retention bar, and it just became honest to build: a returning user asked for four things that already existed, one of which (the widget) was actually broken and now is not. Mostly defaults, onboarding and naming, not new surface. Highest retained-user-per-hour on the whole list.
+2. **Execute the two store launches** when the queues clear (promote the AAB on Google production access; the manual-release ritual on Apple approval). Not a build, but it is the only genuinely time-sensitive thing here.
+
+**Tier 2, should.**
+3. **"Sit with me"** (stuck-task companion). The most differentiated thing left and the one only this founder would build, but a real increment needing its own copy pass, and nothing breaks while it waits.
+4. **Nudge expiry while the app is CLOSED** (the native `timeoutAfter` config plugin). The open half of a spine fix; the app-open sweep already covers the common case, which is what demotes it from Tier 1.
+5. **Meter the breakdown allowance.** A stated fair-use cap with no enforcement behind it is a cost promise resting on goodwill. The pattern is already solved in `lib/energy.ts`, so this is small.
+6. **Scheduling gets hands:** set / clear a date on an existing task, and tap a future day on the Calendar to add to it. Promoted together because the "Calendar" rename now quietly promises scheduling the screen cannot do, and a promise the UI makes and the app breaks is a trust cost, not a feature gap.
+
+**Tier 3, defer (each still has its trigger below).** Held-card refinements (tap-outside-to-dismiss, the wash fade); day-type inside Plan my day; Close-the-day placement; Plan my day itself; custom lists and the someday inbox; extending Quiet past Today; calendar read; honouring an explicit step count in Break-it-down (a one-line prompt fix, take it opportunistically during any prompt pass); the comp-a-month-for-feedback grant path; exact-alarm reach beyond Rhythms; R8/ProGuard; the adversarial copy audit; the analytics centre; the Spanish native review landing back into `es.ts`; the duplicate `VIS-01` case id.
+
+**Tier 4, skip unless a trigger fires hard.** Weather-aware suggestions; web-push delivery for Rhythms (Phase W); realtime sync, Google one-tap and the web magic-link; sharing a list with another person; over-the-air updates; the Tier-2 comfort settings (high contrast, font choice); the two MCP OAuth hardening follow-ups (both rated low). These are not bad ideas, they are ideas whose cost lands before their value does.
+
+**The one rule for the new constraint:** with limited hours, prefer the change that makes an EXISTING feature findable over the change that adds a new one. Everything in Tier 1 obeys that; most of Tier 4 breaks it.
+
 **Quiet interface (Premium)**
 - **Extend Quiet beyond the Today surface.** Quiet ships covering the whole Today experience (at-rest, capture, the held-state, the coachmark, the close-the-day wrap) plus the Settings toggle, which is where a user lives. Deliberately left on the Standard treatment for now: the transient focused overlays (Break-it-down, Strategise, the repeating / "Add to…" drawers, all built on the shared `ModalCard` card+scrim scaffold), the multi-select bar (now reached in BOTH appearances via the held card's "Select more" door, a brief non-quiet surface for an occasional bulk action, and a stronger judgment now that the bar is bulk-only), and the Lookback, Premium and Sign-in screens. Judgment call: a momentary "choose the steps" overlay arguably *should* stay a distinct focused card even in a borderless app, and the design handoff only covered Today + close-day + Settings. Trigger: Melroy tests Quiet and wants the modals / other screens quieted too, at which point give `ModalCard` a quiet variant (page-colour backdrop, borderless card) in one high-leverage change and do a dedicated quiet pass on Lookback.
 - **Held-card refinements.** The held card appears instantly with the wash + inline actions. Deferred: the 120ms wash fade-in (an `Animated` value, needs a real foreground tab / device to verify, and instant is already the reduce-motion behaviour) and a tap-outside-to-dismiss overlay (dismiss is via Close, holding another row, or acting). RAISED 2026-07-17: tap-outside mattered less when the card was Quiet-only; it is now the ONLY single-task surface in both appearances, so it carries more weight. Trigger: the next on-device polish pass.
