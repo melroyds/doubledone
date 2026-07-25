@@ -13,7 +13,6 @@ import { BreakdownReview, type ReviewPhase, type ReviewStep } from '@/components
 import { DatePicker } from '@/components/DatePicker';
 import { LivingBackground } from '@/components/LivingBackground';
 import { ModalCard } from '@/components/ModalCard';
-import { PremiumButton } from '@/components/PremiumButton';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { RepeatingDrawer } from '@/components/RepeatingDrawer';
 import { RoomsSheet } from '@/components/RoomsSheet';
@@ -46,7 +45,8 @@ import { aiErrorLine } from '@/lib/connection';
 import { ageInDays, isBigWin } from '@/lib/reward';
 import { phaseGreeting } from '@/lib/phase';
 import { addDaysISO, daysBetween, formatTodayLabel, friendlyDate, fromISODate, isReentry, presetDate, toISODate } from '@/lib/day';
-import { dayWeight, weightedLoad } from '@/lib/estimate';
+import { type DayEnergy, type DayTool, dayTools, occupantTool, planEnergyFromDay, toolGate } from '@/lib/day-tools';
+import { dayWeight, heavyAt, weightedLoad } from '@/lib/estimate';
 import { dayCleared, dayClosed, stepsLanded, taskDone } from '@/lib/haptics';
 import { subscribeInbound, takeInbound } from '@/lib/inbound';
 import { aiLanguage, fmt, t } from '@/lib/locale';
@@ -57,7 +57,7 @@ import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge }
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadClosedDate, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderHour, loadReminderOfferMade, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOfferMade, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
+import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderHour, loadReminderOfferMade, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOfferMade, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
 import { restedOffer } from '@/lib/offers';
 import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/plan-day';
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
@@ -83,6 +83,17 @@ export default function TodayScreen() {
   const [loaded, setLoaded] = useState(false);
   const [closedDate, setClosedDate] = useState<string | null>(null);
   const [lowDayDate, setLowDayDate] = useState<string | null>(null);
+  // The Energy day-state (the constant frame). null = the pills were not touched today, which reads
+  // as Normal; it is a DAY-state, never a setting, so a stored record from yesterday is ignored on
+  // load and the day starts at Normal by construction.
+  const [dayEnergySel, setDayEnergySel] = useState<DayEnergy | null>(null);
+  // The fixed action layer: whether the caret panel is open, and which unavailable tool (if any)
+  // is currently explaining itself in one plain line.
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [toolHint, setToolHint] = useState<DayTool | null>(null);
+  // The slot's occupant resolves from the hour the screen OPENED at and never changes mid-session:
+  // a slot that flipped from Plan to Focus while you looked away is the reshaping this design kills.
+  const [hourAtOpen] = useState(() => new Date().getHours());
   const [sortSummary, setSortSummary] = useState<string | null>(null);
   const [affirmation, setAffirmation] = useState<string | null>(null); // a brief "done is done" / "good enough" reassurance; auto-clears
   const [bloom, setBloom] = useState<BloomData | null>(null); // the held whole-task-finish celebration
@@ -211,6 +222,11 @@ export default function TodayScreen() {
       });
       void loadLowDayDate().then((d) => {
         if (active) setLowDayDate(d);
+      });
+      // A record from a past day comes back null, which IS the morning reset: the day starts at
+      // Normal because nothing says otherwise, not because anything ran at midnight.
+      void loadDayEnergy(toISODate(today)).then((rec) => {
+        if (active && rec) setDayEnergySel(rec.level);
       });
       void loadLastOpen().then((last) => {
         if (!active) return;
@@ -442,13 +458,29 @@ export default function TodayScreen() {
   // wall-of-awful). The first not-yet-skipped one; completing or skipping advances it.
   const focusTask = focusOpen && focusPick ? (spreadable.find((t) => t.id === focusPick) ?? null) : null;
   const bigCount = spreadable.filter((t) => t.big).length;
-  const weightOfDay = dayWeight(spreadable.length, isLowDay, bigCount);
+  // The day's effective energy: the pill if touched today, else the legacy low-day flag (an
+  // in-flight low day from before this build still reads as Low), else Normal.
+  const dayEnergy: DayEnergy = dayEnergySel ?? (isLowDay ? 'low' : 'normal');
+  const weightOfDay = dayWeight(spreadable.length, dayEnergy, bigCount);
   // A big task weighs more than its count: weightedLoad makes each big count as BIG_WEIGHT normal tasks, so a
   // genuinely piled day (or one big task plus a real pile) reads heavy and offers the relief tools. A LONE big
   // task lifts the gauge (the floor inside dayWeight) but does NOT trip this: re-spreading cannot dissolve one
   // big rock, Break it down is the tool for that. Heavy (and low-day capacity) gates the nudge + "Lighten today".
   const weighted = weightedLoad(spreadable.length, bigCount);
-  const dayIsHeavy = weighted >= 6 || (isLowDay && weighted >= 4);
+  const dayIsHeavy = heavyAt(weighted, dayEnergy);
+  // The constant frame's fixed pieces: the tool set for this configuration, the slot's occupant
+  // (clock-resolved at open, held for the session), and the availability gate per tool.
+  const frameTools = dayTools(aiEnabled);
+  const occupant = occupantTool(hourAtOpen, aiEnabled);
+  const gateFor = (tool: DayTool) => toolGate(tool, { openCount: spreadable.length, heavy: dayIsHeavy });
+  const toolLabel = (tool: DayTool) =>
+    tool === 'plan'
+      ? t('actions.planMyDay')
+      : tool === 'focus'
+        ? t('today.focusOne')
+        : tool === 'lighten'
+          ? t('actions.lightenToday')
+          : t('today.closeTheDay');
 
   // When a task leaves the active-today state (done, removed, deferred), cancel any pending
   // nudge and strip its fields, so you are never poked about something already handled.
@@ -855,18 +887,57 @@ export default function TodayScreen() {
   // A low-capacity day: one tap recalibrates the weight gauge to a gentler target and
   // gives permission to do little. Per-day (self-clears at midnight), never a setting,
   // never-shame. The backlog is untouched, only the day's expectation shrinks.
-  function toggleLowDay() {
-    if (isLowDay) {
-      setLowDayDate(null);
-      void saveLowDayDate(null);
-      track('lowday.off');
-    } else {
-      const iso = toISODate(today);
+  /**
+   * State today's energy (the pills). Replaces the old low-day toggle: Low IS the low-capacity day
+   * (Cluster C), so choosing it writes the same lowDayDate the close-day copy and any older code
+   * still read, and choosing Normal or High clears it. One concept, one source of truth, and an
+   * in-flight low day from before this build carries over without a migration.
+   */
+  function setEnergy(level: DayEnergy) {
+    if (level === dayEnergy && dayEnergySel != null) return; // radiogroup: re-tapping the chosen pill is a no-op
+    const iso = toISODate(today);
+    setDayEnergySel(level);
+    void saveDayEnergy({ date: iso, level });
+    if (level === 'low') {
       setLowDayDate(iso);
       void saveLowDayDate(iso);
-      track('lowday.on');
-      affirm(t('today.lowDayAffirm'));
+      affirm(t('today.lowDayAffirm')); // the same warm permission the low-day toggle gave
+    } else {
+      setLowDayDate(null);
+      void saveLowDayDate(null);
     }
+    track('energy.day_set', { level });
+  }
+
+  /**
+   * Run a day tool from the fixed layer. An unavailable tool never navigates and never scolds: it
+   * states, once, in one plain line, what the TOOL needs. Every tool behind this stays propose-
+   * then-accept (Plan gates premium then asks; Lighten proposes a re-spread; Close opens the wrap).
+   */
+  function runTool(tool: DayTool) {
+    const gate = gateFor(tool);
+    if (!gate.available) {
+      setToolHint(tool);
+      track('daytools.unavailable', { tool });
+      return;
+    }
+    setToolsOpen(false);
+    setToolHint(null);
+    if (tool === 'plan') openPlanAsk();
+    else if (tool === 'focus') openFocus();
+    else if (tool === 'lighten') void runStrategise();
+    else openClose();
+  }
+
+  function toggleToolsPanel() {
+    setToolHint(null);
+    if (!toolsOpen) track('daytools.opened');
+    setToolsOpen(!toolsOpen);
+  }
+
+  function closeToolsPanel() {
+    setToolsOpen(false);
+    setToolHint(null);
   }
 
   function openDrawer() {
@@ -1531,33 +1602,38 @@ export default function TodayScreen() {
               <View style={{ flex: 1 - weightOfDay.fill }} />
             </View>
             <Text style={styles.weightLabel}>{weightOfDay.label}</Text>
-            <Pressable
-              onPress={toggleLowDay}
-              accessibilityRole="button"
-              accessibilityLabel={isLowDay ? t('today.lowDayBack') : t('today.lowDayMarkA11y')}
-              hitSlop={8}
-            >
-              <Text style={styles.lowDayToggle}>
-                {isLowDay ? t('today.lowDayBack') : t('today.lowDay')}
-              </Text>
-            </Pressable>
           </View>
         )}
-        {/* The weight gauge (and its low-day toggle) only render when there are spreadable tasks, so on a calm,
-            all-done, or recurring-only day the low-capacity option would vanish on exactly the days it serves.
-            Surface it standalone there, so it is always reachable on an open day. */}
-        {loaded && !isClosed && spreadable.length === 0 && (
-          <Pressable
-            onPress={toggleLowDay}
-            accessibilityRole="button"
-            accessibilityLabel={isLowDay ? t('today.lowDayBack') : t('today.lowDayMarkA11y')}
-            hitSlop={8}
-            style={styles.lowDayStandalone}
+        {/* The Energy pills: a DAY-state beside the gauge, not a setting. Always the same three, in
+            the same place, on every open day (the old low-day toggle vanished on exactly the days it
+            served). Low is the low-capacity day; High is more room, never a target: it scales what
+            "full" means, so the gauge and the Lighten offer move with the person, not against them.
+            Resets to Normal each morning, so it can never become configuration debt. */}
+        {loaded && !isClosed && (
+          <View
+            style={styles.energyRow}
+            accessibilityRole="radiogroup"
+            accessibilityLabel={t('today.energyTitleA11y')}
           >
-            <Text style={styles.lowDayToggle}>
-              {isLowDay ? t('today.lowDayBack') : t('today.lowDay')}
-            </Text>
-          </Pressable>
+            {(['low', 'normal', 'high'] as const).map((lvl) => {
+              const on = dayEnergy === lvl;
+              const label =
+                lvl === 'low' ? t('today.energyPillLow') : lvl === 'high' ? t('today.energyPillHigh') : t('today.energyPillNormal');
+              return (
+                <Pressable
+                  key={lvl}
+                  onPress={() => setEnergy(lvl)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: on }}
+                  accessibilityLabel={label}
+                  hitSlop={6}
+                  style={({ pressed }) => [styles.energyPill, on && styles.energyPillOn, pressed && styles.pressed]}
+                >
+                  <Text style={[styles.energyPillText, on && styles.energyPillTextOn]}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
         )}
 
         {isClosed && (
@@ -1645,19 +1721,10 @@ export default function TodayScreen() {
 
         {!isClosed && (
           <>
-        {spreadable.length > 0 && (
-          <Pressable
-            onPress={openFocus}
-            accessibilityRole="button"
-            accessibilityLabel={t('today.focusOne')}
-            style={({ pressed }) => [styles.focusEntry, pressed && styles.pressed]}
-          >
-            <Text style={styles.focusEntryText}>{t('today.focusOne')}</Text>
-          </Pressable>
-        )}
-        {/* Energy matching lives INSIDE Focus mode's "Which one?" picker (Melroy's call,
-            launch week): choosing what to focus on is the moment the question makes sense,
-            not a second standalone button competing with Focus on the Today surface. */}
+        {/* Focus's standalone entry is GONE from above the list (the constant frame): it now lives
+            in the fixed action layer at the thumb, as the 11:00-17:00 occupant and always in the
+            caret panel. Energy matching stays INSIDE Focus mode's "Which one?" picker (Melroy's
+            call, launch week): choosing what to focus on is the moment the question makes sense. */}
         {!holdHintSeen && visible.length > 0 && (
           // The long-press is the only door to half the app (pin / remind / combine / make-it-tiny / bulk).
           // A one-time, dismissible coachmark teaches it, so a first-timer never misses the rescue tools.
@@ -1784,65 +1851,96 @@ export default function TodayScreen() {
             ))}
           </View>
         )}
-        {loaded && !selectMode && (
-          <View style={styles.dayActions}>
-            {aiEnabled && spreadable.length >= 2 && (
-              <>
-                {dayIsHeavy && <Text style={styles.strategiseNudge}>{t('today.heavyNudge')}</Text>}
-                {dayIsHeavy && (
-                  <Pressable
-                    onPress={runStrategise}
-                    disabled={strategising}
-                    style={({ pressed }) => [styles.strategiseBtn, pressed && styles.pressed, strategising && styles.disabledBtn]}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('today.lightenA11y')}
-                  >
-                    <Text style={styles.strategiseBtnText}>{strategising ? t('today.lightening') : t('actions.lightenToday')}</Text>
-                  </Pressable>
-                )}
-                {strategiseError && <Text style={styles.strategiseErr}>{strategiseError}</Text>}
-                {theme.appearance === 'quiet' ? (
-                  <Pressable
-                    onPress={openPlanAsk}
-                    disabled={sequencing}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('today.planMyDayA11y')}
-                    style={({ pressed }) => [styles.quietDayAction, pressed && styles.pressed, sequencing && styles.disabledBtn]}
-                  >
-                    <Text style={styles.quietDayActionText}>{sequencing ? t('today.planning') : t('actions.planMyDay')}</Text>
-                  </Pressable>
-                ) : (
-                  <PremiumButton
-                    label={sequencing ? t('today.planning') : t('actions.planMyDay')}
-                    onPress={openPlanAsk}
-                    disabled={sequencing}
-                    accessibilityLabel={t('today.planMyDayA11y')}
-                    style={styles.sequenceBtn}
-                  />
-                )}
-                {orderError && <Text style={styles.strategiseErr}>{orderError}</Text>}
-              </>
-            )}
-            {windDown && !isClosed && (
-              <Text style={styles.windDown}>
-                {t('closeDay.windDown')}
-              </Text>
-            )}
-            <Pressable
-              onPress={openClose}
-              style={({ pressed }) => [styles.closeDay, pressed && styles.pressed]}
-              accessibilityRole="button"
-              accessibilityLabel={t('today.closeTheDay')}
-            >
-              <Text style={styles.closeDayText}>{t('today.closeTheDay')}</Text>
-            </Pressable>
-          </View>
-        )}
+        {/* The stacked action pile ("Today's looking full" + Lighten + Plan + wind-down + Close) is
+            GONE (the constant frame, 2026-07-25). All four day tools now live in ONE fixed layer at
+            the thumb, outside this ScrollView, so nothing appears, vanishes, or slides with the
+            task count and the emotional payoff (Close the day) is never buried under a long list. */}
           </>
         )}
       </ScrollView>
 
+      {/* The caret panel's scrim: the list dims at 40% and never moves; tapping it closes. Rendered
+          BEFORE the footer so the footer (and the panel inside it) stays on top by sibling order. */}
+      {toolsOpen && (
+        <Pressable
+          style={styles.toolsScrim}
+          onPress={closeToolsPanel}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.close')}
+        />
+      )}
+
       <View style={[styles.footer, dockFooter && styles.footerDock, { paddingBottom: insets.bottom + (captureOpen ? spacing.one : spacing.four) }]}>
+        {/* THE CONSTANT FRAME (Claude Design 1b-developed, Melroy's pick 2026-07-25). One fixed
+            action layer at the thumb: a "Right now" slot holding the tool that suits the HOUR
+            (clock only, resolved at open, never mid-session), and a caret opening the same tools in
+            the same day order, always. An unavailable tool keeps its place at lowered contrast and
+            explains itself in one plain line when tapped: never absent, never locked. This is what
+            lets muscle memory form on a screen that used to reshape itself with the task count. */}
+        {loaded && !selectMode && !isClosed && (
+          <>
+            {toolsOpen && (
+              <View style={styles.toolsPanel}>
+                {frameTools.map((tool) => {
+                  const gate = gateFor(tool);
+                  const busy = (tool === 'lighten' && strategising) || (tool === 'plan' && sequencing);
+                  return (
+                    <View key={tool}>
+                      <Pressable
+                        onPress={() => runTool(tool)}
+                        disabled={busy}
+                        accessibilityRole="button"
+                        accessibilityState={{ disabled: busy }}
+                        accessibilityLabel={gate.available || gate.hintKey == null ? toolLabel(tool) : `${toolLabel(tool)}. ${t(gate.hintKey)}`}
+                        style={({ pressed }) => [styles.toolRow, pressed && styles.pressed]}
+                      >
+                        <Text style={[styles.toolName, !gate.available && styles.toolNameQuiet]}>
+                          {busy ? (tool === 'plan' ? t('today.planning') : t('today.lightening')) : toolLabel(tool)}
+                        </Text>
+                        {tool === occupant && <Text style={styles.toolNowTag}>{t('today.toolNow')}</Text>}
+                      </Pressable>
+                      {toolHint === tool && gate.hintKey != null && (
+                        <Text style={styles.toolHintLine}>{t(gate.hintKey)}</Text>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+            <View style={styles.rightNowRow}>
+              <Pressable
+                onPress={() => runTool(occupant)}
+                disabled={(occupant === 'plan' && sequencing) || (occupant === 'lighten' && strategising)}
+                accessibilityRole="button"
+                accessibilityLabel={`${t('today.rightNow')}: ${toolLabel(occupant)}`}
+                style={({ pressed }) => [styles.rightNowSlot, pressed && styles.pressed]}
+              >
+                <Text style={styles.rightNowOverline}>{t('today.rightNow')}</Text>
+                <Text style={[styles.rightNowName, !gateFor(occupant).available && styles.toolNameQuiet]}>
+                  {occupant === 'plan' && sequencing
+                    ? t('today.planning')
+                    : occupant === 'lighten' && strategising
+                      ? t('today.lightening')
+                      : toolLabel(occupant)}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={toggleToolsPanel}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: toolsOpen }}
+                accessibilityLabel={t('today.allDayToolsA11y')}
+                style={({ pressed }) => [styles.caretBtn, pressed && styles.pressed]}
+              >
+                <Text style={styles.caretText}>{toolsOpen ? '⌄' : '⌃'}</Text>
+              </Pressable>
+            </View>
+            {toolHint != null && !toolsOpen && gateFor(toolHint).hintKey != null && (
+              <Text style={styles.toolHintLine}>{t(gateFor(toolHint).hintKey!)}</Text>
+            )}
+            {strategiseError != null && <Text style={styles.strategiseErr}>{strategiseError}</Text>}
+            {orderError != null && <Text style={styles.strategiseErr}>{orderError}</Text>}
+          </>
+        )}
         {selectMode ? (
           <View style={styles.selectBar}>
             <View style={styles.selectTop}>
@@ -1939,7 +2037,14 @@ export default function TodayScreen() {
             </Pressable>
           ))}
         <View style={styles.ethos}>
-          <RotatingPhrase />
+          {/* In the evening the rotating inscription yields to the wind-down line: the same single
+              italic breath under capture, saying the one thing the hour actually calls for. It is
+              no longer a separate element in the pile (the constant frame took the pile away). */}
+          {windDown && !isClosed ? (
+            <Text style={styles.windDown}>{t('closeDay.windDown')}</Text>
+          ) : (
+            <RotatingPhrase />
+          )}
         </View>
         {/* The optional, low-priority links live below the marquee, calm and out of the way:
             who you're synced as (or the sync invite) and the daily-reminder toggle. */}
@@ -2506,7 +2611,12 @@ export default function TodayScreen() {
             ['planAskDay', 'day', [['work', 'today.planDayWork'], ['off', 'today.planDayOff']]],
             ['planAskSetting', 'setting', [['indoors', 'today.planSettingIn'], ['out', 'today.planSettingOut'], ['either', 'today.planSettingEither']]],
           ] as const
-        ).map(([question, field, options]) => (
+        )
+          // Energy is READ, never asked twice (Melroy, reaffirmed 2026-07-25): when the pill was
+          // touched today the sheet already knows, so its energy question simply does not appear
+          // and the pill's answer rides the request instead (see the runSequence call below).
+          .filter(([, field]) => field !== 'energy' || dayEnergySel == null)
+          .map(([question, field, options]) => (
           <View key={field} style={styles.planAskGroup}>
             <Text style={styles.planAskLabel}>{t(`today.${question}`)}</Text>
             <View style={styles.planAskRow}>
@@ -2532,7 +2642,7 @@ export default function TodayScreen() {
         ))}
         <PrimaryButton
           label={t('today.planAskGo')}
-          onPress={() => void runSequence(dayContext)}
+          onPress={() => void runSequence(dayEnergySel != null ? { ...dayContext, energy: planEnergyFromDay(dayEnergySel) } : dayContext)}
           accessibilityLabel={t('today.planAskGo')}
           style={styles.wrapBtn}
         />
@@ -2831,24 +2941,54 @@ const makeStyles = (t: Theme) =>
     },
     weightFill: { backgroundColor: t.colors.accent },
     weightLabel: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
-    lowDayToggle: {
-      color: t.appearance === 'quiet' ? t.colors.accent : t.colors.inkSoft,
-      fontSize: 14 * t.scale,
-      fontFamily: fonts.body,
-      marginTop: spacing.one,
-      textDecorationLine: t.appearance === 'quiet' ? 'none' : 'underline',
+    // The Energy pills: a segmented day-state beside the gauge. Selected = accent on accent-tint
+    // with a soft accent border; unselected = plain soft ink, no border (the design's own spec).
+    energyRow: { flexDirection: 'row', gap: spacing.two, marginBottom: spacing.four, flexWrap: 'wrap' },
+    energyPill: {
+      minHeight: 44,
+      justifyContent: 'center',
+      paddingHorizontal: spacing.four,
+      paddingVertical: spacing.one,
+      borderRadius: radius.pill,
+      borderWidth: border.hair,
+      borderColor: 'transparent',
     },
-    lowDayStandalone: { alignSelf: 'center', marginTop: spacing.three, marginBottom: spacing.one },
+    energyPillOn: { backgroundColor: t.colors.accentSoft, borderColor: rgba(t.colors.accent, 0.4) },
+    energyPillText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+    energyPillTextOn: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    // The constant frame's fixed layer: the Right-now slot + caret, docked above capture, and the
+    // caret panel that grows UPWARD from it. The panel is a calm card, hairline-bordered; the slot
+    // occupant is the one accent-weight thing at the thumb.
+    rightNowRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, marginBottom: spacing.two },
+    rightNowSlot: { flex: 1, paddingVertical: spacing.one },
+    rightNowOverline: {
+      color: t.colors.inkFaint,
+      fontSize: 10.5 * t.scale,
+      fontFamily: fonts.bodyBold,
+      fontWeight: '700',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+    },
+    rightNowName: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', marginTop: 2 },
+    caretBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+    caretText: { color: t.colors.inkSoft, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    toolsPanel: {
+      backgroundColor: t.colors.surface,
+      borderWidth: border.hair,
+      borderColor: t.colors.line,
+      borderRadius: radius.lg,
+      paddingVertical: spacing.two,
+      paddingHorizontal: spacing.four,
+      marginBottom: spacing.three,
+    },
+    toolRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
+    toolName: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', flexShrink: 1 },
+    // Quiet-unavailable: lowered contrast, no lock, no border, no strikethrough. Present, resting.
+    toolNameQuiet: { color: t.colors.inkFaint, fontFamily: fonts.body, fontWeight: '400' },
+    toolNowTag: { color: t.colors.accent, fontSize: 12 * t.scale, fontFamily: fonts.body },
+    toolHintLine: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two },
+    toolsScrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(0, 0, 0, 0.4)' },
     windDown: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
-    dayActions: { marginTop: spacing.seven, alignItems: 'center', gap: spacing.three },
-    closeDay: {
-      paddingVertical: spacing.three,
-      paddingHorizontal: spacing.five,
-      borderRadius: radius.md,
-      // Quiet drops the outline: "Close the day" becomes a plain calm text action.
-      ...(t.appearance === 'quiet' ? {} : { borderWidth: border.hair, borderColor: t.colors.line }),
-    },
-    closeDayText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
     rested: { alignItems: 'center', gap: spacing.three, paddingTop: spacing.five, paddingBottom: spacing.four },
     restedArt: {
       width: '100%',
@@ -2878,25 +3018,13 @@ const makeStyles = (t: Theme) =>
     reminderOfferRow: { flexDirection: 'row', gap: spacing.five, alignItems: 'center' },
     reminderOfferYes: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     reminderOfferNo: { color: t.colors.inkFaint, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    strategiseNudge: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
-    strategiseBtn: {
-      borderRadius: radius.md,
-      // Quiet drops the outline; the accent text remains, so "Lighten today" reads as a plain link.
-      ...(t.appearance === 'quiet' ? {} : { borderWidth: border.hair, borderColor: t.colors.accent }),
-      paddingVertical: spacing.three,
-      paddingHorizontal: spacing.five,
-    },
-    strategiseBtnText: { color: t.colors.accent, fontSize: 16 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
     strategiseErr: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body },
     disabledBtn: { opacity: 0.5 },
     planItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
     planTitle: { color: t.colors.ink, fontSize: 16 * t.scale, flexShrink: 1, fontFamily: fonts.body },
     planWhen: { color: t.colors.accent, fontSize: 14 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
     // "Plan my order" (premium): the big PremiumButton (the DoubleDone Premium gradient), the premium signal on Today.
-    sequenceBtn: { alignSelf: 'stretch', marginTop: spacing.three },
     // Quiet's replacement for the PremiumButton gradient: "Plan my day" as a plain accent text action.
-    quietDayAction: { alignSelf: 'center', paddingVertical: spacing.two, marginTop: spacing.two },
-    quietDayActionText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     seqItem: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.three },
     seqNum: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', minWidth: 16, textAlign: 'center', marginTop: 1 },
     seqText: { flex: 1, gap: 1 },

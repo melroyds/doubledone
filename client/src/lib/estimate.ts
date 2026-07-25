@@ -58,30 +58,49 @@ export function weightedLoad(count: number, bigCount = 0): number {
   return count + bigCount * (BIG_WEIGHT - 1);
 }
 
+// The day's stated energy scales what "full" MEANS: the gauge denominator, the label thresholds,
+// and the heavy-day gate all move together, so the same six tasks read heavy on a low day, full on
+// a normal one, and light-ish on a high one. High is more ROOM, never a target: it reuses the
+// normal-day labels and simply reaches them later, because "you could fit more" is exactly the
+// sentence this app must never say. The boolean form is the legacy low-day flag (true = 'low'),
+// kept so existing call sites and tests read unchanged.
+export type WeightEnergy = 'low' | 'normal' | 'high';
+
+const ENERGY_TUNING: Record<WeightEnergy, { denom: number; light: number; full: number; heavy: number }> = {
+  low: { denom: 4, light: 2, full: 4, heavy: 4 }, // the original low-capacity day, unchanged
+  normal: { denom: 8, light: 4, full: 7, heavy: 6 }, // the original defaults, unchanged
+  high: { denom: 12, light: 6, full: 10, heavy: 9 }, // 1.5x the room of normal, same words
+};
+
+function asEnergy(e: WeightEnergy | boolean): WeightEnergy {
+  return e === true ? 'low' : e === false ? 'normal' : e;
+}
+
+/** The weighted load at which a day counts as HEAVY (gates the Lighten tool and the defer offer). */
+export function heavyAt(weighted: number, energy: WeightEnergy | boolean = 'normal'): boolean {
+  return weighted >= ENERGY_TUNING[asEnergy(energy)].heavy;
+}
+
 /**
  * A calm, honest read on how full Today is, from the count of unfinished one-off
  * tasks (recurring habits are routine, not load). `fill` is 0..1 for a slim gauge;
  * the label describes the day, it never scolds, so Today can't silently overfill.
- * On a low-capacity day (Cluster C) the same load reads as fuller: capacity is
+ * On a low-energy day (Cluster C) the same load reads as fuller: capacity is
  * roughly halved and the label gives explicit permission to do little. A big task
  * (bigCount) weighs heavier via weightedLoad, and a lone big task is floored to at
  * least "full" so even one heavy thing registers, never sinking to "room to breathe".
  */
-export function dayWeight(count: number, lowDay = false, bigCount = 0): DayWeight {
+export function dayWeight(count: number, energy: WeightEnergy | boolean = 'normal', bigCount = 0): DayWeight {
+  const level = asEnergy(energy);
+  const lowDay = level === 'low';
   if (count <= 0) return { level: 'clear', label: lowDay ? t('estimate.weight.clearLow') : t('estimate.weight.clear'), fill: 0 };
   const load = weightedLoad(count, bigCount);
+  const tune = ENERGY_TUNING[level];
+  const fill = Math.min(load / tune.denom, 1);
   let base: DayWeight;
-  if (lowDay) {
-    const fill = Math.min(load / 4, 1);
-    if (load <= 2) base = { level: 'light', label: t('estimate.weight.lowLight'), fill };
-    else if (load <= 4) base = { level: 'full', label: t('estimate.weight.lowFull'), fill };
-    else base = { level: 'heavy', label: t('estimate.weight.lowHeavy'), fill: 1 };
-  } else {
-    const fill = Math.min(load / 8, 1);
-    if (load <= 4) base = { level: 'light', label: t('estimate.weight.light'), fill };
-    else if (load <= 7) base = { level: 'full', label: t('estimate.weight.full'), fill };
-    else base = { level: 'heavy', label: t('estimate.weight.heavy'), fill: 1 };
-  }
+  if (load <= tune.light) base = { level: 'light', label: t(lowDay ? 'estimate.weight.lowLight' : 'estimate.weight.light'), fill };
+  else if (load <= tune.full) base = { level: 'full', label: t(lowDay ? 'estimate.weight.lowFull' : 'estimate.weight.full'), fill };
+  else base = { level: 'heavy', label: t(lowDay ? 'estimate.weight.lowHeavy' : 'estimate.weight.heavy'), fill: 1 };
   // A lone big task should be felt: if anything is marked big, never read lighter than "full".
   if (bigCount > 0 && base.level === 'light') {
     return {

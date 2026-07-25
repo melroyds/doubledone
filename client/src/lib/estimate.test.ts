@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { dayWeight, describePace, paceDays, weightedLoad } from './estimate';
+import { dayWeight, describePace, heavyAt, paceDays, weightedLoad } from './estimate';
 
 describe('dayWeight', () => {
   it('reads clear at zero, scaling up to heavy, never below clear', () => {
@@ -113,5 +113,42 @@ describe('describePace', () => {
   });
   it('softens longer spans to "a week or two"', () => {
     expect(describePace(13)).toBe('Usually a week or two, at a gentle pace. No rush.');
+  });
+});
+
+describe('energy-scaled weight (the constant frame, 2026-07-25)', () => {
+  it('the boolean form still means what it always did', () => {
+    // true was always "low day"; false was always "normal". Old call sites read unchanged.
+    expect(dayWeight(4, true).level).toBe(dayWeight(4, 'low').level);
+    expect(dayWeight(4, false).level).toBe(dayWeight(4, 'normal').level);
+  });
+
+  it('high energy gives the same load more room, never a target', () => {
+    // Six tasks: heavy on low, full on normal, LIGHT on high. Same words as normal, reached later.
+    expect(dayWeight(6, 'low').level).toBe('heavy');
+    expect(dayWeight(6, 'normal').level).toBe('full');
+    expect(dayWeight(6, 'high').level).toBe('light');
+    // High reuses the normal-day labels: "you could fit more" is a sentence this app never says.
+    expect(dayWeight(8, 'high').label).toBe(dayWeight(6, 'normal').label);
+  });
+
+  it('the gauge denominator scales with energy, so the same load fills less of a high day', () => {
+    expect(dayWeight(4, 'low').fill).toBe(1);
+    expect(dayWeight(4, 'normal').fill).toBeCloseTo(0.5);
+    expect(dayWeight(4, 'high').fill).toBeCloseTo(4 / 12);
+  });
+
+  it('heavyAt moves the Lighten gate with the day energy', () => {
+    expect(heavyAt(6, 'low')).toBe(true);
+    expect(heavyAt(6, 'normal')).toBe(true);
+    expect(heavyAt(6, 'high')).toBe(false); // a high day holds six without offering relief
+    expect(heavyAt(9, 'high')).toBe(true);
+    expect(heavyAt(4, 'low')).toBe(true);
+    expect(heavyAt(4, true)).toBe(true); // boolean legacy form
+    expect(heavyAt(5, false)).toBe(false);
+  });
+
+  it('a lone big task still floors a high day at "full": more room never mutes a heavy thing', () => {
+    expect(dayWeight(1, 'high', 1).level).toBe('full');
   });
 });

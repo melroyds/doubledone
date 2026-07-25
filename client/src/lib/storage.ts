@@ -157,6 +157,35 @@ export async function saveLowDayDate(iso: string | null): Promise<void> {
   }
 }
 
+// The Energy day-state (the constant frame, 2026-07-25): {date, level} as JSON. A record from a
+// PAST day is simply ignored by the reader, which is how "resets to Normal each morning" works
+// without a scheduler: the reset is a read-side rule, not a write that has to run at midnight.
+const DAYENERGY_KEY = 'doubledone.dayenergy.v1';
+
+export type DayEnergyRecord = { date: string; level: 'low' | 'normal' | 'high' };
+
+/** Today's stated energy, or null when the pills have not been touched today (= Normal, unset). */
+export async function loadDayEnergy(todayISO: string): Promise<DayEnergyRecord | null> {
+  try {
+    const raw = await AsyncStorage.getItem(DAYENERGY_KEY);
+    if (!raw) return null;
+    const rec = JSON.parse(raw) as DayEnergyRecord;
+    if (rec == null || rec.date !== todayISO) return null; // yesterday's energy is not today's
+    return rec.level === 'low' || rec.level === 'normal' || rec.level === 'high' ? rec : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Persist today's stated energy. Best effort; the pill state is already on screen either way. */
+export async function saveDayEnergy(rec: DayEnergyRecord): Promise<void> {
+  try {
+    await AsyncStorage.setItem(DAYENERGY_KEY, JSON.stringify(rec));
+  } catch {
+    // best effort
+  }
+}
+
 /** The ISO date the app was last opened, or null (brand-new install). Drives the
  *  shame-free "welcome back" card after a multi-day gap. */
 export async function loadLastOpen(): Promise<string | null> {
@@ -396,7 +425,7 @@ export async function wipeLocalData(): Promise<void> {
   await saveTasks([]);
   await saveSyncedOwner(null);
   try {
-    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY, SYNCOK_KEY]);
+    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, DAYENERGY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY, SYNCOK_KEY]);
   } catch {
     // best effort, like the per-key savers above
   }
