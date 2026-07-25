@@ -144,6 +144,8 @@
               "minHeight": "110dp",
               "targetCellWidth": 3,
               "targetCellHeight": 2,
+              "maxResizeHeight": "300dp",
+              "resizeMode": "horizontal|vertical",
               "description": "Today's tasks, at a glance",
               "updatePeriodMillis": 1800000
             }

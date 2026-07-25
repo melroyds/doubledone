@@ -19,21 +19,24 @@ const CLOSED_KEY = 'doubledone.closed.v1';
 // A bulletproof fallback: depends ONLY on the widget library + inline hex, never on an app module,
 // so it still renders even if an app import (model / locale / TodayWidget) is exactly what threw.
 function diagnosticWidget(message: string) {
+  // Same two-layer shape as TodayWidget: a transparent outer filling the slot, and a content-sized
+  // card inset 2dp so all four corners round symmetrically inside the clip (see TodayWidget's note).
   return (
-    <FlexWidget
-      clickAction="OPEN_APP"
-      style={{
-        height: 'match_parent',
-        width: 'match_parent',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        backgroundColor: '#1B1917' as HexColor,
-        borderRadius: 24,
-        padding: 16,
-      }}
-    >
-      <TextWidget text="DoubleDone" style={{ fontSize: 13, color: '#C68BA0' as HexColor, fontWeight: '700' }} />
-      <TextWidget text={message} maxLines={4} truncate="END" style={{ fontSize: 12, color: '#F2EBE0' as HexColor, marginTop: 6 }} />
+    <FlexWidget style={{ height: 'match_parent', width: 'match_parent', flexDirection: 'column', padding: 2 }}>
+      <FlexWidget
+        clickAction="OPEN_APP"
+        style={{
+          width: 'match_parent',
+          height: 'wrap_content',
+          flexDirection: 'column',
+          backgroundColor: '#1B1917' as HexColor,
+          borderRadius: 24,
+          padding: 16,
+        }}
+      >
+        <TextWidget text="DoubleDone" style={{ fontSize: 13, color: '#C68BA0' as HexColor, fontWeight: '700' }} />
+        <TextWidget text={message} maxLines={4} truncate="END" style={{ fontSize: 12, color: '#F2EBE0' as HexColor, marginTop: 6 }} />
+      </FlexWidget>
     </FlexWidget>
   );
 }

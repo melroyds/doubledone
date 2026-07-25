@@ -57,26 +57,41 @@ export function TodayWidget({ model, scheme }: { model: WidgetModel; scheme: 'li
       </FlexWidget>,
     );
   } else {
+    // No flex:1 / centring here: the card is sized to its content now (see the wrapper below),
+    // so there is no leftover height to centre a rested line within.
     children.push(
-      <FlexWidget key="b" style={{ flex: 1, justifyContent: 'center' }}>
+      <FlexWidget key="b" style={{ flexDirection: 'column' }}>
         <TextWidget text={model.message} style={{ fontSize: 16, color: hx(c.inkSoft), marginTop: 10 }} />
       </FlexWidget>,
     );
   }
 
+  // Two layers, deliberately. The OUTER is transparent and fills whatever slot the launcher gives
+  // the widget; the INNER is the visible card, full width but `wrap_content` TALL, so it hugs its
+  // content instead of stretching. That fixes two things at once (2026-07-25, device-reported):
+  //   1. The "tombstone": with a match_parent card the background drawable and the host's measured
+  //      height disagreed, the bottom of the rounded rect fell outside the clip, and the card
+  //      rendered rounded on top but sliced flat across the bottom. Sizing to content removes the
+  //      mismatch, and the 2dp outer inset keeps the card's edges off the clip boundary either way,
+  //      so all four corners land inside the visible area. Symmetric by construction.
+  //   2. The empty void: three tasks in a tall slot used to leave a huge black field below them.
+  //      The card is now as tall as what it has to say, and no taller.
+  // clickAction sits on the CARD, not the outer, so only the visible card opens the app.
   return (
-    <FlexWidget
-      clickAction="OPEN_APP"
-      style={{
-        height: 'match_parent',
-        width: 'match_parent',
-        flexDirection: 'column',
-        backgroundColor: hx(c.bg),
-        borderRadius: 24,
-        padding: 16,
-      }}
-    >
-      {children}
+    <FlexWidget style={{ height: 'match_parent', width: 'match_parent', flexDirection: 'column', padding: 2 }}>
+      <FlexWidget
+        clickAction="OPEN_APP"
+        style={{
+          width: 'match_parent',
+          height: 'wrap_content',
+          flexDirection: 'column',
+          backgroundColor: hx(c.bg),
+          borderRadius: 24,
+          padding: 16,
+        }}
+      >
+        {children}
+      </FlexWidget>
     </FlexWidget>
   );
 }
