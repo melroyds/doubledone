@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FlexWidget, type HexColor, TextWidget, type WidgetTaskHandlerProps } from 'react-native-android-widget';
 
+import { LIGHT_WIDGET } from './names';
+
 // Runs headless when Android updates the widget (added, periodic, resized). It reads the same
 // AsyncStorage the app writes and reuses the app's pure model, so the widget shows exactly what
 // Today shows even with the app closed. A tap is OPEN_APP (handled natively), so WIDGET_CLICK /
@@ -56,9 +58,16 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps): Promise<
       AsyncStorage.getItem(CLOSED_KEY),
     ]);
     const model = buildWidgetModel(rawTasks ? deserialize(rawTasks) : [], new Date(), closedISO);
+    // Two widgets share this handler, told apart by name. "Today" follows the phone's light/dark
+    // setting (the sensible default). "TodayLight" is ALWAYS the light card, because a widget's
+    // contrast is set by the WALLPAPER, which the system theme knows nothing about: dark mode over a
+    // dark wallpaper renders a dark card on a dark background and the widget disappears (reported on
+    // device 2026-07-25). Forcing light is the one combination the default cannot serve. There is
+    // deliberately no forced-DARK twin: every other pairing already lands on a readable card.
+    const scheme = props.widgetInfo.widgetName === LIGHT_WIDGET ? 'light' : 'dark';
     props.renderWidget({
       light: <TodayWidget model={model} scheme="light" />,
-      dark: <TodayWidget model={model} scheme="dark" />,
+      dark: <TodayWidget model={model} scheme={scheme} />,
     });
   } catch (e) {
     const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
