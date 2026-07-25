@@ -28,8 +28,20 @@ export function TodayWidget({ model, scheme }: { model: WidgetModel; scheme: 'li
   'use no memo';
   const c = WIDGET_COLORS[scheme];
 
+  // The header carries the spine word AND the app's name. "Today" stays the hero (accent, the thing
+  // you actually read); "DoubleDone" sits quietly opposite it. A widget lives on a crowded home
+  // screen among other apps' cards, so it has to say whose it is: a bare "Today" is anonymous, and
+  // on a paid product the home screen is the one piece of brand real estate we are given. Both on
+  // ONE row, so identity costs no vertical space and never displaces a task line. The wordmark is a
+  // product name, so it is deliberately NOT translated.
   const children = [
-    <TextWidget key="h" text={t('common.today')} style={{ fontSize: 16, color: hx(c.accent), fontWeight: '700' }} />,
+    <FlexWidget
+      key="h"
+      style={{ flexDirection: 'row', width: 'match_parent', alignItems: 'center', justifyContent: 'space-between' }}
+    >
+      <TextWidget text={t('common.today')} style={{ fontSize: 16, color: hx(c.accent), fontWeight: '700' }} />
+      <TextWidget text="DoubleDone" style={{ fontSize: 11, color: hx(c.inkSoft) }} />
+    </FlexWidget>,
   ];
 
   if (model.state === 'tasks') {
