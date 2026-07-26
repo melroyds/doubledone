@@ -48,8 +48,24 @@ const META = `
 
 let html = readFileSync(HTML, 'utf8');
 
+// The keyboard viewport fix (2026-07-26, tester screenshots): Chrome 108+ on Android OVERLAYS
+// the keyboard by default, burying the bottom-anchored capture panel. interactive-widget=
+// resizes-content opts the layout viewport back into resizing. This must live HERE, not only
+// in +html.tsx, for the same reason as everything else in this file: output:'single' ignores
+// +html.tsx, and this rewrite is what actually ships. Runs before the og:image idempotency
+// gate so it applies even on a re-run.
+html = html.replace(
+  /(<meta name="viewport" content="[^"]*?)(, interactive-widget=[^",]*)?(" \/>)/,
+  '$1, interactive-widget=resizes-content$3',
+);
+if (!html.includes('interactive-widget=resizes-content')) {
+  console.error('inject-web-meta: could not patch the viewport meta — did the export template change?');
+  process.exit(1);
+}
+
 if (html.includes('property="og:image"')) {
-  console.log('inject-web-meta: og:image already present, nothing to do');
+  writeFileSync(HTML, html);
+  console.log('inject-web-meta: og:image already present; viewport ensured, nothing else to do');
   process.exit(0);
 }
 
@@ -60,4 +76,4 @@ if (!/<title>[^<]*<\/title>/.test(html)) {
 
 html = html.replace(/<title>[^<]*<\/title>/, `<title>${esc(TITLE)}</title>${META}`);
 writeFileSync(HTML, html);
-console.log(`inject-web-meta: title + ${META.match(/<meta/g).length} meta tags injected into ${HTML}`);
+console.log(`inject-web-meta: title + ${META.match(/<meta/g).length} meta tags + viewport injected into ${HTML}`);
