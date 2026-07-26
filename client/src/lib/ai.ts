@@ -3,6 +3,7 @@
 // hardcoded fallback keeps the deployed build working; EXPO_PUBLIC_AI_URL
 // overrides it for local dev.
 
+import { t } from './i18n-active';
 import type { DayType, Setting } from './plan-day';
 import { authHeader } from './supabase';
 
@@ -32,13 +33,15 @@ export type Questions = { dueDate: string; spread: string; custom: string; sugge
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 // Shown if the clarify call fails or returns nothing, so the questions flow never
-// blocks on the AI. Plain, calm fallbacks.
-export const DEFAULT_QUESTIONS: Questions = {
-  dueDate: 'By when do you want this done?',
-  spread: 'Spread the steps over a few days, or do them all in one go?',
-  custom: 'Anything about this that would change how to break it down?',
+// blocks on the AI. Read from the catalogs at call time so the fallback speaks the
+// user's language (the translated breakdown.defaultQuestion keys sat unwired since
+// the i18n sweep, so an offline es/fr/it user got English questions).
+export const defaultQuestions = (): Questions => ({
+  dueDate: t('breakdown.defaultQuestion.dueDate'),
+  spread: t('breakdown.defaultQuestion.spread'),
+  custom: t('breakdown.defaultQuestion.custom'),
   suggestedDueDate: null,
-};
+});
 
 /** Pull the questions out of the backend response, or null (never throws). */
 export function parseQuestions(data: unknown): Questions | null {
@@ -55,7 +58,7 @@ export function parseQuestions(data: unknown): Questions | null {
 }
 
 /** Ask the AI for the qualifying questions. Throws on a failed call; the caller
- *  falls back to DEFAULT_QUESTIONS so the flow always continues. */
+ *  falls back to defaultQuestions() so the flow always continues. */
 export async function clarify(task: string, language?: string): Promise<Questions> {
   const res = await fetch(`${AI_URL}/clarify`, {
     method: 'POST',
@@ -63,7 +66,7 @@ export async function clarify(task: string, language?: string): Promise<Question
     body: JSON.stringify({ task, language }),
   });
   if (!res.ok) throw new Error(`clarify failed (${res.status})`);
-  return parseQuestions(await res.json()) ?? DEFAULT_QUESTIONS;
+  return parseQuestions(await res.json()) ?? defaultQuestions();
 }
 
 // The answers from the questions, passed back so the AI tailors the breakdown.

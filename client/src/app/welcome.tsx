@@ -312,7 +312,6 @@ export default function WelcomeScreen() {
             <Text style={styles.speak}>
               {aiEnabled ? t('welcome.capturePrivacyAi') : t('welcome.capturePrivacyNoAi')}
             </Text>
-            <Text style={styles.speak}>{t('capture.speakHint')}</Text>
           </View>
         )}
 

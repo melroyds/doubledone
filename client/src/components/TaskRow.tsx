@@ -276,7 +276,7 @@ export function TaskRow({
             onPress={onBig}
             style={[styles.actionRow, big && styles.actionRowActive]}
             accessibilityRole="button"
-            accessibilityLabel={big ? t('today.unmarkBigA11y') : t('today.markBigA11y')}
+            accessibilityLabel={big ? t('today.unmarkBigOneA11y') : t('today.markBigOneA11y')}
             hitSlop={{ top: 6, bottom: 6 }}
           >
             <Text style={[styles.actionLabel, big && styles.actionLabelActive]}>{t('today.markAsALot')}</Text>

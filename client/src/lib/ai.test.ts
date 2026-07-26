@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   clarify,
   decompose,
-  DEFAULT_QUESTIONS,
+  defaultQuestions,
   parsePlan,
   parsePlanResult,
   parseQuestions,
@@ -202,7 +202,7 @@ describe('clarify', () => {
       'fetch',
       vi.fn(async () => ({ ok: true, json: async () => ({ questions: null }) }) as unknown as Response),
     );
-    expect(await clarify('x')).toEqual(DEFAULT_QUESTIONS);
+    expect(await clarify('x')).toEqual(defaultQuestions());
   });
 
   it('throws on a non-ok response', async () => {

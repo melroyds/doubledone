@@ -22,7 +22,7 @@ import { border, fonts, layout, motion, PRESSED_OPACITY, radius, rgba, spacing, 
 import {
   clarify,
   combine,
-  DEFAULT_QUESTIONS,
+  defaultQuestions,
   type Energy,
   matchEnergy,
   plan as planBreakdown,
@@ -1325,7 +1325,7 @@ export default function TodayScreen() {
     try {
       setBdQuestions(await clarify(task, aiLanguage));
     } catch {
-      setBdQuestions(DEFAULT_QUESTIONS);
+      setBdQuestions(defaultQuestions());
     } finally {
       setBdBusy(false);
       setBdPhase('questions');

@@ -12,6 +12,7 @@ import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from 'react-native-svg'
 import { motion } from '@/constants/motion';
 import { spacing, type Theme } from '@/constants/theme';
 import type { CelebrationTier } from '@/lib/celebrate';
+import { t } from '@/lib/locale';
 import { useReducedMotion, useThemedStyles } from '@/lib/theme-provider';
 
 export type BloomData = {
@@ -78,7 +79,7 @@ export function Bloom({ data, onDone }: { data: BloomData | null; onDone: () => 
   // elevation is dropped (see styles.scrim), which removes the seam. No-op on web.
   return (
     <Animated.View needsOffscreenAlphaCompositing style={[StyleSheet.absoluteFill, styles.scrim, { opacity: anim }]}>
-      <Pressable style={styles.fill} onPress={dismiss} accessibilityRole="button" accessibilityLabel="Continue">
+      <Pressable style={styles.fill} onPress={dismiss} accessibilityRole="button" accessibilityLabel={t('common.continue')}>
         <Animated.View style={[StyleSheet.absoluteFill, styles.center, { transform: [{ scale }] }]} pointerEvents="none">
           <Svg width={size} height={size}>
             <Defs>
@@ -94,7 +95,7 @@ export function Bloom({ data, onDone }: { data: BloomData | null; onDone: () => 
           </Svg>
         </Animated.View>
         <View style={styles.caption}>
-          <Text style={styles.eyebrow}>You finished the whole thing</Text>
+          <Text style={styles.eyebrow}>{t('celebrate.bloomEyebrow')}</Text>
           <Text style={styles.title}>{data.title}</Text>
           {data.context ? <Text style={styles.context}>{data.context}</Text> : null}
         </View>

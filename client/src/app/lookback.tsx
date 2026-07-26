@@ -282,7 +282,8 @@ export default function LookbackScreen() {
                 style={styles.cell}
                 accessibilityRole="button"
                 accessibilityLabel={t('lookback.dayCellA11y', {
-                  iso,
+                  // a spoken date ("25 July"), never the raw ISO, for screen readers
+                  date: fmt.monthDay(fromISODate(iso)),
                   count,
                   bigPart: bigDay ? t('lookback.dayCellBig') : '',
                   schedPart: sched > 0 ? t('lookback.dayCellSched', { sched }) : '',
