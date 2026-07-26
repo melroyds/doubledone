@@ -641,11 +641,16 @@ const makeStyles = (t: Theme) => StyleSheet.create({
           paddingVertical: spacing.three,
         }),
   },
-  captureRow: { flexDirection: 'row', gap: spacing.two, alignItems: 'flex-start' },
+  // 'stretch' (not flex-start): at rest the input stretches to the Speak+Scan column's
+  // height, so the box's bottom edge sits flush with Scan's (Melroy, 2026-07-26, the
+  // misaligned edges read as visual noise). A growing multiline still wins the height.
+  captureRow: { flexDirection: 'row', gap: spacing.two, alignItems: 'stretch' },
   inputFlex: { flex: 1 },
   sideCol: { gap: spacing.two, alignItems: 'stretch' },
   // The door: one bordered group holding the summary row and, when open, the composer.
+  // The touch of extra top margin keeps it visually clear of the taller input block.
   doorWrap: {
+    marginTop: spacing.one,
     borderWidth: border.hair,
     borderColor: t.colors.line,
     borderRadius: radius.md,
