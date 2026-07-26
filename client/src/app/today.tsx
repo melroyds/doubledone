@@ -39,6 +39,7 @@ import {
 import { canMatchEnergy, recordEnergyUse, shouldWarnEnergy } from '@/lib/energy';
 import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
+import { weekStartISO, weekTitles } from '@/lib/scrapbook';
 import { celebrationTier, doneAffirmation, finishContext } from '@/lib/celebrate';
 import { combineTasks, eligibleForCombine } from '@/lib/combine';
 import { aiErrorLine } from '@/lib/connection';
@@ -57,7 +58,7 @@ import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge }
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderHour, loadReminderOfferMade, loadReminderOn, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOfferMade, saveReminderOn, saveSyncedOwner, saveTasks, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
+import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderHour, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOfferMade, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
 import { restedOffer } from '@/lib/offers';
 import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/plan-day';
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
@@ -164,6 +165,8 @@ export default function TodayScreen() {
   // nothing flashes before the real values load, matching the reminder offer above.
   const [widgetOfferMade, setWidgetOfferMade] = useState(true);
   const [widgetPlaced, setWidgetPlaced] = useState(true);
+  const [scrapbookOfferMade, setScrapbookOfferMade] = useState(true); // default true: never flash the ask
+  const [scrapbookMade, setScrapbookMade] = useState(true);
   const [widgetHowShown, setWidgetHowShown] = useState(false); // the ask swaps to the instructions in place
   // Break it down, the two-call flow: qualify (questions) -> decompose (review).
   const [bdPhase, setBdPhase] = useState<'off' | 'questions' | 'review'>('off');
@@ -265,6 +268,13 @@ export default function TodayScreen() {
     });
     void loadWidgetOfferMade().then((made) => {
       if (active) setWidgetOfferMade(made);
+    });
+    void loadScrapbookOfferMade().then((made) => {
+      if (active) setScrapbookOfferMade(made);
+    });
+    // Whether they have EVER made a scrapbook: someone who has needs no introduction to it.
+    void loadScrapbooks().then((books) => {
+      if (active) setScrapbookMade(books.length > 0);
     });
     // Asks the launcher whether a DoubleDone widget is actually on the home screen, so someone who
     // already has one is never offered it. No-ops to "placed" on web and on any error.
@@ -441,6 +451,8 @@ export default function TodayScreen() {
   }
 
   const visible = pinFirst(applyManualOrder(tasksForToday(tasks, today))); // the pin floats to the very top, then any accepted manual order
+  // The current week's deduped finishes: the scrapbook's raw material, read by the earned-moment mention.
+  const weekFinishes = weekTitles(completionsByDay(tasks), weekStartISO(today)).length;
   const upcoming = upcomingTasks(tasks, today);
   const allDone = loaded && visible.length > 0 && visible.every((t) => isDoneOn(t, today));
   // Closed when the stored close-date is today's; it self-clears when the date rolls over.
@@ -1023,6 +1035,20 @@ export default function TodayScreen() {
     setWidgetOfferMade(true);
     void saveWidgetOfferMade();
     track('widget.offer_declined');
+  }
+  // The scrapbook mention (the ladder's LAST rung): the free monthly keepsake was advertised
+  // nowhere but the premium page, so it is introduced once, at the earned moment the week
+  // could already be one. "Yes" is just a door to the Calendar, where the scrapbook lives.
+  function acceptScrapbookOffer() {
+    setScrapbookOfferMade(true);
+    void saveScrapbookOfferMade();
+    track('scrapbook.offer_accepted');
+    router.push('/lookback');
+  }
+  function dismissScrapbookOffer() {
+    setScrapbookOfferMade(true);
+    void saveScrapbookOfferMade();
+    track('scrapbook.offer_declined');
   }
 
   // Strategise: hand today's one-offs to the AI, get a calm re-spread, then PROPOSE
@@ -1702,7 +1728,7 @@ export default function TodayScreen() {
             {/* At most ONE lifeline offer, ever, decided by the pure `restedOffer` rules: the app is
                 so calm that its own opt-in lifelines are invisible (a returning user asked for four
                 things that already existed), but the goodnight screen must never become a pitch. */}
-            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade }) === 'reminder' && (
+            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade }) === 'reminder' && (
               <View style={styles.reminderOffer}>
                 <Text style={styles.reminderOfferText}>{t('reminders.offerText')}</Text>
                 <View style={styles.reminderOfferRow}>
@@ -1715,7 +1741,7 @@ export default function TodayScreen() {
                 </View>
               </View>
             )}
-            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade }) === 'widget' && (
+            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade }) === 'widget' && (
               <View style={styles.reminderOffer}>
                 {widgetHowShown ? (
                   <Text style={styles.reminderOfferText}>{t('reminders.widgetOfferHow')}</Text>
@@ -1732,6 +1758,19 @@ export default function TodayScreen() {
                     </View>
                   </>
                 )}
+              </View>
+            )}
+            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade }) === 'scrapbook' && (
+              <View style={styles.reminderOffer}>
+                <Text style={styles.reminderOfferText}>{t('today.scrapbookOffer')}</Text>
+                <View style={styles.reminderOfferRow}>
+                  <Pressable onPress={acceptScrapbookOffer} accessibilityRole="button" accessibilityLabel={t('today.scrapbookOfferGo')} hitSlop={6}>
+                    <Text style={styles.reminderOfferYes}>{t('today.scrapbookOfferGo')}</Text>
+                  </Pressable>
+                  <Pressable onPress={dismissScrapbookOffer} accessibilityRole="button" accessibilityLabel={t('common.notNow')} hitSlop={6}>
+                    <Text style={styles.reminderOfferNo}>{t('common.notNow')}</Text>
+                  </Pressable>
+                </View>
               </View>
             )}
           </View>

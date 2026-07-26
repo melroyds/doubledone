@@ -21,6 +21,7 @@ const ACCOUNT_KEY = 'doubledone.account.v1';
 const SYNCOK_KEY = 'doubledone.syncok.v1'; // result of the last sync attempt, so the footer can tell the truth
 const REMINDEROFFER_KEY = 'doubledone.reminderoffer.v1'; // one-time "offer the reminder after the first close-day"
 const WIDGETOFFER_KEY = 'doubledone.widgetoffer.v1'; // one-time "offer the home-screen widget" on the rested screen
+const SCRAPBOOKOFFER_KEY = 'doubledone.scrapbookoffer.v1'; // one-time "your week could be a keepsake" mention, the ladder's last rung
 const REMINDERHOUR_KEY = 'doubledone.reminderhour.v1'; // the hour (0-23) the daily reminder fires; default 9am
 const DEV_PREMIUM_KEY = 'doubledone.devPremium.v1'; // DEV/preview only: the premium-flag override (see premium-flag.ts)
 const ENERGY_USES_KEY = 'doubledone.energyUses.v1'; // energy-match use timestamps (the freemium meter, see lib/energy.ts)
@@ -389,6 +390,26 @@ export async function loadWidgetOfferMade(): Promise<boolean> {
 export async function saveWidgetOfferMade(): Promise<void> {
   try {
     await AsyncStorage.setItem(WIDGETOFFER_KEY, 'yes');
+  } catch {
+    // best effort
+  }
+}
+
+/** Whether the one-time scrapbook mention has been shown. The free monthly scrapbook was advertised
+ *  nowhere but the premium page, so the funnel depended on stumbling into the Calendar; this makes
+ *  sure it is mentioned exactly once, at the earned moment (a week with real finishes in it). */
+export async function loadScrapbookOfferMade(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(SCRAPBOOKOFFER_KEY)) === 'yes';
+  } catch {
+    return true; // unknown: stay quiet rather than risk an unwanted ask
+  }
+}
+
+/** Mark the scrapbook mention made, so it never shows again whatever the answer was. Best effort. */
+export async function saveScrapbookOfferMade(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(SCRAPBOOKOFFER_KEY, 'yes');
   } catch {
     // best effort
   }

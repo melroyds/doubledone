@@ -374,6 +374,9 @@ export default function WelcomeScreen() {
             </Text>
             <Text style={styles.lead}>{t('welcome.keepLead2')}</Text>
             <Text style={styles.lead}>{t('welcome.keepLead3')}</Text>
+            {/* The free monthly scrapbook, mentioned where the payoff is being promised (it was
+                advertised nowhere but the premium page). AI-off users never hear about an AI feature. */}
+            {aiEnabled && <Text style={styles.lead}>{t('welcome.keepScrapbook')}</Text>}
           </View>
         )}
 

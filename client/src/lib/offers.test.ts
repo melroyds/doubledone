@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { type OfferState, restedOffer } from './offers';
+import { type OfferState, restedOffer, SCRAPBOOK_OFFER_MIN } from './offers';
 
 // The default state: everything already handled, so a clean goodnight screen.
 const quiet: OfferState = {
@@ -9,7 +9,14 @@ const quiet: OfferState = {
   widgetSupported: true,
   widgetPlaced: true,
   widgetOfferMade: true,
+  aiEnabled: true,
+  weekFinishes: 0,
+  scrapbookMade: true,
+  scrapbookOfferMade: true,
 };
+
+// A week with enough finishes that the scrapbook mention would be plainly true.
+const earned = { ...quiet, weekFinishes: SCRAPBOOK_OFFER_MIN, scrapbookMade: false, scrapbookOfferMade: false };
 
 describe('restedOffer', () => {
   it('offers nothing when every lifeline is already in place', () => {
@@ -50,5 +57,31 @@ describe('restedOffer', () => {
   it('moves on to the widget once the reminder ask is spent', () => {
     const after = { ...quiet, reminderOn: false, reminderOfferMade: true, widgetPlaced: false, widgetOfferMade: false };
     expect(restedOffer(after)).toBe('widget');
+  });
+
+  // The third and last rung: the earned-moment scrapbook mention.
+  it('mentions the scrapbook once the week has enough finishes and the earlier rungs are spent', () => {
+    expect(restedOffer(earned)).toBe('scrapbook');
+  });
+
+  it('waits until the week has real substance, not the first tick', () => {
+    expect(restedOffer({ ...earned, weekFinishes: SCRAPBOOK_OFFER_MIN - 1 })).toBeNull();
+  });
+
+  it('never pitches an AI feature to someone with AI off', () => {
+    expect(restedOffer({ ...earned, aiEnabled: false })).toBeNull();
+  });
+
+  it('never introduces the scrapbook to someone who already made one', () => {
+    expect(restedOffer({ ...earned, scrapbookMade: true })).toBeNull();
+  });
+
+  it('mentions the scrapbook once ever, whatever the answer was', () => {
+    expect(restedOffer({ ...earned, scrapbookOfferMade: true })).toBeNull();
+  });
+
+  it('yields the evening to an earlier rung: one ask at a time, always', () => {
+    expect(restedOffer({ ...earned, reminderOn: false, reminderOfferMade: false })).toBe('reminder');
+    expect(restedOffer({ ...earned, widgetPlaced: false, widgetOfferMade: false })).toBe('widget');
   });
 });
