@@ -283,3 +283,51 @@ block in `eas.json`, and run `eas submit --platform android --latest`.
 *Generated from a researched + adversarially-verified pass on 2026-06-24. The build config and permissions
 are already in place; the open work is the assets, the policy forms, and confirming the privacy URL is
 crawlable.*
+
+---
+
+## 9. Release notes: versionCode 19, the final pre-launch build (2026-07-26)
+
+v19 (cut from `915a052`) is Melroy's designated pre-launch build: what ships to production when
+Google grants access is this build. The texts below are the canonical release comms.
+
+### Play Console "What's new" (en, under 500 chars)
+
+> The final polish before launch.
+> • Adding something is calmer: one quiet door holds when, repeating and steps, and the Add button tells you exactly what will happen.
+> • Today's tools wait in one fixed spot, with Low / Normal / High energy for the day.
+> • The home-screen widget fits any size neatly.
+> • Missed nudges fade away quietly instead of piling up.
+> • Tap a future day on the Calendar to add to it.
+> • A friendlier introduction, and gentler words throughout.
+
+### Tester announcement (email / message, Melroy's voice)
+
+> **Subject: DoubleDone v19 is up, and it's the one**
+>
+> Hi all,
+>
+> Version 19 just landed on the testing track, and it's a milestone: this is the final
+> pre-launch build. Whatever you're holding after this update is what the public launch
+> will look like.
+>
+> What changed since last time:
+> - Adding a task is much calmer. Another day, repeating, steps: it all lives behind one
+>   quiet door now, and the Add button tells you what will happen before you tap it.
+> - Today's tools sit in one fixed spot at the bottom, under "Right now", with
+>   Low / Normal / High energy for the day.
+> - The widget behaves at every size now.
+> - Missed nudges quietly expire instead of stacking up.
+> - You can tap a future day on the Calendar to add something to it.
+> - Softer, clearer wording across the whole app.
+>
+> If you have ten minutes this week, the two things I'd love eyes on:
+> 1. Add a few tasks through the new panel, including a weekly repeating one. Does it
+>    feel obvious?
+> 2. Resize the widget, and let a nudge go unanswered overnight. Anything weird, tell me.
+>
+> Update from the Play testing track as usual (please don't sideload over it). Once
+> Google grants production access, this exact build goes live.
+>
+> Thank you for being here before it was ready. It's nearly time.
+> Melroy
