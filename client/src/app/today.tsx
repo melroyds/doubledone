@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, AppState, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Animated, AppState, Easing, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -167,6 +167,12 @@ export default function TodayScreen() {
   const [widgetPlaced, setWidgetPlaced] = useState(true);
   const [scrapbookOfferMade, setScrapbookOfferMade] = useState(true); // default true: never flash the ask
   const [scrapbookMade, setScrapbookMade] = useState(true);
+  // The keyboard's current height. The OS gives us NOTHING here: SDK 5x Android is
+  // edge-to-edge, which IGNORES adjustResize, so the keyboard overlays the window and a
+  // bottom-anchored panel simply vanishes under it (tester screenshots, 2026-07-26). The
+  // web keyboard is handled by the viewport meta (interactive-widget) instead; RN's
+  // Keyboard module never fires there, so this stays 0 on web by construction.
+  const [kbHeight, setKbHeight] = useState(0);
   const [widgetHowShown, setWidgetHowShown] = useState(false); // the ask swaps to the instructions in place
   // Break it down, the two-call flow: qualify (questions) -> decompose (review).
   const [bdPhase, setBdPhase] = useState<'off' | 'questions' | 'review'>('off');
@@ -438,6 +444,21 @@ export default function TodayScreen() {
   useEffect(() => {
     if (captureOpen) brainDumpRef.current?.seed(null);
   }, [captureOpen]);
+
+  // Track the keyboard so the footer can lift the capture panel above it (see kbHeight).
+  // iOS uses the will-events (the did-events land after the animation and read as lag).
+  useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', (e) => {
+      setKbHeight(e.endCoordinates?.height ?? 0);
+    });
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => {
+      setKbHeight(0);
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   // The ref both render sites pass to BrainDump: keeps .current in sync AND flushes any
   // parked seed exactly when the box mounts, however late that is (a cold start's first
@@ -1927,7 +1948,12 @@ export default function TodayScreen() {
         />
       )}
 
-      <View style={[styles.footer, dockFooter && styles.footerDock, { paddingBottom: insets.bottom + (captureOpen ? spacing.one : spacing.four) }]}>
+      {/* While capture is open the footer lifts by the keyboard's height, so the panel rides
+          ABOVE the keyboard instead of vanishing under it (edge-to-edge Android never resizes
+          the window for us). iOS reports a height that includes the home-indicator strip the
+          padding already covers, so that part is subtracted there. Scoped to captureOpen: the
+          held card's inline edit and the modals manage their own keyboards. */}
+      <View style={[styles.footer, dockFooter && styles.footerDock, { paddingBottom: insets.bottom + (captureOpen ? spacing.one : spacing.four) + (captureOpen ? Math.max(0, kbHeight - (Platform.OS === 'ios' ? insets.bottom : 0)) : 0) }]}>
         {/* THE CONSTANT FRAME (Claude Design 1b-developed, Melroy's pick 2026-07-25). One fixed
             action layer at the thumb: a "Right now" slot holding the tool that suits the HOUR
             (clock only, resolved at open, never mid-session), and a caret opening the same tools in
@@ -2088,6 +2114,10 @@ export default function TodayScreen() {
             <Text style={styles.focusEntryText}>{t('today.addToToday')}</Text>
           </Pressable>
         )}
+        {/* With the keyboard up over an open capture, the space above it belongs to the panel:
+            the inscription and the footer links tuck away until the keyboard goes. */}
+        {!(captureOpen && kbHeight > 0) && (
+        <>
         <View style={styles.ethos}>
           {/* In the evening the rotating inscription yields to the wind-down line: the same single
               italic breath under capture, saying the one thing the hour actually calls for. It is
@@ -2126,6 +2156,8 @@ export default function TodayScreen() {
             <Text style={styles.optLink}>{reminderOn ? t('reminders.dailyOn') : t('reminders.turnOn')}</Text>
           </Pressable>
         </View>
+        </>
+        )}
           </>
         )}
       </View>

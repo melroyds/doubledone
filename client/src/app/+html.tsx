@@ -20,7 +20,11 @@ export default function Root({ children }: PropsWithChildren) {
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+        {/* interactive-widget=resizes-content: since Chrome 108 the Android keyboard OVERLAYS
+            the page by default, which buried the bottom-anchored capture panel under it
+            (tester screenshots, 2026-07-26). This opts the layout viewport back into resizing,
+            so the footer sits above the keyboard. Safari ignores the token, harmlessly. */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, interactive-widget=resizes-content" />
 
         <title>{TITLE}</title>
         <meta name="description" content={DESCRIPTION} />
