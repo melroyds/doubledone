@@ -286,10 +286,14 @@ crawlable.*
 
 ---
 
-## 9. Release notes: versionCode 19, the final pre-launch build (2026-07-26)
+## 9. Release notes: versionCode 20, the final pre-launch build (2026-07-26)
 
-v19 (cut from `915a052`) is Melroy's designated pre-launch build: what ships to production when
-Google grants access is this build. The texts below are the canonical release comms.
+**v20 (cut from `38981c6`) is the designated pre-launch build**: v19's content plus the capture
+keyboard fix (a tester's screenshots showed the redesigned Add panel buried under the Android
+keyboard; see the decision log). v19 reached the closed track earlier the same day and is
+superseded: never promote it. The Play "What's new" below is unchanged from v19's draft (it
+describes the wave for production users, who upgrade from v11); the tester announcement is
+re-cut for v20.
 
 ### Play Console "What's new" (en, under 500 chars)
 
@@ -303,13 +307,17 @@ Google grants access is this build. The texts below are the canonical release co
 
 ### Tester announcement (email / message, Melroy's voice)
 
-> **Subject: DoubleDone v19 is up, and it's the one**
+> **Subject: DoubleDone v20 is up, and it's the one**
 >
 > Hi all,
 >
-> Version 19 just landed on the testing track, and it's a milestone: this is the final
+> Version 20 just landed on the testing track, and it's a milestone: this is the final
 > pre-launch build. Whatever you're holding after this update is what the public launch
 > will look like.
+>
+> (If you updated earlier today and got v19: update once more. Its new Add panel could
+> hide under the keyboard on some phones. One of you spotted it and sent screenshots
+> within hours, which is exactly what this group is for. Thank you.)
 >
 > What changed since last time:
 > - Adding a task is much calmer. Another day, repeating, steps: it all lives behind one
