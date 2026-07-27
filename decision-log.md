@@ -4574,3 +4574,11 @@ The first field report on the redesigned capture, hours after the v19 AAB was cu
 **Decided against:** KeyboardAvoidingView (its edge-to-edge behaviour varies by RN version and OEM; explicit listener arithmetic is inspectable and matches the app's one use case); react-native-keyboard-controller (a new native dependency the week of launch for one surface); and removing focus-on-open (the design rule was correct, the ground under it was not).
 
 **Launch consequence: v19 hands the torch to v20.** The designated pre-launch build cannot ship with its most-used surface unusable on its primary platform; the native half of this fix only exists in a new build, and it is UNVERIFIABLE off-device (the desktop preview has no virtual keyboard), so v20 needs the reporting tester's phone to confirm. Web ships now. E2E CAP-13 is the regression guard; the gotcha is in CLAUDE.md so no future bottom-anchored surface ships without a keyboard plan.
+
+## 2026-07-27 Settings shows the installed version (belongs to 8de7a35; entry landed one commit late)
+
+Born from the v19/v20 keyboard-fix confusion: a tester reported the bug persisting, Melroy asked which build he held, and the honest answer was that NOBODY could tell. Every store build shares the version name 1.0.0 (held constant while iOS sits in review), and the versionCode is invisible everywhere a user can look: not in the app, not in Android's App info, not on the Play listing. "Quadruple confirming" was structurally impossible.
+
+The fix is one quiet line at the foot of Settings, "v1.0.0 (20)" via expo-application's package-manager read (the truth of what is INSTALLED, not what the bundle believes), "v1.0.0 (web)" on web. Deliberately not a catalog string: it is an identifier, identical in every locale. First question of every future bug report, and E2E SET-11 says so.
+
+**Decided against:** exposing it anywhere louder (Settings-foot is where the curious look and the calm stays intact), and a debug screen (a one-line answer does not need a room). Cost accepted: expo-application is a new native module, so the line first exists in the NEXT build; it could not help the very confusion that created it, only every one after.
