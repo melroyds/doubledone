@@ -1,3 +1,4 @@
+import * as Application from 'expo-application';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
@@ -684,6 +685,14 @@ export default function SettingsScreen() {
           </View>
         ) : null}
         <Text style={styles.footnote}>{t('settings.footnote')}</Text>
+        {/* The installed version, with the versionCode that Play never shows the user. Every
+            store build shares the version NAME (1.0.0), so during the v19/v20 keyboard-fix
+            confusion (2026-07-27) there was literally no way for a tester to say which build
+            they held. This one quiet line ends that class of ambiguity. Not a catalog string:
+            it is an identifier, identical in every locale. */}
+        <Text style={styles.footnote}>
+          {`v${Application.nativeApplicationVersion ?? '1.0.0'} (${Application.nativeBuildVersion ?? 'web'})`}
+        </Text>
       </ScrollView>
     </View>
   );
