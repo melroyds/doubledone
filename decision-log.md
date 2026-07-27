@@ -4582,3 +4582,7 @@ Born from the v19/v20 keyboard-fix confusion: a tester reported the bug persisti
 The fix is one quiet line at the foot of Settings, "v1.0.0 (20)" via expo-application's package-manager read (the truth of what is INSTALLED, not what the bundle believes), "v1.0.0 (web)" on web. Deliberately not a catalog string: it is an identifier, identical in every locale. First question of every future bug report, and E2E SET-11 says so.
 
 **Decided against:** exposing it anywhere louder (Settings-foot is where the curious look and the calm stays intact), and a debug screen (a one-line answer does not need a room). Cost accepted: expo-application is a new native module, so the line first exists in the NEXT build; it could not help the very confusion that created it, only every one after.
+
+## 2026-07-28 The keyboard fix is device-proven; the "still broken" report was a version mirage
+
+Closing the 2026-07-26 keyboard entry: the tester's follow-up "same issue on v20" was v19 still installed (version name 1.0.0 on every build made this undetectable from the phone, exactly the ambiguity the new Settings version line exists to end). After a clean reinstall of actual v20, the capture panel rides above Gboard on his Pixel 7. CAP-13 confirmed on-device. v20 stands fully proven as the pre-launch build.
