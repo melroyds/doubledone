@@ -4586,3 +4586,18 @@ The fix is one quiet line at the foot of Settings, "v1.0.0 (20)" via expo-applic
 ## 2026-07-28 The keyboard fix is device-proven; the "still broken" report was a version mirage
 
 Closing the 2026-07-26 keyboard entry: the tester's follow-up "same issue on v20" was v19 still installed (version name 1.0.0 on every build made this undetectable from the phone, exactly the ambiguity the new Settings version line exists to end). After a clean reinstall of actual v20, the capture panel rides above Gboard on his Pixel 7. CAP-13 confirmed on-device. v20 stands fully proven as the pre-launch build.
+
+## 2026-07-28 App Review rejection: the sign-in wall before Apple IAP comes down (5.1.1(v))
+
+Apple rejected the iOS submission: an app cannot REQUIRE registration before purchasing an IAP that is not account-based. Our purchaseGate returned 'sign_in' for anonymous users, built deliberately as the double-charge guard (a web Stripe subscriber opening iOS anonymously reads as free, and Apple cannot know about the Stripe subscription). Apple's rule is absolute and their suggested pattern is ours inverted: allow the anonymous purchase, explain that signing in extends it to other devices, offer registration any time.
+
+**The plumbing was already ready.** The RevenueCat seam aliases an anonymous purchaser onto their Supabase id at sign-in (Purchases.logIn on session change), returns to anonymous on sign-out, and the webhook already refuses $RCAnonymousID rows and resolves bought-anonymous-then-signed-in via aliases. Only client POLICY blocked the anonymous path. Four moves, all on the premium branch:
+
+1. **purchaseGate drops 'sign_in'** (the enum member is deleted, so the compiler found every stale use): anonymous on iOS is 'buy'. The wait window (the double-charge guard) survives where it is honest, on the signed-in path; StoreKit itself refuses an already-owned subscription for the same-Apple-ID case.
+2. **localPremium() in the purchases seam**: the provider merges the DEVICE's RevenueCat entitlement over the server answer (add-only, iOS-only by construction; the stub returns false on web/Android). An anonymous purchaser is premium on the device that bought, immediately and across relaunches, with no server row.
+3. **The paywall's signed-out foot becomes Apple's suggested explanation** (footAnonymousIap, four locales): no account needed, sign in any time for other devices, and web subscribers should sign in first, which is the double-charge guard expressed as information now that 5.1.1 forbids it as a wall.
+4. **Restore is ungated**: the receipt lives with the Apple ID, and with the local merge an anonymous restore genuinely unlocks.
+
+**The honest cost, accepted because Apple gives no choice:** an anonymous iOS buyer who ALREADY has web Stripe Premium can now double-subscribe (the app cannot know about Stripe without an account). Mitigations: the foot line warns exactly that person, the entitlement source column means signing in later reveals both subscriptions, and the population (web subscriber, iOS, refuses to sign in, buys anyway past a warning) is small. PREM-21 (a SIGNED-IN Stripe subscriber is never charged) is unchanged and stays the most important iOS case.
+
+**Also in the rejection, resolved outside the code:** duplicate promotional images across the promoted IAPs (2.3.2); Melroy is generating two distinct Dusk-palette images (one keepsake for Monthly, a year's arc of them for Annual). E2E PREM-19/23 rewritten to the new flow. Device-proof needs the next TestFlight build.

@@ -39,4 +39,7 @@ export async function buy(_packageId: string): Promise<BuyResult> {
 export async function restore(): Promise<RestoreResult> {
   return { ok: false, premium: false, code: 'unavailable' };
 }
+export async function localPremium(): Promise<boolean> {
+  return false; // no store on web/Android: local Apple entitlement can never exist here
+}
 export async function openAppleSubscriptions(): Promise<void> {}

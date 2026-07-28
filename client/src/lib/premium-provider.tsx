@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 
 import { FREE_ENTITLEMENT, type Entitlement } from './entitlement';
 import { type DevPremium, gateEntitlement } from './premium-flag';
+import { localPremium } from './purchases';
 import { loadDevPremium, saveDevPremium } from './storage';
 import { loadEntitlement } from './stripe';
 
@@ -49,13 +50,19 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
   const [devOverride, setDevOverrideState] = useState<DevPremium>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Load (and reload on refresh) the server entitlement. `loading` starts true and flips false after
-  // the first load; a refresh does not re-toggle it, so a re-fetch never blanks the UI.
+  // Load (and reload on refresh) the server entitlement, merged with the DEVICE's Apple
+  // entitlement. The local read matters for exactly one person: an ANONYMOUS iOS purchaser
+  // (App Review 5.1.1 requires that path), who has no server row until they sign in and the
+  // RevenueCat alias lands. The server stays the source of truth whenever it says premium;
+  // the local read only ever ADDS premium (source 'apple'), never removes it. On web and
+  // Android localPremium is a compile-time false, so this is exactly the old load there.
+  // `loading` starts true and flips false after the first load; a refresh does not
+  // re-toggle it, so a re-fetch never blanks the UI.
   useEffect(() => {
     let active = true;
-    void loadEntitlement().then((e) => {
+    void Promise.all([loadEntitlement(), localPremium()]).then(([e, appleLocal]) => {
       if (!active) return;
-      setEntitlement(e);
+      setEntitlement(!e.premium && appleLocal ? { ...e, premium: true, status: 'active', source: 'apple' } : e);
       setLoading(false);
     });
     return () => {

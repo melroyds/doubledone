@@ -62,6 +62,22 @@ export async function identifyPurchaser(userId: string): Promise<void> {
   }
 }
 
+// The device's own answer: is the RevenueCat 'premium' entitlement active for the CURRENT
+// customer, anonymous included? This is the truth an ANONYMOUS Apple purchaser runs on
+// (App Review 5.1.1: registration before purchase must be optional): they have no server
+// entitlement row until they sign in and the alias lands, so the provider merges this local
+// read over the server's answer. The SDK serves a cached CustomerInfo when offline, so a
+// paid-up user is never locked out by a dead connection.
+export async function localPremium(): Promise<boolean> {
+  if (!configured) return false;
+  try {
+    const info = await Purchases.getCustomerInfo();
+    return typeof info.entitlements.active[ENTITLEMENT] !== 'undefined';
+  } catch {
+    return false; // store unreachable and no cache: fail free, never crash the provider
+  }
+}
+
 // Return the SDK to an anonymous customer on sign-out. Guarded: logOut throws if the current user
 // is already anonymous, which is not an error worth surfacing.
 export async function forgetPurchaser(): Promise<void> {

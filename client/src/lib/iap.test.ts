@@ -103,8 +103,16 @@ describe('purchaseGate (the double-charge guard)', () => {
     expect(purchaseGate({ iapAvailable: false, signedIn: false, loading: true, premium: true })).toBe('hidden');
   });
 
-  it('asks an anonymous user to sign in first', () => {
-    expect(purchaseGate({ ...base, signedIn: false })).toBe('sign_in');
+  it('lets an anonymous user buy (App Review 5.1.1: registration must be optional)', () => {
+    expect(purchaseGate({ ...base, signedIn: false })).toBe('buy');
+  });
+
+  it('still never offers a second charge to an anonymous user whose device knows it is premium', () => {
+    expect(purchaseGate({ ...base, signedIn: false, premium: true })).toBe('already_premium');
+  });
+
+  it('the wait window is a signed-in concept: anonymous has no server entitlement to wait on, and StoreKit itself refuses an already-owned subscription', () => {
+    expect(purchaseGate({ ...base, signedIn: false, loading: true })).toBe('buy');
   });
 
   it('WAITS while the entitlement is still resolving after sign-in (the double-charge window)', () => {
@@ -117,7 +125,7 @@ describe('purchaseGate (the double-charge guard)', () => {
     expect(purchaseGate({ ...base, premium: true })).toBe('already_premium');
   });
 
-  it('offers buy only when signed in, resolved, and genuinely free', () => {
+  it('offers buy when resolved and genuinely free', () => {
     expect(purchaseGate(base)).toBe('buy');
   });
 

@@ -175,17 +175,13 @@ export default function PremiumScreen() {
     }
   }
 
-  // Restore a purchase already made on this Apple ID. Gated behind sign-in for the SAME reason as
-  // Buy: an anonymous restore lands the receipt on the anonymous RevenueCat customer, the webhook
-  // refuses to write it, and the user stays free. Always shows a visible, honest outcome (Apple
-  // rejects a Restore control that appears to do nothing).
+  // Restore a purchase already made on this Apple ID. No sign-in required (App Review 5.1.1,
+  // same rule as Buy): the receipt lives with the Apple ID, and since the provider now merges
+  // the DEVICE's entitlement (localPremium), an anonymous restore genuinely unlocks Premium
+  // here and now; signing in later carries it to other devices via the RevenueCat alias.
+  // Always shows a visible, honest outcome (Apple rejects a Restore that appears to do nothing).
   async function restorePurchases() {
     if (busy) return;
-    if (!session) {
-      setRestoreMsg(t('premium.restoreSignIn'));
-      router.push('/sign-in');
-      return;
-    }
     setBusy(true);
     setError(null);
     setRestoreMsg(t('premium.restoring'));
@@ -422,18 +418,24 @@ export default function PremiumScreen() {
                   : t('premium.priceMonthly')}
             </Text>
 
-            {gate === 'sign_in' ? (
+            {/* The buy button never requires an account on iOS (App Review 5.1.1(v), 2026-07-28:
+                forced registration before a non-account IAP was rejected). 'buy' and 'wait' both
+                render the purchase button (wait = the signed-in double-charge window, disabled);
+                the Stripe platforms keep their sign-in-first flow, which Apple has no say over
+                and Stripe genuinely needs (the subscription attaches to the account). */}
+            {gate === 'buy' || gate === 'wait' ? (
               <PrimaryButton
-                label={t('premium.signInToGoPremium')}
-                onPress={() => router.push('/sign-in')}
-                accessibilityLabel={t('premium.signInToGoPremium')}
+                label={busy ? t('premium.openingCheckout') : t('premium.goPremium')}
+                onPress={subscribe}
+                disabled={busy || gate === 'wait' || !offer}
+                accessibilityLabel={plan === 'annual' ? t('premium.subscribeAnnualA11y') : t('premium.subscribeMonthlyA11y')}
                 style={styles.ctaSpace}
               />
             ) : session ? (
               <PrimaryButton
                 label={busy ? t('premium.openingCheckout') : t('premium.goPremium')}
                 onPress={subscribe}
-                disabled={busy || (IAP_AVAILABLE && !offer)}
+                disabled={busy}
                 accessibilityLabel={plan === 'annual' ? t('premium.subscribeAnnualA11y') : t('premium.subscribeMonthlyA11y')}
                 style={styles.ctaSpace}
               />
@@ -458,8 +460,16 @@ export default function PremiumScreen() {
               </Pressable>
             )}
             {trialNote ? <Text style={styles.trialNoteText}>{trialNote}</Text> : null}
+            {/* Signed-out on iOS gets Apple's suggested explanation instead of the account
+                pitch: no account is needed, signing in extends Premium to other devices, and
+                an existing web subscriber is pointed to sign in BEFORE buying (the double-charge
+                guard as information, now that 5.1.1 forbids it as a wall). */}
             <Text style={styles.foot}>
-              {session ? t('premium.footSignedIn') : t('premium.footSignedOut')}
+              {session
+                ? t('premium.footSignedIn')
+                : IAP_AVAILABLE
+                  ? t('premium.footAnonymousIap')
+                  : t('premium.footSignedOut')}
             </Text>
 
             {IAP_AVAILABLE ? (

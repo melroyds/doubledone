@@ -92,7 +92,13 @@ export function packagesToOffers(offerings: unknown): StoreOffer[] {
 // anonymously, reads as free (an anonymous client has no entitlement), and Apple cannot know about
 // the Stripe subscription. So a fresh sign-in must re-read the entitlement BEFORE the button is
 // live again, and while that read is in flight the answer is 'wait', not 'buy'.
-export type PurchaseGate = 'buy' | 'sign_in' | 'already_premium' | 'wait' | 'hidden';
+// Registration is OPTIONAL before an Apple purchase (App Review, Guideline 5.1.1(v), 2026-07-28:
+// the original signed-in-only gate was rejected). An anonymous buyer's Premium lives with their
+// Apple ID via the on-device entitlement (localPremium in the purchases seam); signing in later
+// aliases the purchase onto their account and extends it to other devices. The double-charge
+// guard survives where it can be honest: a SIGNED-IN user's entitlement is still read before the
+// button goes live, and for anonymous users the paywall says in words what the wall used to.
+export type PurchaseGate = 'buy' | 'already_premium' | 'wait' | 'hidden';
 export function purchaseGate(s: {
   iapAvailable: boolean;
   signedIn: boolean;
@@ -100,8 +106,7 @@ export function purchaseGate(s: {
   premium: boolean;
 }): PurchaseGate {
   if (!s.iapAvailable) return 'hidden'; // web + Android sell via Stripe; the store button never shows
-  if (!s.signedIn) return 'sign_in'; // sign in first, so the purchase attaches to an account (and we can read entitlement)
-  if (s.loading) return 'wait'; // entitlement still resolving after sign-in: the double-charge window, button disabled
+  if (s.signedIn && s.loading) return 'wait'; // entitlement still resolving after sign-in: the double-charge window, button disabled
   if (s.premium) return 'already_premium'; // already entitled (Stripe, Apple, trial, or comp): never charge again
-  return 'buy';
+  return 'buy'; // signed-in and resolved, OR anonymous: Apple requires the anonymous path (5.1.1)
 }
