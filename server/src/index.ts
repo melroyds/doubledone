@@ -1110,6 +1110,13 @@ const router = {
           ctx.waitUntil(
             (async () => {
               try {
+                // Create-if-missing first (the monitor's alerts_sent pattern): 14 generations
+                // once vanished into this catch because the table postdated them, which left
+                // the abuse backstop permanently open (found 2026-08-01 via the Analytics
+                // Centre reading 0). Self-healing beats a manual schema apply nobody re-runs.
+                await db
+                  .prepare('CREATE TABLE IF NOT EXISTS scrapbook_log (id integer primary key autoincrement, ip text not null, created_at integer not null)')
+                  .run();
                 await db.prepare('INSERT INTO scrapbook_log (ip, created_at) VALUES (?1, ?2)').bind(ip, Date.now()).run();
               } catch {
                 // best effort: the keepsake was made; the backstop log is non-critical

@@ -45,6 +45,7 @@ export type AnalyticsData = {
   decomposWithOutcome: number; // of those, how many reported >= 1 completed step
   stepsReported: number; // total outcome rows (each = a step completion event)
   medianDaysToFirstStep: number | null;
+  scrapbooksAllTime: number;
   scrapbooks28d: number;
   generatedAt: string;
 };
@@ -113,8 +114,8 @@ export function renderAnalyticsHtml(d: AnalyticsData): string {
 <div class="sub">${d.decomposWithOutcome} of ${d.decomposOffered} decompositions ever offered came back with a finished step · ${d.stepsReported} step completions reported${d.medianDaysToFirstStep != null ? ` · median ${d.medianDaysToFirstStep} day${d.medianDaysToFirstStep === 1 ? '' : 's'} to the first one` : ''}</div>
 
 <h2>Scrapbooks</h2>
-<div class="big">${d.scrapbooks28d}</div>
-<div class="sub">keepsakes made in the last 28 days</div>
+<div class="big">${d.scrapbooksAllTime}</div>
+<div class="sub">keepsakes ever made · ${d.scrapbooks28d} in the last 28 days</div>
 
 <h2>AI calls by day (28 days)</h2>
 <table><tr><th>day</th><th class="num">calls</th><th class="num">errors</th></tr>${dayRows || '<tr><td colspan="3">none yet</td></tr>'}</table>
@@ -176,9 +177,15 @@ export async function handleAnalytics(request: Request, env: AnalyticsEnv, nowMs
   const median = await env.DB.prepare(
     'SELECT days_elapsed AS d FROM (SELECT MIN(days_elapsed) AS days_elapsed FROM outcomes GROUP BY corr_id) ORDER BY d LIMIT 1 OFFSET (SELECT (COUNT(DISTINCT corr_id) - 1) / 2 FROM outcomes)',
   ).first<{ d: number }>();
-  const scrapbooks = await env.DB.prepare('SELECT COUNT(*) AS n FROM scrapbook_log WHERE created_at >= ?1')
-    .bind(nowMs - 28 * 86_400_000)
-    .first<{ n: number }>();
+  // Count keepsakes from ai_calls, the table that has ALWAYS recorded a generation
+  // (endpoint 'scrapbook', one row per keepsake). scrapbook_log is only the per-IP abuse
+  // backstop and postdates the first weeks of scrapbooks, so counting it read as zero
+  // for a user who had 14 (the 2026-08-01 launch-day bug).
+  const scrapbooks = await env.DB.prepare(
+    "SELECT COUNT(*) AS n, SUM(CASE WHEN created_at >= ?1 THEN 1 ELSE 0 END) AS recent FROM ai_calls WHERE endpoint = 'scrapbook' AND ok = 1",
+  )
+    .bind(cutoff28)
+    .first<{ n: number; recent: number }>();
 
   const spendMtdUsd = mtdSpend(tokens);
   const capUsd = Number(env.ANTHROPIC_MONTHLY_CAP_USD ?? '25') || 25;
@@ -196,7 +203,8 @@ export async function handleAnalytics(request: Request, env: AnalyticsEnv, nowMs
     decomposWithOutcome: withOutcome?.n ?? 0,
     stepsReported: steps?.n ?? 0,
     medianDaysToFirstStep: median?.d ?? null,
-    scrapbooks28d: scrapbooks?.n ?? 0,
+    scrapbooksAllTime: scrapbooks?.n ?? 0,
+    scrapbooks28d: scrapbooks?.recent ?? 0,
     generatedAt: nowISO.slice(0, 16).replace('T', ' ') + ' UTC',
   });
   return new Response(html, {

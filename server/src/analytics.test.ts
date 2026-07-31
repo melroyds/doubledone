@@ -15,6 +15,7 @@ function makeDb() {
     if (sql.includes('GROUP BY 1 ORDER BY 1 DESC')) return [{ day: '2026-08-01', calls: 12, errors: 1 }];
     if (sql.includes('SELECT endpoint')) return [{ endpoint: 'decompose', n: 7 }];
     if (sql.includes('SUM(COALESCE(input_tokens')) return [{ model: 'claude-haiku-4-5', in_tok: 1_000_000, out_tok: 200_000 }];
+    if (sql.includes("endpoint = 'scrapbook'")) return { n: 14, recent: 3 };
     if (sql.includes("endpoint = 'decompose'")) return { n: 10 };
     if (sql.includes('COUNT(DISTINCT o.corr_id)')) return { n: 4 };
     if (sql.includes('SELECT COUNT(*) AS n FROM outcomes')) return { n: 9 };
@@ -46,6 +47,7 @@ const DATA: AnalyticsData = {
   decomposWithOutcome: 4,
   stepsReported: 9,
   medianDaysToFirstStep: 2,
+  scrapbooksAllTime: 14,
   scrapbooks28d: 3,
   generatedAt: '2026-08-01 10:00 UTC',
 };
@@ -70,7 +72,10 @@ describe('renderAnalyticsHtml', () => {
     expect(html).toContain('$25.00 cap');
     expect(html).toContain('40%'); // 4 of 10 decompositions
     expect(html).toContain('median 2 days to the first one');
-    expect(html).toContain('keepsakes made in the last 28 days');
+    // Scrapbooks count from ai_calls (always recorded), never the late-created abuse log:
+    // the launch-day bug was a page reading 0 for a user with 14 keepsakes.
+    expect(html).toContain('keepsakes ever made');
+    expect(html).toContain('3 in the last 28 days');
     expect(html).toContain('noindex'); // never crawlable
   });
 
