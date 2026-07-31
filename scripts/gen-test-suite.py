@@ -657,6 +657,8 @@ CASES = [
     ("PREM-25", "Premium", "P2", "An Apple subscriber on the web sees 'Apple handles it', not a portal error",
      "As a user whose Premium was bought on iPhone, open the web app, go to Premium, tap Manage subscription.",
      "The app says the subscription is managed in Apple's settings on the device it was bought on. It does NOT 404 the Stripe billing portal or show 'Could not open the billing portal' (the bug the entitlement source column exists to fix).", "Both"),
+    ("ANA-01", "Analytics", "P2", "The Analytics Centre is token-gated, read-only, and answers the four questions", "",
+     "GET /admin/analytics with no token -> 401 (or 503 if ANALYTICS_TOKEN is unset: an undeployed secret is never an open page). With ?token=<secret> -> a server-rendered Dusk page showing: premium counts by store and status plus active trials (Money), month-to-date AI spend with the month-end projection against the cap (AI spend), decompositions offered vs came-back-with-a-finished-step plus the median days to the first step (The moat), and keepsakes made in 28 days (Scrapbooks). No JavaScript, cache-control no-store, x-robots-tag noindex. Covered by analytics.test.ts; re-confirm once on the deployed Worker.", "Worker"),
     ("PREM-26", "Premium", "P1", "RevenueCat webhook rejects a wrong Authorization header", "",
      "POST /rc-webhook with a wrong Authorization header returns 401 and writes nothing to D1. With no RC_WEBHOOK_AUTH configured it returns 503. (Covered by revenuecat.test.ts; re-confirm on the deployed Worker.)", "Worker"),
     ("PREM-27", "Premium", "P1", "CANCELLATION keeps Premium on; EXPIRATION ends it",

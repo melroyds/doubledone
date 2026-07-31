@@ -359,6 +359,17 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | PREM-23 | P1 | iOS | Restore works with no account at all, and always answers honestly | Tap 'Restore a purchase' while signed out, on an Apple ID WITH a prior purchase. Then signed out on an Apple ID with NO purchase. Then repeat signed in. | No sign-in is ever required (5.1.1: the receipt lives with the Apple ID, and the device's own entitlement now unlocks Premium locally). With a purchase -> 'Restored. Premium is back on.' and Premium turns on, account or not. With nothing -> 'Nothing to restore on this Apple ID...' It is NEVER a silent no-op (Apple rejects a restore that appears to do nothing). |
 | PREM-24 | P2 | iOS | Manage subscription opens Apple's sheet, not a browser | As an Apple subscriber on the iPhone, open Premium and tap Manage subscription. | Apple's own Manage Subscriptions sheet opens in-app. It never opens a browser or the Stripe portal. |
 | PREM-25 | P2 | Both | An Apple subscriber on the web sees 'Apple handles it', not a portal error | As a user whose Premium was bought on iPhone, open the web app, go to Premium, tap Manage subscription. | The app says the subscription is managed in Apple's settings on the device it was bought on. It does NOT 404 the Stripe billing portal or show 'Could not open the billing portal' (the bug the entitlement source column exists to fix). |
+
+## Analytics
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| ANA-01 | P2 | Worker | The Analytics Centre is token-gated, read-only, and answers the four questions |  | GET /admin/analytics with no token -> 401 (or 503 if ANALYTICS_TOKEN is unset: an undeployed secret is never an open page). With ?token=<secret> -> a server-rendered Dusk page showing: premium counts by store and status plus active trials (Money), month-to-date AI spend with the month-end projection against the cap (AI spend), decompositions offered vs came-back-with-a-finished-step plus the median days to the first step (The moat), and keepsakes made in 28 days (Scrapbooks). No JavaScript, cache-control no-store, x-robots-tag noindex. Covered by analytics.test.ts; re-confirm once on the deployed Worker. |
+
+## Premium
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
 | PREM-26 | P1 | Worker | RevenueCat webhook rejects a wrong Authorization header |  | POST /rc-webhook with a wrong Authorization header returns 401 and writes nothing to D1. With no RC_WEBHOOK_AUTH configured it returns 503. (Covered by revenuecat.test.ts; re-confirm on the deployed Worker.) |
 | PREM-27 | P1 | Worker | CANCELLATION keeps Premium on; EXPIRATION ends it | Trigger (or replay) a RevenueCat CANCELLATION event for a subscriber, then an EXPIRATION. | CANCELLATION leaves premium ON and the app reads 'Premium until {date}' (auto-renew off, access to period end), NOT an immediate revoke. A later EXPIRATION (with its date in the past) flips it to free and preserves the tenure start. A CUSTOMER_SUPPORT cancellation (a refund) DOES revoke immediately. (Locked by revenuecat.test.ts.) |
 | PREM-28 | P2 | Worker | A redelivered RevenueCat event is a no-op | Deliver the same RevenueCat event id twice. | The second delivery changes nothing (idempotent on the rc: namespaced event id, so it can never collide with a Stripe evt_ id). A dedup-store hiccup still writes (fail open), because the entitlement write is an idempotent upsert. |

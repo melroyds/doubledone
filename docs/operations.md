@@ -100,3 +100,22 @@ The process used for the 2026-07-12 Play release (versionCode 11), the template 
 The app declares `android.permission.SCHEDULE_EXACT_ALARM` ([`client/app.json`](../client/app.json), added 2026-07-12) so Rhythm nudges, checklist nudges and the daily reminder arrive on time instead of being deferred by Doze. On Android 12-13 the declared permission is pre-granted; on Android 14+ the user flips "Alarms & reminders" via the in-app door in the nudge-health block, and the resilience sweep re-arms everything the moment they return.
 
 If the Play Console asks for the exact-alarm declaration, the answer is: **exact alarms power user-set reminders as core functionality** (rhythms and reminders the user sets explicitly in the app). We deliberately did not take `USE_EXACT_ALARM`, which is auto-granted but Play-policy-restricted to alarm and calendar apps; a to-do app leaning on it invites a rejection.
+
+## The Analytics Centre (added 2026-08-01)
+
+**`GET https://api.doubledone.app/admin/analytics?token=<ANALYTICS_TOKEN>`** — the owner's
+morning glance, bookmarkable on a phone. Token-gated (the `ANALYTICS_TOKEN` Worker secret,
+same shared-secret posture as the RevenueCat webhook), read-only, no-store, noindex,
+server-rendered from D1 with no client involvement. Four sections: **Money** (premium by
+store/status + active trials), **AI spend** (month-to-date vs the cap, with the month-end
+projection and the 7-day endpoint mix), **The moat** (decompositions offered vs
+came-back-with-a-finished-step, median days to the first step), **Scrapbooks** (28-day count).
+
+Set or rotate the token (pick any long random string; it lives only in the Worker and your bookmark):
+
+    npm exec -w server -- wrangler secret put ANALYTICS_TOKEN
+
+Unset, the page answers 503, never an open dashboard. Stripe and RevenueCat's own dashboards
+remain the deep-dive for money; Play Console and App Store Connect for installs. The parked
+next tier (a real sink for the client's console-only `track()` events, likely Workers
+Analytics Engine, counts-only and id-free) is a product decision recorded in the decision log.

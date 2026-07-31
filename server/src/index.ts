@@ -25,6 +25,7 @@ import { buildSequenceRequest, parseEnergy, parseSequenceResponse, SEQUENCE_MODE
 import { buildSplitRequest, parseSplitResponse, SPLIT_MODEL } from './split';
 import { buildTinyRequest, parseTinyResponse, TINY_MODEL } from './tiny';
 import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
+import { handleAnalytics } from './analytics';
 import { handleRcWebhook } from './revenuecat';
 import { handleReviewCode, handleReviewEmail } from './review-otp';
 import { handleCheckout, handleEntitlement, handlePortal, handleWebhook } from './stripe';
@@ -97,6 +98,9 @@ export interface Env {
   // secret). Both drive the hourly health sweep + daily pulse on the cron below.
   ANTHROPIC_MONTHLY_CAP_USD?: string;
   HEARTBEAT_URL?: string;
+  // The Analytics Centre (see analytics.ts): the shared secret gating the owner's
+  // read-only /admin/analytics page. A Worker secret; unset = the page answers 503.
+  ANALYTICS_TOKEN?: string;
   // MCP OAuth (the connect-by-URL path for claude.ai / Cowork / ChatGPT; see oauth.ts).
   // OAUTH_KV is the provider library's store (client registrations, grants, token
   // HASHES and encrypted props only, never a raw secret). OTP_LIMITER rate-limits the
@@ -191,6 +195,14 @@ const router = {
     // Email Routing rule for the review address exists. See review-otp.ts for the posture.
     if (pathname === '/review-code' && request.method === 'GET') {
       return handleReviewCode(env.DB, Date.now());
+    }
+
+    // The Analytics Centre: the owner's token-gated, read-only morning glance over D1's
+    // existing aggregates (money, AI spend vs cap, the moat's flywheel, scrapbooks). No
+    // Origin gate (it is opened from a phone bookmark); the shared secret is the auth,
+    // same posture as /rc-webhook. See analytics.ts.
+    if (pathname === '/admin/analytics' && request.method === 'GET') {
+      return handleAnalytics(request, env, Date.now());
     }
 
     if (request.method === 'OPTIONS') {
