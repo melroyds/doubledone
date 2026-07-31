@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -147,6 +147,31 @@ export default function Landing() {
           <Text style={styles.closingLine}>{t('welcome.closingLine')}</Text>
           <PrimaryButton label={t('common.begin')} onPress={begin} accessibilityLabel={t('welcome.beginA11y')} />
           <Text style={styles.trust}>{t('welcome.trustLine')}</Text>
+          {/* The stores (launched worldwide 2026-07-31). Official badge artwork, per both brand
+              guidelines; the country-less links open each visitor's own storefront in their own
+              language. This page is unreachable on native (the redirect above), so the Play badge
+              can never appear inside the iOS app, which App Review would reject. */}
+          <View style={styles.storeRow}>
+            <Pressable
+              onPress={() => Linking.openURL('https://apps.apple.com/app/doubledone/id6790136615')}
+              accessibilityRole="link"
+              accessibilityLabel={t('welcome.appStoreBadgeA11y')}
+              style={({ pressed }) => [pressed && styles.badgePressed]}
+            >
+              <Image source={require('../../assets/store/app-store-badge.svg')} style={styles.appStoreBadge} resizeMode="contain" />
+            </Pressable>
+            <Pressable
+              onPress={() => Linking.openURL('https://play.google.com/store/apps/details?id=app.doubledone')}
+              accessibilityRole="link"
+              accessibilityLabel={t('welcome.playBadgeA11y')}
+              style={({ pressed }) => [pressed && styles.badgePressed]}
+            >
+              <Image source={require('../../assets/store/google-play-badge.png')} style={styles.playBadge} resizeMode="contain" />
+            </Pressable>
+          </View>
+          {/* Google's badge licence requires this attribution; it stays English in every locale
+              (a trademark statement, like the legal pages, not UI copy). */}
+          <Text style={styles.storeFine}>Google Play and the Google Play logo are trademarks of Google LLC.</Text>
         </View>
 
         {/* footer */}
@@ -247,6 +272,13 @@ const makeStyles = (t: Theme) => {
 
     // closing
     closing: { marginTop: spacing.six, marginBottom: spacing.six },
+    // The store badges: Apple's SVG is exactly its artwork; Google's generic PNG carries
+    // built-in padding, so it renders slightly taller for equal VISUAL height in the row.
+    storeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.three, alignItems: 'center', justifyContent: 'center', marginTop: spacing.five },
+    appStoreBadge: { width: 144, height: 48 },
+    playBadge: { width: 140, height: 54 },
+    badgePressed: { opacity: 0.7 },
+    storeFine: { color: t.colors.inkFaint, fontSize: 11 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.three },
     closingLine: { color: t.colors.ink, fontSize: 30 * t.scale, lineHeight: 36 * t.scale, fontFamily: fonts.sans, fontWeight: '600', textAlign: 'center', marginBottom: spacing.five },
 
     // footer

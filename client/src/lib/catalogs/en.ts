@@ -887,6 +887,7 @@ export const en = {
     },
   },
   welcome: {
+    appStoreBadgeA11y: 'Download DoubleDone on the App Store',
     back: '‹ Back',
     backA11y: 'Back one screen',
     beginA11y: 'Begin, open DoubleDone',
@@ -917,6 +918,7 @@ export const en = {
     keepLead3: 'Did something that was never on your list? Log it too. It still counts.',
     keepScrapbook: 'And once a month, free, you can turn a finished week into a small keepsake image.',
     kicker: 'for when the list is too much',
+    playBadgeA11y: 'Get DoubleDone on Google Play',
     reminderOffer: 'Want one gentle nudge a day to come back? You can change or stop it any time in Settings.',
     reminderOn: "That's set. One quiet nudge a day.",
     reminderNoThanks: 'No thanks',

@@ -882,6 +882,7 @@ export const fr: Catalog = {
     },
   },
   welcome: {
+    appStoreBadgeA11y: "Télécharge DoubleDone sur l'App Store",
     back: '‹ Retour',
     backA11y: "Revenir à l'écran précédent",
     beginA11y: 'Commencer, ouvrir DoubleDone',
@@ -912,6 +913,7 @@ export const fr: Catalog = {
     keepLead3: "Tu as fait un truc qui n'était même pas sur ta liste ? Note-le aussi. Ça compte quand même.",
     keepScrapbook: 'Et une fois par mois, gratuitement, tu peux transformer une semaine terminée en une petite image souvenir.',
     kicker: "pour quand la liste, c'est trop",
+    playBadgeA11y: 'Obtiens DoubleDone sur Google Play',
     reminderOffer: "Envie d'un rappel doux par jour pour revenir ? Vous pouvez le modifier ou l'arrêter à tout moment dans Réglages.",
     reminderOn: "C'est réglé. Un rappel tranquille par jour.",
     reminderNoThanks: 'Non merci',

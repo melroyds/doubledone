@@ -360,6 +360,12 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | PREM-24 | P2 | iOS | Manage subscription opens Apple's sheet, not a browser | As an Apple subscriber on the iPhone, open Premium and tap Manage subscription. | Apple's own Manage Subscriptions sheet opens in-app. It never opens a browser or the Stripe portal. |
 | PREM-25 | P2 | Both | An Apple subscriber on the web sees 'Apple handles it', not a portal error | As a user whose Premium was bought on iPhone, open the web app, go to Premium, tap Manage subscription. | The app says the subscription is managed in Apple's settings on the device it was bought on. It does NOT 404 the Stripe billing portal or show 'Could not open the billing portal' (the bug the entitlement source column exists to fix). |
 
+## Web landing
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| WEB-02 | P2 | Web | The landing page carries both store badges, web only | As a fresh (not-onboarded) web visitor open doubledone.app and scroll to the closing section. Tap each badge. Also open the app on Android and iOS and confirm the landing never appears there. | Official 'Download on the App Store' and 'Get it on Google Play' badges sit under the Begin button, visually equal in the row, with the Google-required trademark line in small print beneath. Each opens the correct store listing (country-less links, so every visitor lands on their own storefront in their own language). On native the landing redirects to Today before rendering, so the Play badge can never appear inside the iOS app (App Review would reject it). Screen readers hear the localised badge labels. |
+
 ## Analytics
 
 | ID | Pri | Platform | Test | Steps | Expected |
