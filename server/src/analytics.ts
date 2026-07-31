@@ -167,9 +167,13 @@ export async function handleAnalytics(request: Request, env: AnalyticsEnv, nowMs
       .bind(monthStart)
       .all<ModelTokens>()
   ).results;
-  const offered = await env.DB.prepare(
-    "SELECT COUNT(*) AS n FROM ai_calls WHERE endpoint = 'decompose' AND corr_id IS NOT NULL",
-  ).first<{ n: number }>();
+  // An offered decomposition IS a row that got a flywheel id, whatever its endpoint is
+  // called this month: the flow renamed decompose -> plan and the endpoint-name filter
+  // made the page read 0 offered against 17 returned, an impossible flywheel (the second
+  // launch-day miscount, 2026-08-01). Counting by the id can never break on a rename.
+  const offered = await env.DB.prepare('SELECT COUNT(*) AS n FROM ai_calls WHERE corr_id IS NOT NULL').first<{
+    n: number;
+  }>();
   const withOutcome = await env.DB.prepare(
     "SELECT COUNT(DISTINCT o.corr_id) AS n FROM outcomes o JOIN ai_calls a ON a.corr_id = o.corr_id",
   ).first<{ n: number }>();

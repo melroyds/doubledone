@@ -16,7 +16,8 @@ function makeDb() {
     if (sql.includes('SELECT endpoint')) return [{ endpoint: 'decompose', n: 7 }];
     if (sql.includes('SUM(COALESCE(input_tokens')) return [{ model: 'claude-haiku-4-5', in_tok: 1_000_000, out_tok: 200_000 }];
     if (sql.includes("endpoint = 'scrapbook'")) return { n: 14, recent: 3 };
-    if (sql.includes("endpoint = 'decompose'")) return { n: 10 };
+    // Offered = rows with a flywheel id, endpoint-agnostic (the decompose->plan rename bug).
+    if (sql.includes('WHERE corr_id IS NOT NULL')) return { n: 10 };
     if (sql.includes('COUNT(DISTINCT o.corr_id)')) return { n: 4 };
     if (sql.includes('SELECT COUNT(*) AS n FROM outcomes')) return { n: 9 };
     if (sql.includes('days_elapsed')) return { d: 2 };
