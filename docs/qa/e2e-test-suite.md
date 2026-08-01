@@ -360,6 +360,20 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | PREM-24 | P2 | iOS | Manage subscription opens Apple's sheet, not a browser | As an Apple subscriber on the iPhone, open Premium and tap Manage subscription. | Apple's own Manage Subscriptions sheet opens in-app. It never opens a browser or the Stripe portal. |
 | PREM-25 | P2 | Both | An Apple subscriber on the web sees 'Apple handles it', not a portal error | As a user whose Premium was bought on iPhone, open the web app, go to Premium, tap Manage subscription. | The app says the subscription is managed in Apple's settings on the device it was bought on. It does NOT 404 the Stripe billing portal or show 'Could not open the billing portal' (the bug the entitlement source column exists to fix). |
 
+## Settle
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| SETL-01 | P1 | Both | The breathing room: rhythm, words, and the never-rules | Open the day tools and tap Settle. Sit with it for a full minute. Toggle the guide pill off and wait ~90 seconds. Leave. Re-enter. | The room holds ONLY: Leave (top-left), the breathing blob, one word slot, and the guide pill. NO title, NO timer or duration anywhere, NO stats, NO paywall or lock (free, unlimited, forever). The blob swells ~4s, holds ~1.5s, settles ~6.5s, on a loop; guide ON shows the three literal words in phase ('in, gently…' / 'rest here' / 'slowly out…'). Guide OFF: words stop, and at most one affirmation appears every 60-90s, fading in over ~3s and gone within 12, never stacking, never praising. The toggle is REMEMBERED across visits. Leaving fades out on the out-breath (≤800ms) with 'Today is where you left it.', then Today exactly as left: no summary, no toast. |
+| SETL-02 | P1 | Both | Settle's two doors: the tools panel and the wind-down evening line | Open the day-tools caret at any hour and read the order. Then after ~19:00, look under the wind-down line. Also check with AI off. | The panel order is fixed forever: Plan my day, Focus on one thing, Lighten today, Settle, Close the day (AI off: Focus, Settle, Close). Settle renders as plainly as its neighbours, is NEVER the 'Right now' occupant at any hour, is never gated or locked, and the app NEVER opens it by itself. In the evening one soft italic line sits under the wind-down text ('If today is still loud, there's room to settle first.') and opens the room. |
+| SETL-03 | P2 | Both | The haptic breath and the reduce-motion room (device only) | On a phone, enter Settle and hold the phone: feel for one light tap at the swell and two tiny taps ~300ms apart at the settle, nothing during the still. Turn the phone face-down and keep feeling. Then enable OS reduce-motion and re-enter. | The haptic breath marks the phases and keeps working face-down and after the screen dims (no keep-awake, deliberately). Under reduce-motion the blob's GEOMETRY holds still and only its warmth breathes (or the room sits fully still), while the haptics and guide words carry the whole rhythm: the reduce-motion room is a designed variant, not a broken one. This is the ONE surface whose haptics do not silence under reduce-motion, by design. |
+
+## What's new
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| WN-01 | P2 | Both | The What's New card: once per announcement, never a modal, never to a fresh install | On an existing (onboarded) install after an update that bumps the announcement id, open Today. Tap Got it. Reopen the app. Separately: complete onboarding on a FRESH install and check Today. | A calm dismissible card in the coachmark's shape sits at the top of Today (NEVER a launch modal, never blocking capture): a small WHAT'S NEW title and one or two short lines. 'Got it' retires that announcement id forever (survives reload). A fresh install NEVER sees the card (onboarding stamps the current id: their whole app is new). A release with nothing user-visible bumps no id and shows nothing. |
+
 ## Web landing
 
 | ID | Pri | Platform | Test | Steps | Expected |

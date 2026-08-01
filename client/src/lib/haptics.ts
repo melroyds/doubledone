@@ -40,3 +40,24 @@ export function scrapbookReady(reduced: boolean): void {
 export function stepsLanded(reduced: boolean): void {
   fire(reduced, () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
 }
+
+// --- Settle, the breathing room -------------------------------------------------------
+// The ONE deliberate exception to this file's reduced-motion silence: in the room, the
+// haptic IS the rhythm carrier, and under reduce-motion (blob still or opacity-only) it
+// carries MORE of the breath, not less (the Settle handoff's explicit design). These two
+// cues therefore take no `reduced` flag at all. They also work face-down and with the
+// screen dimmed, which is the point.
+
+/** Swell onset: one light tap, the in-breath's beginning. */
+export function settleBreathIn(): void {
+  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+}
+
+/** Settle onset: two tiny selections 300ms apart, the long out-breath's start. Then silence
+ *  (the still phase is marked by nothing: stillness is the cue). */
+export function settleBreathOut(): void {
+  void Haptics.selectionAsync().catch(() => {});
+  setTimeout(() => {
+    void Haptics.selectionAsync().catch(() => {});
+  }, 300);
+}

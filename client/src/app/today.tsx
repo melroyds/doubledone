@@ -40,6 +40,7 @@ import { canMatchEnergy, recordEnergyUse, shouldWarnEnergy } from '@/lib/energy'
 import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
 import { weekStartISO, weekTitles } from '@/lib/scrapbook';
+import { shouldShowWhatsNew, WHATS_NEW } from '@/lib/whats-new';
 import { celebrationTier, doneAffirmation, finishContext } from '@/lib/celebrate';
 import { combineTasks, eligibleForCombine } from '@/lib/combine';
 import { aiErrorLine } from '@/lib/connection';
@@ -58,7 +59,7 @@ import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge }
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderHour, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOfferMade, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
+import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderHour, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOfferMade, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
 import { restedOffer } from '@/lib/offers';
 import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/plan-day';
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
@@ -167,6 +168,7 @@ export default function TodayScreen() {
   const [widgetPlaced, setWidgetPlaced] = useState(true);
   const [scrapbookOfferMade, setScrapbookOfferMade] = useState(true); // default true: never flash the ask
   const [scrapbookMade, setScrapbookMade] = useState(true);
+  const [showWhatsNew, setShowWhatsNew] = useState(false); // default false: never flash the card
   // The keyboard's current height. The OS gives us NOTHING here: SDK 5x Android is
   // edge-to-edge, which IGNORES adjustResize, so the keyboard overlays the window and a
   // bottom-anchored panel simply vanishes under it (tester screenshots, 2026-07-26). The
@@ -281,6 +283,11 @@ export default function TodayScreen() {
     // Whether they have EVER made a scrapbook: someone who has needs no introduction to it.
     void loadScrapbooks().then((books) => {
       if (active) setScrapbookMade(books.length > 0);
+    });
+    // What's New: content-keyed, once per announcement, never to a fresh install (onboarding
+    // stamps the current id, so only a device that predates the announcement sees it).
+    void Promise.all([loadWhatsNewSeen(), loadOnboarded()]).then(([seen, onboarded]) => {
+      if (active) setShowWhatsNew(shouldShowWhatsNew(seen, onboarded));
     });
     // Asks the launcher whether a DoubleDone widget is actually on the home screen, so someone who
     // already has one is never offered it. No-ops to "placed" on web and on any error.
@@ -521,7 +528,9 @@ export default function TodayScreen() {
         ? t('today.focusOne')
         : tool === 'lighten'
           ? t('actions.lightenToday')
-          : t('today.closeTheDay');
+          : tool === 'settle'
+            ? t('today.toolSettle')
+            : t('today.closeTheDay');
 
   // When a task leaves the active-today state (done, removed, deferred), cancel any pending
   // nudge and strip its fields, so you are never poked about something already handled.
@@ -967,6 +976,7 @@ export default function TodayScreen() {
     if (tool === 'plan') openPlanAsk();
     else if (tool === 'focus') openFocus();
     else if (tool === 'lighten') void runStrategise();
+    else if (tool === 'settle') router.push('/settle');
     else openClose();
   }
 
@@ -1057,6 +1067,12 @@ export default function TodayScreen() {
     void saveWidgetOfferMade();
     track('widget.offer_declined');
   }
+  function dismissWhatsNew() {
+    setShowWhatsNew(false);
+    void saveWhatsNewSeen(WHATS_NEW.id);
+    track('whatsnew.dismissed', { id: WHATS_NEW.id });
+  }
+
   // The scrapbook mention (the ladder's LAST rung): the free monthly keepsake was advertised
   // nowhere but the premium page, so it is introduced once, at the earned moment the week
   // could already be one. "Yes" is just a door to the Calendar, where the scrapbook lives.
@@ -1803,6 +1819,24 @@ export default function TodayScreen() {
             in the fixed action layer at the thumb, as the 11:00-17:00 occupant and always in the
             caret panel. Energy matching stays INSIDE Focus mode's "Which one?" picker (Melroy's
             call, launch week): choosing what to focus on is the moment the question makes sense. */}
+        {/* What's New: content-keyed (never build-keyed), shown once per announcement id, a calm
+            dismissible card in the hold-hint's shape. NEVER a modal: a launch popup would steal
+            the open-to-capture moment. Fresh installs never see it (onboarding stamps the id). */}
+        {showWhatsNew && (
+          <View style={styles.holdHint}>
+            <View style={styles.whatsNewBody}>
+              <Text style={styles.whatsNewTitle}>{t(WHATS_NEW.titleKey)}</Text>
+              {WHATS_NEW.lineKeys.map((k) => (
+                <Text key={k} style={styles.holdHintText}>
+                  {t(k)}
+                </Text>
+              ))}
+            </View>
+            <Pressable onPress={dismissWhatsNew} accessibilityRole="button" accessibilityLabel={t('common.gotIt')} hitSlop={8}>
+              <Text style={styles.holdHintDismiss}>{t('common.gotIt')}</Text>
+            </Pressable>
+          </View>
+        )}
         {!holdHintSeen && visible.length > 0 && (
           // The long-press is the only door to half the app (pin / remind / combine / make-it-tiny / bulk).
           // A one-time, dismissible coachmark teaches it, so a first-timer never misses the rescue tools.
@@ -2123,7 +2157,14 @@ export default function TodayScreen() {
               italic breath under capture, saying the one thing the hour actually calls for. It is
               no longer a separate element in the pile (the constant frame took the pile away). */}
           {windDown && !isClosed ? (
-            <Text style={styles.windDown}>{t('closeDay.windDown')}</Text>
+            <>
+              <Text style={styles.windDown}>{t('closeDay.windDown')}</Text>
+              {/* The Settle handoff's second door: one soft line on the evening surface. A
+                  pressable sentence, not a button; the room is offered, never prescribed. */}
+              <Pressable onPress={() => router.push('/settle')} accessibilityRole="button" accessibilityLabel={t('today.toolSettle')} hitSlop={8}>
+                <Text style={styles.windDownSettle}>{t('today.windDownSettle')}</Text>
+              </Pressable>
+            </>
           ) : (
             <RotatingPhrase />
           )}
@@ -3084,6 +3125,11 @@ const makeStyles = (t: Theme) =>
     toolHintLine: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two },
     toolsScrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(0, 0, 0, 0.4)' },
     windDown: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+    // The evening door to Settle: a soft pressable sentence under the wind-down line.
+    windDownSettle: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, fontStyle: 'italic', textAlign: 'center', marginTop: spacing.one },
+    // What's New: the hold-hint card's shape with a small title over its lines.
+    whatsNewBody: { flex: 1, gap: spacing.one },
+    whatsNewTitle: { color: t.colors.inkFaint, fontSize: 11 * t.scale, fontFamily: fonts.body, fontWeight: '600', letterSpacing: 1.2, textTransform: 'uppercase' },
     rested: { alignItems: 'center', gap: spacing.three, paddingTop: spacing.five, paddingBottom: spacing.four },
     restedArt: {
       width: '100%',

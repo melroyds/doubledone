@@ -22,6 +22,8 @@ const SYNCOK_KEY = 'doubledone.syncok.v1'; // result of the last sync attempt, s
 const REMINDEROFFER_KEY = 'doubledone.reminderoffer.v1'; // one-time "offer the reminder after the first close-day"
 const WIDGETOFFER_KEY = 'doubledone.widgetoffer.v1'; // one-time "offer the home-screen widget" on the rested screen
 const SCRAPBOOKOFFER_KEY = 'doubledone.scrapbookoffer.v1'; // one-time "your week could be a keepsake" mention, the ladder's last rung
+const SETTLEGUIDE_KEY = 'doubledone.settleguide.v1'; // the breathing room's ONE remembered toggle (never a settings screen)
+const WHATSNEW_KEY = 'doubledone.whatsnew.v1'; // the last What's New content id this device has seen
 const REMINDERHOUR_KEY = 'doubledone.reminderhour.v1'; // the hour (0-23) the daily reminder fires; default 9am
 const DEV_PREMIUM_KEY = 'doubledone.devPremium.v1'; // DEV/preview only: the premium-flag override (see premium-flag.ts)
 const ENERGY_USES_KEY = 'doubledone.energyUses.v1'; // energy-match use timestamps (the freemium meter, see lib/energy.ts)
@@ -410,6 +412,44 @@ export async function loadScrapbookOfferMade(): Promise<boolean> {
 export async function saveScrapbookOfferMade(): Promise<void> {
   try {
     await AsyncStorage.setItem(SCRAPBOOKOFFER_KEY, 'yes');
+  } catch {
+    // best effort
+  }
+}
+
+/** The Settle room's breathing-guide toggle. Defaults ON: the first visit teaches the rhythm,
+ *  and the person who needs no teaching turns it off exactly once, forever. */
+export async function loadSettleGuide(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(SETTLEGUIDE_KEY)) !== 'off';
+  } catch {
+    return true;
+  }
+}
+
+export async function saveSettleGuide(on: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(SETTLEGUIDE_KEY, on ? 'on' : 'off');
+  } catch {
+    // best effort
+  }
+}
+
+/** The last What's New content id seen on this device, or null if never recorded (a device
+ *  from before the feature existed, or a fresh install before onboarding stamps it). */
+export async function loadWhatsNewSeen(): Promise<number | null> {
+  try {
+    const raw = await AsyncStorage.getItem(WHATSNEW_KEY);
+    const n = raw == null ? NaN : Number(raw);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveWhatsNewSeen(id: number): Promise<void> {
+  try {
+    await AsyncStorage.setItem(WHATSNEW_KEY, String(id));
   } catch {
     // best effort
   }

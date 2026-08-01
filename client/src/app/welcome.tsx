@@ -9,7 +9,8 @@ import { triage } from '@/lib/ai';
 import { t } from '@/lib/locale';
 import { enableDailyReminder } from '@/lib/reminders';
 import { reminderReasonLine } from '@/lib/reminders-types';
-import { loadReminderHour, loadReminderOfferMade, loadTasks, saveOnboarded, saveReminderOfferMade, saveReminderOn, saveTasks } from '@/lib/storage';
+import { loadReminderHour, loadReminderOfferMade, loadTasks, saveOnboarded, saveReminderOfferMade, saveReminderOn, saveTasks, saveWhatsNewSeen } from '@/lib/storage';
+import { WHATS_NEW } from '@/lib/whats-new';
 import { makeId, type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
 import { useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -151,6 +152,9 @@ export default function WelcomeScreen() {
     } else {
       await saveTasks(revealed);
       await saveOnboarded(true);
+      // A fresh install's whole app is new: stamp the current What's New id so the card
+      // only ever greets devices that predate an announcement, never a first-run.
+      await saveWhatsNewSeen(WHATS_NEW.id);
     }
     track('welcome.completed', { total: revealed.length, replay: isReplay });
   }

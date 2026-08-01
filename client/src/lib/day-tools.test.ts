@@ -3,15 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { DAY_TOOL_ORDER, dayTools, occupantTool, planEnergyFromDay, toolGate } from './day-tools';
 
 describe('dayTools', () => {
-  it('is the same four, in day order, with AI on', () => {
-    expect(dayTools(true)).toEqual(['plan', 'focus', 'lighten', 'close']);
+  it('is the same five, in day order, with AI on (Settle joined 2026-08-01, between Lighten and Close)', () => {
+    expect(dayTools(true)).toEqual(['plan', 'focus', 'lighten', 'settle', 'close']);
     expect(dayTools(true)).toEqual([...DAY_TOOL_ORDER]);
   });
 
   // With AI off the AI tools are GONE, not quiet: a permanently-unavailable tool would be an ad
   // for a feature the person switched off, and the rest of the app already hides AI affordances.
-  it('drops the AI tools entirely when AI is off', () => {
-    expect(dayTools(false)).toEqual(['focus', 'close']);
+  // Settle stays: the breathing room is not AI and never gates on anything.
+  it('drops the AI tools entirely when AI is off, keeping Settle', () => {
+    expect(dayTools(false)).toEqual(['focus', 'settle', 'close']);
   });
 });
 
@@ -79,5 +80,19 @@ describe('planEnergyFromDay (the pill answers the sheet, so nobody is asked twic
     expect(planEnergyFromDay('low')).toBe('low');
     expect(planEnergyFromDay('normal')).toBe('medium');
     expect(planEnergyFromDay('high')).toBe('good');
+  });
+});
+
+describe('settle (the breathing room)', () => {
+  it('is never gated: no task count, no condition, no premium', () => {
+    expect(toolGate('settle', { openCount: 0, heavy: false })).toEqual({ available: true });
+    expect(toolGate('settle', { openCount: 50, heavy: true })).toEqual({ available: true });
+  });
+
+  it('never occupies the Right-now slot, at any hour (it waits in the panel, like Lighten)', () => {
+    for (let h = 0; h < 24; h++) {
+      expect(occupantTool(h, true)).not.toBe('settle');
+      expect(occupantTool(h, false)).not.toBe('settle');
+    }
   });
 });

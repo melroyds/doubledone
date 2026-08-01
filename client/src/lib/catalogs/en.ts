@@ -656,6 +656,22 @@ export const en = {
     turnAiOnLink: 'Turn AI on ›',
     yourDataLabel: 'Your data',
   },
+  settle: {
+    aff1: "you don't have to earn rest.",
+    aff2: 'nothing is being measured.',
+    aff3: 'the list will keep.',
+    aff4: "you're allowed to take this long.",
+    guideIn: 'in, gently…',
+    guideOut: 'slowly out…',
+    guidePillOff: 'guide · off',
+    guidePillOffA11y: 'Breathing guide is off. Tap to turn it on.',
+    guidePillOn: 'guide · on',
+    guidePillOnA11y: 'Breathing guide is on. Tap to turn it off.',
+    guideRest: 'rest here',
+    leave: 'Leave',
+    leaveA11y: 'Leave the room and return to Today',
+    leavingLine: 'Today is where you left it.',
+  },
   signIn: {
     codeA11y: 'Code from your email',
     codeInvalid: 'That code did not work. Check it, or send a new one.',
@@ -761,6 +777,7 @@ export const en = {
     scrapbookOffer: "You've finished enough this week to make a keepsake of it. It's waiting in your Calendar.",
     scrapbookOfferGo: 'See your Calendar',
     tinyHint: 'the first step',
+    toolSettle: 'Settle',
     weightHint: 'weight',
     pinHint: 'hold at top',
     stepsOf: '{done} of {total}',
@@ -877,6 +894,7 @@ export const en = {
     unpinnedAffirm: 'Unpinned.',
     useOrder: 'Use this order',
     useSpread: 'Use this spread',
+    windDownSettle: "If today is still loud, there's room to settle first.",
   },
   triage: {
     summary: {
@@ -983,6 +1001,11 @@ export const en = {
     tagline: 'A calmer kind of to-do.',
     todayMockA11y: 'The Today screen: two finished tasks, Call the pharmacy and Reply to Dana, and one still to do, Start the tax folder. The rest is waiting calmly for later.',
     trustLine: 'Free. No account needed. Works offline.',
+  },
+  whatsnew: {
+    line1: 'Settle: a breathing room, under the day tools. Free, always.',
+    line2: 'On a free trial? You can now choose the annual plan when you convert.',
+    title: "What's new",
   },
   widget: {
     allDoneForToday: 'All done for today.',

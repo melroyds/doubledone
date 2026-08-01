@@ -13,3 +13,7 @@ export function dayCleared(reduced: boolean): void {}
 export function scrapbookReady(reduced: boolean): void {}
 /** No-op on web. */
 export function stepsLanded(reduced: boolean): void {}
+/** No-op on web (the Settle room's in-breath cue). */
+export function settleBreathIn(): void {}
+/** No-op on web (the Settle room's out-breath cue). */
+export function settleBreathOut(): void {}

@@ -652,6 +652,22 @@ export const it: Catalog = {
     turnAiOnLink: "Attiva l'AI ›",
     yourDataLabel: 'I tuoi dati',
   },
+  settle: {
+    aff1: 'il riposo non va guadagnato.',
+    aff2: 'qui non si misura niente.',
+    aff3: 'la lista sa aspettare.',
+    aff4: 'puoi metterci tutto il tempo che serve.',
+    guideIn: 'dentro, piano…',
+    guideOut: 'fuori, lentamente…',
+    guidePillOff: 'guida · no',
+    guidePillOffA11y: 'La guida al respiro è spenta. Tocca per accenderla.',
+    guidePillOn: 'guida · sì',
+    guidePillOnA11y: 'La guida al respiro è accesa. Tocca per spegnerla.',
+    guideRest: 'riposa qui',
+    leave: 'Esci',
+    leaveA11y: 'Esci dalla stanza e torna a Oggi',
+    leavingLine: 'Oggi è dove lo hai lasciato.',
+  },
   signIn: {
     codeA11y: 'Codice ricevuto per email',
     codeInvalid: 'Quel codice non ha funzionato. Controllalo, o fattene mandare uno nuovo.',
@@ -757,6 +773,7 @@ export const it: Catalog = {
     scrapbookOffer: 'Questa settimana hai finito abbastanza da farne un ricordo. Ti aspetta nel tuo Calendario.',
     scrapbookOfferGo: 'Vedi il tuo Calendario',
     tinyHint: 'il primo passo',
+    toolSettle: 'Settle',
     weightHint: 'peso',
     pinHint: 'tieni in alto',
     stepsOf: '{done} di {total}',
@@ -872,6 +889,7 @@ export const it: Catalog = {
     unpinnedAffirm: 'Non è più fissata.',
     useOrder: "Usa quest'ordine",
     useSpread: 'Usa questa distribuzione',
+    windDownSettle: 'Se oggi fa ancora rumore, c\'è una stanza dove calmarsi prima.',
   },
   triage: {
     summary: {
@@ -978,6 +996,11 @@ export const it: Catalog = {
     tagline: 'Le cose da fare, con più calma.',
     todayMockA11y: 'La schermata Oggi: due attività finite, Chiama la farmacia e Rispondi a Dana, e una ancora da fare, Metti insieme i documenti delle tasse. Il resto aspetta con calma, per dopo.',
     trustLine: 'Gratis. Nessun account. Funziona offline.',
+  },
+  whatsnew: {
+    line1: 'Settle: una stanza per respirare, tra gli strumenti del giorno. Gratis, per sempre.',
+    line2: 'Sei in prova? Ora puoi scegliere il piano annuale quando ti abboni.',
+    title: 'Novità',
   },
   widget: {
     allDoneForToday: 'Tutto fatto per oggi.',

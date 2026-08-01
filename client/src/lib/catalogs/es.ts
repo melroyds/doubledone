@@ -652,6 +652,22 @@ export const es: Catalog = {
     turnAiOnLink: 'Activar la IA ›',
     yourDataLabel: 'Tus datos',
   },
+  settle: {
+    aff1: 'no tienes que ganarte el descanso.',
+    aff2: 'aquí no se mide nada.',
+    aff3: 'la lista sabe esperar.',
+    aff4: 'puedes tardar lo que necesites.',
+    guideIn: 'entra, suave…',
+    guideOut: 'sale, despacio…',
+    guidePillOff: 'guía · no',
+    guidePillOffA11y: 'La guía de respiración está apagada. Toca para encenderla.',
+    guidePillOn: 'guía · sí',
+    guidePillOnA11y: 'La guía de respiración está encendida. Toca para apagarla.',
+    guideRest: 'descansa aquí',
+    leave: 'Salir',
+    leaveA11y: 'Salir de la sala y volver a Hoy',
+    leavingLine: 'Hoy está donde lo dejaste.',
+  },
   signIn: {
     codeA11y: 'Código de tu correo',
     codeInvalid: 'Ese código no funcionó. Revísalo o pide uno nuevo.',
@@ -757,6 +773,7 @@ export const es: Catalog = {
     scrapbookOffer: 'Ya has terminado suficiente esta semana como para crear un recuerdo. Te espera en tu Calendario.',
     scrapbookOfferGo: 'Ver tu Calendario',
     tinyHint: 'el primer paso',
+    toolSettle: 'Settle',
     weightHint: 'peso',
     pinHint: 'fijar arriba',
     stepsOf: '{done} de {total}',
@@ -872,6 +889,7 @@ export const es: Catalog = {
     unpinnedAffirm: 'Ya no está fijada.',
     useOrder: 'Usar este orden',
     useSpread: 'Usar este reparto',
+    windDownSettle: 'Si hoy todavía suena fuerte, hay una sala para calmarse primero.',
   },
   triage: {
     summary: {
@@ -978,6 +996,11 @@ export const es: Catalog = {
     tagline: 'Una lista de tareas más serena.',
     todayMockA11y: 'La pantalla de Hoy: dos tareas terminadas, Llamar a la farmacia y Responder a Dana, y una pendiente, Empezar la carpeta de impuestos. El resto espera con calma para más tarde.',
     trustLine: 'Gratis. Sin cuenta. Funciona sin conexión.',
+  },
+  whatsnew: {
+    line1: 'Settle: una sala para respirar, entre las herramientas del día. Gratis, siempre.',
+    line2: '¿Estás de prueba? Ahora puedes elegir el plan anual al convertirte.',
+    title: 'Novedades',
   },
   widget: {
     allDoneForToday: 'Todo hecho por hoy.',

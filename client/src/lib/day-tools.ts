@@ -11,10 +11,12 @@
 // explains itself when tapped; it is never absent and never locked. Nothing here reads the task
 // list to decide WHAT to show, only whether a tool is currently actionable.
 
-export type DayTool = 'plan' | 'focus' | 'lighten' | 'close';
+export type DayTool = 'plan' | 'focus' | 'lighten' | 'settle' | 'close';
 
-/** The day's own order, fixed forever: start it, work it, relieve it, end it. */
-export const DAY_TOOL_ORDER: readonly DayTool[] = ['plan', 'focus', 'lighten', 'close'];
+/** The day's own order, fixed forever: start it, work it, relieve it, settle the body, end it.
+ *  Settle (the breathing room, added 2026-08-01) sits between Lighten and Close per its design:
+ *  shape the day, then the body, then the day's end. */
+export const DAY_TOOL_ORDER: readonly DayTool[] = ['plan', 'focus', 'lighten', 'settle', 'close'];
 
 /** The user's stated energy for TODAY: a day-state, not a setting. Resets each morning. */
 export type DayEnergy = 'low' | 'normal' | 'high';
@@ -63,6 +65,10 @@ export function toolGate(tool: DayTool, state: { openCount: number; heavy: boole
       return state.openCount >= 1 ? { available: true } : { available: false, hintKey: 'today.focusNeedsOne' };
     case 'lighten':
       return state.heavy ? { available: true } : { available: false, hintKey: 'today.lightenNeedsFull' };
+    case 'settle':
+      // The room never gates: no task count, no premium, no condition. A regulation tool
+      // that can be unavailable would be unavailable at exactly the moment it exists for.
+      return { available: true };
     case 'close':
       return { available: true };
   }

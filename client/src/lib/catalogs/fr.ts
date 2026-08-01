@@ -652,6 +652,22 @@ export const fr: Catalog = {
     turnAiOnLink: "Activer l'IA ›",
     yourDataLabel: 'Tes données',
   },
+  settle: {
+    aff1: "le repos n'a pas à se mériter.",
+    aff2: 'rien ne se mesure ici.',
+    aff3: 'la liste sait attendre.',
+    aff4: 'tu as le droit de prendre ce temps.',
+    guideIn: 'inspire, doucement…',
+    guideOut: 'expire, lentement…',
+    guidePillOff: 'guide · non',
+    guidePillOffA11y: 'Le guide de respiration est éteint. Touche pour l\'allumer.',
+    guidePillOn: 'guide · oui',
+    guidePillOnA11y: 'Le guide de respiration est allumé. Touche pour l\'éteindre.',
+    guideRest: 'reste là',
+    leave: 'Sortir',
+    leaveA11y: "Sortir de la pièce et revenir à Aujourd'hui",
+    leavingLine: "Aujourd'hui est là où tu l'as laissé.",
+  },
   signIn: {
     codeA11y: 'Code reçu par e-mail',
     codeInvalid: "Ce code n'a pas marché. Vérifie-le, ou demandes-en un nouveau.",
@@ -757,6 +773,7 @@ export const fr: Catalog = {
     scrapbookOffer: "Tu as terminé assez de choses cette semaine pour en faire un souvenir. Il t'attend dans ton Calendrier.",
     scrapbookOfferGo: 'Voir ton Calendrier',
     tinyHint: 'la première étape',
+    toolSettle: 'Settle',
     weightHint: 'poids',
     pinHint: 'garder en haut',
     stepsOf: '{done} sur {total}',
@@ -872,6 +889,7 @@ export const fr: Catalog = {
     unpinnedAffirm: 'Désépinglée.',
     useOrder: 'Adopter cet ordre',
     useSpread: 'Adopter cette répartition',
+    windDownSettle: "Si aujourd'hui fait encore du bruit, il y a une pièce pour se poser d'abord.",
   },
   triage: {
     summary: {
@@ -978,6 +996,11 @@ export const fr: Catalog = {
     tagline: 'Une to-do plus sereine.',
     todayMockA11y: "L'écran Aujourd'hui : deux tâches terminées, Appeler la pharmacie et Répondre à Dana, et une encore à faire, Commencer le dossier des impôts. Le reste attend tranquillement son tour.",
     trustLine: 'Gratuit. Sans compte. Ça marche hors ligne.',
+  },
+  whatsnew: {
+    line1: "Settle : une pièce pour respirer, parmi les outils du jour. Gratuit, toujours.",
+    line2: "En essai ? Tu peux maintenant choisir le forfait annuel en te convertissant.",
+    title: 'Nouveautés',
   },
   widget: {
     allDoneForToday: "Tout est fait pour aujourd'hui.",
