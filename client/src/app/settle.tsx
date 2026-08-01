@@ -26,6 +26,7 @@ import {
   BLOB_OPACITY_DELTA,
   BLOB_SCALE_FULL,
   BLOB_SCALE_REST,
+  BLOB_SCALE_STILL,
   GLOW_FULL,
   leaveFadeMs,
   nextAffirmationDelay,
@@ -207,7 +208,7 @@ export default function Settle() {
   }, [reduced, roomOpacity, router]);
 
   const scale = reduced
-    ? BLOB_SCALE_REST // geometry holds still; warmth carries the breath
+    ? BLOB_SCALE_STILL // geometry holds still at neutral; warmth carries the breath
     : breath.interpolate({ inputRange: [0, 1], outputRange: [BLOB_SCALE_REST, BLOB_SCALE_FULL] });
   // The breath brightens as it fills: the body rises from its dimmed rest to full, and the
   // glow disc blooms from nothing near the top of the swell (its curve back-loaded so the

@@ -53,8 +53,12 @@ export function affirmationIndex(shownCount: number, setSize: number): number {
 // ±6%, but a static board cannot feel motion: on a real phone the movement read as "50%
 // too non-dramatic" (Melroy, first device test, 2026-08-01), so the travel roughly
 // doubled. Reduce-motion still holds the geometry still and breathes the warmth instead.
-export const BLOB_SCALE_REST = 1.0;
+// Round three ("I need to be smaller on the exhale"): the empty lung now sits visibly BELOW
+// neutral, so the long settle has somewhere to go, and the swell grows ~41% from there.
+export const BLOB_SCALE_REST = 0.85;
 export const BLOB_SCALE_FULL = 1.2;
+// Reduce-motion holds the geometry at NEUTRAL, neither strained nor shrunken.
+export const BLOB_SCALE_STILL = 1.0;
 // The breath BRIGHTENS as it fills (round two of the device test: "make it brighter as we
 // breathe"): the body dims to 70% at rest and blooms to full, and an inner glow disc rises
 // from nothing to GLOW_FULL at the top of the in-breath.
