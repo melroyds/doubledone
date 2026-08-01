@@ -40,9 +40,18 @@ import { loadSettleGuide, saveSettleGuide } from '@/lib/storage';
 import { track } from '@/lib/telemetry';
 import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
-// The four RSD-safe lines, rotated in order. Never praise: "you're doing great" implies a
-// performance, and nothing in this room is performed.
-const AFFIRMATION_KEYS = ['settle.aff1', 'settle.aff2', 'settle.aff3', 'settle.aff4'] as const;
+// The RSD-safe lines, rotated in order. Never praise: "you're doing great" implies a
+// performance, and nothing in this room is performed. Grew from four to seven on the
+// founder's device pass ("needs more kind stuff so people can relax", 2026-08-01).
+const AFFIRMATION_KEYS = [
+  'settle.aff1',
+  'settle.aff2',
+  'settle.aff3',
+  'settle.aff4',
+  'settle.aff5',
+  'settle.aff6',
+  'settle.aff7',
+] as const;
 
 const BLOB_SIZE = 300;
 
@@ -62,11 +71,18 @@ export default function Settle() {
 
   const [guideOn, setGuideOn] = useState(true); // defaults ON: the first visit teaches
   const [phase, setPhase] = useState<Phase>('swell');
-  const [affirmationKey, setAffirmationKey] = useState<string | null>(null);
+  // An affirmation FREEZES its colour at the moment it appears (an affirmation lives ~12s,
+  // exactly one breath, so borrowing the live index flipped it mid-display — caught on the
+  // founder's TestFlight pass, 2026-08-01). The guide word keeps riding the live cycle.
+  const [affirmation, setAffirmation] = useState<{ key: string; colorIdx: number } | null>(null);
   const [leaving, setLeaving] = useState(false);
   // The words wear the Dusk accents in sequence, exactly like Today's rotating inscription
   // (Melroy's device-test ask): a random start, then the next hue with every new breath.
   const [colorIdx, setColorIdx] = useState(() => Math.floor(Math.random() * 5));
+  const colorIdxRef = useRef(0);
+  useEffect(() => {
+    colorIdxRef.current = colorIdx; // mirror for timer callbacks (no re-scheduling on each breath)
+  }, [colorIdx]);
 
   // One breath value drives scale AND warmth from the same clock (0 = rest, 1 = full).
   // useState initializers, not useRef.current: the React Compiler forbids ref reads in
@@ -157,13 +173,13 @@ export default function Settle() {
         if (!alive) return;
         const key = AFFIRMATION_KEYS[affirmationIndex(shownCountRef.current, AFFIRMATION_KEYS.length)];
         shownCountRef.current += 1;
-        setAffirmationKey(key);
+        setAffirmation({ key, colorIdx: colorIdxRef.current });
         Animated.sequence([
           Animated.timing(affirmationOpacity, { toValue: 1, duration: AFFIRMATION_FADE_IN_MS, useNativeDriver: false }),
           Animated.delay(AFFIRMATION_VISIBLE_MS - AFFIRMATION_FADE_IN_MS - 2000),
           Animated.timing(affirmationOpacity, { toValue: 0, duration: 2000, useNativeDriver: false }),
         ]).start(() => {
-          if (alive) setAffirmationKey(null);
+          if (alive) setAffirmation(null);
         });
         schedule();
       }, nextAffirmationDelay(Math.random()));
@@ -173,7 +189,7 @@ export default function Settle() {
       alive = false;
       clearTimeout(timer);
       affirmationOpacity.setValue(0);
-      setAffirmationKey(null); // clear any visible line the moment the guide takes over
+      setAffirmation(null); // clear any visible line the moment the guide takes over
     };
   }, [guideOn, leaving, affirmationOpacity]);
 
@@ -287,9 +303,14 @@ export default function Settle() {
             <Animated.Text style={[styles.guideWord, { color: wordColor, opacity: wordOpacity }]}>
               {t(GUIDE_KEY[phase])}
             </Animated.Text>
-          ) : affirmationKey ? (
-            <Animated.Text style={[styles.affirmation, { color: wordColor, opacity: affirmationOpacity }]}>
-              {t(affirmationKey)}
+          ) : affirmation ? (
+            <Animated.Text
+              style={[
+                styles.affirmation,
+                { color: theme.colors.accents[affirmation.colorIdx % theme.colors.accents.length], opacity: affirmationOpacity },
+              ]}
+            >
+              {t(affirmation.key)}
             </Animated.Text>
           ) : null}
         </View>

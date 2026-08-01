@@ -32,9 +32,11 @@ export function leaveFadeMs(t: number): number {
 }
 
 // Affirmations (guide OFF only; the guide and affirmations alternate, never coexist): at most
-// one line every 60 to 90 seconds, 3s fade-in, gone within 12s, never stacking.
-export const AFFIRMATION_MIN_GAP_MS = 60_000;
-export const AFFIRMATION_MAX_GAP_MS = 90_000;
+// one line every 30 to 60 seconds, 3s fade-in, gone within 12s, never stacking. The handoff
+// said 60-90; the founder's own unguided sit (TestFlight 1.1.0, 2026-08-01) found that too
+// sparse to hold a relaxing thread, so the gap halved.
+export const AFFIRMATION_MIN_GAP_MS = 30_000;
+export const AFFIRMATION_MAX_GAP_MS = 60_000;
 export const AFFIRMATION_FADE_IN_MS = 3_000;
 export const AFFIRMATION_VISIBLE_MS = 12_000;
 
