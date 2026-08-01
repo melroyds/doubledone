@@ -1,0 +1,9 @@
+# Cloudflare Pages custom headers (the _redirects mechanism's sibling).
+#
+# HSTS: the browser remembers to NEVER speak plain HTTP to this host again, closing the
+# first-visit downgrade window the https redirect alone leaves open (found 2026-08-01: the
+# app's own zone served no HSTS while Supabase's did). One year, subdomains included so
+# api.doubledone.app is covered the moment a browser has seen the apex. No `preload`
+# on purpose: preload is effectively irreversible and belongs to a deliberate later choice.
+/*
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
