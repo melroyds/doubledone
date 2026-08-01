@@ -26,6 +26,7 @@ import {
   BLOB_OPACITY_DELTA,
   BLOB_SCALE_FULL,
   BLOB_SCALE_REST,
+  GLOW_FULL,
   leaveFadeMs,
   nextAffirmationDelay,
   SETTLE_MS,
@@ -208,10 +209,16 @@ export default function Settle() {
   const scale = reduced
     ? BLOB_SCALE_REST // geometry holds still; warmth carries the breath
     : breath.interpolate({ inputRange: [0, 1], outputRange: [BLOB_SCALE_REST, BLOB_SCALE_FULL] });
-  // Warmth breathes ±6% around full (opacity cannot exceed 1, so rest sits 6% below it).
+  // The breath brightens as it fills: the body rises from its dimmed rest to full, and the
+  // glow disc blooms from nothing near the top of the swell (its curve back-loaded so the
+  // brightest moment is the fullest lung).
   const coreOpacity = breath.interpolate({
     inputRange: [0, 1],
     outputRange: [1 - BLOB_OPACITY_DELTA, 1],
+  });
+  const glowOpacity = breath.interpolate({
+    inputRange: [0, 0.6, 1],
+    outputRange: [0, GLOW_FULL * 0.3, GLOW_FULL],
   });
 
   const dark = theme.scheme === 'dark';
@@ -231,25 +238,43 @@ export default function Settle() {
       </Pressable>
 
       <View style={styles.centre} pointerEvents="none">
-        <Animated.View style={{ transform: [{ scale }], opacity: coreOpacity }}>
-          <Svg width={BLOB_SIZE} height={BLOB_SIZE}>
-            <Defs>
-              {/* Two layered radial discs, blur baked into the stops (no runtime blur): mauve
-                  core over a periwinkle wash in the dark, mauve over honey in the light. */}
-              <RadialGradient id="settleWash" cx="50%" cy="50%" r="50%">
-                <Stop offset="0%" stopColor={dark ? '#6E72A0' : '#C19A4F'} stopOpacity={dark ? 0.28 : 0.2} />
-                <Stop offset="70%" stopColor={dark ? '#6E72A0' : '#C19A4F'} stopOpacity={dark ? 0.1 : 0.08} />
-                <Stop offset="100%" stopColor={dark ? '#6E72A0' : '#C19A4F'} stopOpacity={0} />
-              </RadialGradient>
-              <RadialGradient id="settleCore" cx="50%" cy="50%" r="50%">
-                <Stop offset="0%" stopColor={dark ? '#E7B6C6' : '#946475'} stopOpacity={dark ? 0.5 : 0.34} />
-                <Stop offset="55%" stopColor={dark ? '#E7B6C6' : '#946475'} stopOpacity={dark ? 0.22 : 0.16} />
-                <Stop offset="100%" stopColor={dark ? '#E7B6C6' : '#946475'} stopOpacity={0} />
-              </RadialGradient>
-            </Defs>
-            <Circle cx={BLOB_SIZE / 2} cy={BLOB_SIZE / 2} r={BLOB_SIZE / 2} fill="url(#settleWash)" />
-            <Circle cx={BLOB_SIZE / 2} cy={BLOB_SIZE / 2} r={BLOB_SIZE * 0.36} fill="url(#settleCore)" />
-          </Svg>
+        <Animated.View style={{ transform: [{ scale }] }}>
+          <Animated.View style={{ opacity: coreOpacity }}>
+            <Svg width={BLOB_SIZE} height={BLOB_SIZE}>
+              <Defs>
+                {/* Two layered radial discs, blur baked into the stops (no runtime blur): mauve
+                    core over a periwinkle wash in the dark, mauve over honey in the light. */}
+                <RadialGradient id="settleWash" cx="50%" cy="50%" r="50%">
+                  <Stop offset="0%" stopColor={dark ? '#6E72A0' : '#C19A4F'} stopOpacity={dark ? 0.28 : 0.2} />
+                  <Stop offset="70%" stopColor={dark ? '#6E72A0' : '#C19A4F'} stopOpacity={dark ? 0.1 : 0.08} />
+                  <Stop offset="100%" stopColor={dark ? '#6E72A0' : '#C19A4F'} stopOpacity={0} />
+                </RadialGradient>
+                <RadialGradient id="settleCore" cx="50%" cy="50%" r="50%">
+                  <Stop offset="0%" stopColor={dark ? '#E7B6C6' : '#946475'} stopOpacity={dark ? 0.5 : 0.34} />
+                  <Stop offset="55%" stopColor={dark ? '#E7B6C6' : '#946475'} stopOpacity={dark ? 0.22 : 0.16} />
+                  <Stop offset="100%" stopColor={dark ? '#E7B6C6' : '#946475'} stopOpacity={0} />
+                </RadialGradient>
+              </Defs>
+              <Circle cx={BLOB_SIZE / 2} cy={BLOB_SIZE / 2} r={BLOB_SIZE / 2} fill="url(#settleWash)" />
+              <Circle cx={BLOB_SIZE / 2} cy={BLOB_SIZE / 2} r={BLOB_SIZE * 0.36} fill="url(#settleCore)" />
+            </Svg>
+          </Animated.View>
+          {/* The glow, its own layer so its bloom does not multiply into the body's opacity:
+              invisible at rest, brightest at the fullest lung. Pale pink light in the dark;
+              in the light scheme "brighter" means DEEPER (white on white would vanish), so the
+              same mauve intensifies instead. */}
+          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: glowOpacity }]}>
+            <Svg width={BLOB_SIZE} height={BLOB_SIZE}>
+              <Defs>
+                <RadialGradient id="settleGlow" cx="50%" cy="50%" r="50%">
+                  <Stop offset="0%" stopColor={dark ? '#F2CFDC' : '#946475'} stopOpacity={dark ? 0.65 : 0.4} />
+                  <Stop offset="45%" stopColor={dark ? '#F2CFDC' : '#946475'} stopOpacity={dark ? 0.26 : 0.18} />
+                  <Stop offset="100%" stopColor={dark ? '#F2CFDC' : '#946475'} stopOpacity={0} />
+                </RadialGradient>
+              </Defs>
+              <Circle cx={BLOB_SIZE / 2} cy={BLOB_SIZE / 2} r={BLOB_SIZE * 0.3} fill="url(#settleGlow)" />
+            </Svg>
+          </Animated.View>
         </Animated.View>
 
         {/* The words: the guide's literal three, or (guide off) a rare affirmation. Never both.

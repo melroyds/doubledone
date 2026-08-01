@@ -55,7 +55,11 @@ export function affirmationIndex(shownCount: number, setSize: number): number {
 // doubled. Reduce-motion still holds the geometry still and breathes the warmth instead.
 export const BLOB_SCALE_REST = 1.0;
 export const BLOB_SCALE_FULL = 1.2;
-export const BLOB_OPACITY_DELTA = 0.12;
+// The breath BRIGHTENS as it fills (round two of the device test: "make it brighter as we
+// breathe"): the body dims to 70% at rest and blooms to full, and an inner glow disc rises
+// from nothing to GLOW_FULL at the top of the in-breath.
+export const BLOB_OPACITY_DELTA = 0.3;
+export const GLOW_FULL = 0.45;
 
 /** The word fades (guide words fade in at each phase and out before the next; the chop of a
  *  hard swap was the first thing the device test caught). Short under reduce-motion, per the
