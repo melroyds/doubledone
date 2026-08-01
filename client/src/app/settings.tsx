@@ -691,7 +691,7 @@ export default function SettingsScreen() {
             they held. This one quiet line ends that class of ambiguity. Not a catalog string:
             it is an identifier, identical in every locale. */}
         <Text style={styles.footnote}>
-          {`v${Application.nativeApplicationVersion ?? '1.0.0'} (${Application.nativeBuildVersion ?? 'web'})`}
+          {`v${Application.nativeApplicationVersion ?? '1.1.0'} (${Application.nativeBuildVersion ?? 'web'})`}
         </Text>
       </ScrollView>
     </View>
