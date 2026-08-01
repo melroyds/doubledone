@@ -110,8 +110,16 @@ Encrypted in transit: **YES** for everything (TLS to Supabase, the Worker, Anthr
 **YES**, in-app (Settings, the `delete_account` RPC cascades) and by email; use `doubledone.app/privacy` as the
 data-deletion URL. No ads, no third-party analytics/trackers, no advertising ID.
 
+> **ACTION REQUIRED before the next AAB ships (added 2026-08-01):** the app-event beacon (Settle usage
+> counts) is the app's first opt-in-free collection, and the live Data Safety form does not declare it.
+> Add the **App activity > App interactions** row below in the Play Console BEFORE promoting any build
+> containing the beacon (v22+). Google cross-checks the form against the policy URL and app behaviour;
+> the policy already discloses it (doubledone.app/privacy, "Feature-usage counts"). Apple's label needs
+> no change: ASC already declares Usage Data > Product Interaction (not linked) for /outcome.
+
 | Data type | Collected | Shared | Optional? | Purpose | Note |
 |---|---|---|---|---|---|
+| App activity > App interactions | Yes | No | **No** | Analytics | The feature-usage beacon (2026-08-01): opening Settle sends the feature's name (plus the guide's on/off) to our Worker, stored as an event name + the DAY only. No user_id, no IP stored, no content, closed server-side allowlist, not optional (no setting, by design). Disclosed in the policy's "Feature-usage counts". |
 | Personal info > Email address | Yes | No | Optional | Account management | Only if the user turns on sync. OTP sign-in, no password. Supabase (Sydney). Deletable in-app. |
 | App activity > Other user content (task text) | Yes | **Yes** | Optional | App functionality, personalization | Two opt-in flows: sync (to Supabase) and AI (to Anthropic). "Shared" because text leaves to Anthropic when AI is on. AI off = nothing sent. Pseudonymous AI-call copy in D1, no user_id, no IP. Since 2026-07-12 the weekly scrapbook keepsake (a short caption derived from finished tasks, plus its image link) also syncs to Supabase under the same sync opt-in. |
 | Photos > Photos | Yes | **Yes** | Optional | App functionality (OCR scan) | Premium photo-to-tasks. Sent to Anthropic (vision), then discarded, not stored as an image. Only on explicit action, AI on. |

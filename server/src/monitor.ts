@@ -65,6 +65,7 @@ export const THRESHOLDS = {
   scrapbookDailyBudget: 30, // global images/day guard (the Workers AI free-tier neuron wall the dollar query cannot see)
   scrapbookAbusePerIp: 16, // 80% of the per-IP 20/24h backstop, so pressure is heard before the cap bites
   volumePerHour: 150, // AI calls in one hour, well above launch-normal
+  appEventsPerDay: 2000, // beacon rows in one day, far above launch-normal (spam poisons the Settle signal silently otherwise)
   dedupHours: 6, // suppress a repeat of the same alarm kind within this window (no crying wolf)
 };
 
@@ -83,6 +84,7 @@ export type Metric = {
   topEndpointsLastHour: { endpoint: string; calls: number }[];
   scrapbookToday: number;
   scrapbookMaxPerIp: number;
+  appEventsToday: number; // beacon rows today (app_events); 0 when the table is absent
 };
 
 export type Alarm = { kind: string; title: string; detail: string };
@@ -130,6 +132,17 @@ export function evaluateAlarms(m: Metric): Alarm[] {
       kind: 'scrapbook-abuse',
       title: 'One source near the scrapbook cap',
       detail: `A single client reached ${m.scrapbookMaxPerIp} scrapbook generations in 24h (per-IP cap is 20). Possible scripted abuse draining the shared budget.`,
+    });
+  }
+
+  if (m.appEventsToday >= THRESHOLDS.appEventsPerDay) {
+    out.push({
+      kind: 'app-events-volume',
+      title: `${m.appEventsToday} app-event beacons today`,
+      detail:
+        `Far above launch-normal for the feature-usage beacon (guard at ${THRESHOLDS.appEventsPerDay}/day). ` +
+        `Likely scripted POSTs to /event: the rows are unattributable by design, so consider a time-window delete ` +
+        `of app_events for the spam period before trusting the Settle counts again.`,
     });
   }
 
@@ -302,6 +315,16 @@ async function gatherMetrics(db: D1LikeDatabase, capUsd: number, now: Date): Pro
     .bind(now.getTime() - 86_400_000)
     .first<{ mx: number }>();
 
+  // The beacon's volume, defensively: app_events may not exist yet (deploy-before-
+  // schema), and its created_at is DAY-coarse by design, so date('now') is the day.
+  let appEventsToday = 0;
+  try {
+    const ev = await db.prepare("SELECT COUNT(*) AS n FROM app_events WHERE created_at >= date('now')").first<{ n: number }>();
+    appEventsToday = Number(ev?.n ?? 0);
+  } catch {
+    // table absent: nothing to guard yet
+  }
+
   return {
     capUsd,
     mtdUsd,
@@ -313,6 +336,7 @@ async function gatherMetrics(db: D1LikeDatabase, capUsd: number, now: Date): Pro
     topEndpointsLastHour: topEp.map((r) => ({ endpoint: String(r.endpoint), calls: Number(r.calls) })),
     scrapbookToday: Number(sbToday?.imgs ?? 0),
     scrapbookMaxPerIp: Number(sbMax?.mx ?? 0),
+    appEventsToday,
   };
 }
 

@@ -58,6 +58,60 @@ describe('CORS + origin gate', () => {
   });
 });
 
+describe('the app-event beacon (/event)', () => {
+  it('refuses a browser from a foreign origin', async () => {
+    const res = await worker.fetch(req('POST', '/event', { origin: 'https://evil.example', body: { name: 'settle.opened' } }), makeEnv(), ctx);
+    expect(res.status).toBe(403);
+  });
+
+  it('accepts an allowlisted event and answers ok', async () => {
+    const res = await worker.fetch(req('POST', '/event', { origin: 'https://doubledone.app', body: { name: 'settle.opened' } }), makeEnv(), ctx);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+  });
+
+  it('accepts-and-drops an unknown name (probing teaches nothing)', async () => {
+    let wrote = false;
+    const env = makeEnv({
+      DB: {
+        prepare: () => {
+          wrote = true;
+          throw new Error('should not be reached');
+        },
+      } as never,
+    });
+    const res = await worker.fetch(req('POST', '/event', { origin: 'https://doubledone.app', body: { name: 'not.a.thing' } }), env, ctx);
+    expect(res.status).toBe(200);
+    expect(wrote).toBe(false);
+  });
+
+  it('answers a calm 400 to a non-JSON body', async () => {
+    const r = new Request('https://doubledone-ai.example.dev/event', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', Origin: 'https://doubledone.app' },
+      body: 'not json',
+    });
+    const res = await worker.fetch(r, makeEnv(), ctx);
+    expect(res.status).toBe(400);
+  });
+
+  it('rate-limits /event on its OWN key, never spending the paid-AI window of a shared IP', async () => {
+    const keys: string[] = [];
+    const env = makeEnv({
+      AI_LIMITER: {
+        limit: async ({ key }: { key: string }) => {
+          keys.push(key);
+          return { success: true };
+        },
+      },
+    });
+    await worker.fetch(req('POST', '/event', { origin: 'https://doubledone.app', body: { name: 'settle.opened' } }), env, ctx);
+    await worker.fetch(req('POST', '/clarify', { origin: 'https://doubledone.app', body: { task: 'x' } }), env, ctx);
+    expect(keys[0]).toMatch(/^evt:/);
+    expect(keys[1]).not.toMatch(/^evt:/);
+  });
+});
+
 describe('rate limit', () => {
   it('returns 429 when the limiter rejects', async () => {
     const env = makeEnv({ AI_LIMITER: { limit: async () => ({ success: false }) } });

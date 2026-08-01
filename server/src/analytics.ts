@@ -32,6 +32,7 @@ export type PremiumRow = { store: string; status: string | null; cancelling: num
 export type DayRow = { day: string; calls: number; errors: number };
 export type EndpointRow = { endpoint: string; n: number };
 export type ModelTokens = { model: string; in_tok: number; out_tok: number };
+export type AppEventRow = { event: string; n: number };
 
 export type AnalyticsData = {
   premium: PremiumRow[];
@@ -47,6 +48,9 @@ export type AnalyticsData = {
   medianDaysToFirstStep: number | null;
   scrapbooksAllTime: number;
   scrapbooks28d: number;
+  settleOpens: number; // all-time entries to the breathing room (the app-event beacon)
+  settleOpens28d: number;
+  appEvents28d: AppEventRow[]; // every beaconed event, last 28 days (future events appear on their own)
   generatedAt: string;
 };
 
@@ -116,6 +120,11 @@ export function renderAnalyticsHtml(d: AnalyticsData): string {
 <h2>Scrapbooks</h2>
 <div class="big">${d.scrapbooksAllTime}</div>
 <div class="sub">keepsakes ever made · ${d.scrapbooks28d} in the last 28 days</div>
+
+<h2>The room</h2>
+<div class="big">${d.settleOpens}</div>
+<div class="sub">times Settle was entered · ${d.settleOpens28d} in the last 28 days · counts only, never durations</div>
+${d.appEvents28d.length ? `<table><tr><th>event (28 days)</th><th class="num">n</th></tr>${d.appEvents28d.map((r) => `<tr><td>${esc(r.event)}</td><td class="num">${r.n}</td></tr>`).join('')}</table>` : ''}
 
 <h2>AI calls by day (28 days)</h2>
 <table><tr><th>day</th><th class="num">calls</th><th class="num">errors</th></tr>${dayRows || '<tr><td colspan="3">none yet</td></tr>'}</table>
@@ -191,6 +200,26 @@ export async function handleAnalytics(request: Request, env: AnalyticsEnv, nowMs
     .bind(cutoff28)
     .first<{ n: number; recent: number }>();
 
+  // The app-event beacon (app_events, the room's usage). Defensive: the table may not
+  // exist yet on a Worker deployed before the schema was applied, and a missing count
+  // must never 500 the whole page.
+  let settle: { n: number; recent: number } | null = null;
+  let appEvents28d: AppEventRow[] = [];
+  try {
+    settle = await env.DB.prepare(
+      "SELECT COUNT(*) AS n, SUM(CASE WHEN created_at >= ?1 THEN 1 ELSE 0 END) AS recent FROM app_events WHERE event = 'settle.opened'",
+    )
+      .bind(cutoff28)
+      .first<{ n: number; recent: number }>();
+    appEvents28d = (
+      await env.DB.prepare('SELECT event, COUNT(*) AS n FROM app_events WHERE created_at >= ?1 GROUP BY 1 ORDER BY n DESC')
+        .bind(cutoff28)
+        .all<AppEventRow>()
+    ).results;
+  } catch {
+    // table not applied yet: render zeros rather than a broken page
+  }
+
   const spendMtdUsd = mtdSpend(tokens);
   const capUsd = Number(env.ANTHROPIC_MONTHLY_CAP_USD ?? '25') || 25;
   const daysInMonth = new Date(now.getUTCFullYear(), now.getUTCMonth() + 1, 0).getUTCDate();
@@ -209,6 +238,9 @@ export async function handleAnalytics(request: Request, env: AnalyticsEnv, nowMs
     medianDaysToFirstStep: median?.d ?? null,
     scrapbooksAllTime: scrapbooks?.n ?? 0,
     scrapbooks28d: scrapbooks?.recent ?? 0,
+    settleOpens: settle?.n ?? 0,
+    settleOpens28d: settle?.recent ?? 0,
+    appEvents28d,
     generatedAt: nowISO.slice(0, 16).replace('T', ' ') + ' UTC',
   });
   return new Response(html, {

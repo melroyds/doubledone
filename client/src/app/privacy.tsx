@@ -22,16 +22,17 @@ export default function PrivacyScreen() {
         <BackLink fallback="/settings" />
 
         <Text style={styles.title}>Privacy</Text>
-        <Text style={styles.updated}>Last updated 12 July 2026.</Text>
+        <Text style={styles.updated}>Last updated 1 August 2026.</Text>
 
         <Text style={styles.lead}>
-          DoubleDone is built to need almost nothing from you. It runs on your device, and nothing leaves it unless you
-          choose to sync across devices or use an AI feature. This is the plain version of what that means.
+          DoubleDone is built to need almost nothing from you. It runs on your device, and only three things ever leave
+          it: your tasks if you choose to sync, the text or photo you choose to send to an AI feature, and a bare
+          feature-usage count when you open certain features. This is the plain version of what each of those means.
         </Text>
 
         <Section styles={styles} heading="On your device by default">
-          Your tasks live on your device. You can use the whole app, capture, break things down, the Calendar, all of
-          it, with no account and nothing sent anywhere.
+          Your tasks live on your device. You can use the whole app, capture, the Calendar, all of it, with no account,
+          and what you write never leaves the device unless you choose an AI feature or sync.
         </Section>
 
         <Section styles={styles} heading="If you choose to sync">
@@ -58,6 +59,15 @@ export default function PrivacyScreen() {
             Prefer not to? Just don&apos;t use those features. The rest of the app works fully without them.
           </Text>
         </View>
+
+        <Section styles={styles} heading="Feature-usage counts">
+          When you open certain features, currently the Settle breathing room, the app tells our server the
+          feature&apos;s name (and, for the breathing guide, whether you switched it on or off) so we can count how often
+          it helps. That is the whole message: no account, no name, nothing you typed, and never how long you stayed.
+          Like any internet request it arrives from your network address, but the address is never stored with the
+          count; what we keep is the feature&apos;s name and the day, nothing finer. The server accepts a short fixed
+          list of names and drops everything else.
+        </Section>
 
         <Section styles={styles} heading="Payment events">
           Payments for Premium are processed by Stripe (on our website and on Android) or by Apple (on iPhone and iPad),

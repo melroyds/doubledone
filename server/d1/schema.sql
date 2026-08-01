@@ -76,6 +76,26 @@ create table if not exists push_subs (
   created_at text not null default (datetime('now'))
 );
 
+-- The app-event beacon: pseudonymous usage counts for features that never touch the
+-- Worker on their own (Settle first: the breathing room is pure client, so unlike the
+-- AI features it would otherwise be invisible to the Analytics Centre). The STRICTEST
+-- shape in this file: an event name and a timestamp, nothing else -- no user_id, no
+-- IP, no free text -- and the /event route only stores names on a closed allowlist
+-- (server/src/events.ts), dropping everything else unwritten. The timestamp is
+-- DAY-COARSE on purpose (date, not datetime): settle.left is not collected AND
+-- settle.guide fires mid-session, so second-precision rows could still pair into
+-- rough durations at low traffic (the adversarial review's catch, 2026-08-01);
+-- a bare date closes that channel structurally, and the Analytics Centre only ever
+-- reads day windows anyway. "Time is not a score" holds here too. Apply once
+-- (idempotent):
+--   npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --file d1/schema.sql
+create table if not exists app_events (
+  id integer primary key autoincrement,
+  event text not null,             -- one of the closed allowlist, e.g. 'settle.opened'
+  created_at text not null default (date('now'))
+);
+create index if not exists app_events_event on app_events (event, created_at);
+
 -- Stripe webhook idempotency: the set of event ids already applied to entitlements, so an at-least-once
 -- redelivery (Stripe retries, occasional duplicates) is a no-op. Written ONLY by the verified webhook
 -- handler, which fails OPEN if this table is absent (the entitlement write is an idempotent upsert), so

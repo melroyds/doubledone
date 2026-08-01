@@ -22,6 +22,8 @@ function makeDb() {
     if (sql.includes('SELECT COUNT(*) AS n FROM outcomes')) return { n: 9 };
     if (sql.includes('days_elapsed')) return { d: 2 };
     if (sql.includes('scrapbook_log')) return { n: 3 };
+    if (sql.includes("FROM app_events WHERE event = 'settle.opened'")) return { n: 21, recent: 8 };
+    if (sql.includes('FROM app_events')) return [{ event: 'settle.opened', n: 8 }];
     return null;
   };
   return {
@@ -50,6 +52,9 @@ const DATA: AnalyticsData = {
   medianDaysToFirstStep: 2,
   scrapbooksAllTime: 14,
   scrapbooks28d: 3,
+  settleOpens: 21,
+  settleOpens28d: 8,
+  appEvents28d: [{ event: 'settle.opened', n: 8 }],
   generatedAt: '2026-08-01 10:00 UTC',
 };
 
@@ -77,7 +82,16 @@ describe('renderAnalyticsHtml', () => {
     // the launch-day bug was a page reading 0 for a user with 14 keepsakes.
     expect(html).toContain('keepsakes ever made');
     expect(html).toContain('3 in the last 28 days');
+    // The room (the app-event beacon): counts only, and the page SAYS so.
+    expect(html).toContain('times Settle was entered');
+    expect(html).toContain('never durations');
     expect(html).toContain('noindex'); // never crawlable
+  });
+
+  it('renders the room at zero without an events table (a beaconless deploy never breaks the page)', () => {
+    const html = renderAnalyticsHtml({ ...DATA, settleOpens: 0, settleOpens28d: 0, appEvents28d: [] });
+    expect(html).toContain('times Settle was entered');
+    expect(html).not.toContain('event (28 days)'); // the empty table stays hidden
   });
 
   it('flags a projection that exceeds the cap, calmly', () => {

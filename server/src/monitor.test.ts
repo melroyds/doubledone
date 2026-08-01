@@ -22,6 +22,7 @@ const baseMetric = (over: Partial<Metric> = {}): Metric => ({
   topEndpointsLastHour: [],
   scrapbookToday: 0,
   scrapbookMaxPerIp: 0,
+  appEventsToday: 0,
   ...over,
 });
 
@@ -74,6 +75,7 @@ describe('evaluateAlarms', () => {
     expect(evaluateAlarms(baseMetric({ scrapbookToday: 30 })).map((a) => a.kind)).toContain('scrapbook-budget');
     expect(evaluateAlarms(baseMetric({ scrapbookMaxPerIp: 16 })).map((a) => a.kind)).toContain('scrapbook-abuse');
     expect(evaluateAlarms(baseMetric({ callsLastHour: 150 })).map((a) => a.kind)).toContain('volume');
+    expect(evaluateAlarms(baseMetric({ appEventsToday: 2000 })).map((a) => a.kind)).toContain('app-events-volume');
   });
 });
 

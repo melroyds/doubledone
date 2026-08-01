@@ -26,6 +26,7 @@ import { buildSplitRequest, parseSplitResponse, SPLIT_MODEL } from './split';
 import { buildTinyRequest, parseTinyResponse, TINY_MODEL } from './tiny';
 import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
 import { handleAnalytics } from './analytics';
+import { logAppEvent, parseAppEvent } from './events';
 import { handleRcWebhook } from './revenuecat';
 import { handleReviewCode, handleReviewEmail } from './review-otp';
 import { handleCheckout, handleEntitlement, handlePortal, handleWebhook } from './stripe';
@@ -316,13 +317,17 @@ const router = {
     // disallowed origin is refused (cross-site abuse); native apps send no Origin
     // and pass here. A per-IP rate limit then caps scripted abuse against the
     // $25/mo Anthropic budget. Both run before the body is even read.
-    if (request.method === 'POST' && (AI_ROUTES.has(pathname) || pathname === '/outcome' || pathname === '/feedback')) {
+    if (request.method === 'POST' && (AI_ROUTES.has(pathname) || pathname === '/outcome' || pathname === '/feedback' || pathname === '/event')) {
       if (origin !== null && !isAllowedOrigin(origin)) {
         return Response.json({ error: 'forbidden origin' }, { status: 403, headers: cors });
       }
       if (env.AI_LIMITER) {
         const ip = request.headers.get('CF-Connecting-IP') ?? 'anon';
-        const { success } = await env.AI_LIMITER.limit({ key: ip });
+        // /event gets its OWN per-IP budget (a distinct key in the same namespace):
+        // free beacon traffic must never spend the paid-AI window of a shared IP
+        // (CGNAT puts thousands behind one address), nor the reverse.
+        const key = pathname === '/event' ? `evt:${ip}` : ip;
+        const { success } = await env.AI_LIMITER.limit({ key });
         if (!success) {
           return Response.json({ error: 'rate limited, try again shortly' }, { status: 429, headers: cors });
         }
@@ -358,6 +363,22 @@ const router = {
         return Response.json({ error: 'id is required' }, { status: 400, headers: cors });
       }
       ctx.waitUntil(logOutcome(env, { corrId, stepsTotal, daysElapsed }));
+      return Response.json({ ok: true }, { headers: cors });
+    }
+
+    // The app-event beacon: a pseudonymous count that a client-only feature was used
+    // (Settle first), so the Analytics Centre can see it at all. Only a CLOSED
+    // allowlist of names (events.ts) can be stored — no identity, no content — and an
+    // unknown name is accepted-and-dropped so probing teaches nothing. Origin-gated +
+    // rate-limited + size-capped by the guard above.
+    if (pathname === '/event' && request.method === 'POST') {
+      let event: string | null = null;
+      try {
+        event = parseAppEvent(await request.json());
+      } catch {
+        return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
+      }
+      if (event) ctx.waitUntil(logAppEvent(env, event));
       return Response.json({ ok: true }, { headers: cors });
     }
 
