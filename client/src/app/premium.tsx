@@ -290,16 +290,42 @@ export default function PremiumScreen() {
             <Text style={styles.foot}>{t('premium.freeScrapbookEvenIfCancel')}</Text>
             {primaryAction === 'convert' ? (
               // The card-free trial converts via Stripe checkout (the server's already-subscribed
-              // guard deliberately lets a trial through). Web and Android only: on iOS StoreKit
-              // refuses a second purchase while premium and the trial never auto-charges, so there
-              // is nothing actionable mid-trial and the "Free until {date}" line above carries it.
-              <PrimaryButton
-                label={busy ? t('premium.openingCheckout') : t('premium.goPremiumKeepIt')}
-                onPress={subscribe}
-                disabled={busy}
-                accessibilityLabel={t('premium.goPremiumKeepItA11y')}
-                style={styles.ctaSpace}
-              />
+              // guard deliberately lets a trial through), at EITHER cadence: the annual was
+              // structurally unreachable here (the toggle lived only on the free paywall while
+              // `plan` sat on its monthly default), and a trial member reporting they could not
+              // BUY the year (2026-08-01) is what surfaced it. Web and Android only: on iOS
+              // StoreKit refuses a second purchase while premium and the trial never auto-charges,
+              // so there is nothing actionable mid-trial and the "Free until {date}" line carries it.
+              <>
+                <View style={styles.planToggle}>
+                  <Pressable
+                    onPress={() => setPlan('monthly')}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: plan === 'monthly' }}
+                    accessibilityLabel={t('premium.planMonthlyA11y')}
+                    style={[styles.planPill, plan === 'monthly' && styles.planPillOn]}
+                  >
+                    <Text style={[styles.planPillText, plan === 'monthly' && styles.planPillTextOn]}>{t('premium.planMonthly')}</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setPlan('annual')}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: plan === 'annual' }}
+                    accessibilityLabel={t('premium.planAnnualA11y')}
+                    style={[styles.planPill, plan === 'annual' && styles.planPillOn]}
+                  >
+                    <Text style={[styles.planPillText, plan === 'annual' && styles.planPillTextOn]}>{t('premium.planAnnual')}</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.price}>{plan === 'annual' ? t('premium.priceAnnual') : t('premium.priceMonthly')}</Text>
+                <PrimaryButton
+                  label={busy ? t('premium.openingCheckout') : t('premium.goPremiumKeepIt')}
+                  onPress={subscribe}
+                  disabled={busy}
+                  accessibilityLabel={plan === 'annual' ? t('premium.subscribeAnnualA11y') : t('premium.subscribeMonthlyA11y')}
+                  style={styles.ctaSpace}
+                />
+              </>
             ) : primaryAction === 'nothing' ? (
               // A comp / allowlisted account is premium with no Stripe customer, so no portal
               // exists. Never render a Manage button whose only outcome is a 404: say so calmly.
