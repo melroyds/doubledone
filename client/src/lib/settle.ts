@@ -49,9 +49,16 @@ export function affirmationIndex(shownCount: number, setSize: number): number {
   return setSize > 0 ? shownCount % setSize : 0;
 }
 
-// The blob's breath, as targets the screen animates between (scale 1.00 -> 1.09, opacity ±6%
-// around the core's rest value). Reduce-motion holds the geometry still and breathes the
-// warmth instead: same clock, opacity only.
+// The blob's breath, as targets the screen animates between. The board specified 1.09 /
+// ±6%, but a static board cannot feel motion: on a real phone the movement read as "50%
+// too non-dramatic" (Melroy, first device test, 2026-08-01), so the travel roughly
+// doubled. Reduce-motion still holds the geometry still and breathes the warmth instead.
 export const BLOB_SCALE_REST = 1.0;
-export const BLOB_SCALE_FULL = 1.09;
-export const BLOB_OPACITY_DELTA = 0.06;
+export const BLOB_SCALE_FULL = 1.2;
+export const BLOB_OPACITY_DELTA = 0.12;
+
+/** The word fades (guide words fade in at each phase and out before the next; the chop of a
+ *  hard swap was the first thing the device test caught). Short under reduce-motion, per the
+ *  handoff's "all fades ≤200ms" rule there. */
+export const WORD_FADE_MS = 500;
+export const WORD_FADE_REDUCED_MS = 150;

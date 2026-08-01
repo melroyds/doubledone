@@ -31,6 +31,8 @@ import {
   SETTLE_MS,
   STILL_MS,
   SWELL_MS,
+  WORD_FADE_MS,
+  WORD_FADE_REDUCED_MS,
 } from '@/lib/settle';
 import { loadSettleGuide, saveSettleGuide } from '@/lib/storage';
 import { track } from '@/lib/telemetry';
@@ -60,6 +62,9 @@ export default function Settle() {
   const [phase, setPhase] = useState<Phase>('swell');
   const [affirmationKey, setAffirmationKey] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
+  // The words wear the Dusk accents in sequence, exactly like Today's rotating inscription
+  // (Melroy's device-test ask): a random start, then the next hue with every new breath.
+  const [colorIdx, setColorIdx] = useState(() => Math.floor(Math.random() * 5));
 
   // One breath value drives scale AND warmth from the same clock (0 = rest, 1 = full).
   // useState initializers, not useRef.current: the React Compiler forbids ref reads in
@@ -67,6 +72,7 @@ export default function Settle() {
   const [breath] = useState(() => new Animated.Value(0));
   const [roomOpacity] = useState(() => new Animated.Value(1));
   const [affirmationOpacity] = useState(() => new Animated.Value(0));
+  const [wordOpacity] = useState(() => new Animated.Value(0));
   const openedAtRef = useRef(0);
   const shownCountRef = useRef(0);
   const leavingRef = useRef(false);
@@ -97,28 +103,44 @@ export default function Settle() {
   useEffect(() => {
     let alive = true;
     let timer: ReturnType<typeof setTimeout>;
+    let fadeTimer: ReturnType<typeof setTimeout>;
+    const fadeMs = reduced ? WORD_FADE_REDUCED_MS : WORD_FADE_MS;
+    // Each phase's word FADES in at the onset and out before the next (the hard swap read as
+    // chopping on the first device test). The fade rides the same clock as the haptics.
+    const breatheWord = (phaseMs: number) => {
+      Animated.timing(wordOpacity, { toValue: 1, duration: fadeMs, useNativeDriver: false }).start();
+      fadeTimer = setTimeout(() => {
+        Animated.timing(wordOpacity, { toValue: 0, duration: fadeMs, useNativeDriver: false }).start();
+      }, Math.max(0, phaseMs - fadeMs));
+    };
     const run = (next: Phase) => {
       if (!alive) return;
       setPhase(next);
       if (next === 'swell') {
+        setColorIdx((i) => i + 1); // a new breath wears the next accent
         settleBreathIn();
+        breatheWord(SWELL_MS);
         timer = setTimeout(() => run('still'), SWELL_MS);
       } else if (next === 'still') {
+        breatheWord(STILL_MS);
         timer = setTimeout(() => run('settle'), STILL_MS);
       } else {
         settleBreathOut();
+        breatheWord(SETTLE_MS);
         timer = setTimeout(() => run('swell'), SETTLE_MS);
       }
     };
     // The first swell needs no setState (phase initialises to 'swell'): fire its haptic and
-    // schedule the first transition, so the effect body never sets state synchronously.
+    // fades, schedule the first transition, so the effect body never sets state synchronously.
     settleBreathIn();
+    breatheWord(SWELL_MS);
     timer = setTimeout(() => run('still'), SWELL_MS);
     return () => {
       alive = false;
       clearTimeout(timer);
+      clearTimeout(fadeTimer);
     };
-  }, []);
+  }, [reduced, wordOpacity]);
 
   // Affirmations, only while the guide rests: one line every 60 to 90 seconds, 3s fade-in,
   // gone within 12, never stacking. The guide and the affirmations alternate, never coexist.
@@ -193,6 +215,7 @@ export default function Settle() {
   });
 
   const dark = theme.scheme === 'dark';
+  const wordColor = theme.colors.accents[colorIdx % theme.colors.accents.length];
 
   return (
     <Animated.View style={[styles.room, { opacity: roomOpacity, paddingTop: insets.top + spacing.four, paddingBottom: insets.bottom + spacing.five }]}>
@@ -229,16 +252,19 @@ export default function Settle() {
           </Svg>
         </Animated.View>
 
-        {/* The words: the guide's literal three, or (guide off) a rare affirmation. Never both. */}
+        {/* The words: the guide's literal three, or (guide off) a rare affirmation. Never both.
+            All of them fade, and all of them wear the inscription's accent cycle. */}
         <View style={styles.wordSlot}>
           {leaving ? (
             <Text style={styles.leavingLine}>{t('settle.leavingLine')}</Text>
           ) : guideOn ? (
-            <Text key={phase} style={styles.guideWord}>
+            <Animated.Text style={[styles.guideWord, { color: wordColor, opacity: wordOpacity }]}>
               {t(GUIDE_KEY[phase])}
-            </Text>
+            </Animated.Text>
           ) : affirmationKey ? (
-            <Animated.Text style={[styles.affirmation, { opacity: affirmationOpacity }]}>{t(affirmationKey)}</Animated.Text>
+            <Animated.Text style={[styles.affirmation, { color: wordColor, opacity: affirmationOpacity }]}>
+              {t(affirmationKey)}
+            </Animated.Text>
           ) : null}
         </View>
       </View>
@@ -266,8 +292,9 @@ const makeStyles = (th: Theme) =>
     centre: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     // A fixed slot below the blob so words never move the layout when they come and go.
     wordSlot: { minHeight: 56, alignItems: 'center', justifyContent: 'flex-start', marginTop: spacing.five },
-    guideWord: { color: th.colors.inkSoft, fontSize: 17 * th.scale, fontFamily: fonts.body, fontStyle: 'italic', textAlign: 'center' },
-    affirmation: { color: th.colors.inkFaint, fontSize: 16 * th.scale, fontFamily: fonts.body, fontStyle: 'italic', textAlign: 'center', maxWidth: 280 },
+    // The inscription's own voice (RotatingPhrase): serif italic, accent-coloured at render.
+    guideWord: { fontSize: 17 * th.scale, fontFamily: fonts.sans, fontStyle: 'italic', textAlign: 'center', letterSpacing: 0.2 },
+    affirmation: { fontSize: 16 * th.scale, fontFamily: fonts.sans, fontStyle: 'italic', textAlign: 'center', letterSpacing: 0.2, maxWidth: 280 },
     leavingLine: { color: th.colors.inkFaint, fontSize: 15 * th.scale, fontFamily: fonts.body, fontStyle: 'italic', textAlign: 'center' },
     guidePill: {
       alignSelf: 'center',

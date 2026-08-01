@@ -13,7 +13,21 @@ export function dayCleared(reduced: boolean): void {}
 export function scrapbookReady(reduced: boolean): void {}
 /** No-op on web. */
 export function stepsLanded(reduced: boolean): void {}
-/** No-op on web (the Settle room's in-breath cue). */
-export function settleBreathIn(): void {}
-/** No-op on web (the Settle room's out-breath cue). */
-export function settleBreathOut(): void {}
+/** The Settle room's haptic breath, the ONE web cue that is not a no-op: Android Chrome
+ *  supports navigator.vibrate (iOS Safari ignores it, harmlessly), and the first device
+ *  test was a phone browser where the silence read as a bug. A light pulse at the swell. */
+export function settleBreathIn(): void {
+  try {
+    navigator.vibrate?.(15);
+  } catch {
+    // unsupported: the visual breath carries it
+  }
+}
+/** Two tiny pulses ~300ms apart at the settle, mirroring the native pattern. */
+export function settleBreathOut(): void {
+  try {
+    navigator.vibrate?.([12, 280, 12]);
+  } catch {
+    // unsupported: the visual breath carries it
+  }
+}
