@@ -1,12 +1,19 @@
-// AI scrapbook: turn a finished week into a calm, on-brand keepsake image. A
-// two-step Workers AI pipeline, distil the week's tasks into ONE calm still-life
-// that gently surfaces what was accomplished (a small text model), then render it
-// (a fast image model). The still-life (not an abstract mood) is deliberate: the
-// Lookback's whole job is to SHOW what you actually did, so the keepsake lets you
-// read your week in it. Pure shaping lives here; index.ts runs the AI binding.
-// No Anthropic call: the scrapbook lives entirely on Workers AI, off the budget.
+// AI scrapbook: turn a finished week into a calm, on-brand keepsake image. Two
+// steps: distil the week's tasks into ONE calm still-life that surfaces what was
+// accomplished (a text model), then render it (a fast Workers AI image model).
+// The still-life (not an abstract mood) is deliberate: the Lookback's whole job
+// is to SHOW what you actually did, so the keepsake lets you read your week in it.
+//
+// The scene writer is Claude Haiku FIRST (2026-08-02): the original all-Workers-AI
+// pipeline used a 3B Llama, which kept retreating to its comfort objects (laundry
+// basket, teacup, wilted plant) instead of grounding the actual week; Melroy's own
+// keepsake showed one hit (his sold laptop) among generics, and a keepsake you
+// cannot read your week in has no payoff. The 3B model stays as the FALLBACK so an
+// Anthropic hiccup never costs anyone their keepsake. ~a tenth of a cent per scene.
+// Pure shaping lives here; index.ts runs the fetch + the AI binding.
 
-export const SCENE_MODEL = '@cf/meta/llama-3.2-3b-instruct';
+export const SCENE_CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
+export const SCENE_MODEL = '@cf/meta/llama-3.2-3b-instruct'; // the fallback scene writer
 export const IMAGE_MODEL = '@cf/black-forest-labs/flux-1-schnell';
 
 export type ChatMessage = { role: 'system' | 'user'; content: string };
@@ -29,6 +36,77 @@ export function sceneMessages(titles: string[]): ChatMessage[] {
     },
     { role: 'user', content: `This week's finished things:\n${list}\n\nThe still-life that evokes them:` },
   ];
+}
+
+// The Claude scene writer: same calm rules, but with the grounding requirement the
+// 3B model could not honour: one recognisable object PER finished item, so the
+// person can genuinely read their week in the picture.
+const SCENE_SYSTEM = [
+  'You turn a week of finished to-do items into ONE calm, warm still-life scene for a gentle keepsake image.',
+  'The person must be able to READ their week in it: include one small, concrete, recognisable object for EACH finished item',
+  '(up to six; if there are more, choose the six most picturable).',
+  "Ground every object in the actual item: a cat's water bowl freshly filled for changing the cat's water,",
+  'a paid bill tucked under a fridge magnet for a bill, a closed laptop with a tied-on sale tag for selling a laptop.',
+  'For abstract or administrative items, choose a homely physical stand-in rather than leaving them out.',
+  'Never invent objects for things that are not on the list.',
+  'Arrange everything together in soft light. No people, and no text, words, letters or numbers anywhere in the scene.',
+  'Peaceful and uncluttered, never busy. Return the scene via the record_scene tool as one sentence, under 45 words.',
+].join(' ');
+
+const SCENE_TOOL = {
+  name: 'record_scene',
+  description: 'Return the one-sentence still-life scene for the keepsake image.',
+  input_schema: {
+    type: 'object',
+    properties: { scene: { type: 'string', description: 'The still-life scene, one sentence, under 45 words.' } },
+    required: ['scene'],
+  },
+} as const;
+
+export type SceneRequest = {
+  url: string;
+  init: { method: string; headers: Record<string, string>; body: string };
+};
+
+/** Build the Anthropic Messages API request that writes the grounded scene. */
+export function buildSceneRequest(titles: string[], apiKey: string): SceneRequest {
+  const list = titles.slice(0, 14).map((t) => `- ${t}`).join('\n');
+  const body = {
+    model: SCENE_CLAUDE_MODEL,
+    max_tokens: 300,
+    system: SCENE_SYSTEM,
+    tools: [SCENE_TOOL],
+    tool_choice: { type: 'tool', name: 'record_scene' },
+    messages: [{ role: 'user', content: `This week's finished things:\n${list}\n\nThe still-life that shows them:` }],
+  };
+  return {
+    url: 'https://api.anthropic.com/v1/messages',
+    init: {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify(body),
+    },
+  };
+}
+
+/** Pull the scene out of Claude's tool-use response, defensively (never throws).
+ *  Returns '' when unusable, so the caller falls back to the Workers AI scene. */
+export function parseSceneResponse(data: unknown): string {
+  if (typeof data !== 'object' || data === null) return '';
+  const content = (data as { content?: unknown }).content;
+  if (!Array.isArray(content)) return '';
+  for (const block of content) {
+    if (
+      block != null &&
+      typeof block === 'object' &&
+      (block as { type?: unknown }).type === 'tool_use' &&
+      (block as { name?: unknown }).name === 'record_scene'
+    ) {
+      const scene = ((block as { input?: unknown }).input as { scene?: unknown })?.scene;
+      if (typeof scene === 'string' && scene.trim().length >= 4) return scene.trim().slice(0, 200);
+    }
+  }
+  return '';
 }
 
 // Used if the text model returns nothing usable, so the image step always has a

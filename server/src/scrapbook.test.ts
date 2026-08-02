@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { dataUrl, FALLBACK_SCENE, imagePrompt, overDailyCap, parseImage, parseScene, SCRAPBOOK_DAILY_CAP, sceneMessages } from './scrapbook';
+import { buildSceneRequest, dataUrl, FALLBACK_SCENE, imagePrompt, overDailyCap, parseImage, parseScene, parseSceneResponse, SCENE_CLAUDE_MODEL, SCRAPBOOK_DAILY_CAP, sceneMessages } from './scrapbook';
 
 describe('sceneMessages', () => {
   it('lists the week and asks for one calm still-life that surfaces it', () => {
@@ -62,5 +62,40 @@ describe('overDailyCap (per-IP abuse backstop)', () => {
   it('stays far above any legitimate use (a premium user front-loading a week is 4, well under the cap)', () => {
     expect(overDailyCap(4)).toBe(false);
     expect(SCRAPBOOK_DAILY_CAP).toBeGreaterThanOrEqual(8);
+  });
+});
+
+describe('the Claude scene writer (grounded, one object per item)', () => {
+  it('builds a forced-tool Messages request carrying every title', () => {
+    const { url, init } = buildSceneRequest(['Change the cat water', 'Pay electricity bill'], 'k-test');
+    expect(url).toBe('https://api.anthropic.com/v1/messages');
+    expect(init.headers['x-api-key']).toBe('k-test');
+    const body = JSON.parse(init.body);
+    expect(body.model).toBe(SCENE_CLAUDE_MODEL);
+    expect(body.tool_choice).toEqual({ type: 'tool', name: 'record_scene' });
+    expect(body.messages[0].content).toContain('Change the cat water');
+    expect(body.messages[0].content).toContain('Pay electricity bill');
+    expect(body.system).toContain('one small, concrete, recognisable object for EACH finished item');
+    expect(body.system).toContain('Never invent objects');
+  });
+
+  it('caps the titles at 14, like the fallback path', () => {
+    const many = Array.from({ length: 20 }, (_, i) => `Task ${i}`);
+    const body = JSON.parse(buildSceneRequest(many, 'k').init.body);
+    expect(body.messages[0].content).toContain('Task 13');
+    expect(body.messages[0].content).not.toContain('Task 14');
+  });
+
+  it('pulls the scene from the tool_use block and clamps it', () => {
+    const raw = { content: [{ type: 'tool_use', name: 'record_scene', input: { scene: '  "A cat bowl freshly filled beside a paid bill." ' } }] };
+    expect(parseSceneResponse(raw)).toBe('"A cat bowl freshly filled beside a paid bill."');
+    const long = { content: [{ type: 'tool_use', name: 'record_scene', input: { scene: 'x'.repeat(400) } }] };
+    expect(parseSceneResponse(long).length).toBe(200);
+  });
+
+  it('returns empty for junk so the caller falls back to the Workers AI scene', () => {
+    expect(parseSceneResponse(null)).toBe('');
+    expect(parseSceneResponse({ content: [{ type: 'text', text: 'a scene' }] })).toBe('');
+    expect(parseSceneResponse({ content: [{ type: 'tool_use', name: 'record_scene', input: { scene: 'x' } }] })).toBe('');
   });
 });

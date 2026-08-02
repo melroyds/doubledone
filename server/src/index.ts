@@ -19,7 +19,7 @@ import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
 import { handleTrial, requirePremium } from './premium';
 import { deleteSub, parsePushSub, saveSub, sendDailyNudges } from './push';
 import { runMonitor } from './monitor';
-import { dataUrl, IMAGE_MODEL, imagePrompt, overDailyCap, parseImage, parseScene, SCENE_MODEL, sceneMessages } from './scrapbook';
+import { buildSceneRequest, dataUrl, IMAGE_MODEL, imagePrompt, overDailyCap, parseImage, parseScene, parseSceneResponse, SCENE_CLAUDE_MODEL, SCENE_MODEL, sceneMessages } from './scrapbook';
 import { buildEnergyRequest, ENERGY_MODEL, parseEnergyLevel, parseEnergyResponse, parseEnergyTasks } from './energy';
 import { buildSequenceRequest, parseEnergy, parseSequenceResponse, SEQUENCE_MODEL } from './sequence';
 import { buildSplitRequest, parseSplitResponse, SPLIT_MODEL } from './split';
@@ -1097,12 +1097,38 @@ const router = {
 
       const started = Date.now();
       try {
-        const sceneRes = await env.AI.run(SCENE_MODEL, {
-          messages: sceneMessages(titles),
-          temperature: 0.7,
-          max_tokens: 60,
-        });
-        const scene = parseScene(sceneRes);
+        // The scene: Claude Haiku first (grounded, one object per finished item), the
+        // Workers AI 3B model as the fallback so an Anthropic hiccup never costs a
+        // keepsake. Still ONE ai_calls row per keepsake (the Analytics Centre counts
+        // keepsakes by those rows); the model field names the scene writer, so the
+        // spend sweep prices the Haiku tokens correctly.
+        let scene = '';
+        let sceneModel: string = IMAGE_MODEL;
+        let sceneTokens: { input: number | null; output: number | null } = { input: null, output: null };
+        if (env.ANTHROPIC_API_KEY) {
+          try {
+            const sceneReq = buildSceneRequest(titles, env.ANTHROPIC_API_KEY);
+            const upstream = await fetch(sceneReq.url, sceneReq.init as RequestInit);
+            if (upstream.ok) {
+              const raw = await upstream.json();
+              scene = parseSceneResponse(raw);
+              if (scene) {
+                sceneModel = SCENE_CLAUDE_MODEL;
+                sceneTokens = extractUsage(raw);
+              }
+            }
+          } catch {
+            // fall through to the Workers AI scene
+          }
+        }
+        if (!scene) {
+          const sceneRes = await env.AI.run(SCENE_MODEL, {
+            messages: sceneMessages(titles),
+            temperature: 0.7,
+            max_tokens: 60,
+          });
+          scene = parseScene(sceneRes);
+        }
         const imageRes = await env.AI.run(IMAGE_MODEL, { prompt: imagePrompt(scene), steps: 4 });
         const base64 = parseImage(imageRes);
         if (!base64) throw new Error('no image returned');
@@ -1122,8 +1148,8 @@ const router = {
         }
         ctx.waitUntil(
           logAiCall(env, {
-            endpoint: 'scrapbook', model: IMAGE_MODEL, input: { titles }, output: { caption: scene },
-            inputTokens: null, outputTokens: null, latencyMs: Date.now() - started, ok: true,
+            endpoint: 'scrapbook', model: sceneModel, input: { titles }, output: { caption: scene },
+            inputTokens: sceneTokens.input, outputTokens: sceneTokens.output, latencyMs: Date.now() - started, ok: true,
           }),
         );
         if (env.DB) {
