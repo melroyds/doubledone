@@ -133,6 +133,9 @@ async function capture(browser, shot) {
     // Today/Lookback/Settings shots capture the real screen, not onboarding. The
     // welcome shot uses /welcome directly, which renders regardless of this flag.
     'doubledone.onboarded.v1': 'yes',
+    // ... and stamp What's New as seen (the gotcha rule: seeded state must bypass
+    // EVERY render gate), or every Today shot silently grows the announcement card.
+    'doubledone.whatsnew.v1': '99',
   };
   if (shot.scrapbooks) payload['doubledone.scrapbooks.v1'] = JSON.stringify(shot.scrapbooks);
   await ctx.addInitScript(seedLocalStorage, payload);
@@ -141,7 +144,7 @@ async function capture(browser, shot) {
   await page.goto(`${BASE}${shot.route}`, { waitUntil: 'domcontentloaded', timeout: 120000 });
   if (shot.waitText) await page.getByText(shot.waitText, { exact: false }).first().waitFor({ timeout: 20000 });
   await page.evaluate(() => document.fonts.ready.then(() => true));
-  await page.waitForTimeout(700); // let the calm fades settle
+  await page.waitForTimeout(shot.delay ?? 700); // let the calm fades settle
 
   const file = path.join(OUT, `${shot.name}.${EXT}`);
   const opts = EXT === 'jpeg' ? { path: file, type: 'jpeg', quality: 92 } : { path: file };
@@ -181,6 +184,10 @@ async function run() {
         { name: 'settings-light', route: '/settings', tasks: TODAY_TASKS, theme: 'light', motion: 'system', waitText: 'Theme' },
         { name: 'settings-dark', route: '/settings', tasks: TODAY_TASKS, theme: 'dark', motion: 'system', waitText: 'Theme' },
         { name: 'welcome', route: '/welcome', tasks: TODAY_TASKS, theme: 'light', waitText: 'A calmer kind of to-do' },
+        // The breathing room, caught ~2.5s into the swell so the blob is risen and the
+        // guide word fully faded in (real headless Chrome runs the animation normally).
+        { name: 'settle-light', route: '/settle', tasks: TODAY_TASKS, theme: 'light', waitText: 'Breathing guide', delay: 2000 },
+        { name: 'settle-dark', route: '/settle', tasks: TODAY_TASKS, theme: 'dark', waitText: 'Breathing guide', delay: 2000 },
       ]
   ).filter((s) => !only || only.has(s.name));
 
