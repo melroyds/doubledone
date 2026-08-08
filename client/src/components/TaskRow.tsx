@@ -134,6 +134,11 @@ export function TaskRow({
     }
     Animated.timing(foldFade, { toValue: 1, duration: reducedMotion ? 90 : 160, useNativeDriver: false }).start();
   }, [moreOpen, reducedMotion, foldFade]);
+  // Select mode's checkbox cross-fade (the congruency pass): the circle eases in with the mode.
+  const [selFade] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    Animated.timing(selFade, { toValue: selecting ? 1 : 0, duration: reducedMotion ? 1 : 120, useNativeDriver: false }).start();
+  }, [selecting, reducedMotion, selFade]);
   const [wasConfirming, setWasConfirming] = useState(confirming);
   if (wasConfirming !== confirming) {
     setWasConfirming(confirming);
@@ -158,6 +163,8 @@ export function TaskRow({
 
   // Multi-select mode: every row becomes a checkbox (tap to pick), and the calm
   // tap-to-complete / long-press menu are suspended until the user leaves select mode.
+  // The circles cross-fade in as the mode opens (the congruency pass); instant under
+  // reduce-motion.
   if (selecting) {
     return (
       <Pressable
@@ -167,7 +174,7 @@ export function TaskRow({
         accessibilityState={{ checked: Boolean(selected) }}
         accessibilityLabel={t('today.selectRowLabel', { title })}
       >
-        <View style={[styles.selectDot, selected && styles.selectDotOn]}>{selected && <Text style={styles.tick}>✓</Text>}</View>
+        <Animated.View style={[styles.selectDot, selected && styles.selectDotOn, { opacity: selFade }]}>{selected && <Text style={styles.tick}>✓</Text>}</Animated.View>
         <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
         {recurring && <Text style={styles.repeatMark}>↻</Text>}
       </Pressable>

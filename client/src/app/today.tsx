@@ -18,7 +18,7 @@ import { RepeatingDrawer } from '@/components/RepeatingDrawer';
 import { RoomsSheet } from '@/components/RoomsSheet';
 import { RotatingPhrase } from '@/components/RotatingPhrase';
 import { TaskRow } from '@/components/TaskRow';
-import { border, fonts, layout, motion, PRESSED_OPACITY, radius, rgba, spacing, type Theme } from '@/constants/theme';
+import { border, cardShadow, fonts, layout, motion, PRESSED_OPACITY, radius, rgba, spacing, type Theme } from '@/constants/theme';
 import {
   clarify,
   combine,
@@ -502,6 +502,28 @@ export default function TodayScreen() {
     const t = tasks.find((x) => x.id === id);
     return t != null && eligibleForCombine(t);
   });
+  // The select shelf (congruency pass, 2026-08-08): select mode's bar joins the held-card-v2
+  // family. The shelf rises like the card; Combine fades within a PERMANENTLY reserved slot
+  // (the bar never changes height mid-selection); its arrival is announced exactly once.
+  const allSelected = spreadable.length > 0 && selected.length >= spreadable.length;
+  const combineEligible = selectMode && combinable.length >= 2;
+  const [shelfRise] = useState(() => new Animated.Value(0));
+  const [combineFade] = useState(() => new Animated.Value(0));
+  const combineWasEligible = useRef(false);
+  useEffect(() => {
+    if (!selectMode) {
+      shelfRise.setValue(0);
+      return;
+    }
+    Animated.timing(shelfRise, { toValue: 1, duration: reduced ? 90 : 180, easing: Easing.out(Easing.quad), useNativeDriver: false }).start();
+  }, [selectMode, reduced, shelfRise]);
+  useEffect(() => {
+    Animated.timing(combineFade, { toValue: combineEligible ? 1 : 0, duration: reduced ? 1 : 180, useNativeDriver: false }).start();
+    if (combineEligible && !combineWasEligible.current) {
+      AccessibilityInfo.announceForAccessibility?.(t('today.combineAvailableAnnounce'));
+    }
+    combineWasEligible.current = combineEligible;
+  }, [combineEligible, reduced, combineFade]);
   // Focus mode shows one unfinished one-off at a time (recurring habits are not the
   // wall-of-awful). The first not-yet-skipped one; completing or skipping advances it.
   const focusTask = focusOpen && focusPick ? (spreadable.find((t) => t.id === focusPick) ?? null) : null;
@@ -2114,57 +2136,86 @@ export default function TodayScreen() {
           />
         </View>
         {selectMode ? (
-          <View style={styles.selectBar}>
+          /* The select shelf (design congruency pass): a card in the held-card-v2 family.
+             GENUINELY BULK, and nothing else: every single-task action lives on the held card.
+             Fixed anatomy in every state (count+Select all, the verb row, Combine's PERMANENTLY
+             reserved slot, the shelf), so the bar never changes height mid-selection. */
+          <Animated.View
+            style={[
+              styles.selectShelfCard,
+              { opacity: shelfRise, transform: [{ translateY: reduced ? 0 : shelfRise.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }] },
+            ]}
+          >
             <View style={styles.selectTop}>
-              <Text style={styles.selectCount}>{selected.length === 0 ? t('today.selectHint') : t('today.selectedCount', { count: selected.length })}</Text>
-              <Pressable onPress={() => setSelected(spreadable.map((x) => x.id))} accessibilityRole="button" accessibilityLabel={t('today.selectAllA11y')} hitSlop={6}>
-                <Text style={styles.selectAllText}>{t('today.selectAll')}</Text>
+              <Text style={selected.length === 0 ? styles.selectHintText : styles.selectCount}>
+                {selected.length === 0 ? t('today.selectHint') : t('today.selectedCount', { count: selected.length })}
+              </Text>
+              {/* Select all wears the rail grammar (bordered = act-and-stay), dimming in place
+                  once everything is selected rather than vanishing. */}
+              <Pressable
+                onPress={() => setSelected(spreadable.map((x) => x.id))}
+                disabled={allSelected}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: allSelected }}
+                accessibilityLabel={allSelected ? t('today.selectAllUnavailA11y') : t('today.selectAllA11y')}
+                style={[styles.selectAllPill, allSelected && styles.selectRowOff]}
+                hitSlop={6}
+              >
+                <Text style={[styles.selectAllPillText, allSelected && styles.selectDimText]}>{t('today.selectAll')}</Text>
               </Pressable>
             </View>
-            {/* GENUINELY BULK, and nothing else. Every single-task action now lives on the held card,
-                where it sits on the thing it acts on; duplicating them here is what made a hold mean
-                two different things and put ten ungrouped links 300px from the task. Six honest
-                actions, one row. Combine is the one that justifies multi-select existing at all. */}
-            <View style={styles.selectActions}>
-              <View style={styles.actionRow}>
-                <Pressable onPress={bulkComplete} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={t('today.markSelectedDoneA11y')} hitSlop={6}>
-                  <Text style={[styles.selectDone, selected.length === 0 && styles.selectActionOff]}>{t('common.done')}</Text>
-                </Pressable>
-                <Pressable onPress={() => setMoveIds(selected)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={t('today.moveSelectedA11y')} hitSlop={6}>
-                  <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>{t('today.moveTo')}</Text>
-                </Pressable>
-                <Pressable onPress={() => markBig(selected, !allBig)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={allBig ? t('today.unmarkBigA11y') : t('today.markBigA11y')} hitSlop={6}>
-                  <Text style={[styles.selectAction, selected.length === 0 && styles.selectActionOff]}>{allBig ? t('today.notALot') : t('today.markAsALot')}</Text>
-                </Pressable>
-                {combinable.length >= 2 && (
-                  <Pressable
-                    onPress={() => void openCombine()}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('today.combineA11y')}
-                    hitSlop={6}
-                  >
-                    <Text style={styles.selectAction}>{t('today.combine')}</Text>
-                  </Pressable>
-                )}
-                {/* A lone recurring selection names the true semantics (skip today, the repeat continues),
-                    so a screen reader never hears "remove" and fears the series is gone. */}
-                <Pressable
-                  onPress={bulkRemove}
-                  disabled={selected.length === 0}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    onlyTask && isRecurring(onlyTask) ? t('repeat.skipTodayA11y', { title: onlyTask.title }) : t('today.removeSelectedA11y')
-                  }
-                  hitSlop={6}
-                >
-                  <Text style={[styles.selectRemove, selected.length === 0 && styles.selectActionOff]}>{t('common.remove')}</Text>
-                </Pressable>
-              </View>
+            <View style={[styles.selectVerbRow, selected.length === 0 && styles.selectRowOff]}>
+              <Pressable onPress={bulkComplete} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={t('today.markSelectedDoneA11y')} hitSlop={6} style={styles.selectVerb}>
+                <Text style={styles.selectDone}>{t('common.done')}</Text>
+              </Pressable>
+              <Pressable onPress={() => setMoveIds(selected)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={t('today.moveSelectedA11y')} hitSlop={6} style={styles.selectVerb}>
+                <Text style={styles.selectAction}>{t('today.moveTo')}</Text>
+              </Pressable>
+              <Pressable onPress={() => markBig(selected, !allBig)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={allBig ? t('today.unmarkBigA11y') : t('today.markBigA11y')} hitSlop={6} style={styles.selectVerb}>
+                <Text style={styles.selectAction}>{allBig ? t('today.notALot') : t('today.markAsALot')}</Text>
+              </Pressable>
             </View>
-            <Pressable onPress={exitSelect} accessibilityRole="button" accessibilityLabel={t('today.cancelSelectionA11y')} hitSlop={6}>
-              <Text style={styles.selectCancel}>{t('common.cancel')}</Text>
-            </Pressable>
-          </View>
+            {/* Combine, the surface's one tinted hero, in a slot reserved in EVERY state: eligible
+                it fades in; ineligible the slot rests as breathing room above the shelf. */}
+            <View style={styles.combineSlot}>
+              {combineEligible && (
+                <Animated.View style={{ opacity: combineFade }}>
+                  <Pressable onPress={() => void openCombine()} accessibilityRole="button" accessibilityLabel={t('today.combineA11y')} hitSlop={6} style={styles.combineHero}>
+                    <Text style={styles.combineHeroLabel}>{t('today.combine')}</Text>
+                    <Text style={styles.combineHeroSub}>{t('today.combineSub')}</Text>
+                  </Pressable>
+                </Animated.View>
+              )}
+            </View>
+            {/* The shelf: Cancel in Close's seat, Remove far away. A lone repeating selection
+                names its true, kinder consequence in two lines. */}
+            <View style={styles.selectShelf}>
+              <Pressable onPress={exitSelect} accessibilityRole="button" accessibilityLabel={t('today.cancelSelectionA11y')} hitSlop={6}>
+                <Text style={styles.selectCancelText}>{t('common.cancel')}</Text>
+              </Pressable>
+              <Pressable
+                onPress={bulkRemove}
+                disabled={selected.length === 0}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  onlyTask && isRecurring(onlyTask)
+                    ? t('repeat.skipTodayA11y', { title: onlyTask.title })
+                    : t('today.removeCountA11y', { count: String(selected.length) })
+                }
+                hitSlop={6}
+                style={selected.length === 0 ? styles.selectRowOff : undefined}
+              >
+                {onlyTask && isRecurring(onlyTask) ? (
+                  <View style={styles.removeStack}>
+                    <Text style={styles.selectRemove}>{t('repeat.skipToday')}</Text>
+                    <Text style={styles.seriesContinues}>{t('today.seriesContinues')}</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.selectRemove}>{t('common.remove')}</Text>
+                )}
+              </Pressable>
+            </View>
+          </Animated.View>
         ) : (
           <>
         {!isClosed && sortSummary && <Text style={styles.sortSummary}>{sortSummary}</Text>}
@@ -3044,20 +3095,67 @@ const makeStyles = (t: Theme) =>
     optionalLinks: { marginTop: spacing.four, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: spacing.five },
     optLink: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', textDecorationLine: 'underline' },
     optFaint: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center', textDecorationLine: 'underline' },
-    selectBar: { gap: spacing.three, alignItems: 'center', paddingVertical: spacing.two },
-    selectCount: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    selectActions: { alignItems: 'center', gap: spacing.three },
+    // The select shelf card (congruency pass): the held-card-v2 family. Standard wears the
+    // card surface + hairline + shadow; Quiet keeps its single accentSoft wash, no chrome.
+    selectShelfCard:
+      t.appearance === 'quiet'
+        ? { backgroundColor: t.quiet.pressWash, borderRadius: radius.md, padding: spacing.four, gap: spacing.one }
+        : { backgroundColor: t.colors.surfaceCard, borderRadius: radius.md, borderWidth: border.hair, borderColor: t.colors.line, padding: spacing.four, gap: spacing.one, boxShadow: cardShadow(t) },
+    selectCount: { color: t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    selectHintText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+    // Select all in the rail grammar (bordered = act-and-stay); Quiet keeps the underline.
+    selectAllPill:
+      t.appearance === 'quiet'
+        ? { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.two }
+        : { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.four, borderWidth: border.hair, borderColor: t.colors.line, borderRadius: radius.pill },
+    selectAllPillText:
+      t.appearance === 'quiet'
+        ? { color: t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', textDecorationLine: 'underline' }
+        : { color: t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    selectDimText: { color: t.colors.inkFaint },
+    selectRowOff: { opacity: 0.4 },
+    selectVerbRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: spacing.five, minHeight: 44 },
+    selectVerb: { minHeight: 44, justifyContent: 'center' },
+    // Combine's reserved slot: 48px in EVERY state, so the bar never changes height.
+    combineSlot: { minHeight: 48, justifyContent: 'center' },
+    combineHero:
+      t.appearance === 'quiet'
+        ? { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three, paddingHorizontal: spacing.two }
+        : { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three, paddingHorizontal: spacing.three, borderRadius: radius.sm, backgroundColor: t.colors.accentSoft },
+    combineHeroLabel: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    combineHeroSub: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body, textAlign: 'right', flexShrink: 1 },
+    // The shelf: the same floor as the held card (band + hairline, rounded into the corners).
+    selectShelf:
+      t.appearance === 'quiet'
+        ? { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three, borderTopWidth: border.hair, borderColor: t.quiet.hairline, paddingTop: spacing.three, paddingHorizontal: spacing.two, marginTop: spacing.one, minHeight: 44 }
+        : {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: spacing.three,
+            minHeight: 52,
+            marginTop: spacing.one,
+            marginHorizontal: -spacing.four,
+            marginBottom: -spacing.four,
+            paddingHorizontal: spacing.four,
+            borderTopWidth: border.hair,
+            borderColor: t.colors.line,
+            borderBottomLeftRadius: radius.md,
+            borderBottomRightRadius: radius.md,
+            backgroundColor: t.scheme === 'dark' ? 'rgba(0,0,0,0.16)' : 'rgba(43,39,34,0.035)',
+          },
+    selectCancelText: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    removeStack: { alignItems: 'flex-end' },
+    seriesContinues: { color: t.colors.inkSoft, fontSize: 11 * t.scale, fontFamily: fonts.body },
     actionRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: spacing.four },
-    selectAction: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    selectAction: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     sliceEditStepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.four, marginVertical: spacing.four },
     sliceStepBtn: { width: 44, height: 44, borderRadius: radius.pill, borderWidth: border.hair, borderColor: t.colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: t.colors.surface },
     sliceStepBtnOff: { opacity: 0.4 },
     sliceStepGlyph: { fontSize: 26 * t.scale, lineHeight: 30 * t.scale, color: t.colors.accent, fontFamily: fonts.body },
     sliceStepValue: { ...t.type.heading, color: t.colors.ink, minWidth: 110, textAlign: 'center' },
-    selectDone: { color: t.colors.doneText, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    selectRemove: { color: t.colors.danger, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    selectActionOff: { color: t.colors.inkFaint },
-    selectCancel: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+    selectDone: { color: t.colors.doneText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    selectRemove: { color: t.colors.danger, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', textAlign: 'right' },
     sortSummary: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginBottom: spacing.two },
     affirmation: { color: t.colors.doneText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', marginBottom: spacing.two },
     holdHint: {
@@ -3294,9 +3392,8 @@ const makeStyles = (t: Theme) =>
     energyChoiceText: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     energyNotNow: { color: t.colors.inkFaint, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', paddingVertical: spacing.two },
     alsoDidUnderList: { marginTop: spacing.three, marginBottom: spacing.two, alignItems: 'center' },
-    selectTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four, marginBottom: spacing.two },
-    selectAllText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, textDecorationLine: 'underline' },
-    moveToPresets: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two, justifyContent: 'center', marginBottom: spacing.three },
+    selectTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.four, minHeight: 44 },
+    moveToPresets:{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two, justifyContent: 'center', marginBottom: spacing.three },
     moveChip: { borderWidth: border.hair, borderColor: t.colors.line, borderRadius: radius.pill, paddingVertical: spacing.three, paddingHorizontal: spacing.three },
     moveChipText: { color: t.colors.ink, fontFamily: fonts.body, fontSize: 14 * t.scale },
     moveCancelWrap: { marginTop: spacing.three, alignItems: 'center' },
