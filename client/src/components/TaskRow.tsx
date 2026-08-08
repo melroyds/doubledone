@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { border, cardShadow, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { t } from '@/lib/locale';
 import { formatNudgeTime } from '@/lib/nudge';
 import { type Slices } from '@/lib/tasks';
-import { useTheme, useThemedStyles } from '@/lib/theme-provider';
+import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 import { CheckCircle } from './CheckCircle';
 import { MarqueeText } from './MarqueeText';
@@ -114,6 +114,26 @@ export function TaskRow({
     }, 60); // after the card's layout settles
     return () => clearTimeout(id);
   }, [confirming]);
+  // The open (design v2): the card rises in over 180ms with a 4px settle; the fold fades in
+  // over 160ms. Reduce-motion is a DESIGNED state, not an absence: a single 90ms dissolve,
+  // no translate. useState initializers for Animated values, Bloom's compiler-safe pattern.
+  const reducedMotion = useReducedMotion();
+  const [cardIn] = useState(() => new Animated.Value(0));
+  const [foldFade] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    if (!confirming) {
+      cardIn.setValue(0);
+      return;
+    }
+    Animated.timing(cardIn, { toValue: 1, duration: reducedMotion ? 90 : 180, easing: Easing.out(Easing.quad), useNativeDriver: false }).start();
+  }, [confirming, reducedMotion, cardIn]);
+  useEffect(() => {
+    if (!moreOpen) {
+      foldFade.setValue(0);
+      return;
+    }
+    Animated.timing(foldFade, { toValue: 1, duration: reducedMotion ? 90 : 160, useNativeDriver: false }).start();
+  }, [moreOpen, reducedMotion, foldFade]);
   const [wasConfirming, setWasConfirming] = useState(confirming);
   if (wasConfirming !== confirming) {
     setWasConfirming(confirming);
@@ -163,7 +183,6 @@ export function TaskRow({
     // sub-label or state right), never a tight equal-width column, so a long label or a large system
     // font can never clip (the old grid's bug).
     const canMoveTo = Boolean(onMoveTo && !recurring);
-    const canUndoStep = Boolean(onRetreat && slices);
     // A task already split into steps does not need decomposing or shrinking again.
     const canBreakdown = Boolean(onBreakdown && !recurring && !slices);
     const canSteps = Boolean(onSteps && !recurring);
@@ -196,9 +215,15 @@ export function TaskRow({
 
     // A finished task: a deliberately minimal card. The honest correction (which day it happened) and
     // the way out, nothing to shape (a finished thing needs nothing shaped) and no "Done". A calm close.
+    // The rise: shared by both card variants. Reduce-motion holds the geometry (dissolve only).
+    const riseStyle = {
+      opacity: cardIn,
+      transform: [{ translateY: reducedMotion ? 0 : cardIn.interpolate({ inputRange: [0, 1], outputRange: [4, 0] }) }],
+    };
+
     if (done) {
       return (
-        <View ref={cardRef} style={[styles.row, styles.confirmRow, styles.confirmColumn]}>
+        <Animated.View ref={cardRef} style={[styles.row, styles.confirmRow, styles.confirmColumn, riseStyle]}>
           <View style={styles.doneTitleRow}>
             <Text style={styles.doneCheck} accessible={false} importantForAccessibility="no">✓</Text>
             <Text style={[styles.confirmTitle, styles.confirmTitleDone]} numberOfLines={2}>{title}</Text>
@@ -214,19 +239,20 @@ export function TaskRow({
               <Text style={styles.actionLabel}>{t('today.doneOn')}</Text>
             </Pressable>
           )}
-          {terminalRow}
+          {/* The inscription sits ABOVE the shelf (v2): the card's last word before its floor. */}
           <Text style={styles.doneIsDone}>{t('today.heldDoneIsDone')}</Text>
-        </View>
+          {terminalRow}
+        </Animated.View>
       );
     }
 
-    // An open task: the curated 1a card.
-    const hasMore = canSteps || canUndoStep || canPin || Boolean(onNudge);
-    const morePreview = [canSteps && t('today.steps'), canPin && t('today.pin'), onNudge && t('reminders.remindMe')]
-      .filter(Boolean)
-      .join(' · ');
+    // An open task: the v2 card ("Four species, four grammars"). The More preview names its
+    // everyday contents; Pin deliberately stays out of it (premium recedes, never advertises).
+    const hasMore = canSteps || canPin || Boolean(onNudge);
+    const morePreview = [canSteps && t('today.steps'), onNudge && t('reminders.remindMe')].filter(Boolean).join(' · ');
+    const undoOff = !slices || slices.done <= 0;
     return (
-      <View ref={cardRef} style={[styles.row, styles.confirmRow, styles.confirmColumn]}>
+      <Animated.View ref={cardRef} style={[styles.row, styles.confirmRow, styles.confirmColumn, riseStyle]}>
         {editingTitle != null && onRename ? (
           <TextInput
             value={editingTitle}
@@ -302,34 +328,34 @@ export function TaskRow({
             <Text style={[styles.actionSub, big && styles.actionLabelActive]}>{big ? '✓' : t('today.weightHint')}</Text>
           </Pressable>
         )}
-        {/* Free manual reorder (the second field report, 2026-08-04): one split row, two nudges.
-            Deliberately NOT act-and-dismiss like its neighbours: moving three places should be
-            three taps with the card held open, not three long-presses. An edge (first / last)
-            dims its button rather than hiding it, so the card never reshapes underhand. */}
-        {(onMoveUp || onMoveDown) && (
-          <View style={styles.splitWrap}>
-            <Pressable
-              onPress={onMoveUp}
-              disabled={!onMoveUp}
-              style={[styles.actionRow, styles.splitHalf]}
-              accessibilityRole="button"
-              accessibilityLabel={t('today.moveUpA11y', { title })}
-              hitSlop={{ top: 6, bottom: 6 }}
-            >
-              <Text style={[styles.actionLabel, !onMoveUp && styles.controlOff]}>{t('today.moveUp')}</Text>
-            </Pressable>
-            <Pressable
-              onPress={onMoveDown}
-              disabled={!onMoveDown}
-              style={[styles.actionRow, styles.splitHalf]}
-              accessibilityRole="button"
-              accessibilityLabel={t('today.moveDownA11y', { title })}
-              hitSlop={{ top: 6, bottom: 6 }}
-            >
-              <Text style={[styles.actionLabel, !onMoveDown && styles.controlOff]}>{t('today.moveDown')}</Text>
-            </Pressable>
-          </View>
-        )}
+        {/* The rail (design v2): the reorder pair as ONE segmented, hairline-bordered control.
+            Bordered = act-and-stay, the card's only such element (three places is three taps
+            with the card held open, never three long-presses). An edge dims its cell in place;
+            a pinned task rests the WHOLE rail (the pin holds the top by other means). Always
+            rendered on an open card, so the card never reshapes under a hovering finger. */}
+        <View style={styles.rail}>
+          <Pressable
+            onPress={onMoveUp}
+            disabled={!onMoveUp}
+            style={styles.railCell}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !onMoveUp }}
+            accessibilityLabel={onMoveUp ? t('today.moveUpA11y', { title }) : t('today.moveUpUnavailA11y')}
+          >
+            <Text style={[styles.railLabel, !onMoveUp && styles.railOff]}>{t('today.moveUp')}</Text>
+          </Pressable>
+          <View style={styles.railDivider} />
+          <Pressable
+            onPress={onMoveDown}
+            disabled={!onMoveDown}
+            style={styles.railCell}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !onMoveDown }}
+            accessibilityLabel={onMoveDown ? t('today.moveDownA11y', { title }) : t('today.moveDownUnavailA11y')}
+          >
+            <Text style={[styles.railLabel, !onMoveDown && styles.railOff]}>{t('today.moveDown')}</Text>
+          </Pressable>
+        </View>
 
         {/* More: the rarer actions, folded away by default so the card reads as four calm helpers. */}
         {hasMore && (
@@ -355,7 +381,10 @@ export function TaskRow({
               </Text>
             </Pressable>
             {moreOpen && (
-              <>
+              <Animated.View style={{ opacity: foldFade }}>
+                {/* The purified fold (v2): Steps, Undo a step, Remind me, and Pin LAST, so
+                    premium recedes rather than advertises. Unavailable dims in place with an
+                    honest reason, never disappears. */}
                 {canSteps && (
                   <Pressable
                     onPress={onSteps}
@@ -365,33 +394,23 @@ export function TaskRow({
                     hitSlop={{ top: 6, bottom: 6 }}
                   >
                     <Text style={styles.actionLabel}>{t('today.steps')}</Text>
-                    {slices && <Text style={styles.actionSub}>{t('today.stepsOf', { done: slices.done, total: slices.total })}</Text>}
+                    <Text style={styles.actionSub}>
+                      {slices ? t('today.stepsOf', { done: slices.done, total: slices.total }) : t('today.stepsCountHint')}
+                    </Text>
                   </Pressable>
                 )}
-                {canUndoStep && slices && (
+                {canSteps && onRetreat && (
                   <Pressable
                     onPress={onRetreat}
-                    disabled={slices.done <= 0}
+                    disabled={undoOff}
                     style={[styles.actionRow, styles.moreItem]}
                     accessibilityRole="button"
+                    accessibilityState={{ disabled: undoOff }}
                     accessibilityLabel={t('today.stepBackLabel', { title })}
                     hitSlop={{ top: 6, bottom: 6 }}
                   >
-                    <Text style={[styles.actionLabel, slices.done <= 0 && styles.controlOff]}>{t('today.undoAStep')}</Text>
-                  </Pressable>
-                )}
-                {canPin && (
-                  <Pressable
-                    onPress={onPin}
-                    style={[styles.actionRow, styles.moreItem]}
-                    accessibilityRole="button"
-                    accessibilityLabel={pinned ? t('today.unpinA11y') : t('today.pinA11y')}
-                    hitSlop={{ top: 6, bottom: 6 }}
-                  >
-                    {/* Dimmed, not hidden, for a free user: a visible feature that costs a calm detour
-                        is kinder than one that is simply absent. */}
-                    <Text style={[styles.actionLabel, pinDim && styles.controlOff]}>{pinned ? t('today.unpin') : t('today.pin')}</Text>
-                    <Text style={styles.actionSub}>{t('today.pinHint')}</Text>
+                    <Text style={[styles.actionLabel, undoOff && styles.controlOff]}>{t('today.undoAStep')}</Text>
+                    {undoOff && <Text style={[styles.actionSub, styles.controlOff]}>{t('today.noStepsYet')}</Text>}
                   </Pressable>
                 )}
                 {onNudge && (
@@ -405,13 +424,36 @@ export function TaskRow({
                     <Text style={styles.actionLabel}>{t('reminders.remindMe')}</Text>
                   </Pressable>
                 )}
-              </>
+                {canPin && (
+                  <Pressable
+                    onPress={onPin}
+                    style={[styles.actionRow, styles.moreItem]}
+                    accessibilityRole="button"
+                    accessibilityLabel={pinned ? t('today.unpinA11y') : t('today.pinA11y')}
+                    hitSlop={{ top: 6, bottom: 6 }}
+                  >
+                    {/* Dimmed, not hidden, for a free user; the honey ✦ is the premium mark
+                        (never a lock: locks read as denial). Pinned reads as a settled state. */}
+                    <View style={styles.pinLead}>
+                      <Text style={[styles.actionLabel, pinned && styles.pinnedLabel, pinDim && styles.premiumDim]}>
+                        {pinned ? t('today.pinnedTick') : t('today.pin')}
+                      </Text>
+                      {!pinned && (
+                        <Text style={[styles.premiumStar, pinDim && styles.premiumDim]} accessible={false} importantForAccessibility="no">
+                          ✦
+                        </Text>
+                      )}
+                    </View>
+                    <Text style={[styles.actionSub, pinDim && styles.premiumDim]}>{t('today.pinHint')}</Text>
+                  </Pressable>
+                )}
+              </Animated.View>
             )}
           </>
         )}
 
         {terminalRow}
-      </View>
+      </Animated.View>
     );
   }
 
@@ -600,7 +642,8 @@ const makeStyles = (t: Theme) => {
     doneTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, paddingHorizontal: spacing.two, paddingBottom: spacing.one },
     doneCheck: { color: t.colors.done, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     confirmTitleDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through', paddingHorizontal: 0, paddingBottom: 0, flexShrink: 1 },
-    doneIsDone: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, fontStyle: 'italic', textAlign: 'center', paddingTop: spacing.two },
+    // The done card's inscription: the serif voice (like Today's rotating line), above the shelf.
+    doneIsDone: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', textAlign: 'center', paddingTop: spacing.two, paddingBottom: spacing.one },
     // Every held-card action is a full-width row: label left, a quiet sub-label / state right. Content-sized
     // text at both ends (never a tight equal-width column), so a long label or a large font can't clip.
     actionRow: {
@@ -632,21 +675,57 @@ const makeStyles = (t: Theme) => {
     // The revealed More items sit slightly indented, so they read as belonging under the disclosure.
     moreItem: { paddingLeft: spacing.four },
     controlOff: { color: t.colors.inkFaint },
-    // The reorder pair: one action row split into two equal halves.
-    splitWrap: { flexDirection: 'row', gap: spacing.three },
-    splitHalf: { flex: 1 },
-    // The way out, under a hairline: Close (left, easy reach), Select more (middle), Remove (far right).
-    terminalRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: spacing.three,
-      borderTopWidth: border.hair,
-      borderColor: t.appearance === 'quiet' ? t.quiet.hairline : t.colors.line,
-      paddingTop: spacing.three,
-      paddingHorizontal: spacing.two,
-      marginTop: spacing.one,
-    },
+    // The rail (v2): one segmented hairline-bordered control, the card's ONLY bordered element
+    // because it is the only act-and-stay element. In Quiet the border goes (whitespace
+    // separates the two labels), same heights, same targets.
+    rail:
+      t.appearance === 'quiet'
+        ? { flexDirection: 'row', alignItems: 'stretch', minHeight: 44 }
+        : { flexDirection: 'row', alignItems: 'stretch', minHeight: 44, borderWidth: border.hair, borderColor: t.colors.line, borderRadius: radius.sm, overflow: 'hidden' },
+    railCell: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.one },
+    railDivider: t.appearance === 'quiet' ? { width: spacing.three } : { width: border.hair, backgroundColor: t.colors.line },
+    railLabel: { ...t.type.label, color: t.colors.ink },
+    // Dim in place, never remove: the card must not reshape under a hovering finger.
+    railOff: { color: t.colors.inkFaint, opacity: 0.7 },
+    // Pin, the fold's last resident: the honey ✦ (the inscription gold, accents[2], the closest
+    // thing to honey every palette carries) marks premium without a lock.
+    pinLead: { flexDirection: 'row', alignItems: 'center', gap: spacing.one },
+    premiumStar: { color: t.colors.accents[2], fontSize: 12 * t.scale },
+    premiumDim: { opacity: 0.6 },
+    pinnedLabel: { color: t.colors.accent },
+    // The shelf (v2): the card's floor. A quiet surface-tint band flush to the card's edges,
+    // rounded into its bottom corners, holding Close (easy thumb), Select more, Remove (far).
+    // Quiet keeps its chrome-free hairline instead of a band.
+    terminalRow:
+      t.appearance === 'quiet'
+        ? {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: spacing.three,
+            borderTopWidth: border.hair,
+            borderColor: t.quiet.hairline,
+            paddingTop: spacing.three,
+            paddingHorizontal: spacing.two,
+            marginTop: spacing.one,
+            minHeight: 44,
+          }
+        : {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: spacing.three,
+            minHeight: 52,
+            marginTop: spacing.two,
+            marginHorizontal: -spacing.four,
+            marginBottom: -spacing.four,
+            paddingHorizontal: spacing.four,
+            borderTopWidth: border.hair,
+            borderColor: t.colors.line,
+            borderBottomLeftRadius: radius.md,
+            borderBottomRightRadius: radius.md,
+            backgroundColor: t.scheme === 'dark' ? 'rgba(0,0,0,0.16)' : 'rgba(43,39,34,0.035)',
+          },
     close: { ...t.type.label, color: t.colors.accent, fontWeight: '700' },
     selectMore: { ...t.type.label, color: t.colors.inkSoft },
     remove: { ...t.type.label, color: t.colors.danger },

@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, AppState, Easing, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, Animated, AppState, Easing, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -741,6 +741,12 @@ export default function TodayScreen() {
     const next = moveInOrder(ids, ids.indexOf(id), delta);
     if (next === ids) return; // already at the edge
     commit(setSequence(tasks, next, nowMs()));
+    // The design-v2 contract: each rail tap announces the landing place, so a screen-reader
+    // user hears the move happen without leaving the still-open card.
+    const pos = next.indexOf(id) + 1;
+    AccessibilityInfo.announceForAccessibility?.(
+      t(delta === -1 ? 'today.movedUpAnnounce' : 'today.movedDownAnnounce', { pos: String(pos), total: String(next.length) }),
+    );
     track('task.reordered', { dir: delta === -1 ? 'up' : 'down' });
   }
 
