@@ -1,0 +1,138 @@
+# Ours: the build sequence
+
+*The staged plan for the `ours` branch. Architecture in [`shared-lists.md`](shared-lists.md),
+the adversarial argument behind it in [`shared-lists-review.md`](shared-lists-review.md).
+Full scope, including recurrence, decided 2026-08-09.*
+
+> **Branch rule.** `ours` does NOT deploy. `main` auto-deploys the web on every push, so all of
+> this is built here and merged only on Melroy's explicit word, exactly as `premium` and
+> `settle` were. The merge IS the web deploy.
+
+**The immediate next action is always the first unchecked box.**
+
+---
+
+## Prerequisites, already on `main`
+
+- [x] `makeId()` gains a random tail (the cross-device primary-key collision, e70f809)
+- [x] `isAccountGone()` requires the constraint name, fails safe (e70f809)
+
+Both were found by the architecture panel reading shipped code, and both had to land before
+any second table carrying a user foreign key existed.
+
+---
+
+## Phase 1 · Foundation (Supabase only, nothing user-visible)
+
+Nothing in the client changes. Ships to live Supabase ahead of any client that reads it, per
+the `skipped_dates` / `big` precedent, because `taskToRow` emits every field unconditionally.
+
+- [ ] `pairs`, `pair_members`, `pair_invites`, `shared_tasks` per the locked schema
+      (`shared-lists.md` §3), including `recurrence` and `completed_dates` on `shared_tasks`
+- [ ] `tasks` gains **two** nullable columns: `shared_id`, `shared_pair_id` (a shared task's
+      id is only unique within its pair, so the link needs both, §5a)
+- [ ] `is_pair_member(uuid)` definer helper; RLS on all four tables. `pair_invites` gets
+      **zero policies**; `pair_members` gets **no insert and no update policy** (that absence
+      is the security control)
+- [ ] `create_pair_invite()` and `join_pair(code)`, hardened like the live `delete_account()`:
+      server-side entropy, hash-only storage, single-statement verify-and-consume, per-account
+      and global rate limits inside the function, `MAX_PAIRS_PER_USER = 1` as a named constant
+- [ ] `after delete on pair_members` trigger: delete the pair when no members remain
+- [ ] `server_now()` stable function (the clock, phase 3 consumes it)
+- [ ] Schema-as-code in `supabase/schema.sql`, applied by Melroy, verified by a read-back
+
+## Phase 2 · Pairing
+
+- [ ] `lib/pairing.ts`: pure code formatting/parsing/validation + tests
+- [ ] Create flow: preset picker (The shop · The house · The baby · Just us · name it yourself,
+      default Ours), self-chosen label, code display, OS share sheet
+- [ ] Join flow: code entry, self-label, **no pre-join preview** (§2), post-join confirmation
+      both ways ("You're now sharing with Sam. Not them? Leave." / "Sam joined · That wasn't
+      who I meant")
+- [ ] Leave: one tap, on the Ours screen itself, expiring outstanding invites in the same
+      statement
+- [ ] Signed-out Ours: the calm one-screen explanation, never a nag
+- [ ] **Dogfood gate:** Melroy and his wife pair on web before Phase 3 starts
+
+## Phase 3 · The list and its clock
+
+- [ ] `withMonotonicStamps` widened to `<T extends { id: string; updatedAt: number }>` and used
+      on the shared write path
+- [ ] `server_now()` read once per sync → cached skew → applied at `nowMs()`, failing open to
+      zero. Fixes personal cross-device and MCP skew in the same stroke
+- [ ] `lib/ours-merge.ts`: LWW + tombstones + **grow-only union of `completed_dates`**, pure,
+      heavily tested (two people ticking the bins from two phones must converge)
+- [ ] `lib/ours-sync.ts`: push/pull, reconcile after **every** write, poll at 15s while the
+      screen is focused AND the app is active, stopping on blur/background and after ten idle
+      minutes, filtering on `updated_at` only (never `deleted_at is null`)
+- [ ] Local cache `doubledone.ours.v1` = `{ [pairId]: tasks[] }`, rendered only when the pair
+      matches a confirmed membership. **Added to `wipeLocalData` and its regression test in the
+      same commit**
+- [ ] The Ours screen: Today's grammar, same rows, same held card minus the AI actions
+- [ ] The quiet door on Today: reads `Ours` (or the chosen name). **No count**, ever
+
+## Phase 4 · The bridges
+
+- [ ] Pull to my Today: fresh id, fresh `createdAt`, `shared_id` + `shared_pair_id` set,
+      idempotent (a second pull focuses the existing copy)
+- [ ] **Your** tick closes the shared row (one hop, the `completeAncestors` shape)
+- [ ] **Their** tick tombstones your copy; it never marks it done (work you did not do must
+      never enter your Lookback)
+- [ ] A shared removal never removes anything from your Today
+- [ ] Share to Ours from the personal held card
+
+## Phase 5 · Recurrence (full scope, decided 2026-08-09)
+
+- [ ] Render shared recurring tasks through the existing engine unchanged (`tasksForToday` is
+      already generic over a structural type)
+- [ ] Cadence capture on Ours, reusing the repeating drawer rather than a second surface
+- [ ] **`completed_dates` stays an unattributed set of dates.** No per-occurrence attribution,
+      ever, or the model becomes the chore ledger the never-shame laws outlaw
+- [ ] Confirm by test that a miss is unstorable, so no witness can ever see one
+
+## Phase 6 · The guards that make the laws true
+
+- [ ] Freeze on unpair: `pairs.closed_at`, reads stay, writes stop, **zero rows move**
+- [ ] "Remove this list" on a frozen list deletes your own membership
+- [ ] Done rows stop rendering at the day boundary (parity with `tasksForToday`)
+- [ ] Tombstones under seven days: dimmed "Recently removed" with Restore, naming nobody
+- [ ] The finality affirmations do NOT fire on Ours (the app only promises finality where it
+      controls finality, and here your person can un-tick)
+
+## Phase 7 · Compliance, before any store binary
+
+Two accounts seeing each other's free text puts DoubleDone under Apple 1.2 and Play's UGC
+policy. After two guideline rejections in July, a third blocks the whole release.
+
+- [ ] Report: one quiet row → existing `/feedback` Worker route with a context tag and pair id
+- [ ] Block: "Leave this list" on the Ours screen (already Phase 2), named honestly
+- [ ] Kill path: `pairs.disabled_at`, one clause in the RLS predicate, flipped by hand
+- [ ] Privacy policy, **both copies, same commit**, plus the delete-account clause in 5 locales
+- [ ] Terms paragraph defining objectionable content
+- [ ] Store forms: Play IARC and Apple age rating gain user interaction + UGC; annotate the
+      existing Data Safety row; App Review notes pointing at Report and Block
+
+## Phase 8 · Finish
+
+- [ ] Five locales, through the never-shame string audit (the presets are a values statement)
+- [ ] E2E cases in `gen-test-suite.py`, suite regenerated
+- [ ] Screenshots including Ours, all locales
+- [ ] Decision-log entries recording what was decided **against**, per the panel: `created_by`
+      kept while `done_by` dropped; freeze over copy; the answer to the clock assumption
+      dangling at `decision-log.md:303`
+- [ ] **Web first.** Merge to `main` on Melroy's word, live with two real households for a
+      fortnight, and only then does Phase 7's kit gate an AAB or IPA
+
+---
+
+## Standing rules for this branch
+
+- **No `done_by` column, in any phase.** A tally must be impossible because the data does not
+  exist, the Rhythms bar (`product-spec.md:102`), not because the UI declines to render it.
+- **No number on Today that another person can change.**
+- **No assignment, no roles, no per-person stats, ever.** A request from the second seat is a
+  partner request, never counted as user demand.
+- **Every pair is a sealed room.** Nothing renders how many lists someone is in, or with whom.
+- **No user's email or account identifier is ever shown to another user, in any surface.**
+- Tests for every pure module; gates green before every commit; decision-log entry on every
+  feat commit; E2E case in the same commit as the feature.
