@@ -26,9 +26,14 @@ describe('resolveLocale', () => {
     expect(resolveLocale('FR-ca')).toBe('fr');
   });
 
+  it('resolves German (the fifth locale, 2026-08-08)', () => {
+    expect(resolveLocale('de')).toBe('de');
+    expect(resolveLocale('de-AT')).toBe('de');
+  });
+
   it('falls back to English for anything unsupported or missing', () => {
-    expect(resolveLocale('de')).toBe('en');
     expect(resolveLocale('zh-Hans')).toBe('en');
+    expect(resolveLocale('pt-BR')).toBe('en');
     expect(resolveLocale('')).toBe('en');
     expect(resolveLocale(null)).toBe('en');
     expect(resolveLocale(undefined)).toBe('en');

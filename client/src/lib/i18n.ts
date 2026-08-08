@@ -4,12 +4,13 @@
 // English plus Italian, Spanish, French, starting with the AI answering in the
 // user's language; the UI-string sweep follows.
 
+import { de } from './catalogs/de';
 import { type Catalog, en } from './catalogs/en';
 import { es } from './catalogs/es';
 import { fr } from './catalogs/fr';
 import { it } from './catalogs/it';
 
-export const SUPPORTED = ['en', 'it', 'es', 'fr'] as const;
+export const SUPPORTED = ['en', 'it', 'es', 'fr', 'de'] as const;
 export type Locale = (typeof SUPPORTED)[number];
 
 const LANGUAGE_NAME: Record<Locale, string> = {
@@ -17,6 +18,7 @@ const LANGUAGE_NAME: Record<Locale, string> = {
   it: 'Italian',
   es: 'Spanish',
   fr: 'French',
+  de: 'German',
 };
 
 /** Map any BCP-47 code (e.g. "it", "it-IT", "fr-CA") to a supported locale,
@@ -42,7 +44,7 @@ export function aiLanguageFor(loc: Locale): string | undefined {
 // Per-locale catalogs. en is the source; it/es/fr are DRAFT translations of the seed strings (pending native
 // review), each a partial catalog. translate() falls back to en per missing key, so an untranslated key never
 // blanks, it just shows English until its translation lands.
-const CATALOGS: Record<Locale, Catalog> = { en, it, es, fr };
+const CATALOGS: Record<Locale, Catalog> = { en, it, es, fr, de };
 
 /** Resolve a dotted key ('today.subtitle') to a leaf string, or undefined if absent / not a string. */
 function lookup(cat: Catalog, key: string): string | undefined {

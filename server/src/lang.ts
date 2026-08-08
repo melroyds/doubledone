@@ -6,7 +6,7 @@
 
 // Allowlisted so the `language` field (which goes into the prompt) can never be
 // used to inject arbitrary instructions. English is the implicit default.
-const ALLOWED = ['Italian', 'Spanish', 'French'] as const;
+const ALLOWED = ['Italian', 'Spanish', 'French', 'German'] as const;
 
 /** Validate the language from a request body, or undefined (English / unknown). */
 export function parseLanguage(raw: unknown): string | undefined {
