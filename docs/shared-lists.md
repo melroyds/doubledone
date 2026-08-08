@@ -13,14 +13,27 @@ gets smaller, not larger.**
 
 ---
 
-## 0. Do this before anything else
+## 0. The field answers
 
 **One conversation with each couple, one question:** *"read me the last ten things that went
-on your shared list, and tell me which of them repeat."*
+on your shared list, and tell me which of them repeat."* If more than half repeat, recurrence
+is mandatory in v1. If almost none do, it collapses to two unused columns and no UI.
 
-If more than half repeat, recurrence is mandatory in v1. If almost none do, it collapses to
-two unused columns and no UI. Hours of build hang on a phone call, and both couples are
-already willing.
+- **Couple 1 (the married couple, Melroy's own household), 2026-08-09: ANSWERED.** *"A shared
+  list of things to do."* Tickable tasks, not a log, not timestamped events. The shape is
+  Today's grammar applied to two people, which is the cheapest version and the one that
+  distorts nothing. **Repeat ratio still outstanding.**
+- **Couple 2 (the newborn parents): asked 2026-08-10.**
+
+**What couple 1 being the founder's own household changes:** Ours ships to web first (Pages
+auto-deploys, no store review) and is dogfooded by a real household for a fortnight before any
+binary carries it. Every early defect in a feature this sensitive lands on the builder's own
+kitchen table rather than a stranger's.
+
+**If couple 2 wants a feed log rather than a list**, that is now a *comparison*, not a
+requirement. Build the list, which is the thing the product already is, and treat timestamped
+event logging as a separate question with its own answer. One couple asking for a different
+shape does not get to bend the spine.
 
 ---
 
