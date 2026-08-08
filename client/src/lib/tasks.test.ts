@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { completeOnDay, deserialize, makeId, parseDump, serialize, sweepElapsedNudges, type Task, withMonotonicStamps } from './tasks';
 
@@ -215,5 +215,34 @@ describe('makeId', () => {
 
   it('is shaped as a task id', () => {
     expect(makeId()).toMatch(/^t-[0-9a-z]+-[0-9a-z]+$/);
+  });
+
+  // The cross-DEVICE collision (found 2026-08-09 while designing shared lists): the counter restarts
+  // at 1 every launch, so two devices of the same account minting their FIRST task of a session in the
+  // same millisecond produced an identical id. That id is a global primary key in Supabase, so the
+  // upsert silently overwrote one real task with the other. The counter cannot separate that case by
+  // construction (both devices are at 1), so only a random tail can.
+  //
+  // Asserted against a stubbed Math.random so the check is deterministic: delete the tail from makeId
+  // and this test fails every run, not one run in a million.
+  it('mixes a random tail into every id, so two devices cannot collide on their first task', () => {
+    const spy = vi.spyOn(Math, 'random').mockReturnValue(0.123456789);
+    try {
+      const expectedTail = (0.123456789).toString(36).slice(2, 6).padEnd(4, '0');
+      expect(makeId().endsWith(expectedTail)).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('still never repeats when every id shares one frozen millisecond', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-09T00:00:00.000Z'));
+    try {
+      const ids = Array.from({ length: 500 }, () => makeId());
+      expect(new Set(ids).size).toBe(500);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

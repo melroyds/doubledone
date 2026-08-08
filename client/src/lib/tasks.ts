@@ -177,18 +177,27 @@ export function withMonotonicStamps(next: Task[], prev: Task[]): Task[] {
   });
 }
 
-// A task id: the millisecond plus a counter, so two tasks captured in the same tick still differ.
+// A task id: the millisecond, a counter, and a random tail, so two tasks captured in the same tick
+// still differ WITHIN a device and across two of them.
 //
-// This lives here, shared, rather than beside the screen that captures. It used to be module-scope
-// in today.tsx, which was fine while Today was the ONLY place a task could be born. The Calendar can
-// now create one too, and two screens each holding their own counter both start at 1, so a task made
-// on each within the same millisecond would collide on `t-<ms>-1`. One counter for the whole app
-// removes that by construction rather than by luck.
+// The counter lives here, shared, rather than beside the screen that captures. It used to be
+// module-scope in today.tsx, which was fine while Today was the ONLY place a task could be born. The
+// Calendar can now create one too, and two screens each holding their own counter both start at 1, so
+// a task made on each within the same millisecond would collide on `t-<ms>-1`. One counter for the
+// whole app removes that by construction rather than by luck.
+//
+// The random tail closes the OTHER collision, found 2026-08-09 while designing shared lists: the
+// counter restarts at 1 every launch, so two DEVICES of the same account minting their first task of
+// a session in the same millisecond produced the same id, and this id is a global primary key in
+// Supabase (`tasks.id text primary key`), so the upsert would silently overwrite one real task with
+// the other. Math.random is deliberate: this is collision avoidance, never a secret, and it is the
+// one randomness source Hermes has always had (see the Intl gotcha in CLAUDE.md).
 let addCounter = 0;
 
 export function makeId(): string {
   addCounter += 1;
-  return `t-${Date.now().toString(36)}-${addCounter.toString(36)}`;
+  const tail = Math.random().toString(36).slice(2, 6).padEnd(4, '0'); // 4 chars of [0-9a-z]
+  return `t-${Date.now().toString(36)}-${addCounter.toString(36)}${tail}`;
 }
 
 /**

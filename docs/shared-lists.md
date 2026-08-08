@@ -253,6 +253,56 @@ here your person can un-tick.
 
 ---
 
+## 5a. One person, many people (Melroy's question, 2026-08-09)
+
+*Can one user hold several shared lists, each with a different person? Your co-parent is not
+your flatmate is not your sibling.*
+
+**The schema already says yes, and the v1 UI says one.** `pair_members`' key is
+`(pair_id, user_id)`, so a user may appear in many pairs and only never twice in the same one.
+Everything downstream already respects that: `is_pair_member(pair_id)` takes an argument rather
+than assuming one, `shared_tasks` is keyed by pair, the cleanup trigger fires per pair. Nothing
+in the data model believes you have exactly one person.
+
+The only thing stopping it is the guard in `join_pair`, "refuse if the caller is already in a
+pair", which is a **policy**, not a structure. It ships as a named constant
+(`MAX_PAIRS_PER_USER = 1`) so raising it later is changing a number rather than migrating.
+
+**Why v1 still ships one.** The cost is not data, it is the surface. Several lists turn the
+quiet door on Today into a *directory* of other people's surfaces, on the screen whose whole
+promise is that today is finite; the Ours screen grows a switcher, which is navigation, which
+is what this app spends its budget avoiding. Both requesting couples asked for exactly one
+relationship, so a switcher today is hours spent on a hypothesis.
+
+**Three things done now, while they are free** (the same "cheap today, expensive after the
+first row" rule the panel applied):
+
+1. **`shared_id` on `tasks` carries its pair.** `shared_tasks`' key is `(pair_id, id)`
+   deliberately, so ids cannot collide across households, which means `shared_id` alone is
+   ambiguous the moment a user is in two lists. Store `shared_pair_id` beside it. Two nullable
+   columns instead of one. ("Practically unique is good enough" is exactly the assumption that
+   produced the `makeId()` defect in §9.)
+2. **The local cache is keyed by pair from day one**, `{ [pairId]: tasks[] }`, so the storage
+   shape never needs migrating.
+3. **The cap is a constant**, per above.
+
+**One invariant, because RLS guarantees it but the UI could still leak it:** every pair is a
+sealed room. Your person cannot tell that another list exists, how many you are in, or with
+whom. Nothing renders a count of your lists to anyone but you.
+
+**Not the same question as groups.** This is *many pairs of two*, a star with you at the
+centre. A single list of three or more is a different product, and the schema would allow it
+too (stop capping members at two), but the never-shame maths inverts: at two people "who did
+not do it" is always inferable, which is why §4 was rewritten honestly; at three or more,
+anonymity genuinely returns. Groups also invite the roles pressure §11 refuses. Later question,
+separate answer.
+
+**Premium keeps "more than one shared list."** That gates the user's own breadth, not their
+person's access to the list they are already in, so it does not repeat the mistake the panel
+caught with the shared Lookback in §8.
+
+---
+
 ## 6. What to borrow from FamilyWall
 
 FamilyWall ships a shared calendar, task assignment with roles, family chat, a location map,

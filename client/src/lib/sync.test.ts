@@ -18,9 +18,38 @@ describe('localBelongsToAnother', () => {
 });
 
 describe('isAccountGone', () => {
-  it('is true for a foreign-key violation (the user row is gone)', () => {
-    expect(isAccountGone({ code: '23503', message: 'violates foreign key constraint' })).toBe(true);
+  it('is true for a violation of the tasks.user_id foreign key (the user row is gone)', () => {
+    expect(
+      isAccountGone({
+        code: '23503',
+        message: 'insert or update on table "tasks" violates foreign key constraint "tasks_user_id_fkey"',
+        details: 'Key (user_id)=(9f1c) is not present in table "users".',
+      }),
+    ).toBe(true);
   });
+
+  // THE REGRESSION THIS EXISTS FOR (2026-08-09). The caller's response is destructive and
+  // irreversible: today.tsx clears tasks, purges the R2 keepsakes, wipes local data and signs out.
+  // While tasks.user_id was the schema's only foreign key, any 23503 could safely be read as
+  // "account gone". The moment a second table with a user foreign key exists (shared lists), a
+  // violation from THAT constraint would have destroyed a live user's history. The name is what
+  // makes this check independent of everything the schema gains later.
+  it('is FALSE for a 23503 from any other constraint, so an unrelated violation never wipes a live user', () => {
+    expect(
+      isAccountGone({
+        code: '23503',
+        message: 'insert or update on table "shared_tasks" violates foreign key constraint "shared_tasks_created_by_fkey"',
+        details: 'Key (created_by)=(9f1c) is not present in table "users".',
+      }),
+    ).toBe(false);
+    expect(isAccountGone({ code: '23503', message: 'violates foreign key constraint "pair_members_pair_id_fkey"' })).toBe(false);
+  });
+
+  it('is false for a 23503 whose constraint cannot be identified (fails safe, keeps the data)', () => {
+    expect(isAccountGone({ code: '23503', message: 'violates foreign key constraint' })).toBe(false);
+    expect(isAccountGone({ code: '23503' })).toBe(false);
+  });
+
   it('is false for other Postgrest errors', () => {
     expect(isAccountGone({ code: 'PGRST116' })).toBe(false);
     expect(isAccountGone({ code: '42P01' })).toBe(false);

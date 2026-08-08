@@ -138,13 +138,34 @@ export function localBelongsToAnother(owner: string | null, userId: string): boo
   return owner !== null && owner !== userId;
 }
 
+// The generated name of the ONE foreign key that means "your account is gone": Postgres names an
+// inline `references` constraint `<table>_<column>_fkey`, and supabase/schema.sql declares
+// `user_id uuid not null references auth.users (id) on delete cascade` on public.tasks. If that
+// declaration is ever renamed, this constant must move with it (grep for it; nothing else uses it).
+const ACCOUNT_FK = 'tasks_user_id_fkey';
+
 /**
  * Whether a sync error means the signed-in account no longer exists (deleted here or on
- * another device). The only foreign key on the `tasks` table is user_id -> auth.users
- * (ON DELETE CASCADE), so a Postgres foreign-key violation (SQLSTATE 23503) on a write
- * can only mean the user row is gone. Deliberately narrow: a network error, an expired
- * token, or any other failure returns false, so a transient hiccup never wipes local data.
+ * another device). A Postgres foreign-key violation (SQLSTATE 23503) on a write is the signal,
+ * but the CONSTRAINT NAME must match too.
+ *
+ * The name check was added 2026-08-09. This function used to read any 23503 as "your account is
+ * gone", which was true only while `tasks.user_id` was the sole foreign key in the whole schema.
+ * The caller's response is destructive and irreversible (today.tsx clears tasks, purges the R2
+ * keepsakes, wipes local data and signs out), so the day a second table with a user foreign key
+ * exists (shared lists), an unrelated violation would have destroyed a live user's history.
+ * Requiring the name makes the check independent of everything the schema gains later.
+ *
+ * Fails SAFE in both directions: a network error, an expired token, a violation from any other
+ * constraint, or an unrecognised message all return false, so the worst case is a genuinely
+ * deleted account's second device keeping its local copy (already a documented limit) rather
+ * than a live user losing their week.
  */
 export function isAccountGone(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '23503';
+  if (typeof error !== 'object' || error === null) return false;
+  const e = error as { code?: unknown; message?: unknown; details?: unknown };
+  if (e.code !== '23503') return false;
+  const message = typeof e.message === 'string' ? e.message : '';
+  const details = typeof e.details === 'string' ? e.details : '';
+  return `${message} ${details}`.includes(ACCOUNT_FK);
 }
