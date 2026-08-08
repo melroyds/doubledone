@@ -64,6 +64,35 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ---
 
+## The German version (mapped 2026-08-08, build on Melroy's go after the French pass lands)
+
+*The fifth locale, and the first ADDED rather than born in the i18n sweep. The machinery makes
+this mostly a translation project: locale detection is system-driven through one resolver, the
+catalog type forces key-completeness at compile time, German pluralises the easy way (exactly-one,
+already the Hermes fallback's behaviour), Intl.DateTimeFormat 'de' is on the proven-safe pair,
+and the AI features answer in German the moment the resolver says 'de'.*
+
+- **Phase 0, the glossary (one agent + Melroy's eye).** German transcreations of the soul terms
+  BEFORE any bulk translation, so 955 strings inherit consistent bones: Break it down / Make it
+  tiny / Lighten today / Chart a course / Plan my day / the Lookback / keepsake / "a lot" / Pin.
+  Register decision made now: warm informal **du**, never Sie (this brand holds your hand, it
+  does not address you in a bank letter). "DoubleDone" and "Settle" never translate.
+- **Phase 1, plumbing (small commit).** `Locale` union + `resolveLocale` + `aiLanguageFor`
+  gain 'de'; the plural fallback's type widens; `de.ts` stubs as `: Catalog` so the compiler
+  lists every missing key until Phase 2 fills them.
+- **Phase 2, the panel.** The same 19-agent structure that fixed Italian, run in TRANSLATE mode:
+  nine native-German translator agents (chunked, briefed with the glossary + register), nine
+  independent judges, one terminology editor. German runs LONG; the brief carries the
+  trim-elegantly-never-truncate rule and the UI length classes.
+- **Phase 3, land + verify.** Apply, gates, German locale screenshots via the shots harness,
+  ship to web (catalog header marked DRAFT pending native review, as every locale was born).
+- **Phase 4, the native gate.** Unlike Italian there is no in-house native reviewer: recruit one
+  (a German-speaking early adopter with a comp code is the obvious trade) and hand them the
+  EN/DE review spreadsheet the pipeline already produces. Their verdict gates removing DRAFT.
+- **Phase 5, the storefronts (Melroy's dashboards).** Play + App Store German metadata,
+  localized screenshots, and What's New translations; both stores already serve worldwide, so
+  this is discoverability polish, not availability.
+
 ## Backlog (deferred, with triggers)
 
 The single home for consciously parked work. Nothing here is dropped; each item has a trigger for when it earns a place in the sequence. Premium-gated ideas live in [`docs/premium.md`](docs/premium.md).
