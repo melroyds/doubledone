@@ -27,6 +27,8 @@ type Props = {
   onMakeTiny?: () => void;
   onBig?: () => void; // held-state: mark / unmark this task "a lot"
   onPin?: () => void; // held-state: pin / unpin as the day's one priority (Today one-offs only)
+  onMoveUp?: () => void; // held-state: nudge this task one place UP in today's order (absent = already first, renders dimmed)
+  onMoveDown?: () => void; // held-state: one place DOWN (absent = already last, renders dimmed)
   onSelectMore?: () => void; // held-state: the door into multi-select (Combine, bulk-move, bulk-complete)
   onNudge?: () => void; // held-state: set a reminder on this task (native only; the caller gates it)
   onRename?: (title: string) => void; // held-state: tap the card's title to edit it in place (trim/no-op rules live in lib/today renameTask)
@@ -70,6 +72,8 @@ export function TaskRow({
   onMakeTiny,
   onBig,
   onPin,
+  onMoveUp,
+  onMoveDown,
   onSelectMore,
   onNudge,
   onRename,
@@ -282,6 +286,34 @@ export function TaskRow({
             <Text style={[styles.actionLabel, big && styles.actionLabelActive]}>{t('today.markAsALot')}</Text>
             <Text style={[styles.actionSub, big && styles.actionLabelActive]}>{big ? '✓' : t('today.weightHint')}</Text>
           </Pressable>
+        )}
+        {/* Free manual reorder (the second field report, 2026-08-04): one split row, two nudges.
+            Deliberately NOT act-and-dismiss like its neighbours: moving three places should be
+            three taps with the card held open, not three long-presses. An edge (first / last)
+            dims its button rather than hiding it, so the card never reshapes underhand. */}
+        {(onMoveUp || onMoveDown) && (
+          <View style={styles.splitWrap}>
+            <Pressable
+              onPress={onMoveUp}
+              disabled={!onMoveUp}
+              style={[styles.actionRow, styles.splitHalf]}
+              accessibilityRole="button"
+              accessibilityLabel={t('today.moveUpA11y', { title })}
+              hitSlop={{ top: 6, bottom: 6 }}
+            >
+              <Text style={[styles.actionLabel, !onMoveUp && styles.controlOff]}>{t('today.moveUp')}</Text>
+            </Pressable>
+            <Pressable
+              onPress={onMoveDown}
+              disabled={!onMoveDown}
+              style={[styles.actionRow, styles.splitHalf]}
+              accessibilityRole="button"
+              accessibilityLabel={t('today.moveDownA11y', { title })}
+              hitSlop={{ top: 6, bottom: 6 }}
+            >
+              <Text style={[styles.actionLabel, !onMoveDown && styles.controlOff]}>{t('today.moveDown')}</Text>
+            </Pressable>
+          </View>
         )}
 
         {/* More: the rarer actions, folded away by default so the card reads as four calm helpers. */}
@@ -585,6 +617,9 @@ const makeStyles = (t: Theme) => {
     // The revealed More items sit slightly indented, so they read as belonging under the disclosure.
     moreItem: { paddingLeft: spacing.four },
     controlOff: { color: t.colors.inkFaint },
+    // The reorder pair: one action row split into two equal halves.
+    splitWrap: { flexDirection: 'row', gap: spacing.three },
+    splitHalf: { flex: 1 },
     // The way out, under a hairline: Close (left, easy reach), Select more (middle), Remove (far right).
     terminalRow: {
       flexDirection: 'row',

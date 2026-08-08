@@ -723,6 +723,27 @@ export default function TodayScreen() {
     setConfirmingId(id);
     track('hold.opened');
   }
+  // Reorder eligibility: an open, unpinned task (the pin owns the very top by other means).
+  function canReorder(task: Task, day: Date): boolean {
+    return !isDoneOn(task, day) && !(task.pinnedAt != null);
+  }
+  // "Up" stops BELOW a pinned top task: pinFirst floats the pin above any stamped order, so
+  // letting a task move into slot 0 would be a tap that visibly does nothing.
+  const reorderTopIdx = visible.length > 0 && visible[0].pinnedAt != null && !isDoneOn(visible[0], today) ? 1 : 0;
+
+  // Free manual reorder (born of the second "how do I re-order?" field report, 2026-08-04):
+  // nudge a task one place in today's VISIBLE order by stamping the whole order via
+  // setSequence (the same machinery Plan-my-order accepts into). Free on purpose: Pin is
+  // premium and was the only ordering a free user could even be told about, which was none.
+  // Deliberately not act-and-dismiss: the card stays held so three places is three taps.
+  function moveRow(id: string, delta: -1 | 1) {
+    const ids = visible.map((v) => v.id);
+    const next = moveInOrder(ids, ids.indexOf(id), delta);
+    if (next === ids) return; // already at the edge
+    commit(setSequence(tasks, next, nowMs()));
+    track('task.reordered', { dir: delta === -1 ? 'up' : 'down' });
+  }
+
   // The held card carries the single-task shaping actions. All act-and-dismiss (the row stays
   // put, so we close the card ourselves).
   function bigRow(task: Task) {
@@ -1855,7 +1876,7 @@ export default function TodayScreen() {
           </Pressable>
         )}
         <View style={styles.list}>
-          {visible.map((task) => (
+          {visible.map((task, i) => (
             <TaskRow
               key={task.id}
               title={task.title}
@@ -1866,6 +1887,10 @@ export default function TodayScreen() {
               onRemove={() => removeTask(task.id)}
               onKeep={() => setConfirmingId(null)}
               recurring={isRecurring(task)}
+              /* Reorder eligibility: never on a done task, never on the pinned task (pinFirst
+                 refloats it, the tap would look dead), and "up" stops below a pinned top. */
+              onMoveUp={canReorder(task, today) && i > reorderTopIdx ? () => moveRow(task.id, -1) : undefined}
+              onMoveDown={canReorder(task, today) && i < visible.length - 1 ? () => moveRow(task.id, 1) : undefined}
               slices={task.slices ?? undefined}
               onAdvance={() => step(task.id, 1)}
               onRetreat={() => step(task.id, -1)}
