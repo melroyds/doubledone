@@ -3114,7 +3114,10 @@ const makeStyles = (t: Theme) =>
         : { color: t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     selectDimText: { color: t.colors.inkFaint },
     selectRowOff: { opacity: 0.4 },
-    selectVerbRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: spacing.five, minHeight: 44 },
+    // The verbs SPREAD across the card's width (Melroy's live look: left-packed read as
+    // clustered): space-between with a small padding so the outer verbs align with the
+    // count above and the shelf's corners below. Wrapped lines (FR/IT) distribute too.
+    selectVerbRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: spacing.four, minHeight: 44, paddingHorizontal: spacing.one },
     selectVerb: { minHeight: 44, justifyContent: 'center' },
     // Combine's reserved slot: 48px in EVERY state, so the bar never changes height.
     combineSlot: { minHeight: 48, justifyContent: 'center' },
