@@ -34,7 +34,11 @@ const AI_URL = process.env.AI_URL ?? 'https://api.doubledone.app';
 // the Premium screen: the WEB paywall shows the Stripe line (IAP_AVAILABLE is false on web), and
 // an App Store screenshot pointing at external purchase is a review flag, not a marketing shot.
 const IOS = process.env.IOS === '1';
-const OUT = path.join(process.cwd(), 'docs', IOS ? 'appstore' : 'screenshots');
+// LOCALE=es / de / it / fr: boot the app in that language (the browser context's locale is
+// what expo-localization reads on web) and write to docs/screenshots-<locale>/ so the
+// English set is never overwritten. Unset = English, unchanged paths.
+const LOCALE = process.env.LOCALE;
+const OUT = path.join(process.cwd(), 'docs', IOS ? 'appstore' : LOCALE ? `screenshots-${LOCALE}` : 'screenshots');
 // The iOS size is overridable: IOS_W/IOS_H CSS px at scale 3. 440x956 -> 1320x2868 (6.9-inch);
 // 428x926 -> 1284x2778 (6.5-inch, what some ASC records ask for instead).
 const IOS_VP = { width: Number(process.env.IOS_W ?? 440), height: Number(process.env.IOS_H ?? 956) };
@@ -125,6 +129,7 @@ async function capture(browser, shot) {
     viewport: VIEWPORT,
     deviceScaleFactor: SCALE,
     colorScheme: shot.theme === 'dark' ? 'dark' : 'light',
+    ...(LOCALE ? { locale: LOCALE } : {}),
   });
   const payload = {
     'doubledone.tasks.v1': JSON.stringify(shot.tasks),
@@ -142,9 +147,13 @@ async function capture(browser, shot) {
 
   const page = await ctx.newPage();
   await page.goto(`${BASE}${shot.route}`, { waitUntil: 'domcontentloaded', timeout: 120000 });
-  if (shot.waitText) await page.getByText(shot.waitText, { exact: false }).first().waitFor({ timeout: 20000 });
+  // The waitText anchors are ENGLISH UI copy, so under LOCALE they would never appear:
+  // localized runs wait for network idle + a longer settle instead (the app is seeded, so
+  // render is deterministic once the bundle hydrates).
+  if (shot.waitText && !LOCALE) await page.getByText(shot.waitText, { exact: false }).first().waitFor({ timeout: 20000 });
+  if (LOCALE) await page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {});
   await page.evaluate(() => document.fonts.ready.then(() => true));
-  await page.waitForTimeout(shot.delay ?? 700); // let the calm fades settle
+  await page.waitForTimeout(shot.delay ?? (LOCALE ? 1500 : 700)); // let the calm fades settle
 
   const file = path.join(OUT, `${shot.name}.${EXT}`);
   const opts = EXT === 'jpeg' ? { path: file, type: 'jpeg', quality: 92 } : { path: file };
