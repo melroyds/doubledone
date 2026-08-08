@@ -68,3 +68,4 @@ docs/design-source/insight-map.html
 # Wrangler local dev state (miniflare)
 .wrangler/
 /doubledone-strings-en-it.xlsx
+/doubledone-italian-fixes.xlsx
