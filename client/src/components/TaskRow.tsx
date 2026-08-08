@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { border, cardShadow, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
@@ -99,6 +99,21 @@ export function TaskRow({
   // React Compiler stays happy).
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  // The held card can open TALLER than the space beneath it: hold a low task and More +
+  // Close land below the fold, which reads as "the card has a flat edge" (Melroy's
+  // 2026-08-08 report; the flat line was the viewport, and the way out was off-screen).
+  // On web, nudge the scroll just enough that the whole card is visible: block:'nearest'
+  // is minimal and instant (no-op when it already fits, inherently reduce-motion-safe).
+  // Native RN nodes have no scrollIntoView, so this no-ops there; the native pass
+  // belongs to the held-card redesign.
+  const cardRef = useRef<View>(null);
+  useEffect(() => {
+    if (!confirming) return;
+    const id = setTimeout(() => {
+      (cardRef.current as unknown as { scrollIntoView?: (opts?: unknown) => void } | null)?.scrollIntoView?.({ block: 'nearest' });
+    }, 60); // after the card's layout settles
+    return () => clearTimeout(id);
+  }, [confirming]);
   const [wasConfirming, setWasConfirming] = useState(confirming);
   if (wasConfirming !== confirming) {
     setWasConfirming(confirming);
@@ -183,7 +198,7 @@ export function TaskRow({
     // the way out, nothing to shape (a finished thing needs nothing shaped) and no "Done". A calm close.
     if (done) {
       return (
-        <View style={[styles.row, styles.confirmRow, styles.confirmColumn]}>
+        <View ref={cardRef} style={[styles.row, styles.confirmRow, styles.confirmColumn]}>
           <View style={styles.doneTitleRow}>
             <Text style={styles.doneCheck} accessible={false} importantForAccessibility="no">✓</Text>
             <Text style={[styles.confirmTitle, styles.confirmTitleDone]} numberOfLines={2}>{title}</Text>
@@ -211,7 +226,7 @@ export function TaskRow({
       .filter(Boolean)
       .join(' · ');
     return (
-      <View style={[styles.row, styles.confirmRow, styles.confirmColumn]}>
+      <View ref={cardRef} style={[styles.row, styles.confirmRow, styles.confirmColumn]}>
         {editingTitle != null && onRename ? (
           <TextInput
             value={editingTitle}
