@@ -13,9 +13,6 @@
 
 import { type Recurrence } from './recurrence';
 
-/** A row of a shared list, mirroring `public.shared_tasks`. Structurally a subset of Task on
- *  purpose, so the existing pure day/recurrence helpers (which are generic over their inputs) work
- *  on these unchanged. */
 /**
  * The per-date completion record of a repeating shared row.
  *
@@ -49,6 +46,7 @@ export type SharedTask = {
   done: boolean;
   doneAt?: number | null; // epoch ms the row was ticked. A TIME. Never who.
   recurrence?: Recurrence;
+  rawRecurrence?: unknown; // a cadence THIS build cannot read, kept verbatim so it is never erased
   completions?: CompletionLog; // per-date tick / un-tick record, by EITHER person, unattributed
   createdAt: number;
   updatedAt: number;
@@ -76,15 +74,28 @@ export function completedDatesOf(log: CompletionLog | undefined): string[] {
     .sort();
 }
 
-/** Tick a date. Records the time; records nothing about who. */
+/**
+ * Tick a date. Records the time; records nothing about who.
+ *
+ * Both of these lift their own stamp past the opposing one rather than trusting the caller's clock,
+ * which is the same guarantee `withMonotonicStamps` gives the ROW and which the completion log used
+ * to leave as a promise in a comment. No caller could have honoured it: the stamp being competed
+ * with was written by the other person's phone, whose clock this device does not control. Without
+ * the lift, one far-future stamp (a phone set to 2030, or a hand-rolled PostgREST call, which RLS
+ * permits for your own pair) pins a date until real time catches up, and the SQL clamp cannot reach
+ * inside the jsonb to help.
+ */
 export function tickOn(log: CompletionLog | undefined, date: string, now: number): CompletionLog {
-  return { ...log, on: { ...log?.on, [date]: now } };
+  const off = log?.off?.[date];
+  const stamp = off !== undefined && off > now ? off : now; // a tie already resolves to done
+  return { ...log, on: { ...log?.on, [date]: stamp } };
 }
 
-/** Un-tick a date. The stamp must be later than the tick it clears, which is what
- *  `withMonotonicStamps` guarantees for the row and what the caller owes this for the date. */
+/** Un-tick a date. Must STRICTLY beat the tick it clears, because a tie resolves to done. */
 export function clearOn(log: CompletionLog | undefined, date: string, now: number): CompletionLog {
-  return { ...log, off: { ...log?.off, [date]: now } };
+  const on = log?.on?.[date];
+  const stamp = on !== undefined && on >= now ? on + 1 : now;
+  return { ...log, off: { ...log?.off, [date]: stamp } };
 }
 
 /** Per-key maximum of two stamp maps: grow-only in keys, monotonic in values. */
@@ -97,12 +108,38 @@ function mergeStamps(a: Record<string, number> = {}, b: Record<string, number> =
   return out;
 }
 
+/**
+ * The most dates one log may carry, across `on` and `off` together.
+ *
+ * `shared_tasks.completions` has a 64KB CHECK, which at roughly 29 bytes an entry is about 2,300
+ * entries: a daily repeat crosses it in a few years, and when it does the 23514 poisons the whole
+ * batch upsert and nothing recovers, because even deleting the task keeps the payload on the
+ * tombstone. Two years of daily history is far more than any surface reads, and the eviction is a
+ * COUNT rather than a time horizon so this file stays clock-free and the cap still commutes: taking
+ * the newest N keys of a union is the same set whichever order the union was built in.
+ */
+export const COMPLETION_MAX_DATES = 730;
+
+/** Keep the newest N dates, dropping evicted ones from BOTH maps together so a date can never
+ *  survive as an un-tick whose tick has been forgotten (which would read as never done). */
+function capDates(on: Record<string, number>, off: Record<string, number>): void {
+  const dates = [...new Set([...Object.keys(on), ...Object.keys(off)])];
+  if (dates.length <= COMPLETION_MAX_DATES) return;
+  // ISO dates sort lexicographically, so this is newest-first without parsing anything.
+  const evicted = dates.sort().slice(0, dates.length - COMPLETION_MAX_DATES);
+  for (const date of evicted) {
+    delete on[date];
+    delete off[date];
+  }
+}
+
 /** Merge two completion logs. Commutative and idempotent, so two phones converge whichever order
  *  they sync in, and re-merging the same pair changes nothing. */
 export function mergeCompletions(a: CompletionLog | undefined, b: CompletionLog | undefined): CompletionLog | undefined {
   if (!a && !b) return undefined;
   const on = mergeStamps(a?.on, b?.on);
   const off = mergeStamps(a?.off, b?.off);
+  capDates(on, off);
   const out: CompletionLog = {};
   if (Object.keys(on).length) out.on = on;
   if (Object.keys(off).length) out.off = off;
@@ -190,7 +227,33 @@ function reconcile(l: SharedTask, r: SharedTask): SharedTask {
   if (completions) out.completions = completions;
   else delete out.completions;
 
+  // A ONE-OFF's tick lives in done / doneAt, and those ride whole-row last-write-wins, so until
+  // this existed the per-date protection covered only repeats: any newer unrelated edit by the
+  // other person (a retitle, a restore) took the whole row and the tick was gone from both phones
+  // and the server, with growsBeyond not even pushing it back because it only inspects the log.
+  // The field answer for this feature is "mostly one-offs with a few recurrences", so the protected
+  // case was the minority. done is now a PROJECTION of the log for one-offs, which removes the
+  // second completion code path rather than giving it a second set of rules.
+  //
+  // Guarded on a non-empty log, so a row that has never been ticked THROUGH the log keeps whatever
+  // last-write-wins decided: a client that predates this must not have its ticks erased.
+  if (!isRepeating(out) && completions && hasStamps(completions)) {
+    const dates = completedDatesOf(completions);
+    const last = dates[dates.length - 1];
+    out.done = dates.length > 0;
+    out.doneAt = last !== undefined ? (completions.on?.[last] ?? null) : null;
+  }
+
   return out;
+}
+
+/** Whether a row repeats. `kind: 'none'` is the recurrence type's own way of saying it does not. */
+function isRepeating(task: SharedTask): boolean {
+  return task.recurrence !== undefined && task.recurrence.kind !== 'none';
+}
+
+function hasStamps(log: CompletionLog): boolean {
+  return Object.keys(log.on ?? {}).length > 0 || Object.keys(log.off ?? {}).length > 0;
 }
 
 /** LWW rank of an `updatedAt`: a non-finite value (a corrupt row that parsed to NaN, say) ranks as

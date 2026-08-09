@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { clearOn, completedDatesOf, isDoneOn, mergeShared, type SharedTask, tickOn } from './ours-merge';
+import {
+  clearOn,
+  COMPLETION_MAX_DATES,
+  completedDatesOf,
+  isDoneOn,
+  mergeCompletions,
+  mergeShared,
+  type SharedTask,
+  tickOn,
+} from './ours-merge';
 import { withMonotonicStamps } from './tasks';
 
 function task(over: Partial<SharedTask> & { id: string }): SharedTask {
@@ -258,5 +267,138 @@ describe('the completion log', () => {
         expect(typeof stamp).toBe('number');
       }
     }
+  });
+});
+
+
+// --- the fixes the Phase 3 audit asked for -------------------------------------------------
+
+// The completion log protected repeats and left ONE-OFFS entirely outside it: their tick lives in
+// done / doneAt, which rode whole-row last-write-wins. The field answer for this feature is "mostly
+// one-offs with a few recurrences", so the protected case was the minority of the list.
+describe('a one-off tick is protected too', () => {
+  const T1 = 5000;
+  const T2 = 9000;
+
+  it('survives the other person’s newer unrelated edit, and is pushed back', () => {
+    const mine = task({ id: 'milk', updatedAt: T1, done: true, doneAt: T1, completions: { on: { '2026-08-09': T1 } } });
+    const theirs = task({ id: 'milk', updatedAt: T2, title: 'milk (oat)' });
+
+    const res = mergeShared([mine], [theirs]);
+    expect(res.merged[0].title).toBe('milk (oat)'); // their retitle still wins the row
+    expect(res.merged[0].done).toBe(true); // and my tick is not collateral damage
+    expect(res.merged[0].doneAt).toBe(T1);
+    expect(res.toPush.map((t) => t.id)).toEqual(['milk']); // they get it back, not just me
+  });
+
+  it('survives the mirror case: an UN-tick against a newer retitle', () => {
+    const mine = task({
+      id: 'milk',
+      updatedAt: T1,
+      done: false,
+      completions: { on: { '2026-08-09': T1 }, off: { '2026-08-09': T1 + 1 } },
+    });
+    const theirs = task({ id: 'milk', updatedAt: T2, title: 'milk (oat)', done: true, doneAt: T1 });
+
+    const res = mergeShared([mine], [theirs]);
+    expect(res.merged[0].title).toBe('milk (oat)');
+    expect(res.merged[0].done).toBe(false);
+    expect(res.merged[0].doneAt).toBeNull();
+  });
+
+  it('converges through tick, un-tick and re-tick whichever phone merges', () => {
+    let log = tickOn(undefined, '2026-08-09', 1000);
+    log = clearOn(log, '2026-08-09', 2000);
+    log = tickOn(log, '2026-08-09', 3000);
+    const a = task({ id: 'x', updatedAt: 1, completions: log });
+    const b = task({ id: 'x', updatedAt: 2, title: 'edited' });
+
+    expect(mergeShared([a], [b]).merged[0].done).toBe(true);
+    expect(mergeShared([b], [a]).merged[0].done).toBe(true);
+  });
+
+  // A row that has never been ticked THROUGH the log must keep whatever last-write-wins decided, so
+  // a client predating the log does not have its ticks erased by a client that has one.
+  it('leaves a row with no completion log to plain last-write-wins', () => {
+    const mine = task({ id: 'x', updatedAt: 9000, done: true, doneAt: 9000 });
+    const theirs = task({ id: 'x', updatedAt: 1000, done: false });
+    expect(mergeShared([mine], [theirs]).merged[0].done).toBe(true);
+  });
+
+  it('does NOT project done onto a repeat, whose done means something else', () => {
+    const repeat = task({
+      id: 'bins',
+      updatedAt: 9000,
+      done: false,
+      recurrence: { kind: 'daily' },
+      completions: { on: { '2026-08-09': 5000 } },
+    });
+    expect(mergeShared([repeat], [task({ id: 'bins', updatedAt: 1 })]).merged[0].done).toBe(false);
+  });
+});
+
+// clearOn's docstring used to say the caller owed it a stamp later than the tick it clears. No
+// caller could honour that: the tick was stamped by the other person's phone.
+describe('the log defends its own stamps', () => {
+  const DAY = '2026-08-09';
+  const FUTURE = Date.UTC(2030, 0, 1);
+
+  it('un-ticks a date whose tick is stamped in the future', () => {
+    const log = clearOn({ on: { [DAY]: FUTURE } }, DAY, 1000);
+    expect(isDoneOn(log, DAY)).toBe(false);
+  });
+
+  it('re-ticks a date whose un-tick is stamped in the future', () => {
+    const log = tickOn({ on: { [DAY]: 1 }, off: { [DAY]: FUTURE } }, DAY, 1000);
+    expect(isDoneOn(log, DAY)).toBe(true);
+  });
+
+  it('still uses the caller’s clock when it is already ahead', () => {
+    expect(clearOn({ on: { [DAY]: 1000 } }, DAY, 5000).off?.[DAY]).toBe(5000);
+    expect(tickOn({ off: { [DAY]: 1000 } }, DAY, 5000).on?.[DAY]).toBe(5000);
+  });
+});
+
+// The column has a 64KB CHECK. When a log crosses it the 23514 poisons the whole batch upsert and
+// nothing recovers, because even deleting the task keeps the payload on the tombstone.
+describe('the completion log cannot outgrow its column', () => {
+  function bigLog(n: number, from = 0) {
+    const on: Record<string, number> = {};
+    for (let i = 0; i < n; i += 1) on[new Date(Date.UTC(2020, 0, 1 + from + i)).toISOString().slice(0, 10)] = i + 1;
+    return { on };
+  }
+
+  it('keeps the newest dates and drops the oldest', () => {
+    const input = bigLog(900);
+    const all = Object.keys(input.on).sort();
+    const merged = mergeCompletions(input, undefined)!;
+    const kept = Object.keys(merged.on ?? {}).sort();
+
+    expect(kept).toHaveLength(COMPLETION_MAX_DATES);
+    expect(kept[kept.length - 1]).toBe(all[all.length - 1]); // the newest survives
+    expect(kept[0]).toBe(all[all.length - COMPLETION_MAX_DATES]); // the oldest 170 are gone
+    expect(kept).toEqual(all.slice(-COMPLETION_MAX_DATES));
+  });
+
+  it('commutes: capping after the union equals capping each side first', () => {
+    const a = bigLog(500);
+    const b = bigLog(500, 400);
+    const once = mergeCompletions(a, b);
+    const twice = mergeCompletions(mergeCompletions(a, undefined), mergeCompletions(b, undefined));
+    expect(once).toEqual(twice);
+  });
+
+  // A date must never survive as an un-tick whose tick has been forgotten, which would read as
+  // never done rather than as history that has aged out.
+  it('evicts a date from BOTH maps together', () => {
+    const on: Record<string, number> = {};
+    const off: Record<string, number> = {};
+    for (let i = 0; i < 800; i += 1) {
+      const d = new Date(Date.UTC(2020, 0, 1 + i)).toISOString().slice(0, 10);
+      on[d] = 1;
+      off[d] = 2;
+    }
+    const merged = mergeCompletions({ on, off }, undefined)!;
+    expect(Object.keys(merged.on ?? {}).sort()).toEqual(Object.keys(merged.off ?? {}).sort());
   });
 });

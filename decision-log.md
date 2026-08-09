@@ -5019,3 +5019,67 @@ in the app, caused by a stranger's build.
 **Deferred on purpose:** the polling hook itself (AppState, focus, idle timer). The rule is here and
 pure (`shouldPoll`, all three conditions required); the timer belongs with the screen, which the
 design pass is about to reshape.
+
+## 2026-08-09 The Phase 3 audit: nine engine defects, and the one sitting under most of the list
+
+Five lenses over the merge engine, the sync seam, the clock and the cache, every finding then put to
+a refute-by-default verifier that had to state the exact sequence of events. 53 raised, 41
+confirmed, 19 distinct defects. Verbatim in [`docs/ours-phase3-audit.md`](ours-phase3-audit.md).
+Nine engine ones are fixed here; the six that block the dogfood are all in the screen.
+
+**The worst: the completion log protected repeats and left ONE-OFFS outside it entirely.** A
+one-off's tick lives in `done` / `doneAt`, which rode whole-row last-write-wins, so any newer
+unrelated edit by the other person (a retitle, a restore) took the whole row and the tick was gone
+from both phones and the server, with `growsBeyond` not even pushing it back because it inspects
+only the log. The field answer for this feature is "mostly one-offs with a few recurrences", so the
+protected case was the minority. `done` is now a PROJECTION of the log for one-offs, which removes
+the second completion code path rather than giving it a second set of rules. **Decided against**
+keeping whichever side's `doneAt` is later: an un-ticked one-off has no stamp to compete with, so a
+tick would beat every un-tick forever, which is the grow-only bug re-created on the one-off path.
+
+**A refused push threw away a successful pull, permanently.** The select policy needs only
+membership; both write policies need `is_pair_writable`, which also requires the pair to be live. So
+a frozen pair pulls forever and pushes never, and nothing but a successful push empties `toPush`, so
+the device was pinned at its last complete sync on the one screen a bereaved or separated person may
+keep for years, under copy promising "Nothing is lost. You can still read everything here."
+`syncPairOnce` returns `{ merged, pushError }` now. **Decided against** a `writable` flag from
+`loadMyPair`: the freeze lands mid-session, so any flag is one poll stale and the push throws anyway.
+
+**The server clamps `updated_at` and the client never learned.** The trigger clamps to `now() + 1
+day` rather than rejecting, and the upsert had no read-back, so a device more than a day fast kept
+its own stamp, stayed "newer" forever, and re-pushed every poll, each push re-clamping to a fresh
+ceiling that beat anything the other phone could legitimately write. The partner's retitle reverted
+every fifteen seconds from a phone lying face-down on a table. `pushShared` now reads back what was
+stored. `pushTasks` is safe without this only because no trigger touches `tasks.updated_at`, and
+that precondition does not travel to this table.
+
+**Four more, each closing a real hole.** A title legal on the personal list (no cap) is fatal on the
+shared one (500), and the whole push is ONE statement, so a single long title aborted every row in
+it and the pair silently stopped converging in both directions; clamped at the seam, by code points
+rather than UTF-16 units so the cut never lands inside an emoji. `tickOn` / `clearOn` asked the
+CALLER for a stamp later than the one they compete with, which no caller can honour because that
+stamp came from the other person's phone; they lift their own now. The completion log had no ceiling
+against a 64KB CHECK, roughly six years for a daily repeat, and crossing it poisons the batch
+forever because even the tombstone carries the payload; capped at 730 dates by COUNT rather than by
+a time horizon, so the file stays clock-free and the cap still commutes. And `pullPair` was
+unpaginated, which past PostgREST's max-rows makes `mergeShared` read every locally-cached row
+outside the page as "added while offline" and push it: exactly the resurrection failure the full
+pull exists to prevent, reintroduced through the transport.
+
+**Partner-written `recurrence` jsonb was taken on trust**, one line above the function whose
+docstring states the rule. `isDueOn` does `r.weekdays.includes` unguarded, so a `{"kind":"weekly"}`
+from a newer or hand-rolled client white-screens the other person's whole list. Validated now, and
+**an unreadable cadence is kept VERBATIM and pushed back byte-identical**, so a build that cannot
+read a repeat is never the build that erases it for the person who set it.
+
+**And one that reaches the SHIPPED personal list.** `applyServerTime` bounded a reading's order but
+never its width, and the midpoint only cancels a symmetric round trip, so a forty-second reply on a
+train sets a correction tens of seconds wrong, and `nowMs()` is the single mint point for every
+timestamp in the app. A 2-second ceiling gates it now. **Decided against** keeping the smallest-RTT
+sample of the session: phone clocks jump, and a latched sample then applies a stale offset to an
+already-correct clock and refuses the fresh reading that would fix it. Newest-believable is the
+retention rule, and the RTT gate is what makes "believable" mean something.
+
+**Three of these were found by reading a comment that promised what the code beneath it did not do.**
+That is a good problem to have: the reasoning was written down, so the drift was visible. All three
+comments were corrected in the same commit, or the next reader trusts them again.

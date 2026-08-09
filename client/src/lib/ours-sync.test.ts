@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { type SharedTask } from './ours-merge';
 import {
   IDLE_STOP_MS,
+  isPairReadOnly,
+  knownRecurrence,
   pullPair,
   pushShared,
   rowToShared,
@@ -11,6 +13,7 @@ import {
   sharedToRow,
   shouldPoll,
   syncPairOnce,
+  TITLE_MAX,
 } from './ours-sync';
 
 function row(over: Partial<SharedRow> & { id: string }): SharedRow {
@@ -34,17 +37,51 @@ function task(over: Partial<SharedTask> & { id: string }): SharedTask {
 
 // A mock in the shape supabase-js presents, recording what was asked of it so the CONTRACT is
 // pinned without a database: which table, which filters, and what the upsert conflicts on.
-function mockClient(rows: SharedRow[] = []) {
+function mockClient(rows: SharedRow[] = [], opts: { upsertError?: unknown; echo?: SharedRow[] } = {}) {
   const calls: { op: string; args?: unknown }[] = [];
+  // Paged: pullPair keyset-walks on id and stops on an EMPTY page, so the mock must hand back the
+  // rows once and then nothing, exactly as PostgREST would.
+  let served = false;
+  const select = () => {
+    const q: Record<string, unknown> = {};
+    const chain = {
+      eq: (col: string, val: unknown) => {
+        calls.push({ op: 'eq', args: { col, val } });
+        q.eq = val;
+        return chain;
+      },
+      order: (col: string, o: unknown) => {
+        calls.push({ op: 'order', args: { col, o } });
+        return chain;
+      },
+      limit: (n: number) => {
+        calls.push({ op: 'limit', args: n });
+        return chain;
+      },
+      gt: (col: string, val: unknown) => {
+        calls.push({ op: 'gt', args: { col, val } });
+        return chain;
+      },
+      then: (resolve: (r: unknown) => void) => {
+        const page = served ? [] : rows;
+        served = true;
+        return Promise.resolve({ data: page, error: null }).then(resolve);
+      },
+    };
+    return chain;
+  };
   const builder = {
-    select: () => builder,
-    eq: (col: string, val: unknown) => {
-      calls.push({ op: 'eq', args: { col, val } });
-      return Promise.resolve({ data: rows, error: null });
-    },
-    upsert: (payload: unknown, opts: unknown) => {
-      calls.push({ op: 'upsert', args: { payload, opts } });
-      return Promise.resolve({ error: null });
+    select,
+    upsert: (payload: unknown, o: unknown) => {
+      calls.push({ op: 'upsert', args: { payload, opts: o } });
+      return {
+        select: () =>
+          Promise.resolve(
+            opts.upsertError
+              ? { data: null, error: opts.upsertError }
+              : { data: opts.echo ?? (payload as SharedRow[]), error: null },
+          ),
+      };
     },
   };
   const client = {
@@ -177,11 +214,22 @@ describe('pullPair', () => {
 
     expect(out).toHaveLength(1);
     expect(out[0].deletedAt).toBeTruthy();
-    expect(calls.filter((c) => c.op === 'eq')).toHaveLength(1); // pair_id and nothing else
+    // pair_id is the only column ever filtered on, however many pages the keyset walk takes. No
+    // `deleted_at is null`, ever.
+    expect([...new Set(calls.filter((c) => c.op === 'eq').map((c) => (c.args as { col: string }).col))]).toEqual([
+      'pair_id',
+    ]);
   });
 
   it('surfaces an error rather than pretending the list is empty', async () => {
-    const client = { from: () => ({ select: () => ({ eq: () => Promise.resolve({ data: null, error: { message: 'nope' } }) }) }) };
+    const failing = {
+      eq: () => failing,
+      order: () => failing,
+      limit: () => failing,
+      gt: () => failing,
+      then: (r: (v: unknown) => void) => Promise.resolve({ data: null, error: { message: 'nope' } }).then(r),
+    };
+    const client = { from: () => ({ select: () => failing }) };
     await expect(pullPair(client as never, 'p-1')).rejects.toBeTruthy();
   });
 });
@@ -205,7 +253,7 @@ describe('pushShared', () => {
 describe('syncPairOnce', () => {
   it('pulls, merges and pushes back only what the server is missing', async () => {
     const { client, calls } = mockClient([row({ id: 'theirs' })]);
-    const merged = await syncPairOnce(client, 'p-1', [task({ id: 'mine' })]);
+    const { merged } = await syncPairOnce(client, 'p-1', [task({ id: 'mine' })]);
 
     expect(merged.map((t) => t.id).sort()).toEqual(['mine', 'theirs']);
     const upsert = calls.find((c) => c.op === 'upsert')!.args as { payload: { id: string }[] };
@@ -266,5 +314,131 @@ describe('the never-shame law, at the wire', () => {
   it('ignores a done_by that somehow arrives from the server', () => {
     const hostile = { ...row({ id: 't1' }), done_by: 'someone' } as SharedRow & { done_by: string };
     expect(Object.keys(rowToShared(hostile))).not.toContain('done_by');
+  });
+});
+
+
+// --- the fixes the Phase 3 audit asked for -------------------------------------------------
+
+describe('the server clamps, and the client has to learn', () => {
+  // ours.sql's BEFORE trigger clamps updated_at to now() + 1 day rather than rejecting it. Without
+  // the read-back a device more than a day fast keeps its own stamp, stays "newer" forever, and
+  // re-pushes every poll, each push re-clamping to a fresh ceiling that beats anything the other
+  // phone can legitimately write. Their retitle reverts every fifteen seconds, from a phone lying
+  // face-down on a table.
+  it('adopts the stamp the server actually stored, not the one it sent', async () => {
+    const ahead = task({ id: 'x', updatedAt: Date.UTC(2030, 0, 1) });
+    const clamped = row({ id: 'x', updated_at: '2026-08-10T00:00:00.000Z' });
+    const { client } = mockClient([], { echo: [clamped] });
+
+    const { merged } = await syncPairOnce(client, 'p-1', [ahead]);
+    expect(merged[0].updatedAt).toBe(Date.parse('2026-08-10T00:00:00.000Z'));
+  });
+
+  it('pushes nothing on the next pass once it has adopted the stored stamp', async () => {
+    const stored = row({ id: 'x', updated_at: '2026-08-10T00:00:00.000Z' });
+    const { client, calls } = mockClient([stored]);
+    await syncPairOnce(client, 'p-1', [rowToShared(stored)]);
+    expect(calls.find((c) => c.op === 'upsert')).toBeUndefined();
+  });
+});
+
+describe('a refused push must not throw away a good pull', () => {
+  // The SELECT policy needs only membership; both write policies need is_pair_writable, which also
+  // requires the pair to be live. So a frozen pair pulls forever and pushes never, and nothing but a
+  // successful push empties toPush. Throwing here pinned the device at its last complete sync, on
+  // the one screen a bereaved person may keep for years, under copy promising "you can still read
+  // everything here".
+  it('keeps the merged set and reports the refusal when the pair is read-only', async () => {
+    const { client } = mockClient([row({ id: 'theirs' })], { upsertError: { code: '42501' } });
+    const res = await syncPairOnce(client, 'p-1', [task({ id: 'mine' })]);
+
+    expect(res.merged.map((t) => t.id).sort()).toEqual(['mine', 'theirs']);
+    expect(isPairReadOnly(res.pushError)).toBe(true);
+  });
+
+  it('still reports a push failure that is NOT a read-only refusal, so a real bug stays visible', async () => {
+    const { client } = mockClient([], { upsertError: { code: '23514', message: 'check violation' } });
+    const res = await syncPairOnce(client, 'p-1', [task({ id: 'mine' })]);
+    expect(res.pushError).toBeTruthy();
+    expect(isPairReadOnly(res.pushError)).toBe(false);
+  });
+
+  it('a failed PULL still throws, because there is nothing worth caching', async () => {
+    const failing: Record<string, unknown> = {};
+    Object.assign(failing, {
+      eq: () => failing,
+      order: () => failing,
+      limit: () => failing,
+      gt: () => failing,
+      then: (r: (v: unknown) => void) => Promise.resolve({ data: null, error: { message: 'nope' } }).then(r),
+    });
+    await expect(syncPairOnce({ from: () => ({ select: () => failing }) } as never, 'p-1', [])).rejects.toBeTruthy();
+  });
+});
+
+describe('the title cap the column enforces and the personal list does not', () => {
+  it('clamps to exactly what the column will accept', () => {
+    expect(sharedToRow(task({ id: 'x', title: 'a'.repeat(700) }), 'p-1').title).toHaveLength(TITLE_MAX);
+  });
+
+  // Postgres counts code points and JS counts UTF-16 units, so a plain slice can cut a surrogate
+  // pair in half and swap one poison row for another. Emoji in titles are ordinary here.
+  it('never cuts through a surrogate pair', () => {
+    const title = 'a'.repeat(TITLE_MAX - 1) + '\u{1F44D}' + 'b'.repeat(20);
+    const out = sharedToRow(task({ id: 'x', title }), 'p-1').title;
+    const loneSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+    expect(loneSurrogate.test(out)).toBe(false);
+    expect([...out]).toHaveLength(TITLE_MAX);
+  });
+});
+
+describe('a cadence written by the other person’s client', () => {
+  it('accepts the shapes this build knows', () => {
+    expect(knownRecurrence({ kind: 'daily' })).toEqual({ kind: 'daily' });
+    expect(knownRecurrence({ kind: 'weekly', weekdays: [1, 3] })).toEqual({ kind: 'weekly', weekdays: [1, 3] });
+    expect(knownRecurrence({ kind: 'interval', days: 3, anchor: '2026-08-09' })).toEqual({
+      kind: 'interval',
+      days: 3,
+      anchor: '2026-08-09',
+    });
+  });
+
+  // isDueOn reads r.weekdays.includes with no guard, so any of these white-screens the OTHER
+  // person's entire shared list, with no error boundary above it.
+  it('refuses every shape that would crash the day engine', () => {
+    const junk = [
+      { kind: 'weekly' },
+      { kind: 'weekly', weekdays: 'mon' },
+      { kind: 'weekly', weekdays: [] },
+      { kind: 'weekly', weekdays: [9] },
+      { kind: 'interval', days: 0, anchor: '2026-08-09' },
+      { kind: 'interval', days: 3 },
+      { kind: 'monthly' },
+      null,
+      'daily',
+    ];
+    for (const j of junk) expect(knownRecurrence(j)).toBeUndefined();
+  });
+
+  // A build that cannot READ a cadence must never be the build that ERASES it for the person who
+  // set it, so the unreadable original rides along untouched and goes back out byte-identical.
+  it('keeps an unreadable cadence verbatim and pushes it back unchanged', () => {
+    const weird = { kind: 'monthly', day: 3 };
+    const t = rowToShared(row({ id: 'x', recurrence: weird as never }));
+    expect(t.recurrence).toBeUndefined();
+    expect(sharedToRow(t, 'p-1').recurrence).toEqual(weird);
+  });
+});
+
+describe('pullPair pages rather than trusting one truncated read', () => {
+  it('orders and limits, and walks past the first page keyed on the last id it saw', async () => {
+    const { client, calls } = mockClient([row({ id: 'a' }), row({ id: 'b' })]);
+    const out = await pullPair(client, 'p-1');
+
+    expect(out.map((t) => t.id)).toEqual(['a', 'b']);
+    expect(calls.some((c) => c.op === 'order')).toBe(true);
+    expect(calls.some((c) => c.op === 'limit')).toBe(true);
+    expect(calls.find((c) => c.op === 'gt')?.args).toEqual({ col: 'id', val: 'b' });
   });
 });

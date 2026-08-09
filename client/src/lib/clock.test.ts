@@ -105,3 +105,35 @@ describe('resetClockSkew', () => {
     expect(correctedNow(AUG_2026)).toBe(AUG_2026);
   });
 });
+
+
+// The midpoint cancels a SYMMETRIC round trip; the residual is (uplink - downlink) / 2, so a
+// reading is only as accurate as half its own round trip and nothing else bounded it. nowMs() is
+// the single mint point for every timestamp in the app, including the personal list.
+describe('a reading is only believed if its round trip was short', () => {
+  beforeEach(() => resetClockSkew());
+
+  it('rejects a forty-second bracket and keeps the correction it already had', () => {
+    applyServerTime(new Date(AUG_2026 + 60_000).toISOString(), AUG_2026, AUG_2026);
+    expect(clockSkewMs()).toBe(60_000);
+
+    // A reply from a train, or a JS thread frozen by the phone locking mid-request.
+    expect(applyServerTime(new Date(AUG_2026 + 5_000).toISOString(), AUG_2026, AUG_2026 + 40_000)).toBe(false);
+    expect(clockSkewMs()).toBe(60_000);
+  });
+
+  it('is not sticky: a fast reading straight afterwards still applies', () => {
+    applyServerTime(new Date(AUG_2026).toISOString(), AUG_2026, AUG_2026 + 40_000);
+    expect(applyServerTime(new Date(AUG_2026 + 7_000).toISOString(), AUG_2026, AUG_2026 + 300)).toBe(true);
+    expect(clockSkewMs()).toBe(7_000 - 150);
+  });
+
+  // Phone clocks jump (an OS NTP resync, someone changing the date), so latching the best sample
+  // ever seen would apply a stale offset to an already-correct clock and refuse the fresh reading
+  // that would fix it. Newest-believable is the retention rule; the RTT gate makes it mean something.
+  it('lets a newer believable reading overwrite an older one, even a wider one', () => {
+    applyServerTime(new Date(AUG_2026 + 1_000).toISOString(), AUG_2026, AUG_2026 + 10);
+    applyServerTime(new Date(AUG_2026 + 3_000).toISOString(), AUG_2026, AUG_2026 + 1_500);
+    expect(clockSkewMs()).toBe(3_000 - 750);
+  });
+});

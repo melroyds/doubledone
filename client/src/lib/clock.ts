@@ -21,6 +21,8 @@ let skewMs = 0;
  *  against a garbage server value (a null that parsed to 0, a truncated string) rather than against
  *  a genuinely wrong device clock, which is the thing we are here to fix and may be years out. */
 const PLAUSIBLE_MIN = Date.UTC(2020, 0, 1);
+/** The widest bracket a reading may have and still be believed. See applyServerTime. */
+const MAX_ROUND_TRIP_MS = 2_000;
 const PLAUSIBLE_MAX = Date.UTC(2100, 0, 1);
 
 /**
@@ -28,7 +30,7 @@ const PLAUSIBLE_MAX = Date.UTC(2100, 0, 1);
  *
  * `deviceBefore` and `deviceAfter` bracket the request, and the midpoint is used, so the network
  * round trip is split between the two legs instead of being charged entirely to the server. That is
- * the difference between a correction accurate to milliseconds and one that is quietly half a slow
+ * the difference between a correction good to tens of milliseconds and one quietly half a slow
  * request behind, on the one code path whose job is to make two devices agree.
  *
  * Returns whether the reading was believed, so a caller can log or retry rather than assume.
@@ -42,6 +44,15 @@ export function applyServerTime(serverTime: string | number | null | undefined, 
   // A reply that arrives BEFORE it was sent means the two readings are not a bracket at all, so
   // there is no midpoint worth trusting.
   if (deviceAfter < deviceBefore) return false;
+
+  // The midpoint cancels a SYMMETRIC round trip; the residual error is (uplink - downlink) / 2, so a
+  // reading is only as accurate as half its own round trip and nothing else bounds it. A 40-second
+  // reply on a train, or a JS thread frozen by a phone locking mid-request, would set a correction
+  // tens of seconds wrong, and the 2020-2100 window cannot catch that because a twenty-second error
+  // is perfectly plausible. nowMs() is the single mint point for EVERY timestamp in the app, so the
+  // blast radius includes the personal list. Rejecting keeps the previous correction, which on a
+  // device that has never synced is zero, which is exactly today's shipped behaviour.
+  if (deviceAfter - deviceBefore > MAX_ROUND_TRIP_MS) return false;
 
   if (server < PLAUSIBLE_MIN || server > PLAUSIBLE_MAX) return false;
 
