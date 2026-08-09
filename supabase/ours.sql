@@ -15,6 +15,17 @@
 -- A 42702 or a missing extension surfaces in ten seconds on a scratch project and in the middle
 -- of a live apply otherwise. Then run the read-backs at the bottom.
 --
+-- ON A THROWAWAY PROJECT, RUN THIS FIRST, or the two `alter table public.tasks` lines below fail
+-- with "relation public.tasks does not exist". It is a stub standing in for the live table, and
+-- only the two columns those lines touch have to be real:
+--
+--   create table if not exists public.tasks (
+--     id text primary key,
+--     user_id uuid not null references auth.users (id) on delete cascade
+--   );
+--
+-- Never run that on the real project. There, public.tasks already exists with all its data.
+--
 -- WHAT IS NOW-OR-NEVER: `create table if not exists` is a TOTAL NO-OP on a table that already
 -- exists, including its inline CHECK constraints. So every column and every CHECK below must be
 -- right on the FIRST apply. Function bodies are `create or replace` and cost nothing to revise.
