@@ -5721,3 +5721,45 @@ threaded to the row, which meant `add()` and `toggle()` did not know about it: t
 let somebody type into a list the server was about to refuse. `isPairFrozen` is now consulted by all
 of them. The lesson is the same one the adversarial pass kept finding: a guard that lives in the
 render is not a guard, it is a hint.
+
+## 2026-08-09 The management half: everything the SQL could already do, and no screen ever asked
+
+Four RPCs and two storage helpers had been built, reviewed, applied to the live database and covered
+by tests, and not one of them was reachable from the app. `tuckPair`, `untuckPair`,
+`loadTuckedPairs`, `inviteToResume`, `resumePair`, `renameSelf`: zero call sites in any screen. That
+is its own lesson, and the reason a "built" checkbox should mean reachable, not merely written.
+
+**The archive.** Every closed list, readable forever, ranked behind the live one. Purpose and
+closed-month only: no task counts, no "you two finished 214 things", nothing that turns a
+relationship that ended into a scoreboard. The month is month-and-year, never a date and never a
+time, because a to-the-minute stamp on the end of a relationship is a thing to flinch at every time
+the archive is opened. It hangs under whichever state is showing rather than inside one of them, so
+a closed list is reachable from all of them.
+
+**Put it away is local, and reversible.** It hides a closed list from the default view; it does not
+delete it, and "Show the ones put away" brings them back. That was already decided when the tuck was
+built; this is the screen finally honouring it.
+
+**Reopening is a handshake, never unilateral.** "Reopen together…" mints a code with no email
+re-ask, because the address is already on the membership and making somebody retype their person's
+email to un-close a list they both kept is asking them to prove a relationship the database already
+knows about. It is withheld when the other person is no longer on the list: there is nobody to
+reopen it WITH, and offering would end in a refusal that reads as a bug rather than as a fact.
+
+**Decided: ONE field for both kinds of code, and the person typing never learns there were two.** A
+code that opens a new list and a code that reopens a closed one look identical, so the join field
+tries the ordinary join and falls through to the reopen. The alternative was making somebody know
+which sort of invitation they had been handed, which is a distinction that exists for the database's
+benefit and nobody else's.
+
+**The delete window, built as the audit asked and not as a timer.** Asking commits nothing. The
+intent is held, "Keep it" is the only button, and the delete actually runs when the screen closes.
+`forget_pair` cascades and cannot be reversed, so an undo toast over it would have been a lie; a
+visible countdown over it would be a pressure device aimed at the audience least able to think under
+one. There is a thirty-minute ceiling so a screen left open all night does not hold the intent
+forever, and nothing on screen mentions it.
+
+**Rename yourself, and only yourself.** `pair_members` has no update policy by design, which is what
+stops either person editing the other's row, so this goes through the definer RPC scoped to
+`auth.uid()` rather than opening one. The screen offers your name and has no affordance at all for
+theirs.

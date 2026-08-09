@@ -9,8 +9,20 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { useSession } from '@/lib/auth';
 import { t } from '@/lib/locale';
-import { createInvite, forgetPair, joinPair, leavePair, loadMyPair, type MyPair, renamePair } from '@/lib/ours-api';
+import {
+  createInvite,
+  forgetPair,
+  inviteToResume,
+  joinPair,
+  leavePair,
+  loadMyPairs,
+  type MyPair,
+  renamePair,
+  renameSelf,
+  resumePair,
+} from '@/lib/ours-api';
 import { formatCode, isCodeComplete, looksLikeEmail, type PairFailure } from '@/lib/pairing';
+import { loadTuckedPairs, tuckPair, untuckPair } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -28,6 +40,35 @@ import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 // attributes anything to either person.
 
 type Flow = 'idle' | 'create' | 'code' | 'join';
+
+/**
+ * How long the delete window stays open.
+ *
+ * It is NOT a countdown, and nothing on screen shows one. Deletion commits when the SCREEN CLOSES,
+ * which is the honest version of the undo the Phase 3 audit asked for: an undo toast on an
+ * unrecoverable delete would have been a lie, and a visible timer is a pressure device pointed at
+ * exactly the audience least able to think under one. This constant only exists so a screen left
+ * open all night does not hold the intent forever.
+ */
+const DELETE_WINDOW_MS = 30 * 60_000;
+
+/**
+ * The month a closed list closed, in the reader's own locale.
+ *
+ * Month and year, never a date and never a time. A to-the-minute stamp on the end of a relationship
+ * is a thing to flinch at every time the archive is opened, and nothing here needs the precision.
+ * `DateTimeFormat` is the Intl pair proven safe on Hermes; anything newer would need a feature
+ * detect (see CLAUDE.md's Intl gotcha).
+ */
+function closedMonth(iso: string): string {
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return '';
+  try {
+    return new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(when);
+  } catch {
+    return String(when.getFullYear());
+  }
+}
 
 // Every failure the seam can hand back, in the words this app is willing to say. 'signed-out' is
 // deliberately absent: it is not an error line but a state, and it flips the whole screen to the
@@ -115,6 +156,24 @@ export default function OursScreen() {
   // someone who had already left. The beat that flickered carries `leave`, which is permanent for
   // both people, and the likeliest response to a screen that looks broken is to tap the escape.
   const pass = useRef(0);
+  // Closed lists. Readable forever, ranked behind the live one, and never in the way: `tucked` is
+  // the local set you have put away, and it only hides them from the default view.
+  const [archive, setArchive] = useState<MyPair[]>([]);
+  const [tucked, setTucked] = useState<string[]>([]);
+  const [showTucked, setShowTucked] = useState(false);
+  // Reopening. The code is minted with no email re-ask, because the address is already on the
+  // membership: making somebody retype their person's email to un-close a list they both kept is
+  // asking them to prove a relationship the database already knows about.
+  const [resumeFor, setResumeFor] = useState<string | null>(null);
+  const [resumeCode, setResumeCode] = useState<string | null>(null);
+  // Your own name on this list. `pair_members` has no update policy by design, which is what stops
+  // either person editing the other's row, so this goes through a definer RPC scoped to auth.uid().
+  const [selfEditing, setSelfEditing] = useState(false);
+  const [selfText, setSelfText] = useState('');
+  // The delete window: which list is pending deletion, and the timer that gives up on it. Nothing
+  // has been told to anyone until the screen closes, and one tap keeps it.
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const pendingRef = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
     const mine = ++pass.current; // bumped BEFORE the early return, so a session ending also invalidates
@@ -123,10 +182,13 @@ export default function OursScreen() {
       setLoading(false);
       return;
     }
-    const res = await loadMyPair(supabase, session.user.id);
+    const res = await loadMyPairs(supabase, session.user.id);
     if (mine !== pass.current) return; // overtaken: a newer pass owns the screen
     if (res.ok) {
-      const next = res.value;
+      const next = res.value.live;
+      setArchive(res.value.frozen);
+      setTucked(await loadTuckedPairs());
+      if (mine !== pass.current) return;
       // hasPartner, not the label. Fixing `waiting` and the sharing branch and leaving THIS one is
       // how a labelless member would have had their arrival announced weeks late: `has` would stay
       // false while `waiting` correctly flipped off, and the first time they set a name the app
@@ -240,7 +302,12 @@ export default function OursScreen() {
     }
     setBusy(true);
     setFailure(null);
-    const res = await joinPair(supabase, typedCode, myLabel);
+    // ONE field for both kinds of code, and the person typing never learns there were two. A code
+    // that opens a NEW list and a code that reopens a closed one look identical and are typed in
+    // the same place, so the app tries the ordinary join and falls through to the reopen rather
+    // than making somebody know which sort of invitation they were handed.
+    let res = await joinPair(supabase, typedCode, myLabel);
+    if (!res.ok && res.failure === 'invalid-code') res = await resumePair(supabase, typedCode);
     setBusy(false);
     if (!res.ok) {
       report(res.failure);
@@ -309,21 +376,95 @@ export default function OursScreen() {
     void refresh();
   }
 
-  async function forget() {
-    if (!supabase || !pair || busy) return;
+  /** Put a closed list away. Local, per person, and never destructive: it stops being in the way,
+   *  it does not stop existing, and the toggle below brings the put-away ones back into view. */
+  async function putAway(pairId: string) {
+    await tuckPair(pairId);
+    setTucked(await loadTuckedPairs());
+  }
+
+  async function bringBackOut(pairId: string) {
+    await untuckPair(pairId);
+    setTucked(await loadTuckedPairs());
+  }
+
+  /** Offer to reopen. Mints a code against a CLOSED list; the other person redeems it in the same
+   *  one field they would use to join anything. Never unilateral: reopening is a handshake, exactly
+   *  as pairing was, because the alternative is one person deciding a relationship is back on. */
+  async function offerResume(pairId: string) {
+    if (!supabase || busy) return;
     setBusy(true);
     setFailure(null);
-    const res = await forgetPair(supabase, pair.pairId);
+    const res = await inviteToResume(supabase, pairId);
     setBusy(false);
-    if (!res.ok) {
-      report(res.failure);
-      return;
-    }
-    setPair(null);
-    hadPartner.current = null;
-    setFlow('idle');
+    if (!res.ok) return report(res.failure);
+    setResumeFor(pairId);
+    setResumeCode(res.value.code);
+    track('ours.resumeOffered');
+  }
+
+  /** Your own name, on this list. Not the other person's, which no policy allows and no screen offers. */
+  async function saveSelf() {
+    const label = selfText.trim();
+    setSelfEditing(false);
+    if (!supabase || !pair || !label || label === pair.myLabel) return;
+    const res = await renameSelf(supabase, pair.pairId, label);
+    if (!res.ok) return report(res.failure);
     void refresh();
   }
+
+  /**
+   * Delete for good, on a delay that is not a countdown.
+   *
+   * Asking commits NOTHING. The intent is held, one tap keeps the list, and the delete actually
+   * runs when the screen closes. That is the honest version of the undo the Phase 3 audit asked
+   * for: `forget_pair` cascades and cannot be reversed, so an undo toast over it would have been a
+   * lie, and a visible timer over it would be a pressure device aimed at the audience least able to
+   * think under one. Nothing has been told to anyone until you leave.
+   */
+  function askDelete(pairId: string) {
+    setPendingDelete(pairId);
+    setFailure(null);
+  }
+
+  function keepIt() {
+    setPendingDelete(null);
+  }
+
+  async function commitDelete(pairId: string) {
+    if (!supabase) return;
+    const res = await forgetPair(supabase, pairId);
+    if (!res.ok) return;
+    if (pair?.pairId === pairId) {
+      setPair(null);
+      hadPartner.current = null;
+      setFlow('idle');
+    }
+    track('ours.deleted');
+  }
+
+  // The ref shadows the state so the unmount cleanup below sees the LATEST answer rather than the
+  // one captured when it was registered. Written in an effect, never during render.
+  useEffect(() => {
+    pendingRef.current = pendingDelete;
+  }, [pendingDelete]);
+
+  // The commit itself: when this screen goes away, with the intent still standing.
+  useEffect(
+    () => () => {
+      const id = pendingRef.current;
+      if (id) void commitDelete(id);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- unmount only, by design
+    [],
+  );
+
+  // And a ceiling, so a screen left open all night does not hold the intent indefinitely.
+  useEffect(() => {
+    if (!pendingDelete) return;
+    const timer = setTimeout(() => setPendingDelete(null), DELETE_WINDOW_MS);
+    return () => clearTimeout(timer);
+  }, [pendingDelete]);
 
   async function saveName() {
     if (!supabase || !pair || busy) return;
@@ -341,6 +482,110 @@ export default function OursScreen() {
 
   const listName = pair?.name?.trim() || t('ours.defaultName');
   const errorLine = failure ? t(FAILURE_LINE[failure as Exclude<PairFailure, 'signed-out'>]) : null;
+
+  /** The reopen offer, and the code it mints. Same shape wherever a closed list is shown. */
+  function renderReopen(target: MyPair) {
+    if (resumeFor === target.pairId && resumeCode) {
+      return (
+        <View style={styles.beat}>
+          <Text style={styles.code} selectable accessibilityLabel={formatCode(resumeCode).split('').join(' ')}>
+            {formatCode(resumeCode)}
+          </Text>
+          <Text style={styles.hint}>{t('ours.resumeCodeBody')}</Text>
+        </View>
+      );
+    }
+    // Withheld when the other person is no longer on the list: there is nobody to reopen it WITH,
+    // and offering would end in a refusal that reads as a bug rather than as a fact.
+    if (!target.hasPartner) return null;
+    return (
+      <View style={styles.leaveBlock}>
+        <Pressable
+          onPress={() => void offerResume(target.pairId)}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={t('ours.reopen')}
+          hitSlop={6}
+        >
+          <Text style={styles.link}>{t('ours.reopen')}</Text>
+        </Pressable>
+        <Text style={styles.hint}>{t('ours.reopenHint')}</Text>
+      </View>
+    );
+  }
+
+  /** Delete for good, held open until the screen closes. "Keep it" is the only button, and there is
+   *  no countdown, because a visible timer is a pressure device. */
+  function renderDelete(target: MyPair) {
+    if (pendingDelete === target.pairId) {
+      return (
+        <View style={styles.leaveBlock}>
+          <Text style={styles.hint}>{t('ours.deletePending')}</Text>
+          <View style={styles.actions}>
+            <PrimaryButton label={t('ours.keepIt')} onPress={keepIt} accessibilityLabel={t('ours.keepIt')} />
+          </View>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.leaveBlock}>
+        <Pressable
+          onPress={() => askDelete(target.pairId)}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={t('ours.forget')}
+          hitSlop={6}
+        >
+          <Text style={styles.quietAction}>{t('ours.forget')}</Text>
+        </Pressable>
+        <Text style={styles.hint}>{t('ours.forgetHint')}</Text>
+      </View>
+    );
+  }
+
+  /**
+   * The archive: every closed list, readable forever.
+   *
+   * Purpose and closed-month only. No task counts, no "you two finished 214 things", nothing that
+   * turns a relationship that ended into a scoreboard. Tapping one opens it in the room, read-only.
+   */
+  function renderArchive() {
+    const shown = archive.filter((p) => showTucked || !tucked.includes(p.pairId));
+    const hidden = archive.length - shown.length;
+    if (archive.length === 0) return null;
+    return (
+      <View style={styles.archive}>
+        <Text style={styles.archiveHeading}>{t('ours.archive')}</Text>
+        {shown.map((closed) => (
+          <View key={closed.pairId} style={styles.archiveRow}>
+            <Pressable
+              onPress={() => router.push(`/ours-list?pair=${closed.pairId}`)}
+              accessibilityRole="button"
+              accessibilityLabel={closed.name?.trim() || t('ours.defaultName')}
+              hitSlop={6}
+              style={styles.archiveMain}
+            >
+              <Text style={styles.archiveName}>{closed.name?.trim() || t('ours.defaultName')}</Text>
+              {closed.closedAt ? <Text style={styles.archiveWhen}>{closedMonth(closed.closedAt)}</Text> : null}
+            </Pressable>
+            <Pressable
+              onPress={() => void (tucked.includes(closed.pairId) ? bringBackOut(closed.pairId) : putAway(closed.pairId))}
+              accessibilityRole="button"
+              accessibilityLabel={tucked.includes(closed.pairId) ? t('ours.bringBack') : t('ours.putAway')}
+              hitSlop={8}
+            >
+              <Text style={styles.archiveAction}>{tucked.includes(closed.pairId) ? t('ours.bringBack') : t('ours.putAway')}</Text>
+            </Pressable>
+          </View>
+        ))}
+        {hidden > 0 && !showTucked ? (
+          <Pressable onPress={() => setShowTucked(true)} accessibilityRole="button" accessibilityLabel={t('ours.showPutAway')} hitSlop={6}>
+            <Text style={styles.link}>{t('ours.showPutAway')}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
+  }
 
   function body() {
     if (!session) {
@@ -373,12 +618,16 @@ export default function OursScreen() {
               person has also gone, the prune trigger hard-deletes and cascades the tasks. Someone
               bereaved could otherwise delete the last copy of their person's words with nothing
               beside the button. The hint says so, and names the way to keep something first. */}
-          <View style={styles.leaveBlock}>
-            <Pressable onPress={forget} disabled={busy} accessibilityRole="button" accessibilityLabel={t('ours.forget')} hitSlop={6}>
-              <Text style={styles.quietAction}>{t('ours.forget')}</Text>
-            </Pressable>
-            <Text style={styles.hint}>{t('ours.forgetHint')}</Text>
-          </View>
+          {/* Reopening comes FIRST, and it is the mauve one: on a screen somebody reaches after
+              being left, the thing they most likely want is the way back, not the way out. */}
+          {pair ? renderReopen(pair) : null}
+
+          {/* Then, last and alone, the only irreversible action in the feature. It cannot be undone
+              once the RPC returns: there is no INSERT policy on pair_members and no rejoin path, so
+              if the other person has also gone, the prune trigger hard-deletes and cascades the
+              tasks. Someone bereaved could otherwise delete the last copy of their person's words
+              with nothing beside the button. Now nothing happens until this screen closes. */}
+          {pair ? renderDelete(pair) : null}
 
           {/* A frozen list used to be a one-way door out of the entire feature: this branch returned
               before create, join and the idle state, and its only control was the irreversible
@@ -434,6 +683,36 @@ export default function OursScreen() {
           {pair.partnerLabel ? (
             <Text style={styles.lead}>{t('ours.sharingWith', { name: pair.partnerLabel })}</Text>
           ) : null}
+
+          {/* YOUR name, on this list. Never theirs: `pair_members` has no update policy precisely so
+              neither person can edit the other's row, and this goes through a definer RPC scoped to
+              auth.uid() rather than opening one. */}
+          {selfEditing ? (
+            <TextInput
+              value={selfText}
+              onChangeText={setSelfText}
+              onBlur={() => void saveSelf()}
+              onSubmitEditing={() => void saveSelf()}
+              autoFocus
+              maxLength={40}
+              placeholder={t('ours.yourNamePlaceholder')}
+              placeholderTextColor={theme.colors.inkFaint}
+              style={styles.input}
+              accessibilityLabel={t('ours.yourName')}
+            />
+          ) : (
+            <Pressable
+              onPress={() => {
+                setSelfText(pair.myLabel ?? '');
+                setSelfEditing(true);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={t('ours.yourName')}
+              hitSlop={6}
+            >
+              <Text style={styles.hint}>{t('ours.youAre', { name: pair.myLabel || t('ours.yourNamePlaceholder') })}</Text>
+            </Pressable>
+          )}
 
           {joinedWith ? (
             <View style={styles.beat}>
@@ -664,6 +943,9 @@ export default function OursScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.four }]}>
         <BackLink label={t('common.today')} />
         {body()}
+        {/* Under whatever state is showing, so a closed list is reachable from all of them rather
+            than only from the one that happened to have room for it. */}
+        {session && loaded ? renderArchive() : null}
         {errorLine ? <Text style={styles.error}>{errorLine}</Text> : null}
       </ScrollView>
     </View>
@@ -724,5 +1006,14 @@ const makeStyles = (t: Theme) =>
     beatText: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale },
     beatAction: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body },
     leaveBlock: { marginTop: spacing.six, gap: spacing.one },
-    error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.four },
+    // The archive. Quiet rows, purpose and closed-month only: no counts, nothing that turns a
+  // relationship that ended into a scoreboard.
+  archive: { marginTop: spacing.six, borderTopWidth: border.hair, borderTopColor: t.colors.line, paddingTop: spacing.four, gap: spacing.three },
+  archiveHeading: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+  archiveRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
+  archiveMain: { flex: 1 },
+  archiveName: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.body },
+  archiveWhen: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.half },
+  archiveAction: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+  error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.four },
   });
