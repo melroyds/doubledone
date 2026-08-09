@@ -126,6 +126,88 @@ the `skipped_dates` / `big` precedent, because `taskToRow` emits every field unc
 - [ ] The Ours screen: Today's grammar, same rows, same held card minus the AI actions
 - [ ] The quiet door on Today: reads `Ours` (or the chosen name). **No count**, ever
 
+---
+
+## Phase 3.5 · Building to the design (rounds one + two)
+
+*The handoff is [`design-source/ours-design-round2.md`](design-source/ours-design-round2.md). Listed
+here in build order rather than the handoff's order, because some of it needs a seam first.*
+
+### The four build seams the design needs and the build does not have
+
+- [ ] **Self-rename RPC.** `pair_members` has a select policy and a delete-self policy and
+      deliberately NO update policy, because that absence is what stops either person editing the
+      other's row. A definer RPC scoped to `auth.uid()` preserves that control. Goes in a small
+      `ours-rename-self.sql`, reviewed before it is applied like everything else.
+- [ ] **`joined_at` surfaced** for "Kept with Alex · since June". Already returned by `loadMyPairs`;
+      just unused.
+- [ ] **"Put it away" = tuck, not destroy.** The archive supersedes `forget_pair` as the ordinary
+      exit. `forget_pair` survives ONLY as "Delete this list for good", behind the delete window.
+- [ ] **The Today door and the Menu entry**, replacing the Settings placeholder.
+
+### The room
+
+- [ ] The shared list: Today's rows, one header line ("Kept with {name}"), and deliberately PLAINER
+      than Today. No weight gauge, no day tools, no motto.
+- [ ] **The quiet wash.** Rows changed since your last open carry an accentSoft tint and a slightly
+      stronger border. Static, names nobody, counts nothing, gone next open. Needs a per-pair
+      `lastSeenAt` in the local cache, which is new state: it must be added to `wipeLocalData` and
+      its regression test in the SAME commit, like the cache itself was.
+- [ ] The shared held card: **Bring to my Today** in the hero seat, Repeat, the rail, More →
+      Remind me, shelf Close / Select more / Remove. Gone: every AI shaper, Mark as a lot, Pin.
+- [ ] Empty state, and the capture bar speaking the list's name.
+
+### The bridges
+
+- [ ] Pull: your Today copy carries a faint "· Ours" suffix, in YOUR room only. The shared row is
+      untouched, because any marker on it would be attribution through the side door.
+- [ ] Your tick closes both and enters YOUR Lookback. From the other side it is simply done.
+- [ ] **Their tick, when you had pulled it:** your copy is never struck through and never enters
+      your Lookback. In its place, this visit only, a dashed sage rest-note: "Handled on Ours. It's
+      off your day." A silent vanish reads as "did I delete that?", and a strike-through would be a
+      lie about who did the work.
+- [ ] Share to Ours from the personal held card, only when a live list exists, with the 500-char cap
+      stated honestly BEFORE the copy rather than after it.
+
+### Repeating, and the guards
+
+- [ ] Shared repeating rows through the existing engine; untick stays one tap, because it is the
+      reason two-party confirm was refused.
+- [ ] Cadence through the SAME repeating drawer as home. One cadence surface in the app.
+- [ ] The unreadable cadence renders inert and explains itself, per the decision already built into
+      `repeatSummaryOf` / `isUnreadableRepeat`.
+- [ ] Recently removed: folded at the list's foot, seven days, naming nobody.
+- [ ] Frozen list in use: read-only, capture bar gone, each undone row keeps ONE action, "Bring
+      over".
+- [ ] **The delete window.** Deletion commits when the SCREEN CLOSES, not on a timer. "Until then,
+      nothing has been told to anyone, and one tap keeps it." Keep it is the only button, and there
+      is no countdown, because a visible timer is a pressure device. This is the honest delayed
+      commit the Phase 3 audit asked for: an undo toast would have been a lie, and this is not.
+- [ ] The archive: quiet rows, purpose and closed-month only, readable forever.
+- [ ] Resume, both frames. Offering mints a code with no email re-ask. **Being asked** is the
+      delicate one, and declining is SILENT: the code lapses, and nothing renders on the other side,
+      so a decline is indistinguishable from never having seen it.
+- [ ] Solo-leave: "Nobody ever joined this one. Close it and it's simply gone." No freeze theatre.
+- [ ] Report-closed renders EXACTLY as ordinary closed. Any distinguishing mark would tell someone
+      they had been reported.
+
+### Check for updates (recommendation accepted, and improved)
+
+- [ ] Settings absorbs the version line. Up to date is a sage FACT, not a control.
+- [ ] Web: "A newer version is ready", reload, and "Anything you were typing is kept" (true, drafts
+      persist, and it must stay true).
+- [ ] Native: "This build is getting old", the store, and "Your lists stay exactly as they are".
+- [ ] The rare mention on the rested ladder, **reframed as an offer FOR the person**: "The newer one
+      can read everything your person sets, rhythms included." Better than the brief's framing,
+      which was about being out of date. Not now costs nothing and is never remembered.
+
+### Then
+
+- [ ] Strings for every new surface, five locales, through the never-shame lens.
+- [ ] E2E cases in `gen-test-suite.py`, suite regenerated.
+- [ ] Screenshots including Ours, all locales.
+- [ ] **Dogfood, then merge**, in Melroy's order.
+
 ## Phase 4 · The bridges
 
 - [ ] Pull to my Today: fresh id, fresh `createdAt`, `shared_id` + `shared_pair_id` set,
