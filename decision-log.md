@@ -4846,3 +4846,38 @@ exists. That is the exact shape of the bug the scrapbook once had.
 **The loader is defensive on purpose.** Anything on disk can be from an older build or a
 half-written save, and a screen whose entire promise is calm must never be handed a shape that
 crashes it, so non-array entries are dropped rather than trusted. Tested with three kinds of junk.
+
+## 2026-08-09 One clock, and why it corrects rather than replaces
+
+Every timestamp DoubleDone writes drives last-write-wins, and every one of them was the device's
+own clock. That was already a live problem before shared lists: the MCP server writes rows on a
+Cloudflare Worker's clock, so a browser running a few minutes slow produced edits that lost to the
+copy they replaced and appeared to undo themselves. `withMonotonicStamps` papered over it per-row.
+The shared list makes it sharper, because the other clock is now another person's phone, and the
+person watching their change revert is in the same room as the person whose phone won.
+
+`lib/clock.ts` reads the server's clock once per sync and keeps the OFFSET. **Decided: a
+correction, never a time source.** The app keeps using `Date.now()`; this only adjusts it. A skew
+that cannot be established leaves the app exactly as it was before the file existed, a known and
+survivable state, where a skew got WRONG would poison every timestamp written afterwards. So every
+guard fails open to zero: a missing reading, an unparseable one, a non-finite one, and a bracket
+whose reply arrived before it was sent are all simply not believed.
+
+**The plausibility bound is on the SERVER reading only, and that asymmetry is the whole point.** A
+device whose clock is years out is the thing this exists to fix and must be corrected in full; a
+server value outside 2020-2100 is a garbage reply (a null that became 0, a truncated string) and
+believing it would rewrite the app's entire sense of time off one bad response. Tested both ways.
+
+**The round trip is split at its midpoint** rather than charged entirely to the server, which is the
+difference between a correction accurate to milliseconds and one quietly half a slow request behind,
+on the one code path whose job is making two devices agree.
+
+**Cleared from `useSession`'s auth listener, not from the three sign-out call sites.** The
+correction was learned for one account's session, and the next person to use the device is owed
+their own clock. There are three sign-out paths today and there will be a fourth some day: the
+listener is the one place every session ending must pass through. Same reasoning as the single key
+list in `wipeLocalData`, and the same bug it prevents.
+
+**Honest state:** nothing calls `applyServerTime` yet, so in production the correction is zero and
+`nowMs()` is exactly what it was. Wiring it into the sync read is the next box on the plan. That is
+deliberately the safe direction to be incomplete in.

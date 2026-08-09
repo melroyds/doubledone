@@ -3,6 +3,7 @@
 // (see tasks.test.ts). The AsyncStorage wrapper lives in storage.ts and stays a
 // thin, untested SDK seam.
 
+import { correctedNow } from './clock';
 import { type Recurrence } from './recurrence';
 
 // A task with parts: a thing done in N steps (10 TV episodes, a 3-step chore).
@@ -212,7 +213,12 @@ export function makeId(): string {
  * rule rejects `Date.now()` called from a function defined during render, since a re-render would
  * silently produce a different value. Module scope keeps every screen's handlers pure by construction
  * rather than by each one remembering to declare its own copy.
+ *
+ * It is now the DEVICE clock plus a correction established against the server's (see lib/clock),
+ * because every stamp written here drives last-write-wins against rows a different clock wrote: the
+ * MCP Worker's, your other phone's, and on a shared list another person's. The correction is zero
+ * until a sync sets it, so this is exactly `Date.now()` on a device that has never synced.
  */
 export function nowMs(): number {
-  return Date.now();
+  return correctedNow(Date.now());
 }

@@ -85,8 +85,12 @@ the `skipped_dates` / `big` precedent, because `taskToRow` emits every field unc
 
 - [x] `withMonotonicStamps` widened to `<T extends { id: string; updatedAt: number }>` (the
       existing tasks.ts one, not a second copy) and exercised on shared rows
-- [ ] `server_now()` read once per sync → cached skew → applied at `nowMs()`, failing open to
-      zero. Fixes personal cross-device and MCP skew in the same stroke
+- [x] `lib/clock.ts`: the correction itself. Round-trip midpoint, a plausibility bound on the
+      SERVER reading only (a device years wrong is the thing being fixed), fails open to zero,
+      and cleared on session end from `useSession` so the next person gets their own clock.
+      `nowMs()` applies it, so this fixes personal cross-device and MCP skew in the same stroke
+- [ ] Call `server_now()` once per sync and feed `applyServerTime`. Until this lands the
+      correction is a no-op in production, which is deliberately the safe direction
 - [x] `lib/ours-merge.ts`: LWW + tombstones + **grow-only union of `completedDates`**, pure,
       16 tests (two people ticking the bins from two phones converge; a removal races a re-add
       by TIME and gives the same answer whichever phone merges; a corrupt stamp loses)
