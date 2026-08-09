@@ -343,6 +343,7 @@ export const en = {
     joined: "You're now sharing with {name}.",
     lead: 'A list you both keep. Nothing here ever lands on your Today unless you put it there.',
     leave: 'Leave this list',
+    leaveAloneHint: 'Nobody has joined, so there is nothing to close. The code stops working.',
     leaveHint: 'Nothing is lost. It closes for both of you, and you can both still read everything.',
     namePlaceholder: 'Give it a name',
     newCode: 'Get a new code',

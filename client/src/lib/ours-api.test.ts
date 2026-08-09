@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createInvite, forgetPair, isOursOpen, joinPair, leavePair, loadMyPair, renamePair } from './ours-api';
+import { createInvite, forgetPair, isOursOpen, joinPair, leavePair, loadMyPair, loadMyPairs, renamePair } from './ours-api';
 
 // A mock client in the shape supabase-js presents, so the CONTRACT is pinned without a database:
 // which RPC is called, with which argument names, and how each shape of reply is read.
@@ -196,6 +196,7 @@ describe('loadMyPair', () => {
         partnerLabel: 'Sam',
         closedAt: null,
         disabledAt: null,
+        joinedAt: null, // present but unknown: this membership row predates the column being read
       },
     });
   });
@@ -244,5 +245,83 @@ describe('loadMyPair', () => {
       ok: true,
       value: { pairId: 'p-1', closedAt: '2026-08-09T10:00:00Z' },
     });
+  });
+});
+
+
+// Multiple memberships are a DESIGNED state, not an exotic one: leaving freezes a pair without
+// deleting the row, and the abuse ceiling permits 25 of them. The first version picked
+// rows.find(r => r.user_id === userId) on an unordered read, which in practice yields the oldest,
+// which is the frozen one. The screen could then show "this list is closed" while the live list the
+// partner was actively using was unreachable, and leave, forget and the whole Phase 3 task sync all
+// pointed at the wrong list.
+describe('loadMyPairs picks the right membership out of several', () => {
+  function withMemberships(members: unknown[], pairs: unknown[]) {
+    return mockClient({}, { pair_members: { data: members, error: null }, pairs: { data: pairs, error: null } }).client;
+  }
+
+  it('returns the LIVE list even when a frozen membership is listed first', async () => {
+    const client = withMemberships(
+      [
+        { pair_id: 'old', user_id: 'me', label: 'M', joined_at: '2026-01-01T00:00:00Z' },
+        { pair_id: 'now', user_id: 'me', label: 'M', joined_at: '2026-06-01T00:00:00Z' },
+        { pair_id: 'now', user_id: 'them', label: 'Sam' },
+      ],
+      [
+        { id: 'old', name: 'the house', closed_at: '2026-05-01T00:00:00Z', disabled_at: null },
+        { id: 'now', name: 'the shop', closed_at: null, disabled_at: null },
+      ],
+    );
+
+    const res = await loadMyPairs(client, 'me');
+    expect(res.ok && res.value.live?.pairId).toBe('now');
+    expect(res.ok && res.value.frozen.map((p) => p.pairId)).toEqual(['old']);
+    // loadMyPair, which the screen still uses, must agree.
+    expect((await loadMyPair(client, 'me')) as never).toMatchObject({ value: { pairId: 'now' } });
+  });
+
+  // "You can still read everything here" is promised in five languages, so a frozen list is
+  // RETURNED rather than filtered. Filtering would break that promise the moment someone starts a
+  // second list, which is exactly when they would go looking for the old one.
+  it('keeps frozen lists, newest first, rather than hiding them', async () => {
+    const client = withMemberships(
+      [
+        { pair_id: 'a', user_id: 'me', label: 'M', joined_at: '2025-01-01T00:00:00Z' },
+        { pair_id: 'b', user_id: 'me', label: 'M', joined_at: '2026-01-01T00:00:00Z' },
+      ],
+      [
+        { id: 'a', name: null, closed_at: '2025-06-01T00:00:00Z', disabled_at: null },
+        { id: 'b', name: null, closed_at: '2026-06-01T00:00:00Z', disabled_at: null },
+      ],
+    );
+
+    const res = await loadMyPairs(client, 'me');
+    expect(res.ok && res.value.live).toBeNull();
+    expect(res.ok && res.value.frozen.map((p) => p.pairId)).toEqual(['b', 'a']);
+  });
+
+  // The kill switch is is_pair_writable's business too, so a disabled pair is not live either.
+  it('treats a killed pair as frozen, not as live', async () => {
+    const client = withMemberships(
+      [{ pair_id: 'k', user_id: 'me', label: 'M', joined_at: '2026-01-01T00:00:00Z' }],
+      [{ id: 'k', name: null, closed_at: null, disabled_at: '2026-07-01T00:00:00Z' }],
+    );
+    const res = await loadMyPairs(client, 'me');
+    expect(res.ok && res.value.live).toBeNull();
+    expect(res.ok && res.value.frozen[0].pairId).toBe('k');
+  });
+
+  it('a user whose ONLY list is frozen still gets it from loadMyPair', async () => {
+    const client = withMemberships(
+      [{ pair_id: 'f', user_id: 'me', label: 'M', joined_at: '2026-01-01T00:00:00Z' }],
+      [{ id: 'f', name: 'the house', closed_at: '2026-05-01T00:00:00Z', disabled_at: null }],
+    );
+    expect((await loadMyPair(client, 'me')) as never).toMatchObject({ value: { pairId: 'f' } });
+  });
+
+  it('returns nothing at all for an account with no memberships', async () => {
+    const client = withMemberships([], []);
+    const res = await loadMyPairs(client, 'me');
+    expect(res.ok && res.value).toEqual({ live: null, frozen: [] });
   });
 });

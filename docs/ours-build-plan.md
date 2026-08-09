@@ -87,8 +87,14 @@ the `skipped_dates` / `big` precedent, because `taskToRow` emits every field unc
       a DELAYED COMMIT: hold it locally, call the RPC when the window closes. `forgetHint`
       ships now and makes the current state honest; the affordance itself waits for the design
       pass rather than being built twice
+- [x] **The six dogfood blockers from the Phase 3 audit**, all in this screen: the minted code
+      could vanish before it was readable; "Get a new code" was a dead button that destroyed the
+      code on screen; leaving was a one-way door out of the whole feature whose only exit was the
+      irreversible delete; `loadMyPair` picked an arbitrary membership; a failed read told someone
+      they had no list; and a stale read could overwrite a newer one and re-arm the arrival beat.
+      Plus the kill switch being read and ignored, a live pair nobody joined having no exit, and
+      the poll never stopping
 - [ ] **Dogfood gate:** Melroy and his wife pair on web before Phase 3 starts
-      (needs `supabase/ours.sql` re-run for the name columns and `ours_is_open`)
 
 ## Phase 3 · The list and its clock
 

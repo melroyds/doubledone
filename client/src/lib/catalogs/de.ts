@@ -343,6 +343,7 @@ export const de: Catalog = {
     joined: 'Du teilst diese Liste jetzt mit {name}.',
     lead: 'Eine Liste, die ihr zu zweit führt. Nichts davon landet in deinem Heute, außer du legst es selbst dorthin.',
     leave: 'Diese Liste verlassen',
+    leaveAloneHint: 'Es ist niemand dabei, also gibt es nichts zu schließen. Der Code funktioniert dann nicht mehr.',
     leaveHint: 'Es geht nichts verloren. Damit ist sie für euch beide geschlossen, lesen könnt ihr weiter alles.',
     namePlaceholder: 'Gib ihr einen Namen',
     newCode: 'Neuen Code holen',

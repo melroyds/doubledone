@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AppState, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
@@ -56,6 +56,10 @@ const PRESETS = ['ours.presetShop', 'ours.presetHouse', 'ours.presetCare', 'ours
 // kettle, not a poll: it only runs while this screen is focused AND nobody has joined yet.
 const WAIT_POLL_MS = 10_000;
 
+/** A ceiling on the whole waiting poll. The invite lives 24 hours, so past that the answer cannot
+ *  change, and long before that a screen left open is a battery and somebody's row count. */
+const WAIT_POLL_CEILING_MS = 30 * 60_000;
+
 export default function OursScreen() {
   const insets = useSafeAreaInsets();
   const styles = useThemedStyles(makeStyles);
@@ -95,20 +99,37 @@ export default function OursScreen() {
   // null until the first read lands, so an already-shared list opened fresh does not announce a
   // partner who joined days ago. Only a false→true flip is an arrival.
   const hadPartner = useRef<boolean | null>(null);
+  // A read SUCCEEDED at least once. Without it a failed read left `pair` null and the screen
+  // offered to start a list to someone who already has one, which then either contradicts itself
+  // with "you already have a shared list" or, worse, re-mints and kills the code their person is
+  // holding.
+  const [loaded, setLoaded] = useState(false);
+  // Newest-issued-wins. Seven call sites, two sequential queries inside loadMyPair, and no
+  // sequencing: whichever reply landed LAST won, regardless of which snapshot was older. So the
+  // waiting screen could announce an arrival, drop back to waiting, and announce it again, and a
+  // rename's slow read landing after a Leave could restore a live pair and a live Leave button for
+  // someone who had already left. The beat that flickered carries `leave`, which is permanent for
+  // both people, and the likeliest response to a screen that looks broken is to tap the escape.
+  const pass = useRef(0);
 
   const refresh = useCallback(async () => {
+    const mine = ++pass.current; // bumped BEFORE the early return, so a session ending also invalidates
     if (!supabase || !session) {
       setPair(null);
       setLoading(false);
       return;
     }
     const res = await loadMyPair(supabase, session.user.id);
+    if (mine !== pass.current) return; // overtaken: a newer pass owns the screen
     if (res.ok) {
       const next = res.value;
       const has = !!next?.partnerLabel;
       if (has && hadPartner.current === false) setArrived(next?.partnerLabel ?? null);
       hadPartner.current = has;
       setPair(next);
+      setLoaded(true);
+    } else {
+      report(res.failure); // the seam already classified this; discarding it was the bug
     }
     setLoading(false);
   }, [session]);
@@ -119,14 +140,32 @@ export default function OursScreen() {
     }, [refresh]),
   );
 
-  const waiting = !!pair && !pair.partnerLabel && !pair.closedAt;
+  // `disabled_at` is the abuse kill switch and `is_pair_writable` treats it exactly like
+  // `closed_at`, so a killed pair used to render as "Sharing with Sam" with an editable name, and a
+  // rename then answered "This list is closed to changes" underneath a heading saying it was live.
+  // The shipped frozen copy is literally true for a killed list, so this needs no new strings.
+  const frozen = !!(pair?.closedAt || pair?.disabledAt);
+  const waiting = !!pair && !pair.partnerLabel && !frozen;
 
+  // #15: the poll had no focus gate, no app-state gate and no ceiling, so a tab left open made two
+  // Supabase reads every ten seconds all night, long after the 24-hour invite TTL had made the
+  // answer impossible. A lifetime ceiling and a foreground check, and a refresh on returning so
+  // nobody is stranded on a stale screen.
   useEffect(() => {
     if (!waiting) return;
+    const startedAt = Date.now();
     const timer = setInterval(() => {
+      if (Date.now() - startedAt > WAIT_POLL_CEILING_MS) return;
+      if (AppState.currentState !== 'active') return;
       void refresh();
     }, WAIT_POLL_MS);
-    return () => clearInterval(timer);
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void refresh();
+    });
+    return () => {
+      clearInterval(timer);
+      sub.remove();
+    };
   }, [waiting, refresh]);
 
   // A failed session is a state, not a scolding: fall through to the sign-in explanation.
@@ -153,6 +192,12 @@ export default function OursScreen() {
     setCode(res.value.code);
     setCopied(false);
     setFlow('code');
+    // Seeded from the RPC's OWN return, before the two-query refresh lands. Without this, `pair` is
+    // still null for the round trip and body() falls through to the intro screen: someone who just
+    // tapped "Get a code" is looking at "Start a shared list". If that refresh then fails, that is
+    // the resting state, and the code is unrecoverable because the server returns it exactly once.
+    setPair((prev) => prev ?? { pairId: res.value.pairId, name: name || null, myLabel: myLabel || null, partnerLabel: null, closedAt: null, disabledAt: null });
+    setLoaded(true);
     // The moat's shape, not a funnel: an invite was offered. No address, no name, no id.
     track('ours.invited');
     void refresh();
@@ -175,6 +220,16 @@ export default function OursScreen() {
     setTypedCode('');
     setFlow('idle');
     setJoinedWith(res.value.partnerLabel);
+    // Same reason as the mint above: a successful join briefly read as nothing having happened.
+    setPair({
+      pairId: res.value.pairId,
+      name: res.value.pairName,
+      myLabel: myLabel || null,
+      partnerLabel: res.value.partnerLabel,
+      closedAt: null,
+      disabledAt: null,
+    });
+    setLoaded(true);
     hadPartner.current = true; // joining is not an arrival: I am the one who arrived
     track('ours.joined');
     void refresh();
@@ -278,7 +333,7 @@ export default function OursScreen() {
 
     // Frozen: someone left. Reads stay, writes stop, and the copy has to be literally true, because
     // a person reading this has just been left and will check.
-    if (pair?.closedAt) {
+    if (frozen && flow === 'idle') {
       return (
         <View style={styles.block}>
           <Text style={styles.title}>{t('ours.frozenTitle')}</Text>
@@ -294,12 +349,26 @@ export default function OursScreen() {
             </Pressable>
             <Text style={styles.hint}>{t('ours.forgetHint')}</Text>
           </View>
+
+          {/* A frozen list used to be a one-way door out of the entire feature: this branch returned
+              before create, join and the idle state, and its only control was the irreversible
+              delete, so the answer to "I want to share a list with someone new" was "first
+              permanently destroy everything your ex, or your late partner, wrote". The database says
+              the opposite everywhere: both pairing functions count LIVE pairs only, a frozen list
+              costs no slot, and the schema's own read-back asserts that a person who leaves can pair
+              again. The client was the only thing refusing. */}
+          <View style={styles.actions}>
+            <PrimaryButton label={t('ours.start')} onPress={() => setFlow('create')} accessibilityLabel={t('ours.start')} />
+            <Pressable onPress={() => setFlow('join')} accessibilityRole="button" accessibilityLabel={t('ours.joinInstead')} hitSlop={6}>
+              <Text style={styles.link}>{t('ours.joinInstead')}</Text>
+            </Pressable>
+          </View>
         </View>
       );
     }
 
     // Sharing with someone.
-    if (pair?.partnerLabel) {
+    if (pair?.partnerLabel && !frozen) {
       return (
         <View style={styles.block}>
           {renaming ? (
@@ -360,7 +429,13 @@ export default function OursScreen() {
 
     // A live pair with nobody else in it: the code is either still in hand, or gone with the last
     // visit to this screen. Both are the same waiting, so they share a state.
-    if (pair) {
+    //
+    // `flow !== 'create'` is what makes "Get a new code" work at all. Without it this branch
+    // returned before the create form could ever render, so the button's only effect was to blank
+    // the six characters the user could still have read aloud, while the copy actively told them to
+    // press it. The server's deliberate re-mint path, which exists so a mistyped invitee address is
+    // recoverable without the hard delete, was unreachable from the app.
+    if (pair && !frozen && flow !== 'create') {
       return (
         <View style={styles.block}>
           <Text style={styles.title}>{t('ours.codeTitle')}</Text>
@@ -383,6 +458,10 @@ export default function OursScreen() {
           <Text style={styles.waiting}>{t('ours.waiting')}</Text>
           <Pressable
             onPress={() => {
+              // Seed the label, or the re-mint's `update pair_members set label` silently rewrites
+              // the creator's chosen name to the server's fallback, "me".
+              setMyLabel((prev) => prev || pair.myLabel || '');
+              setName((prev) => prev || pair.name || '');
               setFlow('create');
               setCode(null);
             }}
@@ -392,6 +471,16 @@ export default function OursScreen() {
           >
             <Text style={styles.quietAction}>{t('ours.newCode')}</Text>
           </Pressable>
+
+          {/* #14: someone who made a list to see what it was, and changed their mind, was met with
+              "waiting" forever. The server has always had an exit; the screen never called it. Its
+              own hint, because leaveHint says "it closes for both of you" and there is no both. */}
+          <View style={styles.leaveBlock}>
+            <Pressable onPress={leave} disabled={busy} accessibilityRole="button" accessibilityLabel={t('ours.leave')} hitSlop={6}>
+              <Text style={styles.quietAction}>{t('ours.leave')}</Text>
+            </Pressable>
+            <Text style={styles.hint}>{t('ours.leaveAloneHint')}</Text>
+          </View>
         </View>
       );
     }
@@ -507,7 +596,14 @@ export default function OursScreen() {
       );
     }
 
-    // Nothing yet: the one screen that has to explain what this is without selling it.
+    // Nothing yet: the one screen that has to explain what this is without selling it. Guarded on
+    // `loaded`, so a failed read never renders as "you have no shared list" to somebody who has one.
+    // Only this final return is guarded: an in-progress create or join form survives a blip.
+    // Deliberately blank rather than a spinner or a "loading" word: on a failed read the error line
+    // below already says what happened, in the seam's own calm wording, and a quiet screen for the
+    // half-second of a good read is the house behaviour everywhere else.
+    if (!loaded) return null;
+
     return (
       <View style={styles.block}>
         <Text style={styles.title}>{t('ours.defaultName')}</Text>

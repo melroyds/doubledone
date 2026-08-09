@@ -5114,3 +5114,51 @@ need it most. 30 days is the smallest number comfortably past Phase 5's seven-da
 and writing that coupling down is the point. **Decided against** hard deletion for now: it fixes
 unbounded growth as well, but it cannot ship until a cached row can say "the server has seen this",
 or a task created offline is indistinguishable from a swept one.
+
+## 2026-08-09 The six that blocked the dogfood, all in one screen
+
+The Phase 3 audit's headline was that none of the merge or seam defects could bite yet, because
+none of that code has a caller. Everything that could hurt a real tester was in the pairing screen,
+and testers leave and re-pair constantly, which is exactly the path that was broken.
+
+**Leaving was a one-way door out of the entire feature.** `leave_pair` freezes without deleting a
+membership, so the frozen branch returned before create, join and the idle state, and its only
+control was "Delete this list for good". The answer to "I want to share a list with someone new"
+was therefore "first permanently destroy everything your ex, or your late partner, wrote". The
+database says the opposite everywhere: both pairing functions count LIVE pairs only, a frozen list
+costs no slot, and the schema's own post-apply read-back asserts that someone who leaves can pair
+again. The client was the only thing refusing.
+
+**The minted code could vanish before anyone read it.** The code rendered inside `if (pair)`, and
+`pair` was null until the two-query refresh landed, so between the RPC returning and that read
+completing the screen fell through to the intro: someone who had just tapped "Get a code" was
+looking at "Start a shared list". If the refresh then failed, that was the resting state, and the
+code is unrecoverable because the server returns it exactly once. Both RPCs now seed the pair from
+their own return value.
+
+**"Get a new code" was a dead button that destroyed the code on screen.** The waiting branch
+returned before the create form could render, so the button blanked six characters the user could
+still have read aloud and reached nothing, while the copy actively told them to press it. The
+server's deliberate re-mint path, which exists so a mistyped invitee address is recoverable without
+the hard delete, was unreachable from the app.
+
+**And three that are about reads.** `loadMyPair` picked `rows.find(...)` on an unordered PostgREST
+result with no liveness preference, which in practice yields the oldest, which is the frozen one, so
+every later call pointed at the wrong list; it is now `loadMyPairs`, ranking live over frozen and
+newest over older, and **returning frozen lists rather than filtering them**, because "you can still
+read everything here" is promised in five languages. A failed read had no else branch, so it read as
+"you have no shared list" and offered to start one, which then either contradicts itself or
+re-mints and kills the code the other person is holding. And seven call sites raced with no
+sequencing, so whichever reply landed last won: the arrival beat could announce, drop back to
+waiting, and announce again, and a rename's slow read landing after a Leave could restore a live
+Leave button for someone who had already left. That beat carries `leave`, which is permanent for
+both people, and the likeliest response to a screen that looks broken is to tap the escape.
+
+**Three cheaper ones in the same pass.** `disabledAt` was read from the server and never used, so a
+killed pair rendered as "Sharing with Sam" with an editable name; it folds into one `frozen`
+derivation and needs no new strings, because the shipped frozen copy is literally true for a killed
+list. A live pair nobody had joined had no exit at all, so someone who made a list to see what it
+was and changed their mind was met with "waiting" forever; that needed its own hint rather than
+`leaveHint`, which says "it closes for both of you" and is false when there is no both. And the poll
+had no focus gate, no app-state gate and no ceiling, so a tab left open made two reads every ten
+seconds all night, long after the 24-hour invite TTL had made the answer impossible.

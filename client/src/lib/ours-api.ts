@@ -29,6 +29,8 @@ export type MyPair = {
   partnerLabel: string | null;
   closedAt: string | null;
   disabledAt: string | null;
+  /** When YOU joined. Used to rank memberships, and by the design's "kept with Sam, since June". */
+  joinedAt?: string | null;
 };
 
 function fail(error: unknown): PairErr {
@@ -133,27 +135,65 @@ export async function forgetPair(client: SupabaseClient, pairId: string): Promis
  * has just been left.
  */
 export async function loadMyPair(client: SupabaseClient, userId: string): Promise<PairResult<MyPair | null>> {
-  const members = await client.from('pair_members').select('pair_id, user_id, label');
-  if (members.error) return fail(members.error);
-  const rows = (members.data ?? []) as { pair_id: string; user_id: string; label: string | null }[];
-  const mine = rows.find((r) => r.user_id === userId);
-  if (!mine) return { ok: true, value: null };
+  const all = await loadMyPairs(client, userId);
+  if (!all.ok) return all;
+  return { ok: true, value: all.value.live ?? all.value.frozen[0] ?? null };
+}
 
+/** Every list you are in: the one live one, and any frozen ones, newest first. */
+export type MyPairs = { live: MyPair | null; frozen: MyPair[] };
+
+/**
+ * All of a user's memberships, sorted.
+ *
+ * MULTIPLE MEMBERSHIPS ARE A DESIGNED STATE, not an exotic one: leaving freezes a pair without
+ * deleting the row, and the abuse ceiling permits 25 of them. The first version picked
+ * `rows.find(r => r.user_id === userId)` on an unordered PostgREST read, which in practice yields
+ * the OLDEST, which is the frozen one, so the screen could show "this list is closed" while the
+ * live list the partner was actively using was unreachable, and every subsequent call (leave,
+ * forget, and in Phase 3 the whole task sync and the cache prune) pointed at the wrong list.
+ *
+ * A live pair wins; newest `joined_at` breaks a tie. Frozen ones are RETURNED rather than filtered,
+ * because "you can still read everything here" is a promise the app makes in five languages and a
+ * filter would quietly break it the moment someone starts a second list.
+ */
+export async function loadMyPairs(client: SupabaseClient, userId: string): Promise<PairResult<MyPairs>> {
+  const members = await client.from('pair_members').select('pair_id, user_id, label, joined_at');
+  if (members.error) return fail(members.error);
+  const rows = (members.data ?? []) as {
+    pair_id: string;
+    user_id: string;
+    label: string | null;
+    joined_at?: string | null;
+  }[];
+  const mine = rows.filter((r) => r.user_id === userId);
+  if (mine.length === 0) return { ok: true, value: { live: null, frozen: [] } };
+
+  // Both reads happen before anything is chosen: liveness lives on `pairs`, not on the membership.
   const pairs = await client.from('pairs').select('id, name, closed_at, disabled_at');
   if (pairs.error) return fail(pairs.error);
-  const pair = (
-    (pairs.data ?? []) as { id: string; name: string | null; closed_at: string | null; disabled_at: string | null }[]
-  ).find((p) => p.id === mine.pair_id);
+  const byId = new Map(
+    ((pairs.data ?? []) as { id: string; name: string | null; closed_at: string | null; disabled_at: string | null }[]).map(
+      (p) => [p.id, p],
+    ),
+  );
 
-  return {
-    ok: true,
-    value: {
-      pairId: mine.pair_id,
-      name: pair?.name ?? null,
-      myLabel: mine.label,
-      partnerLabel: rows.find((r) => r.pair_id === mine.pair_id && r.user_id !== userId)?.label ?? null,
-      closedAt: pair?.closed_at ?? null,
-      disabledAt: pair?.disabled_at ?? null,
-    },
-  };
+  const built: MyPair[] = mine.map((m) => {
+    const p = byId.get(m.pair_id);
+    return {
+      pairId: m.pair_id,
+      name: p?.name ?? null,
+      myLabel: m.label,
+      partnerLabel: rows.find((r) => r.pair_id === m.pair_id && r.user_id !== userId)?.label ?? null,
+      closedAt: p?.closed_at ?? null,
+      disabledAt: p?.disabled_at ?? null,
+      joinedAt: m.joined_at ?? null,
+    };
+  });
+
+  const newestFirst = (a: MyPair, b: MyPair) => Date.parse(b.joinedAt ?? '') - Date.parse(a.joinedAt ?? '') || 0;
+  const isLive = (p: MyPair) => !p.closedAt && !p.disabledAt;
+  const live = built.filter(isLive).sort(newestFirst)[0] ?? null;
+  const frozen = built.filter((p) => !isLive(p)).sort(newestFirst);
+  return { ok: true, value: { live, frozen } };
 }
