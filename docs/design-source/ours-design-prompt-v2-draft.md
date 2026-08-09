@@ -15,8 +15,22 @@ Round one designed the pairing surface: the nine states from nothing-yet through
 That is the door. **This round is the room**, plus the parts of the door that only make sense once
 you can see inside.
 
-**[HOLD: summarise round one's actual decisions here, from Melroy's zip, so this round extends
-rather than re-litigates.]**
+Round one's handoff is kept at [`ours-design-round1.md`](ours-design-round1.md). Its four argued
+positions, all accepted: **naming comes first** (purpose, then your name, then their email, so the
+screen that can fail comes last, beside the code it binds); **waiting is not a screen** (a waiting
+state is a read receipt by another name, folded into the code screen as one line); **leaving stays
+visible** on every visit, because a hidden exit reads as a locked door and the threat model is
+domestic; and **the word stays Ours**.
+
+It also settled the Phase 3 held card with three cuts, which this round should treat as decided:
+drop **Mark as a lot** (weight is private capacity language, and on a shared row it reads as
+commentary on the other person's task), drop **Pin** (one person's premium must never reorder what
+the other sees), and add exactly one action, **Bring to my Today**, the only bridge between the two
+rooms.
+
+And one rule this round must not break: **nothing ever animates because of the other person.** No
+presence, no typing indicator, no pulse on join. You find things changed when you look, like a
+kitchen table.
 
 ---
 
@@ -114,9 +128,31 @@ The mechanic that makes the whole thing safe: **nothing crosses without a person
   architecture assumes a door; say if you think that is wrong, and what it costs.
 - Whether "Recently removed" earns its space, or whether a tombstone should just be gone.
 - Whether a changed row needs any marker at all, given that no marker can name a person.
-- Whether the word **Ours** survived round one. **[HOLD: what did round one conclude?]**
+- Round one kept the word **Ours** and argued it well (Together reads as a feature launch, The
+  Shared List is clinical, Both is not a noun, and Us breaks in copy: "Us is closed"). Reopen only
+  if this round finds a surface where it fails.
 
 ---
+
+## What round one assumed that the build cannot do yet
+
+Four of its decisions need server or seam work, not layout. They are listed here so this round knows
+they are being built rather than quietly designed around.
+
+1. **Editing your own chosen name on the resting screen (D7).** `pair_members` has a select policy
+   and a delete-self policy and deliberately NO update policy, because that absence is what stops
+   either person editing the other's row. So a self-rename after pairing is currently impossible.
+   Needs a definer RPC scoped to `auth.uid()`, which preserves the control.
+2. **"Kept with Alex, since June" (D7).** The date exists (`pair_members.joined_at`,
+   `pairs.created_at`) but the membership read does not return it.
+3. **"Put it away" (D8), which tucks and deletes nothing.** The build's current action is
+   `forget_pair`, which is destructive and cannot be undone once the server is told. Round one is
+   right and the build is wrong here, and its version removes the delayed-commit undo problem
+   entirely. Open question from round one, still open: where a tucked-away closed list is
+   retrievable from.
+4. **The door on Today, plus a Menu entry (D10).** The build currently puts the door in Settings,
+   which was a Phase 2 placeholder. Round one's shape (a hairline row after the day's list, before
+   the tools card, no row at all when there is no shared list) is the target.
 
 ## Constraints from the build
 
