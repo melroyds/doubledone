@@ -4881,3 +4881,45 @@ list in `wipeLocalData`, and the same bug it prevents.
 **Honest state:** nothing calls `applyServerTime` yet, so in production the correction is zero and
 `nowMs()` is exactly what it was. Wiring it into the sync read is the next box on the plan. That is
 deliberately the safe direction to be incomplete in.
+
+## 2026-08-09 The Ours copy review, and the string that was a false privacy promise
+
+Fifty-two strings, five lenses, refute-by-default verifiers on every finding: 159 raised, 113
+confirmed, 30 keys rewritten and one added. Full argument verbatim in
+[`docs/ours-copy-review.md`](docs/ours-copy-review.md). Three findings were load-bearing enough to
+change what gets built, not only what it says.
+
+**`signedOutBody` was false, and it was the privacy promise.** It said your tasks stay on this
+device either way, sitting directly above a Sign in button, when signing in is precisely what stops
+that: the app's own shipped `signIn.subtitle` says so. The one sentence a rejection-sensitive reader
+weighs hardest broke the moment they acted on it. It now tells the truth and moves the reassurance
+to where it stays true (only you can read them, your person never does).
+
+**`waiting` claimed something the app cannot know.** `pair_invites` has zero RLS policies and the
+expiry is returned exactly once, so after a reload the screen knows only that nobody has joined: it
+cannot tell a live code from one that died yesterday. The old line also made the absent person the
+subject of a pending state, so every return visit read as "they still haven't", which is the
+watching frame this feature exists to avoid. The rewrite asserts nothing about the code's liveness
+and names the remedy instead. **Decided against** a definer RPC returning the caller's own
+outstanding invite's `expires_at`: it would buy a live countdown, and copy is enough for v1.
+
+**The email binding has a dead end that only copy can currently soften.** Anyone signing in with an
+Apple private relay address, a work alias, or simply a different address than their person typed
+fails forever with the undifferentiated `invalid-code`, and the creator cannot look up what they
+typed because it is hashed. Four strings now carry the precondition, and `newCode` stays visible on
+the code screen rather than buried, because re-minting is the only escape. **This is the thing to
+watch in the two-couple dogfood; if it bites, the fix is product, not words.**
+
+**One decision made against the panel's preferred shape.** It showed that "Delete this list for
+good" cannot be undone once the RPC returns, so an undo toast would be a lie and the only honest
+version is a delayed commit. `forgetHint` ships now and makes the current state truthful. The
+affordance itself waits for the Claude Design pass rather than being built twice, on a branch that
+does not deploy. Recorded as a build-plan item so it cannot be lost.
+
+**Also settled: the copy states the app's own limits instead of correcting the reader.**
+`errAlreadyPaired` names the one-list-at-a-time cap and the way out rather than telling someone what
+they already have; `errListFull` stops implying a third person is in there; `errRateLimited` stops
+counting the reader's failures back at them, which matters because it can fire from the global
+ceiling with the reader doing nothing at all. And the whole block went back to house typography:
+the curly apostrophes were entirely mine, and this catalog has used straight ones in a double-quoted
+delimiter for a thousand strings.

@@ -75,9 +75,18 @@ the `skipped_dates` / `big` precedent, because `taskToRow` emits every field unc
       [`design-source/ours-design-prompt.md`](design-source/ours-design-prompt.md). The screen
       built here is deliberately plain: working, on-strings, one state at a time, so the design
       has something real to replace
-- [ ] **Adversarial copy review of the fifty-two strings, English first, then a full
-      per-language pass** for es/fr/it/de against the settled English (Melroy, 2026-08-09:
-      "let's be thorough AF")
+- [x] **Adversarial copy review, English pass.** Five lenses, refute-by-default verifiers,
+      113 of 159 findings confirmed: 30 keys rewritten, `forgetHint` added, and the whole
+      block swept back to house apostrophes. Verbatim synthesis in
+      [`ours-copy-review.md`](ours-copy-review.md)
+- [ ] **Full per-language adversarial pass** for es/fr/it/de against the settled English,
+      same shape as the four native catalog passes (Melroy, 2026-08-09: "let's be thorough AF")
+- [ ] **An honest undo for "Delete this list for good".** It cannot be undone once the RPC
+      returns (no INSERT policy on `pair_members`, no rejoin path, and the prune trigger
+      hard-deletes and cascades once the second member has gone), so the only truthful undo is
+      a DELAYED COMMIT: hold it locally, call the RPC when the window closes. `forgetHint`
+      ships now and makes the current state honest; the affordance itself waits for the design
+      pass rather than being built twice
 - [ ] **Dogfood gate:** Melroy and his wife pair on web before Phase 3 starts
       (needs `supabase/ours.sql` re-run for the name columns and `ours_is_open`)
 

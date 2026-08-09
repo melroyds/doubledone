@@ -283,9 +283,17 @@ export default function OursScreen() {
         <View style={styles.block}>
           <Text style={styles.title}>{t('ours.frozenTitle')}</Text>
           <Text style={styles.lead}>{t('ours.frozenBody')}</Text>
-          <Pressable onPress={forget} disabled={busy} accessibilityRole="button" accessibilityLabel={t('ours.forget')} hitSlop={6}>
-            <Text style={styles.quietAction}>{t('ours.forget')}</Text>
-          </Pressable>
+          {/* The only irreversible action in the whole feature, and it cannot be undone once the RPC
+              returns: there is no INSERT policy on pair_members and no rejoin path, so if the other
+              person has also gone, the prune trigger hard-deletes and cascades the tasks. Someone
+              bereaved could otherwise delete the last copy of their person's words with nothing
+              beside the button. The hint says so, and names the way to keep something first. */}
+          <View style={styles.leaveBlock}>
+            <Pressable onPress={forget} disabled={busy} accessibilityRole="button" accessibilityLabel={t('ours.forget')} hitSlop={6}>
+              <Text style={styles.quietAction}>{t('ours.forget')}</Text>
+            </Pressable>
+            <Text style={styles.hint}>{t('ours.forgetHint')}</Text>
+          </View>
         </View>
       );
     }
