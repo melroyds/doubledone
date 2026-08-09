@@ -127,20 +127,32 @@ function sanitiseStamps(input: unknown): Record<string, number> | undefined {
  */
 export function knownRecurrence(input: unknown): Recurrence | undefined {
   if (typeof input !== 'object' || input === null) return undefined;
-  const r = input as { kind?: unknown; weekdays?: unknown; days?: unknown; anchor?: unknown; start?: unknown };
+  const r = input as {
+    kind?: unknown;
+    weekdays?: unknown;
+    days?: unknown;
+    anchor?: unknown;
+    start?: unknown;
+    summary?: unknown;
+  };
   const startOk = r.start === undefined || typeof r.start === 'string';
-  if (r.kind === 'none') return { kind: 'none' };
-  if (r.kind === 'daily') return startOk ? ({ kind: 'daily', ...(typeof r.start === 'string' ? { start: r.start } : {}) } as Recurrence) : undefined;
+  // See `repeatSummaryOf` below: a `summary` key rides along inside this object and must SURVIVE
+  // the clean rebuild, or the client that understands a cadence becomes the one that strips the
+  // fallback the client that does not understand it depends on.
+  const carry = <T>(out: T): T => (typeof r.summary === 'string' ? { ...out, summary: r.summary } : out);
+  if (r.kind === 'none') return carry({ kind: 'none' });
+  if (r.kind === 'daily')
+    return startOk ? carry({ kind: 'daily', ...(typeof r.start === 'string' ? { start: r.start } : {}) } as Recurrence) : undefined;
   if (r.kind === 'weekly') {
     if (!Array.isArray(r.weekdays) || !r.weekdays.length) return undefined;
     if (!r.weekdays.every((d) => typeof d === 'number' && Number.isInteger(d) && d >= 0 && d <= 6)) return undefined;
     if (!startOk) return undefined;
-    return { kind: 'weekly', weekdays: r.weekdays as number[], ...(typeof r.start === 'string' ? { start: r.start } : {}) } as Recurrence;
+    return carry({ kind: 'weekly', weekdays: r.weekdays as number[], ...(typeof r.start === 'string' ? { start: r.start } : {}) } as Recurrence);
   }
   if (r.kind === 'interval') {
     if (typeof r.days !== 'number' || !Number.isInteger(r.days) || r.days < 1) return undefined;
     if (typeof r.anchor !== 'string') return undefined;
-    return { kind: 'interval', days: r.days, anchor: r.anchor };
+    return carry({ kind: 'interval', days: r.days, anchor: r.anchor });
   }
   return undefined;
 }
@@ -155,6 +167,39 @@ export function sanitiseCompletions(input: unknown): CompletionLog | undefined {
   if (on) out.on = on;
   if (off) out.off = off;
   return out;
+}
+
+/**
+ * The plain-English cadence line a row carries for readers that cannot compute one.
+ *
+ * DECIDED 2026-08-09 (Melroy): a repeat whose cadence this build cannot read is SHOWN, not hidden.
+ * The scenario is ordinary rather than exotic: the two people are on different app versions, one
+ * sets a cadence the other's build has never heard of, and that build genuinely cannot work out
+ * which days it lands on. Hiding the row means one person sees it and the other does not, each with
+ * a reasonable and wrong story about the other having deleted it, which is the invisible
+ * disagreement this whole feature exists to prevent. A visible oddity is the cheaper failure.
+ *
+ * The writing client, which DOES understand the cadence, writes a plain-English summary alongside
+ * the machine form, in its own language. Same shape the public REST API already uses (a normalised
+ * recurrence object plus a `repeats` summary), so this is a known pattern here rather than an
+ * invention. It rides INSIDE the recurrence object, which means it needs no column and is preserved
+ * for free by the verbatim carry that already protects an unreadable cadence.
+ *
+ * A reader that understands the cadence must IGNORE this and render its own localised line, so an
+ * Italian reader is not shown an English one whenever it could have been avoided. The stored
+ * summary is a fallback, never the source of truth.
+ */
+export function repeatSummaryOf(task: SharedTask): string | undefined {
+  const from = task.recurrence ?? task.rawRecurrence;
+  if (typeof from !== 'object' || from === null) return undefined;
+  const summary = (from as { summary?: unknown }).summary;
+  return typeof summary === 'string' && summary.trim() ? summary : undefined;
+}
+
+/** Whether this build can place the row on a day at all. A row that repeats and cannot be placed is
+ *  still shown, with `repeatSummaryOf` if it has one, and is never treated as due today. */
+export function isUnreadableRepeat(task: SharedTask): boolean {
+  return task.recurrence === undefined && task.rawRecurrence != null;
 }
 
 /**

@@ -5198,3 +5198,35 @@ German ("la bonne personne", "der richtige Mensch") where Spanish and Italian us
 frame ("quien esperabas", "chi ti aspettavi"). One agent raised it, no verifier ever saw it, and it
 belongs beside `wasntWho`, which already moved to the speaker-side frame in Italian and German. It
 goes to the round-two copy pass, not into this commit on one unverified opinion.
+
+## 2026-08-09 A repeat you cannot read is shown, not hidden
+
+Two people on a shared list can be on different app versions, which is the ordinary state rather
+than an exotic one: staggered store rollouts, web against native, someone who has not opened the
+store in a month. So one of them can set a cadence the other's build has never heard of, and that
+build genuinely cannot work out which days it lands on.
+
+The dangerous half was already fixed by the Phase 3 audit: an unreadable cadence is kept verbatim
+and pushed back byte-identical, so the build that cannot read a repeat is never the build that
+erases it. What was open was purely what the reader SEES, and Melroy chose: show it.
+
+**The argument, because it generalises.** Hiding the row is the tidier interface and the worse
+outcome. One person sees the task and the other does not, and when it is undone each has a
+reasonable and completely wrong story about the other having deleted it. That is the invisible
+disagreement this entire feature exists to prevent, and it compounds quietly for weeks. A visible
+oddity is the cheaper failure, every time, on a surface two people share.
+
+**The mechanism keeps it cheap.** The writing client, which understands the cadence, writes a
+plain-English summary alongside the machine form, and it rides INSIDE the recurrence object, so it
+needs no column and is preserved for free by the verbatim carry that already protects the cadence.
+Same shape the public REST API already uses (a normalised object plus a `repeats` summary), so it
+is a known pattern here rather than an invention.
+
+**The subtle part, and the one with a test:** `knownRecurrence` rebuilds a clean object for the
+kinds it knows, so without an explicit carry the client that UNDERSTANDS a cadence would silently
+strip, on its very next sync, the fallback the client that does not understand it depends on. The
+person whose app is up to date would be the one breaking it for the person whose app is not.
+
+**One accepted ugliness:** the stored summary is in the writer's language, so an Italian reader can
+be shown an English cadence line. A reader that understands the cadence must ignore the stored one
+and render its own, so this only ever appears where the alternative was nothing at all.

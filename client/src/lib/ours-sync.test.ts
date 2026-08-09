@@ -4,7 +4,9 @@ import { type SharedTask } from './ours-merge';
 import {
   IDLE_STOP_MS,
   isPairReadOnly,
+  isUnreadableRepeat,
   knownRecurrence,
+  repeatSummaryOf,
   pullPair,
   pushShared,
   rowToShared,
@@ -440,5 +442,62 @@ describe('pullPair pages rather than trusting one truncated read', () => {
     expect(calls.some((c) => c.op === 'order')).toBe(true);
     expect(calls.some((c) => c.op === 'limit')).toBe(true);
     expect(calls.find((c) => c.op === 'gt')?.args).toEqual({ col: 'id', val: 'b' });
+  });
+});
+
+
+// Decided 2026-08-09 (Melroy): a repeat whose cadence this build cannot read is SHOWN, not hidden.
+// Hiding it means one person sees the task and the other does not, each with a reasonable and wrong
+// story about the other having deleted it, which is the invisible disagreement this feature exists
+// to prevent.
+describe('a cadence this build cannot place on a day', () => {
+  it('is flagged as unreadable rather than treated as a one-off', () => {
+    const weird = rowToShared(row({ id: 'rent', recurrence: { kind: 'monthly', day: 1 } as never }));
+    expect(isUnreadableRepeat(weird)).toBe(true);
+
+    const known = rowToShared(row({ id: 'bins', recurrence: { kind: 'daily' } as never }));
+    expect(isUnreadableRepeat(known)).toBe(false);
+    // A row with no cadence at all is a one-off, not an unreadable repeat.
+    expect(isUnreadableRepeat(rowToShared(row({ id: 'milk' })))).toBe(false);
+  });
+
+  it('surfaces the summary the writing client left for readers like this one', () => {
+    const t = rowToShared(row({ id: 'rent', recurrence: { kind: 'monthly', day: 1, summary: 'every month on the 1st' } as never }));
+    expect(repeatSummaryOf(t)).toBe('every month on the 1st');
+  });
+
+  it('has no summary to show when the writer did not leave one', () => {
+    expect(repeatSummaryOf(rowToShared(row({ id: 'rent', recurrence: { kind: 'monthly' } as never })))).toBeUndefined();
+    expect(repeatSummaryOf(rowToShared(row({ id: 'milk' })))).toBeUndefined();
+    // A blank one is not a summary.
+    expect(repeatSummaryOf(rowToShared(row({ id: 'x', recurrence: { kind: 'monthly', summary: '   ' } as never })))).toBeUndefined();
+  });
+
+  // THE ONE THAT MATTERS. The client that UNDERSTANDS a cadence must not become the client that
+  // strips the fallback the client that does not understand it depends on. knownRecurrence rebuilds
+  // a clean object, so without an explicit carry the summary would be silently dropped on the very
+  // next sync by the person whose app is up to date.
+  it('does not strip the summary when it DOES understand the cadence', () => {
+    const withSummary = { kind: 'weekly', weekdays: [1, 3], summary: 'every Monday and Wednesday' };
+    const t = rowToShared(row({ id: 'bins', recurrence: withSummary as never }));
+
+    expect(isUnreadableRepeat(t)).toBe(false); // this build can place it
+    expect(repeatSummaryOf(t)).toBe('every Monday and Wednesday'); // and still carries the fallback
+    expect(sharedToRow(t, 'p-1').recurrence).toMatchObject({ summary: 'every Monday and Wednesday' });
+  });
+
+  it('carries it through every cadence kind this build knows', () => {
+    for (const r of [
+      { kind: 'none', summary: 's' },
+      { kind: 'daily', summary: 's' },
+      { kind: 'weekly', weekdays: [0], summary: 's' },
+      { kind: 'interval', days: 2, anchor: '2026-08-09', summary: 's' },
+    ]) {
+      expect((knownRecurrence(r) as { summary?: string } | undefined)?.summary).toBe('s');
+    }
+  });
+
+  it('ignores a summary that is not a string, rather than rendering an object', () => {
+    expect((knownRecurrence({ kind: 'daily', summary: { a: 1 } }) as { summary?: unknown })?.summary).toBeUndefined();
   });
 });

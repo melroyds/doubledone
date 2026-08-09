@@ -186,6 +186,16 @@ do not become one-offs because the rest of the list is.*
       Built and tested in `lib/ours-merge.ts`, including the un-tick the first version could not
       express (2026-08-09)
 - [ ] Confirm by test that a miss is unstorable, so no witness can ever see one
+- [x] **A cadence the reader's build cannot understand SHOWS, it does not hide** (Melroy,
+      2026-08-09). The seam already keeps an unreadable cadence verbatim; `repeatSummaryOf` and
+      `isUnreadableRepeat` are the reader's half, and `knownRecurrence` carries the summary
+      through so the client that DOES understand a cadence never strips the fallback the client
+      that does not depends on
+- [ ] The cadence WRITER must include a plain-English `summary` in the recurrence object, in its
+      own language, whenever it writes one. Same shape the public REST API already uses. A reader
+      that understands the cadence ignores it and renders its own localised line; the stored one
+      is a fallback, never the source of truth
+- [ ] Render an unreadable repeat: shown, never placed on a day, never counted as due today
 
 ## Phase 7 · Compliance, before any store binary
 
