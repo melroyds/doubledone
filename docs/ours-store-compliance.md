@@ -40,29 +40,52 @@ To reverse it, set `disabled_at = null`.
 
 ---
 
-## The Apple form (App Store Connect → App Information → Age Rating)
+## The Apple form (App Store Connect → App Information → Age Ratings)
 
-| Question | Answer |
+**Apple replaced this questionnaire in July 2026**, so anything you remember from the last
+submission is stale. The ratings are now 4+, 9+, **13+, 16+, 18+**, and there is a new first step
+about in-app controls and capabilities. Answers become **required from September 2026** for any new
+app or update, so this is due regardless of Ours.
+
+**The question that decides everything: social media capability.** Apple defines it as *"the ability
+to redistribute, amplify, or interact with user-generated content through a social feed or similar
+discovery method."* Answering yes means a Social Media content descriptor on the listing, inclusion
+in the Social Media **Time Allowance** category, and a **minimum rating of 13+**.
+
+**DoubleDone answers NO, and the reasoning must survive a reviewer reading it:** there is no feed,
+no discovery method, no amplification and no redistribution. Content reaches exactly one person, who
+must already hold a six-character code AND sign in with the specific address it was minted for.
+Nothing is public, nothing is browsable, and no user can reach a user they have not exchanged a code
+with out-of-band.
+
+**If a question asks plainly about user-generated content or communication between users, without
+the feed/discovery framing, answer YES.** Two people writing into one list is exactly that, and
+under-declaring is the failure that costs a review cycle. It is the *social media* framing
+specifically that DoubleDone does not meet.
+
+| Question type | Answer |
 |---|---|
-| Unrestricted Web Access | **No** |
-| **User Generated Content** | **Yes** |
-| Contests | No |
-| Gambling | No |
-| Horror/Fear, Violence, Sexual Content, Profanity, Drugs, etc. | **None** |
-| Medical/Treatment Information | No |
+| In-app controls / capabilities (step 1) | Select nothing that DoubleDone does not have. There are no parental controls, no content filters, no age gate. |
+| Social media capability | **No** (no feed, no discovery, no amplification) |
+| User-generated content / user communication, if asked separately | **Yes** |
+| Unrestricted web access | **No** |
+| Violence, sexual content, profanity, horror, drugs, alcohol, gambling, contests, loot boxes | **None** |
+| Medical or wellness topics | **No.** It is a to-do app. It is designed with ADHD and OCD in mind but makes no medical claim, gives no treatment information, and must not be declared as health content. |
 
-Expected outcome: **4+**, unchanged. Declaring UGC does not raise the rating on its own.
+**Check the calculated rating on the final step BEFORE saving.** If it comes out above 4+, stop and
+work out which answer raised it rather than accepting it: a 13+ on a calm to-do app is a real cost.
 
 **App Review notes** (paste into the review-notes box):
 
 > DoubleDone lets a user optionally share ONE list with ONE other person, by reading them a
-> six-character code. There is no feed, no discovery, no profiles, and no way to contact anyone you
-> have not exchanged a code with. Every shared list carries "Report this list", which reaches us
-> directly, and "Leave this list", which closes it for both people immediately. We act on reports
-> within 24 hours and can disable any list server-side without an app update.
+> six-character code. There is no feed, no discovery, no profiles, no public content, and no way to
+> contact anyone you have not exchanged a code with out-of-band. Every shared list carries "Report
+> this list", which reaches us directly and never notifies the other person, and "Leave this list",
+> which closes it for both people immediately. We act on reports within 24 hours and can disable any
+> list server-side without an app update.
 >
 > The feature is behind an allowlist during the initial rollout. To exercise it, please tell us the
-> review account's email and we will enable it.
+> review account's email address and we will enable it.
 
 ## The Google Play form (Play Console → Policy → App content)
 
