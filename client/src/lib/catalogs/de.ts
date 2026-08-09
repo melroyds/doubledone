@@ -324,6 +324,7 @@ export const de: Catalog = {
     enterCode: 'Der Code von deinem Menschen',
     errAlreadyPaired: 'In DoubleDone gibt es erst mal immer nur eine gemeinsame Liste. Du kannst sie jederzeit verlassen, und es geht nichts verloren.',
     errBadEmail: 'Das sieht nicht nach einer E-Mail-Adresse aus.',
+    errBadName: 'Hier braucht es einen Namen, damit dein Mensch dich ansprechen kann.',
     errInvalidCode: 'Mit dem Code hat es nicht geklappt. Ein Code gilt einen Tag lang und nur für die Adresse deines Kontos. Frag deinen Menschen ruhig nach einem neuen.',
     errListFull: 'Eine gemeinsame Liste ist für zwei Menschen, und diese Liste ist voll.',
     errNotOpen: 'Gemeinsame Listen sind noch nicht verfügbar. Wir haben nichts gespeichert.',

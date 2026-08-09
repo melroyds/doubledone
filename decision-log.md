@@ -5364,3 +5364,33 @@ numbers bumped by hand when a release actually goes live, which is a moment Melr
 those dashboards. **Flagged for the build:** confirm Pages serves the file before the SPA fallback
 in `_redirects` catches it, because a version.json that returns the whole app as HTML fails
 confusingly.
+
+## 2026-08-09 The self-rename seam, and why a display field should not have been load-bearing
+
+The design puts "the name your person sees you by" on the management screen. `pair_members` has a
+select policy and a delete-self policy and deliberately **no update policy**, because that absence
+is what stops either person editing the other's row. So this is a definer function scoped to
+`auth.uid()` in its WHERE clause rather than an update policy: there is no predicate to loosen
+later, and the scope is one line in one place. Same shape as `rename_pair`.
+
+**Decided: it refuses on a frozen list**, matching `rename_pair`. A freeze stops every write, and
+the name you had is part of what the list WAS. Changing how you are labelled inside a closed
+relationship is editing a record rather than updating a name.
+
+**And an empty name is refused rather than coalesced, which is where this got interesting.** The two
+existing writers of that column coalesce an empty label to the word "me", which is fine for the
+person who typed it and reads absurdly on the OTHER person's screen ("Sharing with me"). Storing
+null instead is worse, and that is the bug this surfaced: `loadMyPair` derived `partnerLabel` from
+the other member's row, and the screen keyed "is somebody in this list" on that label. A null label
+is legal in the column. So a member with no name would have rendered as **"waiting for someone to
+join" over a list two people were actively using**, with a live Leave button and no way to reach the
+list.
+
+`MyPair` now carries `hasPartner`, derived from whether a membership row EXISTS, which is the
+question the screen was actually asking. The label went back to being for display only. **The
+lesson worth keeping:** a field that answers one question was quietly answering two, and the second
+answer was only correct by accident of a coalesce in a different function.
+
+**Decided against** fixing it by making the server never write a null label. That would have worked
+today and left the screen still keying on the wrong thing, so the next person to touch either
+function could reintroduce it from a distance.

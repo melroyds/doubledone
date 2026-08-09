@@ -205,6 +205,7 @@ describe('loadMyPair', () => {
         name: 'The house',
         myLabel: 'Melroy',
         partnerLabel: 'Sam',
+        hasPartner: true,
         closedAt: null,
         disabledAt: null,
         joinedAt: null, // present but unknown: this membership row predates the column being read

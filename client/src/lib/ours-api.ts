@@ -30,6 +30,16 @@ export type MyPair = {
   partnerLabel: string | null;
   closedAt: string | null;
   disabledAt: string | null;
+  /**
+   * Whether a second person is IN this list, which is not the same question as whether they have a
+   * name yet, and the difference is a real bug the design work surfaced.
+   *
+   * `partnerLabel` was doing both jobs. The server coalesces an empty label to a word, so today a
+   * member always has one, but nothing GUARANTEES that: a null label is legal in the column, and a
+   * screen that keys on the label reads "waiting for someone to join" over a list two people are
+   * actively using. Derived from whether a membership row exists, which is the actual question.
+   */
+  hasPartner: boolean;
   /** When YOU joined. Used to rank memberships, and by the design's "kept with Sam, since June". */
   joinedAt?: string | null;
 };
@@ -100,6 +110,21 @@ export async function joinPair(client: SupabaseClient, code: string, myLabel: st
     ok: true,
     value: { pairId: row.pair_id, partnerLabel: row.partner_label ?? null, pairName: row.pair_name ?? null },
   };
+}
+
+/**
+ * Change the name YOUR PERSON sees you by, on a live list.
+ *
+ * An empty name is refused rather than cleared, unlike a list's name. A list with no name falls back
+ * to the app's own word in each reader's language; a PERSON with no name leaves the other side with
+ * nothing to call you, and it is indistinguishable from your not being there at all.
+ */
+export async function renameSelf(client: SupabaseClient, pairId: string, label: string): Promise<PairResult<null>> {
+  const trimmed = capLabel(label);
+  if (!trimmed) return { ok: false, failure: 'bad-name' }; // never make the round trip to be told
+  const { error } = await client.rpc('rename_self', { p_pair: pairId, p_label: trimmed });
+  if (error) return fail(error);
+  return { ok: true, value: null };
 }
 
 /** Rename a live list. A shared object, so either person may do it and both see it next read. An
@@ -254,6 +279,7 @@ export async function loadMyPairs(client: SupabaseClient, userId: string): Promi
       name: p?.name ?? null,
       myLabel: m.label,
       partnerLabel: rows.find((r) => r.pair_id === m.pair_id && r.user_id !== userId)?.label ?? null,
+      hasPartner: rows.some((r) => r.pair_id === m.pair_id && r.user_id !== userId),
       closedAt: p?.closed_at ?? null,
       disabledAt: p?.disabled_at ?? null,
       joinedAt: m.joined_at ?? null,

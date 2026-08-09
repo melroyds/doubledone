@@ -320,6 +320,7 @@ export const it: Catalog = {
     enterCode: 'Il codice della tua persona',
     errAlreadyPaired: "Per ora, in DoubleDone c'è una sola lista condivisa alla volta. Puoi uscire da quella che hai quando vuoi, e non si perde niente.",
     errBadEmail: 'Non sembra un indirizzo email.',
+    errBadName: 'Qui serve un nome, così la tua persona ha come chiamarti.',
     errInvalidCode: "Quel codice non ha funzionato. Un codice dura un giorno e vale solo per l'indirizzo del tuo account. Ne chiedi uno nuovo alla tua persona?",
     errListFull: 'Una lista condivisa è per due persone, e quella è al completo.',
     errNotOpen: 'Le liste condivise non sono ancora disponibili. Non è stato salvato niente.',

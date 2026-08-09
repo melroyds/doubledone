@@ -108,6 +108,7 @@ export type PairFailure =
   | 'not-yours'
   | 'partner-gone'  // a frozen list whose other member is gone: readable forever, wakeable never
   | 'already-live'  // you tried to wake a list the other person has ALREADY woken
+  | 'bad-name'      // a name you would be shown by cannot be empty
   | 'offline'
   | 'unknown';
 
@@ -144,6 +145,10 @@ export function classifyPairError(error: { code?: string | null; message?: strin
   }
   if (code === '23505') return message.includes('full') ? 'list-full' : 'already-paired';
   if (code === '54000') return message.includes('old lists') ? 'too-many-lists' : 'rate-limited';
-  if (code === '22023') return message.includes('own address') ? 'own-email' : 'bad-email';
+  if (code === '22023') {
+    if (message.includes('own address')) return 'own-email';
+    if (message.includes('name is required')) return 'bad-name';
+    return 'bad-email';
+  }
   return 'unknown';
 }

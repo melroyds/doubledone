@@ -45,6 +45,7 @@ const FAILURE_LINE: Record<Exclude<PairFailure, 'signed-out'>, string> = {
   // 'already-live' is deliberately absent: it is answered by refreshing, not by explaining.
   'already-live': 'ours.errUnknown',
   'partner-gone': 'ours.errPartnerGone',
+  'bad-name': 'ours.errBadName',
   offline: 'ours.errOffline',
   unknown: 'ours.errUnknown',
 };
@@ -148,7 +149,10 @@ export default function OursScreen() {
   // rename then answered "This list is closed to changes" underneath a heading saying it was live.
   // The shipped frozen copy is literally true for a killed list, so this needs no new strings.
   const frozen = !!(pair?.closedAt || pair?.disabledAt);
-  const waiting = !!pair && !pair.partnerLabel && !frozen;
+  // Keyed on whether a second person is IN the list, not on whether they have a name. A member with
+  // no label is legal in the column, and keying on the label rendered "waiting for someone to join"
+  // over a list two people were actively using.
+  const waiting = !!pair && !pair.hasPartner && !frozen;
 
   // #15: the poll had no focus gate, no app-state gate and no ceiling, so a tab left open made two
   // Supabase reads every ten seconds all night, long after the 24-hour invite TTL had made the
@@ -206,7 +210,15 @@ export default function OursScreen() {
     // still null for the round trip and body() falls through to the intro screen: someone who just
     // tapped "Get a code" is looking at "Start a shared list". If that refresh then fails, that is
     // the resting state, and the code is unrecoverable because the server returns it exactly once.
-    setPair((prev) => prev ?? { pairId: res.value.pairId, name: name || null, myLabel: myLabel || null, partnerLabel: null, closedAt: null, disabledAt: null });
+    setPair((prev) => prev ?? {
+      pairId: res.value.pairId,
+      name: name || null,
+      myLabel: myLabel || null,
+      partnerLabel: null,
+      hasPartner: false, // a code has been minted and nobody has redeemed it yet
+      closedAt: null,
+      disabledAt: null,
+    });
     setLoaded(true);
     // The moat's shape, not a funnel: an invite was offered. No address, no name, no id.
     track('ours.invited');
@@ -236,6 +248,7 @@ export default function OursScreen() {
       name: res.value.pairName,
       myLabel: myLabel || null,
       partnerLabel: res.value.partnerLabel,
+      hasPartner: true, // you just joined THEIR list, so the other person is by definition in it
       closedAt: null,
       disabledAt: null,
     });
@@ -378,7 +391,7 @@ export default function OursScreen() {
     }
 
     // Sharing with someone.
-    if (pair?.partnerLabel && !frozen) {
+    if (pair?.hasPartner && !frozen) {
       return (
         <View style={styles.block}>
           {renaming ? (
@@ -407,7 +420,7 @@ export default function OursScreen() {
               <Text style={styles.title}>{listName}</Text>
             </Pressable>
           )}
-          <Text style={styles.lead}>{t('ours.sharingWith', { name: pair.partnerLabel })}</Text>
+          <Text style={styles.lead}>{t('ours.sharingWith', { name: pair.partnerLabel ?? t('ours.defaultName') })}</Text>
 
           {joinedWith ? (
             <View style={styles.beat}>

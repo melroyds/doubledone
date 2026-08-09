@@ -324,6 +324,7 @@ export const en = {
     enterCode: 'Code from your person',
     errAlreadyPaired: 'For now, DoubleDone keeps one shared list at a time. You can leave the one you have whenever you like, and nothing is lost.',
     errBadEmail: "That doesn't look like an email address.",
+    errBadName: 'A name is needed here, so your person has something to call you.',
     errInvalidCode: "That code didn't work. Codes last a day, and only work for the address on your account. Ask your person for a fresh one?",
     errListFull: 'A shared list holds two people, and that one is full.',
     errNotOpen: "Shared lists aren't open yet. Nothing you typed was saved.",
