@@ -5083,3 +5083,34 @@ retention rule, and the RTT gate is what makes "believable" mean something.
 **Three of these were found by reading a comment that promised what the code beneath it did not do.**
 That is a good problem to have: the reasoning was written down, so the drift was visible. All three
 comments were corrected in the same commit, or the next reader trusts them again.
+
+## 2026-08-09 Frozen lists stay, and resuming one takes both people
+
+Two product calls from Melroy, both raised by the Phase 3 audit rather than by anyone's taste.
+
+**A closed list stays readable, tucked away.** The code holds a single pair, so the moment someone
+started a new shared list the old frozen one stopped rendering anywhere, while its own copy promised
+"Nothing is lost. You can still read everything here" in five languages. `loadMyPair` becomes
+`{ live, frozen[] }`. **Decided against** the cheaper option of one list on screen and softening the
+copy: this is the sentence someone reads on the day they were left, and it is the one place in the
+feature where the app should be strictest with itself.
+
+**And a frozen list can be RESUMED, by the same handshake that made it.** Melroy asked, and the
+answer is yes with one absolute constraint: never unilaterally. In a domestic threat model the whole
+value of "it closes for both of you" is that leaving is a door the other person cannot drag you back
+through, so a one-sided reopen would quietly turn leaving into a pause somebody else can undo, on
+the one surface whose threat model is domestic. So resuming is the pairing handshake again: one
+member mints a fresh code bound to the other's address, the other redeems it, `closed_at` clears,
+and every row is still there. Both people actively choose it, which is exactly the property that
+keeps leaving safe. It works only while both memberships still exist, and a frozen list costs no
+live slot, so an old list can be woken later even while a current one exists.
+
+**Tombstone redaction at 30 days.** Nothing deletes a tombstone today, so on a shared list "remove"
+means "stop rendering" while the words stay on both devices and the server indefinitely. A definer
+sweep blanks the title past the horizon WITHOUT touching `updated_at`, so both devices adopt the
+redaction on their next pull and neither pushes the old words back, and it is gated on
+`is_pair_member` rather than `is_pair_writable` or it would no-op on exactly the frozen lists that
+need it most. 30 days is the smallest number comfortably past Phase 5's seven-day Restore window,
+and writing that coupling down is the point. **Decided against** hard deletion for now: it fixes
+unbounded growth as well, but it cannot ship until a cached row can say "the server has seen this",
+or a task created offline is indistinguishable from a swept one.

@@ -134,6 +134,30 @@ a few recurrences"). The list is therefore usable without a cadence picker, so t
 lands first and a real household gets a real thing sooner.*
 
 - [ ] Freeze on unpair: `pairs.closed_at`, reads stay, writes stop, **zero rows move**
+- [ ] **Frozen lists stay readable, tucked away** (Melroy, 2026-08-09). `loadMyPair` becomes
+      `{ live, frozen[] }` and the design draws a quiet read-only archive below the live list.
+      Without this, starting a new list makes the old one vanish while its own copy promises
+      "you can still read everything here", in five languages
+- [ ] **Resuming a frozen list, by the SAME handshake that made it** (Melroy, 2026-08-09). One
+      member mints a fresh code bound to the other's address, the other redeems it, and
+      `closed_at` clears with every row still in place. **Never unilateral**, and that is the
+      whole design: in a domestic threat model the value of "it closes for both of you" is that
+      it is a door the other person cannot drag you back through, so a one-sided reopen would
+      turn leaving into a pause someone else can undo. Needs a reopen path in
+      `join_pair` (which today refuses closed pairs, correctly), and it only works while BOTH
+      memberships still exist. A frozen list costs no live slot, so an old one can be resumed
+      later even while a current list exists
+- [ ] "Put it away" on a frozen list: TUCKS, deletes nothing (round one's D8, which replaces the
+      build's destructive `forget_pair` and removes the delayed-commit-undo problem entirely)
+- [ ] **Tombstone redaction at 30 days** (Melroy, 2026-08-09). A definer
+      `sweep_shared_tombstones(pair)` blanks the TITLE on tombstones past the horizon without
+      touching `updated_at`, so both devices adopt the redaction on their next pull and neither
+      pushes the old words back. Gated on `is_pair_member`, not `is_pair_writable`, or it
+      silently no-ops on the frozen lists that need it most. 30 is the smallest number
+      comfortably past Phase 5's seven-day Restore window, and that coupling is deliberate.
+      **Decided against** hard deletion for now: it fixes growth too, but cannot ship until a
+      cached row can say "the server has seen this", or a task created offline is
+      indistinguishable from a swept one
 - [ ] "Remove this list" on a frozen list deletes your own membership
 - [ ] Done rows stop rendering at the day boundary (parity with `tasksForToday`)
 - [ ] Tombstones under seven days: dimmed "Recently removed" with Restore, naming nobody
