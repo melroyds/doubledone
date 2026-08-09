@@ -75,8 +75,10 @@ create table if not exists public.pair_members (
                                 -- a SELF-chosen short name, typed at pairing, scoped to this pair,
                                 -- dead when the pair is. Never an email: no user's email, phone or
                                 -- account identifier is ever rendered to another user, anywhere.
-                                -- Capped because there is no UPDATE policy, so this string is
-                                -- immutable for its whole life on someone else's home surface.
+                                -- Capped because it lives on someone else's home surface. It was
+                                -- immutable until Phase 3.5; `rename_self` (ours-rename-self.sql)
+                                -- is now the ONLY write path, a definer RPC scoped to auth.uid(),
+                                -- and there is still no UPDATE policy. See the note further down.
   joined_at timestamptz not null default now(),
   primary key (pair_id, user_id)
 );

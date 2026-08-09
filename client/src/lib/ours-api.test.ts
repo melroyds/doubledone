@@ -10,6 +10,7 @@ import {
   loadMyPair,
   loadMyPairs,
   renamePair,
+  renameSelf,
   resumePair,
 } from './ours-api';
 
@@ -461,5 +462,65 @@ describe('the retention sweep rides on the membership read', () => {
       },
     );
     await expect(loadMyPairs(client, 'me')).resolves.toMatchObject({ ok: true });
+  });
+});
+
+describe('renameSelf', () => {
+  it('calls the right RPC with the capped label', async () => {
+    const { client, calls } = mockClient({ rename_self: { error: null } });
+    expect(await renameSelf(client, 'p-1', '  Melroy  ')).toEqual({ ok: true, value: null });
+    // TypeScript cannot check PostgREST argument names, so a typo in p_pair or p_label would surface
+    // only as a runtime PGRST202 that classifies to 'unknown' and renders "that didn't work".
+    expect(calls[0]).toEqual({ fn: 'rename_self', args: { p_pair: 'p-1', p_label: 'Melroy' } });
+  });
+
+  // An empty name is refused WITHOUT a round trip. Storing it is not an option: the label is what
+  // the other person has to call you by, and a null one used to make the screen think nobody was
+  // there at all.
+  it('refuses an empty name without asking the server', async () => {
+    const { client, calls } = mockClient({ rename_self: { error: null } });
+    expect(await renameSelf(client, 'p-1', '   ')).toEqual({ ok: false, failure: 'bad-name' });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('reports a frozen or someone else’s list as not-yours', async () => {
+    const { client } = mockClient({ rename_self: { error: { code: '42501', message: 'not your list' } } });
+    expect(await renameSelf(client, 'p-9', 'Sam')).toEqual({ ok: false, failure: 'not-yours' });
+  });
+});
+
+// The state hasPartner exists for, and the one nothing else pins: a member who is THERE but has no
+// name. Keying "is somebody here" on the label rendered "waiting for someone to join" over a list
+// two people were actively using.
+describe('a member with no label is still a member', () => {
+  it('reports hasPartner true and partnerLabel null together', async () => {
+    const { client } = mockClient(
+      {},
+      {
+        pair_members: {
+          data: [
+            { pair_id: 'p-1', user_id: 'me', label: 'Melroy', joined_at: '2026-01-01T00:00:00Z' },
+            { pair_id: 'p-1', user_id: 'them', label: null },
+          ],
+          error: null,
+        },
+        pairs: { data: [{ id: 'p-1', name: null, closed_at: null, disabled_at: null }], error: null },
+      },
+    );
+    expect(await loadMyPair(client, 'me')).toMatchObject({
+      ok: true,
+      value: { hasPartner: true, partnerLabel: null },
+    });
+  });
+
+  it('reports hasPartner false when nobody has joined at all', async () => {
+    const { client } = mockClient(
+      {},
+      {
+        pair_members: { data: [{ pair_id: 'p-1', user_id: 'me', label: 'Melroy' }], error: null },
+        pairs: { data: [{ id: 'p-1', name: null, closed_at: null, disabled_at: null }], error: null },
+      },
+    );
+    expect(await loadMyPair(client, 'me')).toMatchObject({ ok: true, value: { hasPartner: false } });
   });
 });

@@ -127,7 +127,11 @@ export default function OursScreen() {
     if (mine !== pass.current) return; // overtaken: a newer pass owns the screen
     if (res.ok) {
       const next = res.value;
-      const has = !!next?.partnerLabel;
+      // hasPartner, not the label. Fixing `waiting` and the sharing branch and leaving THIS one is
+      // how a labelless member would have had their arrival announced weeks late: `has` would stay
+      // false while `waiting` correctly flipped off, and the first time they set a name the app
+      // would say "{name} joined." with a Leave prompt, deep into a shared list.
+      const has = !!next?.hasPartner;
       if (has && hadPartner.current === false) setArrived(next?.partnerLabel ?? null);
       hadPartner.current = has;
       setPair(next);
@@ -420,7 +424,13 @@ export default function OursScreen() {
               <Text style={styles.title}>{listName}</Text>
             </Pressable>
           )}
-          <Text style={styles.lead}>{t('ours.sharingWith', { name: pair.partnerLabel ?? t('ours.defaultName') })}</Text>
+          {/* No fallback word. `ours.defaultName` is what the app calls an unnamed LIST, so using it
+              here rendered "Sharing with Ours", and in German it is the wrong case as well. The
+              header directly above already carries the list's name, so saying nothing is honest and
+              costs no new string in five locales. */}
+          {pair.partnerLabel ? (
+            <Text style={styles.lead}>{t('ours.sharingWith', { name: pair.partnerLabel })}</Text>
+          ) : null}
 
           {joinedWith ? (
             <View style={styles.beat}>

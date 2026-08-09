@@ -162,9 +162,14 @@ describe('classifyPairError', () => {
     expect(classifyPairError({ code: '54000', message: 'too many old lists' })).toBe('too-many-lists');
   });
 
-  it('separates the two 22023 cases', () => {
+  // Three now, and the third sits four characters from the second: 'a NAME is required' against
+  // 'an eMAIL is required'. They do not collide, and nothing but this test pins that. Reword the SQL
+  // raise to "a name is needed" and every empty-name refusal silently becomes bad-email, showing
+  // "that doesn't look like an email address" on a screen with no address field on it.
+  it('separates the three 22023 cases, including the near miss', () => {
     expect(classifyPairError({ code: '22023', message: 'that is your own address' })).toBe('own-email');
     expect(classifyPairError({ code: '22023', message: 'an email is required' })).toBe('bad-email');
+    expect(classifyPairError({ code: '22023', message: 'a name is required' })).toBe('bad-name');
   });
 
   it('reads a signed-out session', () => {

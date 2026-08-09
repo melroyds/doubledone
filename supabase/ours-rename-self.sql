@@ -86,7 +86,9 @@ grant execute on function public.rename_self(uuid, text) to authenticated;
 --   -- 2. pair_members STILL has no update policy. This function exists so that it never needs
 --   --    one, so if a policy has appeared, something has taken the other route as well.
 --   select count(*) from pg_policies
---   where schemaname = 'public' and tablename = 'pair_members' and cmd = 'UPDATE';
+--   where schemaname = 'public' and tablename = 'pair_members' and cmd in ('UPDATE', 'ALL');
+--   -- ALL as well as UPDATE: a policy declared FOR ALL reports cmd = 'ALL' and confers UPDATE, and
+--   -- "just let members manage their own row" is exactly the shape someone would reach for.
 --   -- expect 0.
 --
 -- BEHAVIOURAL, with two test accounts:
