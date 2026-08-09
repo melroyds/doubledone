@@ -11,6 +11,7 @@ import {
   isSharedDoneOn,
   setSharedDone,
   tickOn,
+  washedSince,
 } from './ours-merge';
 import { withMonotonicStamps } from './tasks';
 
@@ -451,5 +452,41 @@ describe('ticking a shared row', () => {
     t = setSharedDone(t, DAY, true, 3000);
     expect(isSharedDoneOn(t, DAY)).toBe(true);
     expect(t.done).toBe(true);
+  });
+});
+
+describe('the quiet wash', () => {
+  const SEEN = 5000;
+  const none = new Set<string>();
+
+  it('washes only what changed since you last looked', () => {
+    const tasks = [task({ id: 'old', updatedAt: 4000 }), task({ id: 'new', updatedAt: 6000 })];
+    expect([...washedSince(tasks, SEEN, none)]).toEqual(['new']);
+  });
+
+  // The one that keeps the never-attribute law true on a purely visual feature. A wash on a row you
+  // just wrote yourself reads as "they touched this too", which invents attribution from nothing.
+  it('never washes a row YOU changed', () => {
+    const tasks = [task({ id: 'mine', updatedAt: 9000 }), task({ id: 'theirs', updatedAt: 9000 })];
+    expect([...washedSince(tasks, SEEN, new Set(['mine']))]).toEqual(['theirs']);
+  });
+
+  it('washes nothing on a first-ever visit, so opening a list is never a wall of highlights', () => {
+    const tasks = [task({ id: 'a', updatedAt: 9000 }), task({ id: 'b', updatedAt: 9000 })];
+    expect(washedSince(tasks, 0, none).size).toBe(0);
+    expect(washedSince(tasks, Number.NaN, none).size).toBe(0);
+  });
+
+  it('treats a row stamped exactly at your last look as already seen', () => {
+    expect(washedSince([task({ id: 'a', updatedAt: SEEN })], SEEN, none).size).toBe(0);
+  });
+
+  it('ignores a corrupt stamp rather than washing on it', () => {
+    expect(washedSince([task({ id: 'a', updatedAt: Number.NaN })], SEEN, none).size).toBe(0);
+  });
+
+  it('names nobody and counts nothing: it returns ids and only ids', () => {
+    const out = washedSince([task({ id: 'a', updatedAt: 9000 })], SEEN, none);
+    expect([...out]).toEqual(['a']);
   });
 });

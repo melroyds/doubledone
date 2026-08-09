@@ -10,9 +10,9 @@ import { useSession } from '@/lib/auth';
 import { toISODate } from '@/lib/day';
 import { t } from '@/lib/locale';
 import { loadMyPairs, type MyPair } from '@/lib/ours-api';
-import { isSharedDoneOn, setSharedDone, type SharedTask } from '@/lib/ours-merge';
+import { isSharedDoneOn, setSharedDone, type SharedTask, washedSince } from '@/lib/ours-merge';
 import { isUnreadableRepeat, POLL_MS, repeatSummaryOf, shouldPoll, syncPairOnce } from '@/lib/ours-sync';
-import { loadOursTasks, saveOursTasks } from '@/lib/storage';
+import { loadOursSeen, loadOursTasks, markOursSeen, saveOursTasks } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { makeId, nowMs, withMonotonicStamps } from '@/lib/tasks';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -49,38 +49,52 @@ export default function OursListScreen() {
   // round trip in each, and whichever reply lands last would otherwise win regardless of age.
   const pass = useRef(0);
   const lastTouch = useRef(nowMs());
+  // The quiet wash. `seenAt` is frozen for the whole visit (read once, on the first load) so that
+  // marking the list as looked-at does not instantly clear the very tint it was meant to show. `mine`
+  // is every row I write while I am here, subtracted so my own edits never wash.
+  const seenAt = useRef(0);
+  const mine = useRef<Set<string>>(new Set());
+  const [washed, setWashed] = useState<ReadonlySet<string>>(new Set());
 
   /** Cache first, then reconcile. The list is on screen before the network is asked anything, which
    *  is the whole point of the local copy and the difference between opening a list and waiting. */
   const sync = useCallback(
     async (local?: SharedTask[]) => {
-      const mine = ++pass.current;
+      const call = ++pass.current;
       // Signed out (or no Supabase at all) is a FINISHED load, not a pending one. Returning without
       // saying so left this screen on a bare title forever, because the redirect below waits on
       // `loaded` and nothing else was ever going to set it.
       if (!supabase || !session) return setLoaded(true);
       const client = supabase;
       const res = await loadMyPairs(client, session.user.id);
-      if (mine !== pass.current) return;
+      if (call !== pass.current) return;
       const live = res.ok ? res.value.live : null;
       setPair(live);
       if (!live) return setLoaded(true);
 
+      if (seenAt.current === 0) seenAt.current = (await loadOursSeen())[live.pairId] ?? 0;
+
       const cached = local ?? (await loadOursTasks(live.pairId));
-      if (mine !== pass.current) return;
+      if (call !== pass.current) return;
       setTasks(cached);
+      setWashed(washedSince(cached, seenAt.current, mine.current));
       setLoaded(true);
 
       try {
         const { merged } = await syncPairOnce(client, live.pairId, cached);
-        if (mine !== pass.current) return;
+        if (call !== pass.current) return;
         setTasks(merged);
+        setWashed(washedSince(merged, seenAt.current, mine.current));
         setOffline(false);
         void saveOursTasks(live.pairId, merged);
+        // Looked at, now. Written on every reconcile rather than on the way out, because the way out
+        // of a screen on a phone is often the app being killed, and a wash that never clears is a
+        // permanent "something happened" badge, which is the anxiety this was built to bound.
+        void markOursSeen(live.pairId, nowMs());
       } catch {
         // A failed READ keeps whatever is on screen. This list is somebody's household, and showing
         // it stale beats showing it empty; the line below says so rather than pretending.
-        if (mine === pass.current) setOffline(true);
+        if (call === pass.current) setOffline(true);
       }
     },
     [session],
@@ -88,6 +102,11 @@ export default function OursListScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      // A fresh look. Dropping both makes "gone next open" literally true rather than true only when
+      // the OS happened to unmount the screen: arriving re-reads the stored last-look (which the
+      // reconcile below then moves forward), so yesterday's wash cannot still be sitting there.
+      seenAt.current = 0;
+      mine.current = new Set();
       void sync();
     }, [sync]),
   );
@@ -118,6 +137,11 @@ export default function OursListScreen() {
     async (next: SharedTask[]) => {
       lastTouch.current = nowMs();
       const stamped = withMonotonicStamps(next, tasks);
+      for (const task of stamped) {
+        const before = tasks.find((prev) => prev.id === task.id);
+        if (!before || before.updatedAt !== task.updatedAt) mine.current.add(task.id);
+      }
+      setWashed(washedSince(stamped, seenAt.current, mine.current));
       setTasks(stamped);
       if (pair) void saveOursTasks(pair.pairId, stamped);
       await sync(stamped);
@@ -187,7 +211,7 @@ export default function OursListScreen() {
         {loaded && visible.length === 0 ? <Text style={styles.empty}>{t('ours.listEmpty')}</Text> : null}
 
         {visible.map((task) => (
-          <View key={task.id} style={styles.row}>
+          <View key={task.id} style={[styles.row, washed.has(task.id) && styles.washed]}>
             <TaskRow
               title={task.title}
               done={isSharedDoneOn(task, today)}
@@ -251,7 +275,10 @@ const makeStyles = (t: Theme) =>
       lineHeight: 24 * t.scale,
       marginTop: spacing.six,
     },
-    row: { marginTop: spacing.two },
+    row: { marginTop: spacing.two, borderRadius: radius.md, borderWidth: border.hair, borderColor: 'transparent' },
+    // Changed since you last looked. A tint and a slightly firmer edge, and nothing else: it is
+    // static by design, because nothing in this room may ever animate because of the other person.
+    washed: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
     cadenceNote: {
       color: t.colors.inkFaint,
       fontSize: 13 * t.scale,

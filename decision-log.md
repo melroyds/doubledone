@@ -5479,3 +5479,37 @@ list. This is somebody's household; showing it stale beats showing it gone.
 return for "no session" skipped `setLoaded`, and the redirect waits on `loaded`. Every gate was
 green. Rule this reinforces: an early return in a loader must still say the load FINISHED, because
 some other branch is almost certainly waiting on that flag.
+
+## 2026-08-09 The quiet wash, and the one thing it must never accidentally say
+
+Rows changed since you last looked get a tint and a slightly firmer edge. The design argued FOR it
+on one ground and it is the right one: it **bounds the re-reading loop**. Without it, the only way
+to know whether anything moved is to read the whole list against your memory of it, every single
+visit, which for this audience is the checking compulsion handed a new object.
+
+**Decided: your OWN edits never wash.** `washedSince` subtracts a set of the rows you wrote this
+visit. This is not politeness. A wash on a row you just ticked reads as "your person touched this
+too", which is attribution invented out of nothing, on a screen whose entire data model refuses to
+store who did what. The `mine` set is the only reason the wash does not quietly become the
+per-person marker the schema was designed to make uncomputable.
+
+**Decided: the wash is STATIC and clears itself.** No animation, ever, because nothing in this room
+may move on account of the other person. And it clears on the way IN, not the way out: arriving
+re-reads the stored last-look and the reconcile moves it forward, so "gone next open" is literally
+true rather than true-only-if-the-OS-unmounted-the-screen. The alternative, writing the last-look on
+blur, loses to the commonest exit on a phone, which is the app being killed. A wash that never
+clears is a permanent "something happened" badge, which is precisely the anxiety this bounds.
+
+**Decided: `lastSeenAt` is LOCAL**, per pair, same reasoning as the tuck. "Since I last looked" is a
+fact about a person at a device; syncing it would let your laptop clear the wash on your phone,
+which is the opposite of the point. It stores a TIME per pair and never content, and it joins
+`wipeLocalData` in this commit with its regression test, per the standing rule, because a list of
+pair ids is a list of which relationships you had.
+
+**It never moves backwards.** A device an hour behind would otherwise re-wash rows you have already
+read, every visit. Known and accepted: `updatedAt` comes from whichever phone wrote it and `seenAt`
+from this one, so bad skew can wash a row that is not new or miss one that is. Both fail quietly,
+both clear next open, and that is exactly why this is a tint and never a notification.
+
+**A first-ever visit washes nothing.** Opening a list you have just joined should not be a wall of
+highlights saying "all of this is new", which is technically true and useless.

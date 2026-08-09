@@ -30,6 +30,7 @@ const DEV_PREMIUM_KEY = 'doubledone.devPremium.v1'; // DEV/preview only: the pre
 const ENERGY_USES_KEY = 'doubledone.energyUses.v1'; // energy-match use timestamps (the freemium meter, see lib/energy.ts)
 const OURS_KEY = 'doubledone.ours.v1'; // shared lists, keyed BY PAIR (see loadOursCache); holds another person's words
 const OURS_TUCKED_KEY = 'doubledone.oursTucked.v1'; // closed lists you have put away, by pair id
+const OURS_SEEN_KEY = 'doubledone.oursSeen.v1'; // when you last looked at each shared list, by pair id
 
 /**
  * Load Today's tasks. On a brand-new install (nothing ever stored) seed once so
@@ -575,6 +576,43 @@ export async function loadTuckedPairs(): Promise<string[]> {
   }
 }
 
+/**
+ * When you last looked at each shared list, by pair id. Local for the same reason the tuck is:
+ * "since I last looked" is a fact about a PERSON at a DEVICE, and syncing it would let your laptop
+ * clear the wash on your phone, which is the opposite of what it is for.
+ *
+ * It stores a TIME per pair and never content, and it belongs in wipeLocalData for the same reason
+ * the tuck does: a list of pair ids is a list of which relationships you had.
+ */
+export async function loadOursSeen(): Promise<Record<string, number>> {
+  try {
+    const raw = await AsyncStorage.getItem(OURS_SEEN_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {};
+    const out: Record<string, number> = {};
+    for (const [id, at] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof at === 'number' && Number.isFinite(at)) out[id] = at;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** Mark a list as looked at. Never moves BACKWARDS, so a device whose clock runs behind cannot
+ *  re-wash rows you have already read by storing an older "last looked" than the one already there. */
+export async function markOursSeen(pairId: string, at: number): Promise<void> {
+  if (!Number.isFinite(at)) return;
+  const seen = await loadOursSeen();
+  if ((seen[pairId] ?? 0) >= at) return;
+  try {
+    await AsyncStorage.setItem(OURS_SEEN_KEY, JSON.stringify({ ...seen, [pairId]: at }));
+  } catch {
+    // best effort, like every other saver here
+  }
+}
+
 /** Put a closed list away. Idempotent, so a double tap is one tuck. */
 export async function tuckPair(pairId: string): Promise<void> {
   const tucked = await loadTuckedPairs();
@@ -614,7 +652,7 @@ export async function wipeLocalData(): Promise<void> {
     // OURS_KEY belongs here more than anything else on the list: it is the only key holding words
     // ANOTHER person wrote. A delete that left it behind would leave a household's list sitting on
     // the phone of someone whose account no longer exists.
-    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, DAYENERGY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY, SYNCOK_KEY, OURS_KEY, OURS_TUCKED_KEY]);
+    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, DAYENERGY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY, SYNCOK_KEY, OURS_KEY, OURS_TUCKED_KEY, OURS_SEEN_KEY]);
   } catch {
     // best effort, like the per-key savers above
   }

@@ -133,6 +133,34 @@ export function setSharedDone(task: SharedTask, date: string, done: boolean, now
   return out;
 }
 
+/**
+ * The quiet wash: which rows changed since you last looked.
+ *
+ * A tint and a slightly stronger border, nothing more. It is the one concession to "something
+ * happened while I was away", and the design argued FOR it on exactly one ground: it BOUNDS the
+ * re-reading loop. Without it, the only way to know whether anything moved is to read the whole list
+ * against your memory of it, every time, which for this audience is the checking compulsion with a
+ * new object. With it, you look once and you are done.
+ *
+ * What it must never become: `mine` is subtracted, so your OWN edits never wash. That is not a
+ * nicety. A wash on a row you just wrote would read as "your person touched this too", which is
+ * attribution invented out of nothing, on a screen whose whole architecture refuses to store who
+ * did what. The set names nobody and counts nothing; it is a set of ids, and the screen tints them.
+ *
+ * `seenAt` is a local time and `updatedAt` came from whichever phone wrote it, so a badly skewed
+ * clock on either side can wash a row that is not new, or miss one that is. Both fail quietly and
+ * both clear on the next open, which is why this is a tint and never a notification.
+ */
+export function washedSince(tasks: SharedTask[], seenAt: number, mine: ReadonlySet<string>): Set<string> {
+  if (!Number.isFinite(seenAt) || seenAt <= 0) return new Set(); // a first-ever visit washes nothing
+  const out = new Set<string>();
+  for (const task of tasks) {
+    if (mine.has(task.id)) continue;
+    if (Number.isFinite(task.updatedAt) && task.updatedAt > seenAt) out.add(task.id);
+  }
+  return out;
+}
+
 /** Per-key maximum of two stamp maps: grow-only in keys, monotonic in values. */
 function mergeStamps(a: Record<string, number> = {}, b: Record<string, number> = {}): Record<string, number> {
   const out: Record<string, number> = { ...a };

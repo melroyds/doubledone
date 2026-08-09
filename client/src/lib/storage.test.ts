@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   loadOursCache,
   loadOursTasks,
+  loadOursSeen,
   loadTuckedPairs,
+  markOursSeen,
   pruneOursCache,
   saveOursTasks,
   tuckPair,
@@ -170,5 +172,53 @@ describe('putting a closed list away', () => {
     stubTucked(null);
     await wipeLocalData();
     expect(vi.mocked(AsyncStorage.multiRemove).mock.calls[0][0]).toContain('doubledone.oursTucked.v1');
+  });
+});
+
+// The quiet wash's memory: when you last looked at each shared list. A time per pair, never content.
+describe('when you last looked at a shared list', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function stubSeen(raw: string | null) {
+    vi.mocked(AsyncStorage.getItem).mockImplementation((key: string) =>
+      Promise.resolve(key === 'doubledone.oursSeen.v1' ? raw : null),
+    );
+  }
+  const written = () => JSON.parse(vi.mocked(AsyncStorage.setItem).mock.calls.at(-1)![1] as string);
+
+  it('remembers a look, per pair, without disturbing the other pairs', async () => {
+    stubSeen(JSON.stringify({ 'p-1': 1000 }));
+    await markOursSeen('p-2', 5000);
+    expect(written()).toEqual({ 'p-1': 1000, 'p-2': 5000 });
+  });
+
+  // A device an hour behind would otherwise re-wash rows you have already read, every visit.
+  it('never moves backwards', async () => {
+    stubSeen(JSON.stringify({ 'p-1': 9000 }));
+    await markOursSeen('p-1', 5000);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  });
+
+  it('ignores a corrupt time rather than storing one', async () => {
+    stubSeen(null);
+    await markOursSeen('p-1', Number.NaN);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  });
+
+  it('survives junk on disk rather than throwing on a calm screen', async () => {
+    for (const junk of ['not json', JSON.stringify([1, 2]), JSON.stringify({ 'p-1': 'soon', 'p-2': 4000 })]) {
+      stubSeen(junk);
+      const out = await loadOursSeen();
+      expect(Object.values(out).every((v) => typeof v === 'number')).toBe(true);
+    }
+    stubSeen(JSON.stringify({ 'p-1': 'soon', 'p-2': 4000 }));
+    expect(await loadOursSeen()).toEqual({ 'p-2': 4000 });
+  });
+
+  // Keyed by pair id, so it says which relationships you had. It goes with the rest on deletion.
+  it('is cleared by wipeLocalData', async () => {
+    stubSeen(null);
+    await wipeLocalData();
+    expect(vi.mocked(AsyncStorage.multiRemove).mock.calls[0][0]).toContain('doubledone.oursSeen.v1');
   });
 });
