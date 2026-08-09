@@ -12,7 +12,7 @@
 // not for being sold to. The reminder keeps precedence because it is the more useful of the two and
 // was already the established offer; the widget waits for a later evening.
 
-export type RestedOffer = 'reminder' | 'widget' | 'scrapbook' | null;
+export type RestedOffer = 'reminder' | 'widget' | 'scrapbook' | 'update' | null;
 
 export type OfferState = {
   /** The daily reminder is already on: nothing to offer. */
@@ -33,6 +33,12 @@ export type OfferState = {
   scrapbookMade: boolean;
   /** The one-time scrapbook mention has already been shown. */
   scrapbookOfferMade: boolean;
+  /**
+   * This build is far enough behind to be worth mentioning, AND it has not been mentioned in a
+   * fortnight. The whole rarity test lives in updates.ts `shouldMention`, which requires BOTH a
+   * major-or-two-minor gap and the fortnight brake; by the time it is true here, it is true rarely.
+   */
+  updateWorthMentioning: boolean;
 };
 
 /**
@@ -46,9 +52,18 @@ export const SCRAPBOOK_OFFER_MIN = 3;
  * The single offer to render on the rested screen, or null for a clean goodnight. Pure, so the
  * never-nag rules are testable without a device: the screen just renders whatever this returns.
  *
- * The scrapbook is the THIRD and LAST rung of this ladder (decided with Melroy, 2026-07-26):
+ * The scrapbook was the THIRD and LAST rung of this ladder (decided with Melroy, 2026-07-26):
  * the goodnight screen carries at most one ask, each ask happens once ever, and a ladder that
- * keeps growing becomes the sales pitch this screen exists to never be. Nothing else joins it.
+ * keeps growing becomes the sales pitch this screen exists to never be.
+ *
+ * A FOURTH rung was added 2026-08-09 for the shared-list round-two design, and it deliberately
+ * reopens that decision, so the reasoning is here to be argued with rather than buried. It is not
+ * an ask and it sells nothing: it is the one rung about the OTHER person, because a version gap is
+ * what stops one half of a shared list reading a rhythm the other half set. It is also far rarer
+ * than the three above it, which fire at the first opportunity: this one needs a major-or-two-minor
+ * gap AND a fortnight since it was last said. If Melroy would rather the goodnight screen stayed
+ * closed at three, deleting this branch costs nothing: Settings states the same fact plainly, and
+ * the show-never-hide handling of an unreadable cadence is the real safety net either way.
  */
 export function restedOffer(s: OfferState): RestedOffer {
   if (!s.reminderOn && !s.reminderOfferMade) return 'reminder';
@@ -59,5 +74,9 @@ export function restedOffer(s: OfferState): RestedOffer {
   if (s.aiEnabled && !s.scrapbookMade && !s.scrapbookOfferMade && s.weekFinishes >= SCRAPBOOK_OFFER_MIN) {
     return 'scrapbook';
   }
+  // LAST, and the only rung that is not about a feature of ours. See the note above the type: this
+  // one reopens a closed decision on purpose, and it is framed as what the newer build can do FOR
+  // the person's person, never as this one being out of date.
+  if (s.updateWorthMentioning) return 'update';
   return null;
 }

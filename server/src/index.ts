@@ -98,6 +98,11 @@ export interface Env {
   // non-secret var, default 25) and an optional dead-man's-switch ping URL (a Worker
   // secret). Both drive the hourly health sweep + daily pulse on the cron below.
   ANTHROPIC_MONTHLY_CAP_USD?: string;
+  // The newest shipped version per platform, served at /version. Absent means "we cannot tell",
+  // which the client reads as nothing to say, so a half-configured Worker is silent, never wrong.
+  LATEST_WEB?: string;
+  LATEST_IOS?: string;
+  LATEST_ANDROID?: string;
   HEARTBEAT_URL?: string;
   // The Analytics Centre (see analytics.ts): the shared secret gating the owner's
   // read-only /admin/analytics page. A Worker secret; unset = the page answers 503.
@@ -208,6 +213,31 @@ const router = {
 
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: cors });
+    }
+
+    /**
+     * The newest shipped version, per platform. Public, cached, and boring on purpose.
+     *
+     * It exists because two people on a shared list can be on different app versions, which is the
+     * ordinary state rather than an exotic one, and a version gap is what makes one of them unable
+     * to read a cadence the other set. The client decides what, if anything, to SAY about the
+     * answer (client/src/lib/updates.ts); this route only states a fact.
+     *
+     * Config vars rather than a table: there is one right answer at a time and it changes when a
+     * build ships, which is already a deploy. Absent vars answer null, which the client reads as
+     * "we cannot tell" and says nothing about, so a half-configured Worker is silent rather than
+     * wrong. Cached for an hour: nobody needs this promptly, and a to-do app should not spend a
+     * request on it every open.
+     */
+    if (pathname === '/version') {
+      return Response.json(
+        {
+          web: env.LATEST_WEB ?? null,
+          ios: env.LATEST_IOS ?? null,
+          android: env.LATEST_ANDROID ?? null,
+        },
+        { headers: { ...cors, 'cache-control': 'public, max-age=3600' } },
+      );
     }
 
     if (pathname === '/health') {

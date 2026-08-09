@@ -2,7 +2,7 @@ import * as Application from 'expo-application';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
@@ -22,6 +22,8 @@ import { clampHour, formatReminderHour, reminderReasonLine } from '@/lib/reminde
 import { type Appearance, type MotionPref, type TextSize, THEME_NAMES, type ThemePref } from '@/lib/settings';
 import { loadLastSyncOk, loadReminderHour, loadReminderOn, loadScrapbooks, loadTasks, saveReminderHour, saveReminderOn, wipeLocalData } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
+import { checkForUpdate, currentPlatform } from '@/lib/update-check';
+import { type UpdateStatus, updateUrl } from '@/lib/updates';
 import { track } from '@/lib/telemetry';
 import { useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
@@ -53,6 +55,9 @@ export default function SettingsScreen() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [mcpToken, setMcpToken] = useState<string | null>(null);
   const [mcpCopied, setMcpCopied] = useState(false);
+  // Null until the answer arrives, and null forever if it never does. Settings is the ONE place
+  // this is always simply stated: a person here has come looking for facts about their app.
+  const [update, setUpdate] = useState<UpdateStatus | null>(null);
   const [mcpExpired, setMcpExpired] = useState(false); // the access token couldn't be fetched (expired session)
   const [mcpDisconnecting, setMcpDisconnecting] = useState(false);
   const [mcpDisconnectNote, setMcpDisconnectNote] = useState<string | null>(null); // calm line after a disconnect
@@ -78,6 +83,25 @@ export default function SettingsScreen() {
   // Re-check the entitlement on focus (e.g. after returning from checkout) so the Premium card's
   // "Active" marker is current, and reflect the persisted daily-reminder toggle. The premium flag
   // itself comes from usePremium (the provider), so the dev override is reflected here too.
+  /**
+   * Take the update. Web reloads onto assets the server already has; the stores are the only path
+   * on iOS and Android (there is no in-app update API on iOS at all, and Play's needs a native
+   * module we do not ship). Fails silent: a link that will not open is not worth an error line.
+   */
+  async function takeUpdate(route: UpdateStatus['route']) {
+    if (route === 'reload') {
+      if (typeof window !== 'undefined') window.location.reload();
+      return;
+    }
+    const url = updateUrl(currentPlatform());
+    if (!url) return;
+    try {
+      await Linking.openURL(url);
+    } catch {
+      // nowhere to go, and nothing worth saying about it
+    }
+  }
+
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -90,6 +114,9 @@ export default function SettingsScreen() {
       });
       void loadLastSyncOk().then((v) => {
         if (active) setSyncOk(v);
+      });
+      void checkForUpdate(Application.nativeApplicationVersion ?? '1.2.0').then((status) => {
+        if (active) setUpdate(status);
       });
       if (supabase && session) {
         void isOursOpen(supabase).then((open) => {
@@ -719,7 +746,28 @@ export default function SettingsScreen() {
             it is an identifier, identical in every locale. */}
         <Text style={styles.footnote}>
           {`v${Application.nativeApplicationVersion ?? '1.2.0'} (${Application.nativeBuildVersion ?? 'web'})`}
+          {update && !update.behind ? `  ·  ${t('updates.upToDate')}` : ''}
         </Text>
+
+        {/* Out of date, said ONCE, in the one place somebody has gone looking for facts about their
+            app. A sage line and one control, never a badge and never a modal: this is a to-do app
+            for people already carrying more demands than they can hold, and "you are out of date"
+            is a demand. The reassurance is the load-bearing half, and both halves are literally
+            true: web drafts do persist across a reload, and an update never touches stored lists. */}
+        {update?.behind ? (
+          <View style={styles.updateBlock}>
+            <Text style={styles.updateLine}>{update.route === 'reload' ? t('updates.webReady') : t('updates.nativeOld')}</Text>
+            <Pressable
+              onPress={() => void takeUpdate(update.route)}
+              accessibilityRole="button"
+              accessibilityLabel={update.route === 'reload' ? t('updates.reload') : t('updates.openStore')}
+              hitSlop={6}
+            >
+              <Text style={styles.updateAction}>{update.route === 'reload' ? t('updates.reload') : t('updates.openStore')}</Text>
+            </Pressable>
+            <Text style={styles.footnote}>{update.route === 'reload' ? t('updates.webKept') : t('updates.nativeKept')}</Text>
+          </View>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -887,7 +935,11 @@ const makeStyles = (t: Theme) =>
     feedbackActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.five },
     feedbackCancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
     feedbackThanks: { color: t.colors.doneText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', paddingTop: spacing.six },
-    footnote: {
+    // The update block: a fact and one control, never a badge. Sage, because nothing is wrong.
+  updateBlock: { marginTop: spacing.four, gap: spacing.two },
+  updateLine: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },
+  updateAction: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+  footnote: {
       color: t.colors.inkFaint,
       fontSize: 13 * t.scale,
       fontFamily: fonts.body,

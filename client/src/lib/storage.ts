@@ -32,6 +32,7 @@ const OURS_KEY = 'doubledone.ours.v1'; // shared lists, keyed BY PAIR (see loadO
 const OURS_TUCKED_KEY = 'doubledone.oursTucked.v1'; // closed lists you have put away, by pair id
 const OURS_SEEN_KEY = 'doubledone.oursSeen.v1'; // when you last looked at each shared list, by pair id
 const OURS_MINE_KEY = 'doubledone.oursMine.v1'; // shared rows YOU changed from outside the room, by pair id
+const UPDATE_MENTIONED_KEY = 'doubledone.updateMentioned.v1'; // when the goodnight screen last mentioned a newer build
 
 /**
  * Load Today's tasks. On a brand-new install (nothing ever stored) seed once so
@@ -598,6 +599,32 @@ export async function loadOursSeen(): Promise<Record<string, number>> {
     return out;
   } catch {
     return {};
+  }
+}
+
+/**
+ * When the goodnight screen last mentioned that a newer build exists.
+ *
+ * The only thing standing between one quiet line and a nag. Deliberately NOT in `wipeLocalData`:
+ * it is not personal data, it says nothing about which relationships you had, and clearing it on
+ * account deletion would mean the very next goodnight screen mentioned an update again.
+ */
+export async function loadUpdateMentioned(): Promise<number | null> {
+  try {
+    const raw = await AsyncStorage.getItem(UPDATE_MENTIONED_KEY);
+    const at = raw == null ? Number.NaN : Number(raw);
+    return Number.isFinite(at) ? at : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveUpdateMentioned(at: number): Promise<void> {
+  if (!Number.isFinite(at)) return;
+  try {
+    await AsyncStorage.setItem(UPDATE_MENTIONED_KEY, String(at));
+  } catch {
+    // best effort, like every other saver here
   }
 }
 

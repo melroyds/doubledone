@@ -1010,6 +1010,17 @@ export const de: Catalog = {
       toBreakDown: '{count} für kleine Schritte',
     },
   },
+  updates: {
+    nativeKept: 'Deine Listen bleiben genau so, wie sie sind.',
+    nativeOld: 'Diese Version wird langsam alt.',
+    notNow: 'Jetzt nicht',
+    offer: 'Die neue kann alles lesen, was deine Person einstellt, Rhythmen inklusive.',
+    openStore: 'Store öffnen',
+    reload: 'Neu laden, um sie zu bekommen',
+    upToDate: 'Aktuell',
+    webKept: 'Was du gerade getippt hast, bleibt erhalten.',
+    webReady: 'Eine neuere Version ist bereit.',
+  },
   welcome: {
     appStoreBadgeA11y: 'DoubleDone im App Store laden',
     back: '‹ Zurück',

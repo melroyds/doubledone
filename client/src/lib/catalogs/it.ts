@@ -1006,6 +1006,17 @@ export const it: Catalog = {
       toBreakDown: '{count} da dividere in passaggi',
     },
   },
+  updates: {
+    nativeKept: 'Le tue liste restano esattamente come sono.',
+    nativeOld: 'Questa versione comincia a essere vecchia.',
+    notNow: 'Non ora',
+    offer: 'Quella nuova sa leggere tutto quello che imposta la tua persona, ritmi compresi.',
+    openStore: 'Apri lo store',
+    reload: 'Ricarica per averla',
+    upToDate: 'Aggiornata',
+    webKept: 'Quello che stavi scrivendo viene tenuto.',
+    webReady: 'È pronta una versione più recente.',
+  },
   welcome: {
     appStoreBadgeA11y: "Scarica DoubleDone dall'App Store",
     back: '‹ Indietro',

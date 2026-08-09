@@ -5763,3 +5763,47 @@ forever, and nothing on screen mentions it.
 stops either person editing the other's row, so this goes through the definer RPC scoped to
 `auth.uid()` rather than opening one. The screen offers your name and has no affordance at all for
 theirs.
+
+## 2026-08-09 Check for updates, on all three platforms, as a fact and never a demand
+
+Why it exists at all, because it changes what it is allowed to do: two people on a shared list can
+be on different app versions, which is the ordinary state rather than an exotic one, and a version
+gap is what makes one of them unable to read a cadence the other set. This SHRINKS that window. It
+does not close it (rollouts stagger by days, people decline, some older Android devices cannot take
+the newest build), so the show-never-hide handling of an unreadable cadence stays the real safety
+net. Both, never either.
+
+**The Worker answers, config vars answer the Worker.** `GET /version` returns the newest shipped
+version per platform from `LATEST_WEB` / `LATEST_IOS` / `LATEST_ANDROID`. Not a table: there is one
+right answer at a time and it changes when a build ships, which is already a deploy. Cached an hour.
+Absent vars answer null, so a half-configured Worker is silent rather than wrong.
+
+**Decided: "could not tell" is NOT "up to date", and conflating them was a real bug caught in the
+preview.** The first build answered "Up to date" to a request that never arrived, which is a small
+lie told confidently, and confidence is the one thing it has no right to there. `checkForUpdate`
+now returns null for a failure, a malformed reply, an absent value or an unreachable Worker, and
+every caller renders nothing at all for it.
+
+**Three surfaces, three honest offers.** Settings states it plainly, because a person there has come
+looking for facts about their app: "v1.2.0 (11) · Up to date", or one sage line and one control.
+Web reloads onto assets the server already has, and says "Anything you were typing is kept". Native
+opens the store, and says "Your lists stay exactly as they are". Both reassurances are literally
+true and must stay true.
+
+**The fourth rung, which knowingly reopens a closed decision.** The goodnight ladder was fixed at
+three rungs with Melroy on 2026-07-26, on the grounds that a ladder which keeps growing becomes the
+sales pitch that screen exists never to be. Round two's design asks for an update mention on it, and
+I have built it, LAST, with the reasoning left in `offers.ts` to be argued with rather than buried.
+The case for it: it is the only rung that is not about a feature of ours, it sells nothing, and it is
+far rarer than the three above it, which fire at the first opportunity while this one needs a
+major-or-two-minor gap AND a fortnight since it was last said. It is framed as what the newer build
+can do FOR the person's person, never as this one being out of date, because the second framing is a
+demand and this screen makes none. **If Melroy would rather it stayed at three, deleting the branch
+costs nothing**: Settings states the same fact, and the unreadable-cadence handling is the safety
+net either way. It never displaces a rung above it, which is tested, because those are one-time
+introductions and this one comes round again.
+
+**"Not now" is never remembered as a refusal.** All that is stored is WHEN it was last mentioned,
+which is the only thing standing between one line and a nag. Deliberately not in `wipeLocalData`: it
+is not personal data, it says nothing about which relationships you had, and clearing it on account
+deletion would mean the very next goodnight screen mentioned an update again.

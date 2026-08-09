@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, AppState, Easing, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Linking, AccessibilityInfo, Animated, AppState, Easing, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -52,7 +52,11 @@ import { dayWeight, heavyAt, weightedLoad } from '@/lib/estimate';
 import { dayCleared, dayClosed, stepsLanded, taskDone } from '@/lib/haptics';
 import { subscribeInbound, takeInbound } from '@/lib/inbound';
 import { aiLanguage, fmt, t } from '@/lib/locale';
+import * as Application from 'expo-application';
+
 import { isOursOpen, loadMyPairs } from '@/lib/ours-api';
+import { checkForUpdate, currentPlatform } from '@/lib/update-check';
+import { shouldMention, type UpdateStatus, updateUrl } from '@/lib/updates';
 import { parseSharedRef, sharedRestNotes } from '@/lib/ours-bridge';
 import { setSharedDone, type SharedTask } from '@/lib/ours-merge';
 import { isUnreadableRepeat, syncPairOnce, willTrim } from '@/lib/ours-sync';
@@ -64,7 +68,7 @@ import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge }
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursTasks, loadReminderHour, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
+import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursTasks, loadReminderHour, loadUpdateMentioned, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveUpdateMentioned, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
 import { restedOffer } from '@/lib/offers';
 import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/plan-day';
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
@@ -249,6 +253,11 @@ export default function TodayScreen() {
   const [restNotes, setRestNotes] = useState<{ id: string; title: string }[]>([]);
   // Bumped on every focus, so effects that must re-run per VISIT (rather than per mount) can say so.
   const [visit, setVisit] = useState(0);
+  // Is this build far enough behind to be worth one line on the goodnight screen? The rarity test
+  // lives in updates.ts; this is only the answer.
+  const [updateStatusNow, setUpdateStatusNow] = useState<UpdateStatus | null>(null);
+  const [updateMentionedAt, setUpdateMentionedAt] = useState<number | null>(null);
+  const updateWorthMentioning = updateStatusNow ? shouldMention(updateStatusNow, updateMentionedAt, nowMs()) : false;
   const tasksRef = useRef<Task[]>(tasks);
   const reduced = useReducedMotion();
   // The close-the-day card's gentle entrance (0 = below + transparent, 1 = settled).
@@ -341,6 +350,12 @@ export default function TodayScreen() {
       // Normal because nothing says otherwise, not because anything ran at midnight.
       void loadDayEnergy(toISODate(today)).then((rec) => {
         if (active && rec) setDayEnergySel(rec.level);
+      });
+      void checkForUpdate(Application.nativeApplicationVersion ?? '1.2.0').then((status) => {
+        if (active) setUpdateStatusNow(status);
+      });
+      void loadUpdateMentioned().then((at) => {
+        if (active) setUpdateMentionedAt(at);
       });
       void loadLastOpen().then((last) => {
         if (!active) return;
@@ -1241,6 +1256,31 @@ export default function TodayScreen() {
     track('scrapbook.offer_accepted');
     router.push('/lookback');
   }
+  /** Taking it, from the goodnight screen. Recorded either way, so the fortnight brake starts now. */
+  function acceptUpdateOffer() {
+    markUpdateMentioned();
+    track('update.offer_accepted');
+    if (updateStatusNow?.route === 'reload') {
+      if (typeof window !== 'undefined') window.location.reload();
+      return;
+    }
+    const url = updateUrl(currentPlatform());
+    if (url) void Linking.openURL(url).catch(() => undefined);
+  }
+
+  function dismissUpdateOffer() {
+    markUpdateMentioned();
+    track('update.offer_declined');
+  }
+
+  /** "Not now" costs nothing and is never remembered as a refusal: all this records is WHEN it was
+   *  last said, which is the only thing standing between one mention and a nag. */
+  function markUpdateMentioned() {
+    const now = nowMs();
+    setUpdateMentionedAt(now);
+    void saveUpdateMentioned(now);
+  }
+
   function dismissScrapbookOffer() {
     setScrapbookOfferMade(true);
     void saveScrapbookOfferMade();
@@ -1991,7 +2031,7 @@ export default function TodayScreen() {
             {/* At most ONE lifeline offer, ever, decided by the pure `restedOffer` rules: the app is
                 so calm that its own opt-in lifelines are invisible (a returning user asked for four
                 things that already existed), but the goodnight screen must never become a pitch. */}
-            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade }) === 'reminder' && (
+            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning }) === 'reminder' && (
               <View style={styles.reminderOffer}>
                 <Text style={styles.reminderOfferText}>{t('reminders.offerText')}</Text>
                 <View style={styles.reminderOfferRow}>
@@ -2004,7 +2044,7 @@ export default function TodayScreen() {
                 </View>
               </View>
             )}
-            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade }) === 'widget' && (
+            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning }) === 'widget' && (
               <View style={styles.reminderOffer}>
                 {widgetHowShown ? (
                   <Text style={styles.reminderOfferText}>{t('reminders.widgetOfferHow')}</Text>
@@ -2023,7 +2063,25 @@ export default function TodayScreen() {
                 )}
               </View>
             )}
-            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade }) === 'scrapbook' && (
+            {/* The update mention, the ladder's fourth and last rung. Framed as what the newer build
+                can do FOR the person's person, never as this one being out of date, because the
+                second framing is a demand and this screen exists to make none. "Not now" costs
+                nothing and is never remembered: the fortnight brake is the only thing that decides
+                whether it is ever said again. */}
+            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning }) === 'update' && (
+              <View style={styles.reminderOffer}>
+                <Text style={styles.reminderOfferText}>{t('updates.offer')}</Text>
+                <View style={styles.reminderOfferRow}>
+                  <Pressable onPress={acceptUpdateOffer} accessibilityRole="button" accessibilityLabel={updateStatusNow?.route === 'reload' ? t('updates.reload') : t('updates.openStore')} hitSlop={6}>
+                    <Text style={styles.reminderOfferYes}>{updateStatusNow?.route === 'reload' ? t('updates.reload') : t('updates.openStore')}</Text>
+                  </Pressable>
+                  <Pressable onPress={dismissUpdateOffer} accessibilityRole="button" accessibilityLabel={t('common.notNow')} hitSlop={6}>
+                    <Text style={styles.reminderOfferNo}>{t('common.notNow')}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning }) === 'scrapbook' && (
               <View style={styles.reminderOffer}>
                 <Text style={styles.reminderOfferText}>{t('today.scrapbookOffer')}</Text>
                 <View style={styles.reminderOfferRow}>

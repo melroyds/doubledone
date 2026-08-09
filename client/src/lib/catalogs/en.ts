@@ -1011,6 +1011,17 @@ export const en = {
       toBreakDown: '{count} to break down',
     },
   },
+  updates: {
+    nativeKept: 'Your lists stay exactly as they are.',
+    nativeOld: 'This build is getting old.',
+    notNow: 'Not now',
+    offer: 'The newer one can read everything your person sets, rhythms included.',
+    openStore: 'Open the store',
+    reload: 'Reload to get it',
+    upToDate: 'Up to date',
+    webKept: 'Anything you were typing is kept.',
+    webReady: 'A newer version is ready.',
+  },
   welcome: {
     appStoreBadgeA11y: 'Download DoubleDone on the App Store',
     back: '‹ Back',
