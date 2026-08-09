@@ -5697,3 +5697,27 @@ The rest, grouped:
 The one worth keeping as a rule: **the adversarial pass found more real defects in my own six hours
 of work than in the six months before it.** Fresh code reviewed by the person who just wrote it is
 the weakest review there is, and the sixteen-passing-tests case proves the suite does not save you.
+
+## 2026-08-09 The guards: a closed list you can still read, and seven days to change your mind
+
+**Recently removed, folded at the list's foot.** Dimmed rows and one action, "Put it back", for
+seven days, matching the server's own tombstone sweep so the fold never offers to restore something
+already redacted. It names nobody: it says a thing came off the list, never which of you took it
+off. This is what makes removal on a shared list survivable at all. Without it, one person tidying
+is indistinguishable from one person deleting your task, and there is no way to tell which happened
+or to undo it.
+
+**A closed list is READABLE, and reachable by id.** `/ours-list?pair=<id>` is how the archive opens
+one, and without it "you can still read everything here" was a promise with nowhere to keep it: the
+room only ever loaded the live list and redirected away from anything else.
+
+**Read-only means the capture bar is GONE, not disabled.** A field you can tap into and then not use
+is crueller than no field. Ticking, renaming, removing and re-cadencing are all withheld, and each
+row keeps exactly one action: taking a copy for yourself. The row says so in words rather than
+simply failing to respond.
+
+**And the frozen check moved into one function, used by every write path.** It started as a prop
+threaded to the row, which meant `add()` and `toggle()` did not know about it: the screen would have
+let somebody type into a list the server was about to refuse. `isPairFrozen` is now consulted by all
+of them. The lesson is the same one the adversarial pass kept finding: a guard that lives in the
+render is not a guard, it is a hint.

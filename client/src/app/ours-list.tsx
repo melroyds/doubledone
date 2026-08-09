@@ -1,4 +1,4 @@
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,6 +34,16 @@ import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 //
 // The relationship itself (rename, archive, leave, resume, delete) lives on /ours. Tapping the
 // header line goes there, which is the design's own navigation: this screen is the tasks.
+//
+// Seven days of Recently removed, matching the server's own tombstone sweep, so the fold never
+// offers to restore something the sweep has already redacted.
+const RECENTLY_REMOVED_MS = 7 * 24 * 60 * 60_000;
+
+/** Closed, either because you two closed it or because it was disabled. One definition, used by
+ *  every write path on this screen rather than only the ones a prop happened to be threaded to. */
+function isPairFrozen(pair: MyPair | null): boolean {
+  return !!(pair?.closedAt || pair?.disabledAt);
+}
 
 export default function OursListScreen() {
   const insets = useSafeAreaInsets();
@@ -41,6 +51,9 @@ export default function OursListScreen() {
   const theme = useTheme();
   const session = useSession();
   const today = toISODate(new Date());
+  // The archive opens a CLOSED list here by id. Without it the room only ever shows the live one,
+  // and "you can still read everything" would have been a promise with nowhere to keep it.
+  const { pair: wantedId } = useLocalSearchParams<{ pair?: string }>();
 
   const [pair, setPair] = useState<MyPair | null>(null);
   const [tasks, setTasks] = useState<SharedTask[]>([]);
@@ -89,43 +102,47 @@ export default function OursListScreen() {
         return setLoaded(true);
       }
       readOk.current = true;
-      const live = res.value.live;
-      setPair(live);
-      if (!live) return setLoaded(true);
+      const { live, frozen } = res.value;
+      // A named list wins, live or closed: that is the archive asking for a specific one. Otherwise
+      // the live one, and nothing if there is none.
+      const chosen = wantedId ? ([live, ...frozen].find((p) => p?.pairId === wantedId) ?? null) : live;
+      setPair(chosen);
+      if (!chosen) return setLoaded(true);
+      const live_ = chosen;
 
       if (seenAt.current === 0) {
-        seenAt.current = (await loadOursSeen())[live.pairId] ?? 0;
+        seenAt.current = (await loadOursSeen())[live_.pairId] ?? 0;
         // Rows I changed from Today since I was last here. Without these, my own tick on a brought
         // copy comes back tinted as my person's change, which is the room inventing an event.
-        for (const id of await loadOursMine(live.pairId)) mine.current.add(id);
+        for (const id of await loadOursMine(live_.pairId)) mine.current.add(id);
       }
-      setPulled(pulledFrom(await loadTasks(), live.pairId));
+      setPulled(pulledFrom(await loadTasks(), live_.pairId));
 
-      const cached = local ?? (await loadOursTasks(live.pairId));
+      const cached = local ?? (await loadOursTasks(live_.pairId));
       if (call !== pass.current) return;
       setTasks(cached);
       setWashed(washedSince(cached, seenAt.current, mine.current));
       setLoaded(true);
 
       try {
-        const { merged } = await syncPairOnce(client, live.pairId, cached);
+        const { merged } = await syncPairOnce(client, live_.pairId, cached);
         if (call !== pass.current) return;
         setTasks(merged);
         setWashed(washedSince(merged, seenAt.current, mine.current));
         setOffline(false);
-        void saveOursTasks(live.pairId, merged);
+        void saveOursTasks(live_.pairId, merged);
         // Looked at, now. Written on every reconcile rather than on the way out, because the way out
         // of a screen on a phone is often the app being killed, and a wash that never clears is a
         // permanent "something happened" badge, which is the anxiety this was built to bound.
-        void markOursSeen(live.pairId, nowMs());
-        void clearOursMine(live.pairId); // from here the last-look covers those writes
+        void markOursSeen(live_.pairId, nowMs());
+        void clearOursMine(live_.pairId); // from here the last-look covers those writes
       } catch {
         // A failed READ keeps whatever is on screen. This list is somebody's household, and showing
         // it stale beats showing it empty; the line below says so rather than pretending.
         if (call === pass.current) setOffline(true);
       }
     },
-    [session],
+    [session, wantedId],
   );
 
   useFocusEffect(
@@ -183,7 +200,7 @@ export default function OursListScreen() {
 
   function add() {
     const title = draft.trim();
-    if (!title) return;
+    if (!title || isPairFrozen(pair)) return;
     setDraft('');
     if (willTrim(title)) setNotice(t('ours.shareTrim')); // said BEFORE, never discovered after
     const now = nowMs();
@@ -195,7 +212,7 @@ export default function OursListScreen() {
     // A cadence this build cannot read has NO recurrence object, so every done-helper treats it as a
     // one-off: one tap would mark it finished forever, for both of you, on a task that was supposed
     // to come back. Inert is the only honest state, and the line under the row says why.
-    if (!found || isUnreadableRepeat(found)) return;
+    if (!found || isUnreadableRepeat(found) || isPairFrozen(pair)) return;
     const now = nowMs();
     void commit(tasks.map((task) => (task.id === id ? setSharedDone(task, today, !isSharedDoneOn(task, today), now) : task)));
   }
@@ -255,8 +272,24 @@ export default function OursListScreen() {
     void commit(tasks.map((task) => (task.id === id ? { ...task, title, recurrence, rawRecurrence: undefined, updatedAt: now } : task)));
   }
 
+  /** Put a removed row back. Seven days, and it is the whole reason removal is a tombstone. */
+  function restore(id: string) {
+    const now = nowMs();
+    void commit(tasks.map((task) => (task.id === id ? { ...task, deletedAt: null, updatedAt: now } : task)));
+  }
+
   const cadenceTask = tasks.find((task) => task.id === cadenceId) ?? null;
+  // A CLOSED list is readable and nothing else: no capture bar, no ticking, no editing, and one
+  // action per row, which is taking a copy for yourself. Not a wall, and not a lie about what is
+  // still possible. `ours_is_open` and the RLS both refuse writes anyway; this is the screen
+  // agreeing with the server rather than letting somebody tap into a refusal.
+  const frozen = isPairFrozen(pair);
   const visible = tasks.filter((task) => !task.deletedAt);
+  // Recently removed, folded at the foot. Seven days, dimmed, and it names nobody: it says a thing
+  // was taken off the list, never which of you took it off.
+  const removed = tasks
+    .filter((task) => task.deletedAt != null && nowMs() - task.deletedAt < RECENTLY_REMOVED_MS)
+    .sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0));
   const listName = pair?.name?.trim() || t('ours.defaultName');
 
   return (
@@ -305,16 +338,16 @@ export default function OursListScreen() {
               onToggle={() => toggle(task.id)}
               onLongPress={() => setConfirmingId(task.id)}
               confirming={confirmingId === task.id}
-              onRemove={() => remove(task.id)}
+              onRemove={frozen ? undefined : () => remove(task.id)}
               onKeep={() => setConfirmingId(null)}
               recurring={task.recurrence !== undefined && task.recurrence.kind !== 'none'}
-              onRename={(next) => rename(task.id, next)}
+              onRename={frozen ? undefined : (next) => rename(task.id, next)}
               onBring={() => void bring(task)}
               brought={pulled.has(task.id)}
               /* A cadence this build cannot read stays INERT: re-cadencing it would overwrite
                  whatever a newer build meant, on a list somebody else also keeps. */
-              onRepeat={isUnreadableRepeat(task) ? undefined : () => setCadenceId(task.id)}
-              inert={isUnreadableRepeat(task) ? t('ours.repeatUnknown') : undefined}
+              onRepeat={frozen || isUnreadableRepeat(task) ? undefined : () => setCadenceId(task.id)}
+              inert={frozen ? t('ours.frozenRow') : isUnreadableRepeat(task) ? t('ours.repeatUnknown') : undefined}
               /* The shared list has no per-day skip, so Remove must not borrow "Skip today": it ends
                  the repeat, for both of you. The label says what the button does. */
               removesWholeSeries
@@ -330,6 +363,28 @@ export default function OursListScreen() {
             ) : null}
           </View>
         ))}
+
+        {removed.length > 0 && !frozen ? (
+          <View style={styles.removedFold}>
+            <Text style={styles.removedHeading}>{t('ours.recentlyRemoved')}</Text>
+            {removed.map((task) => (
+              <View key={task.id} style={styles.removedRow}>
+                <Text style={styles.removedTitle} numberOfLines={2}>
+                  {task.title}
+                </Text>
+                <Pressable
+                  onPress={() => restore(task.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('ours.restoreA11y', { title: task.title })}
+                  hitSlop={8}
+                >
+                  <Text style={styles.restore}>{t('ours.restore')}</Text>
+                </Pressable>
+              </View>
+            ))}
+            <Text style={styles.removedHint}>{t('ours.recentlyRemovedHint')}</Text>
+          </View>
+        ) : null}
       </ScrollView>
 
       {cadenceTask && (
@@ -348,8 +403,11 @@ export default function OursListScreen() {
         />
       )}
 
-      {/* The capture bar speaks the list's name, so it is obvious which room you are typing into. */}
-      <View style={[styles.capture, { paddingBottom: insets.bottom + spacing.three }]}>
+      {/* The capture bar speaks the list's name, so it is obvious which room you are typing into.
+          Gone entirely on a closed list: a field you can tap into and then not use is crueller than
+          no field, and the server would refuse the write in any case. */}
+      {!frozen && (
+        <View style={[styles.capture, { paddingBottom: insets.bottom + spacing.three }]}>
         <TextInput
           value={draft}
           onChangeText={(v) => {
@@ -362,9 +420,10 @@ export default function OursListScreen() {
           style={styles.input}
           accessibilityLabel={t('ours.addTo', { name: listName })}
           returnKeyType="done"
-          blurOnSubmit={false}
-        />
-      </View>
+            blurOnSubmit={false}
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -390,6 +449,13 @@ const makeStyles = (t: Theme) =>
       lineHeight: 24 * t.scale,
       marginTop: spacing.six,
     },
+    // Recently removed: dimmed, at the foot, folded away from the working list. It never says who.
+    removedFold: { marginTop: spacing.six, borderTopWidth: border.hair, borderTopColor: t.colors.line, paddingTop: spacing.four },
+    removedHeading: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    removedRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three, marginTop: spacing.three },
+    removedTitle: { flex: 1, color: t.colors.inkFaint, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    restore: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    removedHint: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.three },
     row: {
       marginTop: spacing.two,
       borderRadius: radius.md,
