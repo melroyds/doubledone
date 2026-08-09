@@ -1,0 +1,91 @@
+// The bridges between a shared list and your own Today. Pure, so every rule here is testable
+// without a screen or a network (ours-bridge.test.ts).
+//
+// The governing sentence from the design: NOTHING crosses without a person choosing it. A shared
+// task never lands on your Today; you bring it. Your own task never appears on the shared list; you
+// share it. This file holds the small amount of logic that keeps a chosen crossing honest afterwards.
+//
+// The one thing it must never do is leak WHO. A bridge is the obvious place for attribution to creep
+// back in ("Alex finished this"), because at the moment of crossing you genuinely do know which side
+// acted. Every function below is written to know only THAT something happened, never who.
+
+import { isSharedDoneOn, type SharedTask } from './ours-merge';
+import { type Task } from './tasks';
+
+const SEP = '/';
+
+/**
+ * The link a pulled copy carries: which list it came from, and which row.
+ *
+ * ONE string rather than two columns, because it costs one additive nullable column on a live
+ * `tasks` table with real subscribers rather than two, and nothing ever queries it server-side. It
+ * is only ever written and read whole.
+ */
+export function makeSharedRef(pairId: string, sharedId: string): string {
+  return pairId + SEP + sharedId;
+}
+
+/** Read a link back apart. Returns null on anything malformed rather than half a link, because a
+ *  half-parsed ref would match the wrong list and bridge a tick to a stranger's task. */
+export function parseSharedRef(ref: string | undefined | null): { pairId: string; sharedId: string } | null {
+  if (typeof ref !== 'string') return null;
+  const at = ref.indexOf(SEP);
+  if (at <= 0 || at === ref.length - 1) return null;
+  const pairId = ref.slice(0, at);
+  const sharedId = ref.slice(at + 1);
+  // An id containing the separator would re-split differently on the way back, so refuse it here
+  // rather than silently bridging to a task that does not exist.
+  if (sharedId.includes(SEP)) return null;
+  return { pairId, sharedId };
+}
+
+/**
+ * Which rows of a list are already on your Today, as shared-id -> your task's id.
+ *
+ * The "Bring to my Today" action reads this so it can say "already there" instead of quietly making
+ * a second copy. Tombstoned copies do not count: you removed it from your day, so bringing it over
+ * again is a thing you are allowed to want.
+ */
+export function pulledFrom(tasks: Task[], pairId: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const task of tasks) {
+    if (task.deletedAt) continue;
+    const ref = parseSharedRef(task.sharedRef);
+    if (ref?.pairId === pairId) out.set(ref.sharedId, task.id);
+  }
+  return out;
+}
+
+/**
+ * The copies that should quietly leave your day because the shared row got finished on the other
+ * side (`retire`), each paired with its title for the rest-note that takes its place.
+ *
+ * Why they LEAVE rather than complete: the work is done, but you did not do it, and putting it in
+ * your Lookback would be the app inventing a memory. Striking it through on Today would be the same
+ * lie in smaller type. So the copy is tombstoned with no `completedAt`, which keeps it out of
+ * Lookback by construction rather than by a filter somebody could later remove.
+ *
+ * And why a NOTE rather than nothing: a row that silently vanishes reads as "did I delete that?",
+ * which for this audience is the start of a checking loop. One dashed line, this visit only.
+ *
+ * A REMOVED shared row deliberately does not trigger this. "Handled on Ours" would be false, and
+ * your copy is your own task now; nobody else's removal should reach into your day.
+ */
+export function sharedRestNotes(
+  tasks: Task[],
+  shared: SharedTask[],
+  pairId: string,
+  date: string,
+): { id: string; title: string }[] {
+  const byId = new Map(shared.map((s) => [s.id, s]));
+  const out: { id: string; title: string }[] = [];
+  for (const task of tasks) {
+    if (task.done || task.deletedAt) continue;
+    const ref = parseSharedRef(task.sharedRef);
+    if (ref?.pairId !== pairId) continue;
+    const origin = byId.get(ref.sharedId);
+    if (!origin || origin.deletedAt) continue;
+    if (isSharedDoneOn(origin, date)) out.push({ id: task.id, title: task.title });
+  }
+  return out;
+}

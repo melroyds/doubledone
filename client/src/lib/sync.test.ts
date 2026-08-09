@@ -74,6 +74,17 @@ describe('taskToRow / rowToTask', () => {
     expect(rowToTask(taskToRow(plain, 'user-1'))).not.toHaveProperty('pinnedAt');
   });
 
+  // The Ours bridge. A task that never crossed one must stay null forever, so an ordinary user's
+  // rows carry no trace of a feature they do not use.
+  it('round-trips a pulled copy, and a task that never crossed a bridge stays null', () => {
+    const pulled: Task = { id: 'p', title: 'take the bins out', done: false, createdAt: 0, updatedAt: 1000, sharedRef: 'pair-1/bins' };
+    expect(rowToTask(taskToRow(pulled, 'user-1'))).toEqual(pulled);
+
+    const plain: Task = { id: 'q', title: 'Water the plants', done: false, createdAt: 0, updatedAt: 1000 };
+    expect(taskToRow(plain, 'user-1').shared_ref).toBeNull();
+    expect(rowToTask(taskToRow(plain, 'user-1'))).not.toHaveProperty('sharedRef');
+  });
+
   it('round-trips a big task, and a plain task never gains big (a null / false column stays absent)', () => {
     const big: Task = { id: 'g', title: 'Do the tax return', done: false, createdAt: 0, updatedAt: 1000, big: true };
     expect(rowToTask(taskToRow(big, 'user-1'))).toEqual(big);

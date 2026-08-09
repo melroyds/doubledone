@@ -37,6 +37,7 @@ export type Task = {
   nudgeId?: string; // the scheduled-notification id, so the nudge can be cancelled when the task is done / removed / deferred
   pinnedAt?: number; // epoch ms this task was pinned as the day's ONE priority (premium). The at-most-one invariant lives in the pin action, not here. A leaf field: never auto-cleared, so a pinned task that rolls forward unfinished just rolls. Floats to the top of Today via pinFirst.
   manualOrder?: number; // LOCAL-ONLY (premium "Plan my order"): a render-time sort slot, floated by applyManualOrder. NOT synced (deliberately absent from sync.ts taskToRow/rowToTask), so it persists on-device and survives sync (local wins), but cross-device order is a documented follow-up needing a remote column.
+  sharedRef?: string; // 'pairId/sharedTaskId': this task is YOUR copy of a row on a shared list, brought over on purpose (see lib/ours-bridge). Drives the faint "· Ours" suffix, the tick that closes both, and the rest-note when it gets handled on Ours. SYNCED (the shared_ref column), so the bridge works on every device rather than only the phone that pulled it.
   big?: boolean; // user-marked "this one is a lot": weights the day's gauge (counts as BIG_WEIGHT normal tasks, with a floor so one lone big still reads at least "full") and the heavy-day signal, and makes finishing it a big-win (reward.isBigWin). A leaf field, never auto-cleared. SYNCED since 2026-07-12 (the `big` column + sync.ts mapping; plain LWW because setBig bumps updatedAt, plus a tie-seed in sync-merge for marks from the pre-column era).
 };
 

@@ -32,6 +32,7 @@ export type TaskRow = {
   deleted_at: string | null;
   pinned_at: string | null;
   big: boolean | null;
+  shared_ref: string | null;
 };
 
 /** Local Task -> remote row, stamped with the owner's id for RLS. Every field is emitted
@@ -58,6 +59,7 @@ export function taskToRow(task: Task, userId: string): TaskRow {
     deleted_at: task.deletedAt ? new Date(task.deletedAt).toISOString() : null,
     pinned_at: task.pinnedAt ? new Date(task.pinnedAt).toISOString() : null,
     big: task.big ?? null,
+    shared_ref: task.sharedRef ?? null,
   };
 }
 
@@ -90,6 +92,7 @@ export function rowToTask(row: TaskRow): Task {
   if (row.deleted_at != null) task.deletedAt = finiteOr(Date.parse(row.deleted_at), createdAt);
   if (row.pinned_at != null) task.pinnedAt = finiteOr(Date.parse(row.pinned_at), createdAt);
   if (row.big) task.big = true;
+  if (row.shared_ref != null) task.sharedRef = row.shared_ref;
   return task;
 }
 

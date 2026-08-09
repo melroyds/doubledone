@@ -5513,3 +5513,42 @@ both clear next open, and that is exactly why this is a tint and never a notific
 
 **A first-ever visit washes nothing.** Opening a list you have just joined should not be a wall of
 highlights saying "all of this is new", which is technically true and useless.
+
+## 2026-08-09 The bridges, part one: the link, and why it earns a column on a live table
+
+Nothing crosses between a shared list and your Today without a person choosing it. This entry is
+about what happens AFTER a person chooses: how the two copies stay joined.
+
+**Decided: `shared_ref` is a real synced column on `public.tasks`, not local-only state.** The
+tempting cheap option was `manualOrder`'s precedent, a local-only field with a documented follow-up.
+It was wrong here, and not cosmetically. Without the link on the server, you pull "milk" on your
+phone, tick it on your laptop, and the shared row does not close, because the laptop's copy has no
+idea it is a copy. A bridge that works on one device and silently does not on another is worse than
+no bridge: you would learn to distrust the tick everywhere.
+
+The column is additive, nullable, RLS untouched, and holds **no second person's data**. It records
+which of YOUR tasks came from a shared list, never anything the other person wrote and never who did
+what. A task that has not crossed a bridge stays null forever. Older builds ignore a column they do
+not know about, which is why it can be applied before the client that writes it ships, and **must
+be**: the client emits every column unconditionally on batch upsert, so a build writing `shared_ref`
+against a table without it would fail every sync, not just the shared ones. Apply
+`supabase/tasks-shared-ref.sql` BEFORE this branch merges.
+
+**Decided: one string, `pairId/sharedTaskId`, not two columns.** One additive column on a live table
+with real subscribers rather than two, and nothing queries it server-side; it is only ever written
+and read whole. `parseSharedRef` refuses anything malformed rather than returning half a link,
+because a half-parsed ref matches the WRONG list, and a tick bridged to a stranger's task is the
+worst failure this feature has.
+
+**Decided: a copy handled on Ours LEAVES your day, and never enters your Lookback.** The work is
+done, but you did not do it, and a Lookback entry would be the app inventing a memory of you doing
+it. Striking it through on Today is the same lie in smaller type. So the copy is tombstoned with no
+`completedAt`, which keeps it out of Lookback **by construction** rather than by a filter somebody
+could later remove. A dashed line takes its place for that visit, because a row that silently
+vanishes reads as "did I delete that?", which is where a checking loop starts.
+
+**Decided (an assumption worth challenging): a REMOVED shared row does not retire your copy.**
+Only a finished one does. "Handled on Ours" would be false, and once you have brought a task over it
+is your own task; the other person taking it off the shared list should not reach into your day. The
+opposite reading, that removal means "we are not doing this", is defensible. This one is the calmer
+default and the one that never lies.
