@@ -5323,3 +5323,44 @@ pass 2 found my application errors, pass 3 checked the last edits, and the margi
 falling fast. What no reading pass can buy is Postgres parsing the file, so the next verification is
 execution: apply to a throwaway project and run read-backs `e` through `i`, which need two test
 accounts and cannot be checked by reading at all.
+
+## 2026-08-09 Who calls the sweep, and why the update check does not need a Worker
+
+**The retention sweep now has a caller, and it had to.** Nothing else in the system would ever have
+run it: no cron, `pg_cron` not enabled, and the Worker's hourly job holds only the anon key while
+`service_role` is a standing never. A thirty-day promise implemented as a function nobody invokes is
+a worse position than never having made the promise, because the copy would have been false and
+nothing would have surfaced that.
+
+It rides on `loadMyPairs`, which already enumerates every pair, live and frozen, on every open of
+Ours. Fire-and-forget so it cannot delay the list appearing, and swallowing every failure, because a
+redaction sweep must never be the reason somebody cannot see their shared list. **Frozen lists are
+swept on purpose**: they are the ones that have been sitting longest and exactly the ones somebody
+might want to stop carrying the words of.
+
+**The copy this obliges is not optional**, and it is written where whoever drafts the privacy page
+will read it: removed items keep their words for **at least** thirty days and are blanked the next
+time either person opens the list. Never "within thirty days". Coverage here is "either of you opens
+the app", not a guarantee about elapsed time, and that sentence is what Google fetches during
+review. Cheap to pin now, expensive to have promised wrong.
+
+**Decided against a cron or a server-side sweep.** Both need standing access to every household's
+task text on a timer, in the one feature whose threat model is domestic. The client-triggered
+version needs no elevated key and runs under the caller's own RLS, which is the same posture as
+everything else in Ours.
+
+**And the update check does not need a Worker route after all.** The plan said one endpoint on
+`doubledone-ai`. That would mean a deploy per release, a cold start per check, and a hand-maintained
+value somewhere Melroy does not otherwise go. A static `client/public/version.json` is updated by
+the same push that deploys the web, needs no deploy, no secret and no cold start, and is cached at
+the edge.
+
+**The part that actually shaped it: web and store versions are not the same number.** The web
+deploys the moment `main` is pushed; the stores lag behind review and staged rollout. A single
+auto-stamped "latest" would tell an iPhone that 1.3.0 is out while 1.3.0 sits in App Review, and
+send someone to a store page showing the version they already have. So three numbers: `web` stamped
+automatically at build, because it IS the deployed version and cannot be wrong, and the two store
+numbers bumped by hand when a release actually goes live, which is a moment Melroy is already in
+those dashboards. **Flagged for the build:** confirm Pages serves the file before the SPA fallback
+in `_redirects` catches it, because a version.json that returns the whole app as HTML fails
+confusingly.

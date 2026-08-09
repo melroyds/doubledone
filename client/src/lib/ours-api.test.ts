@@ -401,3 +401,64 @@ describe('resumePair', () => {
     expect(await resumePair(client, 'K7M-P4Q')).toEqual({ ok: false, failure: 'already-live' });
   });
 });
+
+
+// Nothing else in the system would ever run the retention sweep: there is no cron, pg_cron is not
+// enabled, and the Worker's hourly job holds only the anon key while service_role is a standing
+// never. Without a call site the thirty-day promise is a function nobody invokes.
+describe('the retention sweep rides on the membership read', () => {
+  function withPairs(members: unknown[], pairs: unknown[]) {
+    return mockClient({}, { pair_members: { data: members, error: null }, pairs: { data: pairs, error: null } });
+  }
+
+  it('asks for every list, frozen ones included', async () => {
+    const { client, calls } = withPairs(
+      [
+        { pair_id: 'live', user_id: 'me', label: 'M', joined_at: '2026-06-01T00:00:00Z' },
+        { pair_id: 'old', user_id: 'me', label: 'M', joined_at: '2026-01-01T00:00:00Z' },
+      ],
+      [
+        { id: 'live', name: null, closed_at: null, disabled_at: null },
+        { id: 'old', name: null, closed_at: '2026-05-01T00:00:00Z', disabled_at: null },
+      ],
+    );
+    await loadMyPairs(client, 'me');
+
+    const swept = calls.filter((c) => c.fn === 'sweep_shared_tombstones').map((c) => (c.args as { p_pair: string }).p_pair);
+    // Frozen lists are included ON PURPOSE: they are the ones sitting longest, and exactly the ones
+    // somebody might want to stop carrying the words of.
+    expect(swept.sort()).toEqual(['live', 'old']);
+  });
+
+  it('asks for nothing when there is no list', async () => {
+    const { client, calls } = withPairs([], []);
+    await loadMyPairs(client, 'me');
+    expect(calls.filter((c) => c.fn === 'sweep_shared_tombstones')).toHaveLength(0);
+  });
+
+  // A redaction sweep must never be the reason somebody cannot see their shared list.
+  it('still returns the lists when the sweep itself fails', async () => {
+    const { client } = mockClient(
+      { sweep_shared_tombstones: { data: null, error: { code: '42501', message: 'not your list' } } },
+      {
+        pair_members: { data: [{ pair_id: 'p-1', user_id: 'me', label: 'M', joined_at: '2026-01-01T00:00:00Z' }], error: null },
+        pairs: { data: [{ id: 'p-1', name: null, closed_at: null, disabled_at: null }], error: null },
+      },
+    );
+    const res = await loadMyPairs(client, 'me');
+    expect(res.ok && res.value.live?.pairId).toBe('p-1');
+  });
+
+  it('does not make the caller wait for it', async () => {
+    // Not awaited, so the read resolves whatever the sweep is doing. A hung sweep must not hold a
+    // person's list hostage.
+    const { client } = mockClient(
+      { sweep_shared_tombstones: { data: null, error: null } },
+      {
+        pair_members: { data: [{ pair_id: 'p-1', user_id: 'me', label: 'M' }], error: null },
+        pairs: { data: [{ id: 'p-1', name: null, closed_at: null, disabled_at: null }], error: null },
+      },
+    );
+    await expect(loadMyPairs(client, 'me')).resolves.toMatchObject({ ok: true });
+  });
+});

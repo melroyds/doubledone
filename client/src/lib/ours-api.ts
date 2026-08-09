@@ -183,6 +183,32 @@ export async function loadMyPair(client: SupabaseClient, userId: string): Promis
   return { ok: true, value: all.value.live ?? all.value.frozen[0] ?? null };
 }
 
+/**
+ * Ask the server to blank the words of anything removed more than thirty days ago, on one list.
+ *
+ * WHY THIS HAS A CALLER AT ALL. Nothing else would ever run it: there is no cron, `pg_cron` is not
+ * enabled, and the Worker's hourly job holds only the anon key while `service_role` is a standing
+ * never. Without a call site the thirty-day promise would be a function nobody invokes, which is a
+ * worse position than not having promised it.
+ *
+ * BEST EFFORT, ALWAYS. It returns void and swallows everything, because a redaction sweep must
+ * never be the reason a person cannot see their shared list. The server refuses it on a killed pair
+ * by predicate rather than by raising, so a refusal is a zero and not an error, and a frozen list IS
+ * swept deliberately: those are the ones that have been sitting longest.
+ *
+ * The COPY this obliges, and it is not optional: removed items keep their words for **at least**
+ * thirty days and are blanked the next time either person opens the list. Never "within thirty
+ * days". Coverage here is "either of you opens the app", not a guarantee about elapsed time, and
+ * that sentence is what Google reads during review.
+ */
+export async function sweepTombstones(client: SupabaseClient, pairId: string): Promise<void> {
+  try {
+    await client.rpc('sweep_shared_tombstones', { p_pair: pairId });
+  } catch {
+    // Deliberately silent. See above.
+  }
+}
+
 /** Every list you are in: the one live one, and any frozen ones, newest first. */
 export type MyPairs = { live: MyPair | null; frozen: MyPair[] };
 
@@ -238,5 +264,15 @@ export async function loadMyPairs(client: SupabaseClient, userId: string): Promi
   const isLive = (p: MyPair) => !p.closedAt && !p.disabledAt;
   const live = built.filter(isLive).sort(newestFirst)[0] ?? null;
   const frozen = built.filter((p) => !isLive(p)).sort(newestFirst);
+
+  // The retention sweep rides here because this read already enumerates EVERY pair, live and
+  // frozen, on every open of Ours, and nothing else in the system ever would (no cron, no elevated
+  // key). Fire-and-forget: not awaited, so it can never delay the list appearing, and each call is
+  // an indexed UPDATE that matches nothing on all but a handful of days in a list's life.
+  //
+  // Frozen lists are included ON PURPOSE. They are the ones that have been sitting longest, and
+  // they are exactly the lists somebody might want to stop carrying the words of.
+  for (const pair of [...(live ? [live] : []), ...frozen]) void sweepTombstones(client, pair.pairId);
+
   return { ok: true, value: { live, frozen } };
 }

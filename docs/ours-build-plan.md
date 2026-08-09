@@ -283,8 +283,22 @@ the safety net for the window that remains. Both, never either.
 - [ ] **Android and iOS: point at the respective store** (Melroy's explicit preference). There is no
       in-app update API on iOS at all, and Play's needs a native module, so the honest shape is the
       app comparing its own version against a published latest and offering a link.
-- [ ] **One route on the `doubledone-ai` Worker** serving the latest version per platform. One
-      endpoint on infrastructure that already exists. **Needs Melroy's per-instance OK to deploy.**
+- [ ] **A static `client/public/version.json`, NOT a Worker route** (revised 2026-08-09). The
+      Worker version would mean a deploy per release, a cold start per check, and a hand-maintained
+      value somewhere Melroy does not otherwise go. A static file is updated by the same push that
+      deploys the web, needs no Worker deploy and no secret, and is cached at the edge.
+
+      **Three numbers, not one, and this is the part that matters:** web and store versions are
+      NOT the same thing. The web deploys the moment main is pushed; the stores lag behind review
+      and staged rollout. A single auto-stamped "latest" would tell an iPhone that 1.3.0 is out
+      while 1.3.0 is still in App Review, and send someone to a store page showing the version they
+      already have. So: `{ "web": ..., "ios": ..., "android": ... }`, with `web` stamped
+      automatically at build (it IS the deployed version and cannot be wrong) and the two store
+      numbers bumped by hand when a release actually goes live, which is a moment Melroy is already
+      in those dashboards.
+- [ ] **Verify Pages serves it before the SPA fallback.** `client/public/_redirects` sends `/*` to
+      index.html. Static assets should win over the catch-all, but "should" is not "does", and a
+      version.json that returns the whole app as HTML would fail confusingly.
 - [ ] **A quiet fact, never a nag.** No badge, no repeated modal, nothing that reads as "you are out
       of date" to someone who opened the app to write down one thing. The standing rule is remove
       friction, never add a setting, and an update prompt is a demand on attention. A line in
