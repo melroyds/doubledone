@@ -1,7 +1,7 @@
 import { type SupabaseClient } from '@supabase/supabase-js';
 
-import { type CompletionLog, mergeShared, type SharedTask } from './ours-merge';
-import { type Recurrence } from './recurrence';
+import { type CompletionLog, mergeShared, type SharedTask, stillOnList } from './ours-merge';
+import { isDueOn, type Recurrence } from './recurrence';
 
 // The Supabase seam for the SHARED list. Same shape as sync.ts: the row <-> task mapping is pure
 // and unit-tested, and pull / push / syncPairOnce wrap the merge engine (ours-merge.ts) around the
@@ -207,6 +207,34 @@ export function repeatSummaryOf(task: SharedTask): string | undefined {
  *  still shown, with `repeatSummaryOf` if it has one, and is never treated as due today. */
 export function isUnreadableRepeat(task: SharedTask): boolean {
   return task.recurrence === undefined && task.rawRecurrence != null;
+}
+
+/**
+ * Does this shared row belong on the list on `date`?
+ *
+ * THE placement rule for the room, and it was missing entirely: the room filtered on
+ * `stillOnList` alone, which abstains on repeats in favour of a cadence step that was never wired.
+ * So "every Monday" sat on the shared list all seven days, un-ticked, under a sheet that had just
+ * promised "You'll both see it on its day." Worse, it was tappable on a day it was not due, which
+ * wrote a completion for that date into the SHARED log and still read as un-ticked on the real day.
+ *
+ * Three shapes, and the whole difficulty is that the obvious one-liner breaks two of them:
+ *
+ *   · A READABLE repeat is placed by its cadence, through the same `isDueOn` the personal list uses.
+ *   · An UNREADABLE cadence (a newer build wrote it) is ALWAYS shown and never due. Handing it to
+ *     `isDueOn` would fall through to `kind: 'none'`, read a `due` field shared rows do not have,
+ *     and hide it. Hiding is the one thing that decision forbids: each person would think the other
+ *     had deleted it.
+ *   · A ONE-OFF has no recurrence and no `due` either, so `isDueOn` would hide every one of them.
+ *     They keep the day-boundary rule instead.
+ */
+export function onSharedListOn(task: SharedTask, date: string, when: Date): boolean {
+  if (task.deletedAt) return false;
+  if (isUnreadableRepeat(task)) return true; // shown, never placed, never due
+  if (task.recurrence !== undefined && task.recurrence.kind !== 'none') {
+    return isDueOn({ recurrence: task.recurrence }, when);
+  }
+  return stillOnList(task, date);
 }
 
 /**

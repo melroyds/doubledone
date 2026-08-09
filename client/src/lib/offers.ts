@@ -39,6 +39,13 @@ export type OfferState = {
    * major-or-two-minor gap and the fortnight brake; by the time it is true here, it is true rarely.
    */
   updateWorthMentioning: boolean;
+  /**
+   * This account actually has a live shared list. The update rung's whole sentence is about what
+   * the newer build can read of what YOUR PERSON sets, so saying it to the overwhelming majority
+   * with no shared list is both untrue and a funnel on the one screen the design forbids funnels
+   * on. Without a person, the goodnight ladder stays closed at three and Settings carries the fact.
+   */
+  hasSharedList: boolean;
 };
 
 /**
@@ -77,6 +84,6 @@ export function restedOffer(s: OfferState): RestedOffer {
   // LAST, and the only rung that is not about a feature of ours. See the note above the type: this
   // one reopens a closed decision on purpose, and it is framed as what the newer build can do FOR
   // the person's person, never as this one being out of date.
-  if (s.updateWorthMentioning) return 'update';
+  if (s.updateWorthMentioning && s.hasSharedList) return 'update';
   return null;
 }

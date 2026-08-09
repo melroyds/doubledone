@@ -14,6 +14,7 @@ const quiet: OfferState = {
   scrapbookMade: true,
   scrapbookOfferMade: true,
   updateWorthMentioning: false,
+  hasSharedList: true,
 };
 
 // A week with enough finishes that the scrapbook mention would be plainly true.
@@ -106,4 +107,10 @@ describe('the update mention', () => {
     expect(restedOffer({ ...quiet, ...behind, widgetPlaced: false, widgetOfferMade: false })).toBe('widget');
     expect(restedOffer({ ...earned, ...behind })).toBe('scrapbook');
   });
+});
+
+// The rung's sentence is about "your person". Without one it is untrue, and it would be a funnel
+// on the one screen the design forbids funnels on.
+it('is silent for somebody with no shared list, however far behind they are', () => {
+  expect(restedOffer({ ...quiet, updateWorthMentioning: true, hasSharedList: false })).toBeNull();
 });

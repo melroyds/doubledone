@@ -1,6 +1,6 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
@@ -13,9 +13,9 @@ import { type Recurrence } from '@/lib/recurrence';
 import { t } from '@/lib/locale';
 import { makeSharedRef, pulledFrom } from '@/lib/ours-bridge';
 import { loadMyPairs, type MyPair } from '@/lib/ours-api';
-import { isSharedDoneOn, setSharedDone, type SharedTask, stillOnList, washedSince } from '@/lib/ours-merge';
-import { isUnreadableRepeat, POLL_MS, repeatSummaryOf, shouldPoll, syncPairOnce, willTrim } from '@/lib/ours-sync';
-import { clearOursMine, loadOursMine, loadOursSeen, loadOursTasks, loadTasks, markOursSeen, saveOursTasks, saveTasks } from '@/lib/storage';
+import { isSharedDoneOn, setSharedDone, type SharedTask, washedSince } from '@/lib/ours-merge';
+import { isUnreadableRepeat, onSharedListOn, POLL_MS, repeatSummaryOf, shouldPoll, syncPairOnce, willTrim } from '@/lib/ours-sync';
+import { clearOursMine, loadOursMine, loadOursSeen, loadOursTasks, loadTasks, markOursSeen, noteOursMine, pruneOursCache, saveOursTasks, saveTasks } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { makeId, nowMs, type Task, withMonotonicStamps } from '@/lib/tasks';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -50,7 +50,10 @@ export default function OursListScreen() {
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
   const session = useSession();
-  const today = toISODate(new Date());
+  // One Date for the whole render, so the ISO day and the cadence placement can never disagree
+  // across a midnight tick mid-render.
+  const now = useMemo(() => new Date(), []);
+  const today = toISODate(now);
   // The archive opens a CLOSED list here by id. Without it the room only ever shows the live one,
   // and "you can still read everything" would have been a promise with nowhere to keep it.
   const { pair: wantedId } = useLocalSearchParams<{ pair?: string }>();
@@ -62,6 +65,12 @@ export default function OursListScreen() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
   const [notice, setNotice] = useState<string | null>(null); // one calm line, for things worth saying once
+  // The keyboard lift. NOTHING on this stack raises a bottom-anchored input above the keyboard on
+  // its own: SDK 5x Android is edge-to-edge and ignores softwareKeyboardLayoutMode, and there is no
+  // KeyboardAvoidingView here. Today already carries this exact listener for the same reason (see
+  // CLAUDE.md's keyboard gotcha, which cost a whole tester round), and the room's capture bar is a
+  // new bottom-anchored surface that can hold focus, so it needs the same plan.
+  const [kbHeight, setKbHeight] = useState(0);
   // Newest-issued-wins, the same guard the pairing screen needed: several call sites, a network
   // round trip in each, and whichever reply lands last would otherwise win regardless of age.
   const pass = useRef(0);
@@ -72,6 +81,8 @@ export default function OursListScreen() {
   // Whether the membership read has ever SUCCEEDED. The redirect waits on this, so a dropped signal
   // can never be mistaken for "this list is not yours".
   const readOk = useRef(false);
+  // The list this visit is actually looking at, so a change in its liveness cannot silently swap it.
+  const openId = useRef<string | null>(null);
   const focused = useRef(false); // real focus, fed to shouldPoll, which is what its first argument is for
   const seenAt = useRef(0);
   const mine = useRef<Set<string>>(new Set());
@@ -88,8 +99,13 @@ export default function OursListScreen() {
       const call = ++pass.current;
       // Signed out (or no Supabase at all) is a FINISHED load, not a pending one. Returning without
       // saying so left this screen on a bare title forever, because the redirect below waits on
-      // `loaded` and nothing else was ever going to set it.
-      if (!supabase || !session) return setLoaded(true);
+      // `loaded` and nothing else was ever going to set it. `readOk` too, because there is no read
+      // to fail: a signed-out visitor belongs on /ours, which explains why, and the redirect must
+      // not sit behind a successful membership read that can never happen.
+      if (!supabase || !session) {
+        readOk.current = true;
+        return setLoaded(true);
+      }
       const client = supabase;
       const res = await loadMyPairs(client, session.user.id);
       if (call !== pass.current) return;
@@ -99,13 +115,24 @@ export default function OursListScreen() {
       // exactly how the task read below already behaves.
       if (!res.ok) {
         setOffline(true);
-        return setLoaded(true);
+        // NOT `loaded` unless something is already on screen. An unresolved list rendering as an
+        // empty writable one invited somebody to type into a room that does not exist, and every
+        // word of it went nowhere: `commit` needs a pairId to save against and silently had none.
+        return setLoaded(pair !== null);
       }
       readOk.current = true;
       const { live, frozen } = res.value;
+      const all = [live, ...frozen];
       // A named list wins, live or closed: that is the archive asking for a specific one. Otherwise
-      // the live one, and nothing if there is none.
-      const chosen = wantedId ? ([live, ...frozen].find((p) => p?.pairId === wantedId) ?? null) : live;
+      // the list you are ALREADY looking at, then the live one, then nothing.
+      //
+      // Holding onto the open list is what stops your person leaving mid-visit from yanking the
+      // screen out from under you: the list is no longer `live`, so a plain `live` would go null,
+      // fire the redirect, and throw you to the pairing screen in the middle of reading. It closes
+      // in place instead, which is exactly what "reads stay, writes stop" was supposed to mean.
+      const held = openId.current ? (all.find((p) => p?.pairId === openId.current) ?? null) : null;
+      const chosen = wantedId ? (all.find((p) => p?.pairId === wantedId) ?? null) : (held ?? live);
+      openId.current = chosen?.pairId ?? null;
       setPair(chosen);
       if (!chosen) return setLoaded(true);
       const live_ = chosen;
@@ -115,6 +142,12 @@ export default function OursListScreen() {
         // Rows I changed from Today since I was last here. Without these, my own tick on a brought
         // copy comes back tinted as my person's change, which is the room inventing an event.
         for (const id of await loadOursMine(live_.pairId)) mine.current.add(id);
+        // `oursMine` is device-local, so a tick made on the PHONE would come back tinted as my
+        // person's change on the laptop. Every brought copy carries `sharedRef` in the SYNCED tasks
+        // table, so the rows I pulled are provably mine on every device I sign in on, without
+        // syncing a single new thing. It does not cover rows I only ever touched in the room on
+        // another device, which stay a known and accepted gap: a tint too many, cleared next open.
+        for (const sharedId of pulledFrom(await loadTasks(), live_.pairId).keys()) mine.current.add(sharedId);
       }
       setPulled(pulledFrom(await loadTasks(), live_.pairId));
 
@@ -136,14 +169,32 @@ export default function OursListScreen() {
         // permanent "something happened" badge, which is the anxiety this was built to bound.
         void markOursSeen(live_.pairId, nowMs());
         void clearOursMine(live_.pairId); // from here the last-look covers those writes
+        // Cached rows for lists this account no longer belongs to are ANOTHER PERSON'S WORDS on
+        // this device, with nothing left pointing at them. `pruneOursCache` existed for exactly
+        // this and had no caller anywhere, so leaving or deleting a list left its contents behind.
+        void pruneOursCache(all.filter((p): p is MyPair => p != null).map((p) => p.pairId));
       } catch {
         // A failed READ keeps whatever is on screen. This list is somebody's household, and showing
         // it stale beats showing it empty; the line below says so rather than pretending.
         if (call === pass.current) setOffline(true);
       }
     },
-    [session, wantedId],
+    [session, wantedId, pair],
   );
+
+  // iOS uses the will-events; the did-events land after the animation and read as lag.
+  useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', (e) => {
+      setKbHeight(e.endCoordinates?.height ?? 0);
+    });
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => {
+      setKbHeight(0);
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -184,6 +235,7 @@ export default function OursListScreen() {
    *  fifteen-second lag reads as the other person having done something. */
   const commit = useCallback(
     async (next: SharedTask[]) => {
+      if (!pair) return; // nowhere to save it, so do not pretend to
       lastTouch.current = nowMs();
       const stamped = withMonotonicStamps(next, tasks);
       for (const task of stamped) {
@@ -192,7 +244,10 @@ export default function OursListScreen() {
       }
       setWashed(washedSince(stamped, seenAt.current, mine.current));
       setTasks(stamped);
-      if (pair) void saveOursTasks(pair.pairId, stamped);
+      void saveOursTasks(pair.pairId, stamped);
+      // Persisted, not merely held in the ref: if the reconcile below fails, this visit ends
+      // without the last-look moving forward, and the next one would tint my own writes as theirs.
+      void noteOursMine(pair.pairId, [...mine.current]);
       await sync(stamped);
     },
     [pair, tasks, sync],
@@ -200,7 +255,7 @@ export default function OursListScreen() {
 
   function add() {
     const title = draft.trim();
-    if (!title || isPairFrozen(pair)) return;
+    if (!title || !pair || isPairFrozen(pair)) return;
     setDraft('');
     if (willTrim(title)) setNotice(t('ours.shareTrim')); // said BEFORE, never discovered after
     const now = nowMs();
@@ -284,7 +339,10 @@ export default function OursListScreen() {
   // still possible. `ours_is_open` and the RLS both refuse writes anyway; this is the screen
   // agreeing with the server rather than letting somebody tap into a refusal.
   const frozen = isPairFrozen(pair);
-  const visible = tasks.filter((task) => stillOnList(task, today));
+  // A CLOSED list shows everything it ever held, because the copy promises "you can still read
+  // everything here" and a day-boundary drop would quietly make that false the morning after.
+  // A live one is placed by cadence and lets go of yesterday's finished work.
+  const visible = frozen ? tasks.filter((task) => !task.deletedAt) : tasks.filter((task) => onSharedListOn(task, today, now));
   // Recently removed, folded at the foot. Seven days, dimmed, and it names nobody: it says a thing
   // was taken off the list, never which of you took it off.
   const removed = tasks
@@ -355,11 +413,16 @@ export default function OursListScreen() {
             {/* A cadence this build cannot read: SHOWN, never hidden, because hiding it means one
                 person sees the task and the other does not and each concludes the other deleted it.
                 Inert, with whatever plain-English line the writing app left. */}
+            {/* Why this row does not respond, in words, on screen. It used to reach a screen reader
+                through the row's label and nobody else, so a sighted user on a closed list simply
+                tapped a row that did nothing. */}
             {isUnreadableRepeat(task) ? (
               <Text style={styles.cadenceNote}>
                 {repeatSummaryOf(task) ? `${repeatSummaryOf(task)}  ·  ` : ''}
                 {t('ours.repeatUnknown')}
               </Text>
+            ) : frozen && confirmingId === task.id ? (
+              <Text style={styles.cadenceNote}>{t('ours.frozenRow')}</Text>
             ) : null}
           </View>
         ))}
@@ -392,7 +455,7 @@ export default function OursListScreen() {
           key={cadenceTask.id}
           visible
           onClose={() => setCadenceId(null)}
-          today={new Date()}
+          today={now}
           sheetTitle={t('repeat.editSheetTitle')}
           title={cadenceTask.title}
           recurrence={cadenceTask.recurrence}
@@ -407,7 +470,7 @@ export default function OursListScreen() {
           Gone entirely on a closed list: a field you can tap into and then not use is crueller than
           no field, and the server would refuse the write in any case. */}
       {!frozen && (
-        <View style={[styles.capture, { paddingBottom: insets.bottom + spacing.three }]}>
+        <View style={[styles.capture, { paddingBottom: insets.bottom + spacing.three + Math.max(0, kbHeight - (Platform.OS === 'ios' ? insets.bottom : 0)) }]}>
         <TextInput
           value={draft}
           onChangeText={(v) => {

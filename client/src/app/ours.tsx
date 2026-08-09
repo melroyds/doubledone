@@ -185,8 +185,15 @@ export default function OursScreen() {
     const res = await loadMyPairs(supabase, session.user.id);
     if (mine !== pass.current) return; // overtaken: a newer pass owns the screen
     if (res.ok) {
-      const next = res.value.live;
-      setArchive(res.value.frozen);
+      // The frozen FALLBACK, which the archive work dropped and which this whole screen is written
+      // against. `loadMyPair` (singular) has always returned `live ?? frozen[0]`; swapping to
+      // `loadMyPairs` and taking only `.live` made `frozen` permanently false, so the entire "This
+      // list is closed" state stopped rendering and took Reopen-together and Delete-for-good with
+      // it. The person who had just been left got the intro screen offering to start a new list,
+      // which is the exact reading that copy exists to prevent.
+      const next = res.value.live ?? res.value.frozen[0] ?? null;
+      // Whatever is being shown as the current list is not also listed underneath itself.
+      setArchive(res.value.frozen.filter((p) => p.pairId !== next?.pairId));
       setTucked(await loadTuckedPairs());
       if (mine !== pass.current) return;
       // hasPartner, not the label. Fixing `waiting` and the sharing branch and leaving THIS one is
@@ -257,6 +264,12 @@ export default function OursScreen() {
   }
 
   async function submitCreate() {
+    // Same guard as the join path and as `rename_self`: an empty label falls through to the
+    // server's fallback and the OTHER person reads "Kept with me" forever.
+    if (!myLabel.trim()) {
+      setFailure('bad-name');
+      return;
+    }
     if (!supabase || busy) return;
     if (!looksLikeEmail(theirEmail)) {
       setFailure('bad-email');
@@ -300,6 +313,13 @@ export default function OursScreen() {
       setFailure('invalid-code');
       return;
     }
+    // The name is not optional, whatever the field's calm placeholder suggests: skipping it let the
+    // server's fallback through, and the OTHER person then read "Kept with me" and "Sharing with
+    // me" forever. `renameSelf` already refuses an empty label; both entry points must too.
+    if (!myLabel.trim()) {
+      setFailure('bad-name');
+      return;
+    }
     setBusy(true);
     setFailure(null);
     // ONE field for both kinds of code, and the person typing never learns there were two. A code
@@ -307,7 +327,13 @@ export default function OursScreen() {
     // the same place, so the app tries the ordinary join and falls through to the reopen rather
     // than making somebody know which sort of invitation they were handed.
     let res = await joinPair(supabase, typedCode, myLabel);
-    if (!res.ok && res.failure === 'invalid-code') res = await resumePair(supabase, typedCode);
+    // The fall-through costs a SECOND attempt against the same hourly ceiling, so a mistyped code
+    // used to spend two of ten and lock somebody out after five wrong guesses instead of ten. It is
+    // now skipped entirely when the server has already said the account is being throttled, and
+    // when there is no closed list of ours for a resume code to belong to.
+    if (!res.ok && res.failure === 'invalid-code' && archive.length > 0) {
+      res = await resumePair(supabase, typedCode);
+    }
     setBusy(false);
     if (!res.ok) {
       report(res.failure);
@@ -362,7 +388,12 @@ export default function OursScreen() {
     if (!supabase || !pair || busy) return;
     setBusy(true);
     setFailure(null);
-    const res = await leavePair(supabase, pair.pairId);
+    // "Nobody has joined, so there is nothing to close. The code stops working." That is what the
+    // hint promises, and `leave_pair` was quietly freezing it into the archive forever instead.
+    // Deleting your own membership fires `prune_empty_pair`, which finds nobody left and disposes
+    // of the pair and its cascade: no partner, no shared words, nothing to keep and nobody to keep
+    // it from. With a partner it stays a freeze, which is the whole never-delete-their-words rule.
+    const res = pair.hasPartner ? await leavePair(supabase, pair.pairId) : await forgetPair(supabase, pair.pairId);
     setBusy(false);
     if (!res.ok) {
       report(res.failure);
@@ -588,6 +619,9 @@ export default function OursScreen() {
   }
 
   function body() {
+    // `loading` FIRST: rendering "Sharing needs an account" while the session is still hydrating
+    // tells a signed-in person they are signed out, on the screen where that is most alarming.
+    if (loading) return null;
     if (!session) {
       return (
         <View style={styles.block}>
@@ -603,8 +637,6 @@ export default function OursScreen() {
         </View>
       );
     }
-
-    if (loading) return null;
 
     // Frozen: someone left. Reads stay, writes stop, and the copy has to be literally true, because
     // a person reading this has just been left and will check.

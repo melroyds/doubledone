@@ -234,6 +234,9 @@ export function TaskRow({
             <Text style={styles.selectMore}>{t('today.selectMore')}</Text>
           </Pressable>
         )}
+        {/* Only when there is something to remove. A closed list passes no handler, and the control
+            used to render anyway: a live-looking Remove that did nothing at all. */}
+        {onRemove && (
         <Pressable
           onPress={onRemove}
           accessibilityRole="button"
@@ -242,6 +245,7 @@ export function TaskRow({
         >
           <Text style={styles.remove}>{skips ? t('repeat.skipToday') : t('common.remove')}</Text>
         </Pressable>
+        )}
       </View>
     );
 

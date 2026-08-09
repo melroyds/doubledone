@@ -381,6 +381,7 @@ export const it: Catalog = {
     shareMessage: "Una lista condivisa su DoubleDone, se ti va. Apri doubledone.app, accedi con l'indirizzo email che ho messo per te, scegli Entra con un codice e scrivi {code}. Il codice dura un giorno.",
     shareTo: 'Condividi nella nostra lista',
     shareTrim: 'Su Ours i titoli sono più corti. Questo verrà accorciato per entrare.',
+    sharedToOurs: 'Aggiunta alla vostra lista condivisa.',
     sharingWith: 'Condivisa con {name}',
     showPutAway: 'Mostra quelle messe via',
     signIn: 'Accedi per condividere',

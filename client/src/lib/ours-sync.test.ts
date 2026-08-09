@@ -5,6 +5,7 @@ import {
   IDLE_STOP_MS,
   isPairReadOnly,
   isUnreadableRepeat,
+  onSharedListOn,
   knownRecurrence,
   repeatSummaryOf,
   pullPair,
@@ -499,5 +500,51 @@ describe('a cadence this build cannot place on a day', () => {
 
   it('ignores a summary that is not a string, rather than rendering an object', () => {
     expect((knownRecurrence({ kind: 'daily', summary: { a: 1 } }) as { summary?: unknown })?.summary).toBeUndefined();
+  });
+});
+
+// THE placement rule, which was missing entirely: the room filtered on stillOnList alone, so
+// "every Monday" sat on the shared list all seven days under a sheet that had just promised
+// "You'll both see it on its day."
+describe('what belongs on the shared list on a given day', () => {
+  const MON = new Date(2026, 7, 10); // a Monday
+  const TUE = new Date(2026, 7, 11);
+  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const row = (over: Partial<SharedTask> & { id: string }): SharedTask => ({ title: 'x', done: false, createdAt: 1, updatedAt: 1, ...over });
+
+  it('places a weekly repeat on its day and nowhere else', () => {
+    const bins = row({ id: 'bins', recurrence: { kind: 'weekly', weekdays: [1] } }); // Monday
+    expect(onSharedListOn(bins, iso(MON), MON)).toBe(true);
+    expect(onSharedListOn(bins, iso(TUE), TUE)).toBe(false);
+  });
+
+  it('places an interval repeat on its beat', () => {
+    const cat = row({ id: 'cat', recurrence: { kind: 'interval', days: 2, anchor: '2026-08-10' } });
+    expect(onSharedListOn(cat, iso(MON), MON)).toBe(true);
+    expect(onSharedListOn(cat, iso(TUE), TUE)).toBe(false);
+  });
+
+  it('honours a daily repeat that has not started yet', () => {
+    const later = row({ id: 'later', recurrence: { kind: 'daily', start: '2026-08-11' } });
+    expect(onSharedListOn(later, iso(MON), MON)).toBe(false);
+    expect(onSharedListOn(later, iso(TUE), TUE)).toBe(true);
+  });
+
+  // The landmine. isDueOn on an unreadable repeat falls through to kind 'none', reads a `due`
+  // field shared rows do not have, and returns false, which would HIDE it. Hiding is the one thing
+  // that decision forbids: each person would conclude the other had deleted it.
+  it('always shows an unreadable cadence, on every day', () => {
+    const odd = row({ id: 'odd', rawRecurrence: { kind: 'lunar', summary: 'every full moon' } });
+    expect(onSharedListOn(odd, iso(MON), MON)).toBe(true);
+    expect(onSharedListOn(odd, iso(TUE), TUE)).toBe(true);
+  });
+
+  // The other landmine: a one-off has no recurrence AND no due, so a naive isDueOn hides them all.
+  it('keeps an open one-off, which has no cadence to be placed by', () => {
+    expect(onSharedListOn(row({ id: 'milk' }), iso(MON), MON)).toBe(true);
+  });
+
+  it('drops a removed row whatever its shape', () => {
+    expect(onSharedListOn(row({ id: 'gone', deletedAt: 5, recurrence: { kind: 'daily' } }), iso(MON), MON)).toBe(false);
   });
 });

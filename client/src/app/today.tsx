@@ -56,7 +56,7 @@ import * as Application from 'expo-application';
 
 import { isOursOpen, loadMyPairs } from '@/lib/ours-api';
 import { checkForUpdate, currentPlatform } from '@/lib/update-check';
-import { shouldMention, type UpdateStatus, updateUrl } from '@/lib/updates';
+import { FALLBACK_VERSION, shouldMention, type UpdateStatus, updateUrl } from '@/lib/updates';
 import { parseSharedRef, sharedRestNotes } from '@/lib/ours-bridge';
 import { setSharedDone, type SharedTask } from '@/lib/ours-merge';
 import { isUnreadableRepeat, syncPairOnce, willTrim } from '@/lib/ours-sync';
@@ -118,7 +118,11 @@ async function settleSharedCopies(
     if (notes.length === 0) return null;
     const retiring = new Set(notes.map((note) => note.id));
     const now = nowMs();
-    const next = mineNow.map((task) => (retiring.has(task.id) ? { ...task, deletedAt: now, updatedAt: now } : task));
+    const retired = mineNow.map((task) => (retiring.has(task.id) ? { ...task, deletedAt: now, updatedAt: now } : task));
+    // The same monotonic lift every other write here gets. A slow device clock would otherwise
+    // stamp this retirement BEHIND the row it replaces, so the next sync would resurrect the copy
+    // and the rest-note would reappear every single visit.
+    const next = withMonotonicStamps(retired, mineNow);
     await saveTasks(next);
     return { next, notes };
   } catch {
@@ -253,6 +257,10 @@ export default function TodayScreen() {
   const [restNotes, setRestNotes] = useState<{ id: string; title: string }[]>([]);
   // Bumped on every focus, so effects that must re-run per VISIT (rather than per mount) can say so.
   const [visit, setVisit] = useState(0);
+  // Tasks already shared onto the list this session, so the fold's action cannot make a duplicate
+  // from a double tap. Session-scoped on purpose: sharing the same task again next week is a thing
+  // somebody may legitimately want, and remembering forever would be the app deciding otherwise.
+  const [sharedToOurs, setSharedToOurs] = useState<ReadonlySet<string>>(new Set());
   // Is this build far enough behind to be worth one line on the goodnight screen? The rarity test
   // lives in updates.ts; this is only the answer.
   const [updateStatusNow, setUpdateStatusNow] = useState<UpdateStatus | null>(null);
@@ -351,7 +359,7 @@ export default function TodayScreen() {
       void loadDayEnergy(toISODate(today)).then((rec) => {
         if (active && rec) setDayEnergySel(rec.level);
       });
-      void checkForUpdate(Application.nativeApplicationVersion ?? '1.2.0').then((status) => {
+      void checkForUpdate(Application.nativeApplicationVersion ?? FALLBACK_VERSION).then((status) => {
         if (active) setUpdateStatusNow(status);
       });
       void loadUpdateMentioned().then((at) => {
@@ -1447,7 +1455,13 @@ export default function TodayScreen() {
     if (!oursPairId || !supabase) return;
     const client = supabase;
     setConfirmingId(null);
+    if (sharedToOurs.has(task.id)) return; // already crossed, and a second copy helps nobody
+    setSharedToOurs((prev) => new Set(prev).add(task.id));
+    // The trim warning comes FIRST and the confirmation second, so the order on screen matches the
+    // order of events. Silence used to be the only feedback, which reads as "did that work?" and
+    // invites the second tap that made the duplicate.
     if (willTrim(task.title)) affirm(t('ours.shareTrim'));
+    else affirm(t('ours.sharedToOurs'));
     const now = nowMs();
     const copy: SharedTask = { id: makeId(), title: task.title, done: false, createdAt: now, updatedAt: now };
     try {
@@ -2031,7 +2045,7 @@ export default function TodayScreen() {
             {/* At most ONE lifeline offer, ever, decided by the pure `restedOffer` rules: the app is
                 so calm that its own opt-in lifelines are invisible (a returning user asked for four
                 things that already existed), but the goodnight screen must never become a pitch. */}
-            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning }) === 'reminder' && (
+            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning, hasSharedList: oursPairId != null }) === 'reminder' && (
               <View style={styles.reminderOffer}>
                 <Text style={styles.reminderOfferText}>{t('reminders.offerText')}</Text>
                 <View style={styles.reminderOfferRow}>
@@ -2044,7 +2058,7 @@ export default function TodayScreen() {
                 </View>
               </View>
             )}
-            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning }) === 'widget' && (
+            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning, hasSharedList: oursPairId != null }) === 'widget' && (
               <View style={styles.reminderOffer}>
                 {widgetHowShown ? (
                   <Text style={styles.reminderOfferText}>{t('reminders.widgetOfferHow')}</Text>
@@ -2068,7 +2082,7 @@ export default function TodayScreen() {
                 second framing is a demand and this screen exists to make none. "Not now" costs
                 nothing and is never remembered: the fortnight brake is the only thing that decides
                 whether it is ever said again. */}
-            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning }) === 'update' && (
+            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning, hasSharedList: oursPairId != null }) === 'update' && (
               <View style={styles.reminderOffer}>
                 <Text style={styles.reminderOfferText}>{t('updates.offer')}</Text>
                 <View style={styles.reminderOfferRow}>
@@ -2081,7 +2095,7 @@ export default function TodayScreen() {
                 </View>
               </View>
             )}
-            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning }) === 'scrapbook' && (
+            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning, hasSharedList: oursPairId != null }) === 'scrapbook' && (
               <View style={styles.reminderOffer}>
                 <Text style={styles.reminderOfferText}>{t('today.scrapbookOffer')}</Text>
                 <View style={styles.reminderOfferRow}>
@@ -2169,7 +2183,7 @@ export default function TodayScreen() {
               onMoveTo={!isRecurring(task) ? () => setMoveIds([task.id]) : undefined}
               onDoneOn={isDoneOn(task, today) && !isRecurring(task) ? () => openDoneOn(task.id) : undefined}
               origin={task.sharedRef ? `· ${t('ours.defaultName')}` : undefined}
-              onShareToOurs={oursPairId && !task.sharedRef && !isDoneOn(task, today) ? () => void shareToOurs(task) : undefined}
+              onShareToOurs={oursPairId && !task.sharedRef && !sharedToOurs.has(task.id) && !isDoneOn(task, today) ? () => void shareToOurs(task) : undefined}
               pinDim={!premium && task.pinnedAt == null}
               suggestBreakdown={task.suggestBreakdown}
               selecting={selectMode}
@@ -2256,7 +2270,7 @@ export default function TodayScreen() {
                   onSteps={!isRecurring(task) ? () => openSliceEdit(task.id) : undefined}
                   onMoveTo={!isRecurring(task) ? () => setMoveIds([task.id]) : undefined}
                   origin={task.sharedRef ? `· ${t('ours.defaultName')}` : undefined}
-                  onShareToOurs={oursPairId && !task.sharedRef && !isDoneOn(task, today) ? () => void shareToOurs(task) : undefined}
+                  onShareToOurs={oursPairId && !task.sharedRef && !sharedToOurs.has(task.id) && !isDoneOn(task, today) ? () => void shareToOurs(task) : undefined}
                   selecting={selectMode}
                   selected={selected.includes(task.id)}
                   onSelect={() => toggleSelect(task.id)}

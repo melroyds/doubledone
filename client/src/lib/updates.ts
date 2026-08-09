@@ -107,6 +107,16 @@ export const STORE_URLS = {
   android: 'https://play.google.com/store/apps/details?id=app.doubledone',
 } as const;
 
+/**
+ * This build's own version, from app.json via expo-constants at the call sites that have it, with
+ * ONE literal fallback here rather than a copy of it beside every caller.
+ *
+ * It was two hand-edited '1.2.0' literals in two screens. Bumping app.json and forgetting either
+ * would have given every web user a permanent "a newer version is ready" that reloading never
+ * clears, which is the one failure mode this whole feature must not have.
+ */
+export const FALLBACK_VERSION = '1.2.0';
+
 export function updateUrl(platform: 'web' | 'ios' | 'android'): string | null {
   if (platform === 'ios') return STORE_URLS.ios;
   if (platform === 'android') return STORE_URLS.android;

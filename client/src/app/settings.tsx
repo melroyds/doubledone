@@ -23,7 +23,7 @@ import { type Appearance, type MotionPref, type TextSize, THEME_NAMES, type Them
 import { loadLastSyncOk, loadReminderHour, loadReminderOn, loadScrapbooks, loadTasks, saveReminderHour, saveReminderOn, wipeLocalData } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { checkForUpdate, currentPlatform } from '@/lib/update-check';
-import { type UpdateStatus, updateUrl } from '@/lib/updates';
+import { FALLBACK_VERSION, type UpdateStatus, updateUrl } from '@/lib/updates';
 import { track } from '@/lib/telemetry';
 import { useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
@@ -115,7 +115,7 @@ export default function SettingsScreen() {
       void loadLastSyncOk().then((v) => {
         if (active) setSyncOk(v);
       });
-      void checkForUpdate(Application.nativeApplicationVersion ?? '1.2.0').then((status) => {
+      void checkForUpdate(Application.nativeApplicationVersion ?? FALLBACK_VERSION).then((status) => {
         if (active) setUpdate(status);
       });
       if (supabase && session) {
@@ -745,7 +745,7 @@ export default function SettingsScreen() {
             they held. This one quiet line ends that class of ambiguity. Not a catalog string:
             it is an identifier, identical in every locale. */}
         <Text style={styles.footnote}>
-          {`v${Application.nativeApplicationVersion ?? '1.2.0'} (${Application.nativeBuildVersion ?? 'web'})`}
+          {`v${Application.nativeApplicationVersion ?? FALLBACK_VERSION} (${Application.nativeBuildVersion ?? 'web'})`}
           {update && !update.behind ? `  ·  ${t('updates.upToDate')}` : ''}
         </Text>
 

@@ -385,6 +385,7 @@ export const en = {
     shareMessage: "A shared list on DoubleDone, if you'd like one. Open doubledone.app, sign in with the email address I used for you, then pick Join with a code and enter {code}. It lasts a day.",
     shareTo: 'Share to Ours',
     shareTrim: 'Ours keeps titles shorter. This one will be trimmed to fit.',
+    sharedToOurs: 'Added to your shared list.',
     sharingWith: 'Sharing with {name}',
     showPutAway: 'Show the ones put away',
     signIn: 'Sign in to share',

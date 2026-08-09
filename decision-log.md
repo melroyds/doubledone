@@ -5824,3 +5824,68 @@ are written to catch the things this round got wrong rather than only the things
 OUR-22 is the cross-day un-tick, OUR-25 is ticking a brought copy on a device that has never opened
 the room, OUR-32 is the "Skip today" label that deleted a series. A suite that only tests the happy
 path would have passed every one of those.
+
+## 2026-08-09 The pre-merge pass: 52 raised, 43 real, and two of them would have shipped broken
+
+Seven lenses over the whole feature, every finding handed to a refuter. Nine died there. The two
+that would have reached paying users:
+
+**Shared repeating rows were never placed on their day.** The room filtered on `stillOnList` alone,
+which abstains on repeats in favour of a cadence step that was never wired. So "every Monday" sat on
+the shared list all seven days, un-ticked, directly under a sheet that had just promised "You'll both
+see it on its day." in five languages. Worse, it was tappable on a day it was not due, which wrote a
+completion for that date into the SHARED log and still read as un-ticked on the real day. Three
+artifacts said it was already done: the docstring, a ticked plan line, and a decision-log entry.
+None of them was code.
+
+The fix had a landmine the refuter caught and I would not have: handing rows to `isDueOn` wholesale
+HIDES unreadable cadences (they fall through to `kind: 'none'`, read a `due` field shared rows do not
+have, and answer false), which reverses the one decision whose whole point is that hiding makes each
+person think the other deleted it. It also hides every one-off, for the same reason.
+`onSharedListOn` therefore forks three ways, and the two exemptions are the tested part.
+
+**I broke the entire frozen state myself, this afternoon.** Swapping `refresh()` from `loadMyPair`
+(which returns `live ?? frozen[0]`) to `loadMyPairs` (which returns only `live`) made `frozen`
+permanently false, so "This list is closed" stopped rendering and took Reopen-together and
+Delete-for-good with it. The person who had just been left got the intro screen offering to start a
+new list, which is the exact reading that copy exists to prevent, and two P1 launch-gate cases could
+not be executed at all. Built and reviewed the same day, unreachable within the hour.
+
+The rest, and what each one really was:
+
+- **A closed list hid every finished task**, under copy promising you can still read everything here.
+  The day-boundary drop is now live-lists-only.
+- **You were ejected mid-visit if your person left while you were reading.** The room now holds the
+  list it opened and lets it close in place, which is what "reads stay, writes stop" meant.
+- **A failed read rendered an empty WRITABLE list** and silently ate what you typed into it, because
+  `commit` needs a pairId and had none. Every write path now refuses without a resolved list.
+- **The capture bar had no keyboard plan**, on a stack where CLAUDE.md records that nothing lifts a
+  bottom-anchored input on its own and that this exact omission cost a whole tester round.
+- **`pruneOursCache` had no caller anywhere**, so another person's words stayed on the device after
+  you left or deleted the list. That is the second time this round a thing was written, reviewed,
+  tested and never called.
+- **Solo-leave said "there is nothing to close" and then froze the list into the archive forever.**
+  Leaving a list nobody joined now deletes the membership, so `prune_empty_pair` disposes of it and
+  the copy becomes true.
+- **An empty name silently became the server's fallback**, so the other person read "Kept with me"
+  forever. Both entry points now refuse it, as `rename_self` already did.
+- **One mistyped join code spent TWO of the ten hourly attempts**, because the resume fall-through
+  is a second call, so the lockout fired after five wrong guesses. The probe is now skipped when
+  there is no closed list for a resume code to belong to.
+- **The goodnight update line said "your person" to everybody**, including the overwhelming majority
+  with no shared list: untrue, and a funnel on the one screen the design forbids funnels on.
+- **Share to Ours succeeded in silence** and could be tapped again into a duplicate on somebody
+  else's list.
+- **The wash tinted your own edits as your person's on a second device**, because `oursMine` is
+  device-local. Every brought copy carries `sharedRef` in the synced tasks table, so those are
+  provably yours everywhere, without syncing anything new.
+- **The privacy policy said nothing about shared lists**, in either copy: what the other person can
+  see, that authorship is not stored, that leaving freezes rather than deletes, and the thirty-day
+  window on removed wording. Both copies, same commit, per the standing rule.
+- Plus: a dead Remove control on a frozen row, one hardcoded version literal in two screens, the
+  signed-out flash during session hydration, the missing monotonic lift on the rest-note tombstone,
+  and the room not recording its own writes when a sync fails.
+
+**The lesson, and it is the same one twice in one day:** built, reviewed, tested and applied to the
+live database is not the same as REACHABLE. Three separate things this round had zero call sites,
+and one of them was the entire management screen. A checkbox should mean a user can get to it.
