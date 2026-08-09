@@ -330,6 +330,7 @@ export const en = {
     errNotYours: 'This list is closed to changes.',
     errOffline: 'No connection just now. Try again in a moment.',
     errOwnEmail: "That's your own address.",
+    errPartnerGone: 'This list stays here to read, but it cannot be reopened: the person you shared it with is no longer on it.',
     errRateLimited: 'Joining is paused just now. Nothing is wrong with your account. You can try again in an hour.',
     errTooManyLists: "This account has reached DoubleDone's limit for shared lists.",
     errUnknown: "That didn't work just now. Try again?",

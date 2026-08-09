@@ -326,6 +326,7 @@ export const it: Catalog = {
     errNotYours: 'Questa lista è chiusa e non si può più modificare.',
     errOffline: "Ora non c'è connessione. Riprova tra un momento.",
     errOwnEmail: 'Quello è il tuo indirizzo.',
+    errPartnerGone: "Questa lista resta qui da leggere, ma non si può più riaprire: la persona con cui la condividevi non c'è più.",
     errRateLimited: "Non si può entrare in questo momento. Il tuo account è a posto. Puoi riprovare tra un'ora.",
     errTooManyLists: 'Questo account ha raggiunto il limite di liste condivise di DoubleDone.',
     errUnknown: 'Questa volta non ha funzionato. Vuoi riprovare?',

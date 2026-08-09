@@ -324,7 +324,12 @@ begin
   if new.done_at is not null then
     new.done_at := least(new.done_at, now() + interval '1 day');
   end if;
-  -- deleted_at is deliberately unbounded: nothing reads it as a magnitude, only null / not-null.
+  -- deleted_at IS read as a magnitude, as of Phase 5: sweep_shared_tombstones (ours-resume.sql)
+  -- redacts a removed task's words 30 days after this stamp. It is therefore SERVER-OWNED there,
+  -- not clamped here: see the create-or-replace of this function in ours-resume.sql, which is the
+  -- live definition. Client-written and unclamped it was a permanent delete button, since one
+  -- PATCH setting 1970 collapses the horizon to zero, and an honest phone with a slow clock does
+  -- the same thing by accident.
   return new;
 end;
 $$;
@@ -627,7 +632,18 @@ begin
   -- unbounded branch would make a long-dead code a free success forever.
   select i.pair_id into v_pair
   from public.pair_invites i
-  where i.code_hash = v_hash and i.expires_at > now() and public.is_pair_member(i.pair_id);
+  where i.code_hash = v_hash and i.expires_at > now() and public.is_pair_member(i.pair_id)
+    -- Liveness, byte-identical to the consume statement below. Phase 5 (ours-resume.sql) mints the
+    -- first invite that can point at a FROZEN pair, and a resume code's redeemer is a member of
+    -- that pair BY CONSTRUCTION, so without this the branch hands back a full success row that
+    -- consumes no code, clears no closed_at and changes nothing, while the screen reads "sharing
+    -- with Sam" over a list that is still closed. Written inline and NOT as is_pair_writable(),
+    -- even though the helper is exact here, because the consume below CANNOT use it (the joiner is
+    -- not a member yet) and a call to it four lines above that comment invites someone to "make it
+    -- consistent" and break joining outright. Also closes the same false success on a killed pair,
+    -- which is reachable today.
+    and exists (select 1 from public.pairs pr
+                where pr.id = i.pair_id and pr.closed_at is null and pr.disabled_at is null);
   if v_pair is not null then
     select m.label into v_label from public.pair_members m
       where m.pair_id = v_pair and m.user_id <> v_uid limit 1;

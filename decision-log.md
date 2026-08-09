@@ -5230,3 +5230,18 @@ person whose app is up to date would be the one breaking it for the person whose
 **One accepted ugliness:** the stored summary is in the writer's language, so an Italian reader can
 be shown an English cadence line. A reader that understands the cadence must ignore the stored one
 and render its own, so this only ever appears where the alternative was nothing at all.
+
+## 2026-08-09 The order stands: SQL, then design, then merge
+
+I argued for merging first, on the grounds that the audit's number one risk is the email binding and
+that is a mechanics question only a real pairing with a real account can answer, so finding it early
+would make the design brief better. Melroy overruled it and kept his original order: finish the
+resume SQL, do the design pass, and only then push. **"If we're going to push something, let's get
+it in the best possible state that we can."**
+
+Recorded because the reasoning is worth keeping and because it is the second time this instinct has
+been right on this project. The counter-argument I did not weigh heavily enough: a dogfood of an
+un-designed screen teaches the flow twice, once badly, and the two households who asked for this are
+not a resource to spend on a version nobody intends to keep. The email-binding risk does not expire;
+it will still be there to find after the design lands, and by then finding it costs one conversation
+rather than one first impression.

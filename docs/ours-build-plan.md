@@ -154,8 +154,12 @@ lands first and a real household gets a real thing sooner.*
       it is a door the other person cannot drag you back through, so a one-sided reopen would
       turn leaving into a pause someone else can undo. Needs a reopen path in
       `join_pair` (which today refuses closed pairs, correctly), and it only works while BOTH
-      memberships still exist. A frozen list costs no live slot, so an old one can be resumed
-      later even while a current list exists
+      memberships still exist. A frozen list costs no live slot, so LEAVING never blocks you from
+      starting a new list. **Waking one is different and needs a free live slot on BOTH sides**,
+      which the SQL enforces at mint and again at redeem: the review found that without the second
+      check a person could end up holding two live lists, one of which their own app could neither
+      render nor leave. The earlier wording here said a frozen list could be woken while a live one
+      exists; that was wrong, and loosening the check to match it would reopen the defect
 - [ ] "Put it away" on a frozen list: TUCKS, deletes nothing (round one's D8, which replaces the
       build's destructive `forget_pair` and removes the delayed-commit-undo problem entirely)
 - [ ] **Tombstone redaction at 30 days** (Melroy, 2026-08-09). A definer
@@ -250,8 +254,15 @@ policy. After two guideline rejections in July, a third blocks the whole release
 *Agreed with Melroy 2026-08-09, and deliberately sequenced AFTER the dogfood gate and the round-two
 design pass, so it does not compete with either.*
 
-**Order, agreed:** dogfood gate first, then the design, then this build across all three platforms,
-then the Worker deploy, then testing.
+**Order, REVISED 2026-08-09 (Melroy):** the update surfaces go INTO the round-two design brief, so
+they are designed once alongside Ours rather than bolted on afterwards. The design-independent logic
+is built now; the surfaces wait for the design like everything else.
+
+- [x] `lib/updates.ts`: version comparison that is numeric rather than lexical, a status that fails
+      QUIET on anything it cannot believe, the per-platform route (web reloads, phones go to their
+      store), and `shouldMention`, which is deliberately hard to satisfy: nothing outside Settings
+      unless the build is two minor versions or a major behind, and then once a fortnight at most,
+      because a message that repeats is a nag however gently it is worded. 17 tests.
 
 **What it is for.** Two people on a shared list can be on different app versions, which is the
 ordinary state. This shrinks that window. **It does not close it**, and the plan must not pretend

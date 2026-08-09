@@ -69,7 +69,11 @@ begin
     raise exception 'not your list' using errcode = '42501';
   end if;
   if not exists (select 1 from public.pairs pr where pr.id = p_pair and pr.closed_at is not null) then
-    raise exception 'not your list' using errcode = '42501';
+    -- Race-only and self-healing (the other member resumed while this screen was open). Safe to say
+    -- honestly: membership is checked above, and a member can already read closed_at. Deliberately
+    -- NOT the word "open": classifyPairError forks 42501 on the substring "not open", and a near
+    -- miss there is a trap for the next reader.
+    raise exception 'that list is already live' using errcode = '42501';
   end if;
 
   -- A pair killed by the abuse switch is NOT resumable, and must not be distinguishable from any
@@ -85,7 +89,16 @@ begin
   where m.pair_id = p_pair and m.user_id <> v_uid
   limit 1;
   if v_other is null then
-    raise exception 'that list is full' using errcode = '23505';  -- reuses the calm "cannot pair" line
+    -- The other member deleted their account or their membership, so prune_empty_pair froze this
+    -- pair and left you as its only member. This is PERMANENT: join_pair requires closed_at is
+    -- null and resume_pair requires existing membership, so nothing can ever add a second person
+    -- to a frozen pair. It borrowed 23505 "full" before, which told a person who had just been
+    -- left that a list containing one person was full. 42501 rather than a new code, so a stale
+    -- client degrades to "This list is closed to changes", which is true of a list staying frozen;
+    -- anything on 23505 degrades to "you already have a shared list, you can leave it", which is
+    -- the worst available sentence here. Nothing is disclosed: the membership read already lets
+    -- this caller see there is nobody else, and the client already computes partnerLabel as null.
+    raise exception 'nobody left to resume with' using errcode = '42501';
   end if;
 
   -- Waking this list would put you over the live cap. Frozen lists cost no slot, so this only fires
@@ -100,7 +113,10 @@ begin
   if v_other_email is null or position('@' in v_other_email) = 0 then
     -- An account with no readable address cannot be bound to, and an unbound resume code would be
     -- a re-entry ticket anyone holding it could use. Refuse rather than weaken the binding.
-    raise exception 'an email is required' using errcode = '22023';
+    -- Folded onto the same line as "nobody left": from the reader's side it is the same fact, and
+    -- it stops a screen with no email field on it ever saying an address looks wrong. Unreachable
+    -- today anyway, since email OTP is the only sign-up path.
+    raise exception 'nobody left to resume with' using errcode = '42501';
   end if;
 
   select coalesce(m.label, 'me') into v_label
@@ -111,10 +127,18 @@ begin
     v_code := v_code || substr(k_alphabet, 1 + (get_byte(v_bytes, i) % length(k_alphabet)), 1);
   end loop;
 
-  -- Supersede any outstanding resume code for this pair, so only the newest one works. Same shape
-  -- as create_pair_invite's re-mint: a person who taps twice must not leave two live tickets.
-  update public.pair_invites set used_at = coalesce(used_at, now())
-    where pair_invites.pair_id = p_pair and used_at is null;
+  -- Supersede any outstanding resume code YOU minted, so one person tapping twice does not leave
+  -- two live tickets. Scoped to the CALLER, not the pair: this is the first flow in the schema
+  -- where BOTH members can mint into one pair, and a pair-wide supersede silently kills the code
+  -- the app has already shown the other person, which then reads as invalid and burns their rate
+  -- limit. Two people in one kitchen both tapping Resume is the likely case, not the exotic one.
+  -- create_pair_invite's re-mint can be pair-scoped only because its branch runs while the caller
+  -- is ALONE in the pair; this function's precondition is the opposite. Killing theirs buys
+  -- nothing anyway: their code is bound to YOUR address and admits only YOU, an existing member.
+  -- Pair-wide expiry belongs to the freeze, where leave_pair and prune_empty_pair already do it.
+  -- Steady state is therefore at most ONE live code per member, each bound to the other.
+  update public.pair_invites i set used_at = coalesce(i.used_at, now())
+    where i.pair_id = p_pair and i.created_by = v_uid and i.used_at is null;
 
   delete from public.pair_invites i where i.expires_at < now() - interval '7 days';
 
@@ -175,6 +199,40 @@ begin
     raise exception 'too many attempts, try later' using errcode = '54000';
   end if;
 
+  -- Byte-identical normalisation to join_pair, or a perfectly-typed code hashes to something the
+  -- database has never seen. 0 and 1 are NOT stripped: a wrong character should fail honestly.
+  -- ABOVE the cap check, because the idempotent branch below reads it and a null hash would match
+  -- nothing, silently.
+  v_hash := encode(extensions.digest(
+    upper(regexp_replace(coalesce(p_code, ''), '[^A-Za-z0-9]', '', 'g')), 'sha256'), 'hex');
+
+  -- Idempotent, exactly as join_pair, and ABOVE the cap check for the same reason it sits there.
+  -- Once a resume has succeeded the pair is LIVE and the caller is a member, so without this the
+  -- cap fires first and answers a SUCCESSFUL retry with "you already have a shared list, you can
+  -- leave it" on the most loaded surface in the product, to somebody who has just got back a list
+  -- with their person. The advisory lock is transaction-scoped, so a double tap is enough, and a
+  -- lost PostgREST response on a flaky connection is the case this branch exists for.
+  --
+  -- It writes NOTHING and requires closed_at IS NULL, so it can never resume anything: a frozen
+  -- pair falls straight through to the real handshake below and the never-unilateral law is
+  -- untouched. Bounded by expiry, so a long-dead code is not a free success. The label comes from
+  -- pair_members and not from i.created_label, or the MINTER hitting this branch would be shown
+  -- their own name as their partner's.
+  select i.pair_id into v_pair
+  from public.pair_invites i
+  where i.code_hash = v_hash
+    and i.expires_at > now()
+    and public.is_pair_member(i.pair_id)
+    and exists (select 1 from public.pairs pr
+                where pr.id = i.pair_id and pr.closed_at is null and pr.disabled_at is null);
+  if v_pair is not null then
+    select m.label into v_label from public.pair_members m
+      where m.pair_id = v_pair and m.user_id <> v_uid limit 1;
+    select pr.name into v_name from public.pairs pr where pr.id = v_pair;
+    return query select v_pair, v_label, v_name;
+    return;
+  end if;
+
   if (select count(*) from public.pair_members m
         join public.pairs pr on pr.id = m.pair_id
        where m.user_id = v_uid and pr.closed_at is null) >= k_max_pairs then
@@ -182,11 +240,6 @@ begin
   end if;
 
   select lower(btrim(u.email)) into v_email from auth.users u where u.id = v_uid;
-
-  -- Byte-identical normalisation to join_pair, or a perfectly-typed code hashes to something the
-  -- database has never seen. 0 and 1 are NOT stripped: a wrong character should fail honestly.
-  v_hash := encode(extensions.digest(
-    upper(regexp_replace(coalesce(p_code, ''), '[^A-Za-z0-9]', '', 'g')), 'sha256'), 'hex');
 
   update public.pair_invites i
      set used_at = now()
@@ -196,6 +249,33 @@ begin
      and i.invited_email_hash = encode(extensions.digest(v_email, 'sha256'), 'hex')
      and exists (select 1 from public.pair_members m
                  where m.pair_id = i.pair_id and m.user_id = v_uid)
+     -- The OTHER member said yes up to 24 hours ago, when their side had no live list, and nothing
+     -- has re-read them since. Waking this list changes THEIR live count as well as yours, and the
+     -- advisory locks in both functions are keyed on the CALLER, so they serialise nothing across
+     -- two people. Without this: B leaves, A mints a resume code, A then starts a fresh list with
+     -- someone else (create_pair_invite's probe sees only live pairs, finds none, and its
+     -- new-pair branch carries no invite supersede at all), B redeems within the day, and A now
+     -- holds TWO live pairs against a cap of one. loadMyPairs gives the live slot to the newest
+     -- join and puts only frozen pairs in the archive, so the woken list renders NOWHERE in A's
+     -- app: B writes into it freely, A cannot read it, rename it, or reach its Leave control, and
+     -- A is permanently blocked from every future pairing because each cap counts two.
+     --
+     -- In the predicate rather than a raise, for two reasons: a raise would be an oracle telling a
+     -- redeemer that the person who left them has since started a list with somebody else, and
+     -- zero rows is already this function's calm "that code is not valid". used_at stays null, so
+     -- the code still works once their other list ends. Accepted cost: the refusal spends one of
+     -- the redeemer's ten hourly attempts. Every reference is alias-qualified deliberately, since
+     -- pair_id is an OUT parameter of this function and a bare one is a 42702 at runtime.
+     and not exists (
+       select 1
+       from public.pair_members om
+       join public.pair_members ot on ot.user_id = om.user_id
+       join public.pairs opr on opr.id = ot.pair_id
+       where om.pair_id = i.pair_id
+         and om.user_id <> v_uid
+         and ot.pair_id <> i.pair_id
+         and opr.closed_at is null
+     )
      and exists (select 1 from public.pairs pr
                  where pr.id = i.pair_id and pr.closed_at is not null and pr.disabled_at is null)
   returning i.pair_id, i.created_label into v_pair, v_label;
@@ -238,8 +318,18 @@ grant execute on function public.resume_pair(text) to authenticated;
 -- their next pull without either of them pushing the old title back: the row is not "newer", so
 -- reconcile's tie resolves to the remote copy, which is the redacted one.
 --
--- Gated on membership rather than writability, or it would silently no-op on exactly the frozen
--- lists that have been sitting there longest.
+-- Gated on membership rather than writability, which is right for `closed_at`: frozen lists are
+-- swept DELIBERATELY, or it would no-op on exactly the lists that have been sitting longest. That
+-- argument does NOT extend to `disabled_at`, and silently taking it along was a real hole: this is
+-- the only member-callable statement in either file that destroys content, the function is SECURITY
+-- DEFINER so `shared_tasks_update_member` (and the `disabled_at` clause inside `is_pair_writable`)
+-- never runs, and a reported account could otherwise blank the case file after the switch was
+-- thrown. `ours.sql` calls the kill switch "one clause in the write path" and the architecture doc
+-- promises a thirty-second response; both are load-bearing for Apple 1.2 and Play UGC review.
+--
+-- THE TWO FLAGS ARE NOT INTERCHANGEABLE. Frozen: swept. Killed: never. Accepted cost, bounded: a
+-- killed pair's removed words never age out, and both members can still drop their membership,
+-- which cascades the whole pair away.
 -- ---------------------------------------------------------------------------
 
 create or replace function public.sweep_shared_tombstones(p_pair uuid)
@@ -266,7 +356,14 @@ begin
    where t.pair_id = p_pair
      and t.deleted_at is not null
      and t.deleted_at < now() - k_horizon
-     and t.title <> k_redacted;   -- idempotent, and keeps updated_at untouched on a second run
+     and t.title <> k_redacted    -- idempotent, and keeps updated_at untouched on a second run
+     -- A predicate rather than a raise, for two of this file's own reasons. A member who used to
+     -- get a count and now gets a 42501 has learned the list was reported, which is exactly the
+     -- oracle invite_to_resume refuses to be. And if this is ever called on pull, a raise
+     -- reintroduces the defect the Phase 3 audit recorded, where a 42501 on a frozen pair pinned a
+     -- device at its last sync under copy promising nothing is lost.
+     and exists (select 1 from public.pairs pr
+                 where pr.id = t.pair_id and pr.disabled_at is null);
 
   get diagnostics v_count = row_count;
   return v_count;
@@ -275,6 +372,78 @@ $$;
 
 revoke all on function public.sweep_shared_tombstones(uuid) from public, anon;
 grant execute on function public.sweep_shared_tombstones(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 4. The retention clock becomes the SERVER's.
+--
+-- The sweep above reads `deleted_at` as a MAGNITUDE, which nothing did before this migration, and
+-- `ours.sql` said so out loud when it exempted the column from its clamps. That sentence is no
+-- longer true, and leaving it unclamped turns a client-written column into a permanent delete
+-- button: one PATCH setting 1970 collapses the thirty-day horizon to zero.
+--
+-- The version needing no attacker is the one that matters. The clock correction is inert in
+-- production (nothing calls applyServerTime yet), so `nowMs()` is the raw device clock, and this
+-- schema already concedes that honest phones have wrong ones, which is why the other three clamps
+-- exist. A device more than thirty days slow removes a task, the monotonic lift makes the push win,
+-- and `deleted_at` rides in raw. The first sweep then permanently redacts a task removed one minute
+-- ago, INSIDE the seven-day Restore window, and the same wrong stamp had already hidden the row
+-- from "Recently removed" so there was never a Restore to reach for.
+--
+-- The whole body is restated rather than patched, because a create-or-replace that drops the
+-- `created_by` pin, the `pair_id` pin or the three clamps loses them silently, which is precisely
+-- the class the Phase 1 review caught twice. Read it back afterwards.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.stamp_shared_task_origin()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    new.created_by := auth.uid();          -- the client's value is ignored, never trusted
+    if new.deleted_at is not null then
+      new.deleted_at := now();             -- a row that arrives already removed starts its clock now
+    end if;
+  else
+    new.pair_id := old.pair_id;            -- a row can never walk into another household
+    -- Authorship is immutable, with ONE hole left open on purpose: a null must pass through,
+    -- because created_by's `on delete set null` is implemented as an UPDATE and fires this
+    -- trigger during delete_account(). Blocking it would either put a deleted user's identifier
+    -- back or fail erasure outright with a 23503.
+    if new.created_by is not null and new.created_by is distinct from old.created_by then
+      new.created_by := old.created_by;
+    end if;
+    -- The retention clock. A null still passes through untouched, so Restore and the null /
+    -- not-null contract the client relies on are unchanged. Coalescing to OLD is what stops a
+    -- re-pushed tombstone, and the sweep's own UPDATE, from walking the horizon forward so nothing
+    -- ever ages out. Free win: it can no longer be stamped in the FUTURE either, which was an
+    -- unbounded way to keep a tombstone out of the sweep forever. Accepted cost: a task created and
+    -- removed while offline has its horizon stamped at sync time, which can only move destruction
+    -- later, never earlier.
+    new.deleted_at := case
+      when new.deleted_at is null then null      -- restore, always allowed
+      when old.deleted_at is null then now()     -- the moment the server saw the removal
+      else old.deleted_at                        -- immutable once stamped
+    end;
+  end if;
+
+  -- No row may be stamped more than a day in the future. Unchanged from ours.sql, and restated here
+  -- only because the whole body has to be.
+  new.updated_at := least(new.updated_at, now() + interval '1 day');
+  new.created_at := least(new.created_at, now() + interval '1 day');
+  if new.done_at is not null then
+    new.done_at := least(new.done_at, now() + interval '1 day');
+  end if;
+  return new;
+end;
+$$;
+
+-- Normalise anything already carrying a backdated stamp, BEFORE any sweep caller is wired. Ours is
+-- still behind ours_allowlist so this is tester data at most, but do not assume it.
+update public.shared_tasks
+   set deleted_at = now()
+ where deleted_at is not null and deleted_at < now() - interval '30 days';
 
 -- ---------------------------------------------------------------------------
 -- POST-APPLY READ-BACKS. Run these before any client work.
@@ -295,10 +464,37 @@ grant execute on function public.sweep_shared_tombstones(uuid) to authenticated;
 --     and p.proname in ('invite_to_resume', 'resume_pair', 'sweep_shared_tombstones');
 --   -- expect anon_can_run = false on all three.
 --
---   -- 3. join_pair still refuses closed pairs. This is the clause resume_pair exists so as NOT to
---   --    weaken, so if it has gone, something has widened the wrong function.
---   select pg_get_functiondef(p.oid) like '%closed_at is null%' as still_tight
+--   -- 3. join_pair still refuses closed and killed pairs, in BOTH of its paths: the idempotent
+--   --    branch and the consume statement. COUNTED, not LIKE'd. The bare phrase "closed_at is
+--   --    null" also appears in that function's live-pair cap, so a LIKE returns true on a database
+--   --    where the door has already been opened, and would sign off on the exact regression this
+--   --    file exists to prevent.
+--   select (select count(*) from regexp_matches(pg_get_functiondef(p.oid),
+--             'closed_at is null and pr\.disabled_at is null', 'g')) = 2 as still_tight
 --   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 --   where n.nspname = 'public' and p.proname = 'join_pair';
 --   -- expect true.
+--
+--   -- 4. The trigger rewrite did not silently drop anything it inherited.
+--   select pg_get_functiondef(p.oid) like '%new.created_by := auth.uid()%'
+--      and pg_get_functiondef(p.oid) like '%new.pair_id := old.pair_id%'
+--      and (select count(*) from regexp_matches(pg_get_functiondef(p.oid), 'least\(', 'g')) = 3
+--        as trigger_intact
+--   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--   where n.nspname = 'public' and p.proname = 'stamp_shared_task_origin';
+--   -- expect true.
+--
+-- BEHAVIOURAL CHECKS, with two test accounts. The catalog queries above assert shape; these assert
+-- what the functions actually DO, which is where every defect in the review of this file lived.
+--
+--   e. A and B paired, A leaves. B calls invite_to_resume, A redeems: pairs.closed_at is null.
+--      A calls resume_pair with the SAME code again: same row back, no error, closed_at still null.
+--   f. A and B on a frozen pair, BOTH call invite_to_resume. Two rows in pair_invites with
+--      used_at null, and A's code still redeems as B. (Before the fix, B's mint killed A's code.)
+--   g. B leaves P. A mints a resume code, then calls create_pair_invite for C and C joins. B now
+--      redeems the resume code: it must fail CALMLY and P must still be frozen. (Before the fix, A
+--      ended up in two live pairs, one of which A's own app could neither render nor leave.)
+--   h. With pairs.disabled_at set by hand and a tombstone older than 30 days,
+--      sweep_shared_tombstones returns 0 and the title is unchanged. Clear disabled_at: returns 1.
+--   i. A resume code typed into join_pair returns zero rows, and closed_at is unchanged.
 -- ---------------------------------------------------------------------------

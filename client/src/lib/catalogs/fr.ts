@@ -326,6 +326,7 @@ export const fr: Catalog = {
     errNotYours: 'Cette liste est fermée, on ne peut plus la modifier.',
     errOffline: "Pas de connexion pour l'instant. Réessaie dans un moment.",
     errOwnEmail: "C'est ta propre adresse.",
+    errPartnerGone: "Cette liste reste ici, tu peux la lire, mais elle ne peut plus être rouverte : ta personne n'y est plus.",
     errRateLimited: "Impossible de rejoindre une liste pour l'instant. Il n'y a aucun problème avec ton compte. Tu peux réessayer dans une heure.",
     errTooManyLists: 'Ce compte a atteint la limite de listes partagées de DoubleDone.',
     errUnknown: "Ça n'a pas marché pour l'instant. On réessaie ?",

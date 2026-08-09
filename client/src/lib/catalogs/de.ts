@@ -330,6 +330,7 @@ export const de: Catalog = {
     errNotYours: 'Diese Liste ist geschlossen und lässt sich nicht mehr ändern.',
     errOffline: 'Gerade keine Verbindung. Versuch es gleich noch mal.',
     errOwnEmail: 'Das ist deine eigene Adresse.',
+    errPartnerGone: 'Diese Liste bleibt zum Lesen hier, aufmachen lässt sie sich aber nicht mehr: dein Mensch ist nicht mehr dabei.',
     errRateLimited: 'Beitreten geht gerade nicht. Mit deinem Konto ist alles in Ordnung. In einer Stunde kannst du es ruhig noch mal versuchen.',
     errTooManyLists: 'Dieses Konto hat das Limit für gemeinsame Listen erreicht.',
     errUnknown: 'Das hat gerade nicht geklappt. Noch mal versuchen?',

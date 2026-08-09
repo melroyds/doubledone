@@ -42,6 +42,7 @@ const FAILURE_LINE: Record<Exclude<PairFailure, 'signed-out'>, string> = {
   'rate-limited': 'ours.errRateLimited',
   'too-many-lists': 'ours.errTooManyLists',
   'not-yours': 'ours.errNotYours',
+  'partner-gone': 'ours.errPartnerGone',
   offline: 'ours.errOffline',
   unknown: 'ours.errUnknown',
 };

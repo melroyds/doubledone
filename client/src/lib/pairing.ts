@@ -106,6 +106,7 @@ export type PairFailure =
   | 'rate-limited'
   | 'too-many-lists'
   | 'not-yours'
+  | 'partner-gone'  // a frozen list whose other member is gone: readable forever, wakeable never
   | 'offline'
   | 'unknown';
 
@@ -126,7 +127,15 @@ export function classifyPairError(error: { code?: string | null; message?: strin
   if (!code && /network|fetch|failed to fetch/.test(message)) return 'offline';
 
   if (code === '28000') return 'signed-out';
-  if (code === '42501') return message.includes('not open') ? 'not-open' : 'not-yours';
+  if (code === '42501') {
+    if (message.includes('not open')) return 'not-open';
+    // Phase 5. The other member deleted their account or their membership, so the pair froze with
+    // you as its only member, and nothing can ever add a second person to a frozen pair. It used to
+    // borrow 23505 "full", which told someone who had just been left that a list containing one
+    // person was full.
+    if (message.includes('nobody left')) return 'partner-gone';
+    return 'not-yours';
+  }
   if (code === '23505') return message.includes('full') ? 'list-full' : 'already-paired';
   if (code === '54000') return message.includes('old lists') ? 'too-many-lists' : 'rate-limited';
   if (code === '22023') return message.includes('own address') ? 'own-email' : 'bad-email';

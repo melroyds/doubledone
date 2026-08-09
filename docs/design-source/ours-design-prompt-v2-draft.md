@@ -1,11 +1,12 @@
 # Claude Design prompt, Ours round two — DRAFT
 
-> **Not ready to send.** Two adversarial audits are still running: the Phase 3 engine audit (merge,
-> sync, clock, cache) and the four per-language copy passes. Both can add constraints to the list
-> below. Melroy's round-one Claude Design output also needs folding in, so that this brief says
-> "here is what you already decided, here is what you have not seen" rather than starting over.
+> **Complete and ready to send.** All three inputs are in: round one's handoff, the Phase 3 engine
+> audit, and the four per-language copy passes. Nothing here is waiting on anything.
 >
-> Sections marked **[HOLD]** are waiting on one of those three inputs.
+> **Sequence, agreed with Melroy 2026-08-09:** the resume SQL clears its review first, then this
+> design pass, then the merge to `main`. He asked to hold the original order rather than dogfood an
+> un-designed screen: "if we're going to push something, let's get it in the best possible state
+> that we can."'
 
 ---
 
@@ -122,6 +123,52 @@ The mechanic that makes the whole thing safe: **nothing crosses without a person
 
 ---
 
+---
+
+## F. Check for updates (a second, smaller brief inside this one)
+
+*Added 2026-08-09 at Melroy's ask, so it is designed ONCE alongside Ours rather than bolted on
+after. It is not part of Ours, but it exists because of it.*
+
+**Why it is here at all.** Two people on a shared list can be on different app versions, and that is
+the ordinary state, not an exotic one: staggered store rollouts, web against native, someone who has
+not opened the store in a month. A version gap is what makes one person unable to read a cadence the
+other set (constraint 6 above). This shrinks that window. **It does not close it**, so please do not
+design it as if it does: the "show, do not hide" handling stays the safety net, and an update prompt
+that implies everything is now in sync would be a lie.
+
+**The hard constraint, and it is the whole design problem.** This is a to-do app for adults who are
+already carrying more demands than they can hold, and the standing rule is *remove friction, never
+add a setting*. So an update notice is **a quiet fact, never a nag**. No badge. No red dot. No modal
+in front of someone who opened the app to write down one thing before they forget it. The logic is
+already built to make it rare: nothing is said outside Settings unless the build is genuinely old
+(two minor versions or a major behind), and then at most once a fortnight however far behind it
+gets. Design to that rarity rather than fighting it.
+
+**Three platforms, three honest offers.** Please do not design one control and relabel it.
+
+15. **Web can actually update itself.** A tab or an installed PWA can be weeks stale with no signal,
+    because the browser keeps serving what it cached. The offer is a reload onto assets the server
+    already has. It is instant and costs nothing, which is a genuinely different feeling from the
+    other two, and the copy should not borrow their language.
+16. **iOS and Android can only point at their store.** There is no in-app update API on iOS at all.
+    So the honest shape is: this build is old, here is where the new one lives. The person then
+    leaves the app, and may not come back for a while, which is worth designing for rather than
+    pretending away.
+17. **The resting state, which is 99% of the time.** The build is current. Settings should be able
+    to say so plainly, because "you are up to date" is a small, real reassurance for the kind of
+    person who wonders. It must not look like a control that wants pressing.
+18. **The version line that already exists** in Settings reads `v1.2.0 (11)`. Whatever this becomes
+    should absorb it rather than sit beside it as a second version thing.
+
+**Things to argue with here too:**
+
+- Whether "you are up to date" earns its space, or whether silence is the better reassurance.
+- Whether the rare out-of-date mention belongs anywhere except Settings at all. Today's constant
+  frame is the obvious host and also the most protected surface in the app.
+- Whether a web reload needs any warning about losing what is on screen. Capture text survives
+  today; a reload mid-sentence is the case to check.
+
 ## Things to argue with
 
 - Whether the shared list should live behind a door at all, or as a section of Today. The
@@ -203,8 +250,30 @@ software cannot keep. Round one had three of these and used them well.
     the copy is literally true for it. Nothing should distinguish it, or the screen becomes a way of
     telling someone they were reported.
 
-**[HOLD: fill from the four language passes.]** Any string whose translation forced a shape change,
-and anything where a locale needs more room than English.
+### What the five languages need from the layout
+
+All 54 strings have now been through an adversarial pass in Spanish, French, Italian and German, and
+61 keys changed. What that leaves for the design, in order of how likely it is to break a layout:
+
+- **Error text is two or three sentences, not one line.** The English review deliberately turned
+  errors from verdicts into explanations, because several of them fire for reasons that are not the
+  reader's doing (the join throttle can trip from a global ceiling with the reader doing nothing at
+  all). Every error slot needs to hold three comfortable lines in German without the screen jumping.
+- **German runs longest, consistently.** Design to it rather than to English, particularly on
+  buttons and on the two screen titles that are questions.
+- **French needs a non-breaking space before `?` and `!`.** That is now in the strings, and it means
+  a question-mark title cannot be measured as if the last word ends the line. Two of the block's
+  titles are questions.
+- **The share message is the longest string in the feature by a distance**, around 200 characters in
+  English and longer in German. It is the only copy that leaves the app, it lands with someone who
+  never sought this product out, and it names the exact button they will see. It is not shown in the
+  interface, but the screen that offers it should not imply something short.
+- **The list's name is user-typed, capped at 40 characters**, and it appears in the door on Today,
+  the resting screen and the archive. Design for a name someone actually types, not for "the shop".
+- **"Your person" is a locked transcreation and varies in length** (tu persona, ta personne, la tua
+  persona, dein Mensch). It appears in six strings, several of them inline mid-sentence.
+- **A name is never gendered and never assumed short.** `{name}` is a self-chosen label, up to 40
+  characters, and it can be anything from "Sam" to a full name to a private joke.
 
 ---
 
