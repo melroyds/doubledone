@@ -40,6 +40,12 @@ jobs:
         # shared doubledone.app link unfurls with the card, not title-only.
         run: node scripts/inject-web-meta.mjs
 
+      - name: Stamp the web version into dist/version.json
+        # The app asks doubledone.app/version.json whether a newer build exists. `web` is stamped
+        # from app.json here so it IS the deployed version and can never go stale; the two store
+        # numbers stay hand-maintained in client/public/version.json (they lag behind review).
+        run: node scripts/stamp-version.mjs
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:

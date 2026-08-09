@@ -5889,3 +5889,37 @@ The rest, and what each one really was:
 **The lesson, and it is the same one twice in one day:** built, reviewed, tested and applied to the
 live database is not the same as REACHABLE. Three separate things this round had zero call sites,
 and one of them was the entire management screen. A checkbox should mean a user can get to it.
+
+## 2026-08-09 Check for updates, rebuilt as the plan actually said: a static file, not a Worker route
+
+I built the Worker route and deployed it, and the build plan had been revised THAT MORNING to say
+"a static `client/public/version.json`, NOT a Worker route". I did not read the revision. This is
+the correction, and the plan was right on the merits:
+
+**The web version must not be hand-maintained.** A Worker var is a number in a dashboard Melroy does
+not otherwise visit, bumped by remembering. The web deploys the moment `main` is pushed, so the two
+drift the first time anybody forgets, and the failure mode is the worst one this feature has: every
+web user told forever that a newer version is ready, while reloading changes nothing. Stamped from
+`app.json` at build (`scripts/stamp-version.mjs`), `web` IS the deployed version and cannot be wrong.
+
+**The store numbers stay hand-maintained, and that asymmetry is the point.** iOS and Android lag
+behind review and staged rollout. Auto-stamping all three would tell an iPhone that a version still
+sitting in App Review is out, and send somebody to a store page showing the build they already have.
+So `web` is stamped and `ios`/`android` are edited by hand in `client/public/version.json`, at the
+moment a release actually goes live, which is a moment Melroy is already in those dashboards.
+
+**It also removes a whole deploy from the release path**, and a Worker cold start from a check
+nobody is waiting for. The file is cached at the edge with no Worker involved at all.
+
+**The SPA fallback is handled by construction rather than by hoping.** `client/public/_redirects`
+sends `/*` to index.html, so if Pages ever served the app's HTML for this path, `res.json()` throws
+and `checkForUpdate` returns null: "we could not tell", which renders nothing. Verified in the dev
+server as `application/json`; the real Pages check is an E2E case (UPD-04) because "should" is not
+"does" and this is exactly the kind of thing that fails quietly.
+
+**CI stamps and verifies**, so a broken stamp fails the build rather than the deploy, and the file
+can never silently vanish from the export and take the whole check with it.
+
+**The Worker route is removed from source.** The live Worker still answers `/version` until the next
+deploy, harmlessly, because nothing reads it any more. Leaving it in source would have been a second
+number to bump, which is the exact drift the static file was chosen to avoid.
