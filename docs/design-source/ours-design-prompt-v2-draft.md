@@ -156,10 +156,52 @@ they are being built rather than quietly designed around.
 
 ## Constraints from the build
 
-**[HOLD: fill from the Phase 3 audit.]** Anything the audit turns up that changes what the interface
-can truthfully claim goes here, in the same spirit as round one's three: the screen cannot know
-whether an invite code is still alive, the email binding has an unrecoverable dead end, and deleting
-a list cannot be undone once the server is told.
+Facts about what the system can and cannot do, so nothing here gets designed into a promise the
+software cannot keep. Round one had three of these and used them well.
+
+1. **The screen cannot know whether an outstanding invite code is still alive.** The invite table is
+   closed to the client and the expiry is returned exactly once, at mint. After a reload, all the
+   app knows is that nobody has joined. Round one's decision to fold waiting into the code screen is
+   compatible with this; nothing may show a countdown or grey out a dead code.
+2. **A shared task's title is capped at 500 characters, and the personal list has no cap.** So
+   anything that copies a personal task onto Ours can meet a limit that has never existed anywhere
+   else in the app. It truncates rather than failing, but the capture surface should show the ceiling
+   honestly rather than let someone discover it.
+3. **Deleting a list cannot be undone once the server is told.** Round one's "Put it away", which
+   tucks and deletes nothing, is the right answer and supersedes the build's destructive action.
+   Whatever irreversible action survives needs a delayed commit, not an undo toast, because a toast
+   would be a lie.
+4. **Nothing can ever attribute a completed task to a person, including a PENDING one.** Since round
+   one this became a written rule: mutual confirm, verify together, two-key done and sign-off are all
+   refused in advance. The reason is narrow and worth knowing, because it also rules out subtler
+   things: any gate that works has to be visible to the server, and server-visible per-party state on
+   a list of exactly two people is a per-person record. Design nothing that implies one could exist.
+5. **A repeating shared row records only WHICH DAYS were done, never by whom, and either person can
+   un-tick.** Un-ticking is load-bearing: it is the reason the finality affirmations are withheld on
+   Ours, and it is the reason two-party confirmation was refused. It must be as easy as ticking.
+6. **A cadence one person's app cannot read is possible**, because the other person may be on a newer
+   build. That row is carried and never erased, but it cannot be scheduled. **Open, and worth your
+   view:** on a shared surface, is it safer to show a row you cannot place on a day, or to hide it?
+   Hiding it means one person sees it and the other does not, each certain the other deleted it.
+
+### New states since round one, all from decisions made after it
+
+7. **An archive of closed lists.** Round one's D8 assumed there is only ever one list. There can now
+   be a live list and any number of frozen ones, and they stay readable, because "you can still read
+   everything here" is promised in five languages and should stay true. Design the quiet read-only
+   archive and how a closed list is reached from a live one.
+8. **Resuming a frozen list, which is the handshake again.** One person mints a resume code, the
+   other redeems it, and every word is still there. **Never unilateral**, and that is the design, not
+   a limitation: leaving has to stay a door the other person cannot drag you back through. Two
+   frames: offering to resume, and being asked to. The second is the delicate one, because it lands
+   with someone who may not want to.
+   One gift from the architecture: resuming does NOT ask for their email again, because both people
+   are already members and the server knows. The sharpest edge in the original flow is absent here.
+9. **Leaving a list nobody ever joined.** Someone starts a list to see what it is and changes their
+   mind. Distinct from leaving a shared one, because there is no "both of you".
+10. **A list that has been shut down for a report.** It reads exactly as closed, deliberately, and
+    the copy is literally true for it. Nothing should distinguish it, or the screen becomes a way of
+    telling someone they were reported.
 
 **[HOLD: fill from the four language passes.]** Any string whose translation forced a shape change,
 and anything where a locale needs more room than English.
