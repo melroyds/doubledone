@@ -523,6 +523,7 @@ export const es: Catalog = {
     chartHint: 'Pasos hacia una meta',
     closeMenuA11y: 'Cerrar el menú',
     lookbackHint: 'Todo lo que terminaste, y los días por venir',
+    oursHint: 'Una lista que llevas con otra persona',
     premiumHintFreeAi: 'Recuerdos, más IA, tu color',
     premiumHintFreeNoAi: 'Tu tema de color, y más',
     premiumHintSubscribed: 'Gestiona tu suscripción',

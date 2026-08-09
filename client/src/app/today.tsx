@@ -52,6 +52,7 @@ import { dayWeight, heavyAt, weightedLoad } from '@/lib/estimate';
 import { dayCleared, dayClosed, stepsLanded, taskDone } from '@/lib/haptics';
 import { subscribeInbound, takeInbound } from '@/lib/inbound';
 import { aiLanguage, fmt, t } from '@/lib/locale';
+import { isOursOpen, loadMyPairs } from '@/lib/ours-api';
 import { buildOutcome } from '@/lib/outcome';
 import { scheduleFields, type CaptureSchedule, type Recurrence } from '@/lib/recurrence';
 import { availableNudgePresets, isWindDownTime, type NudgePreset, nudgeTargetFor } from '@/lib/nudge';
@@ -190,6 +191,12 @@ export default function TodayScreen() {
   const today = useMemo(() => new Date(), []);
   const router = useRouter();
   const session = useSession();
+  // Ours. `oursOpen` gates the Menu row (the build-time allowlist), and `oursName` decides whether
+  // Today gets a door at all: NO LIST MEANS NO ROW. There is deliberately no funnel here, so nothing
+  // on the working surface ever advertises a feature to somebody who will never use it. The Menu is
+  // where it is discovered.
+  const [oursOpen, setOursOpen] = useState(false);
+  const [oursName, setOursName] = useState<string | null>(null);
   const tasksRef = useRef<Task[]>(tasks);
   const reduced = useReducedMotion();
   // The close-the-day card's gentle entrance (0 = below + transparent, 1 = settled).
@@ -231,6 +238,23 @@ export default function TodayScreen() {
       void loadClosedDate().then((d) => {
         if (active) setClosedDate(d);
       });
+      if (supabase && session) {
+        const client = supabase;
+        void isOursOpen(client).then((open) => {
+          if (!active) return;
+          setOursOpen(open);
+          if (!open) return setOursName(null);
+          // Only the LIVE list gets a door. A frozen one is reached through the Menu and its
+          // archive, because a closed relationship does not belong on the screen whose promise is
+          // that today is finite.
+          void loadMyPairs(client, session.user.id).then((res) => {
+            if (active) setOursName(res.ok && res.value.live ? (res.value.live.name?.trim() || t('ours.defaultName')) : null);
+          });
+        });
+      } else {
+        setOursOpen(false);
+        setOursName(null);
+      }
       void loadLowDayDate().then((d) => {
         if (active) setLowDayDate(d);
       });
@@ -250,7 +274,7 @@ export default function TodayScreen() {
       return () => {
         active = false;
       };
-    }, [today]),
+    }, [today, session]),
   );
 
   // Keep the latest tasks reachable from the sync effect without making it re-run
@@ -2016,6 +2040,25 @@ export default function TodayScreen() {
             ))}
           </View>
         )}
+        {/* Ours. One hairline row, and NEVER a count on it: a number here is a number another
+            person can change, on the one screen whose whole promise is that today is finite. Absent
+            entirely when there is no live shared list, so this can never read as an advert. The name
+            wraps rather than truncating, because a household's word for its own list is not ours to
+            cut. */}
+        {oursName && !selectMode && (
+          <Pressable
+            onPress={() => router.push('/ours')}
+            accessibilityRole="button"
+            accessibilityLabel={`${t('ours.defaultName')}: ${oursName}`}
+            style={({ pressed }) => [styles.oursDoor, pressed && styles.pressed]}
+          >
+            <Text style={styles.oursDoorText}>
+              {t('ours.defaultName')} · {oursName}
+            </Text>
+            <Text style={styles.oursDoorChevron}>›</Text>
+          </Pressable>
+        )}
+
         {/* The stacked action pile ("Today's looking full" + Lighten + Plan + wind-down + Close) is
             GONE (the constant frame, 2026-07-25). All four day tools now live in ONE fixed layer at
             the thumb, outside this ScrollView, so nothing appears, vanishes, or slides with the
@@ -3015,6 +3058,7 @@ export default function TodayScreen() {
           router.push('/premium');
         }}
         onSettings={() => router.push('/settings')}
+        onOurs={oursOpen ? () => router.push('/ours') : undefined}
         premium={premium}
       />
       <Bloom data={bloom} onDone={dismissBloom} />
@@ -3024,6 +3068,18 @@ export default function TodayScreen() {
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
+    oursDoor: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.three,
+      marginTop: spacing.five,
+      paddingVertical: spacing.three,
+      borderTopWidth: border.hair,
+      borderTopColor: t.colors.line,
+    },
+    oursDoorText: { flex: 1, color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    oursDoorChevron: { color: t.colors.inkFaint, fontSize: 17 * t.scale, fontFamily: fonts.body },
     screen: { flex: 1, backgroundColor: 'transparent' }, // the LivingBackground shows through
     scroll: { flex: 1 },
     content: {

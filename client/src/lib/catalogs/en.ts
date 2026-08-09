@@ -527,6 +527,7 @@ export const en = {
     chartHint: 'Plan toward a goal',
     closeMenuA11y: 'Close menu',
     lookbackHint: 'Everything you finished, and the days ahead',
+    oursHint: 'A list you keep with one other person',
     premiumHintFreeAi: 'Keepsakes, more AI, your colour',
     premiumHintFreeNoAi: 'Your colour theme, and more',
     premiumHintSubscribed: 'Manage your subscription',

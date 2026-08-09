@@ -143,7 +143,10 @@ here in build order rather than the handoff's order, because some of it needs a 
       just unused.
 - [ ] **"Put it away" = tuck, not destroy.** The archive supersedes `forget_pair` as the ordinary
       exit. `forget_pair` survives ONLY as "Delete this list for good", behind the delete window.
-- [ ] **The Today door and the Menu entry**, replacing the Settings placeholder.
+- [x] **The Today door and the Menu entry.** The Menu carries Ours and is its ONLY entry when no
+      list exists; Today gets a hairline row, "Ours · {name} ›", only once a live list does, and
+      never a count. The Settings row stays for now as a third way in, harmless and gated on the
+      same probe, and goes when the management screen lands.
 
 ### The room
 

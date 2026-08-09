@@ -5415,3 +5415,28 @@ standing rule: a list of pair ids is a list of which relationships you had.
 
 **And untuck exists** because putting away must not be a one-way door either. That is the same
 instinct as freeze-not-delete and resume-not-rebuild, applied to a much smaller thing.
+
+## 2026-08-09 The doors: the Menu carries it, Today only once there is something to open
+
+The design's navigation, built. **The Menu is where Ours is discovered, and when there is no shared
+list it is the ONLY entry.** Today gets a hairline row, "Ours · {name} ›", only once a live list
+exists. That asymmetry is the whole point: nothing on the working surface ever advertises the
+feature to somebody who will never use it, so there is no funnel on the one screen whose promise is
+that today is finite.
+
+**Never a count on that row**, which is now enforced by there being nothing to count in the code
+rather than by anyone remembering. A number there would be a number the other person can change, on
+that screen.
+
+**Only the LIVE list gets a door.** A frozen one is reached through the Menu and its archive,
+because a closed relationship does not belong on Today.
+
+Both doors are gated on `ours_is_open()`, the same caller-scoped probe as the Settings row, so
+neither can lead somewhere the server will refuse. The Settings row survives for now as a harmless
+third way in and retires when the management screen lands.
+
+**Two lint warnings fixed rather than suppressed**, and one was a real trap: `refresh` in ours.tsx
+referenced `report`, which is rebuilt every render, so including it in the dependency array would
+have rebuilt the callback every render and excluding it left a stale closure. Resolved by noting
+that a READ can never produce 'already-live' (only the two resume RPCs raise it), so the
+refresh-instead-of-explain branch cannot apply there, and the else branch sets the failure directly.

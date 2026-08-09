@@ -527,6 +527,7 @@ export const de: Catalog = {
     chartHint: 'Auf ein Ziel hin planen',
     closeMenuA11y: 'Menü schließen',
     lookbackHint: 'Alles, was du geschafft hast, und die Tage vor dir',
+    oursHint: 'Eine Liste, die du mit einem anderen Menschen führst',
     premiumHintFreeAi: 'Andenken, mehr KI, deine Farbe',
     premiumHintFreeNoAi: 'Dein Farbthema und mehr',
     premiumHintSubscribed: 'Dein Abo verwalten',

@@ -137,7 +137,10 @@ export default function OursScreen() {
       setPair(next);
       setLoaded(true);
     } else {
-      report(res.failure); // the seam already classified this; discarding it was the bug
+      // setFailure directly rather than report(): a READ can never return 'already-live' (only the
+      // two resume RPCs raise it), so the refresh-instead-of-explain branch cannot apply here, and
+      // depending on `report` would rebuild this callback on every render.
+      setFailure(res.failure === 'signed-out' ? null : res.failure);
     }
     setLoading(false);
   }, [session]);

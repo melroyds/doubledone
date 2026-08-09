@@ -20,10 +20,23 @@ type Props = {
   onChart: () => void;
   onPremium: () => void;
   onSettings: () => void;
+  /** Absent when Ours is not open to this account, so the row is simply not drawn. */
+  onOurs?: () => void;
   premium: boolean;
 };
 
-export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookback, onChart, onPremium, onSettings, premium }: Props) {
+export function RoomsSheet({
+  visible,
+  onClose,
+  onRepeating,
+  onRoutines,
+  onLookback,
+  onChart,
+  onPremium,
+  onSettings,
+  onOurs,
+  premium,
+}: Props) {
   const styles = useThemedStyles(makeStyles);
   const aiEnabled = useSettings().settings.aiEnabled; // hides the AI-only rooms (Chart a course) when AI is off
   // Close first, then navigate, so the sheet is already gone when the destination arrives.
@@ -41,6 +54,9 @@ export function RoomsSheet({ visible, onClose, onRepeating, onRoutines, onLookba
     { key: 'repeating', label: t('repeat.title'), hint: t('rooms.repeatingHint'), onPress: go(onRepeating) },
     { key: 'routines', label: t('routines.title'), hint: t('rooms.routinesHint'), onPress: go(onRoutines) },
     { key: 'lookback', label: t('lookback.title'), hint: t('rooms.lookbackHint'), onPress: go(onLookback) },
+    // Ours lives here, and when there is no shared list this is its ONLY entry: Today gets a door
+    // only once a list exists, so nothing on the working surface ever advertises the feature.
+    ...(onOurs ? [{ key: 'ours', label: t('ours.defaultName'), hint: t('rooms.oursHint'), onPress: go(onOurs) }] : []),
     { key: 'chart', label: t('actions.chartACourse'), hint: t('rooms.chartHint'), onPress: go(onChart), premium: true, ai: true },
     {
       key: 'premium',

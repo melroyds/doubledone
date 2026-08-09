@@ -523,6 +523,7 @@ export const fr: Catalog = {
     chartHint: 'Avancer vers un objectif',
     closeMenuA11y: 'Fermer le menu',
     lookbackHint: 'Tout ce que tu as terminé, et les jours à venir',
+    oursHint: 'Une liste que tu tiens avec une autre personne',
     premiumHintFreeAi: "Souvenirs, encore plus d'IA, ta couleur",
     premiumHintFreeNoAi: 'Ton thème de couleur, et plus encore',
     premiumHintSubscribed: 'Gérer ton abonnement',

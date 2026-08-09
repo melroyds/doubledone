@@ -523,6 +523,7 @@ export const it: Catalog = {
     chartHint: 'Un percorso verso un obiettivo',
     closeMenuA11y: 'Chiudi il menu',
     lookbackHint: 'Tutto quello che hai completato, e i giorni a venire',
+    oursHint: "Una lista che tieni con un'altra persona",
     premiumHintFreeAi: 'Ricordi, più AI, il tuo colore',
     premiumHintFreeNoAi: 'Il tuo tema colore, e altro',
     premiumHintSubscribed: 'Gestisci il tuo abbonamento',
