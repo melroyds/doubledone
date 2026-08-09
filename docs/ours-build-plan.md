@@ -245,6 +245,36 @@ policy. After two guideline rejections in July, a third blocks the whole release
   feat commit; E2E case in the same commit as the feature.
 
 
+## Check for updates (all three platforms)
+
+*Agreed with Melroy 2026-08-09, and deliberately sequenced AFTER the dogfood gate and the round-two
+design pass, so it does not compete with either.*
+
+**Order, agreed:** dogfood gate first, then the design, then this build across all three platforms,
+then the Worker deploy, then testing.
+
+**What it is for.** Two people on a shared list can be on different app versions, which is the
+ordinary state. This shrinks that window. **It does not close it**, and the plan must not pretend
+otherwise: rollouts are staggered by days, people decline updates, and some older Android devices
+cannot take the newest build at all. The "show, do not hide" handling of an unreadable cadence stays
+the safety net for the window that remains. Both, never either.
+
+- [ ] **Web.** The biggest win and the only one needing nothing external: a tab or an installed PWA
+      can be weeks stale with no signal, because the browser keeps serving what it cached. Detect a
+      newer build and offer a quiet reload.
+- [ ] **Android and iOS: point at the respective store** (Melroy's explicit preference). There is no
+      in-app update API on iOS at all, and Play's needs a native module, so the honest shape is the
+      app comparing its own version against a published latest and offering a link.
+- [ ] **One route on the `doubledone-ai` Worker** serving the latest version per platform. One
+      endpoint on infrastructure that already exists. **Needs Melroy's per-instance OK to deploy.**
+- [ ] **A quiet fact, never a nag.** No badge, no repeated modal, nothing that reads as "you are out
+      of date" to someone who opened the app to write down one thing. The standing rule is remove
+      friction, never add a setting, and an update prompt is a demand on attention. A line in
+      Settings that is simply true, plus at most one unobtrusive mention when a build is genuinely
+      old.
+- [ ] Strings in five locales, through the same never-shame lens as everything else.
+- [ ] E2E cases per platform, and a real check that the web path does not loop on a reload.
+
 ## Backlog
 
 
