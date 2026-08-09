@@ -191,7 +191,7 @@ here in build order rather than the handoff's order, because some of it needs a 
       delicate one, and declining is SILENT: the code lapses, and nothing renders on the other side,
       so a decline is indistinguishable from never having seen it.
 - [x] Solo-leave: "Nobody ever joined this one. Close it and it's simply gone." No freeze theatre.
-- [ ] Report-closed renders EXACTLY as ordinary closed. Any distinguishing mark would tell someone
+- [x] Report-closed renders EXACTLY as ordinary closed. Any distinguishing mark would tell someone
       they had been reported.
 
 ### Check for updates (recommendation accepted, and improved)
@@ -298,12 +298,12 @@ do not become one-offs because the rest of the list is.*
 Two accounts seeing each other's free text puts DoubleDone under Apple 1.2 and Play's UGC
 policy. After two guideline rejections in July, a third blocks the whole release.
 
-- [ ] Report: one quiet row → existing `/feedback` Worker route with a context tag and pair id
-- [ ] Block: "Leave this list" on the Ours screen (already Phase 2), named honestly
-- [ ] Kill path: `pairs.disabled_at`, one clause in the RLS predicate, flipped by hand
-- [ ] Privacy policy, **both copies, same commit**, plus the delete-account clause in 5 locales
-- [ ] Terms paragraph defining objectionable content
-- [ ] Store forms: Play IARC and Apple age rating gain user interaction + UGC; annotate the
+- [x] Report: one quiet row → existing `/feedback` Worker route with a context tag and pair id
+- [x] Block: "Leave this list" on the Ours screen (already Phase 2), named honestly
+- [x] Kill path: `pairs.disabled_at`, one clause in the RLS predicate, flipped by hand
+- [x] Privacy policy, **both copies, same commit**, plus the delete-account clause in 5 locales
+- [x] Terms paragraph defining objectionable content
+- [x] Store forms: Play IARC and Apple age rating gain user interaction + UGC; annotate the
       existing Data Safety row; App Review notes pointing at Report and Block
 
 ## Phase 8 · Finish

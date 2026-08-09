@@ -173,6 +173,9 @@ export default function OursScreen() {
   // The delete window: which list is pending deletion, and the timer that gives up on it. Nothing
   // has been told to anyone until the screen closes, and one tap keeps it.
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  // Reported this session. Deliberately NOT persisted and never read back from the server: a
+  // report that leaves a mark is a report the other person could notice.
+  const [reported, setReported] = useState(false);
   const pendingRef = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -453,6 +456,40 @@ export default function OursScreen() {
    * lie, and a visible timer over it would be a pressure device aimed at the audience least able to
    * think under one. Nothing has been told to anyone until you leave.
    */
+  /**
+   * Report this list. The requirement Apple 1.2 and Play both put on anything two people can write
+   * into: a way to flag objectionable content, from inside the product, without leaving it.
+   *
+   * It reuses the existing `/feedback` route rather than growing a second reporting pipe, because a
+   * second pipe is a second inbox to forget to read. What travels is a context tag and the PAIR ID,
+   * and NOTHING ELSE: no task text, no email address, no name. The pair id is enough for Melroy to
+   * find the list in Supabase and act, and it means the report itself cannot become a copy of the
+   * thing being reported sitting in an inbox.
+   *
+   * Reporting does NOT tell the other person, ever, and the screen says so before you tap. Somebody
+   * reporting a person they live with may be in a situation where being seen to report is the
+   * danger, so the silence is the safety feature, not a courtesy.
+   */
+  async function report_(pairId: string) {
+    if (busy || reported) return;
+    setBusy(true);
+    // Optimistic and one-way: the whole point is that this never argues with you. A failed send
+    // still reads as sent, because the alternative is asking somebody in a bad moment to try again.
+    setReported(true);
+    try {
+      const base = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
+      await fetch(`${base}/feedback`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: `Report: shared list ${pairId}`, context: `ours-report/${Platform.OS}` }),
+      });
+      track('ours.reported');
+    } catch {
+      // Silence is the promise. There is no error state for this and there must not be one.
+    }
+    setBusy(false);
+  }
+
   function askDelete(pairId: string) {
     setPendingDelete(pairId);
     setFailure(null);
@@ -769,6 +806,28 @@ export default function OursScreen() {
               <Text style={styles.quietAction}>{t('ours.leave')}</Text>
             </Pressable>
             <Text style={styles.hint}>{t('ours.leaveHint')}</Text>
+          </View>
+
+          {/* One quiet row, last, and never a red button: the people most likely to need this are
+              reporting somebody they live with. It says plainly that the other person is not told,
+              because being seen to report can be the actual danger. */}
+          <View style={styles.leaveBlock}>
+            {reported ? (
+              <Text style={styles.hint}>{t('ours.reportedBody')}</Text>
+            ) : (
+              <>
+                <Pressable
+                  onPress={() => void report_(pair.pairId)}
+                  disabled={busy}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('ours.report')}
+                  hitSlop={6}
+                >
+                  <Text style={styles.quietAction}>{t('ours.report')}</Text>
+                </Pressable>
+                <Text style={styles.hint}>{t('ours.reportHint')}</Text>
+              </>
+            )}
           </View>
         </View>
       );

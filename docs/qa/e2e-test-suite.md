@@ -532,6 +532,15 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | OUR-36 | P1 | Both | Delete for good commits when the screen closes, not on a timer | On a closed list, tap 'Delete this list for good'. Read what appears. Tap 'Keep it'. Then do it again and navigate away instead. | The line says nothing has been told to anyone yet and that it deletes when you leave this screen. There is NO countdown anywhere. 'Keep it' cancels it entirely. Leaving the screen with it standing actually deletes it. |
 | OUR-37 | P2 | Both | Rename yourself, and only yourself | On a live list, tap the line reading 'They see you as {name}' and type a new name. | Your name changes for both of you. There is no affordance anywhere to edit the OTHER person's name. |
 | OUR-38 | P2 | Both | A dropped signal never throws you out of the room | Open the room, then turn off the network and wait for a poll (~15s). | The list stays on screen with a quiet 'no connection' line. You are NOT redirected to the pairing screen, and nothing looks deleted. |
+| OUR-39 | P1 | Both | Report this list reaches us and tells nobody else | On a live shared list, scroll to the foot of the pairing screen and tap 'Report this list'. Then check the other account. | The row is quiet, never a red button, and says plainly that only we are told. After tapping it thanks you and says your person has not been told. NOTHING changes on the other account's screen, anywhere. The report email arrives carrying the pair id and no task text. |
+| OUR-40 | P1 | Both | A disabled list reads EXACTLY like an ordinary closed one | Set pairs.disabled_at by hand in Supabase for a test pair, then open it on both accounts. | Both see the ordinary 'This list is closed' state, read-only, with the archive row. There is NO mark, word, colour or ordering anywhere that distinguishes it from a list somebody simply left. (Any difference would tell a reported person they were reported.) |
+| OUR-41 | P2 | Both | Leaving is the block, and needs no reason | On a live list, tap 'Leave this list'. | It closes immediately for both people, with no confirmation gauntlet, no reason asked, and no way for the other person to reopen it alone. Both can still read everything. |
+
+## Legal
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| LEG-05 | P2 | Both | The shared-list clauses are in both copies of both documents | Read Settings > Privacy and Settings > Terms in-app, then doubledone.app/privacy.html and /terms.html. | Privacy carries the shared-lists sections (what the other person sees, that authorship is not stored, freezing, the 30-day window). Terms carry 'Shared lists, and what is not allowed on them' plus 'Reporting, and what we will do' with the 24-hour aim. In-app and web wording match. |
 
 ## Updates
 

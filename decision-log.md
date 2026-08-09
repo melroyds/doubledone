@@ -5923,3 +5923,42 @@ can never silently vanish from the export and take the whole check with it.
 **The Worker route is removed from source.** The live Worker still answers `/version` until the next
 deploy, harmlessly, because nothing reads it any more. Leaving it in source would have been a second
 number to bump, which is the exact drift the static file was chosen to avoid.
+
+## 2026-08-09 Phase 7: the store compliance a shared list obliges, built for the person reporting
+
+Apple 1.2 and Play's UGC policy want four things of any app where one person's words reach another's
+screen: filtering, reporting, blocking, and a way to contact the developer. Three of the four
+already existed and only needed naming; the fourth is new.
+
+**Report this list.** One quiet row, last on the screen, and never a red button. It reuses the
+existing `/feedback` route rather than growing a second reporting pipe, because a second pipe is a
+second inbox to forget to read. What travels is a context tag and the PAIR ID and nothing else: no
+task text, no address, no name. The pair id is enough to find the list and act, and it means the
+report cannot become a copy of the reported thing sitting in an inbox.
+
+**Decided: reporting is SILENT, optimistic, and unfailable.** The other person is never told, and
+the screen says so before you tap, because somebody reporting a person they live with may be in a
+situation where being seen to report is the actual danger. It has no error state: a failed send
+still reads as sent, because the alternative is asking somebody in a bad moment to try again. And
+the fact of having reported is not persisted and never read back from the server, since a mark is a
+thing the other person could notice.
+
+**Blocking is Leave**, which already existed and needed no new control: instant, no reason asked,
+closes for both, no rejoin without a fresh two-sided handshake. **Filtering is honestly
+not-applicable** and the compliance sheet says so rather than inventing a moderation story: there is
+no feed, no discovery, no profiles, and no way to reach anybody you have not exchanged a code with.
+
+**The kill path was already in the schema and is now written down.** `pairs.disabled_at`, set by
+hand in the dashboard, makes a list read-only for both people instantly with no deploy. The app
+renders a disabled list EXACTLY as an ordinary closed one, and that identical rendering is now a
+tested case (OUR-40) rather than an intention: any distinguishing mark would tell the reported
+person they had been reported, which is precisely what endangers the reporter.
+
+**Terms gained two sections in both copies**, naming what is not allowed and committing to a
+24-hour look at reports. Privacy gained its shared-list sections earlier today. Both documents exist
+twice (in-app and static web) and both copies moved in the same commit, per the standing rule.
+
+**`docs/ours-store-compliance.md` holds the exact form answers**, because these forms are filled in
+months apart, at speed, late at night, and a wrong tick costs a whole review cycle. Expected outcome
+of declaring UGC: still 4+, and nothing new to declare on Play's data safety, because a shared task
+lives in rows already covered and the app records no authorship, so there is no new data type.
