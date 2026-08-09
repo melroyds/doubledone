@@ -168,8 +168,13 @@ export function completeOnDay(task: Task, dayIso: string, now: number): Task {
  * remote's (foreign) updatedAt after a sync, +1 clears the remote too, so the change wins.
  * A `<` comparison (never `<=`) means an UNCHANGED task, whose updatedAt equals prev, is never
  * touched, so this adds no spurious pushes. Pure; the screen calls it inside commit().
+ *
+ * Generic over the row shape (it only ever reads `id` and `updatedAt`), because the shared list has
+ * the same hazard in a sharper form: there, the "different clock" is not a Worker or your own other
+ * phone, it is ANOTHER PERSON's phone writing the same row in the same minute. One implementation,
+ * so the two paths cannot drift into disagreeing about who won.
  */
-export function withMonotonicStamps(next: Task[], prev: Task[]): Task[] {
+export function withMonotonicStamps<T extends { id: string; updatedAt: number }>(next: T[], prev: T[]): T[] {
   const prevById = new Map(prev.map((t) => [t.id, t]));
   return next.map((t) => {
     const p = prevById.get(t.id);

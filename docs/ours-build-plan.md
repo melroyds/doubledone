@@ -83,12 +83,13 @@ the `skipped_dates` / `big` precedent, because `taskToRow` emits every field unc
 
 ## Phase 3 · The list and its clock
 
-- [ ] `withMonotonicStamps` widened to `<T extends { id: string; updatedAt: number }>` and used
-      on the shared write path
+- [x] `withMonotonicStamps` widened to `<T extends { id: string; updatedAt: number }>` (the
+      existing tasks.ts one, not a second copy) and exercised on shared rows
 - [ ] `server_now()` read once per sync → cached skew → applied at `nowMs()`, failing open to
       zero. Fixes personal cross-device and MCP skew in the same stroke
-- [ ] `lib/ours-merge.ts`: LWW + tombstones + **grow-only union of `completed_dates`**, pure,
-      heavily tested (two people ticking the bins from two phones must converge)
+- [x] `lib/ours-merge.ts`: LWW + tombstones + **grow-only union of `completedDates`**, pure,
+      16 tests (two people ticking the bins from two phones converge; a removal races a re-add
+      by TIME and gives the same answer whichever phone merges; a corrupt stamp loses)
 - [ ] `lib/ours-sync.ts`: push/pull, reconcile after **every** write, poll at 15s while the
       screen is focused AND the app is active, stopping on blur/background and after ten idle
       minutes, filtering on `updated_at` only (never `deleted_at is null`)

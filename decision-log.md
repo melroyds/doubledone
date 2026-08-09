@@ -4789,3 +4789,36 @@ per the ritual that produced the held card, the capture panel and Settle. The br
 `docs/design-source/ours-design-prompt.md`, and it names what the designer may argue with (where the
 naming question sits, whether "waiting" deserves its own screen, and whether the word **Ours** is
 right at all).
+
+## 2026-08-09 The shared merge: what two people are allowed to lose, and what they are not
+
+`lib/ours-merge.ts` is `sync-merge.ts`'s sibling and deliberately **not** its reuse. The two solve
+the same-shaped problem under different physics: a personal task is edited by one person across
+several devices hours apart, and a shared task is edited by two people in the same kitchen in the
+same minute. Same last-write-wins spine, different things treated as un-losable.
+
+**`completedDates` is a grow-only union.** Two people ticking the bins from two phones is the
+likeliest simultaneous write this feature will ever see, and whole-row last-write-wins drops
+whichever tick lost the timestamp race, so somebody's finished work silently un-completes on their
+partner's screen. That is not a sync bug in this product, it is the never-shame law failing in
+public. The union cannot lose one, and it cannot record who: it is a set of dates, and that is the
+whole of the information that exists.
+
+**A tombstone is not special, and that is a decision, not an omission.** The obvious rule for a
+shared list is "delete always wins", which is safe on paper and wrong here: it lets one person's
+stale removal beat the other's fresh re-add, so the app takes the side of whoever gave up on the
+task. Removal is an `updatedAt` bump like any other and races resolve by time. Tested in **both**
+orderings, because the answer has to be a fact about the clock and never about whose phone happened
+to run the merge, or the two people see two different lists and each is certain the other deleted
+something.
+
+**`withMonotonicStamps` was widened, not copied.** It already existed in `tasks.ts`, solving exactly
+this against the MCP Worker's clock; on a shared list the foreign clock is another person's phone.
+**Decided against** a shared-specific variant (which is what was written first and then deleted):
+two implementations of "whose write won" is precisely how two people end up looking at two different
+lists, and this file's whole job is that they never do.
+
+**Also recorded:** one test asserts the merged row carries no field that could attribute a
+completion to a person. There is no `done_by` column to read, so the test cannot fail today; it
+exists so that the first commit which adds one fails here, loudly, before it reaches anybody's
+kitchen.
