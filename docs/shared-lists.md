@@ -439,6 +439,21 @@ RSD-prone user to adjudicate against their partner is the exact vector the laws 
 prevent) · per-item hide · a block-list table · content filtering of a couple's own words ·
 shared tasks over MCP and the public API.
 
+**Added 2026-08-09, after a panel spent eight thousand words on it: no per-person completion state,
+PENDING or final, in any shape, including on a device.** Mutual confirm, "both of us have to agree",
+verify together, two-key done and sign-off are the same feature wearing different names, and this
+line refuses all of them in advance. The reason is narrow and worth keeping exactly: any gate that
+actually works has to be visible to the server, and server-visible per-party completion state on a
+list of exactly two people is `done_by` with a clock bolted on. The local-only construction really
+does exist and really does pass the letter of §4, and it dies on your own second device, which holds
+no memory of having armed the gate, so the gate closes with one human and zero agreement. There is
+no third option. The full argument, including where that panel overreached, is in
+[`ours-features-review.md`](ours-features-review.md).
+
+Two needs hide under the request and both have better answers already in the plan. "Ticked does not
+always mean done" is a definition-of-done problem, and this app's answer to that is decomposition.
+"Things change under me and I do not know" is §12's change dot and Phase 5's Recently removed.
+
 ## 12. Deferred, with triggers
 
 A change **dot** on the door (a couple reports missing a change; a dot, never a numeral) ·
