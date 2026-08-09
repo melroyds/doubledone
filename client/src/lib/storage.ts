@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { type SharedTask } from './ours-merge';
 import { deserializeRoutines, type Routine, serializeRoutines } from './routines';
 import { type Scrapbook } from './scrapbook';
 import { DEFAULT_SETTINGS, parseSettings, serializeSettings, type Settings } from './settings';
@@ -27,6 +28,7 @@ const WHATSNEW_KEY = 'doubledone.whatsnew.v1'; // the last What's New content id
 const REMINDERHOUR_KEY = 'doubledone.reminderhour.v1'; // the hour (0-23) the daily reminder fires; default 9am
 const DEV_PREMIUM_KEY = 'doubledone.devPremium.v1'; // DEV/preview only: the premium-flag override (see premium-flag.ts)
 const ENERGY_USES_KEY = 'doubledone.energyUses.v1'; // energy-match use timestamps (the freemium meter, see lib/energy.ts)
+const OURS_KEY = 'doubledone.ours.v1'; // shared lists, keyed BY PAIR (see loadOursCache); holds another person's words
 
 /**
  * Load Today's tasks. On a brand-new install (nothing ever stored) seed once so
@@ -473,6 +475,78 @@ export async function saveReminderOfferMade(): Promise<void> {
 }
 
 /**
+ * The offline copy of the shared lists, keyed BY PAIR from day one.
+ *
+ * Keyed rather than flat even though only one pair can exist today, because the schema already
+ * allows many (`pair_members`' key is `(pair_id, user_id)`; the cap is a constant in one function)
+ * and a flat cache would silently blend two households' rows together the day that number changes.
+ * Cheap now, a data-corruption bug later.
+ *
+ * This is the one thing on the device holding ANOTHER PERSON's words, which is why it is in
+ * `wipeLocalData` and why `pruneOursCache` exists: a list you are no longer in must not linger in
+ * a file on your phone.
+ */
+export type OursCache = Record<string, SharedTask[]>;
+
+export async function loadOursCache(): Promise<OursCache> {
+  try {
+    const raw = await AsyncStorage.getItem(OURS_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    // Defensive: anything on disk can be from an older build or half-written. Keep only the
+    // entries that are actually arrays, rather than handing a screen something it will crash on.
+    const out: OursCache = {};
+    for (const [pairId, rows] of Object.entries(parsed as Record<string, unknown>)) {
+      if (Array.isArray(rows)) out[pairId] = rows as SharedTask[];
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export async function saveOursCache(cache: OursCache): Promise<void> {
+  try {
+    await AsyncStorage.setItem(OURS_KEY, JSON.stringify(cache));
+  } catch {
+    // best effort, like every other saver here
+  }
+}
+
+/** One pair's rows. Returns empty for a pair this device has never cached, which is not an error. */
+export async function loadOursTasks(pairId: string): Promise<SharedTask[]> {
+  return (await loadOursCache())[pairId] ?? [];
+}
+
+export async function saveOursTasks(pairId: string, tasks: SharedTask[]): Promise<void> {
+  const cache = await loadOursCache();
+  cache[pairId] = tasks;
+  await saveOursCache(cache);
+}
+
+/**
+ * Drop every cached pair that is not in `keep`, which is the caller's CONFIRMED memberships.
+ *
+ * Called after each membership read, so leaving a list, being removed from one, or having one
+ * killed all converge on the same outcome without a special path each: the rows stop being on this
+ * device. Passing an empty list is meaningful and clears everything, so a caller that genuinely
+ * belongs to nothing is not a no-op.
+ */
+export async function pruneOursCache(keep: string[]): Promise<void> {
+  const cache = await loadOursCache();
+  const allowed = new Set(keep);
+  let changed = false;
+  for (const pairId of Object.keys(cache)) {
+    if (!allowed.has(pairId)) {
+      delete cache[pairId];
+      changed = true;
+    }
+  }
+  if (changed) await saveOursCache(cache);
+}
+
+/**
  * Erase everything tied to the person from this device, for account deletion: both the
  * explicit in-app delete and the detected remote-deletion path call this. One key list,
  * so neither path can quietly forget one again, which is exactly how the scrapbook used
@@ -486,7 +560,10 @@ export async function wipeLocalData(): Promise<void> {
   await saveTasks([]);
   await saveSyncedOwner(null);
   try {
-    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, DAYENERGY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY, SYNCOK_KEY]);
+    // OURS_KEY belongs here more than anything else on the list: it is the only key holding words
+    // ANOTHER person wrote. A delete that left it behind would leave a household's list sitting on
+    // the phone of someone whose account no longer exists.
+    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, DAYENERGY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY, SYNCOK_KEY, OURS_KEY]);
   } catch {
     // best effort, like the per-key savers above
   }

@@ -93,7 +93,7 @@ the `skipped_dates` / `big` precedent, because `taskToRow` emits every field unc
 - [ ] `lib/ours-sync.ts`: push/pull, reconcile after **every** write, poll at 15s while the
       screen is focused AND the app is active, stopping on blur/background and after ten idle
       minutes, filtering on `updated_at` only (never `deleted_at is null`)
-- [ ] Local cache `doubledone.ours.v1` = `{ [pairId]: tasks[] }`, rendered only when the pair
+- [x] Local cache `doubledone.ours.v1` = `{ [pairId]: tasks[] }`, rendered only when the pair
       matches a confirmed membership. **Added to `wipeLocalData` and its regression test in the
       same commit**
 - [ ] The Ours screen: Today's grammar, same rows, same held card minus the AI actions

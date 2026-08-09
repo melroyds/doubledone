@@ -4822,3 +4822,27 @@ lists, and this file's whole job is that they never do.
 completion to a person. There is no `done_by` column to read, so the test cannot fail today; it
 exists so that the first commit which adds one fails here, loudly, before it reaches anybody's
 kitchen.
+
+## 2026-08-09 The one key on the device that holds someone else's words
+
+`doubledone.ours.v1` caches the shared lists offline, keyed by pair (already decided, 2026-08-09,
+"One person, many people"). What this commit settles is what happens when you stop being in one.
+
+**`pruneOursCache(keep)` takes the confirmed memberships and drops everything else,** so leaving a
+list, being removed from one, and having one killed by the abuse switch all converge on the same
+outcome without a special path each. **Decided against** a `forgetPair`-triggered targeted delete,
+which is the obvious shape and is wrong: it only fires on the exit path the app can see, and the
+other two exits (the partner's `leave_pair`, a hand-flipped `disabled_at`) would leave the rows
+sitting on the phone indefinitely. Reconciling against membership on every read cannot miss one.
+An empty `keep` is meaningful and clears everything, so a caller who genuinely belongs to nothing
+is not a silent no-op.
+
+**It is also in `wipeLocalData`, and in that function's regression test, in this commit,** per the
+standing rule that put the key list there in the first place. This key deserves it more than any
+other on the list: it is the only one holding words ANOTHER person wrote, and an account deletion
+that left it behind would strand a household's list on the phone of someone whose account no longer
+exists. That is the exact shape of the bug the scrapbook once had.
+
+**The loader is defensive on purpose.** Anything on disk can be from an older build or a
+half-written save, and a screen whose entire promise is calm must never be handed a shape that
+crashes it, so non-array entries are dropped rather than trusted. Tested with three kinds of junk.
