@@ -14,8 +14,8 @@ import { t } from '@/lib/locale';
 import { makeSharedRef, pulledFrom } from '@/lib/ours-bridge';
 import { loadMyPairs, type MyPair } from '@/lib/ours-api';
 import { isSharedDoneOn, setSharedDone, type SharedTask, washedSince } from '@/lib/ours-merge';
-import { isUnreadableRepeat, POLL_MS, repeatSummaryOf, shouldPoll, syncPairOnce } from '@/lib/ours-sync';
-import { loadOursSeen, loadOursTasks, loadTasks, markOursSeen, saveOursTasks, saveTasks } from '@/lib/storage';
+import { isUnreadableRepeat, POLL_MS, repeatSummaryOf, shouldPoll, syncPairOnce, willTrim } from '@/lib/ours-sync';
+import { clearOursMine, loadOursMine, loadOursSeen, loadOursTasks, loadTasks, markOursSeen, saveOursTasks, saveTasks } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { makeId, nowMs, type Task, withMonotonicStamps } from '@/lib/tasks';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -48,6 +48,7 @@ export default function OursListScreen() {
   const [draft, setDraft] = useState('');
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null); // one calm line, for things worth saying once
   // Newest-issued-wins, the same guard the pairing screen needed: several call sites, a network
   // round trip in each, and whichever reply lands last would otherwise win regardless of age.
   const pass = useRef(0);
@@ -55,6 +56,10 @@ export default function OursListScreen() {
   // The quiet wash. `seenAt` is frozen for the whole visit (read once, on the first load) so that
   // marking the list as looked-at does not instantly clear the very tint it was meant to show. `mine`
   // is every row I write while I am here, subtracted so my own edits never wash.
+  // Whether the membership read has ever SUCCEEDED. The redirect waits on this, so a dropped signal
+  // can never be mistaken for "this list is not yours".
+  const readOk = useRef(false);
+  const focused = useRef(false); // real focus, fed to shouldPoll, which is what its first argument is for
   const seenAt = useRef(0);
   const mine = useRef<Set<string>>(new Set());
   const [washed, setWashed] = useState<ReadonlySet<string>>(new Set());
@@ -75,11 +80,25 @@ export default function OursListScreen() {
       const client = supabase;
       const res = await loadMyPairs(client, session.user.id);
       if (call !== pass.current) return;
-      const live = res.ok ? res.value.live : null;
+      // A FAILED read is not "you have no shared list". Treating it as one nulled the pair, which
+      // fired the redirect below and threw the user out of the room onto the pairing screen, on a
+      // dropped signal. Keep whatever is on screen, say so quietly, and try again on the next poll:
+      // exactly how the task read below already behaves.
+      if (!res.ok) {
+        setOffline(true);
+        return setLoaded(true);
+      }
+      readOk.current = true;
+      const live = res.value.live;
       setPair(live);
       if (!live) return setLoaded(true);
 
-      if (seenAt.current === 0) seenAt.current = (await loadOursSeen())[live.pairId] ?? 0;
+      if (seenAt.current === 0) {
+        seenAt.current = (await loadOursSeen())[live.pairId] ?? 0;
+        // Rows I changed from Today since I was last here. Without these, my own tick on a brought
+        // copy comes back tinted as my person's change, which is the room inventing an event.
+        for (const id of await loadOursMine(live.pairId)) mine.current.add(id);
+      }
       setPulled(pulledFrom(await loadTasks(), live.pairId));
 
       const cached = local ?? (await loadOursTasks(live.pairId));
@@ -99,6 +118,7 @@ export default function OursListScreen() {
         // of a screen on a phone is often the app being killed, and a wash that never clears is a
         // permanent "something happened" badge, which is the anxiety this was built to bound.
         void markOursSeen(live.pairId, nowMs());
+        void clearOursMine(live.pairId); // from here the last-look covers those writes
       } catch {
         // A failed READ keeps whatever is on screen. This list is somebody's household, and showing
         // it stale beats showing it empty; the line below says so rather than pretending.
@@ -115,7 +135,11 @@ export default function OursListScreen() {
       // reconcile below then moves forward), so yesterday's wash cannot still be sitting there.
       seenAt.current = 0;
       mine.current = new Set();
+      focused.current = true;
       void sync();
+      return () => {
+        focused.current = false;
+      };
     }, [sync]),
   );
 
@@ -124,7 +148,7 @@ export default function OursListScreen() {
   // second empty state here, because two screens explaining the same absence is how they drift apart
   // and start contradicting each other. `replace`, so Back still leaves rather than bouncing.
   useEffect(() => {
-    if (loaded && !pair) router.replace('/ours');
+    if (loaded && readOk.current && !pair) router.replace('/ours');
   }, [loaded, pair]);
 
   // Two people write this list, so the gap between their change and your screen is the window in
@@ -133,7 +157,7 @@ export default function OursListScreen() {
   useEffect(() => {
     if (!pair) return;
     const timer = setInterval(() => {
-      if (!shouldPoll(true, AppState.currentState === 'active', nowMs() - lastTouch.current)) return;
+      if (!shouldPoll(focused.current, AppState.currentState === 'active', nowMs() - lastTouch.current)) return;
       void sync();
     }, POLL_MS);
     return () => clearInterval(timer);
@@ -161,6 +185,7 @@ export default function OursListScreen() {
     const title = draft.trim();
     if (!title) return;
     setDraft('');
+    if (willTrim(title)) setNotice(t('ours.shareTrim')); // said BEFORE, never discovered after
     const now = nowMs();
     void commit([...tasks, { id: makeId(), title, done: false, createdAt: now, updatedAt: now }]);
   }
@@ -186,6 +211,7 @@ export default function OursListScreen() {
   function rename(id: string, title: string) {
     const trimmed = title.trim();
     if (!trimmed) return;
+    if (willTrim(trimmed)) setNotice(t('ours.shareTrim'));
     const now = nowMs();
     void commit(tasks.map((task) => (task.id === id ? { ...task, title: trimmed, updatedAt: now } : task)));
   }
@@ -260,6 +286,11 @@ export default function OursListScreen() {
         ) : null}
 
         {offline ? <Text style={styles.offline}>{t('ours.errOffline')}</Text> : null}
+        {notice ? (
+          <Pressable onPress={() => setNotice(null)} accessibilityRole="button" accessibilityLabel={t('common.gotIt')} hitSlop={6}>
+            <Text style={styles.offline}>{notice}</Text>
+          </Pressable>
+        ) : null}
 
         {loaded && visible.length === 0 ? <Text style={styles.empty}>{t('ours.listEmpty')}</Text> : null}
 
@@ -268,6 +299,9 @@ export default function OursListScreen() {
             <TaskRow
               title={task.title}
               done={isSharedDoneOn(task, today)}
+              /* The wash in WORDS as well as colour. It says a thing happened and never who did
+                 it, which is the same line the tint draws. */
+              note={washed.has(task.id) ? t('ours.changedSince') : undefined}
               onToggle={() => toggle(task.id)}
               onLongPress={() => setConfirmingId(task.id)}
               confirming={confirmingId === task.id}
@@ -280,12 +314,19 @@ export default function OursListScreen() {
               /* A cadence this build cannot read stays INERT: re-cadencing it would overwrite
                  whatever a newer build meant, on a list somebody else also keeps. */
               onRepeat={isUnreadableRepeat(task) ? undefined : () => setCadenceId(task.id)}
+              inert={isUnreadableRepeat(task) ? t('ours.repeatUnknown') : undefined}
+              /* The shared list has no per-day skip, so Remove must not borrow "Skip today": it ends
+                 the repeat, for both of you. The label says what the button does. */
+              removesWholeSeries
             />
             {/* A cadence this build cannot read: SHOWN, never hidden, because hiding it means one
                 person sees the task and the other does not and each concludes the other deleted it.
                 Inert, with whatever plain-English line the writing app left. */}
             {isUnreadableRepeat(task) ? (
-              <Text style={styles.cadenceNote}>{repeatSummaryOf(task) ?? t('ours.repeatUnknown')}</Text>
+              <Text style={styles.cadenceNote}>
+                {repeatSummaryOf(task) ? `${repeatSummaryOf(task)}  ·  ` : ''}
+                {t('ours.repeatUnknown')}
+              </Text>
             ) : null}
           </View>
         ))}
@@ -349,7 +390,16 @@ const makeStyles = (t: Theme) =>
       lineHeight: 24 * t.scale,
       marginTop: spacing.six,
     },
-    row: { marginTop: spacing.two, borderRadius: radius.md, borderWidth: border.hair, borderColor: 'transparent' },
+    row: {
+      marginTop: spacing.two,
+      borderRadius: radius.md,
+      borderWidth: border.hair,
+      borderColor: 'transparent',
+      // Padding, so a washed row's tint shows as a band AROUND the card rather than hiding behind
+      // the card's own opaque background, where it rendered as nothing at all.
+      paddingHorizontal: spacing.one,
+      paddingVertical: spacing.one,
+    },
     // Changed since you last looked. A tint and a slightly firmer edge, and nothing else: it is
     // static by design, because nothing in this room may ever animate because of the other person.
     washed: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },

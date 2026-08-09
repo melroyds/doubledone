@@ -490,3 +490,64 @@ describe('the quiet wash', () => {
     expect([...out]).toEqual(['a']);
   });
 });
+
+// The bug an adversarial pass found and sixteen tests missed, because every one of them passed the
+// SAME day to the tick and the un-tick. Across a day boundary, or across a timezone gap on the very
+// first day, a one-off could be ticked and then never un-ticked again by anyone, on any phone.
+describe('un-ticking a shared ONE-OFF on a different day than it was ticked', () => {
+  const MON = '2026-08-10';
+  const SUN = '2026-08-09';
+
+  it('un-ticks on a LATER day than the tick', () => {
+    const ticked = setSharedDone(task({ id: 'milk' }), SUN, true, 1000);
+    const cleared = setSharedDone(ticked, MON, false, 2000);
+
+    expect(cleared.done).toBe(false);
+    expect(cleared.doneAt).toBeNull();
+    expect(isSharedDoneOn(cleared, MON)).toBe(false);
+    expect(isSharedDoneOn(cleared, SUN)).toBe(false); // the tick itself is gone, not just today's view
+  });
+
+  // The timezone case, which fires on day one: my phone says Sunday, theirs already says Monday.
+  it('un-ticks on an EARLIER day than the tick', () => {
+    const ticked = setSharedDone(task({ id: 'milk' }), MON, true, 1000);
+    expect(setSharedDone(ticked, SUN, false, 2000).done).toBe(false);
+  });
+
+  it('clears a tick spread over several days, not merely the newest', () => {
+    let t = task({ id: 'milk' });
+    t = setSharedDone(t, '2026-08-01', true, 1000);
+    t = setSharedDone(t, '2026-08-05', true, 2000);
+    const cleared = setSharedDone(t, MON, false, 3000);
+
+    expect(completedDatesOf(cleared.completions)).toEqual([]);
+    expect(cleared.done).toBe(false);
+  });
+
+  it('can be ticked AGAIN after a cross-day un-tick', () => {
+    const ticked = setSharedDone(task({ id: 'milk' }), SUN, true, 1000);
+    const cleared = setSharedDone(ticked, MON, false, 2000);
+    const again = setSharedDone(cleared, MON, true, 3000);
+
+    expect(again.done).toBe(true);
+    expect(isSharedDoneOn(again, MON)).toBe(true);
+  });
+
+  // The merge must not resurrect it: a stale copy still holding the tick loses to the clear.
+  it('survives a merge against a copy that still holds the old tick', () => {
+    const ticked = setSharedDone(task({ id: 'milk', updatedAt: 1000 }), SUN, true, 1000);
+    const cleared = setSharedDone(ticked, MON, false, 2000);
+
+    expect(mergeShared([cleared], [ticked]).merged[0].done).toBe(false);
+    expect(mergeShared([ticked], [cleared]).merged[0].done).toBe(false); // order cannot matter
+  });
+
+  it('leaves a REPEAT per-day, where one date IS the right scope', () => {
+    const bins = task({ id: 'bins', recurrence: { kind: 'daily' } });
+    const ticked = setSharedDone(setSharedDone(bins, SUN, true, 1000), MON, true, 2000);
+    const cleared = setSharedDone(ticked, MON, false, 3000);
+
+    expect(isSharedDoneOn(cleared, MON)).toBe(false);
+    expect(isSharedDoneOn(cleared, SUN)).toBe(true); // Sunday's finish is still Sunday's
+  });
+});

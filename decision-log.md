@@ -5631,3 +5631,69 @@ become "trapped with a row you cannot read and cannot get rid of."
 schedule could not be shown. What was missing was the reassurance, and the reassurance is the point:
 the two other readings of a row you cannot tick are "this is broken" and "they deleted it and this
 is the wreckage". It now says it is safe and that it will reappear on its days after an update.
+
+## 2026-08-09 The adversarial pass over the room, the bridges and repeating: 39 raised, 24 real
+
+Six lenses (correctness, the three laws, data-loss, the refactor, calm, i18n/a11y), every finding
+handed to a verifier told to refute it by default. Fifteen died there. Twenty-four survived, and
+several were mine from the same afternoon. The three that mattered:
+
+**A tick on a brought copy was silently discarded on any device that had not opened the room.**
+`mirrorTickToShared` read the shared row out of the LOCAL cache and treated "not in my cache" as
+"removed on the other side". Nothing on Today ever writes that cache; only the room does. So on a
+laptop, a second phone, or after a reinstall it was empty, and every tick on a pulled copy went
+nowhere: no write, no push, no retry, no complaint. This is precisely the failure the synced
+`shared_ref` column was added to prevent, five hours earlier, in this same log. The column made the
+copy appear; the handler still could not act on it. It now pulls before giving up, and seeds the
+cache so that costs one round trip ever.
+
+**Un-ticking a shared one-off was a permanent no-op after the day it was ticked.** `clearOn` only
+ever stamped the date handed to it, so un-ticking on Monday wrote `off['monday']` against
+`on['sunday']`, which is inert; the projection stayed done and no further tap could ever change it,
+on any phone. Each dead tap still bumped `updatedAt`, so it ALSO washed on the other person's
+screen: the room announcing a change that had not happened. Sixteen tests passed because every one
+of them handed the same day to the tick and the un-tick. It fires across a timezone gap on day one.
+An un-tick now clears every date the log reports as on, which keeps the structure a commutative
+last-write-wins element set. This one is the sharpest reminder available that a green suite proves
+only what it asked.
+
+**"Skip today" deleted the whole repeat, for both people, unrecoverably.** `TaskRow` relabels Remove
+as "Skip today" for any recurring row, because on the personal side a skip is real. The shared list
+has no per-day skip, so the room inherited the reassuring label over a button that tombstones the
+series. The label now follows what the button DOES (`removesWholeSeries`), never the row's shape.
+
+Then a family of the same mistake, which is worth naming as one thing: **four places wrote a
+screen's in-memory snapshot back over storage.** The foreground nudge sweep, the cloud sync (twice),
+and the settle. Any of them could erase a task brought over in the room while Today sat in the
+background. All four now re-READ before writing. `tasksRef` is what is on screen; storage is what is
+true, and only storage may decide what the whole list is.
+
+The rest, grouped:
+
+- **A dropped signal ejected you from the room.** A failed membership read nulled the pair, which
+  fired the redirect. Now only a read that SUCCEEDED and returned no live list can redirect.
+- **The settle ran once per mount**, so a task your person finished sat on your day until the app
+  was restarted. It runs per VISIT now, and pulls first, for the same cache reason as above.
+- **Your own writes from Today came back tinted as your person's.** Fixed with a persisted per-pair
+  set of ids you wrote (`oursMine.v1`), NOT by advancing the last-look, which would also have
+  cleared the wash on their unlooked-at changes. In `wipeLocalData` with its test, per the rule.
+- **The wash was invisible and colour-only**: the tint sat behind the card's own opaque background,
+  and said nothing to a screen reader. Padded so it shows, and spoken as "changed since you last
+  looked", which still names nobody.
+- **The room silently truncated at 500 characters** on capture and rename, while Share to Ours
+  warned first. All three warn now, from the one `willTrim`.
+- **An unreadable repeat looked and sounded like an ordinary task** and tapping it did nothing. The
+  reason now travels WITH the control (`inert`), so it is spoken, and the row reports itself
+  disabled rather than as an unchecked box.
+- **"Ours" was left in English** in `shareTo` and `handled` while `defaultName` is localised, naming
+  a surface no non-English user ever sees. They now say "our list", the way the rest of their UI
+  does. French also slipped to *vous* for the user's own private day in a *tu* catalog.
+- **The Today door read "Ours · Ours"** for an unnamed list, and worse, keying the door off the NAME
+  meant an unnamed list had no door at all. It keys off the list.
+- **The naming commit button had no width bound** and pushed Cancel off the screen edge: the way out
+  of the sheet, gone. And the stepper label lost its reserved width in the extraction, so the "+"
+  jumped under the finger at the 9-to-10 boundary.
+
+The one worth keeping as a rule: **the adversarial pass found more real defects in my own six hours
+of work than in the six months before it.** Fresh code reviewed by the person who just wrote it is
+the weakest review there is, and the sixteen-passing-tests case proves the suite does not save you.

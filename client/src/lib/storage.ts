@@ -31,6 +31,7 @@ const ENERGY_USES_KEY = 'doubledone.energyUses.v1'; // energy-match use timestam
 const OURS_KEY = 'doubledone.ours.v1'; // shared lists, keyed BY PAIR (see loadOursCache); holds another person's words
 const OURS_TUCKED_KEY = 'doubledone.oursTucked.v1'; // closed lists you have put away, by pair id
 const OURS_SEEN_KEY = 'doubledone.oursSeen.v1'; // when you last looked at each shared list, by pair id
+const OURS_MINE_KEY = 'doubledone.oursMine.v1'; // shared rows YOU changed from outside the room, by pair id
 
 /**
  * Load Today's tasks. On a brand-new install (nothing ever stored) seed once so
@@ -600,6 +601,68 @@ export async function loadOursSeen(): Promise<Record<string, number>> {
   }
 }
 
+/**
+ * Shared rows you changed from OUTSIDE the room, per pair.
+ *
+ * The quiet wash subtracts the rows you wrote yourself, because a wash on a row you just ticked
+ * reads as "your person touched this too". The room could only ever know about writes made IN the
+ * room, so ticking a brought copy on Today came back tinted as your partner's change: the room
+ * announcing a change that was your own.
+ *
+ * The obvious cheap fix, advancing the last-look when you write from Today, is wrong in a way that
+ * is easy to miss: it would also clear the wash on THEIR changes that arrived before your write and
+ * that you have not looked at yet. So this records the specific ids instead, and nothing else. Ids,
+ * never titles: a row id says which relationships you had, exactly like the tuck, and no more.
+ */
+export async function loadOursMine(pairId: string): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(OURS_MINE_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return [];
+    const mine = (parsed as Record<string, unknown>)[pairId];
+    return Array.isArray(mine) ? mine.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** The most ids one pair keeps. A wash is a courtesy, so an unbounded list of them is not worth a
+ *  byte more; oldest fall off first, and the room clears the list every time it marks itself seen. */
+const OURS_MINE_MAX = 200;
+
+/** Remember that you wrote these rows. Idempotent and capped. */
+export async function noteOursMine(pairId: string, ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  try {
+    const raw = await AsyncStorage.getItem(OURS_MINE_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : {};
+    const all: Record<string, string[]> = typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? (parsed as Record<string, string[]>) : {};
+    const current = Array.isArray(all[pairId]) ? all[pairId].filter((id) => typeof id === 'string') : [];
+    const next = [...current.filter((id) => !ids.includes(id)), ...ids].slice(-OURS_MINE_MAX);
+    await AsyncStorage.setItem(OURS_MINE_KEY, JSON.stringify({ ...all, [pairId]: next }));
+  } catch {
+    // best effort, like every other saver here
+  }
+}
+
+/** Forget them, which the room does the moment it has marked itself seen: from then on the
+ *  last-look covers those writes and the list is only taking up space. */
+export async function clearOursMine(pairId: string): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(OURS_MINE_KEY);
+    if (!raw) return;
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return;
+    const all = { ...(parsed as Record<string, string[]>) };
+    if (!(pairId in all)) return;
+    delete all[pairId];
+    await AsyncStorage.setItem(OURS_MINE_KEY, JSON.stringify(all));
+  } catch {
+    // best effort
+  }
+}
+
 /** Mark a list as looked at. Never moves BACKWARDS, so a device whose clock runs behind cannot
  *  re-wash rows you have already read by storing an older "last looked" than the one already there. */
 export async function markOursSeen(pairId: string, at: number): Promise<void> {
@@ -652,7 +715,7 @@ export async function wipeLocalData(): Promise<void> {
     // OURS_KEY belongs here more than anything else on the list: it is the only key holding words
     // ANOTHER person wrote. A delete that left it behind would leave a household's list sitting on
     // the phone of someone whose account no longer exists.
-    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, DAYENERGY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY, SYNCOK_KEY, OURS_KEY, OURS_TUCKED_KEY, OURS_SEEN_KEY]);
+    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, DAYENERGY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY, SYNCOK_KEY, OURS_KEY, OURS_TUCKED_KEY, OURS_SEEN_KEY, OURS_MINE_KEY]);
   } catch {
     // best effort, like the per-key savers above
   }

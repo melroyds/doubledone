@@ -55,7 +55,8 @@ import { aiLanguage, fmt, t } from '@/lib/locale';
 import { isOursOpen, loadMyPairs } from '@/lib/ours-api';
 import { parseSharedRef, sharedRestNotes } from '@/lib/ours-bridge';
 import { setSharedDone, type SharedTask } from '@/lib/ours-merge';
-import { syncPairOnce, willTrim } from '@/lib/ours-sync';
+import { isUnreadableRepeat, syncPairOnce, willTrim } from '@/lib/ours-sync';
+import { type SupabaseClient } from '@supabase/supabase-js';
 import { buildOutcome } from '@/lib/outcome';
 import { scheduleFields, type CaptureSchedule, type Recurrence } from '@/lib/recurrence';
 import { availableNudgePresets, isWindDownTime, type NudgePreset, nudgeTargetFor } from '@/lib/nudge';
@@ -63,7 +64,7 @@ import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge }
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursTasks, loadReminderHour, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
+import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursTasks, loadReminderHour, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
 import { restedOffer } from '@/lib/offers';
 import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/plan-day';
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
@@ -95,9 +96,19 @@ const REENTRY_GAP_DAYS = 4; // a calm "welcome back" shows on the first open aft
  * Module scope, so the screen's effect has one stable dependency and this can be reasoned about
  * without a render. Returns null when there is nothing to settle, which is almost every open.
  */
-async function settleSharedCopies(pairId: string, date: string): Promise<{ next: Task[]; notes: { id: string; title: string }[] } | null> {
+async function settleSharedCopies(
+  pairId: string,
+  date: string,
+  client: SupabaseClient | null,
+): Promise<{ next: Task[]; notes: { id: string; title: string }[] } | null> {
   try {
-    const shared = await loadOursTasks(pairId);
+    // Pull, because Today never writes this cache: only the room does. Reading it cold would mean a
+    // device that has not opened /ours-list never learns that anything was handled over there.
+    let shared = await loadOursTasks(pairId);
+    if (client) {
+      shared = (await syncPairOnce(client, pairId, shared)).merged;
+      await saveOursTasks(pairId, shared);
+    }
     const mineNow = await loadTasks();
     const notes = sharedRestNotes(mineNow, shared, pairId, date);
     if (notes.length === 0) return null;
@@ -236,6 +247,8 @@ export default function TodayScreen() {
   // Copies that quietly left the day because the work got finished on Ours. Held for this visit
   // only: they are a courtesy against "did I delete that?", not a record of anything.
   const [restNotes, setRestNotes] = useState<{ id: string; title: string }[]>([]);
+  // Bumped on every focus, so effects that must re-run per VISIT (rather than per mount) can say so.
+  const [visit, setVisit] = useState(0);
   const tasksRef = useRef<Task[]>(tasks);
   const reduced = useReducedMotion();
   // The close-the-day card's gentle entrance (0 = below + transparent, 1 = settled).
@@ -264,22 +277,30 @@ export default function TodayScreen() {
 
   // Settle the shared copies once the day's own tasks are loaded, never during: both read the same
   // storage, and interleaving them would let one overwrite the other's save.
+  //
+  // Keyed on `visit` as well as the pair, so it re-runs every time you come back to Today rather
+  // than once per mount. Once per mount meant a task your person finished on Ours sat on your day
+  // until the app was restarted, and "gone next open" was only true of a cold start.
   useEffect(() => {
     if (!oursPairId || !loaded) return;
     let active = true;
-    void settleSharedCopies(oursPairId, toISODate(today)).then((res) => {
-      if (!active || !res) return;
-      setTasks(res.next);
-      setRestNotes(res.notes);
+    void settleSharedCopies(oursPairId, toISODate(today), supabase).then((res) => {
+      if (!active) return;
+      // Set unconditionally, so a visit with nothing to settle CLEARS last visit's notes. Doing that
+      // synchronously at the top of the effect would be a cascading render; doing it here is one
+      // write either way.
+      setRestNotes(res?.notes ?? []);
+      if (res) setTasks(res.next);
     });
     return () => {
       active = false;
     };
-  }, [oursPairId, loaded, today]);
+  }, [oursPairId, loaded, today, visit]);
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
+      setVisit((n) => n + 1);
       void loadTasks().then((stored) => {
         if (!active) return;
         // Clear nudges whose time has already passed so a fired (or moot) reminder does not
@@ -304,7 +325,7 @@ export default function TodayScreen() {
           void loadMyPairs(client, session.user.id).then((res) => {
             if (!active) return;
             const live = res.ok ? res.value.live : null;
-            setOursName(live ? (live.name?.trim() || t('ours.defaultName')) : null);
+            setOursName(live ? (live.name?.trim() ?? '') : null);
             setOursPairId(live?.pairId ?? null);
           });
         });
@@ -388,11 +409,15 @@ export default function TodayScreen() {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (s) => {
       if (s !== 'active') return;
-      const swept = sweepElapsedNudges(tasksRef.current, nowMs());
-      if (swept !== tasksRef.current) {
+      // Re-READ rather than trusting the screen's snapshot. This sweep used to write `tasksRef` back
+      // over storage, so anything saved while Today sat in the background got erased: a copy brought
+      // over in the room, a task added by the widget, an agent's write over MCP. The sweep is only
+      // entitled to drop stale nudges, never to decide what the whole list is.
+      void loadTasks().then((stored) => {
+        const swept = sweepElapsedNudges(stored, nowMs());
         setTasks(swept);
-        void saveTasks(swept);
-      }
+        if (swept !== stored) void saveTasks(swept);
+      });
     });
     return () => sub.remove();
   }, []);
@@ -423,7 +448,10 @@ export default function TodayScreen() {
         void wipeLocalData();
       }
       try {
-        const merged = await syncOnce(client, foreign ? [] : tasksRef.current, uid);
+        // A fresh READ, never the screen's snapshot: the room writes this same store (Bring to my
+        // Today), and a copy created while this sync was in flight would otherwise be erased by the
+        // save below. `tasksRef` is what is on screen; storage is what is true.
+        const merged = await syncOnce(client, foreign ? [] : await loadTasks(), uid);
         if (!active) return;
         setTasks(merged);
         void saveTasks(merged);
@@ -1041,7 +1069,7 @@ export default function TodayScreen() {
       // is lost. The cross-account guard runs on the next sign-in, not here.
       if (uid) {
         try {
-          await syncOnce(client, tasksRef.current, uid);
+          await syncOnce(client, await loadTasks(), uid);
           await syncScrapbooks(client, uid); // flush unpushed keepsakes too, same best effort
         } catch {
           // offline / transient: keep local intact, never lose work
@@ -1345,13 +1373,29 @@ export default function TodayScreen() {
     if (!link || !supabase) return;
     const client = supabase;
     try {
-      const cached = await loadOursTasks(link.pairId);
-      const found = cached.find((task: SharedTask) => task.id === link.sharedId && !task.deletedAt);
-      if (!found) return; // removed on the other side; nothing to close, and nothing to complain about
-      const next = cached.map((task: SharedTask) => (task.id === link.sharedId ? setSharedDone(task, toISODate(today), done, nowMs()) : task));
+      // PULL FIRST when the row is not in the local cache. Nothing on Today ever writes that cache;
+      // only the room does. So on a laptop, a second phone, or after a reinstall it is empty, and
+      // reading "not in my cache" as "removed on the other side" silently threw away every tick on
+      // a brought copy. That is precisely the failure the synced `shared_ref` column was added to
+      // prevent: the column made the copy appear, and this handler could still not act on it.
+      let rows = await loadOursTasks(link.pairId);
+      if (!rows.some((task: SharedTask) => task.id === link.sharedId)) {
+        rows = (await syncPairOnce(client, link.pairId, rows)).merged;
+        await saveOursTasks(link.pairId, rows); // seed the cache, so this costs a pull only once
+      }
+      const found = rows.find((task: SharedTask) => task.id === link.sharedId && !task.deletedAt);
+      // Genuinely gone, or a cadence this build cannot read. The second matters: an unreadable
+      // repeat has no recurrence object, so setSharedDone would treat it as a one-off and mark a
+      // repeating task finished forever, for both of you. The room refuses that tap; so must this.
+      if (!found || isUnreadableRepeat(found)) return;
+      const next = rows.map((task: SharedTask) => (task.id === link.sharedId ? setSharedDone(task, toISODate(today), done, nowMs()) : task));
       await saveOursTasks(link.pairId, next);
       const { merged } = await syncPairOnce(client, link.pairId, next);
       await saveOursTasks(link.pairId, merged);
+      // My own write, so it must not come back tinted as my person's change (see ours-list's wash).
+      // The id, not the clock: advancing the last-look would also clear the wash on THEIR changes
+      // that arrived before this one and that I have not looked at yet.
+      await noteOursMine(link.pairId, [link.sharedId]);
     } catch {
       // The local copy is already right. The next reconcile carries it.
     }
@@ -1372,6 +1416,7 @@ export default function TodayScreen() {
       await saveOursTasks(oursPairId, next);
       const { merged } = await syncPairOnce(client, oursPairId, next);
       await saveOursTasks(oursPairId, merged);
+      await noteOursMine(oursPairId, [copy.id]); // mine, so the room must not tint it as theirs
     } catch {
       // Kept locally; the room's next reconcile pushes it. Nothing typed is lost either way.
     }
@@ -2168,15 +2213,15 @@ export default function TodayScreen() {
             entirely when there is no live shared list, so this can never read as an advert. The name
             wraps rather than truncating, because a household's word for its own list is not ours to
             cut. */}
-        {oursName && !selectMode && (
+        {oursPairId && !selectMode && (
           <Pressable
             onPress={() => router.push('/ours-list')}
             accessibilityRole="button"
-            accessibilityLabel={`${t('ours.defaultName')}: ${oursName}`}
+            accessibilityLabel={oursName ? `${t('ours.defaultName')}: ${oursName}` : t('ours.defaultName')}
             style={({ pressed }) => [styles.oursDoor, pressed && styles.pressed]}
           >
             <Text style={styles.oursDoorText}>
-              {t('ours.defaultName')} · {oursName}
+              {oursName ? `${t('ours.defaultName')} · ${oursName}` : t('ours.defaultName')}
             </Text>
             <Text style={styles.oursDoorChevron}>›</Text>
           </Pressable>
@@ -3181,7 +3226,7 @@ export default function TodayScreen() {
           router.push('/premium');
         }}
         onSettings={() => router.push('/settings')}
-        onOurs={oursOpen ? () => router.push(oursName ? '/ours-list' : '/ours') : undefined}
+        onOurs={oursOpen ? () => router.push(oursPairId ? '/ours-list' : '/ours') : undefined}
         premium={premium}
       />
       <Bloom data={bloom} onDone={dismissBloom} />

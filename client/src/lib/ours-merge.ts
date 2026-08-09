@@ -123,14 +123,38 @@ export function isSharedDoneOn(task: SharedTask, date: string): boolean {
  * next merge. Pure, so `now` comes in rather than being read.
  */
 export function setSharedDone(task: SharedTask, date: string, done: boolean, now: number): SharedTask {
-  const completions = done ? tickOn(task.completions, date, now) : clearOn(task.completions, date, now);
-  const out: SharedTask = { ...task, completions, updatedAt: now };
-  if (task.recurrence !== undefined && task.recurrence.kind !== 'none') return out;
+  const repeating = task.recurrence !== undefined && task.recurrence.kind !== 'none';
+
+  // A REPEAT is done per day, so one date is exactly the right scope.
+  if (repeating) {
+    const completions = done ? tickOn(task.completions, date, now) : clearOn(task.completions, date, now);
+    return { ...task, completions, updatedAt: now };
+  }
+
+  // A ONE-OFF is done or not done, full stop, and that is where clearing only today's date was
+  // silently wrong. Tick it on Sunday, come back Monday, tap it: `clearOn` wrote off['monday']
+  // against on['sunday'], which is inert, the projection below stayed true, and the row could never
+  // be un-ticked again by anyone, on any phone. Every further tap repeated the no-op while bumping
+  // `updatedAt`, so it also washed on the other person's screen: the room announcing a change that
+  // had not happened. It survived sixteen tests because every one of them passed the SAME day to
+  // both calls, and it fires across a timezone gap on the very first day.
+  //
+  // So an un-tick clears every date the log currently reports as on. Each still gets its own
+  // strictly-greater `off` stamp, so this stays a commutative last-write-wins element set and no
+  // ordering of merges can resurrect the tick.
+  const completions = done
+    ? tickOn(task.completions, date, now)
+    : [...completedDatesOf(task.completions), date].reduce<CompletionLog>((log, on) => clearOn(log, on, now), task.completions ?? {});
+
   const dates = completedDatesOf(completions);
   const last = dates[dates.length - 1];
-  out.done = dates.length > 0;
-  out.doneAt = last !== undefined ? (completions.on?.[last] ?? null) : null;
-  return out;
+  return {
+    ...task,
+    completions,
+    updatedAt: now,
+    done: dates.length > 0,
+    doneAt: last !== undefined ? (completions.on?.[last] ?? null) : null,
+  };
 }
 
 /**

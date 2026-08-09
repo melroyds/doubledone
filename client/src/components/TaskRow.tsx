@@ -23,6 +23,9 @@ type Props = {
   onAdvance?: () => void;
   onRetreat?: () => void;
   onBreakdown?: () => void;
+  note?: string; // a state worth SAYING as well as showing (the shared list's quiet wash), folded into the row's spoken label so it is never colour-only
+  inert?: string; // this row cannot be ticked, and this is why: the reason travels WITH the control, so a screen reader hears it and a tap is never silently dead
+  removesWholeSeries?: boolean; // the caller's Remove tombstones the SERIES, so it must not borrow the "Skip today" label
   onRepeat?: () => void; // held-state, SHARED rows only: set this row's rhythm, through THE cadence sheet
   onBring?: () => void; // held-state, SHARED rows only: bring a copy of this to my own Today (the hero seat, where Break it down sits on a personal card)
   brought?: boolean; // that copy is already on my Today: the hero says so and goes inert, rather than quietly making a second one
@@ -76,6 +79,9 @@ export function TaskRow({
   onBreakdown,
   onBring,
   onRepeat,
+  note,
+  inert,
+  removesWholeSeries,
   brought,
   onShareToOurs,
   origin,
@@ -170,7 +176,9 @@ export function TaskRow({
     (big ? t('today.rowLabelBigSuffix') : '') +
     (recurring ? t('today.rowLabelRepeatingSuffix') : '') +
     (nudgeAt ? t('today.rowLabelReminderSuffix', { time: formatNudgeTime(nudgeAt) }) : '') +
-    (origin ? t('ours.rowLabelOriginSuffix') : '');
+    (origin ? t('ours.rowLabelOriginSuffix') : '') +
+    (note ? `, ${note}` : '') +
+    (inert ? `. ${inert}` : '');
 
   // Multi-select mode: every row becomes a checkbox (tap to pick), and the calm
   // tap-to-complete / long-press menu are suspended until the user leaves select mode.
@@ -210,6 +218,12 @@ export function TaskRow({
     // The way out, shared by both variants: Close (safe, easy reach, bottom-left), Select more, then
     // Remove (far right, out of the reflex path). On a repeating task, Remove is "Skip today": the
     // series continues, so the label must say so.
+    //
+    // Unless the caller's Remove actually ends the series, which is the case on the SHARED list: it
+    // has no per-day skip, so borrowing the reassuring label there promised "just today" and then
+    // deleted the whole repeat, for two people, unrecoverably. The label follows what the button
+    // does, never the row's shape.
+    const skips = recurring && !removesWholeSeries;
     const terminalRow = (
       <View style={styles.terminalRow}>
         <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel={t('common.close')} hitSlop={{ top: 12, bottom: 12 }}>
@@ -223,10 +237,10 @@ export function TaskRow({
         <Pressable
           onPress={onRemove}
           accessibilityRole="button"
-          accessibilityLabel={recurring ? t('repeat.skipTodayA11y', { title }) : t('today.removeTaskLabel', { title })}
+          accessibilityLabel={skips ? t('repeat.skipTodayA11y', { title }) : recurring ? t('repeat.removeSeriesA11y', { title }) : t('today.removeTaskLabel', { title })}
           hitSlop={{ top: 12, bottom: 12 }}
         >
-          <Text style={styles.remove}>{recurring ? t('repeat.skipToday') : t('common.remove')}</Text>
+          <Text style={styles.remove}>{skips ? t('repeat.skipToday') : t('common.remove')}</Text>
         </Pressable>
       </View>
     );
@@ -325,7 +339,7 @@ export function TaskRow({
             onPress={onRepeat}
             style={styles.actionRow}
             accessibilityRole="button"
-            accessibilityLabel={t('repeat.editSheetTitle')}
+            accessibilityLabel={t('ours.repeat')}
             hitSlop={{ top: 6, bottom: 6 }}
           >
             <Text style={styles.actionLabel}>{t('ours.repeat')}</Text>
@@ -626,12 +640,12 @@ export function TaskRow({
 
   return (
     <Pressable
-      onPress={onToggle}
+      onPress={inert ? undefined : onToggle}
       onLongPress={onLongPress}
       delayLongPress={400}
-      style={({ pressed }) => [styles.row, !recurring && styles.rowUnique, pinned && styles.rowPinned, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.row, !recurring && styles.rowUnique, pinned && styles.rowPinned, pressed && !inert && styles.pressed]}
       accessibilityRole="checkbox"
-      accessibilityState={{ checked: done }}
+      accessibilityState={{ checked: done, disabled: Boolean(inert) }}
       accessibilityLabel={rowLabel}
     >
       <CheckCircle done={done} />

@@ -182,7 +182,7 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
         <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={t('common.cancel')} hitSlop={8}>
           <Text style={styles.sheetCancel}>{t('common.cancel')}</Text>
         </Pressable>
-        <PrimaryButton label={commitLabel} onPress={save} disabled={draft.trim().length === 0} accessibilityLabel={commitLabel} />
+        <PrimaryButton label={commitLabel} onPress={save} disabled={draft.trim().length === 0} accessibilityLabel={commitLabel} style={styles.commit} />
       </View>
     </ModalCard>
   );
@@ -227,7 +227,7 @@ const makeStyles = (t: Theme) =>
       justifyContent: 'center',
     },
     stepBtnText: { color: t.colors.ink, fontSize: 20 * t.scale, fontFamily: fonts.body },
-    stepLabel: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    stepLabel: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body, minWidth: 110, textAlign: 'center' },
     startRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three, marginTop: spacing.four },
     startLabel: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     startBtn: {
@@ -240,6 +240,17 @@ const makeStyles = (t: Theme) =>
     startBtnText: { color: t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.body },
     // The surface-specific promise (Ours). A fact, in the quiet voice, never a warning.
     note: { color: t.colors.inkFaint, fontSize: 13 * t.scale, lineHeight: 19 * t.scale, fontFamily: fonts.body, marginTop: spacing.four },
-    sheetActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.four, marginTop: spacing.five },
-    sheetCancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    // Wraps rather than overflowing. The commit button names the cadence, so it grows with the
+    // wording (German runs long), and unbounded it pushed Cancel off the screen edge: the way OUT of
+    // the sheet, gone. Cancel never shrinks; the naming button gives way instead.
+    sheetActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      flexWrap: 'wrap',
+      gap: spacing.four,
+      marginTop: spacing.five,
+    },
+    sheetCancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, flexShrink: 0 },
+    commit: { flexShrink: 1 },
   });

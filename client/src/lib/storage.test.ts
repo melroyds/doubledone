@@ -4,9 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   loadOursCache,
   loadOursTasks,
+  clearOursMine,
+  loadOursMine,
   loadOursSeen,
   loadTuckedPairs,
   markOursSeen,
+  noteOursMine,
   pruneOursCache,
   saveOursTasks,
   tuckPair,
@@ -220,5 +223,68 @@ describe('when you last looked at a shared list', () => {
     stubSeen(null);
     await wipeLocalData();
     expect(vi.mocked(AsyncStorage.multiRemove).mock.calls[0][0]).toContain('doubledone.oursSeen.v1');
+  });
+});
+
+// The wash's other half: rows YOU changed from outside the room. Without it, ticking a brought copy
+// on Today came back tinted as your partner's change, which is the room inventing an event.
+describe('shared rows you changed from outside the room', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function stubMine(raw: string | null) {
+    vi.mocked(AsyncStorage.getItem).mockImplementation((key: string) =>
+      Promise.resolve(key === 'doubledone.oursMine.v1' ? raw : null),
+    );
+  }
+  const written = () => JSON.parse(vi.mocked(AsyncStorage.setItem).mock.calls.at(-1)![1] as string);
+
+  it('remembers ids per pair, without disturbing the other pairs', async () => {
+    stubMine(JSON.stringify({ 'p-1': ['a'] }));
+    await noteOursMine('p-2', ['b']);
+    expect(written()).toEqual({ 'p-1': ['a'], 'p-2': ['b'] });
+  });
+
+  it('does not duplicate an id you wrote twice', async () => {
+    stubMine(JSON.stringify({ 'p-1': ['a', 'b'] }));
+    await noteOursMine('p-1', ['a']);
+    expect(written()['p-1']).toEqual(['b', 'a']);
+  });
+
+  it('writes nothing when there is nothing to note', async () => {
+    stubMine(null);
+    await noteOursMine('p-1', []);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  });
+
+  // A courtesy is not worth unbounded storage; oldest fall off first.
+  it('caps the list, keeping the newest', async () => {
+    stubMine(JSON.stringify({ 'p-1': Array.from({ length: 200 }, (_, i) => `old-${i}`) }));
+    await noteOursMine('p-1', ['newest']);
+    const out = written()['p-1'];
+    expect(out).toHaveLength(200);
+    expect(out.at(-1)).toBe('newest');
+    expect(out).not.toContain('old-0');
+  });
+
+  it('is forgotten per pair once the room has marked itself seen', async () => {
+    stubMine(JSON.stringify({ 'p-1': ['a'], 'p-2': ['b'] }));
+    await clearOursMine('p-1');
+    expect(written()).toEqual({ 'p-2': ['b'] });
+  });
+
+  it('survives junk on disk rather than throwing on a calm screen', async () => {
+    for (const junk of ['not json', JSON.stringify([1, 2]), JSON.stringify({ 'p-1': 'nope' }), JSON.stringify({ 'p-1': [1, 'a'] })]) {
+      stubMine(junk);
+      const out = await loadOursMine('p-1');
+      expect(Array.isArray(out)).toBe(true);
+      expect(out.every((id) => typeof id === 'string')).toBe(true);
+    }
+  });
+
+  // Keyed by pair id, so it says which relationships you had. It goes with the rest on deletion.
+  it('is cleared by wipeLocalData', async () => {
+    stubMine(null);
+    await wipeLocalData();
+    expect(vi.mocked(AsyncStorage.multiRemove).mock.calls[0][0]).toContain('doubledone.oursMine.v1');
   });
 });

@@ -319,6 +319,7 @@ export const en = {
     bring: 'Bring to my Today',
     bringSub: 'a copy, on your list',
     broughtAlready: 'Already on your Today',
+    changedSince: 'changed since you last looked',
     codeBody: 'They type it into DoubleDone on their own phone, signed in with the address you gave. It works once, and it lasts a day.',
     codeHint: 'A code never contains 0, 1, I, L or O.',
     codePlaceholder: 'K7M-P4Q',
