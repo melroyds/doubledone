@@ -334,7 +334,7 @@ export const en = {
     errTooManyLists: "This account has reached DoubleDone's limit for shared lists.",
     errUnknown: "That didn't work just now. Try again?",
     forget: 'Delete this list for good',
-    forgetHint: 'This removes the list and everything on it, and it cannot be undone. Put anything you want to keep on your Today first.',
+    forgetHint: 'This deletes the list and everything on it, and it cannot be undone. Put anything you want to keep on your Today first.',
     frozenBody: 'Nothing is lost. You can still read everything here, and put anything you want on your Today, one at a time.',
     frozenTitle: 'This list is closed',
     getCode: 'Get a code',

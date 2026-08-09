@@ -79,8 +79,11 @@ the `skipped_dates` / `big` precedent, because `taskToRow` emits every field unc
       113 of 159 findings confirmed: 30 keys rewritten, `forgetHint` added, and the whole
       block swept back to house apostrophes. Verbatim synthesis in
       [`ours-copy-review.md`](ours-copy-review.md)
-- [ ] **Full per-language adversarial pass** for es/fr/it/de against the settled English,
-      same shape as the four native catalog passes (Melroy, 2026-08-09: "let's be thorough AF")
+- [x] **Full per-language adversarial pass** for es/fr/it/de against the settled English. Three
+      native lenses each, refute-by-default verifiers, then a per-language synthesis and a
+      cross-language terminology check: 174 raised, 124 confirmed, 61 keys rewritten (es 21,
+      it 15, fr 13, de 12). A separate cross-file verification then caught four more, including
+      the one terminology break the terminology agent had named and the German pass had missed
 - [ ] **An honest undo for "Delete this list for good".** It cannot be undone once the RPC
       returns (no INSERT policy on `pair_members`, no rejoin path, and the prune trigger
       hard-deletes and cascades once the second member has gone), so the only truthful undo is
@@ -230,3 +233,25 @@ policy. After two guideline rejections in July, a third blocks the whole release
 - **No user's email or account identifier is ever shown to another user, in any surface.**
 - Tests for every pure module; gates green before every commit; decision-log entry on every
   feat commit; E2E case in the same commit as the feature.
+
+
+## Backlog
+
+
+- **House typography drift OUTSIDE the `ours` namespace** (found by the language verification pass,
+  2026-08-09, deliberately not swept in a copy commit). Curly apostrophes at `en.ts:860,867`,
+  `fr.ts:389,512,844,845,856,863,865`, `it.ts:393,856,857,863`, `de.ts:115,1000`; backslash-escaped
+  delimiters that should be delimiter switches at `fr.ts:573,722,724` and `it.ts:32,967`. All
+  pre-existing, all in shipped native-reviewed strings, and both forms render identically, so this
+  is tidiness rather than a defect. **Trigger:** the next time any of those namespaces is edited for
+  another reason.
+- **French `presetOwn` drops the self-agency the other four keep** (en "Name it yourself", es "Ponle
+  tú el nombre", it "Dalle un nome tu", de "Selbst benennen", fr "Lui donner un nom"), and it
+  near-duplicates fr's own `namePlaceholder` on the very next screen. Low severity, flagged rather
+  than proposed by the verification pass. **Trigger:** a French reader mentions it, or the round-two
+  design pass changes that screen.
+- **`notThem` frames the judgement on the HUMAN in fr and de** ("la bonne personne", "der richtige
+  Mensch"), where es and it use the speaker-side frame ("quien esperabas", "chi ti aspettavi"). The
+  German terminology break was fixed; the framing question was raised by one agent and never put to
+  a verifier, so it is parked rather than acted on. **Trigger:** the round-two copy pass, where it
+  belongs beside `wasntWho`, which already moved to the speaker-side frame in it and de.

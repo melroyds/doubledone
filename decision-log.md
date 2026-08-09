@@ -5162,3 +5162,39 @@ was and changed their mind was met with "waiting" forever; that needed its own h
 `leaveHint`, which says "it closes for both of you" and is false when there is no both. And the poll
 had no focus gate, no app-state gate and no ceiling, so a tab left open made two reads every ten
 seconds all night, long after the 24-hour invite TTL had made the answer impossible.
+
+## 2026-08-09 The four language passes, and why a fifth agent read them together
+
+Three native lenses per language over the 54 `ours` strings, every finding put to a refute-by-default
+verifier, then a per-language synthesis and a cross-language terminology check: 174 raised, 124
+confirmed, **61 keys rewritten** (es 21, it 15, fr 13, de 12). Four agents then applied their own
+language to their own file in parallel, and a fifth read all five files together.
+
+**That fifth read is what earned its keep, and the reason is worth keeping.** Each applier saw only
+its own language and its own report, so nothing in that arrangement could catch a defect that only
+exists BETWEEN files. It found four, two of them real:
+
+- **German's `notThem` still said "Person"**, the only occurrence of that noun in 1092 lines, against
+  nine keys in the same block naming the same human "dein Mensch". The terminology agent had named
+  this exact break, and the German pass had not applied it. It fires on the joiner's screen at the
+  moment someone is deciding whether a stranger is holding their code.
+- **`theirEmail` split two-and-two.** French and German moved to "address" in this pass; Spanish and
+  Italian were left on "email", which in both reads first as THE MESSAGE your person sent, on the one
+  field sitting directly above a hint promising the app will never email them.
+
+Plus French spacing (a breakable space before `?` lets a lone question mark wrap to its own line on a
+narrow phone, and two of the five are screen titles), and **English becoming the outlier on its own
+irreversible action**: all four locales now use their own delete verb in `forgetHint`, and English
+said "removes", the one word indistinguishable from "leave", which is the other action on the same
+screen and the reversible one.
+
+**Decided against sweeping the pre-existing typography drift the verification found outside the
+`ours` namespace.** Curly apostrophes and escaped delimiters in fifteen shipped, native-reviewed
+strings across four files. Both forms render identically, so it is tidiness rather than a defect, and
+a copy commit is the wrong place to touch strings nobody reviewed today. Backlogged with a trigger.
+
+**Also parked rather than acted on:** `notThem` frames its judgement on the HUMAN in French and
+German ("la bonne personne", "der richtige Mensch") where Spanish and Italian use the speaker-side
+frame ("quien esperabas", "chi ti aspettavi"). One agent raised it, no verifier ever saw it, and it
+belongs beside `wasntWho`, which already moved to the speaker-side frame in Italian and German. It
+goes to the round-two copy pass, not into this commit on one unverified opinion.
