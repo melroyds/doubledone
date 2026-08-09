@@ -37,9 +37,19 @@ the `skipped_dates` / `big` precedent, because `taskToRow` emits every field unc
 - [ ] `create_pair_invite()` and `join_pair(code)`, hardened like the live `delete_account()`:
       server-side entropy, hash-only storage, single-statement verify-and-consume, per-account
       and global rate limits inside the function, `MAX_PAIRS_PER_USER = 1` as a named constant
+- [ ] **Invites are bound to one email address** (Melroy, 2026-08-09). A mistyped code then
+      fails instead of handing a stranger a place in the household, which also closes the
+      confirmed finding about a mis-texted code. Discloses nothing: the creator already knows
+      the address they typed, and the joiner is never shown one.
+- [ ] **`ours_allowlist` gates creation during the build.** Populated by hand in the dashboard,
+      never in this repo, which is public: nobody's email belongs in source control. Removing
+      the gate at launch is one `if` block and one `drop table`.
+- [ ] `leave_pair()` (freeze + expire outstanding invites) and `forget_pair()`
 - [ ] `after delete on pair_members` trigger: delete the pair when no members remain
 - [ ] `server_now()` stable function (the clock, phase 3 consumes it)
-- [ ] Schema-as-code in `supabase/schema.sql`, applied by Melroy, verified by a read-back
+- [ ] Schema-as-code in `supabase/ours.sql`, its own file so `tasks`' policies are never
+      touched. **Adversarially reviewed before it is applied** (RLS and definer mistakes are
+      the whole risk), then applied by Melroy and verified by a read-back
 
 ## Phase 2 · Pairing
 
@@ -81,16 +91,11 @@ the `skipped_dates` / `big` precedent, because `taskToRow` emits every field unc
 - [ ] A shared removal never removes anything from your Today
 - [ ] Share to Ours from the personal held card
 
-## Phase 5 · Recurrence (full scope, decided 2026-08-09)
+## Phase 5 · The guards that make the laws true
 
-- [ ] Render shared recurring tasks through the existing engine unchanged (`tasksForToday` is
-      already generic over a structural type)
-- [ ] Cadence capture on Ours, reusing the repeating drawer rather than a second surface
-- [ ] **`completed_dates` stays an unattributed set of dates.** No per-occurrence attribution,
-      ever, or the model becomes the chore ledger the never-shame laws outlaw
-- [ ] Confirm by test that a miss is unstorable, so no witness can ever see one
-
-## Phase 6 · The guards that make the laws true
+*Swapped ahead of recurrence on the field answer (couple 1, 2026-08-09: "mostly one-offs with
+a few recurrences"). The list is therefore usable without a cadence picker, so the safety work
+lands first and a real household gets a real thing sooner.*
 
 - [ ] Freeze on unpair: `pairs.closed_at`, reads stay, writes stop, **zero rows move**
 - [ ] "Remove this list" on a frozen list deletes your own membership
@@ -98,6 +103,18 @@ the `skipped_dates` / `big` precedent, because `taskToRow` emits every field unc
 - [ ] Tombstones under seven days: dimmed "Recently removed" with Restore, naming nobody
 - [ ] The finality affirmations do NOT fire on Ours (the app only promises finality where it
       controls finality, and here your person can un-tick)
+
+## Phase 6 · Recurrence (full scope, decided 2026-08-09)
+
+*"A few recurrences" is still most of what makes a household list a household list: the bins
+do not become one-offs because the rest of the list is.*
+
+- [ ] Render shared recurring tasks through the existing engine unchanged (`tasksForToday` is
+      already generic over a structural type)
+- [ ] Cadence capture on Ours, reusing the repeating drawer rather than a second surface
+- [ ] **`completed_dates` stays an unattributed set of dates.** No per-occurrence attribution,
+      ever, or the model becomes the chore ledger the never-shame laws outlaw
+- [ ] Confirm by test that a miss is unstorable, so no witness can ever see one
 
 ## Phase 7 · Compliance, before any store binary
 
