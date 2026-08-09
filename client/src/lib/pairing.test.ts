@@ -3,12 +3,14 @@ import { describe, expect, it } from 'vitest';
 import {
   ambiguousChars,
   capLabel,
+  capName,
   classifyPairError,
   CODE_ALPHABET,
   CODE_LENGTH,
   formatCode,
   isCodeComplete,
   looksLikeEmail,
+  NAME_MAX,
   normaliseCode,
   normaliseEmail,
 } from './pairing';
@@ -88,6 +90,21 @@ describe('capLabel', () => {
   });
   it('lets an empty label through, because the server has the fallback', () => {
     expect(capLabel('   ')).toBe('');
+  });
+});
+
+describe('capName', () => {
+  it('trims and caps at the column width', () => {
+    expect(capName('  The house  ')).toBe('The house');
+    expect(capName('x'.repeat(60))).toHaveLength(NAME_MAX);
+  });
+
+  // Empty must survive as empty all the way to the seam, which turns it into a null. A null name
+  // is what lets each person read the list's name in their own language, so a well-meant default
+  // word here would quietly fix one household in one language forever.
+  it('leaves an unnamed list empty rather than inventing a word', () => {
+    expect(capName('')).toBe('');
+    expect(capName('   ')).toBe('');
   });
 });
 

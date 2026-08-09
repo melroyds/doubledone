@@ -1,6 +1,6 @@
 import { type SupabaseClient } from '@supabase/supabase-js';
 
-import { capLabel, classifyPairError, normaliseCode, normaliseEmail, type PairFailure } from './pairing';
+import { capLabel, capName, classifyPairError, normaliseCode, normaliseEmail, type PairFailure } from './pairing';
 
 // Ours: the seam that talks to the pairing RPCs. A seam, not logic (it touches Supabase), so the
 // pure decisions live in pairing.ts and the CONTRACT here, which RPC is called with what, and how
@@ -14,12 +14,17 @@ export type PairErr = { ok: false; failure: PairFailure };
 export type PairResult<T> = PairOk<T> | PairErr;
 
 export type Invite = { code: string; pairId: string; expiresAt: string };
-export type Joined = { pairId: string; partnerLabel: string | null };
+export type Joined = { pairId: string; partnerLabel: string | null; pairName: string | null };
 
 /** Who is in a pair, from the current user's point of view. `partnerLabel` is null while an invite
- *  is outstanding and nobody has joined yet, which is a real and expected state, not an error. */
+ *  is outstanding and nobody has joined yet, which is a real and expected state, not an error.
+ *
+ *  `name` is null for most lists and that is the NORMAL state, not a missing value: it means "the
+ *  app's own word for this", which each reader then sees in their own language. Only a household
+ *  that deliberately named their list stores a string, and then both people see that string. */
 export type MyPair = {
   pairId: string;
+  name: string | null;
   myLabel: string | null;
   partnerLabel: string | null;
   closedAt: string | null;
@@ -28,6 +33,19 @@ export type MyPair = {
 
 function fail(error: unknown): PairErr {
   return { ok: false, failure: classifyPairError(error as { code?: string; message?: string } | null) };
+}
+
+/**
+ * Whether Ours is open to THIS account yet (the build-time allowlist).
+ *
+ * Answers about the caller only, never about an address someone types, so it cannot be used to
+ * probe who else is testing. Any failure answers false: a door that stays shut when the network is
+ * confused is a smaller harm than one that opens onto an error.
+ */
+export async function isOursOpen(client: SupabaseClient): Promise<boolean> {
+  const { data, error } = await client.rpc('ours_is_open');
+  if (error) return false;
+  return data === true;
 }
 
 /**
@@ -42,10 +60,14 @@ export async function createInvite(
   client: SupabaseClient,
   invitedEmail: string,
   myLabel: string,
+  name = '',
 ): Promise<PairResult<Invite>> {
   const { data, error } = await client.rpc('create_pair_invite', {
     p_invited_email: normaliseEmail(invitedEmail),
     p_my_label: capLabel(myLabel),
+    // Empty travels as null, never as the English word: a null name renders as whatever the app
+    // calls a shared list in the READER's language, so an Italian partner is not handed 'Ours'.
+    p_name: capName(name) || null,
   });
   if (error) return fail(error);
   // RETURNS TABLE arrives as an array of rows.
@@ -71,7 +93,18 @@ export async function joinPair(client: SupabaseClient, code: string, myLabel: st
   if (error) return fail(error);
   const row = Array.isArray(data) ? data[0] : data;
   if (!row?.pair_id) return { ok: false, failure: 'invalid-code' };
-  return { ok: true, value: { pairId: row.pair_id, partnerLabel: row.partner_label ?? null } };
+  return {
+    ok: true,
+    value: { pairId: row.pair_id, partnerLabel: row.partner_label ?? null, pairName: row.pair_name ?? null },
+  };
+}
+
+/** Rename a live list. A shared object, so either person may do it and both see it next read. An
+ *  empty name clears it back to the app's own word rather than storing a blank. */
+export async function renamePair(client: SupabaseClient, pairId: string, name: string): Promise<PairResult<null>> {
+  const { error } = await client.rpc('rename_pair', { p_pair: pairId, p_name: capName(name) || null });
+  if (error) return fail(error);
+  return { ok: true, value: null };
 }
 
 /** Leave: the list freezes for both people. Reads stay, writes stop, zero rows move, nothing is
@@ -106,16 +139,17 @@ export async function loadMyPair(client: SupabaseClient, userId: string): Promis
   const mine = rows.find((r) => r.user_id === userId);
   if (!mine) return { ok: true, value: null };
 
-  const pairs = await client.from('pairs').select('id, closed_at, disabled_at');
+  const pairs = await client.from('pairs').select('id, name, closed_at, disabled_at');
   if (pairs.error) return fail(pairs.error);
-  const pair = ((pairs.data ?? []) as { id: string; closed_at: string | null; disabled_at: string | null }[]).find(
-    (p) => p.id === mine.pair_id,
-  );
+  const pair = (
+    (pairs.data ?? []) as { id: string; name: string | null; closed_at: string | null; disabled_at: string | null }[]
+  ).find((p) => p.id === mine.pair_id);
 
   return {
     ok: true,
     value: {
       pairId: mine.pair_id,
+      name: pair?.name ?? null,
       myLabel: mine.label,
       partnerLabel: rows.find((r) => r.pair_id === mine.pair_id && r.user_id !== userId)?.label ?? null,
       closedAt: pair?.closed_at ?? null,

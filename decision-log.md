@@ -4747,3 +4747,45 @@ The schema, RLS and pairing functions were written, then reviewed by a four-lens
 **Decided beyond the panel:** take the re-mint path now rather than later. With the address hashed and the binding strict, a mistyped invitee is a NORMAL failure, and without re-minting the only escape was `forget_pair`, the single destructive path in the whole feature, in a product whose law is "leaving is one tap, and nothing is lost". A sole member of a live pair may now expire the outstanding code and issue a fresh one.
 
 **Recorded honestly as a live tension (the panel's N1, which no finding caught):** the architecture chose a code over an email invite *because* it needed no address, and binding the code to one now reintroduces "you must know their exact account email". For two existing users it is strictly safer. For a partner who has not signed up yet it is a real dead end, and Phase 2's copy must say plainly that a code only works for the address it was written for.
+
+## 2026-08-09 The list's name was in the strings and not in the schema, and a door that could lie
+
+Phase 2 began by building the pairing screen against the fifty catalog strings, which surfaced a
+gap Phase 1 had not: the copy asks **"what is this list for?"** and offers five answers, and
+Melroy's ask was explicit that the chosen name appear "across both devices/profiles". There was no
+`name` column on `pairs`, and `create_pair_invite` had nowhere to put one. Closed additively:
+`pairs.name` (nullable, capped at 40), a third parameter on `create_pair_invite`, a third output
+column on `join_pair` so the joiner sees what they walked into on the first screen, and
+`rename_pair()` so a typo made at the kitchen table is not permanent for the life of a
+relationship's list. Both function changes needed a real `drop function` first, recorded in the
+file: a defaulted third parameter creates an OVERLOAD that PostgREST cannot disambiguate by named
+arguments, and `create or replace` cannot change a `RETURNS TABLE` shape at all.
+
+**NULL is the normal state of that column, not a missing value.** It means "the app's own word for
+this", which each reader then sees in their own language. Storing the literal `Ours` would freeze
+one household into one language forever and hand an Italian partner an English name for their own
+home. The seam enforces it: an empty name travels as `null`, never as a word, and there is a test
+that fails if that ever changes. **Decided against** storing a preset KEY (`preset:house`) and
+translating it on render, which would have kept both people's screens in their own language: a name
+someone picked is a name they picked, the picker already renders in their language, and two kinds
+of value in one text column is the sort of cleverness that is discovered years later.
+
+**A rename is a definer RPC, not an UPDATE policy on `pairs`,** so the table keeps zero write grants
+and the paths in stay countable on one hand. It refuses on a frozen list, because a freeze stops
+every write and a name is no exception: what the list was called is part of what the list *was*.
+
+**The second decision is `ours_is_open()`.** Settings now has the Phase-2 door, and the build-time
+allowlist means most accounts would tap it and be told "shared lists aren't open yet". A door that
+opens onto a refusal is a small lie, and this app does not tell them. The RPC answers about the
+CALLER only, never about an address someone types, so it is not a membership oracle for the
+allowlist; the client fails **closed** on any error, null, or non-boolean, because a door that stays
+shut when the network is confused is a smaller harm than one that opens onto an error. When the gate
+is dropped at launch the function answers true for everyone and the row becomes permanent with no
+client change.
+
+**The screen itself is deliberately plain, and that is the plan, not a shortcut.** It is built to the
+strings and to one-state-at-a-time so that Claude Design has something real and working to redesign,
+per the ritual that produced the held card, the capture panel and Settle. The brief is
+`docs/design-source/ours-design-prompt.md`, and it names what the designer may argue with (where the
+naming question sits, whether "waiting" deserves its own screen, and whether the word **Ours** is
+right at all).

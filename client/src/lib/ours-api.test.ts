@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createInvite, forgetPair, joinPair, leavePair, loadMyPair } from './ours-api';
+import { createInvite, forgetPair, isOursOpen, joinPair, leavePair, loadMyPair, renamePair } from './ours-api';
 
 // A mock client in the shape supabase-js presents, so the CONTRACT is pinned without a database:
 // which RPC is called, with which argument names, and how each shape of reply is read.
@@ -19,6 +19,21 @@ function mockClient(replies: Record<string, RpcReply>, tables: Record<string, Rp
   return { client: client as never, calls };
 }
 
+describe('isOursOpen', () => {
+  it('is true only when the server says exactly true', async () => {
+    expect(await isOursOpen(mockClient({ ours_is_open: { data: true, error: null } }).client)).toBe(true);
+    expect(await isOursOpen(mockClient({ ours_is_open: { data: false, error: null } }).client)).toBe(false);
+  });
+
+  // The door is what this gates, so every ambiguous answer has to shut it. An open door onto a
+  // refusal is worse than a door that is not there yet.
+  it('fails CLOSED on an error, a null, or anything that is not a boolean true', async () => {
+    expect(await isOursOpen(mockClient({ ours_is_open: { data: null, error: { message: 'nope' } } }).client)).toBe(false);
+    expect(await isOursOpen(mockClient({ ours_is_open: { data: null, error: null } }).client)).toBe(false);
+    expect(await isOursOpen(mockClient({ ours_is_open: { data: 'true', error: null } }).client)).toBe(false);
+  });
+});
+
 describe('createInvite', () => {
   it('calls the right RPC with normalised arguments and returns the one-time code', async () => {
     const { client, calls } = mockClient({
@@ -27,13 +42,31 @@ describe('createInvite', () => {
         error: null,
       },
     });
-    const res = await createInvite(client, '  Sam@Example.COM ', '  Melroy  ');
+    const res = await createInvite(client, '  Sam@Example.COM ', '  Melroy  ', '  The house  ');
 
     expect(calls[0].fn).toBe('create_pair_invite');
     // Normalised on the way out, so a stray capital or trailing space from a mobile keyboard can
     // never produce an invite bound to an address the invitee does not actually have.
-    expect(calls[0].args).toEqual({ p_invited_email: 'sam@example.com', p_my_label: 'Melroy' });
+    expect(calls[0].args).toEqual({
+      p_invited_email: 'sam@example.com',
+      p_my_label: 'Melroy',
+      p_name: 'The house',
+    });
     expect(res).toEqual({ ok: true, value: { code: 'K7MP4Q', pairId: 'p-1', expiresAt: '2026-08-10T00:00:00Z' } });
+  });
+
+  // A list nobody named must arrive as NULL, never as the English word. Null is what lets each
+  // person read the list's name in their own language; 'Ours' on the wire would hand an Italian
+  // partner an English name for their own home, permanently.
+  it('sends an unnamed list as null rather than as a word in one language', async () => {
+    const { client, calls } = mockClient({
+      create_pair_invite: { data: [{ code: 'K7MP4Q', pair_id: 'p-1', expires_at: '2026-08-10T00:00:00Z' }], error: null },
+    });
+    await createInvite(client, 'sam@example.com', 'me');
+    expect((calls[0].args as { p_name: string | null }).p_name).toBeNull();
+
+    await createInvite(client, 'sam@example.com', 'me', '   ');
+    expect((calls[1].args as { p_name: string | null }).p_name).toBeNull();
   });
 
   it('reports the build-time allowlist calmly rather than as a database sentence', async () => {
@@ -59,13 +92,15 @@ describe('createInvite', () => {
 describe('joinPair', () => {
   it('normalises the typed code exactly as the server does before hashing', async () => {
     const { client, calls } = mockClient({
-      join_pair: { data: [{ pair_id: 'p-1', partner_label: 'Melroy' }], error: null },
+      join_pair: { data: [{ pair_id: 'p-1', partner_label: 'Melroy', pair_name: 'The house' }], error: null },
     });
     const res = await joinPair(client, ' k7m-p4q ', 'Sam');
 
     expect(calls[0].fn).toBe('join_pair');
     expect(calls[0].args).toEqual({ p_code: 'K7MP4Q', p_my_label: 'Sam' });
-    expect(res).toEqual({ ok: true, value: { pairId: 'p-1', partnerLabel: 'Melroy' } });
+    // The name comes back with the join, so the person who was handed a code sees what they have
+    // walked into on the very first screen, rather than an unnamed list they have to ask about.
+    expect(res).toEqual({ ok: true, value: { pairId: 'p-1', partnerLabel: 'Melroy', pairName: 'The house' } });
   });
 
   // THE ONE THAT MATTERS. A wrong, expired, used, meant-for-someone-else or killed code does not
@@ -94,8 +129,27 @@ describe('joinPair', () => {
     const { client } = mockClient({ join_pair: { data: [{ pair_id: 'p-1', partner_label: null }], error: null } });
     expect(await joinPair(client, 'K7M-P4Q', 'Sam')).toEqual({
       ok: true,
-      value: { pairId: 'p-1', partnerLabel: null },
+      value: { pairId: 'p-1', partnerLabel: null, pairName: null },
     });
+  });
+});
+
+describe('renamePair', () => {
+  it('caps the name and passes the pair id', async () => {
+    const { client, calls } = mockClient({ rename_pair: { error: null } });
+    expect(await renamePair(client, 'p-1', '  The house  ')).toEqual({ ok: true, value: null });
+    expect(calls[0]).toEqual({ fn: 'rename_pair', args: { p_pair: 'p-1', p_name: 'The house' } });
+  });
+
+  it('clears back to the app’s own word rather than storing a blank', async () => {
+    const { client, calls } = mockClient({ rename_pair: { error: null } });
+    await renamePair(client, 'p-1', '   ');
+    expect((calls[0].args as { p_name: string | null }).p_name).toBeNull();
+  });
+
+  it('reports a frozen or someone else’s list as not-yours', async () => {
+    const { client } = mockClient({ rename_pair: { error: { code: '42501', message: 'not your list' } } });
+    expect(await renamePair(client, 'p-9', 'x')).toEqual({ ok: false, failure: 'not-yours' });
   });
 });
 
@@ -130,13 +184,33 @@ describe('loadMyPair', () => {
           ],
           error: null,
         },
-        pairs: { data: [{ id: 'p-1', closed_at: null, disabled_at: null }], error: null },
+        pairs: { data: [{ id: 'p-1', name: 'The house', closed_at: null, disabled_at: null }], error: null },
       },
     );
     expect(await loadMyPair(client, 'me')).toEqual({
       ok: true,
-      value: { pairId: 'p-1', myLabel: 'Melroy', partnerLabel: 'Sam', closedAt: null, disabledAt: null },
+      value: {
+        pairId: 'p-1',
+        name: 'The house',
+        myLabel: 'Melroy',
+        partnerLabel: 'Sam',
+        closedAt: null,
+        disabledAt: null,
+      },
     });
+  });
+
+  // A list nobody named is the ORDINARY case, and it must read as null and not as a blank string,
+  // because null is the signal the screen uses to show the app's own word in the reader's language.
+  it('reads an unnamed list as a null name, which is normal and not missing data', async () => {
+    const { client } = mockClient(
+      {},
+      {
+        pair_members: { data: [{ pair_id: 'p-1', user_id: 'me', label: 'Melroy' }], error: null },
+        pairs: { data: [{ id: 'p-1', name: null, closed_at: null, disabled_at: null }], error: null },
+      },
+    );
+    expect(await loadMyPair(client, 'me')).toMatchObject({ ok: true, value: { name: null } });
   });
 
   it('returns null when there is no pair at all, which is not an error', async () => {
@@ -149,7 +223,7 @@ describe('loadMyPair', () => {
       {},
       {
         pair_members: { data: [{ pair_id: 'p-1', user_id: 'me', label: 'Melroy' }], error: null },
-        pairs: { data: [{ id: 'p-1', closed_at: null, disabled_at: null }], error: null },
+        pairs: { data: [{ id: 'p-1', name: 'The house', closed_at: null, disabled_at: null }], error: null },
       },
     );
     const res = await loadMyPair(client, 'me');

@@ -55,15 +55,31 @@ the `skipped_dates` / `big` precedent, because `taskToRow` emits every field unc
 
 - [x] `lib/pairing.ts`: pure formatting, normalisation, validation and error classification, plus
       `lib/ours-api.ts`, the RPC seam. 45 tests, no database needed
-- [ ] Create flow: preset picker (The shop · The house · The baby · Just us · name it yourself,
-      default Ours), self-chosen label, code display, OS share sheet
-- [ ] Join flow: code entry, self-label, **no pre-join preview** (§2), post-join confirmation
+- [x] **The list's NAME, which Phase 1 had no column for.** `pairs.name` (nullable, capped),
+      a third argument on `create_pair_invite`, a third output column on `join_pair`, and
+      `rename_pair()`. NULL means "the app's own word", so an unnamed list reads in each
+      person's own language rather than being frozen into the creator's
+- [x] `ours_is_open()`: a caller-scoped probe so the Settings door is never drawn for an
+      account the allowlist will refuse. Fails closed on anything ambiguous
+- [x] Create flow: preset picker (The shop · The house · Looking after someone · Just us ·
+      name it yourself, default Ours), self-chosen label, code display, OS share sheet
+      (clipboard where there is no share sheet)
+- [x] Join flow: code entry, self-label, **no pre-join preview** (§2), post-join confirmation
       both ways ("You're now sharing with Sam. Not them? Leave." / "Sam joined · That wasn't
       who I meant")
-- [ ] Leave: one tap, on the Ours screen itself, expiring outstanding invites in the same
-      statement
-- [ ] Signed-out Ours: the calm one-screen explanation, never a nag
+- [x] Leave: one tap, on the Ours screen itself, expiring outstanding invites in the same
+      statement. Plus the frozen state and "Remove this list"
+- [x] Signed-out Ours: the calm one-screen explanation, never a nag
+- [x] The Phase-2 door, in Settings (Today's quiet door is Phase 3)
+- [ ] **Claude Design pass** over all nine states, brief in
+      [`design-source/ours-design-prompt.md`](design-source/ours-design-prompt.md). The screen
+      built here is deliberately plain: working, on-strings, one state at a time, so the design
+      has something real to replace
+- [ ] **Adversarial copy review of the fifty-two strings, English first, then a full
+      per-language pass** for es/fr/it/de against the settled English (Melroy, 2026-08-09:
+      "let's be thorough AF")
 - [ ] **Dogfood gate:** Melroy and his wife pair on web before Phase 3 starts
+      (needs `supabase/ours.sql` re-run for the name columns and `ours_is_open`)
 
 ## Phase 3 · The list and its clock
 

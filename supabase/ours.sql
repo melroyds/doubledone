@@ -49,6 +49,13 @@ create extension if not exists pgcrypto with schema extensions;
 create table if not exists public.pairs (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
+  name text check (name is null or char_length(name) between 1 and 40),
+                                -- What this list is FOR, agreed once and identical on both phones,
+                                -- because a household calls it one thing. NULL is the normal state
+                                -- and not a missing value: it means "the app's own word", which
+                                -- each reader then sees in their own language. Storing the literal
+                                -- 'Ours' would freeze one household into one language forever, and
+                                -- an Italian partner would read an English name for their own home.
   closed_at timestamptz,        -- the list is FROZEN (reads stay, writes stop). Set by leave_pair,
                                 -- AND by the prune trigger when one member is left behind by any
                                 -- other exit path. Zero rows ever move; nothing is copied and
@@ -142,6 +149,12 @@ create index if not exists shared_tasks_pair_updated on public.shared_tasks (pai
 -- null them.
 alter table public.tasks add column if not exists shared_id text;
 alter table public.tasks add column if not exists shared_pair_id uuid;
+
+-- For a database that already took the first version of this file: `create table if not exists`
+-- silently skips a table that exists, columns and CHECKs included, so the column above lands here
+-- too. Harmless on a fresh apply, where it finds the column already there and does nothing.
+alter table public.pairs add column if not exists name text
+  check (name is null or char_length(name) between 1 and 40);
 
 -- ---------------------------------------------------------------------------
 -- The build-time gate (temporary).
@@ -375,13 +388,45 @@ create index if not exists pair_join_attempts_recent on public.pair_join_attempt
 alter table public.pair_join_attempts enable row level security;  -- zero policies: functions only
 
 -- ---------------------------------------------------------------------------
+-- "May I use this yet?"
+--
+-- Scoped to the CALLER and nothing else: it answers about you, never about an address you type, so
+-- it is not a membership oracle for the allowlist. It exists because a door that offers a feature
+-- the server will then refuse is a small lie, and this app does not tell them. When the gate comes
+-- off at launch this function returns true for everyone and the door simply stops being gated.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.ours_is_open()
+returns boolean
+language sql
+security definer
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.ours_allowlist a
+    join auth.users u on lower(btrim(u.email)) = lower(btrim(a.email))
+    where u.id = auth.uid()
+  );
+$$;
+
+revoke all on function public.ours_is_open() from public, anon;
+grant execute on function public.ours_is_open() to authenticated;
+
+-- ---------------------------------------------------------------------------
 -- Creating an invite.
 --
 -- The code is generated HERE, never by the client: the client is not trusted for entropy. Only
 -- the hash is stored, and the plaintext is returned exactly once.
 -- ---------------------------------------------------------------------------
 
-create or replace function public.create_pair_invite(p_invited_email text, p_my_label text)
+-- The two-argument shape from the first version of this file must GO, not merely be replaced: a
+-- third parameter with a default creates an OVERLOAD, and PostgREST then cannot tell which one a
+-- named-argument call means, so every create would fail with an ambiguity error nobody could read.
+drop function if exists public.create_pair_invite(text, text);
+
+create or replace function public.create_pair_invite(p_invited_email text, p_my_label text, p_name text default null)
 returns table (code text, pair_id uuid, expires_at timestamptz)
 language plpgsql
 security definer
@@ -400,6 +445,7 @@ declare
   v_email text;
   v_invited text := lower(btrim(coalesce(p_invited_email, '')));  -- normalise ONCE, use everywhere
   v_label text;
+  v_name text;
   v_code text := '';
   v_bytes bytea;
   v_pair uuid;
@@ -437,6 +483,10 @@ begin
   end if;
 
   v_label := coalesce(nullif(btrim(left(btrim(p_my_label), 40)), ''), 'me');
+  -- Empty stays NULL rather than becoming a word: NULL is "the app's own name for this", which each
+  -- reader sees in their own language. Trimmed to the column's own ceiling so a long paste is a
+  -- shorter name and never a constraint error thrown at someone naming their kitchen list.
+  v_name := nullif(btrim(left(btrim(coalesce(p_name, '')), 40)), '');
 
   -- Re-mint rather than dead-end. The address is hashed and unreadable, so a mistyped invitee
   -- (which this design makes a NORMAL failure, not an exotic one) would otherwise be unrecoverable
@@ -458,11 +508,16 @@ begin
       where pair_invites.pair_id = v_pair and used_at is null;
     update public.pair_members set label = v_label
       where pair_members.pair_id = v_pair and user_id = v_uid;
+    -- The re-mint is the second run through the same form, so it carries the name too. coalesce
+    -- keeps an existing one when this call passed none, so re-minting can never quietly un-name a
+    -- list. Safe on this branch only, where nobody else has joined yet: renaming a list a second
+    -- person is living in is rename_pair's job, further down.
+    update public.pairs set name = coalesce(v_name, name) where id = v_pair;
   else
     if (select count(*) from public.pair_members m where m.user_id = v_uid) >= k_max_lists then
       raise exception 'too many old lists' using errcode = '54000';
     end if;
-    insert into public.pairs default values returning id into v_pair;
+    insert into public.pairs (name) values (v_name) returning id into v_pair;
     insert into public.pair_members (pair_id, user_id, label) values (v_pair, v_uid, v_label);
   end if;
 
@@ -487,8 +542,8 @@ begin
 end;
 $$;
 
-revoke all on function public.create_pair_invite(text, text) from public, anon;
-grant execute on function public.create_pair_invite(text, text) to authenticated;
+revoke all on function public.create_pair_invite(text, text, text) from public, anon;
+grant execute on function public.create_pair_invite(text, text, text) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Redeeming one.
@@ -497,8 +552,12 @@ grant execute on function public.create_pair_invite(text, text) to authenticated
 -- update: a select-then-update would reopen single-use as a race between two fast taps.
 -- ---------------------------------------------------------------------------
 
+-- Same reason as above, and one more: `create or replace` cannot change a RETURNS TABLE shape at
+-- all (42P13), so the third output column needs the drop even without the overload problem.
+drop function if exists public.join_pair(text, text);
+
 create or replace function public.join_pair(p_code text, p_my_label text)
-returns table (pair_id uuid, partner_label text)
+returns table (pair_id uuid, partner_label text, pair_name text)
 language plpgsql
 security definer
 set search_path = ''
@@ -516,6 +575,7 @@ declare
   v_hash text;
   v_pair uuid;
   v_label text;
+  v_name text;
 begin
   if v_uid is null then
     raise exception 'not signed in' using errcode = '28000';
@@ -550,7 +610,8 @@ begin
   if v_pair is not null then
     select m.label into v_label from public.pair_members m
       where m.pair_id = v_pair and m.user_id <> v_uid limit 1;
-    return query select v_pair, v_label;
+    select pr.name into v_name from public.pairs pr where pr.id = v_pair;
+    return query select v_pair, v_label, v_name;
     return;
   end if;
 
@@ -598,12 +659,47 @@ begin
   insert into public.pair_members (pair_id, user_id, label)
     values (v_pair, v_uid, coalesce(nullif(btrim(left(btrim(p_my_label), 40)), ''), 'me'));
 
-  return query select v_pair, v_label;
+  -- Read AFTER the insert, so this is a member reading their own list's name and not a definer
+  -- function handing a stranger the name of a household they failed to get into.
+  select pr.name into v_name from public.pairs pr where pr.id = v_pair;
+
+  return query select v_pair, v_label, v_name;
 end;
 $$;
 
 revoke all on function public.join_pair(text, text) from public, anon;
 grant execute on function public.join_pair(text, text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Renaming. A shared object, so either member may do it while the list is alive, and both see the
+-- new name on their next read. Frozen lists refuse, because a freeze stops every write and a name
+-- is no exception: what the list was called is part of what the list WAS.
+--
+-- A definer function rather than an UPDATE policy on `pairs`, so the table keeps zero write grants
+-- and the only paths in stay countable on one hand. Clearing it back to NULL is allowed and means
+-- "call it whatever the app calls it", in each reader's own language.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.rename_pair(p_pair uuid, p_name text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.is_pair_writable(p_pair) then
+    -- is_pair_writable is membership-scoped, so this covers "not yours", "frozen" and "killed"
+    -- with one line and tells a non-member nothing about whether the list exists.
+    raise exception 'not your list' using errcode = '42501';
+  end if;
+  update public.pairs
+     set name = nullif(btrim(left(btrim(coalesce(p_name, '')), 40)), '')
+   where id = p_pair;
+end;
+$$;
+
+revoke all on function public.rename_pair(uuid, text) from public, anon;
+grant execute on function public.rename_pair(uuid, text) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Leaving. The list FREEZES for both people: reads stay, writes stop, zero rows move. Nothing is

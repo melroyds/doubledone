@@ -15,6 +15,7 @@ import { useSession } from '@/lib/auth';
 import { toISODate } from '@/lib/day';
 import { buildExport } from '@/lib/export';
 import { t } from '@/lib/locale';
+import { isOursOpen } from '@/lib/ours-api';
 import { usePremium } from '@/lib/premium-provider';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { clampHour, formatReminderHour, reminderReasonLine } from '@/lib/reminders-types';
@@ -68,6 +69,11 @@ export default function SettingsScreen() {
   const [feedbackState, setFeedbackState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [confirmingAi, setConfirmingAi] = useState(false); // showing the "turn AI on" informed-consent card
   const [aiNote, setAiNote] = useState<string | null>(null); // the calm line after turning AI off
+  // Whether Ours is open to THIS account. Starts false and is only ever raised by the server, so a
+  // door that would open onto "shared lists aren't open yet" is simply not drawn. When the
+  // build-time allowlist is dropped at launch, the RPC answers true for everyone and this row
+  // becomes permanent with no code change here.
+  const [oursOpen, setOursOpen] = useState(false);
 
   // Re-check the entitlement on focus (e.g. after returning from checkout) so the Premium card's
   // "Active" marker is current, and reflect the persisted daily-reminder toggle. The premium flag
@@ -85,10 +91,17 @@ export default function SettingsScreen() {
       void loadLastSyncOk().then((v) => {
         if (active) setSyncOk(v);
       });
+      if (supabase && session) {
+        void isOursOpen(supabase).then((open) => {
+          if (active) setOursOpen(open);
+        });
+      } else {
+        setOursOpen(false);
+      }
       return () => {
         active = false;
       };
-    }, [refresh]),
+    }, [refresh, session]),
   );
 
   // Toggle the opt-in daily reminder from Settings. Mirrors the Today footer and shares the
@@ -538,6 +551,20 @@ export default function SettingsScreen() {
               </Pressable>
             )}
           </View>
+        ) : null}
+
+        {/* Ours. Drawn only for an account the server has already said yes to, so this door can
+            never open onto a refusal. Phase 2's way in; Today gets the real quiet door in phase 3. */}
+        {session && oursOpen ? (
+          <Pressable
+            onPress={() => router.push('/ours')}
+            accessibilityRole="button"
+            accessibilityLabel={t('ours.defaultName')}
+            style={({ pressed }) => [styles.account, pressed && styles.pressed]}
+          >
+            <Text style={styles.accountLabel}>{t('ours.defaultName')}</Text>
+            <Text style={styles.mcpHint}>{t('ours.lead')}</Text>
+          </Pressable>
         ) : null}
 
         {session ? (

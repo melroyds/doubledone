@@ -60,6 +60,20 @@ export function capLabel(input: string): string {
 }
 
 /**
+ * What the list is called, capped to the same column width.
+ *
+ * Separate from capLabel despite the identical body, because the two are different ideas that will
+ * drift: a label is who you are to one person, a name is what a household calls its list, and only
+ * one of them is on both phones. Empty is the ordinary answer and must survive as empty: the seam
+ * turns it into a null, which renders as the app's own word in whichever language each person is
+ * reading. Storing the English 'Ours' would fix one household in one language forever.
+ */
+export const NAME_MAX = 40;
+export function capName(input: string): string {
+  return input.trim().slice(0, NAME_MAX).trim();
+}
+
+/**
  * A permissive shape check on the address an invite is bound to. Deliberately no stricter than
  * the server's "does it contain an @", because every clever email regex ever written rejects
  * somebody's real address, and being told your own email is invalid by a to-do app is a small
