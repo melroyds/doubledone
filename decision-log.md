@@ -5245,3 +5245,31 @@ un-designed screen teaches the flow twice, once badly, and the two households wh
 not a resource to spend on a version nobody intends to keep. The email-binding risk does not expire;
 it will still be there to find after the design lands, and by then finding it costs one conversation
 rather than one first impression.
+
+## 2026-08-09 Where an update notice lives, and why it is a recommendation rather than a question
+
+Melroy asked whether the out-of-date message on iOS and Android belongs in Settings or on Today. The
+answer is neither, and the third place was already in the codebase: `restedOffer` in `lib/offers.ts`,
+a ladder of gentle offers shown ONE AT A TIME on the rested screen, which already carries the daily
+reminder, the home-screen widget and the scrapbook keepsake.
+
+**Settings alone achieves nothing.** Almost nobody opens it, and the person whose build cannot read
+their partner's cadence is exactly the person not going looking for a version number. **Today is the
+wrong surface**, because its promise is that the day is finite and an update notice is a demand with
+nothing to do with the person's day. **The rested screen** fires when someone has finished, is not
+mid-task, and the app has already softened. Same shape as "your week could be a keepsake".
+
+So: Settings carries the always-true fact and absorbs the version line already there; the rare
+mention is a fourth rung on the ladder, gated at two minor versions behind and once a fortnight.
+
+**Recorded honestly: the gap.** Someone who never closes a day never sees the rested screen, so they
+never get the nudge. The counter is that a person who never closes a day is struggling, and
+interrupting them with a version notice is precisely the wrong instinct.
+
+**And a note on process, which is the transferable part.** This went into the design brief as a
+RECOMMENDATION rather than an open question, for three reasons. Round one's handoff contains four
+positions where it argued back against the brief, so a stated position gets tested rather than
+obeyed. The offer ladder is not discoverable from a description of the app, so withholding it means
+a Today surface designed in good faith and a round spent unpicking it. And "Settings or Today" is
+not a neutral question: posing it with two options quietly rules out the one that is right. The
+guard against anchoring is that the reasoning ships with it and rejecting it is invited explicitly.

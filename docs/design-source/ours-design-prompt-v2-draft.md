@@ -161,11 +161,45 @@ gets. Design to that rarity rather than fighting it.
 18. **The version line that already exists** in Settings reads `v1.2.0 (11)`. Whatever this becomes
     should absorb it rather than sit beside it as a second version thing.
 
+### Where the rare mention should live: a recommendation, and please argue with it
+
+The obvious framing is "Settings or Today", and the answer is neither, which is why this is written
+down rather than left open. An open question with two options is not neutral; it quietly rules out
+the third.
+
+**Settings alone does not work.** Almost nobody opens Settings, and rarely. A notice that lives only
+there satisfies the letter of the feature while achieving nothing: the person whose build cannot
+read their partner's cadence is exactly the person not going looking for a version number.
+
+**Today is the wrong surface.** Its whole promise is that the day is finite and achievable, and an
+update notice is a demand that has nothing to do with the person's day. It is the most protected
+screen in the app and this is not what it should be protecting against.
+
+**The third place already exists in the codebase.** `lib/offers.ts` has `restedOffer`, a ladder of
+gentle offers shown ONE AT A TIME on the rested screen, when someone has closed their day and
+finished everything. Three rungs are already on it: the daily reminder, the home-screen widget, and
+the scrapbook keepsake. Each is an offer at an earned moment rather than an interruption, and
+because the ladder shows one thing at a time they cannot stack by construction.
+
+**So: Settings carries the always-true fact** (the version, whether it is current, and the store
+link when it is not), absorbing the version line already there. **The rare mention is a fourth rung
+on the rested ladder**, gated by `shouldMention`: two minor versions or a major behind, once a
+fortnight at most.
+
+**The honest gap, which is yours to weigh:** someone who never closes a day never sees the rested
+screen, so they never get the nudge. That is real. The counter is that a person who never closes a
+day is a person who is struggling, and interrupting them with a version notice is precisely the
+wrong instinct. Settings stays there for anyone who wonders.
+
+**Reject this if you disagree.** It is a recommendation because the offer ladder is not discoverable
+from a description of the app and you would otherwise design a Today surface in good faith, not
+because the question is closed.
+
 **Things to argue with here too:**
 
 - Whether "you are up to date" earns its space, or whether silence is the better reassurance.
-- Whether the rare out-of-date mention belongs anywhere except Settings at all. Today's constant
-  frame is the obvious host and also the most protected surface in the app.
+- Whether an update mention belongs on the rested ladder at all, given that the other three rungs
+  offer the person something FOR THEMSELVES and this one asks something of them.
 - Whether a web reload needs any warning about losing what is on screen. Capture text survives
   today; a reload mid-sentence is the case to check.
 
