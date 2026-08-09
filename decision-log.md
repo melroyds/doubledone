@@ -5593,3 +5593,41 @@ trimming, so the warning can never drift from the behaviour it warns about.
 load read the same storage, and interleaving them let one overwrite the other's save. That was
 caught by the linter refusing a call to a function declared below it, which turned out to be
 pointing at a real ordering bug rather than a style preference.
+
+## 2026-08-09 Repeating on Ours: one cadence surface, made true by extraction
+
+The design asked for "the same repeating drawer as home, one cadence surface in the app". The cheap
+reading is "build one that looks the same". The honest one is that there must literally be one, so
+`CadenceSheet` was lifted out of `RepeatingDrawer` and both now open it.
+
+**Decided: extract rather than duplicate, even though it meant refactoring a shipped component with
+live users.** A second picker would have been ~120 lines of near-identical UI, and near-identical is
+the state a fortnight before "why does the shared one not offer weekly". The extraction took
+`RepeatingDrawer` from 464 lines to 259 and left it doing only what it is for: listing series,
+removing them, and undoing that. Verified in the preview end to end: prefill, mode change, save, and
+the stored recurrence came back `{kind:'interval', days:2, anchor:'2026-08-09'}`.
+
+**Decided: the commit button NAMES the cadence** ("Every day", "Every 2 days") rather than saying
+Save, on both surfaces. It was an Ours-specific ask in the design and it is better everywhere: the
+last thing you read before committing should be the thing you are committing to, and on a shared
+list it is the thing you are committing your person to as well. It comes from `describeRecurrence`,
+so the button and the row's own description can never disagree.
+
+**Decided: `note` is the sheet's only surface-specific seam.** Ours passes "You'll both see it on
+its day."; the personal drawer passes nothing, because it needs no such promise. One prop rather
+than a `variant` flag, so the shared component never learns which screen it is on.
+
+**Decided: an unreadable cadence is inert to the TICK, not only to the editor.** This was the real
+find. A cadence a newer build wrote leaves `recurrence` undefined and `rawRecurrence` set, and every
+done-helper here treats an absent recurrence as a one-off, so a single tap would have marked a
+repeating task finished forever, for both people, on a row that was supposed to come back. So the
+tick returns early, and `Repeat…` is withheld too, because re-cadencing would overwrite whatever the
+newer build meant on a list somebody else also keeps.
+
+The hold card stays reachable on those rows, though: rename and remove still work. "Inert" must not
+become "trapped with a row you cannot read and cannot get rid of."
+
+**And the unreadable-cadence copy got the design's fuller line.** It used to say only that the
+schedule could not be shown. What was missing was the reassurance, and the reassurance is the point:
+the two other readings of a row you cannot tick are "this is broken" and "they deleted it and this
+is the wreckage". It now says it is safe and that it will reappear on its days after an update.

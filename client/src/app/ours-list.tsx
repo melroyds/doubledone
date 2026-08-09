@@ -4,10 +4,12 @@ import { AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
+import { CadenceSheet } from '@/components/CadenceSheet';
 import { TaskRow } from '@/components/TaskRow';
 import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { useSession } from '@/lib/auth';
 import { toISODate } from '@/lib/day';
+import { type Recurrence } from '@/lib/recurrence';
 import { t } from '@/lib/locale';
 import { makeSharedRef, pulledFrom } from '@/lib/ours-bridge';
 import { loadMyPairs, type MyPair } from '@/lib/ours-api';
@@ -59,6 +61,7 @@ export default function OursListScreen() {
   // Which rows are already on my own Today, so "Bring to my Today" can say so rather than quietly
   // making a second copy. My tasks, read here only to answer that one question.
   const [pulled, setPulled] = useState<Map<string, string>>(new Map());
+  const [cadenceId, setCadenceId] = useState<string | null>(null); // the row whose rhythm is being set
 
   /** Cache first, then reconcile. The list is on screen before the network is asked anything, which
    *  is the whole point of the local copy and the difference between opening a list and waiting. */
@@ -163,6 +166,11 @@ export default function OursListScreen() {
   }
 
   function toggle(id: string) {
+    const found = tasks.find((task) => task.id === id);
+    // A cadence this build cannot read has NO recurrence object, so every done-helper treats it as a
+    // one-off: one tap would mark it finished forever, for both of you, on a task that was supposed
+    // to come back. Inert is the only honest state, and the line under the row says why.
+    if (!found || isUnreadableRepeat(found)) return;
     const now = nowMs();
     void commit(tasks.map((task) => (task.id === id ? setSharedDone(task, today, !isSharedDoneOn(task, today), now) : task)));
   }
@@ -211,6 +219,17 @@ export default function OursListScreen() {
     setConfirmingId(null);
   }
 
+  /** Set a rhythm. THE cadence sheet, the same one the personal Repeating drawer opens, so a repeat
+   *  made here, made there, made by the REST API or made by an agent over MCP is one shape. */
+  function setCadence(id: string, title: string, recurrence: Recurrence) {
+    const now = nowMs();
+    setCadenceId(null);
+    // A dated one-off and a repeat are mutually exclusive everywhere else in this app (the API
+    // enforces it, MCP enforces it), so setting a rhythm clears any raw cadence a newer build left.
+    void commit(tasks.map((task) => (task.id === id ? { ...task, title, recurrence, rawRecurrence: undefined, updatedAt: now } : task)));
+  }
+
+  const cadenceTask = tasks.find((task) => task.id === cadenceId) ?? null;
   const visible = tasks.filter((task) => !task.deletedAt);
   const listName = pair?.name?.trim() || t('ours.defaultName');
 
@@ -258,6 +277,9 @@ export default function OursListScreen() {
               onRename={(next) => rename(task.id, next)}
               onBring={() => void bring(task)}
               brought={pulled.has(task.id)}
+              /* A cadence this build cannot read stays INERT: re-cadencing it would overwrite
+                 whatever a newer build meant, on a list somebody else also keeps. */
+              onRepeat={isUnreadableRepeat(task) ? undefined : () => setCadenceId(task.id)}
             />
             {/* A cadence this build cannot read: SHOWN, never hidden, because hiding it means one
                 person sees the task and the other does not and each concludes the other deleted it.
@@ -268,6 +290,22 @@ export default function OursListScreen() {
           </View>
         ))}
       </ScrollView>
+
+      {cadenceTask && (
+        <CadenceSheet
+          key={cadenceTask.id}
+          visible
+          onClose={() => setCadenceId(null)}
+          today={new Date()}
+          sheetTitle={t('repeat.editSheetTitle')}
+          title={cadenceTask.title}
+          recurrence={cadenceTask.recurrence}
+          /* The one line that is true here and nowhere else. Not a warning, and never a count: it
+             says what will happen, which is the whole of what anyone needs before committing. */
+          note={t('ours.repeatNote')}
+          onSave={(title, recurrence) => setCadence(cadenceTask.id, title, recurrence)}
+        />
+      )}
 
       {/* The capture bar speaks the list's name, so it is obvious which room you are typing into. */}
       <View style={[styles.capture, { paddingBottom: insets.bottom + spacing.three }]}>

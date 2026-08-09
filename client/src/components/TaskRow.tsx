@@ -23,6 +23,7 @@ type Props = {
   onAdvance?: () => void;
   onRetreat?: () => void;
   onBreakdown?: () => void;
+  onRepeat?: () => void; // held-state, SHARED rows only: set this row's rhythm, through THE cadence sheet
   onBring?: () => void; // held-state, SHARED rows only: bring a copy of this to my own Today (the hero seat, where Break it down sits on a personal card)
   brought?: boolean; // that copy is already on my Today: the hero says so and goes inert, rather than quietly making a second one
   onShareToOurs?: () => void; // held-state, PERSONAL rows only: put a copy of this on the shared list (in the fold; only when a live list exists)
@@ -74,6 +75,7 @@ export function TaskRow({
   onRetreat,
   onBreakdown,
   onBring,
+  onRepeat,
   brought,
   onShareToOurs,
   origin,
@@ -317,6 +319,19 @@ export function TaskRow({
               <Text style={[styles.actionSub, styles.heroSub]}>{t('ours.bringSub')}</Text>
             </Pressable>
           ))}
+
+        {onRepeat && (
+          <Pressable
+            onPress={onRepeat}
+            style={styles.actionRow}
+            accessibilityRole="button"
+            accessibilityLabel={t('repeat.editSheetTitle')}
+            hitSlop={{ top: 6, bottom: 6 }}
+          >
+            <Text style={styles.actionLabel}>{t('ours.repeat')}</Text>
+            {recurring ? <Text style={styles.actionSub}>↻</Text> : null}
+          </Pressable>
+        )}
 
         {/* Lead actions: the helpers you reach for when stuck. Break it down is the tinted hero. */}
         {canBreakdown && (

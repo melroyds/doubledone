@@ -1,18 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { border, fonts, motion, radius, spacing, type Theme } from '@/constants/theme';
-import { friendlyDate, toISODate } from '@/lib/day';
 import { t } from '@/lib/locale';
-import { describeRecurrence, scheduleFields, type CaptureSchedule, type Recurrence } from '@/lib/recurrence';
+import { describeRecurrence, type Recurrence } from '@/lib/recurrence';
 import { type Task } from '@/lib/tasks';
-import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
+import { useReducedMotion, useThemedStyles } from '@/lib/theme-provider';
 import { isDoneOn, isRecurring } from '@/lib/today';
 
-import { Chip } from './Chip';
-import { DatePicker } from './DatePicker';
-import { ModalCard } from './ModalCard';
-import { PrimaryButton } from './PrimaryButton';
+import { CadenceSheet } from './CadenceSheet';
 
 type Props = {
   open: boolean;
@@ -26,28 +22,6 @@ type Props = {
   onRestoreSeries: (id: string) => void; // the undo: clears the tombstone
 };
 
-// The cadences a series can be edited to, mirroring BrainDump's recurring capture
-// modes (daily / weekly / every N days). One-off modes don't belong here: a series
-// stays a series, and un-repeating a task is Remove + recapture.
-type EditMode = 'daily' | 'weekly' | 'everyN';
-
-const EDIT_MODES: { mode: EditMode; labelKey: string }[] = [
-  { mode: 'daily', labelKey: 'capture.modeDaily' },
-  { mode: 'weekly', labelKey: 'capture.modeWeekly' },
-  { mode: 'everyN', labelKey: 'capture.modeEveryN' },
-];
-
-// index 0=Sun .. 6=Sat (the same table BrainDump renders)
-const WEEKDAY_KEYS = [
-  'capture.weekdayShortSun',
-  'capture.weekdayShortMon',
-  'capture.weekdayShortTue',
-  'capture.weekdayShortWed',
-  'capture.weekdayShortThu',
-  'capture.weekdayShortFri',
-  'capture.weekdayShortSat',
-];
-
 // The repeating-tasks home: a panel that slides in from the right. Daily and
 // repeating tasks get their own respected space here; today's due ones still
 // appear on Today so habits don't fall out of sight. Calm, no streaks or grids.
@@ -57,27 +31,19 @@ const WEEKDAY_KEYS = [
 // mount-time setState, both of which the render rules forbid.
 export function RepeatingDrawer({ open, onClose, tasks, today, onToggle, onEditSeries, onRemoveSeries, onRestoreSeries }: Props) {
   const styles = useThemedStyles(makeStyles);
-  const theme = useTheme();
   const reduced = useReducedMotion();
   const [anim] = useState(() => new Animated.Value(open ? 1 : 0));
   const { width } = useWindowDimensions();
   const panelWidth = Math.min(360, width * 0.86);
-  const todayIso = toISODate(today);
 
   // Removing a series is recoverable, not a confirmation gauntlet: a brief undo bar
   // (matching routines.tsx) instead of a heavy "are you sure?".
   const [undoId, setUndoId] = useState<string | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // The edit sheet: a ModalCard (the drawer is too cramped to edit in place) holding
-  // the title plus the same cadence controls BrainDump captures with.
+  // The edit sheet is CadenceSheet, shared with the shared list, so a cadence set here and a cadence
+  // set there can never drift apart. The drawer keeps only which task is being edited.
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState('');
-  const [editMode, setEditMode] = useState<EditMode>('daily');
-  const [editWeekdays, setEditWeekdays] = useState<number[]>([]);
-  const [editEveryN, setEditEveryN] = useState(2);
-  const [editStart, setEditStart] = useState(todayIso);
-  const [startPickerOpen, setStartPickerOpen] = useState(false);
 
   // Reduced motion shows the drawer (and its backdrop) snap to the open/closed end
   // state instantly, never sliding or fading, mirroring how index.tsx settles its
@@ -104,52 +70,14 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle, onEditS
     [],
   );
 
-  // Prefill the edit sheet from the task's current recurrence, so Save-without-touching
-  // is a no-op edit, never a surprise re-cadence.
+  const editing = tasks.find((task) => task.id === editingId) ?? null;
+
   function startEdit(task: Task) {
-    const r = task.recurrence;
     setEditingId(task.id);
-    setEditTitle(task.title);
-    if (r?.kind === 'weekly') {
-      setEditMode('weekly');
-      setEditWeekdays(r.weekdays.length > 0 ? r.weekdays : [today.getDay()]);
-      setEditStart(r.start ?? todayIso);
-      setEditEveryN(2);
-    } else if (r?.kind === 'interval') {
-      setEditMode('everyN');
-      setEditEveryN(Math.max(2, r.days));
-      setEditStart(r.anchor);
-      setEditWeekdays([today.getDay()]);
-    } else {
-      setEditMode('daily');
-      setEditStart((r?.kind === 'daily' ? r.start : undefined) ?? todayIso);
-      setEditWeekdays([today.getDay()]);
-      setEditEveryN(2);
-    }
-    setStartPickerOpen(false);
   }
 
   function closeEdit() {
     setEditingId(null);
-    setStartPickerOpen(false);
-  }
-
-  // Build the new Recurrence exactly the way capture does (scheduleFields), so an
-  // edited series and a captured one can never drift apart in shape.
-  function saveEdit() {
-    const id = editingId;
-    const title = editTitle.trim();
-    if (!id || !title) return;
-    const schedule: CaptureSchedule =
-      editMode === 'weekly'
-        ? { mode: 'weekly', weekdays: editWeekdays.length > 0 ? editWeekdays : [today.getDay()], start: editStart }
-        : editMode === 'everyN'
-          ? { mode: 'everyN', days: editEveryN, start: editStart }
-          : { mode: 'daily', start: editStart };
-    const recurrence = scheduleFields(schedule, today).recurrence;
-    if (!recurrence) return;
-    onEditSeries(id, title, recurrence);
-    closeEdit();
   }
 
   function removeSeries(task: Task) {
@@ -165,10 +93,6 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle, onEditS
     if (undoTimer.current) clearTimeout(undoTimer.current);
     setUndoId(null);
     onRestoreSeries(id);
-  }
-
-  function toggleWeekday(d: number) {
-    setEditWeekdays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
   }
 
   const recurring = tasks.filter((task) => !task.deletedAt && isRecurring(task));
@@ -254,97 +178,21 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle, onEditS
         </ScrollView>
       </Animated.View>
 
-      <ModalCard visible={editingId != null} onClose={closeEdit}>
-        <Text style={styles.sheetTitle}>{t('repeat.editSheetTitle')}</Text>
-        <TextInput
-          style={styles.sheetInput}
-          value={editTitle}
-          onChangeText={setEditTitle}
-          placeholderTextColor={theme.colors.inkFaint}
-          returnKeyType="done"
-          accessibilityLabel={t('repeat.titleInputA11y')}
+      {/* THE cadence surface, shared with the room (components/CadenceSheet). Keyed on the task so
+          each opening mounts fresh from that task's own cadence, rather than an effect resyncing
+          fields behind the user. */}
+      {editing && (
+        <CadenceSheet
+          key={editing.id}
+          visible
+          onClose={closeEdit}
+          today={today}
+          sheetTitle={t('repeat.editSheetTitle')}
+          title={editing.title}
+          recurrence={editing.recurrence}
+          onSave={(title, recurrence) => onEditSeries(editing.id, title, recurrence)}
         />
-        <View style={styles.chips}>
-          {EDIT_MODES.map(({ mode, labelKey }) => (
-            <Chip key={mode} label={t(labelKey)} selected={editMode === mode} onPress={() => setEditMode(mode)} />
-          ))}
-        </View>
-        {editMode === 'weekly' && (
-          <View style={styles.weekdays}>
-            {WEEKDAY_KEYS.map((key, d) => (
-              <Pressable
-                key={d}
-                onPress={() => toggleWeekday(d)}
-                style={[styles.day, editWeekdays.includes(d) && styles.dayOn]}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityState={{ selected: editWeekdays.includes(d) }}
-                accessibilityLabel={t('capture.repeatOnDayA11y', { day: t(key) })}
-              >
-                <Text style={[styles.dayText, editWeekdays.includes(d) && styles.dayTextOn]}>{t(key)}</Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
-        {editMode === 'everyN' && (
-          <View style={styles.stepperRow}>
-            <Pressable
-              onPress={() => setEditEveryN((n) => Math.max(2, n - 1))}
-              style={styles.stepBtn}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={t('capture.fewerDaysA11y')}
-            >
-              <Text style={styles.stepBtnText}>−</Text>
-            </Pressable>
-            <Text style={styles.stepLabel}>{t('capture.everyNDays', { count: editEveryN })}</Text>
-            <Pressable
-              onPress={() => setEditEveryN((n) => Math.min(30, n + 1))}
-              style={styles.stepBtn}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={t('capture.moreDaysA11y')}
-            >
-              <Text style={styles.stepBtnText}>+</Text>
-            </Pressable>
-          </View>
-        )}
-        <View style={styles.startRow}>
-          <Text style={styles.startLabel}>{t('capture.startingFrom')}</Text>
-          <Pressable
-            onPress={() => setStartPickerOpen((v) => !v)}
-            style={styles.startBtn}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={t('capture.startingFromA11y', { date: editStart === todayIso ? t('common.today') : friendlyDate(editStart, today) })}
-          >
-            <Text style={styles.startBtnText}>{editStart === todayIso ? t('common.today') : friendlyDate(editStart, today)}</Text>
-          </Pressable>
-        </View>
-        {/* The picker inlines below the start row (a Modal nested in the ModalCard's Modal is
-            unreliable on Android), collapsing again once a day is chosen. */}
-        {startPickerOpen && (
-          <DatePicker
-            value={editStart >= todayIso ? editStart : null}
-            today={today}
-            onChange={(iso) => {
-              setEditStart(iso);
-              setStartPickerOpen(false);
-            }}
-          />
-        )}
-        <View style={styles.sheetActions}>
-          <Pressable onPress={closeEdit} accessibilityRole="button" accessibilityLabel={t('common.cancel')} hitSlop={8}>
-            <Text style={styles.sheetCancel}>{t('common.cancel')}</Text>
-          </Pressable>
-          <PrimaryButton
-            label={t('routines.saveChanges')}
-            onPress={saveEdit}
-            disabled={editTitle.trim().length === 0}
-            accessibilityLabel={t('routines.saveChanges')}
-          />
-        </View>
-      </ModalCard>
+      )}
     </View>
   );
 }
@@ -408,57 +256,4 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   editAction: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body },
   removeAction: { color: t.colors.danger, fontSize: 13 * t.scale, fontFamily: fonts.body },
   // The edit sheet (a ModalCard, since the drawer itself is too cramped to edit in).
-  sheetTitle: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
-  sheetInput: {
-    color: t.colors.ink,
-    fontSize: 16 * t.scale,
-    fontFamily: fonts.body,
-    borderWidth: border.hair,
-    borderColor: t.colors.line,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.three,
-    paddingVertical: spacing.three,
-    backgroundColor: t.colors.surface,
-  },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },
-  weekdays: { flexDirection: 'row', gap: spacing.two },
-  day: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.pill,
-    borderWidth: border.hair,
-    borderColor: t.colors.line,
-    backgroundColor: t.colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dayOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
-  dayText: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
-  dayTextOn: { color: t.colors.accent, fontWeight: '700' },
-  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
-  stepBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.pill,
-    borderWidth: border.hair,
-    borderColor: t.colors.line,
-    backgroundColor: t.colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepBtnText: { color: t.colors.accent, fontSize: 20 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  stepLabel: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body, fontWeight: '500', minWidth: 110, textAlign: 'center' },
-  startRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
-  startLabel: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
-  startBtn: {
-    paddingHorizontal: spacing.three,
-    paddingVertical: spacing.one,
-    borderRadius: radius.pill,
-    borderWidth: border.hair,
-    borderColor: t.colors.accent,
-    backgroundColor: t.colors.accentSoft,
-  },
-  startBtnText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  sheetActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.four, marginTop: spacing.one },
-  sheetCancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
 });
