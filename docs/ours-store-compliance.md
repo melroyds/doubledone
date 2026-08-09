@@ -87,7 +87,16 @@ work out which answer raised it rather than accepting it: a 13+ on a calm to-do 
 > The feature is behind an allowlist during the initial rollout. To exercise it, please tell us the
 > review account's email address and we will enable it.
 
-## The Google Play form (Play Console → Policy → App content)
+## The Google Play form
+
+**Where it actually is: Play Console → left sidebar → `Monitor and improve` → `App content` → Content
+ratings.** Confirmed by Melroy 2026-08-09 after two wrong guesses. Google's own help pages still say
+"Policy → App content", which is the OLD layout, and it is NOT under `Test and release` either. If
+the sidebar has moved again, the reliable route is to take the app-dashboard URL and swap the last
+path segment for `app-content`:
+`https://play.google.com/console/u/0/developers/<devId>/app/<appId>/app-content`
+
+Unlike Apple, Play lets you edit this ANY TIME. No new version, no release, no shell to create.
 
 - **Content rating questionnaire → Social features / User-generated content: Yes.** Then:
   - Users can interact or exchange content: **Yes**
@@ -118,8 +127,11 @@ with the exact email address the code was minted for.
 
 ## Before the next store submission
 
-- [ ] Apple age rating: tick User Generated Content, save, confirm still 4+
-- [ ] Paste the App Review note above
-- [ ] Play content rating: re-run the questionnaire with Social features = Yes
+- [x] Apple age rating: the July 2026 questionnaire, social media = No, done 2026-08-09 (needed an
+      empty 1.3.0 in Prepare for Submission first: App Information is read-only with no editable
+      version, and Apple no longer lets you delete the version afterwards. That is fine, it is the
+      version Ours ships as.)
+- [ ] Paste the App Review note above into the next submission
+- [ ] Play content rating: interact/exchange = Yes, publicly visible = No
 - [ ] Confirm `FEEDBACK_TO` is a mailbox actually being read (reports land there)
 - [ ] Confirm the review account can be allowlisted on request
