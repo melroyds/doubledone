@@ -141,10 +141,12 @@ lands first and a real household gets a real thing sooner.*
 do not become one-offs because the rest of the list is.*
 
 - [ ] Render shared recurring tasks through the existing engine unchanged (`tasksForToday` is
-      already generic over a structural type)
+      already generic over a structural type), feeding it `completedDatesOf(row.completions)`
 - [ ] Cadence capture on Ours, reusing the repeating drawer rather than a second surface
-- [ ] **`completed_dates` stays an unattributed set of dates.** No per-occurrence attribution,
-      ever, or the model becomes the chore ledger the never-shame laws outlaw
+- [x] **The completion log stays unattributed.** Dates and times only, no per-occurrence
+      attribution, ever, or the model becomes the chore ledger the never-shame laws outlaw.
+      Built and tested in `lib/ours-merge.ts`, including the un-tick the first version could not
+      express (2026-08-09)
 - [ ] Confirm by test that a miss is unstorable, so no witness can ever see one
 
 ## Phase 7 · Compliance, before any store binary
@@ -180,6 +182,15 @@ policy. After two guideline rejections in July, a third blocks the whole release
 - **No number on Today that another person can change.**
 - **No assignment, no roles, no per-person stats, ever.** A request from the second seat is a
   partner request, never counted as user demand.
+- **No per-person completion state, pending or final, in any shape, including on a device.**
+  Mutual confirm, verify together, two-key done, sign-off and every other name for it are refused
+  by this line. The reason is narrow and worth keeping: any gate that actually works has to be
+  visible to the server, and server-visible per-party completion state on a list of exactly two
+  people is `done_by` with a clock bolted on. The local-only version dies on your own second
+  device, which holds no memory of who armed it. (Decided 2026-08-09, panel in
+  [`ours-features-review.md`](ours-features-review.md).) The need underneath, "ticked does not
+  always mean done", is a definition-of-done problem and belongs to decomposition; the other need,
+  "things change under me", is Phase 5's change surface.
 - **Every pair is a sealed room.** Nothing renders how many lists someone is in, or with whom.
 - **No user's email or account identifier is ever shown to another user, in any surface.**
 - Tests for every pure module; gates green before every commit; decision-log entry on every

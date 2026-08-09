@@ -123,7 +123,15 @@ create table if not exists public.shared_tasks (
   done boolean not null default false,
   done_at timestamptz,          -- a TIME, not a person
   recurrence jsonb check (recurrence is null or octet_length(recurrence::text) <= 4096),
-  completed_dates jsonb check (completed_dates is null or octet_length(completed_dates::text) <= 65536),
+  completions jsonb check (completions is null or octet_length(completions::text) <= 65536),
+                                -- The per-date completion record of a repeat, shaped
+                                -- {"on": {date: ms}, "off": {date: ms}}. NOT a set of dates: a
+                                -- grow-only set cannot lose a tick (right) and therefore cannot
+                                -- express an UN-tick (wrong), and un-ticking is what the app leans
+                                -- on instead of a two-party confirm. Each side merges per date by
+                                -- max, later stamp winning, so no tick and no un-tick is ever lost
+                                -- and a date can be ticked again after being cleared. Still a
+                                -- record of WHEN and never of WHO. See lib/ours-merge.ts.
                                 -- an UNATTRIBUTED set of dates, merged as a grow-only union so two
                                 -- people ticking the bins from two phones converge. Never
                                 -- per-person, or the model becomes the chore ledger the laws
@@ -155,6 +163,19 @@ alter table public.tasks add column if not exists shared_pair_id uuid;
 -- too. Harmless on a fresh apply, where it finds the column already there and does nothing.
 alter table public.pairs add column if not exists name text
   check (name is null or char_length(name) between 1 and 40);
+
+-- Same reason: a table that already exists keeps its old column name. The rename is guarded so this
+-- file stays re-runnable from either state. Safe while no rows exist; it must NOT be run casually
+-- once a household is using the feature.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'shared_tasks' and column_name = 'completed_dates'
+  ) then
+    alter table public.shared_tasks rename column completed_dates to completions;
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- The build-time gate (temporary).

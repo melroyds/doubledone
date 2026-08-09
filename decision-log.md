@@ -4923,3 +4923,63 @@ counting the reader's failures back at them, which matters because it can fire f
 ceiling with the reader doing nothing at all. And the whole block went back to house typography:
 the curly apostrophes were entirely mine, and this catalog has used straight ones in a double-quoted
 delimiter for a thousand strings.
+
+## 2026-08-09 Two features refused and one, and a bug found by refusing them
+
+Melroy proposed two additions to Ours: **both people must agree an item is done**, and **reminders
+sent to both people, coordinated server side**. A five-lens panel with three attackers pointed at
+its own consensus, one briefed that refusing a founder's request on ethical grounds he did not ask
+for is paternalism. Full decision, including where it says the panel overreached, in
+[`docs/ours-features-review.md`](ours-features-review.md).
+
+**Two-party completion: Tier 4, and now a standing rule so it cannot return under another name.**
+Melroy reached the same answer independently ("if somebody doesn't like it being done, they can just
+untick the box, becomes a couple's thing to sort out"), which is also the right one.
+
+The load-bearing reason is narrower than the one four lenses gave, and the narrower one is the true
+one. A clever local-only construction really does exist: `pending_since timestamptz`, a time and not
+a person, exactly the `done_at` precedent. It dies on your own second device, which holds no memory
+of having armed the gate, so the laptop renders "your turn", you tap, and the gate closes with one
+human and zero agreement. Make that survive the second device and you have synced it, and a synced
+record of which of two people confirmed is `done_by` with a clock bolted on. **Decided against** the
+maximalist claim the panel first offered (that any per-party state at N=2 is inherently a per-person
+record): it is false as written, it proves too much, and it would have applied equally to `done_at`,
+which shipped. Better a smaller true argument than a larger false one.
+
+The second reason is product rather than architecture: a gate turns inaction into a veto. An
+un-tick takes an act; withholding takes nothing. Asleep, driving, phone dead, and quietly furious
+all produce the same screen, indefinitely. For a rejection-sensitive reader the ambiguity IS the
+payload, and no copy fixes it because the payload is the silence.
+
+**Shared reminders: Tier 2 for the outcome, in a shape that costs nothing.** Not the mechanism I
+recommended. Each person pulls the row to their own Today and arms their own existing local nudge
+(`nudgeAt` / `nudgeId`, already local-only and already absent from the sync mapping). No column on
+`shared_tasks`, no `user_id` in `push_subs`, no cron change. **My own proposal, a `remind_at` field
+on the shared row, is deferred to Tier 3** behind a trigger and three unmet preconditions, one of
+which is a real attack I had not seen: a client re-arming a notification on merge rebuilds its
+content from the CURRENT title, so you could set a benign shared reminder, wait for the other phone
+to arm it, then edit the title, and your words fire on their lock screen at your chosen hour.
+Server coordination stays Tier 4 on arithmetic, not taste: the cron holds no user token,
+`service_role` is a hard never, and the row already syncs to both phones. **Sync is the
+coordination.**
+
+**And the reason the panel paid for itself: `reconcile()` made un-ticking a repeating shared task
+impossible.** `completedDates` was a grow-only union, which cannot lose a tick (right) and therefore
+cannot express an un-tick (wrong). Removing today's date locally was restored by the very next merge
+and never reached the server at all. Sixteen tests passed, because every one of them asked "can a
+tick be lost", where "no, never, by construction" is also the defect. Two shipped promises rested on
+it: the finality affirmations are withheld on Ours BECAUSE your person can un-tick, and Phase 5
+stops rendering done rows at the day boundary so un-tick works all day. Both were half true, and
+un-ticking is precisely the safety valve on which BOTH the panel and Melroy refused two-party
+completion.
+
+Fixed by replacing the set with a **`CompletionLog`**: `{on: {date: ms}, off: {date: ms}}`, merged
+per date by max, later stamp winning. A last-write-wins element set, so merge order cannot change
+the answer, no tick and no un-tick is ever lost, and a date can be ticked again after being cleared,
+which a plain add-set plus remove-set could never do. A dead-heat tie resolves to DONE, because of
+the two ways to be wrong, "your finished work quietly un-finished itself" is the one this audience
+cannot afford. Still a record of WHEN and never of WHO. The column is renamed `completions` while it
+is still empty, guarded so the file stays re-runnable, because `completed_dates` holding a
+tick-and-un-tick log would mislead every future reader. Ten new tests, one of which exists purely to
+kill the cheaper `growsBeyond` that counts keys instead of comparing stamps and would have silently
+stranded every re-tick on one phone.

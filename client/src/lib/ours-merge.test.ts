@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { mergeShared, type SharedTask } from './ours-merge';
+import { clearOn, completedDatesOf, isDoneOn, mergeShared, type SharedTask, tickOn } from './ours-merge';
 import { withMonotonicStamps } from './tasks';
 
 function task(over: Partial<SharedTask> & { id: string }): SharedTask {
@@ -26,42 +26,41 @@ describe('mergeShared', () => {
 
   // THE ONE THAT MATTERS. Two people tick the bins from two phones on different days, offline.
   // Whole-row last-write-wins would drop whichever tick lost the timestamp race, and somebody's
-  // completed work would silently un-complete on their partner's screen. The union cannot lose one.
-  it('UNIONS completedDates, so neither person’s tick can be lost to the other’s newer edit', () => {
-    const mine = task({ id: 'bins', updatedAt: 1000, completedDates: ['2026-08-05'] });
-    const theirs = task({ id: 'bins', updatedAt: 9000, title: 'bins (green)', completedDates: ['2026-08-06'] });
+  // completed work would silently un-complete on their partner's screen.
+  it('merges completions per DATE, so neither person’s tick is lost to the other’s newer edit', () => {
+    const mine = task({ id: 'bins', updatedAt: 1000, completions: { on: { '2026-08-05': 1000 } } });
+    const theirs = task({ id: 'bins', updatedAt: 9000, title: 'bins (green)', completions: { on: { '2026-08-06': 9000 } } });
 
     const res = mergeShared([mine], [theirs]);
     expect(res.merged[0].title).toBe('bins (green)'); // their newer edit still wins the row
-    expect(res.merged[0].completedDates).toEqual(['2026-08-05', '2026-08-06']); // and my tick survives it
+    expect(completedDatesOf(res.merged[0].completions)).toEqual(['2026-08-05', '2026-08-06']);
   });
 
-  it('pushes back when the union GREW beyond the server, so the other phone converges too', () => {
-    const mine = task({ id: 'bins', updatedAt: 1000, completedDates: ['2026-08-05'] });
-    const theirs = task({ id: 'bins', updatedAt: 9000, completedDates: ['2026-08-06'] });
+  it('pushes back when the merge GREW the log beyond the server, so the other phone converges too', () => {
+    const mine = task({ id: 'bins', updatedAt: 1000, completions: { on: { '2026-08-05': 1000 } } });
+    const theirs = task({ id: 'bins', updatedAt: 9000, completions: { on: { '2026-08-06': 9000 } } });
 
     // My copy LOST the last-write-wins comparison, so a naive merge would push nothing and the
     // other person would never see my tick.
     const res = mergeShared([mine], [theirs]);
     expect(res.toPush.map((t) => t.id)).toEqual(['bins']);
-    expect(res.toPush[0].completedDates).toEqual(['2026-08-05', '2026-08-06']);
+    expect(completedDatesOf(res.toPush[0].completions)).toEqual(['2026-08-05', '2026-08-06']);
   });
 
-  it('does not push when the union added nothing the server did not already have', () => {
-    const shared = ['2026-08-05', '2026-08-06'];
+  it('does not push when the merge added nothing the server did not already have', () => {
     const res = mergeShared(
-      [task({ id: 'bins', updatedAt: 1000, completedDates: ['2026-08-05'] })],
-      [task({ id: 'bins', updatedAt: 9000, completedDates: shared })],
+      [task({ id: 'bins', updatedAt: 1000, completions: { on: { '2026-08-05': 1000 } } })],
+      [task({ id: 'bins', updatedAt: 9000, completions: { on: { '2026-08-05': 1000, '2026-08-06': 9000 } } })],
     );
     expect(res.toPush).toEqual([]);
   });
 
   it('keeps completed dates sorted and free of duplicates when both people ticked the same day', () => {
     const res = mergeShared(
-      [task({ id: 'a', updatedAt: 2000, completedDates: ['2026-08-06', '2026-08-04'] })],
-      [task({ id: 'a', updatedAt: 1000, completedDates: ['2026-08-06', '2026-08-05'] })],
+      [task({ id: 'a', updatedAt: 2000, completions: { on: { '2026-08-06': 1, '2026-08-04': 1 } } })],
+      [task({ id: 'a', updatedAt: 1000, completions: { on: { '2026-08-06': 2, '2026-08-05': 1 } } })],
     );
-    expect(res.merged[0].completedDates).toEqual(['2026-08-04', '2026-08-05', '2026-08-06']);
+    expect(completedDatesOf(res.merged[0].completions)).toEqual(['2026-08-04', '2026-08-05', '2026-08-06']);
   });
 
   // A tombstone is an ordinary row with a newer stamp. "Delete always wins" would let one person's
@@ -153,5 +152,111 @@ describe('withMonotonicStamps, on shared rows', () => {
 
   it('leaves a brand new row at its own stamp, having nothing to clear', () => {
     expect(withMonotonicStamps([task({ id: 'new', updatedAt: 42 })], [])[0].updatedAt).toBe(42);
+  });
+});
+
+// The completion log, and the bug it exists to fix.
+//
+// The first version of this file held completedDates as a grow-only UNION, which cannot lose a
+// tick (right) and therefore cannot express an UN-tick (wrong). Removing today's date locally was
+// restored by the very next merge and never reached the server at all. Sixteen tests passed,
+// because every one of them asked "can a tick be lost", where "no, never, by construction" is also
+// the defect. Two shipped promises rest on un-ticking working: the finality affirmations are
+// withheld on Ours BECAUSE your person can un-tick, and Phase 5 stops rendering done rows at the
+// day boundary so that un-tick works all day.
+describe('the completion log', () => {
+  const DAY = '2026-08-09';
+
+  it('UN-TICKING SURVIVES A MERGE with the server copy that still has it ticked', () => {
+    const theirs = task({ id: 'bins', updatedAt: 5000, completions: { on: { [DAY]: 5000 } } });
+    const mine = { ...theirs, completions: clearOn(theirs.completions, DAY, 6000) };
+
+    const res = mergeShared([mine], [theirs]);
+    expect(isDoneOn(res.merged[0].completions, DAY)).toBe(false);
+    expect(completedDatesOf(res.merged[0].completions)).toEqual([]);
+  });
+
+  // An un-tick does not make my row newer than a retitle they made an hour ago, so without the
+  // log-grew branch the un-tick would live on this phone alone and their screen would disagree.
+  it('pushes the un-tick even when my row LOST the last-write-wins comparison', () => {
+    const theirs = task({ id: 'bins', updatedAt: 9000, title: 'bins (green)', completions: { on: { [DAY]: 5000 } } });
+    const mine = task({ id: 'bins', updatedAt: 5000, completions: { on: { [DAY]: 5000 }, off: { [DAY]: 6000 } } });
+
+    const res = mergeShared([mine], [theirs]);
+    expect(res.toPush.map((t) => t.id)).toEqual(['bins']);
+    expect(isDoneOn(res.toPush[0].completions, DAY)).toBe(false);
+    expect(res.toPush[0].title).toBe('bins (green)'); // their edit still wins the row itself
+  });
+
+  // A plain add-set plus remove-set could never do this: once removed, removed forever. A household
+  // ticking the bins, realising it was the wrong bin, then doing it properly is an ordinary Tuesday.
+  it('lets a date be ticked AGAIN after it was un-ticked', () => {
+    let log = tickOn(undefined, DAY, 1000);
+    log = clearOn(log, DAY, 2000);
+    expect(isDoneOn(log, DAY)).toBe(false);
+
+    log = tickOn(log, DAY, 3000);
+    expect(isDoneOn(log, DAY)).toBe(true);
+    expect(completedDatesOf(log)).toEqual([DAY]);
+  });
+
+  it('gives the same answer whichever phone merges, and merging twice changes nothing', () => {
+    const a = task({ id: 'x', updatedAt: 1, completions: { on: { [DAY]: 5000 } } });
+    const b = task({ id: 'x', updatedAt: 2, completions: { on: { [DAY]: 5000 }, off: { [DAY]: 7000 } } });
+
+    const ab = mergeShared([a], [b]).merged[0];
+    const ba = mergeShared([b], [a]).merged[0];
+    expect(ab.completions).toEqual(ba.completions);
+    expect(isDoneOn(ab.completions, DAY)).toBe(false);
+
+    // Idempotent: feeding the result back in must not flip anything.
+    expect(mergeShared([ab], [ab]).merged[0].completions).toEqual(ab.completions);
+  });
+
+  // Kills the cheaper version of growsBeyond that counts KEYS instead of comparing stamps. Here the
+  // server has the date ticked then cleared, and I have re-ticked it: the merged log has exactly as
+  // many keys as theirs, so a count-based check pushes nothing and my re-tick never reaches them.
+  it('pushes a RE-TICK that adds no new key, only a later stamp', () => {
+    const theirs = task({ id: 'x', updatedAt: 9000, completions: { on: { [DAY]: 1000 }, off: { [DAY]: 2000 } } });
+    const mine = task({ id: 'x', updatedAt: 1, completions: { on: { [DAY]: 3000 }, off: { [DAY]: 2000 } } });
+
+    const res = mergeShared([mine], [theirs]);
+    expect(res.toPush.map((t) => t.id)).toEqual(['x']);
+    expect(isDoneOn(res.toPush[0].completions, DAY)).toBe(true);
+  });
+
+  it('keeps the LATER of two ticks on the same date rather than the first it happened to see', () => {
+    const a = task({ id: 'x', updatedAt: 1, completions: { on: { [DAY]: 1000 } } });
+    const b = task({ id: 'x', updatedAt: 1, completions: { on: { [DAY]: 8000 } } });
+    expect(mergeShared([a], [b]).merged[0].completions?.on?.[DAY]).toBe(8000);
+  });
+
+  // Of the two ways to be wrong in a dead heat, "your finished work quietly un-finished itself" is
+  // the one this audience cannot afford. Both are recoverable by tapping again; only one stings.
+  it('resolves an exact tie in favour of DONE', () => {
+    expect(isDoneOn({ on: { [DAY]: 5000 }, off: { [DAY]: 5000 } }, DAY)).toBe(true);
+  });
+
+  it('never calls a date done that was never ticked, whatever the off map says', () => {
+    expect(isDoneOn({ off: { [DAY]: 5000 } }, DAY)).toBe(false);
+    expect(isDoneOn(undefined, DAY)).toBe(false);
+    expect(completedDatesOf({ off: { [DAY]: 5000 } })).toEqual([]);
+  });
+
+  it('leaves the log absent rather than empty when neither side has one', () => {
+    const res = mergeShared([task({ id: 'x', updatedAt: 1 })], [task({ id: 'x', updatedAt: 2 })]);
+    expect(res.merged[0].completions).toBeUndefined();
+  });
+
+  // The law again, at the level it is easiest to break by accident: the log is the one structure
+  // that grows a key per event, so it is where a person's id would most plausibly get attached.
+  it('records only DATES and TIMES, never a person', () => {
+    const log = clearOn(tickOn(undefined, DAY, 1000), DAY, 2000);
+    for (const side of [log.on ?? {}, log.off ?? {}]) {
+      for (const [date, stamp] of Object.entries(side)) {
+        expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        expect(typeof stamp).toBe('number');
+      }
+    }
   });
 });

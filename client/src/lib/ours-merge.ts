@@ -16,17 +16,115 @@ import { type Recurrence } from './recurrence';
 /** A row of a shared list, mirroring `public.shared_tasks`. Structurally a subset of Task on
  *  purpose, so the existing pure day/recurrence helpers (which are generic over their inputs) work
  *  on these unchanged. */
+/**
+ * The per-date completion record of a repeating shared row.
+ *
+ * NOT a set of dates, and the difference is the whole of this file's hardest bug. A grow-only set
+ * of ticked dates cannot lose a tick, which is right, but it also cannot express an UN-tick, so
+ * removing today's date locally was silently restored by the very next merge and never reached the
+ * server at all. Two shipped promises rest on un-ticking working: the finality affirmations are
+ * deliberately withheld on Ours *because* your person can un-tick, and Phase 5 stops rendering done
+ * rows at the day boundary so that un-tick works all day. Both were half true.
+ *
+ * So each date carries the time it was last ticked and the time it was last cleared, and the later
+ * one wins. Both maps are grow-only in keys and monotonic in values, which makes this a
+ * last-write-wins element set: order of merging cannot change the answer, no tick is ever lost, no
+ * un-tick is ever lost, and ticking again after an un-tick works (which a simple add-set plus
+ * remove-set could never do).
+ *
+ * Still a record of WHEN and never of WHO. There is no person anywhere in this shape, and there
+ * must never be.
+ */
+export type CompletionLog = {
+  on?: Record<string, number>; // ISO date -> epoch ms it was last ticked
+  off?: Record<string, number>; // ISO date -> epoch ms it was last un-ticked
+};
+
+/** A row of a shared list, mirroring `public.shared_tasks`. Structurally a subset of Task on
+ *  purpose, so the existing pure day/recurrence helpers (which are generic over their inputs) work
+ *  on these unchanged, via `completedDatesOf` below. */
 export type SharedTask = {
   id: string;
   title: string;
   done: boolean;
   doneAt?: number | null; // epoch ms the row was ticked. A TIME. Never who.
   recurrence?: Recurrence;
-  completedDates?: string[]; // ISO dates this repeat was ticked, by EITHER person, unattributed
+  completions?: CompletionLog; // per-date tick / un-tick record, by EITHER person, unattributed
   createdAt: number;
   updatedAt: number;
   deletedAt?: number | null; // tombstone, same convention as tasks
 };
+
+/**
+ * Whether a repeat counts as done on a date.
+ *
+ * A TIE resolves to done. Two writes landing in the same millisecond is vanishingly rare, and of
+ * the two ways to be wrong, "your finished work quietly un-finished itself" is the one this
+ * audience cannot afford. Both errors are recoverable by tapping again; only one of them stings.
+ */
+export function isDoneOn(log: CompletionLog | undefined, date: string): boolean {
+  const on = log?.on?.[date];
+  if (on === undefined) return false; // a date never ticked is not done, whatever `off` says
+  return on >= (log?.off?.[date] ?? Number.NEGATIVE_INFINITY);
+}
+
+/** The plain sorted dates a repeat is done on, which is what the shared recurrence engine and the
+ *  existing pure day helpers consume. Derived, never stored, so the two can never disagree. */
+export function completedDatesOf(log: CompletionLog | undefined): string[] {
+  return Object.keys(log?.on ?? {})
+    .filter((d) => isDoneOn(log, d))
+    .sort();
+}
+
+/** Tick a date. Records the time; records nothing about who. */
+export function tickOn(log: CompletionLog | undefined, date: string, now: number): CompletionLog {
+  return { ...log, on: { ...log?.on, [date]: now } };
+}
+
+/** Un-tick a date. The stamp must be later than the tick it clears, which is what
+ *  `withMonotonicStamps` guarantees for the row and what the caller owes this for the date. */
+export function clearOn(log: CompletionLog | undefined, date: string, now: number): CompletionLog {
+  return { ...log, off: { ...log?.off, [date]: now } };
+}
+
+/** Per-key maximum of two stamp maps: grow-only in keys, monotonic in values. */
+function mergeStamps(a: Record<string, number> = {}, b: Record<string, number> = {}): Record<string, number> {
+  const out: Record<string, number> = { ...a };
+  for (const [date, stamp] of Object.entries(b)) {
+    const mine = out[date];
+    if (mine === undefined || stamp > mine) out[date] = stamp;
+  }
+  return out;
+}
+
+/** Merge two completion logs. Commutative and idempotent, so two phones converge whichever order
+ *  they sync in, and re-merging the same pair changes nothing. */
+export function mergeCompletions(a: CompletionLog | undefined, b: CompletionLog | undefined): CompletionLog | undefined {
+  if (!a && !b) return undefined;
+  const on = mergeStamps(a?.on, b?.on);
+  const off = mergeStamps(a?.off, b?.off);
+  const out: CompletionLog = {};
+  if (Object.keys(on).length) out.on = on;
+  if (Object.keys(off).length) out.off = off;
+  return Object.keys(out).length ? out : undefined;
+}
+
+/**
+ * Whether a merged log holds anything the server's copy does not, and therefore owes it a push.
+ *
+ * Compares STAMPS and not just key counts. An un-tick of a date the server already has ticked adds
+ * no key, and a re-tick of a date it already has cleared adds no key either, so counting would
+ * silently keep both on this phone forever while the other person's screen disagreed.
+ */
+function growsBeyond(merged: CompletionLog | undefined, remote: CompletionLog | undefined): boolean {
+  for (const side of ['on', 'off'] as const) {
+    for (const [date, stamp] of Object.entries(merged?.[side] ?? {})) {
+      const theirs = remote?.[side]?.[date];
+      if (theirs === undefined || stamp > theirs) return true;
+    }
+  }
+  return false;
+}
 
 export type SharedMergeResult = {
   merged: SharedTask[]; // the reconciled set to cache locally, tombstones included
@@ -39,11 +137,11 @@ export type SharedMergeResult = {
  * Last-write-wins per row on `updatedAt`, exactly as personal sync does, with two rules that exist
  * because the two writers are people rather than devices:
  *
- *   1. `completedDates` is a GROW-ONLY UNION. Two people ticking the bins from two phones is the
- *      single most likely simultaneous write this feature will ever see, and losing one of those
- *      ticks means someone's completed work silently un-completes on their partner's screen. A
- *      union cannot lose one. It also cannot record who: it is a set of dates, and that is all the
- *      information that exists.
+ *   1. The completion log merges per DATE, never whole-row. Two people ticking the bins from two
+ *      phones is the likeliest simultaneous write this feature will ever see, and whole-row
+ *      last-write-wins drops whichever tick lost the race, silently un-completing someone's
+ *      finished work on their partner's screen. See `CompletionLog`: it also carries un-ticks,
+ *      which the first version of this file could not express at all.
  *   2. A tombstone is not special. Removal is an `updatedAt` bump like any other, so a removal and
  *      a re-add race resolve by time rather than by "delete always wins", which would let one
  *      person's stale removal quietly beat the other's fresh add.
@@ -59,11 +157,12 @@ export function mergeShared(local: SharedTask[], remote: SharedTask[]): SharedMe
     if (l && r) {
       const reconciled = reconcile(l, r);
       merged.push(reconciled);
-      // Push when my copy won the comparison, OR when the union grew the completed set beyond what
-      // the server holds, so the OTHER person's phone converges too rather than only mine.
+      // Push when my copy won the comparison, OR when the merged completion log holds anything the
+      // server's does not, so the OTHER person's phone converges too rather than only mine. This is
+      // the branch an un-tick travels on: clearing today's date does not make my row newer than a
+      // retitle they made an hour ago, so without this the un-tick would live on this phone alone.
       const localNewer = rank(l.updatedAt) > rank(r.updatedAt);
-      const grew = (reconciled.completedDates?.length ?? 0) > (r.completedDates?.length ?? 0);
-      if (localNewer || grew) toPush.push(reconciled);
+      if (localNewer || growsBeyond(reconciled.completions, r.completions)) toPush.push(reconciled);
     } else if (l) {
       // Local-only. Something I added while offline: the server has never seen it, so seed it.
       merged.push(l);
@@ -80,15 +179,16 @@ export function mergeShared(local: SharedTask[], remote: SharedTask[]): SharedMe
 }
 
 /**
- * Reconcile one row present on both sides. The LWW winner is the base; the completed set is then
- * made monotonic on top of it, so a tick made by either person survives an unrelated newer edit by
- * the other (a retitle, a cadence change, a removal-then-restore).
+ * Reconcile one row present on both sides. The LWW winner is the base; the completion log is then
+ * merged per date on top of it, so a tick OR an un-tick made by either person survives an unrelated
+ * newer edit by the other (a retitle, a cadence change, a removal-then-restore).
  */
 function reconcile(l: SharedTask, r: SharedTask): SharedTask {
   const out: SharedTask = rank(l.updatedAt) > rank(r.updatedAt) ? { ...l } : { ...r };
 
-  const dates = new Set([...(l.completedDates ?? []), ...(r.completedDates ?? [])]);
-  if (dates.size > 0) out.completedDates = [...dates].sort();
+  const completions = mergeCompletions(l.completions, r.completions);
+  if (completions) out.completions = completions;
+  else delete out.completions;
 
   return out;
 }
