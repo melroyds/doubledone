@@ -10,6 +10,7 @@ import {
   type SharedTask,
   isSharedDoneOn,
   setSharedDone,
+  stillOnList,
   tickOn,
   washedSince,
 } from './ours-merge';
@@ -549,5 +550,37 @@ describe('un-ticking a shared ONE-OFF on a different day than it was ticked', ()
 
     expect(isSharedDoneOn(cleared, MON)).toBe(false);
     expect(isSharedDoneOn(cleared, SUN)).toBe(true); // Sunday's finish is still Sunday's
+  });
+});
+
+describe('what still belongs on the list today', () => {
+  const TODAY = '2026-08-10';
+
+  it('keeps an open row', () => {
+    expect(stillOnList(task({ id: 'a' }), TODAY)).toBe(true);
+  });
+
+  // All day, because un-ticking must work all day: it is why two-party confirm was refused.
+  it('keeps a row ticked TODAY, so it can still be un-ticked', () => {
+    expect(stillOnList(setSharedDone(task({ id: 'a' }), TODAY, true, 1000), TODAY)).toBe(true);
+  });
+
+  it('lets go of a row ticked YESTERDAY', () => {
+    expect(stillOnList(setSharedDone(task({ id: 'a' }), '2026-08-09', true, 1000), TODAY)).toBe(false);
+  });
+
+  it('drops a removed row', () => {
+    expect(stillOnList(task({ id: 'a', deletedAt: 5000 }), TODAY)).toBe(false);
+  });
+
+  // Placed by cadence, not by this. A repeat ticked yesterday is simply not done today.
+  it('never hides a repeat', () => {
+    const bins = setSharedDone(task({ id: 'bins', recurrence: { kind: 'daily' } }), '2026-08-09', true, 1000);
+    expect(stillOnList(bins, TODAY)).toBe(true);
+  });
+
+  // Showing a finished row one extra day is recoverable; hiding a live one is not.
+  it('keeps a row a pre-log build ticked, whose day is unknowable', () => {
+    expect(stillOnList(task({ id: 'a', done: true }), TODAY)).toBe(true);
   });
 });

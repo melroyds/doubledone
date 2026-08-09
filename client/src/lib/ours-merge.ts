@@ -185,6 +185,29 @@ export function washedSince(tasks: SharedTask[], seenAt: number, mine: ReadonlyS
   return out;
 }
 
+/**
+ * Whether a row still belongs on the list TODAY.
+ *
+ * A row ticked today stays visible all day, which is what makes un-ticking possible all day, and
+ * un-ticking is the reason two-party done-confirmation was refused. It stops rendering at the day
+ * boundary: yesterday's shopping is done, and a shared list that never lets go of finished work
+ * becomes a wall of other people's completed tasks, which is the exact overwhelm this app exists to
+ * take away.
+ *
+ * Repeats are unaffected: they are placed by their cadence, and a repeat ticked yesterday is simply
+ * not done today.
+ */
+export function stillOnList(task: SharedTask, date: string): boolean {
+  if (task.deletedAt) return false;
+  if (task.recurrence !== undefined && task.recurrence.kind !== 'none') return true;
+  if (!task.done) return true;
+  const dates = completedDatesOf(task.completions);
+  const last = dates[dates.length - 1];
+  // No log at all means a build older than the completion log ticked it, and its day is unknowable.
+  // Keep it: showing a finished row one extra day is recoverable, hiding a live one is not.
+  return last === undefined || last >= date;
+}
+
 /** Per-key maximum of two stamp maps: grow-only in keys, monotonic in values. */
 function mergeStamps(a: Record<string, number> = {}, b: Record<string, number> = {}): Record<string, number> {
   const out: Record<string, number> = { ...a };

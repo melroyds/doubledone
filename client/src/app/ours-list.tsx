@@ -13,7 +13,7 @@ import { type Recurrence } from '@/lib/recurrence';
 import { t } from '@/lib/locale';
 import { makeSharedRef, pulledFrom } from '@/lib/ours-bridge';
 import { loadMyPairs, type MyPair } from '@/lib/ours-api';
-import { isSharedDoneOn, setSharedDone, type SharedTask, washedSince } from '@/lib/ours-merge';
+import { isSharedDoneOn, setSharedDone, type SharedTask, stillOnList, washedSince } from '@/lib/ours-merge';
 import { isUnreadableRepeat, POLL_MS, repeatSummaryOf, shouldPoll, syncPairOnce, willTrim } from '@/lib/ours-sync';
 import { clearOursMine, loadOursMine, loadOursSeen, loadOursTasks, loadTasks, markOursSeen, saveOursTasks, saveTasks } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
@@ -284,7 +284,7 @@ export default function OursListScreen() {
   // still possible. `ours_is_open` and the RLS both refuse writes anyway; this is the screen
   // agreeing with the server rather than letting somebody tap into a refusal.
   const frozen = isPairFrozen(pair);
-  const visible = tasks.filter((task) => !task.deletedAt);
+  const visible = tasks.filter((task) => stillOnList(task, today));
   // Recently removed, folded at the foot. Seven days, dimmed, and it names nobody: it says a thing
   // was taken off the list, never which of you took it off.
   const removed = tasks

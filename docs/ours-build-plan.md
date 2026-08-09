@@ -71,7 +71,7 @@ the `skipped_dates` / `big` precedent, because `taskToRow` emits every field unc
       statement. Plus the frozen state and "Remove this list"
 - [x] Signed-out Ours: the calm one-screen explanation, never a nag
 - [x] The Phase-2 door, in Settings (Today's quiet door is Phase 3)
-- [ ] **Claude Design pass** over all nine states, brief in
+- [x] **Claude Design pass** over all nine states, brief in
       [`design-source/ours-design-prompt.md`](design-source/ours-design-prompt.md). The screen
       built here is deliberately plain: working, on-strings, one state at a time, so the design
       has something real to replace
@@ -84,7 +84,7 @@ the `skipped_dates` / `big` precedent, because `taskToRow` emits every field unc
       cross-language terminology check: 174 raised, 124 confirmed, 61 keys rewritten (es 21,
       it 15, fr 13, de 12). A separate cross-file verification then caught four more, including
       the one terminology break the terminology agent had named and the German pass had missed
-- [ ] **An honest undo for "Delete this list for good".** It cannot be undone once the RPC
+- [x] **An honest undo for "Delete this list for good".** It cannot be undone once the RPC
       returns (no INSERT policy on `pair_members`, no rejoin path, and the prune trigger
       hard-deletes and cascades once the second member has gone), so the only truthful undo is
       a DELAYED COMMIT: hold it locally, call the RPC when the window closes. `forgetHint`
@@ -118,13 +118,13 @@ the `skipped_dates` / `big` precedent, because `taskToRow` emits every field unc
       is a data-loss bug here, because `mergeShared` reads a local row missing from the remote
       set as local-only and pushes it, so every row outside the delta would be re-pushed on
       every poll and a row the other person deleted would be resurrected by yours
-- [ ] The polling HOOK itself (AppState + focus + idle timer), which belongs with the screen and
+- [x] The polling HOOK itself (AppState + focus + idle timer), which belongs with the screen and
       waits for the design pass
 - [x] Local cache `doubledone.ours.v1` = `{ [pairId]: tasks[] }`, rendered only when the pair
       matches a confirmed membership. **Added to `wipeLocalData` and its regression test in the
       same commit**
-- [ ] The Ours screen: Today's grammar, same rows, same held card minus the AI actions
-- [ ] The quiet door on Today: reads `Ours` (or the chosen name). **No count**, ever
+- [x] The Ours screen: Today's grammar, same rows, same held card minus the AI actions
+- [x] The quiet door on Today: reads `Ours` (or the chosen name). **No count**, ever
 
 ---
 
@@ -135,13 +135,13 @@ here in build order rather than the handoff's order, because some of it needs a 
 
 ### The four build seams the design needs and the build does not have
 
-- [ ] **Self-rename RPC.** `pair_members` has a select policy and a delete-self policy and
+- [x] **Self-rename RPC.** `pair_members` has a select policy and a delete-self policy and
       deliberately NO update policy, because that absence is what stops either person editing the
       other's row. A definer RPC scoped to `auth.uid()` preserves that control. Goes in a small
       `ours-rename-self.sql`, reviewed before it is applied like everything else.
-- [ ] **`joined_at` surfaced** for "Kept with Alex · since June". Already returned by `loadMyPairs`;
+- [x] **`joined_at` surfaced** for "Kept with Alex · since June". Already returned by `loadMyPairs`;
       just unused.
-- [ ] **"Put it away" = tuck, not destroy.** The archive supersedes `forget_pair` as the ordinary
+- [x] **"Put it away" = tuck, not destroy.** The archive supersedes `forget_pair` as the ordinary
       exit. `forget_pair` survives ONLY as "Delete this list for good", behind the delete window.
 - [x] **The Today door and the Menu entry.** The Menu carries Ours and is its ONLY entry when no
       list exists; Today gets a hairline row, "Ours · {name} ›", only once a live list does, and
@@ -150,76 +150,76 @@ here in build order rather than the handoff's order, because some of it needs a 
 
 ### The room
 
-- [ ] The shared list: Today's rows, one header line ("Kept with {name}"), and deliberately PLAINER
+- [x] The shared list: Today's rows, one header line ("Kept with {name}"), and deliberately PLAINER
       than Today. No weight gauge, no day tools, no motto.
-- [ ] **The quiet wash.** Rows changed since your last open carry an accentSoft tint and a slightly
+- [x] **The quiet wash.** Rows changed since your last open carry an accentSoft tint and a slightly
       stronger border. Static, names nobody, counts nothing, gone next open. Needs a per-pair
       `lastSeenAt` in the local cache, which is new state: it must be added to `wipeLocalData` and
       its regression test in the SAME commit, like the cache itself was.
-- [ ] The shared held card: **Bring to my Today** in the hero seat, Repeat, the rail, More →
+- [x] The shared held card: **Bring to my Today** in the hero seat, Repeat, the rail, More →
       Remind me, shelf Close / Select more / Remove. Gone: every AI shaper, Mark as a lot, Pin.
-- [ ] Empty state, and the capture bar speaking the list's name.
+- [x] Empty state, and the capture bar speaking the list's name.
 
 ### The bridges
 
-- [ ] Pull: your Today copy carries a faint "· Ours" suffix, in YOUR room only. The shared row is
+- [x] Pull: your Today copy carries a faint "· Ours" suffix, in YOUR room only. The shared row is
       untouched, because any marker on it would be attribution through the side door.
-- [ ] Your tick closes both and enters YOUR Lookback. From the other side it is simply done.
-- [ ] **Their tick, when you had pulled it:** your copy is never struck through and never enters
+- [x] Your tick closes both and enters YOUR Lookback. From the other side it is simply done.
+- [x] **Their tick, when you had pulled it:** your copy is never struck through and never enters
       your Lookback. In its place, this visit only, a dashed sage rest-note: "Handled on Ours. It's
       off your day." A silent vanish reads as "did I delete that?", and a strike-through would be a
       lie about who did the work.
-- [ ] Share to Ours from the personal held card, only when a live list exists, with the 500-char cap
+- [x] Share to Ours from the personal held card, only when a live list exists, with the 500-char cap
       stated honestly BEFORE the copy rather than after it.
 
 ### Repeating, and the guards
 
-- [ ] Shared repeating rows through the existing engine; untick stays one tap, because it is the
+- [x] Shared repeating rows through the existing engine; untick stays one tap, because it is the
       reason two-party confirm was refused.
-- [ ] Cadence through the SAME repeating drawer as home. One cadence surface in the app.
-- [ ] The unreadable cadence renders inert and explains itself, per the decision already built into
+- [x] Cadence through the SAME repeating drawer as home. One cadence surface in the app.
+- [x] The unreadable cadence renders inert and explains itself, per the decision already built into
       `repeatSummaryOf` / `isUnreadableRepeat`.
-- [ ] Recently removed: folded at the list's foot, seven days, naming nobody.
-- [ ] Frozen list in use: read-only, capture bar gone, each undone row keeps ONE action, "Bring
+- [x] Recently removed: folded at the list's foot, seven days, naming nobody.
+- [x] Frozen list in use: read-only, capture bar gone, each undone row keeps ONE action, "Bring
       over".
-- [ ] **The delete window.** Deletion commits when the SCREEN CLOSES, not on a timer. "Until then,
+- [x] **The delete window.** Deletion commits when the SCREEN CLOSES, not on a timer. "Until then,
       nothing has been told to anyone, and one tap keeps it." Keep it is the only button, and there
       is no countdown, because a visible timer is a pressure device. This is the honest delayed
       commit the Phase 3 audit asked for: an undo toast would have been a lie, and this is not.
-- [ ] The archive: quiet rows, purpose and closed-month only, readable forever.
-- [ ] Resume, both frames. Offering mints a code with no email re-ask. **Being asked** is the
+- [x] The archive: quiet rows, purpose and closed-month only, readable forever.
+- [x] Resume, both frames. Offering mints a code with no email re-ask. **Being asked** is the
       delicate one, and declining is SILENT: the code lapses, and nothing renders on the other side,
       so a decline is indistinguishable from never having seen it.
-- [ ] Solo-leave: "Nobody ever joined this one. Close it and it's simply gone." No freeze theatre.
+- [x] Solo-leave: "Nobody ever joined this one. Close it and it's simply gone." No freeze theatre.
 - [ ] Report-closed renders EXACTLY as ordinary closed. Any distinguishing mark would tell someone
       they had been reported.
 
 ### Check for updates (recommendation accepted, and improved)
 
-- [ ] Settings absorbs the version line. Up to date is a sage FACT, not a control.
-- [ ] Web: "A newer version is ready", reload, and "Anything you were typing is kept" (true, drafts
+- [x] Settings absorbs the version line. Up to date is a sage FACT, not a control.
+- [x] Web: "A newer version is ready", reload, and "Anything you were typing is kept" (true, drafts
       persist, and it must stay true).
-- [ ] Native: "This build is getting old", the store, and "Your lists stay exactly as they are".
-- [ ] The rare mention on the rested ladder, **reframed as an offer FOR the person**: "The newer one
+- [x] Native: "This build is getting old", the store, and "Your lists stay exactly as they are".
+- [x] The rare mention on the rested ladder, **reframed as an offer FOR the person**: "The newer one
       can read everything your person sets, rhythms included." Better than the brief's framing,
       which was about being out of date. Not now costs nothing and is never remembered.
 
 ### Then
 
-- [ ] Strings for every new surface, five locales, through the never-shame lens.
-- [ ] E2E cases in `gen-test-suite.py`, suite regenerated.
+- [x] Strings for every new surface, five locales, through the never-shame lens.
+- [x] E2E cases in `gen-test-suite.py`, suite regenerated.
 - [ ] Screenshots including Ours, all locales.
 - [ ] **Dogfood, then merge**, in Melroy's order.
 
 ## Phase 4 · The bridges
 
-- [ ] Pull to my Today: fresh id, fresh `createdAt`, `shared_id` + `shared_pair_id` set,
+- [x] Pull to my Today: fresh id, fresh `createdAt`, `shared_id` + `shared_pair_id` set,
       idempotent (a second pull focuses the existing copy)
-- [ ] **Your** tick closes the shared row (one hop, the `completeAncestors` shape)
-- [ ] **Their** tick tombstones your copy; it never marks it done (work you did not do must
+- [x] **Your** tick closes the shared row (one hop, the `completeAncestors` shape)
+- [x] **Their** tick tombstones your copy; it never marks it done (work you did not do must
       never enter your Lookback)
-- [ ] A shared removal never removes anything from your Today
-- [ ] Share to Ours from the personal held card
+- [x] A shared removal never removes anything from your Today
+- [x] Share to Ours from the personal held card
 
 ## Phase 5 · The guards that make the laws true
 
@@ -227,8 +227,8 @@ here in build order rather than the handoff's order, because some of it needs a 
 a few recurrences"). The list is therefore usable without a cadence picker, so the safety work
 lands first and a real household gets a real thing sooner.*
 
-- [ ] Freeze on unpair: `pairs.closed_at`, reads stay, writes stop, **zero rows move**
-- [ ] **Frozen lists stay readable, tucked away** (Melroy, 2026-08-09). `loadMyPair` becomes
+- [x] Freeze on unpair: `pairs.closed_at`, reads stay, writes stop, **zero rows move**
+- [x] **Frozen lists stay readable, tucked away** (Melroy, 2026-08-09). `loadMyPair` becomes
       `{ live, frozen[] }` and the design draws a quiet read-only archive below the live list.
       Without this, starting a new list makes the old one vanish while its own copy promises
       "you can still read everything here", in five languages
@@ -247,7 +247,7 @@ lands first and a real household gets a real thing sooner.*
       check a person could end up holding two live lists, one of which their own app could neither
       render nor leave. The earlier wording here said a frozen list could be woken while a live one
       exists; that was wrong, and loosening the check to match it would reopen the defect
-- [ ] "Put it away" on a frozen list: TUCKS, deletes nothing (round one's D8, which replaces the
+- [x] "Put it away" on a frozen list: TUCKS, deletes nothing (round one's D8, which replaces the
       build's destructive `forget_pair` and removes the delayed-commit-undo problem entirely)
 - [x] **Tombstone redaction at 30 days** (Melroy, 2026-08-09; SQL applied and verified). Still
       OPEN and Melroy's call: WHO calls the sweep. There is no cron and no client call site, so
@@ -264,9 +264,9 @@ lands first and a real household gets a real thing sooner.*
       cached row can say "the server has seen this", or a task created offline is
       indistinguishable from a swept one
 - [ ] "Remove this list" on a frozen list deletes your own membership
-- [ ] Done rows stop rendering at the day boundary (parity with `tasksForToday`)
-- [ ] Tombstones under seven days: dimmed "Recently removed" with Restore, naming nobody
-- [ ] The finality affirmations do NOT fire on Ours (the app only promises finality where it
+- [x] Done rows stop rendering at the day boundary (parity with `tasksForToday`)
+- [x] Tombstones under seven days: dimmed "Recently removed" with Restore, naming nobody
+- [x] The finality affirmations do NOT fire on Ours (the app only promises finality where it
       controls finality, and here your person can un-tick)
 
 ## Phase 6 · Recurrence (full scope, decided 2026-08-09)
@@ -274,9 +274,9 @@ lands first and a real household gets a real thing sooner.*
 *"A few recurrences" is still most of what makes a household list a household list: the bins
 do not become one-offs because the rest of the list is.*
 
-- [ ] Render shared recurring tasks through the existing engine unchanged (`tasksForToday` is
+- [x] Render shared recurring tasks through the existing engine unchanged (`tasksForToday` is
       already generic over a structural type), feeding it `completedDatesOf(row.completions)`
-- [ ] Cadence capture on Ours, reusing the repeating drawer rather than a second surface
+- [x] Cadence capture on Ours, reusing the repeating drawer rather than a second surface
 - [x] **The completion log stays unattributed.** Dates and times only, no per-occurrence
       attribution, ever, or the model becomes the chore ledger the never-shame laws outlaw.
       Built and tested in `lib/ours-merge.ts`, including the un-tick the first version could not
@@ -291,7 +291,7 @@ do not become one-offs because the rest of the list is.*
       own language, whenever it writes one. Same shape the public REST API already uses. A reader
       that understands the cadence ignores it and renders its own localised line; the stored one
       is a fallback, never the source of truth
-- [ ] Render an unreadable repeat: shown, never placed on a day, never counted as due today
+- [x] Render an unreadable repeat: shown, never placed on a day, never counted as due today
 
 ## Phase 7 · Compliance, before any store binary
 
@@ -309,7 +309,7 @@ policy. After two guideline rejections in July, a third blocks the whole release
 ## Phase 8 · Finish
 
 - [ ] Five locales, through the never-shame string audit (the presets are a values statement)
-- [ ] E2E cases in `gen-test-suite.py`, suite regenerated
+- [x] E2E cases in `gen-test-suite.py`, suite regenerated
 - [ ] Screenshots including Ours, all locales
 - [ ] Decision-log entries recording what was decided **against**, per the panel: `created_by`
       kept while `done_by` dropped; freeze over copy; the answer to the clock assumption

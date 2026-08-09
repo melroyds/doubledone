@@ -5807,3 +5807,20 @@ introductions and this one comes round again.
 which is the only thing standing between one line and a nag. Deliberately not in `wipeLocalData`: it
 is not personal data, it says nothing about which relationships you had, and clearing it on account
 deletion would mean the very next goodnight screen mentioned an update again.
+
+## 2026-08-09 Done rows let go at the day boundary, and the suite catches up
+
+**A row ticked today stays visible all day; tomorrow it is gone.** Staying all day is what makes
+un-ticking possible all day, and un-ticking is the reason two-party done-confirmation was refused.
+Letting go at the boundary is what stops a shared list becoming a wall of somebody else's finished
+work, which is the exact overwhelm this app exists to take away. Repeats are untouched: they are
+placed by their cadence, and one ticked yesterday is simply not done today.
+
+**A row a pre-log build ticked is KEPT**, because its day is unknowable and the two errors are not
+symmetrical: showing a finished row one extra day is recoverable, hiding a live one is not.
+
+**Twenty-four E2E cases added** (OUR-20 to OUR-38, UPD-01 to UPD-05), suite regenerated to 289. They
+are written to catch the things this round got wrong rather than only the things it got right:
+OUR-22 is the cross-day un-tick, OUR-25 is ticking a brought copy on a device that has never opened
+the room, OUR-32 is the "Skip today" label that deleted a series. A suite that only tests the happy
+path would have passed every one of those.
