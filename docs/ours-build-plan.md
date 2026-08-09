@@ -103,9 +103,14 @@ the `skipped_dates` / `big` precedent, because `taskToRow` emits every field unc
 - [x] `lib/ours-merge.ts`: LWW + tombstones + **grow-only union of `completedDates`**, pure,
       16 tests (two people ticking the bins from two phones converge; a removal races a re-add
       by TIME and gives the same answer whichever phone merges; a corrupt stamp loses)
-- [ ] `lib/ours-sync.ts`: push/pull, reconcile after **every** write, poll at 15s while the
-      screen is focused AND the app is active, stopping on blur/background and after ten idle
-      minutes, filtering on `updated_at` only (never `deleted_at is null`)
+- [x] `lib/ours-sync.ts`: push/pull, reconcile after **every** write, the poll policy as a pure
+      testable rule (`shouldPoll`), and a FULL pull with no `deleted_at` filter. 25 tests. Note
+      the deliberate reversal: an `updated_at > watermark` delta looks like an optimisation and
+      is a data-loss bug here, because `mergeShared` reads a local row missing from the remote
+      set as local-only and pushes it, so every row outside the delta would be re-pushed on
+      every poll and a row the other person deleted would be resurrected by yours
+- [ ] The polling HOOK itself (AppState + focus + idle timer), which belongs with the screen and
+      waits for the design pass
 - [x] Local cache `doubledone.ours.v1` = `{ [pairId]: tasks[] }`, rendered only when the pair
       matches a confirmed membership. **Added to `wipeLocalData` and its regression test in the
       same commit**

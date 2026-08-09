@@ -4983,3 +4983,39 @@ is still empty, guarded so the file stays re-runnable, because `completed_dates`
 tick-and-un-tick log would mislead every future reader. Ten new tests, one of which exists purely to
 kill the cheaper `growsBeyond` that counts keys instead of comparing stamps and would have silently
 stranded every re-tick on one phone.
+
+## 2026-08-09 The shared sync seam, and the optimisation that would have deleted people's tasks
+
+`lib/ours-sync.ts` is `sync.ts`'s sibling: row mapping pure and tested, pull / push / `syncPairOnce`
+wrapping the merge engine around the network, the caller's own client under RLS, no elevated key.
+Three decisions in it are worth the trail.
+
+**The pull is FULL, and the build plan's own "filter on `updated_at`" line is deliberately not
+implemented as a delta.** An `updated_at > watermark` pull reads as the obvious optimisation and is
+a data-loss bug against this merge engine: `mergeShared` treats a local row missing from the remote
+set as local-only and pushes it, so every row outside the delta would be re-pushed on every poll,
+and a row the other person had genuinely deleted would be resurrected by yours. What that line was
+really guarding was the opposite thing, and it stands: **there is no `deleted_at is null` filter and
+there must never be one.** A tombstone is how a removal travels; filtered out, a row your person
+removed simply stops arriving, your copy never learns it is gone, and your next push puts it back on
+their screen. A household list is tens of rows. When that stops being true the fix is a merge that
+knows it is looking at a delta, not a filter bolted onto this one.
+
+**The upsert conflicts on the COMPOSITE key `(pair_id, id)`.** A shared task's id is only unique
+within its pair by design (that is why `tasks` needed `shared_pair_id` beside `shared_id`), so
+conflicting on `id` alone would let one household's write collide with another's.
+
+**`created_by` is never sent.** A BEFORE trigger stamps it from `auth.uid()` and would overwrite
+anything we sent, and the reason that trigger exists is that either partner could otherwise forge
+the other's authorship. A test asserts the key is absent, and a second asserts that a `done_by`
+arriving from the server is ignored on the way in rather than quietly carried.
+
+**Also: the completion log is sanitised at the wire, not trusted.** It is jsonb in a column the
+OTHER person's client writes, possibly from an older or newer build, so a shape this build does not
+expect degrades to "no completions" rather than reaching the merge engine and throwing on somebody's
+shared list. Decided against trusting it because the failure mode is a crash on the calmest surface
+in the app, caused by a stranger's build.
+
+**Deferred on purpose:** the polling hook itself (AppState, focus, idle timer). The rule is here and
+pure (`shouldPoll`, all three conditions required); the timer belongs with the screen, which the
+design pass is about to reshape.
