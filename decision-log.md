@@ -5440,3 +5440,42 @@ referenced `report`, which is rebuilt every render, so including it in the depen
 have rebuilt the callback every render and excluding it left a stale closure. Resolved by noting
 that a READ can never produce 'already-live' (only the two resume RPCs raise it), so the
 refresh-instead-of-explain branch cannot apply there, and the else branch sets the failure directly.
+
+## 2026-08-09 The room: the shared list itself, and the tick that had no caller
+
+`ours-list.tsx`, the screen the doors lead to. Until now Ours was a relationship with nowhere to
+put anything: `syncPairOnce` had no caller in the app at all.
+
+**Decided: the room and the relationship are two screens, not one.** `/ours-list` is the tasks,
+`/ours` is the pairing, the naming, the archive, leaving, resuming, deleting. One line joins them
+("Kept with {name} ›"). The alternative, one screen with a management section under the list, would
+put "Leave this list" on the surface somebody opens twenty times a day to tick the milk. Destructive
+controls belong one deliberate tap away, not below the fold of a daily surface.
+
+**Decided: the room is PLAINER than Today, not richer.** No weight gauge, no day tools, no motto.
+Today is a day one person is getting through and its furniture serves that. This is a list two
+people keep, and the calm here comes from it being less. It was tempting to reuse Today's whole
+frame for free; that would have imported a gauge measuring a load that is not one person's.
+
+**Decided against a second empty state for "no live list".** Landing on the room without one now
+`replace`s to `/ours`, which already knows how to say every version of the absence (signed out,
+never paired, closed, partner gone). Two screens explaining the same absence is how they drift and
+start contradicting each other. `replace` rather than `push`, so Back still leaves.
+
+**Every tick goes through the completion log, one-offs included** (`setSharedDone`). The log is the
+only structure here that can express an un-tick, and un-ticking is load-bearing: it is the whole
+reason two-party done-confirmation was refused ("they can just untick it, it becomes a couple's
+thing to sort out") and the reason the finality affirmations are withheld on Ours. A one-off's
+`done` flag is now a projection of the same log rather than a second source of truth, so the two
+cannot disagree.
+
+**Removal writes a tombstone, never a delete.** It is how the removal reaches the other phone at
+all, and it is what the 30-day redaction sweep and Recently-removed both read.
+
+**A failed read keeps what is on screen** and says so in one faint line, rather than emptying the
+list. This is somebody's household; showing it stale beats showing it gone.
+
+**Found by looking, not by a test: signed out, the room hung on a bare title forever.** The early
+return for "no session" skipped `setLoaded`, and the redirect waits on `loaded`. Every gate was
+green. Rule this reinforces: an early return in a loader must still say the load FINISHED, because
+some other branch is almost certainly waiting on that flag.

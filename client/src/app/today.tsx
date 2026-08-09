@@ -2047,7 +2047,7 @@ export default function TodayScreen() {
             cut. */}
         {oursName && !selectMode && (
           <Pressable
-            onPress={() => router.push('/ours')}
+            onPress={() => router.push('/ours-list')}
             accessibilityRole="button"
             accessibilityLabel={`${t('ours.defaultName')}: ${oursName}`}
             style={({ pressed }) => [styles.oursDoor, pressed && styles.pressed]}
@@ -3058,7 +3058,7 @@ export default function TodayScreen() {
           router.push('/premium');
         }}
         onSettings={() => router.push('/settings')}
-        onOurs={oursOpen ? () => router.push('/ours') : undefined}
+        onOurs={oursOpen ? () => router.push(oursName ? '/ours-list' : '/ours') : undefined}
         premium={premium}
       />
       <Bloom data={bloom} onDone={dismissBloom} />

@@ -98,6 +98,41 @@ export function clearOn(log: CompletionLog | undefined, date: string, now: numbe
   return { ...log, off: { ...log?.off, [date]: stamp } };
 }
 
+/**
+ * Whether a shared row counts as done on a given day.
+ *
+ * ONE function for both shapes, because the alternative is every caller remembering which kind of
+ * row it is holding. A repeat is done on the day its log says so; a one-off is done full stop, and
+ * `reconcile` keeps that flag a projection of the same log, so the two can never disagree.
+ */
+export function isSharedDoneOn(task: SharedTask, date: string): boolean {
+  if (task.recurrence !== undefined && task.recurrence.kind !== 'none') return isDoneOn(task.completions, date);
+  return task.done;
+}
+
+/**
+ * Tick or un-tick a shared row on a day.
+ *
+ * EVERYTHING goes through the completion log, including one-offs, and that is the point: it is the
+ * only structure that can express an un-tick, and un-ticking is load-bearing here. It is why the
+ * finality affirmations are withheld on Ours and it is the reason two-party confirmation was
+ * refused, so it has to be exactly as easy as ticking.
+ *
+ * `done` and `doneAt` are then set to match for a one-off, which is what `reconcile` would derive
+ * anyway: writing them here means the row is right on screen immediately rather than only after the
+ * next merge. Pure, so `now` comes in rather than being read.
+ */
+export function setSharedDone(task: SharedTask, date: string, done: boolean, now: number): SharedTask {
+  const completions = done ? tickOn(task.completions, date, now) : clearOn(task.completions, date, now);
+  const out: SharedTask = { ...task, completions, updatedAt: now };
+  if (task.recurrence !== undefined && task.recurrence.kind !== 'none') return out;
+  const dates = completedDatesOf(completions);
+  const last = dates[dates.length - 1];
+  out.done = dates.length > 0;
+  out.doneAt = last !== undefined ? (completions.on?.[last] ?? null) : null;
+  return out;
+}
+
 /** Per-key maximum of two stamp maps: grow-only in keys, monotonic in values. */
 function mergeStamps(a: Record<string, number> = {}, b: Record<string, number> = {}): Record<string, number> {
   const out: Record<string, number> = { ...a };

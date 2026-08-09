@@ -8,6 +8,8 @@ import {
   mergeCompletions,
   mergeShared,
   type SharedTask,
+  isSharedDoneOn,
+  setSharedDone,
   tickOn,
 } from './ours-merge';
 import { withMonotonicStamps } from './tasks';
@@ -400,5 +402,54 @@ describe('the completion log cannot outgrow its column', () => {
     }
     const merged = mergeCompletions({ on, off }, undefined)!;
     expect(Object.keys(merged.on ?? {}).sort()).toEqual(Object.keys(merged.off ?? {}).sort());
+  });
+});
+
+describe('ticking a shared row', () => {
+  const DAY = '2026-08-09';
+  const NOW = 5000;
+
+  it('ticks and un-ticks a ONE-OFF, keeping done a projection of the log', () => {
+    const t = task({ id: 'milk' });
+    const ticked = setSharedDone(t, DAY, true, NOW);
+    expect(ticked.done).toBe(true);
+    expect(ticked.doneAt).toBe(NOW);
+    expect(isSharedDoneOn(ticked, DAY)).toBe(true);
+
+    const cleared = setSharedDone(ticked, DAY, false, NOW + 1);
+    expect(cleared.done).toBe(false);
+    expect(cleared.doneAt).toBeNull();
+    expect(isSharedDoneOn(cleared, DAY)).toBe(false);
+  });
+
+  it('ticks and un-ticks a REPEAT per day, leaving the row itself not done', () => {
+    const t = task({ id: 'bins', recurrence: { kind: 'daily' } });
+    const ticked = setSharedDone(t, DAY, true, NOW);
+
+    expect(isSharedDoneOn(ticked, DAY)).toBe(true);
+    expect(isSharedDoneOn(ticked, '2026-08-10')).toBe(false); // tomorrow is its own day
+    expect(ticked.done).toBe(false); // the ROW is never "done", only the day is
+
+    expect(isSharedDoneOn(setSharedDone(ticked, DAY, false, NOW + 1), DAY)).toBe(false);
+  });
+
+  // The whole reason everything goes through the log. Un-ticking is why the finality affirmations
+  // are withheld on Ours, and why two-party confirmation was refused.
+  it('un-ticks even when the tick came from the other person’s clock, running ahead', () => {
+    const theirs = task({ id: 'bins', recurrence: { kind: 'daily' }, completions: { on: { [DAY]: Date.UTC(2030, 0, 1) } } });
+    expect(isSharedDoneOn(setSharedDone(theirs, DAY, false, NOW), DAY)).toBe(false);
+  });
+
+  it('bumps updatedAt so the write actually travels', () => {
+    expect(setSharedDone(task({ id: 'x', updatedAt: 1 }), DAY, true, NOW).updatedAt).toBe(NOW);
+  });
+
+  it('survives a tick, un-tick, re-tick on one day', () => {
+    let t = task({ id: 'x' });
+    t = setSharedDone(t, DAY, true, 1000);
+    t = setSharedDone(t, DAY, false, 2000);
+    t = setSharedDone(t, DAY, true, 3000);
+    expect(isSharedDoneOn(t, DAY)).toBe(true);
+    expect(t.done).toBe(true);
   });
 });
