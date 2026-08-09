@@ -2,6 +2,11 @@
 --
 -- Applies AFTER supabase/ours.sql. Idempotent: safe to run more than once.
 --
+-- PASTE THIS FILE ALONE. Do NOT re-run ours.sql first, on a database that already has it. The
+-- normalise in section 3c depends on ours.sql's OLD trigger still being live, and re-applying
+-- ours.sql installs the new one early, which turns that statement into a silent no-op and strands
+-- every backdated tombstone as immutable. Read-back 5 detects it and carries the remedy.
+--
 -- DO NOT APPLY UNTIL THIS FILE HAS BEEN ADVERSARIALLY REVIEWED. The Phase 1 file had eight real
 -- defects when written by hand, two of which silently disabled their own security controls, and
 -- the panel's verdict was "do not apply as-is". This one touches the freeze, which is the feature's
@@ -304,7 +309,7 @@ revoke all on function public.resume_pair(text) from public, anon;
 grant execute on function public.resume_pair(text) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- 3b. Closing the wrong door that section 2 just made reachable.
+-- 2b. Closing the wrong door that section 2 just made reachable.
 --
 -- This migration mints the FIRST invite in the schema that is unused, unexpired and points at a
 -- FROZEN pair. join_pair's CONSUME statement refuses those, which is the whole argument for
@@ -445,7 +450,7 @@ revoke all on function public.join_pair(text, text) from public, anon;
 grant execute on function public.join_pair(text, text) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- 3. Letting removed words age out.
+-- 3a. Letting removed words age out.
 --
 -- Melroy, 2026-08-09: redact at 30 days. Removal on a shared list sets deleted_at and keeps the
 -- title, the pull re-fetches every tombstone by design, and nothing anywhere deletes one, so
@@ -514,7 +519,7 @@ $$;
 revoke all on function public.sweep_shared_tombstones(uuid) from public, anon;
 grant execute on function public.sweep_shared_tombstones(uuid) to authenticated;
 
--- Normalise anything already carrying a backdated stamp, BEFORE any sweep caller is wired. Ours is
+-- 3b. Normalise anything already carrying a backdated stamp, BEFORE any sweep caller is wired. Ours is
 -- still behind ours_allowlist so this is tester data at most, but do not assume it.
 --
 -- THE ORDER IS LOAD-BEARING: this must run ABOVE the create-or-replace below, while ours.sql's old
@@ -533,7 +538,7 @@ update public.shared_tasks
  where deleted_at is not null and deleted_at < now() - interval '30 days';
 
 -- ---------------------------------------------------------------------------
--- 4. The retention clock becomes the SERVER's.
+-- 3c. The retention clock becomes the SERVER's.
 --
 -- The sweep above reads `deleted_at` as a MAGNITUDE, which nothing did before this migration, and
 -- `ours.sql` said so out loud when it exempted the column from its clamps. That sentence is no
@@ -655,6 +660,16 @@ $$;
 --      ended up in two live pairs, one of which A's own app could neither render nor leave.)
 --   h. With pairs.disabled_at set by hand and a tombstone older than 30 days,
 --      sweep_shared_tombstones returns 0 and the title is unchanged. Clear disabled_at: returns 1.
+--      NOTE THE SETUP, because section 3c makes an old tombstone unmanufacturable by ordinary SQL,
+--      which is the whole point of it: no INSERT or UPDATE can leave deleted_at in the past. So the
+--      test row needs the same wrapper as the remedy in read-back 5, and this is the only way the
+--      sweep will ever be testable at all, which is worth knowing about the one member-callable
+--      statement in either file that destroys content:
+--        begin;
+--        alter table public.shared_tasks disable trigger shared_tasks_stamp_origin;
+--        update public.shared_tasks set deleted_at = now() - interval '31 days' where id = '<test>';
+--        alter table public.shared_tasks enable trigger shared_tasks_stamp_origin;
+--        commit;
 --   i. A resume code typed into join_pair returns zero rows, and closed_at is unchanged.
 --
 --   -- 5. No tombstone is left beyond the horizon before any sweep is wired.
