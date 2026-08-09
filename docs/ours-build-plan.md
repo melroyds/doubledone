@@ -147,7 +147,9 @@ lands first and a real household gets a real thing sooner.*
       `{ live, frozen[] }` and the design draws a quiet read-only archive below the live list.
       Without this, starting a new list makes the old one vanish while its own copy promises
       "you can still read everything here", in five languages
-- [ ] **Resuming a frozen list, by the SAME handshake that made it** (Melroy, 2026-08-09). One
+- [x] **Resuming a frozen list, by the SAME handshake that made it** (SQL applied and verified
+      2026-08-09; the SCREEN affordance waits for the design pass, and `invite_to_resume` must not
+      be reachable from any UI until it lands) (Melroy, 2026-08-09). One
       member mints a fresh code bound to the other's address, the other redeems it, and
       `closed_at` clears with every row still in place. **Never unilateral**, and that is the
       whole design: in a domestic threat model the value of "it closes for both of you" is that
@@ -162,7 +164,12 @@ lands first and a real household gets a real thing sooner.*
       exists; that was wrong, and loosening the check to match it would reopen the defect
 - [ ] "Put it away" on a frozen list: TUCKS, deletes nothing (round one's D8, which replaces the
       build's destructive `forget_pair` and removes the delayed-commit-undo problem entirely)
-- [ ] **Tombstone redaction at 30 days** (Melroy, 2026-08-09). A definer
+- [x] **Tombstone redaction at 30 days** (Melroy, 2026-08-09; SQL applied and verified). Still
+      OPEN and Melroy's call: WHO calls the sweep. There is no cron and no client call site, so
+      redaction happens only when something explicitly asks for one pair. Cheapest answer is one
+      call from `loadMyPairs`, which already enumerates every pair on every Ours open, making
+      coverage "either person opens the app". Whatever is chosen, the privacy copy must say removed
+      items keep their words for **at least** 30 days, never "within 30 days". A definer
       `sweep_shared_tombstones(pair)` blanks the TITLE on tombstones past the horizon without
       touching `updated_at`, so both devices adopt the redaction on their next pull and neither
       pushes the old words back. Gated on `is_pair_member`, not `is_pair_writable`, or it

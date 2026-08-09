@@ -1,7 +1,8 @@
-# Claude Design prompt, Ours round two — DRAFT
+# Claude Design prompt, Ours round two
 
-> **Complete and ready to send.** All three inputs are in: round one's handoff, the Phase 3 engine
-> audit, and the four per-language copy passes. Nothing here is waiting on anything.
+> **Ready to send.** All inputs are in: round one's handoff, the Phase 3 engine audit, the four
+> per-language copy passes, and the Phase 5 SQL, which was reviewed three times (thirteen defects
+> found and fixed) and is now applied and verified against the live database.
 >
 > **Sequence, agreed with Melroy 2026-08-09:** the resume SQL clears its review first, then this
 > design pass, then the merge to `main`. He asked to hold the original order rather than dogfood an
