@@ -1,7 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { loadOursCache, loadOursTasks, pruneOursCache, saveOursTasks, wipeLocalData } from './storage';
+import {
+  loadOursCache,
+  loadOursTasks,
+  loadTuckedPairs,
+  pruneOursCache,
+  saveOursTasks,
+  tuckPair,
+  untuckPair,
+  wipeLocalData,
+} from './storage';
 
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
@@ -113,5 +122,53 @@ describe('pruneOursCache', () => {
     stubOurs(JSON.stringify({ keep: [{ id: 'a' }] }));
     await pruneOursCache(['keep']);
     expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  });
+});
+
+// "Put it away" is the design's ordinary exit from a closed list, superseding the destructive
+// forget_pair. It stores an acknowledgement, never content: a set of pair ids and nothing else.
+describe('putting a closed list away', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function stubTucked(raw: string | null) {
+    vi.mocked(AsyncStorage.getItem).mockImplementation((key: string) =>
+      Promise.resolve(key === 'doubledone.oursTucked.v1' ? raw : null),
+    );
+  }
+  const written = () => JSON.parse(vi.mocked(AsyncStorage.setItem).mock.calls.at(-1)![1] as string);
+
+  it('remembers one, and is idempotent so a double tap is one tuck', async () => {
+    stubTucked(null);
+    await tuckPair('p-1');
+    expect(written()).toEqual(['p-1']);
+
+    stubTucked(JSON.stringify(['p-1']));
+    vi.clearAllMocks();
+    stubTucked(JSON.stringify(['p-1']));
+    await tuckPair('p-1');
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  });
+
+  // Putting away must not be a one-way door either. The archive brings one back out.
+  it('brings one back out', async () => {
+    stubTucked(JSON.stringify(['p-1', 'p-2']));
+    await untuckPair('p-1');
+    expect(written()).toEqual(['p-2']);
+  });
+
+  it('survives junk on disk rather than throwing on a calm screen', async () => {
+    for (const junk of ['not json', JSON.stringify({ a: 1 }), JSON.stringify([1, null, 'p-1'])]) {
+      stubTucked(junk);
+      const out = await loadTuckedPairs();
+      expect(Array.isArray(out)).toBe(true);
+      expect(out.every((id) => typeof id === 'string')).toBe(true);
+    }
+  });
+
+  // It says which relationships you had, so it goes with everything else on account deletion.
+  it('is cleared by wipeLocalData', async () => {
+    stubTucked(null);
+    await wipeLocalData();
+    expect(vi.mocked(AsyncStorage.multiRemove).mock.calls[0][0]).toContain('doubledone.oursTucked.v1');
   });
 });

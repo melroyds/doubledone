@@ -5394,3 +5394,24 @@ answer was only correct by accident of a coalesce in a different function.
 **Decided against** fixing it by making the server never write a null label. That would have worked
 today and left the screen still keying on the wrong thing, so the next person to touch either
 function could reintroduce it from a distance.
+
+## 2026-08-09 Put it away, and why it is local
+
+"Put it away" is the design's ordinary exit from a closed list, and it deliberately supersedes the
+destructive `forget_pair`: it tucks the list into the archive, where it stays readable forever,
+rather than deleting anything. Deleting survives only as the one irreversible action, behind the
+delete window. That is round two's answer to a problem the Phase 3 audit raised and the build could
+not solve, because an undo toast on an unrecoverable delete would have been a lie.
+
+**Decided: the tuck is LOCAL, and the trade-off is named rather than hidden.** Putting a list away
+on your phone does not put it away on your laptop. Server-side would mean another column, another
+migration and another dashboard trip, and this is a per-person acknowledgement of a closure rather
+than shared state. The cost of getting it wrong is seeing a quiet archive row twice. If that ever
+grates, `pair_members` is the natural home and it is one nullable timestamptz.
+
+It stores an ACKNOWLEDGEMENT and never content: a set of pair ids and nothing else. Which is exactly
+why it still belongs in `wipeLocalData`, with its regression test in the same commit per the
+standing rule: a list of pair ids is a list of which relationships you had.
+
+**And untuck exists** because putting away must not be a one-way door either. That is the same
+instinct as freeze-not-delete and resume-not-rebuild, applied to a much smaller thing.

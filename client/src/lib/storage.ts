@@ -29,6 +29,7 @@ const REMINDERHOUR_KEY = 'doubledone.reminderhour.v1'; // the hour (0-23) the da
 const DEV_PREMIUM_KEY = 'doubledone.devPremium.v1'; // DEV/preview only: the premium-flag override (see premium-flag.ts)
 const ENERGY_USES_KEY = 'doubledone.energyUses.v1'; // energy-match use timestamps (the freemium meter, see lib/energy.ts)
 const OURS_KEY = 'doubledone.ours.v1'; // shared lists, keyed BY PAIR (see loadOursCache); holds another person's words
+const OURS_TUCKED_KEY = 'doubledone.oursTucked.v1'; // closed lists you have put away, by pair id
 
 /**
  * Load Today's tasks. On a brand-new install (nothing ever stored) seed once so
@@ -547,6 +548,56 @@ export async function pruneOursCache(keep: string[]): Promise<void> {
 }
 
 /**
+ * The closed lists you have PUT AWAY, by pair id.
+ *
+ * "Put it away" is the design's ordinary exit from a closed list, and it deliberately supersedes
+ * the destructive `forget_pair`: it tucks the list into the archive, where it stays readable
+ * forever, rather than deleting anything. Deleting survives only as the one irreversible action,
+ * behind the delete window.
+ *
+ * LOCAL, and that is a real trade-off rather than an oversight. Putting a list away on your phone
+ * does not put it away on your laptop, because doing it server-side would mean another column,
+ * another migration and another dashboard trip. It is a per-person acknowledgement of a closure,
+ * not shared state, and the cost of getting it wrong is seeing a quiet archive row twice. If that
+ * ever grates, `pair_members` is the natural home and it is one nullable timestamptz.
+ *
+ * It stores an ACKNOWLEDGEMENT, never content: a set of pair ids and nothing else. Which is also
+ * why it belongs in wipeLocalData: it says which relationships you had.
+ */
+export async function loadTuckedPairs(): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(OURS_TUCKED_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Put a closed list away. Idempotent, so a double tap is one tuck. */
+export async function tuckPair(pairId: string): Promise<void> {
+  const tucked = await loadTuckedPairs();
+  if (tucked.includes(pairId)) return;
+  try {
+    await AsyncStorage.setItem(OURS_TUCKED_KEY, JSON.stringify([...tucked, pairId]));
+  } catch {
+    // best effort, like every other saver here
+  }
+}
+
+/** Bring one back out, which the archive needs so putting away is never a one-way door either. */
+export async function untuckPair(pairId: string): Promise<void> {
+  const tucked = await loadTuckedPairs();
+  if (!tucked.includes(pairId)) return;
+  try {
+    await AsyncStorage.setItem(OURS_TUCKED_KEY, JSON.stringify(tucked.filter((id) => id !== pairId)));
+  } catch {
+    // best effort
+  }
+}
+
+/**
  * Erase everything tied to the person from this device, for account deletion: both the
  * explicit in-app delete and the detected remote-deletion path call this. One key list,
  * so neither path can quietly forget one again, which is exactly how the scrapbook used
@@ -563,7 +614,7 @@ export async function wipeLocalData(): Promise<void> {
     // OURS_KEY belongs here more than anything else on the list: it is the only key holding words
     // ANOTHER person wrote. A delete that left it behind would leave a household's list sitting on
     // the phone of someone whose account no longer exists.
-    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, DAYENERGY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY, SYNCOK_KEY, OURS_KEY]);
+    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, DAYENERGY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY, SYNCOK_KEY, OURS_KEY, OURS_TUCKED_KEY]);
   } catch {
     // best effort, like the per-key savers above
   }
