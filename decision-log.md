@@ -5552,3 +5552,44 @@ Only a finished one does. "Handled on Ours" would be false, and once you have br
 is your own task; the other person taking it off the shared list should not reach into your day. The
 opposite reading, that removal means "we are not doing this", is defensible. This one is the calmer
 default and the one that never lies.
+
+## 2026-08-09 The bridges, part two: the four crossings, and what each one refuses to say
+
+**Bring to my Today** takes the hero seat on a shared held card, the one Break it down holds on a
+personal one. It fits because the AI shapers are cut from the shared card, and because it is the
+only action on that card that moves anything between two lists. It goes INERT once the copy exists
+("Already on your Today") rather than disappearing or making a second copy, and the check is
+re-run against fresh storage before writing, because two taps land inside one render.
+
+**The shared row gets no marker when you pull it.** That was the tempting small feature and it is
+the side door: "somebody pulled this" is one inference from "somebody". Only YOUR copy is marked,
+with a faint "· Ours" that sits with the row's other marks on the right, and it keys off the link
+alone rather than the currently-live list, because a copy from a list that has since closed still
+came from a shared list, and dropping the mark would quietly rewrite where it came from.
+
+**Your tick closes both, and your un-tick re-opens both.** Fire-and-forget, deliberately: your own
+Today must never wait on somebody else's list, and must never fail because of it. The completion is
+already saved locally and the merge is order-independent, so a tick that does not reach the server
+now reaches it on the next reconcile from whichever side opens first.
+
+**Their tick retires your copy and leaves a dashed sage line.** The three candidates were: strike it
+through (a lie, you did not do it), silently vanish it ("did I delete that?", which is where the
+checking loop starts), or say what happened and stop. The note names nobody, carries no `completedAt`
+so Lookback cannot see it however anyone later changes the filters, and is gone next open.
+
+**Deviation from the design, small and worth knowing:** the design puts the rest-note "in its
+place", meaning where the row was. Ours renders the notes as a group directly under the day's list,
+because the row is genuinely gone from the task array by then and interleaving a note into a
+position that no longer exists would mean keeping a retired task in the list purely to hold a slot.
+The note still appears on the same screen, on the same visit, in the same reading order. If it reads
+as detached when Melroy sees it on a device, the fix is the interleave, not the copy.
+
+**Share to Ours sits in the FOLD, never a lead action.** It is rare, deliberate, and it puts your
+words in front of another person; that is not a thing to make one thumb-width away. The 500-character
+trim is announced BEFORE the copy is made, from `willTrim`, which calls the same clamp that does the
+trimming, so the warning can never drift from the behaviour it warns about.
+
+**The settle runs in its own effect, gated on the day's tasks having loaded.** Both it and the task
+load read the same storage, and interleaving them let one overwrite the other's save. That was
+caught by the linter refusing a call to a function declared below it, which turned out to be
+pointing at a real ordering bug rather than a style preference.

@@ -9,12 +9,13 @@ import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/
 import { useSession } from '@/lib/auth';
 import { toISODate } from '@/lib/day';
 import { t } from '@/lib/locale';
+import { makeSharedRef, pulledFrom } from '@/lib/ours-bridge';
 import { loadMyPairs, type MyPair } from '@/lib/ours-api';
 import { isSharedDoneOn, setSharedDone, type SharedTask, washedSince } from '@/lib/ours-merge';
 import { isUnreadableRepeat, POLL_MS, repeatSummaryOf, shouldPoll, syncPairOnce } from '@/lib/ours-sync';
-import { loadOursSeen, loadOursTasks, markOursSeen, saveOursTasks } from '@/lib/storage';
+import { loadOursSeen, loadOursTasks, loadTasks, markOursSeen, saveOursTasks, saveTasks } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
-import { makeId, nowMs, withMonotonicStamps } from '@/lib/tasks';
+import { makeId, nowMs, type Task, withMonotonicStamps } from '@/lib/tasks';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 // Ours: THE ROOM. The shared list itself, where the door on Today and the Menu both lead.
@@ -55,6 +56,9 @@ export default function OursListScreen() {
   const seenAt = useRef(0);
   const mine = useRef<Set<string>>(new Set());
   const [washed, setWashed] = useState<ReadonlySet<string>>(new Set());
+  // Which rows are already on my own Today, so "Bring to my Today" can say so rather than quietly
+  // making a second copy. My tasks, read here only to answer that one question.
+  const [pulled, setPulled] = useState<Map<string, string>>(new Map());
 
   /** Cache first, then reconcile. The list is on screen before the network is asked anything, which
    *  is the whole point of the local copy and the difference between opening a list and waiting. */
@@ -73,6 +77,7 @@ export default function OursListScreen() {
       if (!live) return setLoaded(true);
 
       if (seenAt.current === 0) seenAt.current = (await loadOursSeen())[live.pairId] ?? 0;
+      setPulled(pulledFrom(await loadTasks(), live.pairId));
 
       const cached = local ?? (await loadOursTasks(live.pairId));
       if (call !== pass.current) return;
@@ -177,6 +182,35 @@ export default function OursListScreen() {
     void commit(tasks.map((task) => (task.id === id ? { ...task, title: trimmed, updatedAt: now } : task)));
   }
 
+  /**
+   * Bring a copy over. A COPY, and the word is load-bearing: the shared row is untouched and stays
+   * exactly as it was for both of you. Nothing crosses without a person choosing it, and choosing it
+   * must not quietly change the thing you chose.
+   *
+   * The shared row gets NO marker. "Somebody pulled this" is one inference away from "somebody", and
+   * attribution through the side door is still attribution.
+   */
+  async function bring(task: SharedTask) {
+    if (!pair || pulled.has(task.id)) return;
+    const now = nowMs();
+    const mineNow = await loadTasks();
+    // Re-checked against fresh storage rather than the state above: two taps land inside one render.
+    if (pulledFrom(mineNow, pair.pairId).has(task.id)) return setPulled(pulledFrom(mineNow, pair.pairId));
+    const copy: Task = {
+      id: makeId(),
+      title: task.title,
+      done: false,
+      due: today,
+      createdAt: now,
+      updatedAt: now,
+      sharedRef: makeSharedRef(pair.pairId, task.id),
+    };
+    const next = [...mineNow, copy];
+    await saveTasks(next);
+    setPulled(pulledFrom(next, pair.pairId));
+    setConfirmingId(null);
+  }
+
   const visible = tasks.filter((task) => !task.deletedAt);
   const listName = pair?.name?.trim() || t('ours.defaultName');
 
@@ -222,6 +256,8 @@ export default function OursListScreen() {
               onKeep={() => setConfirmingId(null)}
               recurring={task.recurrence !== undefined && task.recurrence.kind !== 'none'}
               onRename={(next) => rename(task.id, next)}
+              onBring={() => void bring(task)}
+              brought={pulled.has(task.id)}
             />
             {/* A cadence this build cannot read: SHOWN, never hidden, because hiding it means one
                 person sees the task and the other does not and each concludes the other deleted it.

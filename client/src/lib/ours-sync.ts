@@ -26,6 +26,13 @@ function clampTitle(title: string): string {
   return title.length <= TITLE_MAX ? title : [...title].slice(0, TITLE_MAX).join('');
 }
 
+/** Whether sharing this title will shorten it. Exported so the UI can SAY SO BEFORE the copy is
+ *  made rather than after, and so the warning can never drift from the clamp that causes it: both
+ *  answers come from the one function above. */
+export function willTrim(title: string): boolean {
+  return clampTitle(title) !== title;
+}
+
 /** The remote row shape (snake_case), matching `public.shared_tasks`. */
 export type SharedRow = {
   id: string;

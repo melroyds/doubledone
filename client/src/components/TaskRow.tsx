@@ -23,6 +23,10 @@ type Props = {
   onAdvance?: () => void;
   onRetreat?: () => void;
   onBreakdown?: () => void;
+  onBring?: () => void; // held-state, SHARED rows only: bring a copy of this to my own Today (the hero seat, where Break it down sits on a personal card)
+  brought?: boolean; // that copy is already on my Today: the hero says so and goes inert, rather than quietly making a second one
+  onShareToOurs?: () => void; // held-state, PERSONAL rows only: put a copy of this on the shared list (in the fold; only when a live list exists)
+  origin?: string; // a faint suffix after the title, marking YOUR copy of a shared row ("· Ours"). Render-only: never part of the title, so renaming never eats it
   onDefer?: () => void; // push-to-tomorrow; the held card no longer shows a standalone Tomorrow (folded into the Move-to picker's chip), but the prop stays for that wiring
   onMakeTiny?: () => void;
   onBig?: () => void; // held-state: mark / unmark this task "a lot"
@@ -69,6 +73,10 @@ export function TaskRow({
   onAdvance,
   onRetreat,
   onBreakdown,
+  onBring,
+  brought,
+  onShareToOurs,
+  origin,
   onMakeTiny,
   onBig,
   onPin,
@@ -159,7 +167,8 @@ export function TaskRow({
     (pinned ? t('today.rowLabelPinned', { title }) : title) +
     (big ? t('today.rowLabelBigSuffix') : '') +
     (recurring ? t('today.rowLabelRepeatingSuffix') : '') +
-    (nudgeAt ? t('today.rowLabelReminderSuffix', { time: formatNudgeTime(nudgeAt) }) : '');
+    (nudgeAt ? t('today.rowLabelReminderSuffix', { time: formatNudgeTime(nudgeAt) }) : '') +
+    (origin ? t('ours.rowLabelOriginSuffix') : '');
 
   // Multi-select mode: every row becomes a checkbox (tap to pick), and the calm
   // tap-to-complete / long-press menu are suspended until the user leaves select mode.
@@ -255,8 +264,8 @@ export function TaskRow({
 
     // An open task: the v2 card ("Four species, four grammars"). The More preview names its
     // everyday contents; Pin deliberately stays out of it (premium recedes, never advertises).
-    const hasMore = canSteps || canPin || Boolean(onNudge);
-    const morePreview = [canSteps && t('today.steps'), onNudge && t('reminders.remindMe')].filter(Boolean).join(' · ');
+    const hasMore = canSteps || canPin || Boolean(onNudge) || Boolean(onShareToOurs);
+    const morePreview = [canSteps && t('today.steps'), onNudge && t('reminders.remindMe'), onShareToOurs && t('ours.shareTo')].filter(Boolean).join(' · ');
     const undoOff = !slices || slices.done <= 0;
     return (
       <Animated.View ref={cardRef} style={[styles.row, styles.confirmRow, styles.confirmColumn, riseStyle]}>
@@ -286,6 +295,28 @@ export function TaskRow({
             </Text>
           </Pressable>
         )}
+
+        {/* The shared card's hero, in the seat Break it down holds on a personal one: the only action
+            that moves anything between the two lists, and the design's answer to "nothing crosses
+            without a person choosing it". Inert once the copy exists, so a second tap cannot make a
+            second copy of the same row. */}
+        {onBring &&
+          (brought ? (
+            <View style={styles.actionRow}>
+              <Text style={[styles.actionLabel, styles.broughtLabel]}>{t('ours.broughtAlready')}</Text>
+            </View>
+          ) : (
+            <Pressable
+              onPress={onBring}
+              style={[styles.actionRow, styles.heroRow]}
+              accessibilityRole="button"
+              accessibilityLabel={t('ours.bring')}
+              hitSlop={{ top: 6, bottom: 6 }}
+            >
+              <Text style={[styles.actionLabel, styles.heroLabel]}>{t('ours.bring')}</Text>
+              <Text style={[styles.actionSub, styles.heroSub]}>{t('ours.bringSub')}</Text>
+            </Pressable>
+          ))}
 
         {/* Lead actions: the helpers you reach for when stuck. Break it down is the tinted hero. */}
         {canBreakdown && (
@@ -392,6 +423,20 @@ export function TaskRow({
                 {/* The purified fold (v2): Steps, Undo a step, Remind me, and Pin LAST, so
                     premium recedes rather than advertises. Unavailable dims in place with an
                     honest reason, never disappears. */}
+                {/* Sharing your own task onto the list. In the FOLD, never a lead action: it is
+                    rare, it is deliberate, and it puts your words in front of another person. Only
+                    rendered when a live list exists, which the caller decides. */}
+                {onShareToOurs && (
+                  <Pressable
+                    onPress={onShareToOurs}
+                    style={[styles.actionRow, styles.moreItem]}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('ours.shareTo')}
+                    hitSlop={{ top: 6, bottom: 6 }}
+                  >
+                    <Text style={styles.actionLabel}>{t('ours.shareTo')}</Text>
+                  </Pressable>
+                )}
                 {canSteps && (
                   <Pressable
                     onPress={onSteps}
@@ -577,6 +622,9 @@ export function TaskRow({
       <CheckCircle done={done} />
       {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
       <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
+      {/* Your copy is marked, the shared row is NOT. Any marker over there would be attribution
+          through the side door: "somebody pulled this" is one inference from "somebody". */}
+      {origin ? <Text style={styles.originMark} accessible={false} importantForAccessibility="no">{origin}</Text> : null}
       {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
       {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
       {/* the pin star sits last, at the extreme right, so it stays the clear cue beside any other mark */}
@@ -671,6 +719,10 @@ const makeStyles = (t: Theme) => {
         ? {}
         : { backgroundColor: t.scheme === 'dark' ? t.colors.accentSoft : t.colors.accent, borderRadius: radius.sm },
     heroLabel: { color: heroText, fontWeight: '700' },
+    // The hero seat once the copy exists: a settled fact, in the quiet voice, not a dead button.
+    broughtLabel: { color: t.colors.inkFaint },
+    // The faint "· Ours" on YOUR copy. Quiet enough to be a fact and not a badge.
+    originMark: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginLeft: spacing.two },
     heroSub: { color: heroText, opacity: 0.82 },
     // Mark-as-a-lot, active: the row tints and its text lifts to accent, the app quietly agreeing.
     actionRowActive: t.appearance === 'quiet' ? {} : { backgroundColor: t.colors.accentSoft, borderRadius: radius.sm },

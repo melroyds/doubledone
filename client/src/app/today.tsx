@@ -53,6 +53,9 @@ import { dayCleared, dayClosed, stepsLanded, taskDone } from '@/lib/haptics';
 import { subscribeInbound, takeInbound } from '@/lib/inbound';
 import { aiLanguage, fmt, t } from '@/lib/locale';
 import { isOursOpen, loadMyPairs } from '@/lib/ours-api';
+import { parseSharedRef, sharedRestNotes } from '@/lib/ours-bridge';
+import { setSharedDone, type SharedTask } from '@/lib/ours-merge';
+import { syncPairOnce, willTrim } from '@/lib/ours-sync';
 import { buildOutcome } from '@/lib/outcome';
 import { scheduleFields, type CaptureSchedule, type Recurrence } from '@/lib/recurrence';
 import { availableNudgePresets, isWindDownTime, type NudgePreset, nudgeTargetFor } from '@/lib/nudge';
@@ -60,7 +63,7 @@ import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge }
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadReminderHour, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveReminderOfferMade, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
+import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursTasks, loadReminderHour, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
 import { restedOffer } from '@/lib/offers';
 import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/plan-day';
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
@@ -79,6 +82,35 @@ import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
 
 const REENTRY_GAP_DAYS = 4; // a calm "welcome back" shows on the first open after this many days away
+
+/**
+ * Copies whose work got finished on Ours: they leave the day, and a dashed line takes their place.
+ *
+ * They LEAVE rather than complete, and the distinction is the whole point. The task is done, but you
+ * did not do it, and putting it in your Lookback would be the app inventing a memory of you doing
+ * it. The tombstone carries no `completedAt`, so Lookback cannot see it however anyone later changes
+ * the filters. The note exists because a row that silently vanishes reads as "did I delete that?",
+ * which for this audience is where a checking loop starts.
+ *
+ * Module scope, so the screen's effect has one stable dependency and this can be reasoned about
+ * without a render. Returns null when there is nothing to settle, which is almost every open.
+ */
+async function settleSharedCopies(pairId: string, date: string): Promise<{ next: Task[]; notes: { id: string; title: string }[] } | null> {
+  try {
+    const shared = await loadOursTasks(pairId);
+    const mineNow = await loadTasks();
+    const notes = sharedRestNotes(mineNow, shared, pairId, date);
+    if (notes.length === 0) return null;
+    const retiring = new Set(notes.map((note) => note.id));
+    const now = nowMs();
+    const next = mineNow.map((task) => (retiring.has(task.id) ? { ...task, deletedAt: now, updatedAt: now } : task));
+    await saveTasks(next);
+    return { next, notes };
+  } catch {
+    // A courtesy, never a correctness requirement. Silence beats a scary line about a shared list.
+    return null;
+  }
+}
 
 export default function TodayScreen() {
   const insets = useSafeAreaInsets();
@@ -197,6 +229,13 @@ export default function TodayScreen() {
   // where it is discovered.
   const [oursOpen, setOursOpen] = useState(false);
   const [oursName, setOursName] = useState<string | null>(null);
+  // The bridges need the list's id, not just its name: which shared row a copy of mine belongs to,
+  // and where a tick has to travel. Null whenever there is no live list, which switches every
+  // bridge off by construction rather than by a flag anyone has to remember to check.
+  const [oursPairId, setOursPairId] = useState<string | null>(null);
+  // Copies that quietly left the day because the work got finished on Ours. Held for this visit
+  // only: they are a courtesy against "did I delete that?", not a record of anything.
+  const [restNotes, setRestNotes] = useState<{ id: string; title: string }[]>([]);
   const tasksRef = useRef<Task[]>(tasks);
   const reduced = useReducedMotion();
   // The close-the-day card's gentle entrance (0 = below + transparent, 1 = settled).
@@ -223,6 +262,21 @@ export default function TodayScreen() {
     };
   }, [router]);
 
+  // Settle the shared copies once the day's own tasks are loaded, never during: both read the same
+  // storage, and interleaving them would let one overwrite the other's save.
+  useEffect(() => {
+    if (!oursPairId || !loaded) return;
+    let active = true;
+    void settleSharedCopies(oursPairId, toISODate(today)).then((res) => {
+      if (!active || !res) return;
+      setTasks(res.next);
+      setRestNotes(res.notes);
+    });
+    return () => {
+      active = false;
+    };
+  }, [oursPairId, loaded, today]);
+
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -248,12 +302,16 @@ export default function TodayScreen() {
           // archive, because a closed relationship does not belong on the screen whose promise is
           // that today is finite.
           void loadMyPairs(client, session.user.id).then((res) => {
-            if (active) setOursName(res.ok && res.value.live ? (res.value.live.name?.trim() || t('ours.defaultName')) : null);
+            if (!active) return;
+            const live = res.ok ? res.value.live : null;
+            setOursName(live ? (live.name?.trim() || t('ours.defaultName')) : null);
+            setOursPairId(live?.pairId ?? null);
           });
         });
       } else {
         setOursOpen(false);
         setOursName(null);
+        setOursPairId(null);
       }
       void loadLowDayDate().then((d) => {
         if (active) setLowDayDate(d);
@@ -1272,6 +1330,53 @@ export default function TodayScreen() {
   // Stable so the Bloom's hold timer is not reset on every re-render of Today.
   const dismissBloom = useCallback(() => setBloom(null), []);
 
+  /**
+   * The tick that closes both. Your copy is done, so the shared row is done, on the day you did it.
+   *
+   * Fire-and-forget on purpose: your own Today must never wait on somebody else's list, and must
+   * never fail because of it. The completion is already saved locally and the merge is
+   * order-independent, so a tick that does not reach the server now reaches it on the next
+   * reconcile, from whichever side opens first.
+   *
+   * It carries WHEN and never who. There is no field on a shared row that could say otherwise.
+   */
+  async function mirrorTickToShared(ref: string, done: boolean) {
+    const link = parseSharedRef(ref);
+    if (!link || !supabase) return;
+    const client = supabase;
+    try {
+      const cached = await loadOursTasks(link.pairId);
+      const found = cached.find((task: SharedTask) => task.id === link.sharedId && !task.deletedAt);
+      if (!found) return; // removed on the other side; nothing to close, and nothing to complain about
+      const next = cached.map((task: SharedTask) => (task.id === link.sharedId ? setSharedDone(task, toISODate(today), done, nowMs()) : task));
+      await saveOursTasks(link.pairId, next);
+      const { merged } = await syncPairOnce(client, link.pairId, next);
+      await saveOursTasks(link.pairId, merged);
+    } catch {
+      // The local copy is already right. The next reconcile carries it.
+    }
+  }
+
+  /** Put a copy of one of your own tasks on the shared list. The 500-character cap is stated BEFORE
+   *  the copy is made, never discovered after, so nobody watches their words get shortened. */
+  async function shareToOurs(task: Task) {
+    if (!oursPairId || !supabase) return;
+    const client = supabase;
+    setConfirmingId(null);
+    if (willTrim(task.title)) affirm(t('ours.shareTrim'));
+    const now = nowMs();
+    const copy: SharedTask = { id: makeId(), title: task.title, done: false, createdAt: now, updatedAt: now };
+    try {
+      const cached = await loadOursTasks(oursPairId);
+      const next = [...cached, copy];
+      await saveOursTasks(oursPairId, next);
+      const { merged } = await syncPairOnce(client, oursPairId, next);
+      await saveOursTasks(oursPairId, merged);
+    } catch {
+      // Kept locally; the room's next reconcile pushes it. Nothing typed is lost either way.
+    }
+  }
+
   function toggle(id: string) {
     const next = tasks.map((t) => {
       if (t.id !== id) return t;
@@ -1283,6 +1388,9 @@ export default function TodayScreen() {
     });
     const justToggled = next.find((t) => t.id === id);
     const done = justToggled ? isDoneOn(justToggled, today) : false;
+    // Your tick closes both. Un-ticking re-opens both, for the same reason it does on Ours: on a
+    // list two people keep, a tick you cannot take back is a tick you hesitate over.
+    if (justToggled?.sharedRef) void mirrorTickToShared(justToggled.sharedRef, done);
     // The moat starts at the call site: log the outcome, not just "done".
     track('task.toggled', { done });
     // The moat's completion half: a finished breakdown step reports an anonymised
@@ -1957,6 +2065,8 @@ export default function TodayScreen() {
               onSteps={!isRecurring(task) && !isDoneOn(task, today) ? () => openSliceEdit(task.id) : undefined}
               onMoveTo={!isRecurring(task) ? () => setMoveIds([task.id]) : undefined}
               onDoneOn={isDoneOn(task, today) && !isRecurring(task) ? () => openDoneOn(task.id) : undefined}
+              origin={task.sharedRef ? `· ${t('ours.defaultName')}` : undefined}
+              onShareToOurs={oursPairId && !task.sharedRef && !isDoneOn(task, today) ? () => void shareToOurs(task) : undefined}
               pinDim={!premium && task.pinnedAt == null}
               suggestBreakdown={task.suggestBreakdown}
               selecting={selectMode}
@@ -1986,6 +2096,17 @@ export default function TodayScreen() {
           </View>
         )}
         {allDone && <Text style={styles.calmNote}>{t('today.allDoneNote')}</Text>}
+
+        {/* Handled on Ours: the copies that left the day because the work got finished on the other
+            side. A dashed sage line, this visit only, because a row that silently vanishes reads as
+            "did I delete that?" and that is where the checking starts. It names nobody, and it never
+            says "done" of something you did not do, which is why these never reach Lookback. */}
+        {restNotes.map((note) => (
+          <View key={note.id} style={styles.restNote}>
+            <Text style={styles.restNoteTitle}>{note.title}</Text>
+            <Text style={styles.restNoteBody}>{t('ours.handled')}</Text>
+          </View>
+        ))}
 
         {loaded && !selectMode && (
           <Pressable
@@ -2031,6 +2152,8 @@ export default function TodayScreen() {
                   onRename={(title) => renameRow(task.id, title)}
                   onSteps={!isRecurring(task) ? () => openSliceEdit(task.id) : undefined}
                   onMoveTo={!isRecurring(task) ? () => setMoveIds([task.id]) : undefined}
+                  origin={task.sharedRef ? `· ${t('ours.defaultName')}` : undefined}
+                  onShareToOurs={oursPairId && !task.sharedRef && !isDoneOn(task, today) ? () => void shareToOurs(task) : undefined}
                   selecting={selectMode}
                   selected={selected.includes(task.id)}
                   onSelect={() => toggleSelect(task.id)}
@@ -3078,6 +3201,19 @@ const makeStyles = (t: Theme) =>
       borderTopWidth: border.hair,
       borderTopColor: t.colors.line,
     },
+    // The rest-note: dashed so it reads as a placeholder rather than a row, sage because the work
+    // is genuinely finished, and never tappable. It is a fact left where a task was.
+    restNote: {
+      borderWidth: border.hair,
+      borderStyle: 'dashed',
+      borderColor: t.colors.done,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.four,
+      paddingVertical: spacing.three,
+      marginTop: spacing.two,
+    },
+    restNoteTitle: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    restNoteBody: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
     oursDoorText: { flex: 1, color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
     oursDoorChevron: { color: t.colors.inkFaint, fontSize: 17 * t.scale, fontFamily: fonts.body },
     screen: { flex: 1, backgroundColor: 'transparent' }, // the LivingBackground shows through
