@@ -363,6 +363,7 @@ export const de: Catalog = {
     namePlaceholder: 'Gib ihr einen Namen',
     newCode: 'Neuen Code holen',
     notThem: 'Doch nicht der richtige Mensch? Verlass die Liste.',
+    openList: 'Liste öffnen',
     partnerJoined: '{name} ist dabei.',
     presetCare: 'Sich um jemanden kümmern',
     presetHouse: 'Der Haushalt',

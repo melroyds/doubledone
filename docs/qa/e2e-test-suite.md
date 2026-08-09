@@ -542,6 +542,17 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 |---|---|---|---|---|---|
 | LEG-05 | P2 | Both | The shared-list clauses are in both copies of both documents | Read Settings > Privacy and Settings > Terms in-app, then doubledone.app/privacy.html and /terms.html. | Privacy carries the shared-lists sections (what the other person sees, that authorship is not stored, freezing, the 30-day window). Terms carry 'Shared lists, and what is not allowed on them' plus 'Reporting, and what we will do' with the 24-hour aim. In-app and web wording match. |
 
+## Ours
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| OUR-42 | P1 | Both | A change on one phone appears on the other WITHOUT touching it | Both sit on the shared list. One adds a task. Do not touch the other device. | It appears within about 15 seconds. (The poll never fired once before 2026-08-09: setPair rebuilt the pair object every sync, which restarted the interval before it could tick.) |
+| OUR-43 | P1 | Both | Opening your own list does not bounce you back | With a live list, tap Ours then 'Open the list'. Also try /ours-list directly in a cold tab. | You land on the list and stay. (useSession returns null while hydrating; the room used to read that as signed-out and redirect, making the button an endless loop.) |
+| OUR-44 | P2 | Both | The pairing screen offers a way INTO the list | Finish pairing, then look at the pairing screen. | There is an 'Open the list' button. (It used to dead-end: the only route to the room was Today's door or the Menu, which a new pair has no reason to know about.) |
+| OUR-45 | P2 | Both | The quiet wash appears and then takes itself away | Have the other account change a row while you are elsewhere, then open the list. | The changed row carries ONE warmed border, on the card itself, never a second ring around it. It clears itself after about 8 seconds without animating. It does not return on the next visit, even if the other phone's clock runs ahead. |
+| OUR-46 | P1 | Both | A repeating task can be ADDED, not only converted | In the shared list, type a title, then tap 'Repeat…' above the box. | The same cadence sheet as everywhere else opens, its commit button names the rhythm, and committing ADDS the task with that cadence. Typing and pressing enter still adds a plain one-off. |
+| OUR-47 | P2 | Both | The Ours door on Today is findable | With a live list, look at Today. | A tinted, accented card carrying the list's name, not a hairline footnote. Absent entirely when there is no live list. |
+
 ## Updates
 
 | ID | Pri | Platform | Test | Steps | Expected |

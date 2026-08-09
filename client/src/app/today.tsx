@@ -3308,15 +3308,23 @@ export default function TodayScreen() {
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
+    // A DOOR, not a footnote. It was a hairline row in inkSoft, deliberately faint so that nothing
+    // on the working surface advertised the feature. That reasoning was muddled: the row only exists
+    // once a live list does, so the no-funnel rule is already served by the gating, and what is left
+    // is navigation to something used every day. Melroy, having used it: "way too faint. It has to
+    // be prominent." He is right. A tinted card with a real label, not a whisper under the fold.
     oursDoor: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
       gap: spacing.three,
       marginTop: spacing.five,
-      paddingVertical: spacing.three,
-      borderTopWidth: border.hair,
-      borderTopColor: t.colors.line,
+      paddingHorizontal: spacing.four,
+      paddingVertical: spacing.four,
+      borderRadius: radius.md,
+      borderWidth: border.thin,
+      borderColor: t.colors.accent,
+      backgroundColor: t.colors.accentSoft,
     },
     // The rest-note: dashed so it reads as a placeholder rather than a row, sage because the work
     // is genuinely finished, and never tappable. It is a fact left where a task was.
@@ -3331,8 +3339,8 @@ const makeStyles = (t: Theme) =>
     },
     restNoteTitle: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
     restNoteBody: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
-    oursDoorText: { flex: 1, color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    oursDoorChevron: { color: t.colors.inkFaint, fontSize: 17 * t.scale, fontFamily: fonts.body },
+    oursDoorText: { flex: 1, color: t.colors.accent, fontSize: 19 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    oursDoorChevron: { color: t.colors.accent, fontSize: 22 * t.scale, fontFamily: fonts.body },
     screen: { flex: 1, backgroundColor: 'transparent' }, // the LivingBackground shows through
     scroll: { flex: 1 },
     content: {

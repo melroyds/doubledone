@@ -7,7 +7,7 @@ import { BackLink } from '@/components/BackLink';
 import { CadenceSheet } from '@/components/CadenceSheet';
 import { TaskRow } from '@/components/TaskRow';
 import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
-import { useSession } from '@/lib/auth';
+import { useSessionState } from '@/lib/auth';
 import { toISODate } from '@/lib/day';
 import { type Recurrence } from '@/lib/recurrence';
 import { t } from '@/lib/locale';
@@ -39,6 +39,19 @@ import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 // offers to restore something the sweep has already redacted.
 const RECENTLY_REMOVED_MS = 7 * 24 * 60 * 60_000;
 
+/**
+ * How long the quiet wash stays before it takes itself away.
+ *
+ * Melroy, 2026-08-09, having used it: "APPEAR and then DISAPPEAR. Staying is not good." He is right,
+ * and the original "gone next open" was worse than it sounded: a mark that sits there for the whole
+ * visit stops being information and becomes furniture you are reading around.
+ *
+ * It vanishes rather than fading. No motion at all, so the law that nothing animates because of the
+ * other person stays literally true, and this audience gets no movement it did not cause. Eight
+ * seconds is long enough to scan a household list and short enough that nobody sits waiting on it.
+ */
+const WASH_LINGER_MS = 8_000;
+
 /** Closed, either because you two closed it or because it was disabled. One definition, used by
  *  every write path on this screen rather than only the ones a prop happened to be threaded to. */
 function isPairFrozen(pair: MyPair | null): boolean {
@@ -49,7 +62,7 @@ export default function OursListScreen() {
   const insets = useSafeAreaInsets();
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
-  const session = useSession();
+  const { session, known: sessionKnown } = useSessionState();
   // One Date for the whole render, so the ISO day and the cadence placement can never disagree
   // across a midnight tick mid-render.
   const now = useMemo(() => new Date(), []);
@@ -87,21 +100,37 @@ export default function OursListScreen() {
   const seenAt = useRef(0);
   const mine = useRef<Set<string>>(new Set());
   const [washed, setWashed] = useState<ReadonlySet<string>>(new Set());
+
+  // Shown, then gone. Restarted whenever the set changes, so a change arriving on the poll gets its
+  // own eight seconds rather than inheriting the tail of the last one.
+  useEffect(() => {
+    if (washed.size === 0) return;
+    const timer = setTimeout(() => setWashed(new Set()), WASH_LINGER_MS);
+    return () => clearTimeout(timer);
+  }, [washed]);
   // Which rows are already on my own Today, so "Bring to my Today" can say so rather than quietly
   // making a second copy. My tasks, read here only to answer that one question.
   const [pulled, setPulled] = useState<Map<string, string>>(new Map());
   const [cadenceId, setCadenceId] = useState<string | null>(null); // the row whose rhythm is being set
+  // Capture-time repeating. Today's capture bar has a WHEN · REPEATING · STEPS door; this one had
+  // nothing, so the only way to make a repeating shared task was to add it and then know to
+  // long-press it. Melroy hit exactly that and reported "there is no way to add Repeating Tasks",
+  // which is true of the only path anybody would look for.
+  const [captureRepeat, setCaptureRepeat] = useState(false);
 
   /** Cache first, then reconcile. The list is on screen before the network is asked anything, which
    *  is the whole point of the local copy and the difference between opening a list and waiting. */
   const sync = useCallback(
     async (local?: SharedTask[]) => {
       const call = ++pass.current;
-      // Signed out (or no Supabase at all) is a FINISHED load, not a pending one. Returning without
-      // saying so left this screen on a bare title forever, because the redirect below waits on
-      // `loaded` and nothing else was ever going to set it. `readOk` too, because there is no read
-      // to fail: a signed-out visitor belongs on /ours, which explains why, and the redirect must
-      // not sit behind a successful membership read that can never happen.
+      // NOT YET KNOWN is not the same as signed out, and conflating them made opening your own list
+      // a loop: `useSession` returns null while it hydrates, this branch called that signed-out, and
+      // the redirect below sent you back to the pairing screen before the session ever arrived.
+      // Wait instead. The callback re-runs the moment the answer lands, because `known` is a dep.
+      if (!sessionKnown) return;
+
+      // NOW it is definitive. Signed out is a FINISHED load, and `readOk` too, because there is no
+      // read to fail: a signed-out visitor belongs on /ours, which explains why.
       if (!supabase || !session) {
         readOk.current = true;
         return setLoaded(true);
@@ -167,7 +196,16 @@ export default function OursListScreen() {
         // Looked at, now. Written on every reconcile rather than on the way out, because the way out
         // of a screen on a phone is often the app being killed, and a wash that never clears is a
         // permanent "something happened" badge, which is the anxiety this was built to bound.
-        void markOursSeen(live_.pairId, nowMs());
+        //
+        // The stamp is the LATER of my clock and the newest row I just displayed, and that is the
+        // whole correctness of it. Their rows are stamped by THEIR phone; the last-look by mine. On
+        // my clock alone, a partner whose clock runs even slightly ahead leaves rows permanently
+        // "newer than the last time I looked", and the wash never clears again. The SQL clamp allows
+        // stamps up to a day into the future, so this is not a fraction of a second, it is a day.
+        // "I have now seen everything up to the newest stamp present" is what the last-look actually
+        // means, and it is true no matter whose clock wrote it.
+        const newest = merged.reduce((max, task) => (Number.isFinite(task.updatedAt) && task.updatedAt > max ? task.updatedAt : max), 0);
+        void markOursSeen(live_.pairId, Math.max(nowMs(), newest));
         void clearOursMine(live_.pairId); // from here the last-look covers those writes
         // Cached rows for lists this account no longer belongs to are ANOTHER PERSON'S WORDS on
         // this device, with nothing left pointing at them. `pruneOursCache` existed for exactly
@@ -179,7 +217,7 @@ export default function OursListScreen() {
         if (call === pass.current) setOffline(true);
       }
     },
-    [session, wantedId, pair],
+    [session, sessionKnown, wantedId, pair],
   );
 
   // iOS uses the will-events; the did-events land after the animation and read as lag.
@@ -196,7 +234,21 @@ export default function OursListScreen() {
     };
   }, []);
 
+  // The live sync, held in a ref so the two effects below can depend on NOTHING that changes.
+  //
+  // This is the whole bug: `sync` calls `setPair` with a fresh object every run, so `pair` changed
+  // identity every time, so `sync` did, so the interval below was cleared and recreated before it
+  // could ever reach fifteen seconds. The poll never fired ONCE. Changes only ever arrived when you
+  // re-entered the screen, which is exactly what it looked like from the outside: type on one phone,
+  // nothing on the other, leave and come back and there it is.
+  const syncRef = useRef(sync);
+  useEffect(() => {
+    syncRef.current = sync;
+  });
+
   useFocusEffect(
+    // Empty deps, deliberately: this must run once per VISIT. With `sync` in here it re-ran every
+    // time the callback was rebuilt, which was every sync, which re-triggered a sync.
     useCallback(() => {
       // A fresh look. Dropping both makes "gone next open" literally true rather than true only when
       // the OS happened to unmount the screen: arriving re-reads the stored last-look (which the
@@ -204,11 +256,11 @@ export default function OursListScreen() {
       seenAt.current = 0;
       mine.current = new Set();
       focused.current = true;
-      void sync();
+      void syncRef.current();
       return () => {
         focused.current = false;
       };
-    }, [sync]),
+    }, []),
   );
 
   // No live list, so there is no room to be in: /ours is where you belong, and it already knows how
@@ -222,14 +274,17 @@ export default function OursListScreen() {
   // Two people write this list, so the gap between their change and your screen is the window in
   // which you are looking at something untrue. Fifteen seconds while you are actually here, and the
   // rule is pure and tested in ours-sync: focused AND foregrounded AND not idle ten minutes.
+  // Keyed on the pair's ID, a STRING, never the pair object. The object is rebuilt by every read,
+  // so depending on it restarted the timer forever and the interval was never allowed to tick.
+  const pairId = pair?.pairId ?? null;
   useEffect(() => {
-    if (!pair) return;
+    if (!pairId) return;
     const timer = setInterval(() => {
       if (!shouldPoll(focused.current, AppState.currentState === 'active', nowMs() - lastTouch.current)) return;
-      void sync();
+      void syncRef.current();
     }, POLL_MS);
     return () => clearInterval(timer);
-  }, [pair, sync]);
+  }, [pairId]);
 
   /** Every write reconciles immediately rather than waiting for the poll: on a shared surface a
    *  fifteen-second lag reads as the other person having done something. */
@@ -253,13 +308,18 @@ export default function OursListScreen() {
     [pair, tasks, sync],
   );
 
-  function add() {
+  /** Add it. `recurrence` present means it was captured through the repeat door rather than typed
+   *  and entered, which is the one difference between the two paths. */
+  function add(recurrence?: Recurrence) {
     const title = draft.trim();
     if (!title || !pair || isPairFrozen(pair)) return;
     setDraft('');
+    setCaptureRepeat(false);
     if (willTrim(title)) setNotice(t('ours.shareTrim')); // said BEFORE, never discovered after
     const now = nowMs();
-    void commit([...tasks, { id: makeId(), title, done: false, createdAt: now, updatedAt: now }]);
+    const made: SharedTask = { id: makeId(), title, done: false, createdAt: now, updatedAt: now };
+    if (recurrence) made.recurrence = recurrence;
+    void commit([...tasks, made]);
   }
 
   function toggle(id: string) {
@@ -386,12 +446,13 @@ export default function OursListScreen() {
         {loaded && visible.length === 0 ? <Text style={styles.empty}>{t('ours.listEmpty')}</Text> : null}
 
         {visible.map((task) => (
-          <View key={task.id} style={[styles.row, washed.has(task.id) && styles.washed]}>
+          <View key={task.id} style={styles.row}>
             <TaskRow
               title={task.title}
               done={isSharedDoneOn(task, today)}
-              /* The wash in WORDS as well as colour. It says a thing happened and never who did
-                 it, which is the same line the tint draws. */
+              /* The wash, on the row's own surface, and in WORDS as well as colour. It says a
+                 thing happened and never who did it, which is the same line the tint draws. */
+              washed={washed.has(task.id)}
               note={washed.has(task.id) ? t('ours.changedSince') : undefined}
               onToggle={() => toggle(task.id)}
               onLongPress={() => setConfirmingId(task.id)}
@@ -450,6 +511,23 @@ export default function OursListScreen() {
         ) : null}
       </ScrollView>
 
+      {/* Captured through the door: the sheet commits the task itself, cadence and all, so the
+          button that names the rhythm is also the button that adds it. */}
+      {captureRepeat && (
+        <CadenceSheet
+          visible
+          onClose={() => setCaptureRepeat(false)}
+          today={now}
+          sheetTitle={t('ours.addTo', { name: listName })}
+          title={draft}
+          note={t('ours.repeatNote')}
+          onSave={(title, recurrence) => {
+            setDraft(title);
+            add(recurrence);
+          }}
+        />
+      )}
+
       {cadenceTask && (
         <CadenceSheet
           key={cadenceTask.id}
@@ -471,13 +549,26 @@ export default function OursListScreen() {
           no field, and the server would refuse the write in any case. */}
       {!frozen && (
         <View style={[styles.capture, { paddingBottom: insets.bottom + spacing.three + Math.max(0, kbHeight - (Platform.OS === 'ios' ? insets.bottom : 0)) }]}>
+        {/* The repeat door. Today's capture carries WHEN · REPEATING · STEPS; a shared list has no
+            "when" (it is not a day) and no steps (they are a personal shaping tool), so what carries
+            across is the one that belongs here. Same sheet, same wording, same commit button. */}
+        <Pressable
+          onPress={() => setCaptureRepeat(true)}
+          disabled={!draft.trim()}
+          accessibilityRole="button"
+          accessibilityLabel={t('ours.repeat')}
+          hitSlop={6}
+          style={styles.captureDoor}
+        >
+          <Text style={[styles.captureDoorText, !draft.trim() && styles.captureDoorOff]}>{t('ours.repeat')}</Text>
+        </Pressable>
         <TextInput
           value={draft}
           onChangeText={(v) => {
             lastTouch.current = nowMs();
             setDraft(v);
           }}
-          onSubmitEditing={add}
+          onSubmitEditing={() => add()}
           placeholder={t('ours.addTo', { name: listName })}
           placeholderTextColor={theme.colors.inkFaint}
           style={styles.input}
@@ -519,19 +610,7 @@ const makeStyles = (t: Theme) =>
     removedTitle: { flex: 1, color: t.colors.inkFaint, fontSize: 15 * t.scale, fontFamily: fonts.body },
     restore: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     removedHint: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.three },
-    row: {
-      marginTop: spacing.two,
-      borderRadius: radius.md,
-      borderWidth: border.hair,
-      borderColor: 'transparent',
-      // Padding, so a washed row's tint shows as a band AROUND the card rather than hiding behind
-      // the card's own opaque background, where it rendered as nothing at all.
-      paddingHorizontal: spacing.one,
-      paddingVertical: spacing.one,
-    },
-    // Changed since you last looked. A tint and a slightly firmer edge, and nothing else: it is
-    // static by design, because nothing in this room may ever animate because of the other person.
-    washed: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
+    row: { marginTop: spacing.two },
     cadenceNote: {
       color: t.colors.inkFaint,
       fontSize: 13 * t.scale,
@@ -547,6 +626,10 @@ const makeStyles = (t: Theme) =>
       borderTopColor: t.colors.line,
       backgroundColor: t.colors.bg,
     },
+    // Above the input, quiet until there is something to make repeat.
+    captureDoor: { alignSelf: 'flex-start', paddingVertical: spacing.one },
+    captureDoorText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    captureDoorOff: { color: t.colors.inkFaint, fontWeight: '400', fontFamily: fonts.body },
     input: {
       backgroundColor: t.colors.surface,
       borderWidth: border.hair,

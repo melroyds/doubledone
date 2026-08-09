@@ -23,6 +23,7 @@ type Props = {
   onAdvance?: () => void;
   onRetreat?: () => void;
   onBreakdown?: () => void;
+  washed?: boolean; // changed since you last looked (the shared list): the row's OWN surface warms and its OWN border firms, never a second ring drawn around it
   note?: string; // a state worth SAYING as well as showing (the shared list's quiet wash), folded into the row's spoken label so it is never colour-only
   inert?: string; // this row cannot be ticked, and this is why: the reason travels WITH the control, so a screen reader hears it and a tap is never silently dead
   removesWholeSeries?: boolean; // the caller's Remove tombstones the SERIES, so it must not borrow the "Skip today" label
@@ -79,6 +80,7 @@ export function TaskRow({
   onBreakdown,
   onBring,
   onRepeat,
+  washed,
   note,
   inert,
   removesWholeSeries,
@@ -647,7 +649,13 @@ export function TaskRow({
       onPress={inert ? undefined : onToggle}
       onLongPress={onLongPress}
       delayLongPress={400}
-      style={({ pressed }) => [styles.row, !recurring && styles.rowUnique, pinned && styles.rowPinned, pressed && !inert && styles.pressed]}
+      style={({ pressed }) => [
+        styles.row,
+        !recurring && styles.rowUnique,
+        pinned && styles.rowPinned,
+        washed && styles.rowWashed,
+        pressed && !inert && styles.pressed,
+      ]}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: done, disabled: Boolean(inert) }}
       accessibilityLabel={rowLabel}
@@ -754,6 +762,10 @@ const makeStyles = (t: Theme) => {
     heroLabel: { color: heroText, fontWeight: '700' },
     // The hero seat once the copy exists: a settled fact, in the quiet voice, not a dead button.
     broughtLabel: { color: t.colors.inkFaint },
+    // The quiet wash, on the row's OWN surface. It was a wrapper with its own border, which drew a
+    // second ring around the card and read as a rendering fault rather than a signal: Melroy's first
+    // question on seeing it was "what does the outer boundary mean?", which is the whole verdict.
+    rowWashed: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
     // The faint "· Ours" on YOUR copy. Quiet enough to be a fact and not a badge.
     originMark: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginLeft: spacing.two },
     heroSub: { color: heroText, opacity: 0.82 },

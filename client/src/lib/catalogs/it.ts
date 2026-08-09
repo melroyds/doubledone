@@ -359,6 +359,7 @@ export const it: Catalog = {
     namePlaceholder: 'Dalle un nome',
     newCode: 'Ottieni un altro codice',
     notThem: 'Non è chi ti aspettavi? Esci dalla lista.',
+    openList: 'Apri la lista',
     partnerJoined: '{name} è qui.',
     presetCare: 'Prendersi cura di qualcuno',
     presetHouse: 'La casa',

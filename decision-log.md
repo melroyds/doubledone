@@ -5962,3 +5962,61 @@ twice (in-app and static web) and both copies moved in the same commit, per the 
 months apart, at speed, late at night, and a wrong tick costs a whole review cycle. Expected outcome
 of declaring UGC: still 4+, and nothing new to declare on Play's data safety, because a shared task
 lives in rows already covered and the app records no authorship, so there is no new data type.
+
+## 2026-08-10 The dogfood gate: six defects in forty minutes, none of them findable without a person
+
+Melroy and his wife, two accounts, two phones, on a Pages preview of the branch. Everything below
+was found by them in under an hour, after two adversarial audits and 895 passing tests had signed
+the feature off. Worth recording in full, because the pattern is the lesson.
+
+**1. The poll never fired. Not once, in the feature's entire life.** `sync` calls `setPair` with a
+freshly built object every run, so `pair` changed identity, so `sync` did, so the `setInterval` was
+cleared and recreated before it could ever reach fifteen seconds. Changes only ever arrived on
+re-entering the screen. `shouldPoll` is pure, tested, and had never been reached: the tests check the
+RULE, and nothing checked that the rule was consulted. Fixed by keying the interval on the pair's
+ID **string** and calling sync through a ref, so nothing it depends on changes during a visit.
+
+**2. Opening your own list was an endless loop.** `useSession()` returns null for BOTH "signed out"
+and "not checked yet". The room read the first render's null, concluded there was no list, and
+redirected to the pairing screen. My own regression from the pre-merge pass, added to stop a
+signed-out visitor sitting on a blank screen. There is now a `known` flag (`useSessionState`), and
+`useSession` delegates to it so the two can never drift.
+
+**3. The pairing screen was a dead end.** You finish pairing, the screen congratulates you, and there
+was no route to the list from it at all: the only link to the room was for CLOSED lists in the
+archive. Reaching your own live list meant going back to Today and knowing to look. The first thing
+every new pair hits, and no test I can run has to find a button, because they navigate by URL.
+
+**4. The quiet wash never cleared.** The last-look was stamped with MY clock; their rows carry
+THEIR phone's clock. Any skew at all and their rows stay permanently "newer than the last time I
+looked". The SQL clamp permits stamps a day into the future, so this is not milliseconds. The stamp
+is now the later of my clock and the newest row I actually displayed, which is what the last-look
+means anyway and is true whoever wrote it.
+
+**5. The wash drew a SECOND border around the card.** It sat on a wrapper View, because the row's own
+background is opaque and the tint was invisible behind it. Melroy's first words on seeing it were
+"what does the OUTER boundary mean?", which is the entire verdict on a signal. It is now the row's
+own surface and border, one card, via a `washed` prop.
+
+**Decided (Melroy, having used it): the wash APPEARS AND DISAPPEARS.** Eight seconds, then gone. The
+old "gone next open" was worse than it sounded: a mark that sits for the whole visit stops being
+information and becomes furniture you read around. It **vanishes rather than fades**, so the law that
+nothing animates because of the other person stays literally true.
+
+**6. A repeating task could not be ADDED, only converted.** Today's capture has the
+WHEN · REPEATING · STEPS door; the room's capture bar had nothing, so the only path was to add a task
+and then know to long-press it. "There is no way to add Repeating Tasks" was true of the only route
+anybody would look for. The capture bar now has a Repeat door onto the same cadence sheet, and the
+button that names the rhythm is the button that adds the task.
+
+**Decided: the Today door is PROMINENT, reversing my own call.** It was a hairline in inkSoft,
+deliberately faint so nothing on the working surface advertised the feature. That reasoning was
+muddled, and Melroy was right to call it: the row only exists once a live list does, so the no-funnel
+rule is already served by the gating. What was left was navigation to a thing used daily, dressed as
+a footnote. It is now a tinted, accented card.
+
+**The pattern, and it is the whole argument for a dogfood gate.** Two adversarial audits found 67
+real defects between them and none of these six. Every one needed a human being opening the app the
+way a human opens an app: not knowing where things are, not finding the button, asking what a border
+means, waiting for something to appear and giving up. A test suite cannot be surprised, and being
+surprised is the entire skill here.

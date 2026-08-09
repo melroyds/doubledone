@@ -363,6 +363,7 @@ export const en = {
     namePlaceholder: 'Give it a name',
     newCode: 'Get a new code',
     notThem: 'Not them? Leave.',
+    openList: 'Open the list',
     partnerJoined: '{name} joined.',
     presetCare: 'Looking after someone',
     presetHouse: 'The house',

@@ -783,6 +783,18 @@ export default function OursScreen() {
             </Pressable>
           )}
 
+          {/* THE WAY FORWARD, and its absence was a dead end: you finish pairing, the screen tells
+              you it worked, and there was no route to the list from here at all. The only link to
+              the room was the archive's, for CLOSED lists. Reaching your own live list meant going
+              back to Today and knowing to look for the door. First thing every new pair hits. */}
+          <View style={styles.actions}>
+            <PrimaryButton
+              label={t('ours.openList')}
+              onPress={() => router.push('/ours-list')}
+              accessibilityLabel={t('ours.openList')}
+            />
+          </View>
+
           {joinedWith ? (
             <View style={styles.beat}>
               <Text style={styles.beatText}>{t('ours.joined', { name: joinedWith })}</Text>
