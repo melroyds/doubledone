@@ -5273,3 +5273,53 @@ obeyed. The offer ladder is not discoverable from a description of the app, so w
 a Today surface designed in good faith and a round spent unpicking it. And "Settings or Today" is
 not a neutral question: posing it with two options quietly rules out the one that is right. The
 guard against anchoring is that the reasoning ships with it and rejecting it is invited explicitly.
+
+## 2026-08-09 The resume SQL: twelve defects across two passes, and one the passes could not see
+
+Three rounds on `supabase/ours-resume.sql` before a line of it reaches a database.
+
+**Pass 1 (eight defects, "do not apply as-is").** Verbatim in
+[`docs/ours-resume-sql-review.md`](ours-resume-sql-review.md). It began by TRACING rather than
+asserting that a one-sided reopen is impossible: `closed_at` is cleared in exactly one statement in
+the whole schema, behind seven conditions in one predicate, and the binding is minted server-side
+against the OTHER member, so no code can ever be bound to its own minter. The law holds
+structurally, which is the only way it is worth having.
+
+The two that would have hurt. **A person could end up holding two live lists, one their own app
+could neither render nor leave**: nothing re-read the other member between the mint and the redeem,
+up to 24 hours later, so they could start a fresh list in between; the app gives the visible slot to
+the newest join and files only frozen pairs in the archive, so the woken one rendered nowhere while
+the other person wrote into it freely. And **the thirty-day redaction clock was set by whoever wrote
+the row**: `deleted_at` was client-supplied and unclamped, so a phone a month slow would have had
+its first sweep permanently blank a task removed a minute earlier, from inside the seven-day Restore
+window, with the same wrong stamp having already hidden it from "Recently removed".
+
+**The one worth remembering.** I wrote in the file that resume needed its own function BECAUSE
+`join_pair` refuses closed pairs. True of its consume statement, false of the function: its
+idempotent branch checked only hash, expiry and membership, and a resume code's redeemer is a member
+by construction, so every resume code satisfied it. The design decision was right and my
+justification for it was one branch short of the truth.
+
+**Pass 2 (four more, all in the APPLICATION rather than the design).** The tombstone normalisation
+sat forty lines BELOW the trigger that makes `deleted_at` immutable, so it reported rows updated and
+wrote the backdated stamp straight back. `join_pair`'s fix existed only in `ours.sql`, so applying
+the migration on its own, which is exactly what its own header invites, left the old branch live.
+`ours.sql` still shipped the old trigger while calling itself re-runnable, which would hand the
+retention clock back to the client while the sweep was reading it. And read-back 4 was satisfied by
+the very body it existed to reject. **Decided as a rule from this:** a read-back that cannot fail is
+worse than no read-back, because it converts an unchecked assumption into a signed-off one.
+
+**Pass 3 could not have found the last one, and neither could passes 1 or 2**, because all three
+were reviews of the SQL. `classifyPairError` keys on the exact message strings the SQL raises, and
+this migration changed three of them. Reading the two files AGAINST each other found that
+`'that list is already live'` fell through the 42501 fork to `not-yours`, which the screen renders
+as "This list is closed to changes": exactly backwards, since the whole problem is that it is not
+closed. It now has its own failure name, and **the screen answers it by refreshing rather than
+explaining**, because the state the person asked for is the state that exists. Telling them about an
+error there would be pedantry at the warmest possible moment.
+
+**Decided against** more reading passes of the same shape after this. Pass 1 found design defects,
+pass 2 found my application errors, pass 3 checked the last edits, and the marginal find is now
+falling fast. What no reading pass can buy is Postgres parsing the file, so the next verification is
+execution: apply to a throwaway project and run read-backs `e` through `i`, which need two test
+accounts and cannot be checked by reading at all.

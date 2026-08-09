@@ -107,6 +107,7 @@ export type PairFailure =
   | 'too-many-lists'
   | 'not-yours'
   | 'partner-gone'  // a frozen list whose other member is gone: readable forever, wakeable never
+  | 'already-live'  // you tried to wake a list the other person has ALREADY woken
   | 'offline'
   | 'unknown';
 
@@ -134,6 +135,11 @@ export function classifyPairError(error: { code?: string | null; message?: strin
     // borrow 23505 "full", which told someone who had just been left that a list containing one
     // person was full.
     if (message.includes('nobody left')) return 'partner-gone';
+    // Race-only and self-healing: the other person resumed while this screen was stale. Its own
+    // name because the fallback below renders "This list is closed to changes", which is exactly
+    // backwards when the problem is that it is NOT closed. The screen answers this by refreshing
+    // rather than by explaining, since the resulting state is the one the user was asking for.
+    if (message.includes('already live')) return 'already-live';
     return 'not-yours';
   }
   if (code === '23505') return message.includes('full') ? 'list-full' : 'already-paired';

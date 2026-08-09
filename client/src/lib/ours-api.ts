@@ -14,6 +14,7 @@ export type PairErr = { ok: false; failure: PairFailure };
 export type PairResult<T> = PairOk<T> | PairErr;
 
 export type Invite = { code: string; pairId: string; expiresAt: string };
+export type ResumeInvite = { code: string; expiresAt: string };
 export type Joined = { pairId: string; partnerLabel: string | null; pairName: string | null };
 
 /** Who is in a pair, from the current user's point of view. `partnerLabel` is null while an invite
@@ -107,6 +108,48 @@ export async function renamePair(client: SupabaseClient, pairId: string, name: s
   const { error } = await client.rpc('rename_pair', { p_pair: pairId, p_name: capName(name) || null });
   if (error) return fail(error);
   return { ok: true, value: null };
+}
+
+/**
+ * Mint a code that WAKES a frozen list, for the other member to redeem.
+ *
+ * The address is not asked for and not passed: both people are already members, so the server binds
+ * the code to the other member's own address. Nothing is disclosed (you are never shown it, they
+ * are never shown one) and it removes the sharpest edge in the original flow, where a mistyped
+ * address gave an unrecoverable dead end.
+ *
+ * Minting is HALF of a handshake and changes nothing on its own. `closed_at` clears only when the
+ * other person redeems, which is what keeps leaving a door the other person cannot drag you back
+ * through.
+ */
+export async function inviteToResume(client: SupabaseClient, pairId: string): Promise<PairResult<ResumeInvite>> {
+  const { data, error } = await client.rpc('invite_to_resume', { p_pair: pairId });
+  if (error) return fail(error);
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.code) return { ok: false, failure: 'unknown' };
+  return { ok: true, value: { code: row.code, expiresAt: row.expires_at } };
+}
+
+/**
+ * Redeem one. The other half.
+ *
+ * ZERO ROWS is the failure, exactly as `joinPair`: the server deliberately does not raise on the
+ * one path a guesser can reach, because raising would roll back the transaction and take the
+ * rate-limit record with it, leaving the throttle recording nothing but successes.
+ *
+ * Succeeding TWICE is fine and returns the same row: the server has an idempotent branch above its
+ * cap check, so a double tap or a lost response does not answer a person who has just got their
+ * list back with "you already have a shared list, you can leave it".
+ */
+export async function resumePair(client: SupabaseClient, code: string): Promise<PairResult<Joined>> {
+  const { data, error } = await client.rpc('resume_pair', { p_code: normaliseCode(code) });
+  if (error) return fail(error);
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.pair_id) return { ok: false, failure: 'invalid-code' };
+  return {
+    ok: true,
+    value: { pairId: row.pair_id, partnerLabel: row.partner_label ?? null, pairName: row.pair_name ?? null },
+  };
 }
 
 /** Leave: the list freezes for both people. Reads stay, writes stop, zero rows move, nothing is

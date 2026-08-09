@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
-import { createInvite, forgetPair, isOursOpen, joinPair, leavePair, loadMyPair, loadMyPairs, renamePair } from './ours-api';
+import {
+  createInvite,
+  forgetPair,
+  inviteToResume,
+  isOursOpen,
+  joinPair,
+  leavePair,
+  loadMyPair,
+  loadMyPairs,
+  renamePair,
+  resumePair,
+} from './ours-api';
 
 // A mock client in the shape supabase-js presents, so the CONTRACT is pinned without a database:
 // which RPC is called, with which argument names, and how each shape of reply is read.
@@ -323,5 +334,70 @@ describe('loadMyPairs picks the right membership out of several', () => {
     const client = withMemberships([], []);
     const res = await loadMyPairs(client, 'me');
     expect(res.ok && res.value).toEqual({ live: null, frozen: [] });
+  });
+});
+
+
+// Phase 5. Waking a frozen list is the pairing handshake again, and never unilateral: one member
+// mints, the other redeems, and only the redeem clears closed_at.
+describe('inviteToResume', () => {
+  it('passes only the pair id, because the address is the server’s to know', async () => {
+    const { client, calls } = mockClient({
+      invite_to_resume: { data: [{ code: 'K7MP4Q', expires_at: '2026-08-10T00:00:00Z' }], error: null },
+    });
+    const res = await inviteToResume(client, 'p-1');
+
+    expect(calls[0]).toEqual({ fn: 'invite_to_resume', args: { p_pair: 'p-1' } });
+    // No email anywhere in the call. Both people are already members, so the server binds the code
+    // to the other member itself, which removes the sharpest edge in the original flow.
+    expect(JSON.stringify(calls[0].args)).not.toContain('@');
+    expect(res).toEqual({ ok: true, value: { code: 'K7MP4Q', expiresAt: '2026-08-10T00:00:00Z' } });
+  });
+
+  it('reports a list with nobody left to wake it with, rather than calling it full', async () => {
+    const { client } = mockClient({
+      invite_to_resume: { data: null, error: { code: '42501', message: 'nobody left to resume with' } },
+    });
+    expect(await inviteToResume(client, 'p-1')).toEqual({ ok: false, failure: 'partner-gone' });
+  });
+
+  it('treats an empty reply as unknown rather than pretending it minted a code', async () => {
+    const { client } = mockClient({ invite_to_resume: { data: [], error: null } });
+    expect(await inviteToResume(client, 'p-1')).toEqual({ ok: false, failure: 'unknown' });
+  });
+});
+
+describe('resumePair', () => {
+  it('normalises the typed code exactly as the server does before hashing', async () => {
+    const { client, calls } = mockClient({
+      resume_pair: { data: [{ pair_id: 'p-1', partner_label: 'Sam', pair_name: 'the house' }], error: null },
+    });
+    const res = await resumePair(client, ' k7m-p4q ');
+
+    expect(calls[0]).toEqual({ fn: 'resume_pair', args: { p_code: 'K7MP4Q' } });
+    expect(res).toEqual({ ok: true, value: { pairId: 'p-1', partnerLabel: 'Sam', pairName: 'the house' } });
+  });
+
+  // Same reason as joinPair: the server cannot raise on the one path a guesser can reach, because
+  // a raise rolls back the transaction and takes the rate-limit record with it.
+  it('reads ZERO ROWS as an invalid code', async () => {
+    const { client } = mockClient({ resume_pair: { data: [], error: null } });
+    expect(await resumePair(client, 'K7M-P4Q')).toEqual({ ok: false, failure: 'invalid-code' });
+  });
+
+  // The server has an idempotent branch ABOVE its cap check precisely so this does not answer a
+  // person who has just got their list back with "you already have a shared list, you can leave it".
+  it('succeeds again on a retry rather than reporting an already-paired list', async () => {
+    const { client } = mockClient({
+      resume_pair: { data: [{ pair_id: 'p-1', partner_label: 'Sam', pair_name: null }], error: null },
+    });
+    expect(await resumePair(client, 'K7M-P4Q')).toMatchObject({ ok: true, value: { pairId: 'p-1' } });
+  });
+
+  it('reports a list the other person already woke as its own calm state', async () => {
+    const { client } = mockClient({
+      resume_pair: { data: null, error: { code: '42501', message: 'that list is already live' } },
+    });
+    expect(await resumePair(client, 'K7M-P4Q')).toEqual({ ok: false, failure: 'already-live' });
   });
 });

@@ -42,6 +42,8 @@ const FAILURE_LINE: Record<Exclude<PairFailure, 'signed-out'>, string> = {
   'rate-limited': 'ours.errRateLimited',
   'too-many-lists': 'ours.errTooManyLists',
   'not-yours': 'ours.errNotYours',
+  // 'already-live' is deliberately absent: it is answered by refreshing, not by explaining.
+  'already-live': 'ours.errUnknown',
   'partner-gone': 'ours.errPartnerGone',
   offline: 'ours.errOffline',
   unknown: 'ours.errUnknown',
@@ -169,8 +171,15 @@ export default function OursScreen() {
     };
   }, [waiting, refresh]);
 
-  // A failed session is a state, not a scolding: fall through to the sign-in explanation.
+  // A failed session is a state, not a scolding: fall through to the sign-in explanation. And
+  // 'already-live' is not a failure the user needs told about: they asked to wake a list, and it
+  // turns out their person already woke it, so the state they wanted is the state that exists. A
+  // refresh shows it to them. Explaining an error would be pedantry at the warmest possible moment.
   function report(f: PairFailure) {
+    if (f === 'already-live') {
+      void refresh();
+      return;
+    }
     setFailure(f === 'signed-out' ? null : f);
   }
 

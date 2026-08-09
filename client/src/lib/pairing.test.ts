@@ -138,9 +138,23 @@ describe('classifyPairError', () => {
     expect(classifyPairError({ code: '23505', message: 'that list is full' })).toBe('list-full');
   });
 
-  it('separates the two 42501 cases', () => {
+  // Phase 5 raises two MORE messages on 42501, so this fork is now four ways. Both were chosen
+  // deliberately over inventing a new SQLSTATE, so that a stale client degrades to "not-yours"
+  // ("This list is closed to changes"), which is true of a frozen list that is staying frozen.
+  it('separates all four 42501 cases', () => {
     expect(classifyPairError({ code: '42501', message: 'ours is not open yet' })).toBe('not-open');
     expect(classifyPairError({ code: '42501', message: 'not your list' })).toBe('not-yours');
+    expect(classifyPairError({ code: '42501', message: 'nobody left to resume with' })).toBe('partner-gone');
+    expect(classifyPairError({ code: '42501', message: 'that list is already live' })).toBe('already-live');
+  });
+
+  // The one caught by reading the SQL and the TypeScript against each other rather than separately.
+  // Before it had its own name, "that list is already live" fell through to 'not-yours', which the
+  // screen renders as "This list is closed to changes": exactly backwards, since the whole problem
+  // is that the list is NOT closed.
+  it('never tells someone a live list is closed', () => {
+    const failure = classifyPairError({ code: '42501', message: 'that list is already live' });
+    expect(failure).not.toBe('not-yours');
   });
 
   it('separates the two 54000 cases', () => {
