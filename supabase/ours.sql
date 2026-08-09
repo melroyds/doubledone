@@ -298,6 +298,9 @@ as $$
 begin
   if tg_op = 'INSERT' then
     new.created_by := auth.uid();          -- the client's value is ignored, never trusted
+    if new.deleted_at is not null then
+      new.deleted_at := now();             -- a row that arrives already removed starts its clock now
+    end if;
   else
     new.pair_id := old.pair_id;            -- a row can never walk into another household
     -- Authorship is immutable, with ONE hole left open on purpose: a null must pass through,
@@ -310,6 +313,20 @@ begin
     if new.created_by is not null and new.created_by is distinct from old.created_by then
       new.created_by := old.created_by;
     end if;
+    -- The retention clock, SERVER-OWNED as of Phase 5. sweep_shared_tombstones reads this column as
+    -- a MAGNITUDE, which nothing did when this file was written. Client-written and unclamped it is
+    -- a permanent delete button: one PATCH setting 1970 collapses the thirty-day horizon to zero,
+    -- and an honest phone with a slow clock does the same thing by accident, permanently redacting
+    -- a task removed a minute ago from INSIDE the seven-day Restore window. A null still passes
+    -- through untouched, so Restore and the null / not-null contract the client relies on are
+    -- unchanged. Coalescing to OLD is what stops a re-pushed tombstone, and the sweep's own UPDATE,
+    -- from walking the horizon forward so nothing ever ages out. It can no longer be stamped in the
+    -- FUTURE either, which was an unbounded way to keep a tombstone out of the sweep forever.
+    new.deleted_at := case
+      when new.deleted_at is null then null      -- restore, always allowed
+      when old.deleted_at is null then now()     -- the moment the server saw the removal
+      else old.deleted_at                        -- immutable once stamped
+    end;
   end if;
 
   -- No row may be stamped more than a day in the future. updated_at is client-authoritative BY
@@ -324,12 +341,10 @@ begin
   if new.done_at is not null then
     new.done_at := least(new.done_at, now() + interval '1 day');
   end if;
-  -- deleted_at IS read as a magnitude, as of Phase 5: sweep_shared_tombstones (ours-resume.sql)
-  -- redacts a removed task's words 30 days after this stamp. It is therefore SERVER-OWNED there,
-  -- not clamped here: see the create-or-replace of this function in ours-resume.sql, which is the
-  -- live definition. Client-written and unclamped it was a permanent delete button, since one
-  -- PATCH setting 1970 collapses the horizon to zero, and an honest phone with a slow clock does
-  -- the same thing by accident.
+  -- deleted_at is handled ABOVE, not clamped here: it is server-owned rather than bounded, because
+  -- the sweep reads it as a duration. MIRRORED VERBATIM in ours-resume.sql section 4, and the two
+  -- must not drift: this file calls itself re-runnable, so a re-run that reinstated the old body
+  -- would hand the retention clock back to the client while the sweep was live.
   return new;
 end;
 $$;

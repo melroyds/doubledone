@@ -304,6 +304,147 @@ revoke all on function public.resume_pair(text) from public, anon;
 grant execute on function public.resume_pair(text) to authenticated;
 
 -- ---------------------------------------------------------------------------
+-- 3b. Closing the wrong door that section 2 just made reachable.
+--
+-- This migration mints the FIRST invite in the schema that is unused, unexpired and points at a
+-- FROZEN pair. join_pair's CONSUME statement refuses those, which is the whole argument for
+-- resume_pair being its own function. But join_pair has a SECOND path, the idempotent branch, whose
+-- only conditions were hash, expiry and membership, and a resume code's redeemer is a member of
+-- that pair BY CONSTRUCTION. So every resume code satisfied it, for either party, every time, and
+-- typing one into the frozen card's "Join instead" returned a full success row over a list that was
+-- still closed: nothing consumed, nothing cleared, and the screen reading "sharing with Sam".
+--
+-- Restated VERBATIM from ours.sql, which carries the same fix, because this file must be applyable
+-- on its own against a database holding Phase 1's version. The two must not drift. No drop needed:
+-- the signature and RETURNS TABLE shape are unchanged, so create-or-replace preserves the ACLs.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.join_pair(p_code text, p_my_label text)
+returns table (pair_id uuid, partner_label text, pair_name text)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  k_max_pairs constant int := 1;             -- LIVE lists only, see the join below
+  k_attempts_per_hour constant int := 10;    -- per account, WRONG GUESSES only
+  k_global_per_hour constant int := 5000;    -- runaway backstop, not the primary defence. The
+                                             -- email binding is what makes the code space
+                                             -- unwalkable; this only stops a distributed spray.
+                                             -- Deliberately high: a low ceiling would let a few
+                                             -- throwaway accounts lock out every real user.
+  v_uid uuid := auth.uid();
+  v_email text;
+  v_hash text;
+  v_pair uuid;
+  v_label text;
+  v_name text;
+begin
+  if v_uid is null then
+    raise exception 'not signed in' using errcode = '28000';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(v_uid::text, 0));
+
+  if (select count(*) from public.pair_join_attempts a
+      where a.user_id = v_uid and a.attempted_at > now() - interval '1 hour') >= k_attempts_per_hour then
+    raise exception 'too many attempts, try later' using errcode = '54000';
+  end if;
+  if (select count(*) from public.pair_join_attempts a
+      where a.attempted_at > now() - interval '1 hour') >= k_global_per_hour then
+    raise exception 'too many attempts, try later' using errcode = '54000';
+  end if;
+
+  select lower(btrim(u.email)) into v_email from auth.users u where u.id = v_uid;
+
+  -- Strip whatever the code was DISPLAYED with: the design renders it as K7M-P4Q, so btrim alone
+  -- would fail a perfectly-typed code. A whitelist, not a [-\s] blacklist, so a pasted
+  -- non-breaking hyphen or NBSP dies too. 0 and 1 are NOT stripped: someone who typed 0 for O
+  -- should fail honestly rather than have a character silently deleted.
+  v_hash := encode(extensions.digest(
+    upper(regexp_replace(coalesce(p_code, ''), '[^A-Za-z0-9]', '', 'g')), 'sha256'), 'hex');
+
+  -- Idempotent: already a member of this code's pair, succeed quietly, so a lost response never
+  -- reads as "this code has been used". Bounded by expiry, because that window is seconds and an
+  -- unbounded branch would make a long-dead code a free success forever.
+  select i.pair_id into v_pair
+  from public.pair_invites i
+  where i.code_hash = v_hash and i.expires_at > now() and public.is_pair_member(i.pair_id)
+    -- Liveness, byte-identical to the consume statement below. Phase 5 (ours-resume.sql) mints the
+    -- first invite that can point at a FROZEN pair, and a resume code's redeemer is a member of
+    -- that pair BY CONSTRUCTION, so without this the branch hands back a full success row that
+    -- consumes no code, clears no closed_at and changes nothing, while the screen reads "sharing
+    -- with Sam" over a list that is still closed. Written inline and NOT as is_pair_writable(),
+    -- even though the helper is exact here, because the consume below CANNOT use it (the joiner is
+    -- not a member yet) and a call to it four lines above that comment invites someone to "make it
+    -- consistent" and break joining outright. Also closes the same false success on a killed pair,
+    -- which is reachable today.
+    and exists (select 1 from public.pairs pr
+                where pr.id = i.pair_id and pr.closed_at is null and pr.disabled_at is null);
+  if v_pair is not null then
+    select m.label into v_label from public.pair_members m
+      where m.pair_id = v_pair and m.user_id <> v_uid limit 1;
+    select pr.name into v_name from public.pairs pr where pr.id = v_pair;
+    return query select v_pair, v_label, v_name;
+    return;
+  end if;
+
+  if (select count(*) from public.pair_members m
+        join public.pairs pr on pr.id = m.pair_id
+       where m.user_id = v_uid and pr.closed_at is null) >= k_max_pairs then
+    raise exception 'already in a shared list' using errcode = '23505';
+  end if;
+
+  -- Verify and consume in ONE statement, with the email binding and the pair's liveness IN the
+  -- predicate. Three things that were separate checks and are now unforgeable:
+  --   1. a wrong-address attempt can no longer CONSUME the invite, so a stranger's guess cannot
+  --      burn the real invitee's code,
+  --   2. a null account email can never match, where a separate `v_invited <> v_email` check
+  --      evaluated to NULL and an IF waved it straight through,
+  --   3. an invite can never admit anyone to a pair that is frozen or killed, so flipping
+  --      disabled_at by hand locks the door behind it.
+  -- The exists() is inline DELIBERATELY and must NOT be replaced with is_pair_writable(): that
+  -- helper now requires membership, and the joiner is not a member yet. Swapping it in breaks
+  -- joining outright.
+  update public.pair_invites i
+     set used_at = now()
+   where i.code_hash = v_hash
+     and i.used_at is null
+     and i.expires_at > now()
+     and i.invited_email_hash = encode(extensions.digest(v_email, 'sha256'), 'hex')
+     and exists (select 1 from public.pairs pr
+                 where pr.id = i.pair_id and pr.closed_at is null and pr.disabled_at is null)
+  returning i.pair_id, i.created_label into v_pair, v_label;
+
+  -- NO RAISE ON THIS PATH. It is the only guessing path, and a raise aborts the transaction, which
+  -- takes the attempt row with it and leaves both ceilings permanently at zero: the throttle would
+  -- record nothing but successes and never fire. Zero rows back IS "that code is not valid", the
+  -- single line the client renders for wrong, expired, used, not-yours and killed alike.
+  if v_pair is null then
+    delete from public.pair_join_attempts a where a.attempted_at < now() - interval '1 hour';
+    insert into public.pair_join_attempts (user_id) values (v_uid);
+    return;
+  end if;
+
+  if (select count(*) from public.pair_members m where m.pair_id = v_pair) >= 2 then
+    raise exception 'that list is full' using errcode = '23505';
+  end if;
+
+  insert into public.pair_members (pair_id, user_id, label)
+    values (v_pair, v_uid, coalesce(nullif(btrim(left(btrim(p_my_label), 40)), ''), 'me'));
+
+  -- Read AFTER the insert, so this is a member reading their own list's name and not a definer
+  -- function handing a stranger the name of a household they failed to get into.
+  select pr.name into v_name from public.pairs pr where pr.id = v_pair;
+
+  return query select v_pair, v_label, v_name;
+end;
+$$;
+
+revoke all on function public.join_pair(text, text) from public, anon;
+grant execute on function public.join_pair(text, text) to authenticated;
+
+-- ---------------------------------------------------------------------------
 -- 3. Letting removed words age out.
 --
 -- Melroy, 2026-08-09: redact at 30 days. Removal on a shared list sets deleted_at and keeps the
@@ -373,6 +514,24 @@ $$;
 revoke all on function public.sweep_shared_tombstones(uuid) from public, anon;
 grant execute on function public.sweep_shared_tombstones(uuid) to authenticated;
 
+-- Normalise anything already carrying a backdated stamp, BEFORE any sweep caller is wired. Ours is
+-- still behind ours_allowlist so this is tester data at most, but do not assume it.
+--
+-- THE ORDER IS LOAD-BEARING: this must run ABOVE the create-or-replace below, while ours.sql's old
+-- body (which ignores deleted_at entirely) is still live. The new body pins deleted_at to OLD on
+-- every UPDATE, including this one, so run afterwards it takes the `else old.deleted_at` arm,
+-- reports rows updated, and changes nothing. Triggers fire for postgres in the SQL editor and DDL
+-- is visible to later statements in the same transaction, so this is not theoretical.
+--
+-- Self-limiting on a re-run, deliberately: run 2 meets the new trigger and no-ops, which is the
+-- RIGHT answer, because by then every stamp is server-set and a second reset would push genuine
+-- 30-day-old tombstones out of the sweep's reach forever. Do NOT make it order-independent by
+-- disabling the trigger around it: that works by making it repeatable, which quietly breaks the
+-- retention promise on every future apply.
+update public.shared_tasks
+   set deleted_at = now()
+ where deleted_at is not null and deleted_at < now() - interval '30 days';
+
 -- ---------------------------------------------------------------------------
 -- 4. The retention clock becomes the SERVER's.
 --
@@ -439,11 +598,6 @@ begin
 end;
 $$;
 
--- Normalise anything already carrying a backdated stamp, BEFORE any sweep caller is wired. Ours is
--- still behind ours_allowlist so this is tester data at most, but do not assume it.
-update public.shared_tasks
-   set deleted_at = now()
- where deleted_at is not null and deleted_at < now() - interval '30 days';
 
 -- ---------------------------------------------------------------------------
 -- POST-APPLY READ-BACKS. Run these before any client work.
@@ -475,10 +629,15 @@ update public.shared_tasks
 --   where n.nspname = 'public' and p.proname = 'join_pair';
 --   -- expect true.
 --
---   -- 4. The trigger rewrite did not silently drop anything it inherited.
+--   -- 4. The trigger rewrite did not silently drop anything it inherited, AND actually installed
+--   --    the Phase 5 retention clock. The last clause is the load-bearing one: the three
+--   --    inherited assertions are all satisfied by the OLD body, so without it this returns true
+--   --    on a database where the clock was never installed or was reverted by a re-run of
+--   --    ours.sql.
 --   select pg_get_functiondef(p.oid) like '%new.created_by := auth.uid()%'
 --      and pg_get_functiondef(p.oid) like '%new.pair_id := old.pair_id%'
 --      and (select count(*) from regexp_matches(pg_get_functiondef(p.oid), 'least\(', 'g')) = 3
+--      and pg_get_functiondef(p.oid) like '%else old.deleted_at%'
 --        as trigger_intact
 --   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 --   where n.nspname = 'public' and p.proname = 'stamp_shared_task_origin';
@@ -497,4 +656,18 @@ update public.shared_tasks
 --   h. With pairs.disabled_at set by hand and a tombstone older than 30 days,
 --      sweep_shared_tombstones returns 0 and the title is unchanged. Clear disabled_at: returns 1.
 --   i. A resume code typed into join_pair returns zero rows, and closed_at is unchanged.
+--
+--   -- 5. No tombstone is left beyond the horizon before any sweep is wired.
+--   select count(*) from public.shared_tasks where deleted_at < now() - interval '30 days';
+--   -- expect 0. If it is NOT 0, the normalise above ran against the NEW trigger (ours.sql was
+--   -- re-applied first, or this file was run twice) and those rows are now immutable by ordinary
+--   -- SQL. Remedy ONCE, deliberately, never on a schedule:
+--   --   begin;
+--   --   alter table public.shared_tasks disable trigger shared_tasks_stamp_origin;
+--   --   update public.shared_tasks set deleted_at = now()
+--   --     where deleted_at is not null and deleted_at < now() - interval '30 days';
+--   --   alter table public.shared_tasks enable trigger shared_tasks_stamp_origin;
+--   --   commit;
+--   -- One transaction, so the lock blocks concurrent writes rather than leaving a window in which
+--   -- a client write lands unclamped.
 -- ---------------------------------------------------------------------------
