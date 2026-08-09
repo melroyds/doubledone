@@ -27,33 +27,34 @@ any second table carrying a user foreign key existed.
 Nothing in the client changes. Ships to live Supabase ahead of any client that reads it, per
 the `skipped_dates` / `big` precedent, because `taskToRow` emits every field unconditionally.
 
-- [ ] `pairs`, `pair_members`, `pair_invites`, `shared_tasks` per the locked schema
+- [x] `pairs`, `pair_members`, `pair_invites`, `shared_tasks` per the locked schema
       (`shared-lists.md` §3), including `recurrence` and `completed_dates` on `shared_tasks`
-- [ ] `tasks` gains **two** nullable columns: `shared_id`, `shared_pair_id` (a shared task's
+- [x] `tasks` gains **two** nullable columns: `shared_id`, `shared_pair_id` (a shared task's
       id is only unique within its pair, so the link needs both, §5a)
-- [ ] `is_pair_member(uuid)` definer helper; RLS on all four tables. `pair_invites` gets
+- [x] `is_pair_member(uuid)` definer helper; RLS on all four tables. `pair_invites` gets
       **zero policies**; `pair_members` gets **no insert and no update policy** (that absence
       is the security control)
-- [ ] `create_pair_invite()` and `join_pair(code)`, hardened like the live `delete_account()`:
+- [x] `create_pair_invite()` and `join_pair(code)`, hardened like the live `delete_account()`:
       server-side entropy, hash-only storage, single-statement verify-and-consume, per-account
       and global rate limits inside the function, `MAX_PAIRS_PER_USER = 1` as a named constant
-- [ ] **Invites are bound to one email address** (Melroy, 2026-08-09). A mistyped code then
+- [x] **Invites are bound to one email address** (Melroy, 2026-08-09). A mistyped code then
       fails instead of handing a stranger a place in the household, which also closes the
       confirmed finding about a mis-texted code. Discloses nothing: the creator already knows
       the address they typed, and the joiner is never shown one.
-- [ ] **`ours_allowlist` gates creation during the build.** Populated by hand in the dashboard,
+- [x] **`ours_allowlist` gates creation during the build.** Populated by hand in the dashboard,
       never in this repo, which is public: nobody's email belongs in source control. Removing
       the gate at launch is one `if` block and one `drop table`.
-- [ ] `leave_pair()` (freeze + expire outstanding invites) and `forget_pair()`
-- [ ] `after delete on pair_members` trigger: delete the pair when no members remain
-- [ ] `server_now()` stable function (the clock, phase 3 consumes it)
-- [ ] Schema-as-code in `supabase/ours.sql`, its own file so `tasks`' policies are never
+- [x] `leave_pair()` (freeze + expire outstanding invites) and `forget_pair()`
+- [x] `after delete on pair_members` trigger: delete the pair when no members remain
+- [x] `server_now()` stable function (the clock, phase 3 consumes it)
+- [x] Schema-as-code in `supabase/ours.sql`, its own file so `tasks`' policies are never
       touched. **Adversarially reviewed before it is applied** (RLS and definer mistakes are
       the whole risk), then applied by Melroy and verified by a read-back
 
 ## Phase 2 · Pairing
 
-- [ ] `lib/pairing.ts`: pure code formatting/parsing/validation + tests
+- [x] `lib/pairing.ts`: pure formatting, normalisation, validation and error classification, plus
+      `lib/ours-api.ts`, the RPC seam. 45 tests, no database needed
 - [ ] Create flow: preset picker (The shop · The house · The baby · Just us · name it yourself,
       default Ours), self-chosen label, code display, OS share sheet
 - [ ] Join flow: code entry, self-label, **no pre-join preview** (§2), post-join confirmation
