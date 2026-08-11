@@ -45,10 +45,10 @@ describe('which rows are already on my Today', () => {
   });
 });
 
-describe('the rest-note, when it was handled on Ours', () => {
+describe('a copy whose shared row was finished on the other side', () => {
   const pulled = task({ id: 'mine', title: 'take the bins out', sharedRef: makeSharedRef(PAIR, 'bins') });
 
-  it('retires my open copy when the shared row is done for the day', () => {
+  it('is picked up when the shared row is done for the day', () => {
     const done = shared({ id: 'bins', done: true, completions: { on: { [DAY]: 9000 } } });
     expect(sharedRestNotes([pulled], [done], PAIR, DAY)).toEqual([{ id: 'mine', title: 'take the bins out' }]);
   });

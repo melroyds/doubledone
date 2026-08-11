@@ -57,19 +57,25 @@ export function pulledFrom(tasks: Task[], pairId: string): Map<string, string> {
 }
 
 /**
- * The copies that should quietly leave your day because the shared row got finished on the other
- * side (`retire`), each paired with its title for the rest-note that takes its place.
+ * The copies that should now read as DONE, because the shared row got finished on the other side.
  *
- * Why they LEAVE rather than complete: the work is done, but you did not do it, and putting it in
- * your Lookback would be the app inventing a memory. Striking it through on Today would be the same
- * lie in smaller type. So the copy is tombstoned with no `completedAt`, which keeps it out of
- * Lookback by construction rather than by a filter somebody could later remove.
+ * REVERSED 2026-08-11, by Melroy, having watched the old behaviour twice: "It should remain and be
+ * marked as done. A win counts for both people. Not just one."
  *
- * And why a NOTE rather than nothing: a row that silently vanishes reads as "did I delete that?",
- * which for this audience is the start of a checking loop. One dashed line, this visit only.
+ * The old version retired the copy (a tombstone) and left a dashed note in its place, on the
+ * reasoning that the work was done but YOU did not do it, so completing it would invent a memory.
+ * That reasoning holds for a task of your own. It does not hold for a list two people keep on
+ * purpose: the shopping got done, the day is genuinely lighter, and the person who did not do it
+ * this time is not owed a smaller day for it. It also had the day quietly emptying itself, and a row
+ * that vanishes is the "did I delete that?" loop this app exists to avoid. The note was a patch over
+ * a disappearance that should not have been happening.
  *
- * A REMOVED shared row deliberately does not trigger this. "Handled on Ours" would be false, and
- * your copy is your own task now; nobody else's removal should reach into your day.
+ * It is marked done WITHOUT `completedAt`, which keeps it out of Lookback by construction. Today is
+ * what is on your plate, and it genuinely is off. Lookback is what YOU finished, and its whole value
+ * is that it is true.
+ *
+ * A REMOVED shared row deliberately does not trigger this. Removal is not completion, and your copy
+ * is your own task now; nobody else's tidying should reach into your day.
  */
 export function sharedRestNotes(
   tasks: Task[],

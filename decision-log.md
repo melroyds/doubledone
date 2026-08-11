@@ -6148,3 +6148,34 @@ apart and cost an iteration.
 **Noted, not fixed:** two syncs race on mount (`stop=overtaken-at-pairs by=2`), the focus effect and
 the session effect. The newer one completes and the older stands down, so it is correct and merely
 wasteful. Tidy it when the screen is next opened, not under a tester.
+
+## 2026-08-11 A win counts for both people: the rest-note deleted, and the copy simply goes done
+
+**REVERSED, by Melroy, having watched it fail twice:** *"It should remain and be marked as done. A
+win counts for both people. Not just one."*
+
+The old behaviour retired your copy (a tombstone) and left a dashed sage note in its place. I argued
+for that hard: the work is done but YOU did not do it, so completing it would invent a memory, and
+striking it through would be the same lie in smaller type.
+
+**That reasoning holds for a task of your own, and does not hold for a list two people keep on
+purpose.** The shopping got done. The day is genuinely lighter. The person who did not do it this
+time is not owed a smaller day for it. My version had the day quietly emptying itself, and the note
+was a patch over a disappearance that should not have been happening in the first place.
+
+**And it lands in Lookback too** (Melroy, asked explicitly). The Lookback's job is to show a week
+that actually happened, not an audit of your own labour. Nothing anywhere records which of you did
+it, which is what keeps this honest: it is a week, not a scoreboard. The one thing to watch, named
+at the time: if a partner's work ever reads as padding on a hard week, that is the signal to
+revisit, and it is one line.
+
+**The reversal DELETED a whole class of bug, and that is the part worth remembering.** The note had
+a lifecycle: created, tagged with a visit, cleared, re-cleared. It cost three separate rounds
+tonight, ending with the worst one, where two settles landed in the same second and the second
+(correctly finding nothing left to do) wiped the note the first had just created. The copy vanished
+and nothing took its place: the exact "did I delete that?" failure the note existed to prevent,
+caused by the note's own machinery.
+
+A row that goes done and stays put has no lifecycle to get wrong. **The simpler behaviour was also
+the more humane one**, which is worth noticing: the elaborate version existed to protect a
+distinction (whose win was it) that the product does not actually want to draw.

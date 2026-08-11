@@ -1,4 +1,4 @@
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, AccessibilityInfo, Animated, AppState, Easing, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
@@ -74,6 +74,7 @@ import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/p
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { syncScrapbooks } from '@/lib/scrapbook-sync';
+import { DebugPanel } from '@/components/DebugPanel';
 import { debugLog } from '@/lib/debug-log';
 import { mergeTasks } from '@/lib/sync-merge';
 import { isAccountGone, localBelongsToAnother, syncOnce } from '@/lib/sync';
@@ -132,20 +133,33 @@ async function settleSharedCopies(
       notes: notes.length,
       shared: shared.length,
       linked: mineNow.filter((task) => task.sharedRef && !task.deletedAt && !task.done).length,
-      // Of the linked copies, how many have an origin the cache already believes is finished. A
-      // linked copy with a done origin and no note means the match itself failed, which is a very
-      // different bug from the cache simply not having her tick yet.
+      // Of the OPEN linked copies (the exact population sharedRestNotes considers), how many have an
+      // origin the cache already believes is finished. It used to count across every task including
+      // ones already ticked, so `originDone=1 notes=0` read like a failed match when it was a copy
+      // correctly skipped for being your own finish. Apples to apples now: any gap between this and
+      // `notes` is a real matching failure.
       originDone: mineNow.filter((task) => {
+        if (task.done || task.deletedAt) return false;
+        if (task.recurrence !== undefined && task.recurrence.kind !== 'none') return false;
         const link = task.sharedRef ? parseSharedRef(task.sharedRef) : null;
         const origin = link ? shared.find((row) => row.id === link.sharedId) : null;
         return Boolean(origin && !origin.deletedAt && isSharedDoneOn(origin, date));
       }).length,
+      // Copies whose origin is NOT in the cache at all: removed on the other side, or never pulled.
+      // These are the "orphans" that sit on your day with nothing left to settle them.
+      orphans: mineNow.filter((task) => {
+        if (task.done || task.deletedAt || !task.sharedRef) return false;
+        const link = parseSharedRef(task.sharedRef);
+        return Boolean(link && !shared.some((row) => row.id === link.sharedId));
+      }).length,
       date,
     });
     if (notes.length === 0) return null;
-    const retiring = new Set(notes.map((note) => note.id));
+    const settling = new Set(notes.map((note) => note.id));
     const now = nowMs();
-    const retired = mineNow.map((task) => (retiring.has(task.id) ? { ...task, deletedAt: now, updatedAt: now } : task));
+    // DONE, not deleted, and deliberately without `completedAt`: the row stays on the day reading as
+    // finished (because it is), and stays out of Lookback (because you did not finish it).
+    const retired = mineNow.map((task) => (settling.has(task.id) ? { ...task, done: true, completedAt: null, updatedAt: now } : task));
     // The same monotonic lift every other write here gets. A slow device clock would otherwise
     // stamp this retirement BEHIND the row it replaces, so the next sync would resurrect the copy
     // and the rest-note would reappear every single visit.
@@ -285,11 +299,12 @@ export default function TodayScreen() {
   // and where a tick has to travel. Null whenever there is no live list, which switches every
   // bridge off by construction rather than by a flag anyone has to remember to check.
   const [oursPairId, setOursPairId] = useState<string | null>(null);
-  // Copies that quietly left the day because the work got finished on Ours. Held for this visit
-  // only: they are a courtesy against "did I delete that?", not a record of anything.
-  const [restNotes, setRestNotes] = useState<{ id: string; title: string }[]>([]);
   // Bumped on every focus, so effects that must re-run per VISIT (rather than per mount) can say so.
   const [visit, setVisit] = useState(0);
+  // `?debug=1` on Today too. The settle happens HERE, so the bridge half of the diagnostic was
+  // being written to a panel that only the shared list rendered.
+  const { debug } = useLocalSearchParams<{ debug?: string }>();
+  const debugOn = debug === '1';
   // Tasks already shared onto the list this session, so the fold's action cannot make a duplicate
   // from a double tap. Session-scoped on purpose: sharing the same task again next week is a thing
   // somebody may legitimately want, and remembering forever would be the app deciding otherwise.
@@ -332,14 +347,13 @@ export default function TodayScreen() {
   // than once per mount. Once per mount meant a task your person finished on Ours sat on your day
   // until the app was restarted, and "gone next open" was only true of a cold start.
   useEffect(() => {
-    if (!oursPairId || !loaded) return;
+    if (!oursPairId || !loaded) {
+      debugLog('settle', { skip: !oursPairId ? 'no-pair' : 'not-loaded' });
+      return;
+    }
     let active = true;
     void settleSharedCopies(oursPairId, toISODate(new Date()), supabase).then((res) => {
       if (!active) return;
-      // Set unconditionally, so a visit with nothing to settle CLEARS last visit's notes. Doing that
-      // synchronously at the top of the effect would be a cascading render; doing it here is one
-      // write either way.
-      setRestNotes(res?.notes ?? []);
       if (res) setTasks(res.next);
     });
     return () => {
@@ -1976,6 +1990,11 @@ export default function TodayScreen() {
         // iOS users already expect, and it works from anywhere, not just the strip above the box.
         keyboardDismissMode="on-drag"
       >
+        {/* FIRST thing in the scroll, deliberately. It was below the fold inside a `!isClosed` block,
+            so closing the day hid the diagnostic, and a diagnostic a state gate can suppress is not
+            one. Nothing above it can gate it now. */}
+        {debugOn ? <DebugPanel /> : null}
+
         <View style={styles.topBar}>
           <Text style={styles.date}>{formatTodayLabel(today)}</Text>
           <Pressable
@@ -2279,17 +2298,6 @@ export default function TodayScreen() {
           </View>
         )}
         {allDone && <Text style={styles.calmNote}>{t('today.allDoneNote')}</Text>}
-
-        {/* Handled on Ours: the copies that left the day because the work got finished on the other
-            side. A dashed sage line, this visit only, because a row that silently vanishes reads as
-            "did I delete that?" and that is where the checking starts. It names nobody, and it never
-            says "done" of something you did not do, which is why these never reach Lookback. */}
-        {(oursPairId ? restNotes : []).map((note) => (
-          <View key={note.id} style={styles.restNote}>
-            <Text style={styles.restNoteTitle}>{note.title}</Text>
-            <Text style={styles.restNoteBody}>{t('ours.handled')}</Text>
-          </View>
-        ))}
 
         {loaded && !selectMode && (
           <Pressable
