@@ -28,8 +28,13 @@ const CAPTURE_ACCESSORY_ID = 'ddCaptureAccessory';
 
 type Props = {
   onCapture: (text: string, schedule: CaptureSchedule, slices?: number) => void;
-  onBiteElephant: (text: string) => Promise<void>;
-  onSort: (text: string) => Promise<void>;
+  // The AI shapers. OPTIONAL, because the shared list does not offer them: the steps they produce
+  // land on a list another person reads, and pointing a model at a shared surface is a decision
+  // about somebody else's screen, not a UI tidy-up. Absent = the buttons are not rendered.
+  onBiteElephant?: (text: string) => Promise<void>;
+  onSort?: (text: string) => Promise<void>;
+  /** Steps (slices). Off on the shared list, whose rows have no `slices` field to store them in. */
+  allowSteps?: boolean;
   // Close the panel (the parent owns visibility). The panel's own Close resets the door
   // (back to Today · no repeat · no steps) but NEVER the typed text: text is never lost.
   onClose: () => void;
@@ -63,7 +68,7 @@ const WEEKDAY_KEYS = [
 // controls never appear from nowhere. Iron rules: the first keystroke never waits, typed text
 // survives every tap and collapse, and the door resets to Today · no repeat · no steps after
 // every Add and every Close.
-export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({ onCapture, onBiteElephant, onSort, onClose, today, onCamera }, ref) {
+export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({ onCapture, onBiteElephant, onSort, onClose, today, onCamera, allowSteps = true }, ref) {
   const [value, setValue] = useState('');
   const [doorOpen, setDoorOpen] = useState(false);
   const [when, setWhen] = useState<CaptureWhen>('today');
@@ -109,7 +114,9 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   const canSplit = lineCount === 1 && wordCount >= 6;
   // Steps only make sense for a single, one-off task (a thing with parts). The row stays in
   // place regardless (fixed regions, not appearing controls); it goes quiet and says why.
-  const stepsAllowed = lineCount <= 1 && repeat === null;
+  // `allowSteps` is the caller saying the surface cannot hold them at all; the rest is the existing
+  // per-capture rule (a multi-line dump, or a repeat, cannot also be sliced).
+  const stepsAllowed = allowSteps && lineCount <= 1 && repeat === null;
   const todayIso = toISODate(today);
 
   // The one door state the summary, the Add label, and buildSchedule all read. The weekday
@@ -244,7 +251,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
     setError(null);
     setBusyKind('bite');
     try {
-      await onBiteElephant(task);
+      await onBiteElephant?.(task);
       reset();
     } catch {
       setError(aiErrorLine(t('capture.breakDownError')));
@@ -259,7 +266,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
     setError(null);
     setBusyKind('sort');
     try {
-      await onSort(text);
+      await onSort?.(text);
       reset();
     } catch {
       setError(aiErrorLine(t('capture.sortError')));
@@ -480,6 +487,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
               )}
             </View>
 
+            {allowSteps && (<>
             {/* STEPS. The stepper holds its place always; when steps cannot apply (a multi-line
                 dump, or a repeat) it goes quiet and the hint line says why, in plain words. */}
             <View style={styles.compRow}>
@@ -518,7 +526,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                     ? t('capture.stepsHintOff')
                     : t('capture.stepsHintOn')}
               </Text>
-            </View>
+            </View></>)}
           </View>
         )}
       </View>
@@ -528,6 +536,8 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
           consequence. With AI off the slot is absent and Add takes the full row. */}
       <View style={styles.actions}>
         {aiEnabled &&
+          onBiteElephant &&
+          onSort &&
           (lineCount >= 2 ? (
             <Pressable
               onPress={sortDump}

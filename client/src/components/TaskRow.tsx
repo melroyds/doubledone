@@ -23,6 +23,7 @@ type Props = {
   onAdvance?: () => void;
   onRetreat?: () => void;
   onBreakdown?: () => void;
+  plain?: boolean; // drop the one-off (periwinkle) border. On Today it separates one-offs from repeats; on a list that is almost ALL one-offs it lands on every row and separates nothing
   washed?: boolean; // changed since you last looked (the shared list): the row's OWN surface warms and its OWN border firms, never a second ring drawn around it
   note?: string; // a state worth SAYING as well as showing (the shared list's quiet wash), folded into the row's spoken label so it is never colour-only
   inert?: string; // this row cannot be ticked, and this is why: the reason travels WITH the control, so a screen reader hears it and a tap is never silently dead
@@ -80,6 +81,7 @@ export function TaskRow({
   onBreakdown,
   onBring,
   onRepeat,
+  plain,
   washed,
   note,
   inert,
@@ -336,7 +338,10 @@ export function TaskRow({
               hitSlop={{ top: 6, bottom: 6 }}
             >
               <Text style={[styles.actionLabel, styles.heroLabel]}>{t('ours.bring')}</Text>
-              <Text style={[styles.actionSub, styles.heroSub]}>{t('ours.bringSub')}</Text>
+              {/* A REPEAT crosses as one dated copy and does not inherit the rhythm: the cadence
+                  stays on the shared list, which is the only place it repeats. "a copy" was true
+                  and vague; Melroy had to ask what happens, which means it was not saying it. */}
+              <Text style={[styles.actionSub, styles.heroSub]}>{t(recurring ? 'ours.bringSubRepeat' : 'ours.bringSub')}</Text>
             </Pressable>
           ))}
 
@@ -651,7 +656,7 @@ export function TaskRow({
       delayLongPress={400}
       style={({ pressed }) => [
         styles.row,
-        !recurring && styles.rowUnique,
+        !recurring && !plain && styles.rowUnique,
         pinned && styles.rowPinned,
         washed && styles.rowWashed,
         pressed && !inert && styles.pressed,

@@ -30,7 +30,13 @@ const DEV_PREMIUM_KEY = 'doubledone.devPremium.v1'; // DEV/preview only: the pre
 const ENERGY_USES_KEY = 'doubledone.energyUses.v1'; // energy-match use timestamps (the freemium meter, see lib/energy.ts)
 const OURS_KEY = 'doubledone.ours.v1'; // shared lists, keyed BY PAIR (see loadOursCache); holds another person's words
 const OURS_TUCKED_KEY = 'doubledone.oursTucked.v1'; // closed lists you have put away, by pair id
-const OURS_SEEN_KEY = 'doubledone.oursSeen.v1'; // when you last looked at each shared list, by pair id
+// v2: v1 values could be POISONED. Before the server-clock correction landed, the last-look was
+// stamped with max(device clock, newest row), so a device running fast wrote a time in the future,
+// and `markOursSeen` never moves backwards by design. Any device that did this could never wash a
+// row again. Rather than teach the setter to walk backwards (which would reopen the very re-wash
+// problem the guard exists for), the key moves and the bad values are simply abandoned. The cost is
+// one quiet first visit per device, which is the same thing a new install already sees.
+const OURS_SEEN_KEY = 'doubledone.oursSeen.v2'; // when you last looked at each shared list, by pair id
 const OURS_MINE_KEY = 'doubledone.oursMine.v1'; // shared rows YOU changed from outside the room, by pair id
 const UPDATE_MENTIONED_KEY = 'doubledone.updateMentioned.v1'; // when the goodnight screen last mentioned a newer build
 

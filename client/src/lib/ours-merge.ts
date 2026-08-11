@@ -186,26 +186,29 @@ export function washedSince(tasks: SharedTask[], seenAt: number, mine: ReadonlyS
 }
 
 /**
- * Whether a row still belongs on the list TODAY.
+ * Whether a row still belongs on the list at all.
  *
- * A row ticked today stays visible all day, which is what makes un-ticking possible all day, and
- * un-ticking is the reason two-party done-confirmation was refused. It stops rendering at the day
- * boundary: yesterday's shopping is done, and a shared list that never lets go of finished work
- * becomes a wall of other people's completed tasks, which is the exact overwhelm this app exists to
- * take away.
+ * It used to drop finished one-offs at the day boundary, for parity with Today. That was Today's
+ * logic applied where it does not belong, and dogfooding killed it inside an hour: Melroy's wife
+ * ticked a row, it vanished from his screen at midnight, and his report was the whole argument.
+ * "They wouldn't have had a clue that the item just disappeared."
  *
- * Repeats are unaffected: they are placed by their cadence, and a repeat ticked yesterday is simply
- * not done today.
+ * A row leaving a shared list without a trace is the exact "did I delete that? did she?" loop the
+ * rest-note was built to prevent on Today, reintroduced in the one place two people can unsettle
+ * each other. And a household list is not a day: "the shopping" does not reset at midnight the way
+ * a day one person is getting through does.
+ *
+ * So a finished row STAYS, struck through, until somebody removes it, and removal leaves a trace of
+ * its own in Recently removed. If lists get cluttered in real use the answer is a collapsed
+ * "Finished" fold at the foot, never a disappearance.
+ *
+ * `_date` is kept in the signature deliberately: the day-boundary question is a reasonable one to
+ * ask again, and callers already pass it.
  */
-export function stillOnList(task: SharedTask, date: string): boolean {
-  if (task.deletedAt) return false;
-  if (task.recurrence !== undefined && task.recurrence.kind !== 'none') return true;
-  if (!task.done) return true;
-  const dates = completedDatesOf(task.completions);
-  const last = dates[dates.length - 1];
-  // No log at all means a build older than the completion log ticked it, and its day is unknowable.
-  // Keep it: showing a finished row one extra day is recoverable, hiding a live one is not.
-  return last === undefined || last >= date;
+export function stillOnList(task: SharedTask, _date: string): boolean {
+  // Removed is the ONLY thing that takes a row off a shared list, and it leaves a trace: Recently
+  // removed, seven days, one tap back.
+  return !task.deletedAt;
 }
 
 /** Per-key maximum of two stamp maps: grow-only in keys, monotonic in values. */

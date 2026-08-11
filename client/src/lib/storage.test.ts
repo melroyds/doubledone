@@ -184,7 +184,7 @@ describe('when you last looked at a shared list', () => {
 
   function stubSeen(raw: string | null) {
     vi.mocked(AsyncStorage.getItem).mockImplementation((key: string) =>
-      Promise.resolve(key === 'doubledone.oursSeen.v1' ? raw : null),
+      Promise.resolve(key === 'doubledone.oursSeen.v2' ? raw : null),
     );
   }
   const written = () => JSON.parse(vi.mocked(AsyncStorage.setItem).mock.calls.at(-1)![1] as string);
@@ -222,7 +222,7 @@ describe('when you last looked at a shared list', () => {
   it('is cleared by wipeLocalData', async () => {
     stubSeen(null);
     await wipeLocalData();
-    expect(vi.mocked(AsyncStorage.multiRemove).mock.calls[0][0]).toContain('doubledone.oursSeen.v1');
+    expect(vi.mocked(AsyncStorage.multiRemove).mock.calls[0][0]).toContain('doubledone.oursSeen.v2');
   });
 });
 

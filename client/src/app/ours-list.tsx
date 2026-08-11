@@ -8,11 +8,12 @@ import { CadenceSheet } from '@/components/CadenceSheet';
 import { TaskRow } from '@/components/TaskRow';
 import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { useSessionState } from '@/lib/auth';
+import { clockSkewMs } from '@/lib/clock';
 import { toISODate } from '@/lib/day';
 import { type Recurrence } from '@/lib/recurrence';
 import { t } from '@/lib/locale';
 import { makeSharedRef, pulledFrom } from '@/lib/ours-bridge';
-import { loadMyPairs, type MyPair } from '@/lib/ours-api';
+import { loadMyPairs, type MyPair, syncClock } from '@/lib/ours-api';
 import { isSharedDoneOn, setSharedDone, type SharedTask, washedSince } from '@/lib/ours-merge';
 import { isUnreadableRepeat, onSharedListOn, POLL_MS, repeatSummaryOf, shouldPoll, syncPairOnce, willTrim } from '@/lib/ours-sync';
 import { clearOursMine, loadOursMine, loadOursSeen, loadOursTasks, loadTasks, markOursSeen, noteOursMine, pruneOursCache, saveOursTasks, saveTasks } from '@/lib/storage';
@@ -77,6 +78,11 @@ export default function OursListScreen() {
   const [draft, setDraft] = useState('');
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
+  // The push failed while the pull worked: my change is on this device and NOT on theirs.
+  // `syncPairOnce` has always returned this and nothing has ever read it, which is precisely why a
+  // tick could sit looking finished on one phone and never arrive on the other, with no signal to
+  // the user OR to me. Silence was the bug underneath several of tonight's bugs.
+  const [unpushed, setUnpushed] = useState(false);
   const [notice, setNotice] = useState<string | null>(null); // one calm line, for things worth saying once
   // The keyboard lift. NOTHING on this stack raises a bottom-anchored input above the keyboard on
   // its own: SDK 5x Android is edge-to-edge and ignores softwareKeyboardLayoutMode, and there is no
@@ -94,20 +100,60 @@ export default function OursListScreen() {
   // Whether the membership read has ever SUCCEEDED. The redirect waits on this, so a dropped signal
   // can never be mistaken for "this list is not yours".
   const readOk = useRef(false);
+  const clockSynced = useRef(false); // the server-time read, once per visit
   // The list this visit is actually looking at, so a change in its liveness cannot silently swap it.
   const openId = useRef<string | null>(null);
   const focused = useRef(false); // real focus, fed to shouldPoll, which is what its first argument is for
   const seenAt = useRef(0);
   const mine = useRef<Set<string>>(new Set());
   const [washed, setWashed] = useState<ReadonlySet<string>>(new Set());
+  // Rows that have ALREADY had their eight seconds this visit, and must never light up again.
+  //
+  // Without this the wash STROBES. `seenAt` is deliberately frozen for the visit, so every poll
+  // recomputes the same "changed since you last looked" set, and once the linger clears it the next
+  // poll lights the identical row again: on, off, on, off, every fifteen seconds. Melroy watching it
+  // said "every time it's polling, it's just randomly highlighting that task", which is exactly what
+  // a fifteen-second strobe looks like from the outside. Flashing at somebody is the worst possible
+  // failure on a screen built for people who cannot filter movement out.
+  //
+  // Keyed by STAMP, not merely by id. Excluding an id outright killed the strobe and the signal with
+  // it: a row that changed a second time in the same visit stayed dark, so a partner ticking and
+  // then un-ticking showed once and then went silent. Remembering the `updatedAt` it was last shown
+  // at draws the line exactly where it belongs: the SAME change never lights twice, a NEW change
+  // always does.
+  const washedAlready = useRef<Map<string, number>>(new Map());
+  // The current rows, for the linger timer, which must not depend on `tasks` or it restarts on
+  // every sync and never fires.
+  const tasksRef = useRef<SharedTask[]>([]);
+  useEffect(() => {
+    tasksRef.current = tasks;
+  });
 
-  // Shown, then gone. Restarted whenever the set changes, so a change arriving on the poll gets its
-  // own eight seconds rather than inheriting the tail of the last one.
+  // Shown, then gone, then never again this visit.
   useEffect(() => {
     if (washed.size === 0) return;
-    const timer = setTimeout(() => setWashed(new Set()), WASH_LINGER_MS);
+    const timer = setTimeout(() => {
+      for (const id of washed) {
+        washedAlready.current.set(id, tasksRef.current.find((task) => task.id === id)?.updatedAt ?? nowMs());
+      }
+      setWashed(new Set());
+    }, WASH_LINGER_MS);
     return () => clearTimeout(timer);
   }, [washed]);
+
+  /** The wash for a freshly merged list, minus anything already shown. One helper, because getting
+   *  this subtraction right in one of the two call sites and not the other is how a strobe returns. */
+  const washFor = useCallback((rows: SharedTask[]) => {
+    const next = new Set(washedSince(rows, seenAt.current, mine.current));
+    // Every input to the decision, in one line. Tonight cost hours because a wash that did not
+    // happen looked identical to a wash that was excluded, a stale last-look, and a clock skew.
+    console.debug('[ours] wash', { seenAt: seenAt.current, skewMs: clockSkewMs(), rows: rows.length, mine: mine.current.size, shown: washedAlready.current.size, lit: next.size });
+    for (const row of rows) {
+      const shownAt = washedAlready.current.get(row.id);
+      if (shownAt !== undefined && row.updatedAt <= shownAt) next.delete(row.id);
+    }
+    return next;
+  }, []);
   // Which rows are already on my own Today, so "Bring to my Today" can say so rather than quietly
   // making a second copy. My tasks, read here only to answer that one question.
   const [pulled, setPulled] = useState<Map<string, string>>(new Map());
@@ -150,6 +196,15 @@ export default function OursListScreen() {
         return setLoaded(pair !== null);
       }
       readOk.current = true;
+      // ONE clock for both devices, once per visit. Every stamp this screen writes or compares
+      // (the completion log, the last-look, last-write-wins) is a number from a device clock, and
+      // two people means two clocks. Once per visit rather than per poll: skew does not move fast,
+      // and this is a round trip on a screen somebody opened to tick the milk.
+      if (!clockSynced.current) {
+        clockSynced.current = true;
+        await syncClock(client);
+        if (call !== pass.current) return;
+      }
       const { live, frozen } = res.value;
       const all = [live, ...frozen];
       // A named list wins, live or closed: that is the archive asking for a specific one. Otherwise
@@ -171,41 +226,46 @@ export default function OursListScreen() {
         // Rows I changed from Today since I was last here. Without these, my own tick on a brought
         // copy comes back tinted as my person's change, which is the room inventing an event.
         for (const id of await loadOursMine(live_.pairId)) mine.current.add(id);
-        // `oursMine` is device-local, so a tick made on the PHONE would come back tinted as my
-        // person's change on the laptop. Every brought copy carries `sharedRef` in the SYNCED tasks
-        // table, so the rows I pulled are provably mine on every device I sign in on, without
-        // syncing a single new thing. It does not cover rows I only ever touched in the room on
-        // another device, which stay a known and accepted gap: a tint too many, cleared next open.
-        for (const sharedId of pulledFrom(await loadTasks(), live_.pairId).keys()) mine.current.add(sharedId);
+        // NOTHING is seeded from `pulledFrom` here, and the removal is the fix for the worst wash
+        // bug of the dogfood: Device A never highlighted anything, ever, while Device B worked.
+        //
+        // The old line excluded every shared row that has a copy on my Today, reasoning that a
+        // brought copy proves the row is mine. It proves nothing of the sort. BRINGING A ROW OVER IS
+        // A READ. On the device where somebody actually uses the bridge, that is most of the list,
+        // so most of the list could never wash again on the one device most likely to want it.
+        //
+        // `oursMine` (rows I genuinely WROTE from Today) stays, and it is the honest mechanism. The
+        // gap it leaves is that a tick I made on my other device may wash here once. That is a tint
+        // too many for eight seconds, against never highlighting at all.
       }
       setPulled(pulledFrom(await loadTasks(), live_.pairId));
 
       const cached = local ?? (await loadOursTasks(live_.pairId));
       if (call !== pass.current) return;
       setTasks(cached);
-      setWashed(washedSince(cached, seenAt.current, mine.current));
+      setWashed(washFor(cached));
       setLoaded(true);
 
       try {
-        const { merged } = await syncPairOnce(client, live_.pairId, cached);
+        const { merged, pushError } = await syncPairOnce(client, live_.pairId, cached);
         if (call !== pass.current) return;
+        if (pushError) console.warn('[ours] push failed, changes are local only', pushError);
+        setUnpushed(Boolean(pushError));
         setTasks(merged);
-        setWashed(washedSince(merged, seenAt.current, mine.current));
+        setWashed(washFor(merged));
         setOffline(false);
         void saveOursTasks(live_.pairId, merged);
         // Looked at, now. Written on every reconcile rather than on the way out, because the way out
         // of a screen on a phone is often the app being killed, and a wash that never clears is a
         // permanent "something happened" badge, which is the anxiety this was built to bound.
         //
-        // The stamp is the LATER of my clock and the newest row I just displayed, and that is the
-        // whole correctness of it. Their rows are stamped by THEIR phone; the last-look by mine. On
-        // my clock alone, a partner whose clock runs even slightly ahead leaves rows permanently
-        // "newer than the last time I looked", and the wash never clears again. The SQL clamp allows
-        // stamps up to a day into the future, so this is not a fraction of a second, it is a day.
-        // "I have now seen everything up to the newest stamp present" is what the last-look actually
-        // means, and it is true no matter whose clock wrote it.
-        const newest = merged.reduce((max, task) => (Number.isFinite(task.updatedAt) && task.updatedAt > max ? task.updatedAt : max), 0);
-        void markOursSeen(live_.pairId, Math.max(nowMs(), newest));
+        // Plain corrected NOW, and nothing clever. This used to take the later of my clock and the
+        // newest row present, which was a patch over two devices disagreeing about the time. With
+        // `syncClock` above there is one clock, so the patch is not merely unnecessary: it is
+        // actively harmful, because it swallows any legacy row still carrying a future stamp from
+        // before the correction and, since the last-look can never move backwards, pins this device
+        // permanently in the future. Both devices stopped washing the moment the clock landed.
+        void markOursSeen(live_.pairId, nowMs());
         void clearOursMine(live_.pairId); // from here the last-look covers those writes
         // Cached rows for lists this account no longer belongs to are ANOTHER PERSON'S WORDS on
         // this device, with nothing left pointing at them. `pruneOursCache` existed for exactly
@@ -217,7 +277,7 @@ export default function OursListScreen() {
         if (call === pass.current) setOffline(true);
       }
     },
-    [session, sessionKnown, wantedId, pair],
+    [session, sessionKnown, wantedId, pair, washFor],
   );
 
   // iOS uses the will-events; the did-events land after the animation and read as lag.
@@ -255,6 +315,8 @@ export default function OursListScreen() {
       // reconcile below then moves forward), so yesterday's wash cannot still be sitting there.
       seenAt.current = 0;
       mine.current = new Set();
+      washedAlready.current = new Map();
+      clockSynced.current = false;
       focused.current = true;
       void syncRef.current();
       return () => {
@@ -262,6 +324,21 @@ export default function OursListScreen() {
       };
     }, []),
   );
+
+  // AND AGAIN once the session is actually known.
+  //
+  // This is the other half of the empty-deps focus effect above, and without it the screen is a
+  // COIN FLIP. The session hydrates asynchronously; the focus effect fires once, on mount. If mount
+  // wins the race, that single call hits `if (!sessionKnown) return` and gives up, the poll effect
+  // is keyed on a pairId that is still null so no interval is ever armed, and nothing else ever
+  // asks again. The list sits empty forever, on a list that has rows. If the session wins the race
+  // instead, everything works, which is exactly why it looked intermittent rather than broken.
+  //
+  // `session` is in the deps too, so signing in or out reloads rather than showing the last
+  // account's list.
+  useEffect(() => {
+    if (sessionKnown) void syncRef.current();
+  }, [sessionKnown, session]);
 
   // No live list, so there is no room to be in: /ours is where you belong, and it already knows how
   // to say every version of why (signed out, never paired, closed, partner gone). Deliberately NOT a
@@ -297,7 +374,7 @@ export default function OursListScreen() {
         const before = tasks.find((prev) => prev.id === task.id);
         if (!before || before.updatedAt !== task.updatedAt) mine.current.add(task.id);
       }
-      setWashed(washedSince(stamped, seenAt.current, mine.current));
+      setWashed(washFor(stamped));
       setTasks(stamped);
       void saveOursTasks(pair.pairId, stamped);
       // Persisted, not merely held in the ref: if the reconcile below fails, this visit ends
@@ -305,7 +382,7 @@ export default function OursListScreen() {
       void noteOursMine(pair.pairId, [...mine.current]);
       await sync(stamped);
     },
-    [pair, tasks, sync],
+    [pair, tasks, sync, washFor],
   );
 
   /** Add it. `recurrence` present means it was captured through the repeat door rather than typed
@@ -437,6 +514,9 @@ export default function OursListScreen() {
         ) : null}
 
         {offline ? <Text style={styles.offline}>{t('ours.errOffline')}</Text> : null}
+        {/* Saved here, not there. A fact, and a promise that it keeps trying, because the honest
+            alternative to silence is not alarm. */}
+        {unpushed && !offline ? <Text style={styles.offline}>{t('ours.errUnpushed')}</Text> : null}
         {notice ? (
           <Pressable onPress={() => setNotice(null)} accessibilityRole="button" accessibilityLabel={t('common.gotIt')} hitSlop={6}>
             <Text style={styles.offline}>{notice}</Text>
@@ -452,6 +532,10 @@ export default function OursListScreen() {
               done={isSharedDoneOn(task, today)}
               /* The wash, on the row's own surface, and in WORDS as well as colour. It says a
                  thing happened and never who did it, which is the same line the tint draws. */
+              /* No one-off border here. It exists on Today to separate one-offs from repeats, and a
+                 shared list is almost entirely one-offs, so it lands on every row and separates
+                 nothing: chrome on everything, on the screen briefed to be plainer than Today. */
+              plain
               washed={washed.has(task.id)}
               note={washed.has(task.id) ? t('ours.changedSince') : undefined}
               onToggle={() => toggle(task.id)}

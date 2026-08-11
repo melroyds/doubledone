@@ -54,7 +54,7 @@ import { subscribeInbound, takeInbound } from '@/lib/inbound';
 import { aiLanguage, fmt, t } from '@/lib/locale';
 import * as Application from 'expo-application';
 
-import { isOursOpen, loadMyPairs } from '@/lib/ours-api';
+import { isOursOpen, loadMyPairs, syncClock } from '@/lib/ours-api';
 import { checkForUpdate, currentPlatform } from '@/lib/update-check';
 import { FALLBACK_VERSION, shouldMention, type UpdateStatus, updateUrl } from '@/lib/updates';
 import { parseSharedRef, sharedRestNotes } from '@/lib/ours-bridge';
@@ -74,6 +74,7 @@ import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/p
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { syncScrapbooks } from '@/lib/scrapbook-sync';
+import { mergeTasks } from '@/lib/sync-merge';
 import { isAccountGone, localBelongsToAnother, syncOnce } from '@/lib/sync';
 import { completeOnDay, makeId, nowMs, parseDump, sweepElapsedNudges, type Task, withMonotonicStamps } from '@/lib/tasks';
 import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
@@ -109,9 +110,16 @@ async function settleSharedCopies(
     // Pull, because Today never writes this cache: only the room does. Reading it cold would mean a
     // device that has not opened /ours-list never learns that anything was handled over there.
     let shared = await loadOursTasks(pairId);
+    // The refresh is a BONUS, not a precondition. It used to be inside the outer try, so a dropped
+    // signal threw away a retirement the cached rows could already justify: your person ticked it an
+    // hour ago, the cache knows, and a failed pull meant your copy stayed on your day regardless.
     if (client) {
-      shared = (await syncPairOnce(client, pairId, shared)).merged;
-      await saveOursTasks(pairId, shared);
+      try {
+        shared = (await syncPairOnce(client, pairId, shared)).merged;
+        await saveOursTasks(pairId, shared);
+      } catch (err) {
+        console.warn('[ours] settle refresh failed, settling from cache', err);
+      }
     }
     const mineNow = await loadTasks();
     const notes = sharedRestNotes(mineNow, shared, pairId, date);
@@ -125,8 +133,10 @@ async function settleSharedCopies(
     const next = withMonotonicStamps(retired, mineNow);
     await saveTasks(next);
     return { next, notes };
-  } catch {
-    // A courtesy, never a correctness requirement. Silence beats a scary line about a shared list.
+  } catch (err) {
+    // A courtesy, never a correctness requirement. Silence beats a scary line about a shared list,
+    // but silence to the DEVELOPER is how three of tonight's bugs stayed invisible for hours.
+    console.warn('[ours] settleSharedCopies failed', err);
     return null;
   }
 }
@@ -239,7 +249,11 @@ export default function TodayScreen() {
   const [bdBusy, setBdBusy] = useState(false);
   const [bdError, setBdError] = useState<string | null>(null);
   const [bdCorrId, setBdCorrId] = useState<string | null>(null);
-  const today = useMemo(() => new Date(), []);
+  // The day, which must be allowed to CHANGE. Frozen at mount, a device left open overnight settled
+  // repeats against yesterday's completion-log key, filtered Today against yesterday, and stamped
+  // yesterday onto anything captured. It is re-derived on resume and on focus, and only when the ISO
+  // day actually differs, so the identity stays stable and nothing re-renders for nothing.
+  const [today, setToday] = useState(() => new Date());
   const router = useRouter();
   const session = useSession();
   // Ours. `oursOpen` gates the Menu row (the build-time allowlist), and `oursName` decides whether
@@ -301,7 +315,7 @@ export default function TodayScreen() {
   useEffect(() => {
     if (!oursPairId || !loaded) return;
     let active = true;
-    void settleSharedCopies(oursPairId, toISODate(today), supabase).then((res) => {
+    void settleSharedCopies(oursPairId, toISODate(new Date()), supabase).then((res) => {
       if (!active) return;
       // Set unconditionally, so a visit with nothing to settle CLEARS last visit's notes. Doing that
       // synchronously at the top of the effect would be a cascading render; doing it here is one
@@ -318,6 +332,7 @@ export default function TodayScreen() {
     useCallback(() => {
       let active = true;
       setVisit((n) => n + 1);
+      setToday((prev) => (toISODate(prev) === toISODate(new Date()) ? prev : new Date()));
       void loadTasks().then((stored) => {
         if (!active) return;
         // Clear nudges whose time has already passed so a fired (or moot) reminder does not
@@ -332,6 +347,10 @@ export default function TodayScreen() {
       });
       if (supabase && session) {
         const client = supabase;
+        // The same one clock the room reads. Today writes shared stamps too (a tick crossing, a
+        // share), so a device running ahead here poisons the other person's list exactly as it does
+        // from the room. Once per visit, and silent if it fails.
+        void syncClock(client);
         void isOursOpen(client).then((open) => {
           if (!active) return;
           setOursOpen(open);
@@ -341,7 +360,12 @@ export default function TodayScreen() {
           // that today is finite.
           void loadMyPairs(client, session.user.id).then((res) => {
             if (!active) return;
-            const live = res.ok ? res.value.live : null;
+            // A FAILED read is not "you have no shared list". Nulling the pair id on a dropped
+            // signal switched every bridge off for the whole visit: no rest-note, no tick crossing,
+            // no door. The last known-good pair is a far better guess than nothing, and the next
+            // focus corrects it.
+            if (!res.ok) return;
+            const live = res.value.live;
             setOursName(live ? (live.name?.trim() ?? '') : null);
             setOursPairId(live?.pairId ?? null);
           });
@@ -436,10 +460,21 @@ export default function TodayScreen() {
       // over storage, so anything saved while Today sat in the background got erased: a copy brought
       // over in the room, a task added by the widget, an agent's write over MCP. The sweep is only
       // entitled to drop stale nudges, never to decide what the whole list is.
-      void loadTasks().then((stored) => {
+      void loadTasks().then(async (stored) => {
         const swept = sweepElapsedNudges(stored, nowMs());
         setTasks(swept);
-        if (swept !== stored) void saveTasks(swept);
+        if (swept !== stored) await saveTasks(swept);
+        // A WARM RESUME IS A VISIT. `visit` was bumped only by useFocusEffect, which a resume does
+        // not re-fire (that is why this listener exists at all), so coming back to a Today already
+        // on screen never settled: your partner finished something and your copy just sat there.
+        // Melroy hit exactly this: "it only registered after I navigated away from Today".
+        //
+        // AWAITED, not fired alongside. The settle does its own loadTasks/saveTasks over this same
+        // store, so bumping before the sweep has persisted races two read-modify-write cycles and
+        // whichever lands last wins. Sequencing them is the difference between a fix and a new bug.
+        setVisit((n) => n + 1);
+        // The day may have rolled while the app was away. Everything downstream keys off this.
+        setToday((prev) => (toISODate(prev) === toISODate(new Date()) ? prev : new Date()));
       });
     });
     return () => sub.remove();
@@ -476,8 +511,13 @@ export default function TodayScreen() {
         // save below. `tasksRef` is what is on screen; storage is what is true.
         const merged = await syncOnce(client, foreign ? [] : await loadTasks(), uid);
         if (!active) return;
-        setTasks(merged);
-        void saveTasks(merged);
+        // RE-READ and merge rather than writing the network result straight over storage. The settle
+        // runs its own loadTasks/saveTasks against this same store, and a tombstone it wrote while
+        // this request was in flight was simply erased: the retired copy came back to life and its
+        // rest-note sat underneath it, describing a row that was visibly still there.
+        const { merged: settled } = mergeTasks(await loadTasks(), merged);
+        setTasks(settled);
+        void saveTasks(settled);
         void saveSyncedOwner(uid);
         // Keepsakes ride behind the task sync, best effort and internally caught, so a
         // scrapbook hiccup can never mark the task sync failed. `foreign` mirrors the
@@ -1438,14 +1478,19 @@ export default function TodayScreen() {
       if (!found || isUnreadableRepeat(found)) return;
       const next = rows.map((task: SharedTask) => (task.id === link.sharedId ? setSharedDone(task, toISODate(today), done, nowMs()) : task));
       await saveOursTasks(link.pairId, next);
-      const { merged } = await syncPairOnce(client, link.pairId, next);
+      const { merged, pushError } = await syncPairOnce(client, link.pairId, next);
+      // The tick is on this device and not on theirs. Nothing on Today should shout about it (this
+      // is the working surface), but it must not vanish either: the room says it in words, and this
+      // is the trail that makes it findable when somebody reports "it didn't reach my wife's phone".
+      if (pushError) console.warn('[ours] tick did not reach the shared list', pushError);
       await saveOursTasks(link.pairId, merged);
       // My own write, so it must not come back tinted as my person's change (see ours-list's wash).
       // The id, not the clock: advancing the last-look would also clear the wash on THEIR changes
       // that arrived before this one and that I have not looked at yet.
       await noteOursMine(link.pairId, [link.sharedId]);
-    } catch {
+    } catch (err) {
       // The local copy is already right. The next reconcile carries it.
+      console.warn('[ours] mirrorTickToShared failed', err);
     }
   }
 
@@ -1468,10 +1513,12 @@ export default function TodayScreen() {
       const cached = await loadOursTasks(oursPairId);
       const next = [...cached, copy];
       await saveOursTasks(oursPairId, next);
-      const { merged } = await syncPairOnce(client, oursPairId, next);
+      const { merged, pushError } = await syncPairOnce(client, oursPairId, next);
+      if (pushError) console.warn('[ours] share to Ours did not reach the list', pushError);
       await saveOursTasks(oursPairId, merged);
       await noteOursMine(oursPairId, [copy.id]); // mine, so the room must not tint it as theirs
-    } catch {
+    } catch (err) {
+      console.warn('[ours] shareToOurs failed', err);
       // Kept locally; the room's next reconcile pushes it. Nothing typed is lost either way.
     }
   }
@@ -2218,7 +2265,7 @@ export default function TodayScreen() {
             side. A dashed sage line, this visit only, because a row that silently vanishes reads as
             "did I delete that?" and that is where the checking starts. It names nobody, and it never
             says "done" of something you did not do, which is why these never reach Lookback. */}
-        {restNotes.map((note) => (
+        {(oursPairId ? restNotes : []).map((note) => (
           <View key={note.id} style={styles.restNote}>
             <Text style={styles.restNoteTitle}>{note.title}</Text>
             <Text style={styles.restNoteBody}>{t('ours.handled')}</Text>

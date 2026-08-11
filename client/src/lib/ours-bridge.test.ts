@@ -93,3 +93,11 @@ describe('the rest-note, when it was handled on Ours', () => {
     expect(Object.keys(note).sort()).toEqual(['id', 'title']);
   });
 });
+
+// A brought copy is CREATED as a one-off, but nothing stops somebody giving theirs a rhythm
+// afterwards, and `deletedAt` on a repeat kills the whole series rather than today's instance.
+it('never retires a recurring copy, whatever the shared row says', () => {
+  const repeating = task({ id: 'mine', sharedRef: makeSharedRef(PAIR, 'bins'), recurrence: { kind: 'daily' } });
+  const done = shared({ id: 'bins', done: true, completions: { on: { [DAY]: 9000 } } });
+  expect(sharedRestNotes([repeating], [done], PAIR, DAY)).toEqual([]);
+});

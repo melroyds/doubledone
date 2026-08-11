@@ -565,8 +565,12 @@ describe('what still belongs on the list today', () => {
     expect(stillOnList(setSharedDone(task({ id: 'a' }), TODAY, true, 1000), TODAY)).toBe(true);
   });
 
-  it('lets go of a row ticked YESTERDAY', () => {
-    expect(stillOnList(setSharedDone(task({ id: 'a' }), '2026-08-09', true, 1000), TODAY)).toBe(false);
+  // REVERSED 2026-08-10, by dogfooding. It used to drop at the day boundary, for parity with Today.
+  // Melroy's wife ticked a row and it vanished from his screen overnight: "They wouldn't have had a
+  // clue that the item just disappeared." A row leaving a shared list with no trace is the exact
+  // loop the rest-note exists to prevent, in the one place two people can unsettle each other.
+  it('KEEPS a row ticked yesterday, because vanishing is what caused the bug', () => {
+    expect(stillOnList(setSharedDone(task({ id: 'a' }), '2026-08-09', true, 1000), TODAY)).toBe(true);
   });
 
   it('drops a removed row', () => {
@@ -579,8 +583,13 @@ describe('what still belongs on the list today', () => {
     expect(stillOnList(bins, TODAY)).toBe(true);
   });
 
-  // Showing a finished row one extra day is recoverable; hiding a live one is not.
   it('keeps a row a pre-log build ticked, whose day is unknowable', () => {
     expect(stillOnList(task({ id: 'a', done: true }), TODAY)).toBe(true);
+  });
+
+  // The ONLY thing that takes a row off a shared list, and it leaves a trace of its own.
+  it('drops only what was removed', () => {
+    expect(stillOnList(task({ id: 'a', deletedAt: 5000 }), TODAY)).toBe(false);
+    expect(stillOnList(setSharedDone(task({ id: 'b' }), TODAY, true, 1000), TODAY)).toBe(true);
   });
 });

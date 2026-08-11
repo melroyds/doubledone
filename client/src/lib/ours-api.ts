@@ -1,4 +1,5 @@
 import { type SupabaseClient } from '@supabase/supabase-js';
+import { applyServerTime } from './clock';
 
 import { capLabel, capName, classifyPairError, normaliseCode, normaliseEmail, type PairFailure } from './pairing';
 
@@ -153,6 +154,32 @@ export async function inviteToResume(client: SupabaseClient, pairId: string): Pr
   const row = Array.isArray(data) ? data[0] : data;
   if (!row?.code) return { ok: false, failure: 'unknown' };
   return { ok: true, value: { code: row.code, expiresAt: row.expires_at } };
+}
+
+/**
+ * Ask the server what time it is, and carry the offset.
+ *
+ * THE fix for two people writing the same rows. Personal sync could trust a device clock because
+ * one person owned both devices; the moment a second account writes the same row, the faster phone
+ * wins every conflict forever and invisibly. Melroy found this by watching two of his own devices:
+ * the one running ahead stamped its own "last looked" into the future and could never see a change
+ * again, while the other worked perfectly.
+ *
+ * `server_now()` and `applyServerTime` were both built, reviewed, tested and applied to the live
+ * database WEEKS ago, and had zero callers. This is the wire.
+ *
+ * Failure is silent and harmless: an unbelievable or unreachable reading leaves the skew where it
+ * was, which is where every build before this one already lived.
+ */
+export async function syncClock(client: SupabaseClient): Promise<boolean> {
+  const before = Date.now();
+  try {
+    const { data, error } = await client.rpc('server_now');
+    if (error) return false;
+    return applyServerTime(typeof data === 'string' || typeof data === 'number' ? data : null, before, Date.now());
+  } catch {
+    return false;
+  }
 }
 
 /**

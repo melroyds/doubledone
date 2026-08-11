@@ -81,6 +81,12 @@ export function sharedRestNotes(
   const out: { id: string; title: string }[] = [];
   for (const task of tasks) {
     if (task.done || task.deletedAt) continue;
+    // A RECURRING copy is never retired here, and this is a data-loss guard rather than a nicety.
+    // A brought copy is created as a one-off, but nothing stops somebody giving theirs a rhythm
+    // afterwards. `task.done` is always false on a repeat, so it would sail through every test
+    // below and then be tombstoned with `deletedAt` — which on a repeat deletes the WHOLE SERIES,
+    // not today's instance, because their partner ticked the shared row once.
+    if (task.recurrence !== undefined && task.recurrence.kind !== 'none') continue;
     const ref = parseSharedRef(task.sharedRef);
     if (ref?.pairId !== pairId) continue;
     const origin = byId.get(ref.sharedId);

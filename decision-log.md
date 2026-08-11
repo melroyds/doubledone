@@ -6020,3 +6020,67 @@ real defects between them and none of these six. Every one needed a human being 
 way a human opens an app: not knowing where things are, not finding the button, asking what a border
 means, waiting for something to appear and giving up. A test suite cannot be surprised, and being
 surprised is the entire skill here.
+
+## 2026-08-10 The two-device dogfood: nine more defects, and the one pattern behind most of them
+
+Melroy and his wife, two accounts, two devices, several hours on a Pages preview. This is the
+session that found what two adversarial audits and 895 passing tests could not, and the pattern is
+worth stating before the list, because it is the actual lesson:
+
+**Every failing thing was WIRING, and almost none of it was logic.** `shouldPoll` is pure and tested
+and had never been called. `washedSince` is pure and tested and was fed a poisoned input.
+`sharedRestNotes` is pure and tested and was never reached on a warm resume. The rules were right
+nearly every time; what fed them was wrong.
+
+**And FOUR separate things were built, reviewed, tested, applied to the live database, and never
+called from anywhere.** `pushError` (returned by `syncPairOnce`, read by nobody). `pruneOursCache`
+(zero call sites). The whole management half (`tuckPair`, `inviteToResume`, `renameSelf`, and the
+rest). And `server_now()` + `applyServerTime`, whose own SQL comment describes tonight's worst bug
+in advance: *"the moment a second account writes the same row, the faster phone wins every conflict
+forever and invisibly."* Somebody wrote that, wrote the fix, and never plugged it in.
+
+**A merged feature must mean REACHABLE.** Zero call sites should be as loud a smell as zero tests.
+
+### What was found
+
+1. **The poll never fired, once, in the feature's life.** `setPair` rebuilt the pair object every
+   sync, changing `sync`'s identity, which cleared and recreated the fifteen-second interval before
+   it could ever tick. Keyed on the pair's ID string now, and called through a ref.
+2. **Opening your own list was an endless loop.** `useSession()` returns null for both "signed out"
+   and "not checked yet". Now `useSessionState()` carries a `known` flag.
+3. **A mount that beat the session left the room empty forever**, because the focus effect fires
+   once and nothing re-asked. A coin flip, which is why it read as intermittent.
+4. **The pairing screen was a dead end**, with no route to the list it had just created.
+5. **A warm resume never settled.** `visit` was bumped only by focus, and a resume does not re-fire
+   focus, which is why the AppState listener exists. Sequenced after the nudge sweep's save, because
+   bumping it before races two read-modify-write cycles over the same store.
+6. **Finished rows vanished from the shared list at midnight.** Today's logic where it does not
+   belong: a household list is not a day. Reversed. Nothing leaves without a trace now.
+7. **The wash strobed**, then over-corrected into silence, then broke on one device only. Four
+   symptoms, one root cause: comparing a wall clock against stamps written by a different wall clock.
+8. **Device A never highlighted anything, ever.** I had excluded every row with a copy on your Today
+   from washing, reasoning that a brought copy proves the row is yours. Bringing a row over is a
+   READ. On the one device where somebody actually uses the bridge, that disqualified most of the
+   list. Deterministic, and invisible because neither of us was looking at that input.
+9. **`pushError` was never read**, so a push that failed looked exactly like one that worked. The
+   room now says "Saved here, but not on your person's list yet", and the silent catches log.
+
+### The decisions inside that
+
+**Decided: the wash APPEARS AND DISAPPEARS** (Melroy, having used it). Eight seconds, then gone, and
+it VANISHES rather than fading, so "nothing animates because of the other person" stays literally
+true. Re-lights only on a genuinely newer stamp, so the same change never flashes twice.
+
+**Decided: ONE CLOCK.** `syncClock` reads `server_now()` once per visit on both screens. Every
+stamp both people write is now measured against the same reference. The `oursSeen` key moved to v2
+because pre-correction devices could stamp their last-look into the future, and the setter refuses
+to move backwards by design.
+
+**Decided: no one-off border on the shared list.** It separates one-offs from repeats on Today; a
+shared list is almost all one-offs, so it landed on every row and separated nothing, on the screen
+briefed to be plainer than Today.
+
+**Decided: attribution stays OUT.** Melroy asked for "Handled on Ours by {name}". I argued it is a
+schema change that makes a per-person tally computable, and offered the inference-by-elimination
+version that needs no column. He chose to keep the current wording. Recorded because the request
+will come back, and the answer to it is already worked out.
