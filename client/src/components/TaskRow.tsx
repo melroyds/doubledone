@@ -155,10 +155,33 @@ export function TaskRow({
     Animated.timing(foldFade, { toValue: 1, duration: reducedMotion ? 90 : 160, useNativeDriver: false }).start();
   }, [moreOpen, reducedMotion, foldFade]);
   // Select mode's checkbox cross-fade (the congruency pass): the circle eases in with the mode.
+  // The wash ARRIVES instantly and LEAVES over most of a second.
+  //
+  // Melroy, having watched it: "is there a way to make them disappear in a smooth gradient than just
+  // simple switch off?" He is right, and it does not reopen the law. "Nothing animates because of
+  // the other person" is about presence and pulsing triggered by your partner; the arrival is still
+  // a plain state change, and the fade is the app letting go on its OWN timer, several seconds after
+  // anybody did anything. For this audience the snap was the more attention-grabbing of the two.
+  //
+  // An overlay rather than an animated Pressable: opacity on an absolutely-positioned layer is the
+  // one form that cannot disturb the row's touch handling or its style-as-function pressed state.
+  const [washFade] = useState(() => new Animated.Value(washed ? 1 : 0));
   const [selFade] = useState(() => new Animated.Value(0));
   useEffect(() => {
     Animated.timing(selFade, { toValue: selecting ? 1 : 0, duration: reducedMotion ? 1 : 120, useNativeDriver: false }).start();
   }, [selecting, reducedMotion, selFade]);
+  useEffect(() => {
+    // On is immediate either way: the mark is information, and information should not creep in.
+    // Off is 700ms, or instant for anybody who has asked for less motion.
+    const animation = Animated.timing(washFade, {
+      toValue: washed ? 1 : 0,
+      duration: washed || reducedMotion ? 0 : 700,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: false,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [washed, reducedMotion, washFade]);
   const [wasConfirming, setWasConfirming] = useState(confirming);
   if (wasConfirming !== confirming) {
     setWasConfirming(confirming);
@@ -658,13 +681,13 @@ export function TaskRow({
         styles.row,
         !recurring && !plain && styles.rowUnique,
         pinned && styles.rowPinned,
-        washed && styles.rowWashed,
         pressed && !inert && styles.pressed,
       ]}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: done, disabled: Boolean(inert) }}
       accessibilityLabel={rowLabel}
     >
+      <Animated.View pointerEvents="none" style={[styles.washLayer, { opacity: washFade }]} />
       <CheckCircle done={done} />
       {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
       <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
@@ -770,7 +793,17 @@ const makeStyles = (t: Theme) => {
     // The quiet wash, on the row's OWN surface. It was a wrapper with its own border, which drew a
     // second ring around the card and read as a rendering fault rather than a signal: Melroy's first
     // question on seeing it was "what does the outer boundary mean?", which is the whole verdict.
-    rowWashed: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
+    washLayer: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      borderRadius: radius.md,
+      borderWidth: border.thin,
+      borderColor: t.colors.accent,
+      backgroundColor: t.colors.accentSoft,
+    },
     // The faint "· Ours" on YOUR copy. Quiet enough to be a fact and not a badge.
     originMark: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginLeft: spacing.two },
     heroSub: { color: heroText, opacity: 0.82 },

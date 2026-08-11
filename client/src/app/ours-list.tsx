@@ -4,11 +4,13 @@ import { AppState, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
+import { DebugPanel } from '@/components/DebugPanel';
 import { CadenceSheet } from '@/components/CadenceSheet';
 import { TaskRow } from '@/components/TaskRow';
 import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { useSessionState } from '@/lib/auth';
 import { clockSkewMs } from '@/lib/clock';
+import { debugLog } from '@/lib/debug-log';
 import { toISODate } from '@/lib/day';
 import { type Recurrence } from '@/lib/recurrence';
 import { t } from '@/lib/locale';
@@ -70,7 +72,8 @@ export default function OursListScreen() {
   const today = toISODate(now);
   // The archive opens a CLOSED list here by id. Without it the room only ever shows the live one,
   // and "you can still read everything" would have been a promise with nowhere to keep it.
-  const { pair: wantedId } = useLocalSearchParams<{ pair?: string }>();
+  const { pair: wantedId, debug } = useLocalSearchParams<{ pair?: string; debug?: string }>();
+  const debugOn = debug === '1';
 
   const [pair, setPair] = useState<MyPair | null>(null);
   const [tasks, setTasks] = useState<SharedTask[]>([]);
@@ -147,7 +150,17 @@ export default function OursListScreen() {
     const next = new Set(washedSince(rows, seenAt.current, mine.current));
     // Every input to the decision, in one line. Tonight cost hours because a wash that did not
     // happen looked identical to a wash that was excluded, a stale last-look, and a clock skew.
-    console.debug('[ours] wash', { seenAt: seenAt.current, skewMs: clockSkewMs(), rows: rows.length, mine: mine.current.size, shown: washedAlready.current.size, lit: next.size });
+    const newest = rows.reduce((max, row) => (row.updatedAt > max ? row.updatedAt : max), 0);
+    debugLog('wash', {
+      lit: next.size,
+      rows: rows.length,
+      // The four things that can suppress a highlight, so a zero is never ambiguous again.
+      seenAgo: seenAt.current ? `${Math.round((nowMs() - seenAt.current) / 1000)}s` : 'never',
+      newestAgo: newest ? `${Math.round((nowMs() - newest) / 1000)}s` : '-',
+      mine: mine.current.size,
+      shown: washedAlready.current.size,
+      skew: `${Math.round(clockSkewMs() / 1000)}s`,
+    });
     for (const row of rows) {
       const shownAt = washedAlready.current.get(row.id);
       if (shownAt !== undefined && row.updatedAt <= shownAt) next.delete(row.id);
@@ -169,26 +182,31 @@ export default function OursListScreen() {
   const sync = useCallback(
     async (local?: SharedTask[]) => {
       const call = ++pass.current;
+      // Traced at EVERY exit, because "no wash line" turned out to be indistinguishable from a dozen
+      // different early returns. A diagnostic that can itself be skipped is not a diagnostic.
+      debugLog('sync', { call, known: sessionKnown, session: Boolean(session), local: local ? local.length : '-' });
       // NOT YET KNOWN is not the same as signed out, and conflating them made opening your own list
       // a loop: `useSession` returns null while it hydrates, this branch called that signed-out, and
       // the redirect below sent you back to the pairing screen before the session ever arrived.
       // Wait instead. The callback re-runs the moment the answer lands, because `known` is a dep.
-      if (!sessionKnown) return;
+      if (!sessionKnown) return debugLog('sync', { call, stop: 'session-unknown' });
 
       // NOW it is definitive. Signed out is a FINISHED load, and `readOk` too, because there is no
       // read to fail: a signed-out visitor belongs on /ours, which explains why.
       if (!supabase || !session) {
         readOk.current = true;
+        debugLog('sync', { call, stop: 'signed-out' });
         return setLoaded(true);
       }
       const client = supabase;
       const res = await loadMyPairs(client, session.user.id);
-      if (call !== pass.current) return;
+      if (call !== pass.current) return debugLog('sync', { call, stop: 'overtaken-at-pairs', by: pass.current });
       // A FAILED read is not "you have no shared list". Treating it as one nulled the pair, which
       // fired the redirect below and threw the user out of the room onto the pairing screen, on a
       // dropped signal. Keep whatever is on screen, say so quietly, and try again on the next poll:
       // exactly how the task read below already behaves.
       if (!res.ok) {
+        debugLog('sync', { call, stop: 'pairs-failed' });
         setOffline(true);
         // NOT `loaded` unless something is already on screen. An unresolved list rendering as an
         // empty writable one invited somebody to type into a room that does not exist, and every
@@ -203,7 +221,7 @@ export default function OursListScreen() {
       if (!clockSynced.current) {
         clockSynced.current = true;
         await syncClock(client);
-        if (call !== pass.current) return;
+        if (call !== pass.current) return debugLog('sync', { call, stop: 'overtaken-at-clock', by: pass.current });
       }
       const { live, frozen } = res.value;
       const all = [live, ...frozen];
@@ -218,7 +236,10 @@ export default function OursListScreen() {
       const chosen = wantedId ? (all.find((p) => p?.pairId === wantedId) ?? null) : (held ?? live);
       openId.current = chosen?.pairId ?? null;
       setPair(chosen);
-      if (!chosen) return setLoaded(true);
+      if (!chosen) {
+        debugLog('sync', { call, stop: 'no-pair', live: Boolean(live), frozen: frozen.length });
+        return setLoaded(true);
+      }
       const live_ = chosen;
 
       if (seenAt.current === 0) {
@@ -241,7 +262,7 @@ export default function OursListScreen() {
       setPulled(pulledFrom(await loadTasks(), live_.pairId));
 
       const cached = local ?? (await loadOursTasks(live_.pairId));
-      if (call !== pass.current) return;
+      if (call !== pass.current) return debugLog('sync', { call, stop: 'overtaken-at-cache', by: pass.current });
       setTasks(cached);
       setWashed(washFor(cached));
       setLoaded(true);
@@ -571,6 +592,8 @@ export default function OursListScreen() {
             ) : null}
           </View>
         ))}
+
+        {debugOn ? <DebugPanel /> : null}
 
         {removed.length > 0 && !frozen ? (
           <View style={styles.removedFold}>

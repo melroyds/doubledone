@@ -58,7 +58,7 @@ import { isOursOpen, loadMyPairs, syncClock } from '@/lib/ours-api';
 import { checkForUpdate, currentPlatform } from '@/lib/update-check';
 import { FALLBACK_VERSION, shouldMention, type UpdateStatus, updateUrl } from '@/lib/updates';
 import { parseSharedRef, sharedRestNotes } from '@/lib/ours-bridge';
-import { setSharedDone, type SharedTask } from '@/lib/ours-merge';
+import { isSharedDoneOn, setSharedDone, type SharedTask } from '@/lib/ours-merge';
 import { isUnreadableRepeat, syncPairOnce, willTrim } from '@/lib/ours-sync';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { buildOutcome } from '@/lib/outcome';
@@ -74,6 +74,7 @@ import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/p
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
 import { syncScrapbooks } from '@/lib/scrapbook-sync';
+import { debugLog } from '@/lib/debug-log';
 import { mergeTasks } from '@/lib/sync-merge';
 import { isAccountGone, localBelongsToAnother, syncOnce } from '@/lib/sync';
 import { completeOnDay, makeId, nowMs, parseDump, sweepElapsedNudges, type Task, withMonotonicStamps } from '@/lib/tasks';
@@ -123,6 +124,24 @@ async function settleSharedCopies(
     }
     const mineNow = await loadTasks();
     const notes = sharedRestNotes(mineNow, shared, pairId, date);
+    // Every input to the decision, so "the copy did not retire" stops being four indistinguishable
+    // possibilities: the settle never ran (no line at all), the shared cache is stale (`shared`),
+    // my copy is not linked (`linked`), or the origin is simply not done yet (`notes` 0 with a
+    // healthy `linked`). Tonight cost hours because these all looked identical from the outside.
+    debugLog('settle', {
+      notes: notes.length,
+      shared: shared.length,
+      linked: mineNow.filter((task) => task.sharedRef && !task.deletedAt && !task.done).length,
+      // Of the linked copies, how many have an origin the cache already believes is finished. A
+      // linked copy with a done origin and no note means the match itself failed, which is a very
+      // different bug from the cache simply not having her tick yet.
+      originDone: mineNow.filter((task) => {
+        const link = task.sharedRef ? parseSharedRef(task.sharedRef) : null;
+        const origin = link ? shared.find((row) => row.id === link.sharedId) : null;
+        return Boolean(origin && !origin.deletedAt && isSharedDoneOn(origin, date));
+      }).length,
+      date,
+    });
     if (notes.length === 0) return null;
     const retiring = new Set(notes.map((note) => note.id));
     const now = nowMs();

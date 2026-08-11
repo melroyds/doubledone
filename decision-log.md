@@ -6084,3 +6084,36 @@ briefed to be plainer than Today.
 schema change that makes a per-person tally computable, and offered the inference-by-elimination
 version that needs no column. He chose to keep the current wording. Recorded because the request
 will come back, and the answer to it is already worked out.
+
+## 2026-08-10 A diagnostic you can read on a phone, and the fade
+
+**`?debug=1` renders an on-screen log.** Two devices, one of them a phone, and every failure looked
+identical from the outside: "it didn't highlight", "it didn't propagate". The console holds the
+answer and a phone will not show you the console without a cable and a laptop. Hours went into
+guessing at things one visible line settles.
+
+It is opt-in by URL, holds twelve lines in memory, persists nothing and sends nothing. **Task text
+never goes in it**, only counts, ids and flags: these lines get screenshotted and pasted into chats,
+and a shared list is two people's words.
+
+**Every exit from `sync` is traced, not just the happy path.** The first version logged only where
+the decision was made, which is useless when the function returns before reaching it: "no wash line"
+was indistinguishable from a dozen different early returns. A diagnostic that can itself be skipped
+is not a diagnostic.
+
+**And the panel had the same bug as the code it was built to diagnose.** It read `debugLines()`
+during render and forced a re-render with a counter. Under the React Compiler that call looks pure
+and dependency-free, so it is memoised and returns its first value forever: empty. The panel read
+"nothing logged yet" through highlights that had provably fired. **A value read once and never
+re-read** is now the fourth distinct bug of this shape tonight, after the poll interval, the session
+hydration and the frozen day. It is the pattern of this whole session.
+
+**Decided: the wash FADES out, and still arrives instantly.** Melroy, watching it: "is there a way
+to make them disappear in a smooth gradient than just simple switch off?" The law that nothing
+animates because of the other person is about presence and pulsing triggered by your partner; the
+arrival is still a plain state change, and the fade is the app letting go on its own timer several
+seconds after anybody did anything. For this audience the snap was the more attention-grabbing of
+the two. Reduce-motion still gets the instant version.
+
+Built as an opacity fade on an absolutely-positioned overlay rather than an animated Pressable: it
+is the one form that cannot disturb the row's touch handling or its style-as-function pressed state.
