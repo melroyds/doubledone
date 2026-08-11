@@ -154,17 +154,53 @@ async function settleSharedCopies(
       }).length,
       date,
     });
+    // EVERY copy that came from the shared list, and what Today will do with it. Fires on every
+    // settle rather than only when one retires, because "the task disappeared" needs the shape of
+    // the row that vanished, and by definition that row is not in `notes`.
+    for (const task of mineNow) {
+      if (!task.sharedRef || task.deletedAt) continue;
+      const doneDay = task.completedAt ? toISODate(new Date(task.completedAt)) : 'none';
+      debugLog('copy', {
+        done: Boolean(task.done),
+        due: task.due ?? '-',
+        doneDay,
+        showsToday: task.done ? doneDay === date : task.due == null || task.due <= date,
+      });
+    }
     if (notes.length === 0) return null;
     const settling = new Set(notes.map((note) => note.id));
     const now = nowMs();
-    // DONE, not deleted, and deliberately without `completedAt`: the row stays on the day reading as
-    // finished (because it is), and stays out of Lookback (because you did not finish it).
-    const retired = mineNow.map((task) => (settling.has(task.id) ? { ...task, done: true, completedAt: null, updatedAt: now } : task));
+    // DONE, WITH `completedAt`, which is doing two jobs and both matter.
+    //
+    // It puts the row in Lookback, which Melroy asked for explicitly: a shared list is a thing two
+    // people keep on purpose, so the shopping getting done IS part of your week, and the Lookback's
+    // job is to show a week that happened rather than an audit of your own labour. Nothing anywhere
+    // records which of you did it, which is what keeps that honest.
+    //
+    // And it is what makes the row VISIBLE AT ALL. `tasksForToday` places a finished task by its
+    // completion day (`completedAt` matching today), so done-without-a-date is a row the day cannot
+    // place and the Lookback never sees: it simply disappears. That was the bug behind three rounds
+    // of "the task vanished", and it survived because an edit script asserted after changing this
+    // line, discarding the change with it, and I did not re-read the file.
+    const retired = mineNow.map((task) => (settling.has(task.id) ? { ...task, done: true, completedAt: now, updatedAt: now } : task));
     // The same monotonic lift every other write here gets. A slow device clock would otherwise
     // stamp this retirement BEHIND the row it replaces, so the next sync would resurrect the copy
     // and the rest-note would reappear every single visit.
     const next = withMonotonicStamps(retired, mineNow);
     await saveTasks(next);
+    // What the settled rows actually LOOK like afterwards, because "marked done" and "visible on
+    // Today" are two different things: tasksForToday shows a done task only when its completedAt
+    // falls on today's date, so a correct settle can still leave a blank space on the screen.
+    for (const note of notes) {
+      const row = next.find((task) => task.id === note.id);
+      debugLog('settled', {
+        done: row?.done,
+        due: row?.due ?? '-',
+        doneDay: row?.completedAt ? toISODate(new Date(row.completedAt)) : 'none',
+        today: date,
+        showsToday: Boolean(row && !row.deletedAt && row.completedAt && toISODate(new Date(row.completedAt)) === date),
+      });
+    }
     return { next, notes };
   } catch (err) {
     // A courtesy, never a correctness requirement. Silence beats a scary line about a shared list,

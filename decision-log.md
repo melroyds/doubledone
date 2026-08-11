@@ -6179,3 +6179,35 @@ caused by the note's own machinery.
 A row that goes done and stays put has no lifecycle to get wrong. **The simpler behaviour was also
 the more humane one**, which is worth noticing: the elaborate version existed to protect a
 distinction (whose win was it) that the product does not actually want to draw.
+
+## 2026-08-11 done without a date is a row that disappears, and an edit I never verified
+
+**The bug behind three rounds of "the task vanished".** A copy settled by the other side was marked
+`done: true` with `completedAt: null`. `tasksForToday` places a finished task by its completion day,
+so done-without-a-date is a row Today cannot place and Lookback never sees: it simply stops
+existing. Melroy called it before the deploy landed: *"i'm certain on resyncing the item will just
+disappear. And it did."*
+
+**Why it survived so long is the part worth recording, and it is a process failure not a logic one.**
+When he asked for these to count in Lookback, my edit script changed that line and then hit a FAILED
+ASSERTION further down the same script. The script writes the file once, at the end. The assertion
+threw first, so the successful change was discarded with it, and I reported the work as done. Every
+round afterwards had him testing the old behaviour while I reasoned about the new.
+
+That is the second time in one session a change was believed rather than verified (the first:
+three `washFor` replacements made without asserting they matched). **A multi-edit script must be
+re-read from the file afterwards, never trusted on its exit code.**
+
+**`completedAt` is now doing two jobs**, and the second was invisible until it broke: it puts the row
+in Lookback, AND it is what makes the row visible on Today at all.
+
+**Also fixed: a finished copy no longer blocks re-adding.** `pulledFrom` skipped only tombstoned
+copies, so once the other side marked one done you had something you could not see on Today and
+could not bring over again from Ours. Melroy: *"before this fix, I could re-add the missing completed
+task. Now I can't from the Ours screen."* A finished copy is not on your plate, so it no longer
+counts as already-brought.
+
+**And a note on cleaning test data.** A plain `update … set updated_at = now()` tombstone can LOSE to
+a device whose clock runs ahead: the device wins the merge and pushes its undeleted row back. Test
+cleanup needs `now() + interval '1 hour'` so no device clock can beat it. Another face of the same
+clock problem that produced four wash bugs.

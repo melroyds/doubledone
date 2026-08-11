@@ -43,13 +43,19 @@ export function parseSharedRef(ref: string | undefined | null): { pairId: string
  * Which rows of a list are already on your Today, as shared-id -> your task's id.
  *
  * The "Bring to my Today" action reads this so it can say "already there" instead of quietly making
- * a second copy. Tombstoned copies do not count: you removed it from your day, so bringing it over
- * again is a thing you are allowed to want.
+ * a second copy.
+ *
+ * Neither a tombstoned NOR a finished copy counts, and the second half of that was a trap. You
+ * removed it from your day, or it is done: either way it is not on your plate, and bringing it over
+ * again is a thing you are allowed to want (a repeat that has come round again, most obviously).
+ * While only tombstones were ignored, a copy marked done by the other side left you with something
+ * you could not see on Today AND could not re-add from Ours. Melroy: "before this fix, I could
+ * re-add the missing completed task. Now I can't from the Ours screen."
  */
 export function pulledFrom(tasks: Task[], pairId: string): Map<string, string> {
   const out = new Map<string, string>();
   for (const task of tasks) {
-    if (task.deletedAt) continue;
+    if (task.deletedAt || task.done) continue;
     const ref = parseSharedRef(task.sharedRef);
     if (ref?.pairId === pairId) out.set(ref.sharedId, task.id);
   }

@@ -101,3 +101,10 @@ it('never retires a recurring copy, whatever the shared row says', () => {
   const done = shared({ id: 'bins', done: true, completions: { on: { [DAY]: 9000 } } });
   expect(sharedRestNotes([repeating], [done], PAIR, DAY)).toEqual([]);
 });
+
+// A finished copy is not on your plate. While only tombstones were skipped, a copy the other side
+// marked done was invisible on Today AND un-re-addable from Ours: stuck in both directions.
+it('does not count a copy that is already done', () => {
+  const tasks = [task({ id: 'mine-1', sharedRef: makeSharedRef(PAIR, 'milk'), done: true })];
+  expect(pulledFrom(tasks, PAIR).size).toBe(0);
+});
