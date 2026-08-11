@@ -97,6 +97,22 @@ and the AI features answer in German the moment the resolver says 'de'.*
 
 The single home for consciously parked work. Nothing here is dropped; each item has a trigger for when it earns a place in the sequence. Premium-gated ideas live in [`docs/premium.md`](docs/premium.md).
 
+### Parked: a due date on shared rows (Ours)
+
+`shared_tasks.due` is LIVE on the table (`supabase/ours-due.sql`, applied 2026-08-11) and nothing
+reads or writes it: not the `SharedTask` type, not the sync, not the room. Parked deliberately when
+the Ours capture bar was built, rather than bolted onto it.
+
+It is a real feature. A household list absolutely has "by Friday", and Ours already carries
+repeating, so "a shared list has no time in it" is not true. What it is NOT is a capture-bar job: a
+date turns a flat, always-visible list into a scheduled one, which needs a Later grouping, a rule for
+what a dated row does when its day arrives, and an answer for two people whose devices are in
+different timezones.
+
+**Trigger:** when somebody actually asks for a dated shared item. Then build it whole, in one pass,
+with the visual grouping and the timezone rule decided up front.
+
+
 ### The tiering (re-cut 2026-07-25, evening)
 
 *Second re-cut of the day, because the morning's Tier 1 finished by the afternoon. Two constraints frame it. **Melroy is employed again**, so the scarce resource is hours, not ideas. And **the product is now production-ready**: web is live and taking money, both store builds are cut and sitting in queues, and nothing on this list blocks a launch. That changes the Tier 1 test from "what should we build next" to something narrower and more honest: **does the app currently tell the user something that is not true?** Everything else, however good, is a want.*
