@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
 import { BrainDump, type BrainDumpHandle } from '@/components/BrainDump';
+import { CameraCapture } from '@/components/CameraCapture';
 import { DebugPanel } from '@/components/DebugPanel';
 import { CadenceSheet } from '@/components/CadenceSheet';
 import { TaskRow } from '@/components/TaskRow';
@@ -20,7 +21,9 @@ import { loadMyPairs, type MyPair, syncClock } from '@/lib/ours-api';
 import { isSharedDoneOn, setSharedDone, type SharedTask, washedSince } from '@/lib/ours-merge';
 import { isUnreadableRepeat, onSharedListOn, POLL_MS, repeatSummaryOf, shouldPoll, syncPairOnce, willTrim } from '@/lib/ours-sync';
 import { clearOursMine, loadOursMine, loadOursSeen, loadOursTasks, loadTasks, markOursSeen, noteOursMine, pruneOursCache, saveOursTasks, saveTasks } from '@/lib/storage';
+import { usePremium } from '@/lib/premium-provider';
 import { supabase } from '@/lib/supabase';
+import { track } from '@/lib/telemetry';
 import { makeId, nowMs, parseDump, type Task, withMonotonicStamps } from '@/lib/tasks';
 import { useThemedStyles } from '@/lib/theme-provider';
 
@@ -210,6 +213,12 @@ export default function OursListScreen() {
   // What is left, REPEATING, is the one that genuinely belongs to two people.
   const [captureOpen, setCaptureOpen] = useState(false);
   const brainDumpRef = useRef<BrainDumpHandle>(null);
+  // SCAN (premium), on the shared list because this is where it most belongs. The single most
+  // photographed list in anybody's life is the one on the fridge, and that list is shared by
+  // definition: a handwritten shopping list, a recipe's ingredients, the school's bring-these-things
+  // note. Melroy asked for it here, and it is a better fit here than on a personal day.
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const { premium, loading: premiumLoading } = usePremium();
 
 
   /** Cache first, then reconcile. The list is on screen before the network is asked anything, which
@@ -683,6 +692,19 @@ export default function OursListScreen() {
         ) : null}
       </ScrollView>
 
+      {/* The scanned words land in the capture box, never straight on the list. Reviewing what a
+          camera thought it read is not friction here, it is the whole safeguard: this is a list two
+          people keep, and a misread line is a thing your person has to puzzle over. */}
+      <CameraCapture
+        visible={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onTasks={(scanned) => {
+          setCameraOpen(false);
+          setCaptureOpen(true);
+          brainDumpRef.current?.seed(scanned.join('\n'));
+        }}
+      />
+
       {cadenceTask && (
         <CadenceSheet
           key={cadenceTask.id}
@@ -742,9 +764,28 @@ export default function OursListScreen() {
                  why each is off, and note that neither is a stub: the rows are simply not there. */
               allowWhen={false}
               allowSteps={false}
-              /* No AI here, by omission rather than by flag. The steps a model proposes would land
-                 on a list another person reads, and pointing a model at somebody else's screen is
-                 a decision about them, not a UI convenience. Break-it-down stays on your own day. */
+              /* Break-it-down and Sort-for-me stay off, by omission rather than a flag: they have a
+                 model AUTHOR content that then lands on a list another person reads, and pointing a
+                 model at somebody else's screen is a decision about them, not a UI convenience.
+
+                 SCAN is not that, which is worth spelling out because the sentence above nearly
+                 excluded it by association. Scan reads a photo YOU pointed a camera at and drops the
+                 words into YOUR capture box, where you read them, edit them, and Add them yourself.
+                 The model commits nothing; it is a camera-shaped keyboard. And the photo never
+                 reaches the shared table at all: your person sees the rows you added, exactly as if
+                 you had typed them. */
+              onCamera={() => {
+                if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
+                if (!premium) {
+                  // Tagged apart from Today's own OCR gate on purpose. A paywall met on a surface a
+                  // second person can see is a genuinely different moment from one met alone, and
+                  // whether the shared list converts is a thing worth being able to answer.
+                  track('premium.gate_hit', { reason: 'ocr_ours' });
+                  router.push('/premium');
+                  return;
+                }
+                setCameraOpen(true);
+              }}
             />
           </View>
         </View>

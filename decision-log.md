@@ -6256,3 +6256,33 @@ launcher focused the input in its press handler, while the panel was still `disp
 `display:none` input does nothing, silently, so it would have shipped a launcher that opens a panel
 you then have to tap again. Today has always done it in an effect keyed on the open flag. Reading the
 working version beside the new one is worth more than it looks.
+
+## 2026-08-11 Scan comes to the shared list, and the rule I wrote an hour earlier was wrong
+
+**Decided: Scan (premium OCR) is offered on the Ours capture**, gated exactly as it is on Today.
+Melroy asked for it, and it belongs here more than it belongs on a personal day: the most
+photographed list anybody owns is the one on the fridge, and that list is shared by definition. A
+handwritten shopping list, a recipe's ingredients, the school's bring-these-things note.
+
+**The interesting part is that my own comment, written an hour before, would have blocked it.** I had
+justified leaving AI off the shared capture with "the steps a model proposes would land on a list
+another person reads, and pointing a model at somebody else's screen is a decision about them". That
+is a good rule and it is TRUE OF THE WRONG THINGS. It describes Break-it-down and Sort-for-me, where
+a model AUTHORS content that then commits. Scan does not do that: it reads a photo you pointed a
+camera at and drops the words into YOUR capture box, where you read them, edit them and Add them
+yourself. The model commits nothing. It is a camera-shaped keyboard.
+
+Worth recording because the near-miss is the lesson: a principle stated at the level of "no AI here"
+would have cost a genuinely good feature, and the same principle stated at the level of "nothing a
+model authors commits to a surface another person reads" admits it immediately. **Write the rule at
+the level of the harm, not the level of the technology.** The comment in `ours-list.tsx` now says
+both halves out loud so the next person does not have to re-derive it.
+
+**Privacy, stated rather than assumed.** The photo never reaches the shared table. It is sent to be
+read and discarded, and what your person sees is the rows you added, exactly as if you had typed
+them. Nothing tells them an image was involved, and nothing needs to: it was your photo of your
+fridge, and the rows are the only shared artefact.
+
+**The gate is tagged apart** (`reason: 'ocr_ours'`, not `'ocr'`). A paywall met on a surface a second
+person can see is a genuinely different moment from one met alone, and whether the shared list
+converts is a question worth being able to answer rather than guess.
