@@ -108,7 +108,16 @@ export default function OursListScreen() {
   const openId = useRef<string | null>(null);
   const focused = useRef(false); // real focus, fed to shouldPoll, which is what its first argument is for
   const seenAt = useRef(0);
-  const mine = useRef<Set<string>>(new Set());
+  // Rows I wrote, and the STAMP I wrote them at.
+  //
+  // This was a plain Set, which meant "I touched this row once, so never highlight it again for the
+  // rest of this visit". Melroy found the repro in one move: B ticks a row, A un-ticks it, and B
+  // stays dark because B still believes that row is its own edit. My own write must not wash; their
+  // LATER change to the same row must. Only a stamp can tell those apart.
+  const mine = useRef<Map<string, number>>(new Map());
+  // Ids I wrote in an earlier session (from Today), waiting for a stamp. They get one the first time
+  // this visit sees the row, which is the honest reading of "already mine as of when I got here".
+  const minePending = useRef<Set<string>>(new Set());
   const [washed, setWashed] = useState<ReadonlySet<string>>(new Set());
   // Rows that have ALREADY had their eight seconds this visit, and must never light up again.
   //
@@ -147,12 +156,30 @@ export default function OursListScreen() {
   /** The wash for a freshly merged list, minus anything already shown. One helper, because getting
    *  this subtraction right in one of the two call sites and not the other is how a strobe returns. */
   const washFor = useCallback((rows: SharedTask[]) => {
-    const next = new Set(washedSince(rows, seenAt.current, mine.current));
+    // An earlier session's ids learn their stamp the first time we see the row.
+    for (const row of rows) {
+      if (minePending.current.delete(row.id)) mine.current.set(row.id, row.updatedAt);
+    }
+    // Mine ONLY while the row has not moved since I wrote it. The moment their change lands, the
+    // stamp rises above mine and it stops being my edit.
+    const stillMine = new Set<string>();
+    for (const row of rows) {
+      const wroteAt = mine.current.get(row.id);
+      if (wroteAt !== undefined && row.updatedAt <= wroteAt) stillMine.add(row.id);
+    }
+    const next = new Set(washedSince(rows, seenAt.current, stillMine));
     // Every input to the decision, in one line. Tonight cost hours because a wash that did not
     // happen looked identical to a wash that was excluded, a stale last-look, and a clock skew.
     const newest = rows.reduce((max, row) => (row.updatedAt > max ? row.updatedAt : max), 0);
+    const short = (id: string) => id.slice(-4);
     debugLog('wash', {
       lit: next.size,
+      // WHICH rows, not just how many. `lit=1` with nothing visible on screen is unreadable without
+      // this: it could be one row lit forever, a different row each time, or a row that is simply
+      // scrolled out of sight, and those are three different bugs.
+      litIds: [...next].map(short).join(',') || '-',
+      shownIds: [...washedAlready.current.keys()].map(short).join(',') || '-',
+      mineIds: [...stillMine].map(short).join(',') || '-',
       rows: rows.length,
       // The four things that can suppress a highlight, so a zero is never ambiguous again.
       seenAgo: seenAt.current ? `${Math.round((nowMs() - seenAt.current) / 1000)}s` : 'never',
@@ -246,7 +273,7 @@ export default function OursListScreen() {
         seenAt.current = (await loadOursSeen())[live_.pairId] ?? 0;
         // Rows I changed from Today since I was last here. Without these, my own tick on a brought
         // copy comes back tinted as my person's change, which is the room inventing an event.
-        for (const id of await loadOursMine(live_.pairId)) mine.current.add(id);
+        for (const id of await loadOursMine(live_.pairId)) minePending.current.add(id);
         // NOTHING is seeded from `pulledFrom` here, and the removal is the fix for the worst wash
         // bug of the dogfood: Device A never highlighted anything, ever, while Device B worked.
         //
@@ -335,7 +362,8 @@ export default function OursListScreen() {
       // the OS happened to unmount the screen: arriving re-reads the stored last-look (which the
       // reconcile below then moves forward), so yesterday's wash cannot still be sitting there.
       seenAt.current = 0;
-      mine.current = new Set();
+      mine.current = new Map();
+      minePending.current = new Set();
       washedAlready.current = new Map();
       clockSynced.current = false;
       focused.current = true;
@@ -393,14 +421,14 @@ export default function OursListScreen() {
       const stamped = withMonotonicStamps(next, tasks);
       for (const task of stamped) {
         const before = tasks.find((prev) => prev.id === task.id);
-        if (!before || before.updatedAt !== task.updatedAt) mine.current.add(task.id);
+        if (!before || before.updatedAt !== task.updatedAt) mine.current.set(task.id, task.updatedAt);
       }
       setWashed(washFor(stamped));
       setTasks(stamped);
       void saveOursTasks(pair.pairId, stamped);
       // Persisted, not merely held in the ref: if the reconcile below fails, this visit ends
       // without the last-look moving forward, and the next one would tint my own writes as theirs.
-      void noteOursMine(pair.pairId, [...mine.current]);
+      void noteOursMine(pair.pairId, [...mine.current.keys()]);
       await sync(stamped);
     },
     [pair, tasks, sync, washFor],

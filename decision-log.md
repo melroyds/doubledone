@@ -6117,3 +6117,34 @@ the two. Reduce-motion still gets the instant version.
 
 Built as an opacity fade on an absolutely-positioned overlay rather than an animated Pressable: it
 is the one form that cannot disturb the row's touch handling or its style-as-function pressed state.
+
+## 2026-08-10 "Mine" needed a stamp too, and the panel finally proved the wash
+
+The last of six wash bugs, found by Melroy in one move: **B ticks a row, A un-ticks it, B stays
+dark.** `mine` was a Set of ids, so once a device had touched a row it believed that row was its own
+edit for the whole visit and suppressed every later change the OTHER person made to it. The
+direction that worked only worked because that device had not touched the row first.
+
+**`mine` is now a Map of id → the stamp I wrote it at.** My own write does not wash; the moment
+their change lands, the row's stamp rises above mine and it stops being my edit. That is the same
+correction `washedAlready` needed an hour earlier, which is worth noticing: **twice in one evening,
+an id was standing in for an event.** An id says "this happened once, ever". These rules are about
+"has anything happened SINCE", and only a stamp can answer that.
+
+Confirmed live on the device that had never highlighted once all evening:
+
+```
+wash lit=1 litIds=5sd4 shownIds=- mineIds=- rows=8 seenAgo=18s newestAgo=10s mine=0 shown=0 skew=-3s
+```
+
+Every suppressor off, the row named, and the highlight visible on screen. **The panel is what made
+the last three fixes possible**: `lit=1` with nothing on screen, and `lit=0` when something should
+have shown, are four different bugs each, and no amount of reading the code separated them.
+
+**Also logged: which rows, not just how many.** `lit=1` with nothing visible could be one row stuck
+lit, a different row each poll, or a row scrolled out of sight. Counts alone could not tell those
+apart and cost an iteration.
+
+**Noted, not fixed:** two syncs race on mount (`stop=overtaken-at-pairs by=2`), the focus effect and
+the session effect. The newer one completes and the older stands down, so it is correct and merely
+wasteful. Tidy it when the screen is next opened, not under a tester.
