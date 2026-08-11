@@ -35,6 +35,17 @@ type Props = {
   onSort?: (text: string) => Promise<void>;
   /** Steps (slices). Off on the shared list, whose rows have no `slices` field to store them in. */
   allowSteps?: boolean;
+  /**
+   * The WHEN question. Off on the shared list, which is a list two people keep rather than a day
+   * one person is getting through: it has no today, so "Today" on its door would be a word that
+   * means nothing and "Tomorrow" a promise nothing in the room could keep. Repeating still belongs
+   * there (a bin night is a bin night for both of you), which is why this is its own switch.
+   *
+   * Deliberately NOT inferred from a missing shared `due` column. The column is the reason it is
+   * off today; the reason it should be off is that a shared list is not a day, and that survives
+   * whatever the schema does next.
+   */
+  allowWhen?: boolean;
   // Close the panel (the parent owns visibility). The panel's own Close resets the door
   // (back to Today · no repeat · no steps) but NEVER the typed text: text is never lost.
   onClose: () => void;
@@ -68,7 +79,7 @@ const WEEKDAY_KEYS = [
 // controls never appear from nowhere. Iron rules: the first keystroke never waits, typed text
 // survives every tap and collapse, and the door resets to Today · no repeat · no steps after
 // every Add and every Close.
-export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({ onCapture, onBiteElephant, onSort, onClose, today, onCamera, allowSteps = true }, ref) {
+export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({ onCapture, onBiteElephant, onSort, onClose, today, onCamera, allowSteps = true, allowWhen = true }, ref) {
   const [value, setValue] = useState('');
   const [doorOpen, setDoorOpen] = useState(false);
   const [when, setWhen] = useState<CaptureWhen>('today');
@@ -128,6 +139,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
     weekdays: weekdays.length > 0 ? weekdays : [today.getDay()],
     everyNDays,
     steps: stepsAllowed && sliceCount >= MIN_SLICES ? sliceCount : 0,
+    whenless: !allowWhen,
   };
   const summary = doorSummary(doorState, today);
   const addLabel = addButtonLabel(doorState, today, lineCount);
@@ -386,11 +398,11 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
           onPress={toggleDoor}
           accessibilityRole="button"
           accessibilityState={{ expanded: doorOpen }}
-          accessibilityLabel={t('capture.doorA11y', { summary })}
+          accessibilityLabel={allowWhen ? t('capture.doorA11y', { summary }) : t('capture.doorA11yRepeatOnly', { summary })}
           style={({ pressed }) => [styles.doorRow, pressed && styles.pressed]}
         >
           <View style={styles.doorTextCol}>
-            <Text style={styles.doorOverline}>{t('capture.doorOverline')}</Text>
+            <Text style={styles.doorOverline}>{allowWhen ? t('capture.doorOverline') : t('capture.doorOverlineRepeatOnly')}</Text>
             <Text style={styles.doorValue}>{summary}</Text>
           </View>
           <Text style={styles.doorCaret}>{doorOpen ? '⌄' : '›'}</Text>
@@ -399,7 +411,10 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
         {doorOpen && (
           <View style={styles.composer}>
             {/* WHEN. Three chips and a fixed detail line: the resolved day plus one Change
-                link into the date picker (the held card's Move-to picker component). */}
+                link into the date picker (the held card's Move-to picker component). Absent
+                entirely on a dayless surface (see `allowWhen`), which leaves `when` on 'today' and
+                so leaves buildSchedule and the repeat's start date working unchanged. */}
+            {allowWhen && (
             <View style={styles.compRow}>
               <Text style={styles.compOverline}>{t('capture.rowWhen')}</Text>
               <View style={styles.chips}>
@@ -423,6 +438,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                 </Pressable>
               </View>
             </View>
+            )}
 
             {/* REPEATS. Three toggles (tap again to clear); the detail region holds each
                 cadence's one control plus the Starting-from read-through of the WHEN. */}
@@ -473,7 +489,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                   </Pressable>
                 </View>
               )}
-              {repeat !== null && (
+              {repeat !== null && allowWhen && (
                 <Pressable
                   onPress={() => setPickerOpen(true)}
                   hitSlop={8}

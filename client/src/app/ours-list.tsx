@@ -1,18 +1,19 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AppState, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
+import { BrainDump, type BrainDumpHandle } from '@/components/BrainDump';
 import { DebugPanel } from '@/components/DebugPanel';
 import { CadenceSheet } from '@/components/CadenceSheet';
 import { TaskRow } from '@/components/TaskRow';
-import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { useSessionState } from '@/lib/auth';
 import { clockSkewMs } from '@/lib/clock';
 import { debugLog } from '@/lib/debug-log';
 import { toISODate } from '@/lib/day';
-import { type Recurrence } from '@/lib/recurrence';
+import { type CaptureSchedule, type Recurrence, scheduleFields } from '@/lib/recurrence';
 import { t } from '@/lib/locale';
 import { makeSharedRef, pulledFrom } from '@/lib/ours-bridge';
 import { loadMyPairs, type MyPair, syncClock } from '@/lib/ours-api';
@@ -20,8 +21,8 @@ import { isSharedDoneOn, setSharedDone, type SharedTask, washedSince } from '@/l
 import { isUnreadableRepeat, onSharedListOn, POLL_MS, repeatSummaryOf, shouldPoll, syncPairOnce, willTrim } from '@/lib/ours-sync';
 import { clearOursMine, loadOursMine, loadOursSeen, loadOursTasks, loadTasks, markOursSeen, noteOursMine, pruneOursCache, saveOursTasks, saveTasks } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
-import { makeId, nowMs, type Task, withMonotonicStamps } from '@/lib/tasks';
-import { useTheme, useThemedStyles } from '@/lib/theme-provider';
+import { makeId, nowMs, parseDump, type Task, withMonotonicStamps } from '@/lib/tasks';
+import { useThemedStyles } from '@/lib/theme-provider';
 
 // Ours: THE ROOM. The shared list itself, where the door on Today and the Menu both lead.
 //
@@ -64,7 +65,6 @@ function isPairFrozen(pair: MyPair | null): boolean {
 export default function OursListScreen() {
   const insets = useSafeAreaInsets();
   const styles = useThemedStyles(makeStyles);
-  const theme = useTheme();
   const { session, known: sessionKnown } = useSessionState();
   // One Date for the whole render, so the ISO day and the cadence placement can never disagree
   // across a midnight tick mid-render.
@@ -78,7 +78,6 @@ export default function OursListScreen() {
   const [pair, setPair] = useState<MyPair | null>(null);
   const [tasks, setTasks] = useState<SharedTask[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [draft, setDraft] = useState('');
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
   // The push failed while the pull worked: my change is on this device and NOT on theirs.
@@ -198,11 +197,20 @@ export default function OursListScreen() {
   // making a second copy. My tasks, read here only to answer that one question.
   const [pulled, setPulled] = useState<Map<string, string>>(new Map());
   const [cadenceId, setCadenceId] = useState<string | null>(null); // the row whose rhythm is being set
-  // Capture-time repeating. Today's capture bar has a WHEN · REPEATING · STEPS door; this one had
-  // nothing, so the only way to make a repeating shared task was to add it and then know to
-  // long-press it. Melroy hit exactly that and reported "there is no way to add Repeating Tasks",
-  // which is true of the only path anybody would look for.
-  const [captureRepeat, setCaptureRepeat] = useState(false);
+  // CAPTURE IS TODAY'S CAPTURE. Not a lookalike: the same `BrainDump` component, so the input, the
+  // Speak button, the door, the iOS keyboard bar and the Add button that names its own consequence
+  // are the same objects in both rooms and can never drift apart. Melroy asked for exactly this
+  // ("I want consistent UI between Today and Ours"), and the reason it is worth the wiring is that
+  // this audience runs on muscle memory: a second, similar-but-different capture is a second thing
+  // to learn, and learning it twice is the friction the app exists to remove.
+  //
+  // Two powers are switched OFF rather than reimplemented. WHEN, because a shared list is not a day
+  // (see `allowWhen`). STEPS, because a shared row has no `slices` field to put them in, and because
+  // slicing is a personal shaping tool: how you break a thing down is yours, not a household's.
+  // What is left, REPEATING, is the one that genuinely belongs to two people.
+  const [captureOpen, setCaptureOpen] = useState(false);
+  const brainDumpRef = useRef<BrainDumpHandle>(null);
+
 
   /** Cache first, then reconcile. The list is on screen before the network is asked anything, which
    *  is the whole point of the local copy and the difference between opening a list and waiting. */
@@ -402,6 +410,15 @@ export default function OursListScreen() {
   // rule is pure and tested in ours-sync: focused AND foregrounded AND not idle ten minutes.
   // Keyed on the pair's ID, a STRING, never the pair object. The object is rebuilt by every read,
   // so depending on it restarted the timer forever and the interval was never allowed to tick.
+  // Focus the capture input once the panel is actually VISIBLE. Not in the launcher's press
+  // handler: the panel is display:none until the state lands, and focusing a display:none input
+  // does nothing, silently, leaving a launcher that opens a panel you then have to tap again.
+  // `seed(null)` focuses without touching the text, which is what keeps a collapsed mid-sentence
+  // draft alive. Today carries the identical effect for the identical reason.
+  useEffect(() => {
+    if (captureOpen) brainDumpRef.current?.seed(null);
+  }, [captureOpen]);
+
   const pairId = pair?.pairId ?? null;
   useEffect(() => {
     if (!pairId) return;
@@ -434,18 +451,38 @@ export default function OursListScreen() {
     [pair, tasks, sync, washFor],
   );
 
-  /** Add it. `recurrence` present means it was captured through the repeat door rather than typed
-   *  and entered, which is the one difference between the two paths. */
-  function add(recurrence?: Recurrence) {
-    const title = draft.trim();
-    if (!title || !pair || isPairFrozen(pair)) return;
-    setDraft('');
-    setCaptureRepeat(false);
-    if (willTrim(title)) setNotice(t('ours.shareTrim')); // said BEFORE, never discovered after
-    const now = nowMs();
-    const made: SharedTask = { id: makeId(), title, done: false, createdAt: now, updatedAt: now };
-    if (recurrence) made.recurrence = recurrence;
-    void commit([...tasks, made]);
+  /**
+   * Add what was captured. One line or many: a dump becomes one row per line, and the door's
+   * cadence applies to every one of them, which is the same rule Today follows.
+   *
+   * `scheduleFields` can also return a `due`, and this deliberately takes only the recurrence. Not
+   * an oversight and not a type workaround: a shared row has nowhere to put a date (the `due`
+   * column exists on the table and nothing reads or writes it, see the decision log), and with
+   * `allowWhen={false}` the panel cannot produce one anyway. Two locks on the same door, because
+   * tonight proved that a field which exists but is unwired is the most expensive kind.
+   */
+  function capture(text: string, schedule: CaptureSchedule) {
+    const titles = parseDump(text);
+    if (titles.length === 0 || !pair || isPairFrozen(pair)) return;
+    // Typing is activity. `lastTouch` is the ten-minute idle gate on polling, and it used to be fed
+    // by the old bar's onChangeText; BrainDump owns its own text, so the two moments that still
+    // prove a person is here (opening the panel, and this) feed it instead.
+    lastTouch.current = nowMs();
+    if (titles.some(willTrim)) setNotice(t('ours.shareTrim')); // said BEFORE, never discovered after
+    const { recurrence } = scheduleFields(schedule, now);
+    const stamp = nowMs();
+    // `stamp + i` rather than one stamp for all: identical `createdAt`s across a dump would make
+    // the row order arbitrary, and on a list two people read, an order that shuffles is a list
+    // nobody trusts.
+    const made: SharedTask[] = titles.map((title, i) => ({
+      id: makeId(),
+      title,
+      done: false,
+      createdAt: stamp + i,
+      updatedAt: stamp + i,
+      ...(recurrence ? { recurrence } : {}),
+    }));
+    void commit([...tasks, ...made]);
   }
 
   function toggle(id: string) {
@@ -646,23 +683,6 @@ export default function OursListScreen() {
         ) : null}
       </ScrollView>
 
-      {/* Captured through the door: the sheet commits the task itself, cadence and all, so the
-          button that names the rhythm is also the button that adds it. */}
-      {captureRepeat && (
-        <CadenceSheet
-          visible
-          onClose={() => setCaptureRepeat(false)}
-          today={now}
-          sheetTitle={t('ours.addTo', { name: listName })}
-          title={draft}
-          note={t('ours.repeatNote')}
-          onSave={(title, recurrence) => {
-            setDraft(title);
-            add(recurrence);
-          }}
-        />
-      )}
-
       {cadenceTask && (
         <CadenceSheet
           key={cadenceTask.id}
@@ -679,38 +699,54 @@ export default function OursListScreen() {
         />
       )}
 
-      {/* The capture bar speaks the list's name, so it is obvious which room you are typing into.
-          Gone entirely on a closed list: a field you can tap into and then not use is crueller than
-          no field, and the server would refuse the write in any case. */}
+      {/* CAPTURE, the same panel Today uses. The launcher speaks the list's name, so it is obvious
+          which room you are typing into, and the whole surface is gone on a closed list: a field you
+          can tap into and then not use is crueller than no field, and the server would refuse the
+          write in any case.
+
+          The keyboard lift is scoped to the panel being OPEN, exactly as Today scopes it, because
+          that is the only time this screen holds focus at the bottom of the window. Nothing on this
+          stack raises a bottom-anchored input above an Android keyboard on its own (CLAUDE.md's
+          keyboard gotcha, which cost a whole tester round), so it is done by hand here or not at
+          all. */}
       {!frozen && (
-        <View style={[styles.capture, { paddingBottom: insets.bottom + spacing.three + Math.max(0, kbHeight - (Platform.OS === 'ios' ? insets.bottom : 0)) }]}>
-        {/* The repeat door. Today's capture carries WHEN · REPEATING · STEPS; a shared list has no
-            "when" (it is not a day) and no steps (they are a personal shaping tool), so what carries
-            across is the one that belongs here. Same sheet, same wording, same commit button. */}
-        <Pressable
-          onPress={() => setCaptureRepeat(true)}
-          disabled={!draft.trim()}
-          accessibilityRole="button"
-          accessibilityLabel={t('ours.repeat')}
-          hitSlop={6}
-          style={styles.captureDoor}
+        <View
+          style={[
+            styles.capture,
+            { paddingBottom: insets.bottom + spacing.three + (captureOpen ? Math.max(0, kbHeight - (Platform.OS === 'ios' ? insets.bottom : 0)) : 0) },
+          ]}
         >
-          <Text style={[styles.captureDoorText, !draft.trim() && styles.captureDoorOff]}>{t('ours.repeat')}</Text>
-        </Pressable>
-        <TextInput
-          value={draft}
-          onChangeText={(v) => {
-            lastTouch.current = nowMs();
-            setDraft(v);
-          }}
-          onSubmitEditing={() => add()}
-          placeholder={t('ours.addTo', { name: listName })}
-          placeholderTextColor={theme.colors.inkFaint}
-          style={styles.input}
-          accessibilityLabel={t('ours.addTo', { name: listName })}
-          returnKeyType="done"
-            blurOnSubmit={false}
-          />
+          {!captureOpen && (
+            <Pressable
+              onPress={() => {
+                lastTouch.current = nowMs(); // reaching for the input is a person being here
+                setCaptureOpen(true);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={t('ours.addTo', { name: listName })}
+              style={({ pressed }) => [styles.addBar, pressed && styles.pressed]}
+            >
+              <Text style={styles.addBarText}>{t('ours.addTo', { name: listName })}</Text>
+            </Pressable>
+          )}
+          {/* MOUNTED while hidden (display none, never unmounted), which is the capture iron rule
+              that typed text is never lost. Collapse the panel mid-sentence, tick something, come
+              back: the words are still there. */}
+          <View style={[styles.capturePanel, !captureOpen && styles.capturePanelHidden]}>
+            <BrainDump
+              ref={brainDumpRef}
+              onCapture={capture}
+              onClose={() => setCaptureOpen(false)}
+              today={now}
+              /* The two powers a shared list does not have. See the state declaration above for
+                 why each is off, and note that neither is a stub: the rows are simply not there. */
+              allowWhen={false}
+              allowSteps={false}
+              /* No AI here, by omission rather than by flag. The steps a model proposes would land
+                 on a list another person reads, and pointing a model at somebody else's screen is
+                 a decision about them, not a UI convenience. Break-it-down stays on your own day. */
+            />
+          </View>
         </View>
       )}
     </View>
@@ -761,22 +797,38 @@ const makeStyles = (t: Theme) =>
       borderTopColor: t.colors.line,
       backgroundColor: t.colors.bg,
     },
-    // Above the input, quiet until there is something to make repeat.
-    captureDoor: { alignSelf: 'flex-start', paddingVertical: spacing.one },
-    captureDoorText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    captureDoorOff: { color: t.colors.inkFaint, fontWeight: '400', fontFamily: fonts.body },
-    input: {
-      backgroundColor: t.colors.surface,
-      borderWidth: border.hair,
-      borderColor: t.colors.line,
-      borderRadius: radius.md,
-      paddingHorizontal: spacing.four,
-      paddingVertical: spacing.three,
+    // The launcher, styled from Today's `addBar` so both rooms open capture the same way: a
+    // bordered button in the full appearance, a bare underlined capture line in Quiet.
+    addBar:
+      t.appearance === 'quiet'
+        ? {
+            borderBottomWidth: border.hair,
+            borderColor: t.quiet.captureUnderline,
+            paddingVertical: spacing.four,
+            paddingHorizontal: 2,
+            alignItems: 'flex-start',
+            maxWidth: layout.maxContentWidth,
+            width: '100%',
+            alignSelf: 'center',
+          }
+        : {
+            borderWidth: border.hair,
+            borderColor: t.colors.accent,
+            borderRadius: radius.md,
+            paddingVertical: spacing.four,
+            alignItems: 'center',
+            maxWidth: layout.maxContentWidth,
+            width: '100%',
+            alignSelf: 'center',
+          },
+    addBarText: {
+      color: t.appearance === 'quiet' ? t.colors.inkFaint : t.colors.accent,
       fontSize: 16 * t.scale,
-      fontFamily: fonts.body,
-      color: t.colors.ink,
-      maxWidth: layout.maxContentWidth,
-      width: '100%',
-      alignSelf: 'center',
+      fontFamily: t.appearance === 'quiet' ? fonts.body : fonts.bodyBold,
+      fontWeight: t.appearance === 'quiet' ? '400' : '700',
     },
+    capturePanel: { gap: spacing.two, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
+    // display none (not unmount): BrainDump keeps its typed text while the panel is away.
+    capturePanelHidden: { display: 'none' },
+    pressed: { opacity: PRESSED_OPACITY },
   });

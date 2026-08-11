@@ -74,3 +74,41 @@ describe('addButtonLabel', () => {
     expect(addButtonLabel(state({ steps: 3 }), TODAY, 1)).toBe('Add');
   });
 });
+
+// A DAYLESS surface: the shared list, which is a list two people keep rather than a day one person
+// is getting through. The WHEN row is not rendered there, so the door's language must not mention a
+// day either. If it did, the summary would read "Today" on a list that has no today, and the button
+// would promise a day nothing in the room could keep.
+describe('a whenless door (the shared list)', () => {
+  it('says the calm default out loud rather than rendering an empty line', () => {
+    expect(doorSummary(state({ whenless: true }), TODAY)).toBe('No repeat');
+  });
+
+  it('names only the cadence once one is set', () => {
+    expect(doorSummary(state({ whenless: true, repeat: 'daily' }), TODAY)).toBe('Daily');
+    expect(doorSummary(state({ whenless: true, repeat: 'weekly', weekdays: [1, 3] }), TODAY)).toBe('Weekly on Mo, We');
+  });
+
+  // The whole point of the flag: the same state reads differently on a surface that has days.
+  it('drops the when that a day-shaped surface would show', () => {
+    expect(doorSummary(state({ repeat: 'daily' }), TODAY)).toBe('Today · Daily');
+    expect(doorSummary(state({ whenless: true, repeat: 'daily' }), TODAY)).toBe('Daily');
+  });
+
+  // Belt and braces. Such a surface cannot leave `when` on anything but 'today', but the button is
+  // the last thing read before a tap lands, so it must be incapable of promising a day regardless.
+  it('never puts a day on the Add button, even if `when` somehow moved', () => {
+    expect(addButtonLabel(state({ whenless: true, when: 'tomorrow' }), TODAY, 1)).toBe('Add');
+    expect(addButtonLabel(state({ whenless: true, when: 'date' }), TODAY, 1)).toBe('Add');
+    expect(addButtonLabel(state({ whenless: true, when: 'tomorrow', repeat: 'daily' }), TODAY, 1)).toBe('Add · Daily');
+  });
+
+  it('still carries the line count of a dump', () => {
+    expect(addButtonLabel(state({ whenless: true }), TODAY, 4)).toBe('Add 4');
+  });
+
+  // Steps are off on that surface too, but the summary is shared code and a caller could pass both.
+  it('keeps steps out of the summary only when there are none', () => {
+    expect(doorSummary(state({ whenless: true, steps: 3 }), TODAY)).toBe('3 steps');
+  });
+});

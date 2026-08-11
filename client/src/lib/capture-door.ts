@@ -26,6 +26,16 @@ export type DoorState = {
   everyNDays: number;
   /** The slice count; 0 = whole task. */
   steps: number;
+  /**
+   * The surface has no DAYS at all, so the WHEN question is not asked and never appears in the
+   * summary or on the button. True on the shared list, which is a list two people keep rather than
+   * a day one person is getting through: it has no today, so "Today" on its door would be a word
+   * that means nothing, and "Tomorrow" would be a promise nothing in the room could keep.
+   *
+   * Repeating still belongs there (a bin night is a bin night for both of you), which is why this
+   * is a per-row switch rather than "the shared list has no door".
+   */
+  whenless?: boolean;
 };
 
 const WEEKDAY_KEYS = [
@@ -62,10 +72,14 @@ export function repeatLabel(s: Pick<DoorState, 'repeat' | 'weekdays' | 'everyNDa
  * (the caller renders it without numberOfLines).
  */
 export function doorSummary(s: DoorState, today: Date): string {
-  const parts = [whenLabel(s, today)];
+  const parts: string[] = [];
+  if (!s.whenless) parts.push(whenLabel(s, today));
   const rep = repeatLabel(s);
   if (rep) parts.push(rep);
   if (s.steps > 0) parts.push(t('today.stepsCount', { count: s.steps }));
+  // A whenless door with nothing else set has no parts at all, and an empty value line under a
+  // live overline reads as a broken control rather than a calm default. Say the default out loud.
+  if (parts.length === 0) return t('capture.noRepeat');
   return parts.join(' · ');
 }
 
@@ -77,6 +91,9 @@ export function doorSummary(s: DoorState, today: Date): string {
  */
 export function addButtonLabel(s: DoorState, today: Date, lineCount: number): string {
   const base = lineCount >= 2 ? t('capture.addN', { count: lineCount }) : t('capture.add');
-  const consequence = repeatLabel(s) ?? (s.when !== 'today' ? whenLabel(s, today) : null);
+  // `whenless` is checked even though such a surface can never leave `when` on anything but
+  // 'today': the button is the last thing read before a tap lands, and it should be impossible for
+  // it to promise a day on a list that does not have days, whatever else changes upstream.
+  const consequence = repeatLabel(s) ?? (!s.whenless && s.when !== 'today' ? whenLabel(s, today) : null);
   return consequence ? `${base} · ${consequence}` : base;
 }

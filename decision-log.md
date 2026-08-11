@@ -6211,3 +6211,48 @@ counts as already-brought.
 a device whose clock runs ahead: the device wins the merge and pushes its undeleted row back. Test
 cleanup needs `now() + interval '1 hour'` so no device clock can beat it. Another face of the same
 clock problem that produced four wash bugs.
+
+## 2026-08-11 Ours captures through Today's capture, minus the two powers it does not have
+
+**Decided: the same component, not a lookalike.** The shared list's bespoke one-line bar is gone and
+`BrainDump` is in its place, launcher and mounted-hidden panel, exactly as Today arranges it. Melroy
+asked for this in those words ("I want consistent UI between Today and Ours"), and the reason it
+earns the wiring is that this audience runs on muscle memory: a second, similar-but-different
+capture is a second thing to learn, and learning it twice is the friction the app exists to remove.
+Sharing the object rather than the appearance is also the only version that cannot drift.
+
+**Decided against: reimplementing the door on Ours.** The bespoke bar had grown a Repeat link that
+opened a CadenceSheet, which was a fine patch for "there is no way to add Repeating Tasks" and a bad
+place to stop: two capture surfaces, two sets of wording, two things to keep in step.
+
+**Two powers are switched off, and each for its own reason.**
+
+*WHEN* (new `allowWhen` prop). A shared list is not a day. It has no today, so "Today" on its door
+would be a word that means nothing, and "Tomorrow" a promise nothing in the room could keep. The
+door's language follows: `doorSummary` and `addButtonLabel` take a `whenless` flag, the summary says
+"No repeat" rather than rendering an empty line under a live overline, and the Add button is
+incapable of naming a day even if `when` somehow moved (belt and braces, because the button is the
+last thing read before a tap lands).
+
+*STEPS*. A shared row has no `slices` field to hold them, and breaking a thing down is a personal
+shaping tool. How you approach a task is yours; that it needs doing is the household's.
+
+*AI stays off* by omission rather than a flag, which was already true and is worth restating: steps a
+model proposes would land on a list another person reads, and pointing a model at somebody else's
+screen is a decision about them, not a UI convenience. Speak stays, being on-device dictation.
+
+**Deliberately NOT built: a due date on shared rows.** `shared_tasks.due` exists on the live table
+(`supabase/ours-due.sql`, applied) and NOTHING reads or writes it: not the `SharedTask` type, not the
+sync, not the room. That is the fifth thing this feature has had built, applied live and left with
+zero call sites, which is the single most expensive pattern of the whole build. Recording it here and
+in the Backlog so it is parked rather than lost. It is a real feature (a household list absolutely
+has "by Friday") and it is not a capture-bar job: it turns a flat, always-visible list into a
+scheduled one, which needs a Later grouping, a rule for what a dated row does when its day arrives,
+and an answer for two people in two timezones. Trigger: pick it up when somebody actually asks for a
+dated shared item, and build it whole.
+
+**And one bug caught before it shipped, by comparing against Today rather than by testing.** The
+launcher focused the input in its press handler, while the panel was still `display:none`. Focusing a
+`display:none` input does nothing, silently, so it would have shipped a launcher that opens a panel
+you then have to tap again. Today has always done it in an effect keyed on the open flag. Reading the
+working version beside the new one is worth more than it looks.
