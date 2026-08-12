@@ -86,10 +86,16 @@ export function pulledFrom(tasks: Task[], pairId: string): Map<string, string> {
  * A copy you have already FINISHED is excluded: you did the thing, so its origin's fate is not
  * news. So is one you have removed yourself.
  *
- * KNOWN AND ACCEPTED LIMIT: the server sweeps tombstones after seven days, after which a removed
- * origin is indistinguishable from one that was never pulled, and the note quietly stops appearing.
- * That is the right trade. The information matters in the first day or two, and keeping a permanent
- * record of a deletion so the app can keep mentioning it is its own kind of creepy.
+ * KNOWN AND ACCEPTED LIMIT, with the number corrected: `sweep_shared_tombstones` redacts tombstones
+ * at THIRTY days, not the seven I first wrote here (supabase/ours-resume.sql, `k_horizon`, chosen to
+ * sit comfortably past Phase 5's seven-day Restore window). After that a removed origin is
+ * indistinguishable from one never pulled and the note stops appearing.
+ *
+ * Thirty days is longer than this note deserves to live. It matters in the first day or two; past
+ * that it is the app still mentioning a deletion nobody is thinking about, which is the creepiness
+ * the seven-day figure had me believing we avoided. Not changed here, because the sweep horizon is
+ * load-bearing for Restore and is not this note's to move. Recorded so the next reader has the real
+ * number rather than the one I assumed.
  */
 export function removedOrigins(tasks: Task[], shared: SharedTask[], pairId: string): Set<string> {
   const byId = new Map(shared.map((row) => [row.id, row]));

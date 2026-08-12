@@ -1815,7 +1815,7 @@ export default function TodayScreen() {
    * Re-read from storage rather than trusting `tasks`, because two taps land inside one render, and
    * an existing copy is returned rather than a second one made.
    */
-  async function takeOnShared(row: SharedTask): Promise<Task | null> {
+  async function takeOnShared(row: SharedTask, andThen?: (next: Task[], copy: Task) => Task[]): Promise<Task | null> {
     if (!oursPairId) return null;
     const mineNow = await loadTasks();
     const existing = mineNow.find((task) => {
@@ -1834,9 +1834,21 @@ export default function TodayScreen() {
       updatedAt: stamp,
       sharedRef: makeSharedRef(oursPairId, row.id),
     };
-    const next = [...mineNow, copy];
-    await saveTasks(next);
-    setTasks(next);
+    // `andThen` exists because a caller CANNOT safely act on the copy afterwards, and the first
+    // version of this let one try. Pin went `takeOnShared(row).then((c) => pinRow(c))`, and `pinTask`
+    // builds its next array from the `tasks` STATE CLOSURE, which is the pre-copy snapshot: the copy
+    // had been written to storage but React had not re-rendered, so `commit` saved the stale array
+    // straight back over it. The copy vanished, nothing was pinned (its id was not in the array
+    // `setPin` searched), whatever WAS pinned got cleared by the at-most-one rule, and the affirmation
+    // said "pinned" over all of it. Any follow-up work has to happen on THIS array, in this tick.
+    let next = [...mineNow, copy];
+    if (andThen) next = andThen(next, copy);
+    // The same monotonic lift `commit` applies. `andThen` can bump `updatedAt` on OTHER rows (setPin
+    // clears the previous pin), and those bumps must beat anything already synced or the old pin
+    // resurrects on the next pull.
+    const stamped = withMonotonicStamps(next, mineNow);
+    await saveTasks(stamped);
+    setTasks(stamped);
     return copy;
   }
 
@@ -2600,7 +2612,23 @@ export default function TodayScreen() {
                    `takeOnShared`). Melroy asked for these plus reorder; reorder needs no wiring here
                    because taking a row on moves it into your own list, where the existing
                    drag-free up/down already works. One implementation, not two. */
-                onPin={() => void takeOnShared(row).then((copy) => copy && pinRow(copy))}
+                /* The premium gate first, then ONE write that both takes the row on and pins it.
+                   Never take-on-then-pin: see `takeOnShared`'s `andThen` for the data loss that
+                   sequence caused. */
+                onPin={() => {
+                  if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
+                  if (!premium) {
+                    track('premium.gate_hit', { reason: 'pin' });
+                    router.push('/premium');
+                    return;
+                  }
+                  void takeOnShared(row, (next, copy) => setPin(next, copy.id, nowMs())).then((copy) => {
+                    if (!copy) return;
+                    track('task.pinned');
+                    affirm(t('today.pinnedAffirm'));
+                    dismissActions();
+                  });
+                }}
                 /* Not offered on a REPEAT, matching the rule on your own tasks: a date and a rhythm
                    are alternatives, and "move bin night to Thursday" is a question about the series
                    that belongs in the room's cadence sheet, not a one-tap action on a day. */
