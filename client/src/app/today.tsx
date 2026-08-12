@@ -92,13 +92,19 @@ import emptyArt from '../../assets/images/empty.jpg';
 const REENTRY_GAP_DAYS = 4; // a calm "welcome back" shows on the first open after this many days away
 
 /**
- * Copies whose work got finished on Ours: they leave the day, and a dashed line takes their place.
+ * Copies whose work got finished on Ours: they STAY on the day, ticked, and they DO reach Lookback.
  *
- * They LEAVE rather than complete, and the distinction is the whole point. The task is done, but you
- * did not do it, and putting it in your Lookback would be the app inventing a memory of you doing
- * it. The tombstone carries no `completedAt`, so Lookback cannot see it however anyone later changes
- * the filters. The note exists because a row that silently vanishes reads as "did I delete that?",
- * which for this audience is where a checking loop starts.
+ * This paragraph described the opposite until the audit caught it, which made it the first thing a
+ * reader hit and the most confidently wrong sentence in the file, on the most emotionally
+ * load-bearing rule the feature has. The old behaviour retired the copy with no `completedAt` and
+ * left a dashed note, on the reasoning that the task was done but you did not do it, so completing
+ * it would invent a memory.
+ *
+ * Melroy reversed it on 2026-08-11, having watched it twice: "It should remain and be marked as
+ * done. A win counts for both people. Not just one." A shared list is a thing two people keep on
+ * purpose, so the shopping getting done IS part of your week. And the old shape had a second,
+ * uglier problem: `completedAt` is also what makes a finished row VISIBLE, so done-without-a-date
+ * was a row Today could not place and Lookback never saw. It simply disappeared.
  *
  * Module scope, so the screen's effect has one stable dependency and this can be reasoned about
  * without a render. Returns null when there is nothing to settle, which is almost every open.
@@ -2638,8 +2644,13 @@ export default function TodayScreen() {
             The heading names the RULE, not just the source. "From Ours" said where these rows came
             from and nothing about why only some of them were here, which invited the reasonable
             question of whether this was the whole shared list and, if not, what decided. "Due today"
-            answers it in two words, and the door directly below is the way to everything else. They carry no weight,
-            appear in no count, and reach no Lookback unless you tick them. What they do have is a
+            answers it in two words, and the door directly below is the way to everything else. They carry no
+            weight and appear in no count.
+
+            They reach no Lookback either, and an earlier "unless you tick them" was a promise this
+            path cannot keep: ticking here writes to the SHARED row's completion log, which has no
+            route into your personal Lookback. Taking the row on is that route, and it has a button
+            of its own. What they do have is a
             checkbox that works from right here, which is the whole point: bin night should not
             require a trip to another room every Tuesday.
 

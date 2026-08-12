@@ -6554,3 +6554,50 @@ After: 62 / 82 / 60. A pixel of rounding from the extra nesting.
 That mattered more than it sounds. The 81px row wraps to two lines, and had I only measured AFTER I
 would have "discovered" a regression that was pre-existing and gone chasing it. **A layout change
 needs a before, not just an after.**
+
+## 2026-08-12 The pre-merge audit: 55 raised, 20 survived, all 20 fixed
+
+Melroy asked for an adversarial pass before the merge. Six independent lenses over the shared-list
+code (dead wiring, false comments, the three shared-list laws, two-device races, never-shame, data
+loss), each finding verified by a refute-by-default skeptic. 61 agents, ~19 minutes. **55 raised, 35
+refuted, 20 confirmed.** The 64% kill rate is the number that makes the other 20 worth reading.
+
+**One lost data, and it was mine from that morning.** Pin on a From Ours row ran
+`takeOnShared().then(pinRow)`, and `pinTask` builds its array from the `tasks` STATE CLOSURE, which
+was the pre-copy snapshot. The copy had been written to storage but React had not re-rendered, so
+`commit` saved the stale array back over it: the copy vanished, nothing was pinned, whatever WAS
+pinned got cleared by the at-most-one rule, and the affirmation said "pinned" over all of it.
+
+**Three more diverged two phones**, which is the specific harm this feature cannot afford. The
+room's date froze at mount, so a tick after midnight wrote into yesterday and the partner's phone
+disagreed permanently. A settle could overwrite a tick made while it was on the wire. And a tick on a
+brought copy was lost FOREVER on a device with a cold Ours cache if the pull failed, because the only
+carrier pulled before writing and nothing ever retried.
+
+**Six were the same shape as the `note` bug a human found hours earlier:** built, wired at the call
+site, consumed by nothing that renders. `bringLabel` (found by three lenses independently), `inert`,
+`repeatSummaryOf` reading a key nothing writes, `isPairReadOnly` with no call sites.
+
+**And one was mine, made in the very session I was fixing the class.** `openInRoom` was written for
+Tier 2, then Tier 2 shipped as `washedSince` instead, and the function was left with zero call sites.
+Deleted. The pattern is not carelessness about a rule, it is that a call site is the ONLY proof, and
+tests, types and review all pass happily without one.
+
+**One finding was half wrong, which is why the skeptics matter and why I check anyway.** It claimed
+the tombstone sweep never runs, so the removed-origin note is permanent. The sweep exists and IS
+called, but its horizon is THIRTY days, not the seven I had written. Correcting my own number was the
+real fix, and thirty days is longer than that note deserves to live.
+
+**One was a genuine design correction rather than a bug.** Placing a readable repeat by its cadence
+in `onSharedListOn` hid "every Monday" from the room six days a week: unreachable to edit, unreachable
+to remove, and a household whose list is only repeats was told "Nothing here yet". But the original
+reasoning was sound too, and documented: showing it every day made it tappable on a day it was not
+due, writing a completion for the wrong date into the SHARED log. Neither option was right. The room
+IS the list, so everything on it belongs there; WHICH DAY a repeat is due is a separate question,
+answered by `sharedDueOn` for Today and by the new `tickableInRoom` for the room's checkbox. Both
+halves of the original worry are covered, and it only became possible because `inert` now renders.
+
+**Four comments asserted the opposite of the shipped code**, all of them where a reversal had landed
+and the prose had not. The worst was `settleSharedCopies`'s docstring, the first thing a reader hits,
+still describing the pre-reversal "leave the day, never enter Lookback" on the most emotionally
+load-bearing rule the feature has.

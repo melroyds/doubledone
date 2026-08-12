@@ -434,8 +434,14 @@ export function TaskRow({
         {/* The rail (design v2): the reorder pair as ONE segmented, hairline-bordered control.
             Bordered = act-and-stay, the card's only such element (three places is three taps
             with the card held open, never three long-presses). An edge dims its cell in place;
-            a pinned task rests the WHOLE rail (the pin holds the top by other means). Always
-            rendered on an open card, so the card never reshapes under a hovering finger. */}
+            a pinned task rests the WHOLE rail (the pin holds the top by other means).
+
+            "Always rendered" means always on a surface that HAS reordering. On the shared list and
+            the From Ours strip neither handler is ever supplied, so the rail sat there permanently
+            dead: two controls that can never do anything, on the screen briefed to be plainer than
+            Today. Dim-in-place is for a control that is sometimes live; a control that is never live
+            is just furniture. */}
+        {(onMoveUp || onMoveDown) && (
         <View style={styles.rail}>
           <Pressable
             onPress={onMoveUp}
@@ -459,6 +465,7 @@ export function TaskRow({
             <Text style={[styles.railLabel, !onMoveDown && styles.railOff]}>{t('today.moveDown')}</Text>
           </Pressable>
         </View>
+        )}
 
         {/* More: the rarer actions, folded away by default so the card reads as four calm helpers. */}
         {hasMore && (

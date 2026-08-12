@@ -385,6 +385,7 @@ export const en = {
     repeat: 'Repeat…',
     repeatNote: "You'll both see it on its day.",
     repeatUnknown: "On a rhythm this version can't read yet. It's safe, and it'll appear on its days after an update.",
+    tickOnItsDay: "you can tick this on its day",
     report: 'Report this list',
     reportHint: 'This tells us, and only us. Your person is never told, and nothing on their screen changes.',
     reportedBody: 'Thank you. We have it, and we will look. Your person has not been told.',

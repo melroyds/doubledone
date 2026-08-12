@@ -381,6 +381,7 @@ export const it: Catalog = {
     repeat: 'Ripeti…',
     repeatNote: 'La vedrete entrambi nel suo giorno.',
     repeatUnknown: 'Su un ritmo che questa versione non sa ancora leggere. È al sicuro, e tornerà nei suoi giorni dopo un aggiornamento.',
+    tickOnItsDay: "puoi spuntarla nel suo giorno",
     report: 'Segnala questa lista',
     reportHint: 'Arriva solo a noi. Alla tua persona non viene detto nulla, e sul suo schermo non cambia niente.',
     reportedBody: 'Grazie. Ce lo abbiamo e lo guarderemo. Alla tua persona non è stato detto nulla.',

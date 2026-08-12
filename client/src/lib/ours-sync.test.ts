@@ -7,7 +7,6 @@ import {
   isUnreadableRepeat,
   cadenceLine,
   onSharedListOn,
-  openInRoom,
   knownRecurrence,
   repeatSummaryOf,
   pullPair,
@@ -16,6 +15,7 @@ import {
   sanitiseCompletions,
   type SharedRow,
   sharedDueOn,
+  tickableInRoom,
   sharedToRow,
   shouldPoll,
   syncPairOnce,
@@ -517,22 +517,19 @@ describe('what belongs on the shared list on a given day', () => {
   const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const row = (over: Partial<SharedTask> & { id: string }): SharedTask => ({ title: 'x', done: false, createdAt: 1, updatedAt: 1, ...over });
 
-  it('places a weekly repeat on its day and nowhere else', () => {
+  // REVISED after the audit. Placing a repeat by its cadence HERE hid "every Monday" from the room
+  // six days a week: unreachable to edit, unreachable to remove, and a household whose list is only
+  // repeats was told "Nothing here yet" on a list with things on it. The room IS the list; which day
+  // a repeat is due is a separate question, answered by `tickableInRoom` and by `sharedDueOn`.
+  it('keeps a repeat ON THE LIST every day, not only on its own', () => {
     const bins = row({ id: 'bins', recurrence: { kind: 'weekly', weekdays: [1] } }); // Monday
     expect(onSharedListOn(bins, iso(MON), MON)).toBe(true);
-    expect(onSharedListOn(bins, iso(TUE), TUE)).toBe(false);
+    expect(onSharedListOn(bins, iso(TUE), TUE)).toBe(true);
   });
 
-  it('places an interval repeat on its beat', () => {
-    const cat = row({ id: 'cat', recurrence: { kind: 'interval', days: 2, anchor: '2026-08-10' } });
-    expect(onSharedListOn(cat, iso(MON), MON)).toBe(true);
-    expect(onSharedListOn(cat, iso(TUE), TUE)).toBe(false);
-  });
-
-  it('honours a daily repeat that has not started yet', () => {
+  it('keeps a not-yet-started repeat on the list too', () => {
     const later = row({ id: 'later', recurrence: { kind: 'daily', start: '2026-08-11' } });
-    expect(onSharedListOn(later, iso(MON), MON)).toBe(false);
-    expect(onSharedListOn(later, iso(TUE), TUE)).toBe(true);
+    expect(onSharedListOn(later, iso(MON), MON)).toBe(true);
   });
 
   // The landmine. isDueOn on an unreadable repeat falls through to kind 'none', reads a `due`
@@ -620,23 +617,36 @@ describe('which shared rows belong on YOUR Today', () => {
   });
 });
 
-describe('the count the door on Today carries', () => {
+describe('what can be ticked in the room today', () => {
   const TUE = new Date(2026, 7, 11);
   const ISO = '2026-08-11';
   const task = (over: Partial<SharedTask>): SharedTask => ({ id: 'x', title: 't', done: false, createdAt: 1, updatedAt: 1, ...over });
 
-  it('counts what is open in the room, dated or not', () => {
-    const rows = [
-      task({ id: '1' }),
-      task({ id: '2', due: ISO }),
-      task({ id: '3', done: true, completions: { on: { [ISO]: 9 } } }), // finished today
-      task({ id: '4', deletedAt: 5 }), // removed
-    ];
-    expect(openInRoom(rows, ISO, TUE)).toBe(2);
+  // The other half of the split: on the list every day, finishable only on its own. Ticking "every
+  // Monday" on a Thursday would write a completion for THURSDAY into the shared log, which then
+  // reads as un-ticked on the Monday it was actually for.
+  it('lets a repeat be ticked on its day and refuses it on any other', () => {
+    const MON = new Date(2026, 7, 10);
+    const bins = task({ id: 'bins', recurrence: { kind: 'weekly', weekdays: [1] } });
+    expect(tickableInRoom(bins, '2026-08-10', MON)).toBe(true);
+    expect(tickableInRoom(bins, ISO, TUE)).toBe(false);
   });
 
-  it('is zero for an empty room', () => {
-    expect(openInRoom([], ISO, TUE)).toBe(0);
+  it('refuses a repeat before it has started', () => {
+    expect(tickableInRoom(task({ id: 'l', recurrence: { kind: 'daily', start: '2026-08-20' } }), ISO, TUE)).toBe(false);
+  });
+
+  // Every done-helper treats a cadence it cannot read as a one-off, so one tap would mark a
+  // repeating task finished forever, for both people.
+  it('never lets an unreadable cadence be ticked, on any day', () => {
+    const odd = task({ id: 'odd', rawRecurrence: { kind: 'lunar' } });
+    expect(tickableInRoom(odd, ISO, TUE)).toBe(false);
+    expect(onSharedListOn(odd, ISO, TUE)).toBe(true); // but never hidden
+  });
+
+  it('lets an ordinary one-off be ticked any day, and never a removed row', () => {
+    expect(tickableInRoom(task({ id: 'milk' }), ISO, TUE)).toBe(true);
+    expect(tickableInRoom(task({ id: 'gone', deletedAt: 5 }), ISO, TUE)).toBe(false);
   });
 });
 

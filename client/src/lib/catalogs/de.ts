@@ -385,6 +385,7 @@ export const de: Catalog = {
     repeat: 'Wiederholen…',
     repeatNote: 'Ihr seht sie beide an ihrem Tag.',
     repeatUnknown: 'In einem Rhythmus, den diese Version noch nicht lesen kann. Sie ist sicher, und nach einem Update erscheint sie wieder an ihren Tagen.',
+    tickOnItsDay: "an ihrem Tag abhakbar",
     report: 'Diese Liste melden',
     reportHint: 'Das geht nur an uns. Deiner Person wird nichts gesagt, und auf ihrem Bildschirm ändert sich nichts.',
     reportedBody: 'Danke. Wir haben es und schauen es uns an. Deiner Person wurde nichts gesagt.',

@@ -381,6 +381,7 @@ export const fr: Catalog = {
     repeat: 'Répéter…',
     repeatNote: 'Vous la verrez tous les deux le jour venu.',
     repeatUnknown: "Sur un rythme que cette version ne sait pas encore lire. Rien n'est perdu, et elle réapparaîtra à ses jours après une mise à jour.",
+    tickOnItsDay: "à cocher le jour venu",
     report: 'Signaler cette liste',
     reportHint: "Cela ne va qu'à nous. Ta personne n'en sait rien, et rien ne change sur son écran.",
     reportedBody: "Merci. Nous l'avons et nous allons regarder. Ta personne n'a pas été prévenue.",

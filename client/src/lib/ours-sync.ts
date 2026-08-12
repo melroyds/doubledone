@@ -245,23 +245,40 @@ export function isUnreadableRepeat(task: SharedTask): boolean {
  * promised "You'll both see it on its day." Worse, it was tappable on a day it was not due, which
  * wrote a completion for that date into the SHARED log and still read as un-ticked on the real day.
  *
- * Three shapes, and the whole difficulty is that the obvious one-liner breaks two of them:
+ * REVISED after the pre-merge audit, which caught the over-correction. Placing a readable repeat by
+ * its cadence HERE meant "every Monday" was invisible in the room six days a week: you could not
+ * find it to edit it, could not remove it, and a household whose shared list is only repeats was
+ * told "Nothing here yet" on a list with things on it. That is the same vanishing the tombstone
+ * rule exists to prevent, one function along.
  *
- *   · A READABLE repeat is placed by its cadence, through the same `isDueOn` the personal list uses.
- *   · An UNREADABLE cadence (a newer build wrote it) is ALWAYS shown and never due. Handing it to
- *     `isDueOn` would fall through to `kind: 'none'`, read a `due` field shared rows do not have,
- *     and hide it. Hiding is the one thing that decision forbids: each person would think the other
- *     had deleted it.
- *   · A ONE-OFF has no recurrence and no `due` either, so `isDueOn` would hide every one of them.
- *     They keep the day-boundary rule instead.
+ * The fix is to stop conflating two questions. THE ROOM IS THE LIST, so everything on the list
+ * belongs here. WHICH DAY a repeat is due is `sharedDueOn`'s question, and it answers it for Today.
+ * The room shows the row every day and lets you tick it only on its own, with the reason on the row
+ * (see `inert` in ours-list). Both halves of the original worry are covered: nothing hides, and a
+ * tap on a wrong day still cannot write a completion for a date the repeat was never due.
+ *
+ * So: a row is on the list unless it has been REMOVED. That is the whole rule, and it matches what
+ * a shared list actually is.
  */
-export function onSharedListOn(task: SharedTask, date: string, when: Date): boolean {
-  if (task.deletedAt) return false;
-  if (isUnreadableRepeat(task)) return true; // shown, never placed, never due
+export function onSharedListOn(task: SharedTask, date: string, _when?: Date): boolean {
+  return stillOnList(task, date);
+}
+
+/**
+ * Can this row be ticked TODAY, in the room?
+ *
+ * Separate from being on the list, and that separation is the point. A repeat is on the list every
+ * day and finishable only on its own: ticking "every Monday" on a Thursday writes a completion for
+ * Thursday into the SHARED log, which then reads as un-ticked on the Monday it was actually for.
+ * An unreadable cadence is never tickable at all, because every done-helper would treat it as a
+ * one-off and mark a repeating task finished forever, for both of you.
+ */
+export function tickableInRoom(task: SharedTask, date: string, when: Date): boolean {
+  if (task.deletedAt || isUnreadableRepeat(task)) return false;
   if (task.recurrence !== undefined && task.recurrence.kind !== 'none') {
     return isDueOn({ recurrence: task.recurrence }, when);
   }
-  return stillOnList(task, date);
+  return true;
 }
 
 /**
@@ -316,17 +333,6 @@ export function sharedDueOn(task: SharedTask, date: string, when: Date): boolean
     return isDueOn({ recurrence: task.recurrence }, when);
   }
   return typeof task.due === 'string' && task.due <= date;
-}
-
-/**
- * How many rows are OPEN in the room on this date: the number the door on Today carries.
- *
- * Open means on the list and not finished for the day. It counts everything the room is holding,
- * including rows already surfaced on Today, because the door answers "what is over there" and the
- * honest answer to that does not change depending on what else you can see from here.
- */
-export function openInRoom(tasks: SharedTask[], date: string, when: Date): number {
-  return tasks.filter((task) => onSharedListOn(task, date, when) && !isSharedDoneOn(task, date)).length;
 }
 
 export const PAGE_SIZE = 500;

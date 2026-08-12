@@ -381,6 +381,7 @@ export const es: Catalog = {
     repeat: 'Repetir…',
     repeatNote: 'Los dos la veréis el día que toque.',
     repeatUnknown: 'Con un ritmo que esta versión aún no sabe leer. Está a salvo, y aparecerá en sus días tras una actualización.',
+    tickOnItsDay: "puedes marcarla en su día",
     report: 'Denunciar esta lista',
     reportHint: 'Esto nos llega solo a nosotros. A tu persona no se le dice nada, y en su pantalla no cambia nada.',
     reportedBody: 'Gracias. Lo tenemos y lo miraremos. A tu persona no se le ha dicho nada.',

@@ -19,7 +19,7 @@ import { t } from '@/lib/locale';
 import { makeSharedRef, pulledFrom } from '@/lib/ours-bridge';
 import { loadMyPairs, type MyPair, syncClock } from '@/lib/ours-api';
 import { isSharedDoneOn, setSharedDone, type SharedTask, washedSince } from '@/lib/ours-merge';
-import { isUnreadableRepeat, onSharedListOn, POLL_MS, cadenceLine, shouldPoll, syncPairOnce, willTrim } from '@/lib/ours-sync';
+import { isUnreadableRepeat, onSharedListOn, POLL_MS, cadenceLine, shouldPoll, syncPairOnce, tickableInRoom, willTrim } from '@/lib/ours-sync';
 import { clearOursMine, loadOursMine, loadOursSeen, loadOursTasks, loadTasks, markOursSeen, noteOursMine, pruneOursCache, saveOursTasks, saveTasks } from '@/lib/storage';
 import { usePremium } from '@/lib/premium-provider';
 import { supabase } from '@/lib/supabase';
@@ -546,9 +546,13 @@ export default function OursListScreen() {
     // A cadence this build cannot read has NO recurrence object, so every done-helper treats it as a
     // one-off: one tap would mark it finished forever, for both of you, on a task that was supposed
     // to come back. Inert is the only honest state, and the line under the row says why.
-    if (!found || isUnreadableRepeat(found) || isPairFrozen(pair)) return;
-    const now = nowMs();
-    void commit(tasks.map((task) => (task.id === id ? setSharedDone(task, today, !isSharedDoneOn(task, today), now) : task)));
+    // Not due today is a refusal too, and a quiet one: a tick on a wrong day writes a completion for
+    // THAT date into the shared log, which then reads as un-ticked on the day it was really for.
+    if (!found || isPairFrozen(pair) || !tickableInRoom(found, today, now)) return;
+    // `stamp`, not `now`: the outer `now` is the render's Date and the guard above reads it. A local
+    // `const now` here shadowed it into the temporal dead zone.
+    const stamp = nowMs();
+    void commit(tasks.map((task) => (task.id === id ? setSharedDone(task, today, !isSharedDoneOn(task, today), stamp) : task)));
   }
 
   /** Removal is a tombstone, never a delete: it is how the removal reaches the other person at all,
@@ -580,7 +584,7 @@ export default function OursListScreen() {
     const stamp = nowMs();
     void commit(
       tasks.map((task) =>
-        set.has(task.id) && !isUnreadableRepeat(task) && !isSharedDoneOn(task, today)
+        set.has(task.id) && tickableInRoom(task, today, now) && !isSharedDoneOn(task, today)
           ? setSharedDone(task, today, true, stamp)
           : task,
       ),
@@ -641,9 +645,21 @@ export default function OursListScreen() {
   function setCadence(id: string, title: string, recurrence: Recurrence) {
     const now = nowMs();
     setCadenceId(null);
+    // The 500-character cap, said BEFORE the save. `rename` has always warned; this path did not,
+    // so editing a long title inside the cadence sheet let the server clamp it silently and the
+    // words vanished from the person's own screen a second later. Same rule, both doors.
+    if (willTrim(title)) setNotice(t('ours.shareTrim'));
     // A dated one-off and a repeat are mutually exclusive everywhere else in this app (the API
-    // enforces it, MCP enforces it), so setting a rhythm clears any raw cadence a newer build left.
-    void commit(tasks.map((task) => (task.id === id ? { ...task, title, recurrence, rawRecurrence: undefined, updatedAt: now } : task)));
+    // enforces it, MCP enforces it), so setting a rhythm clears any raw cadence a newer build left
+    // AND any date the row was carrying. Leaving `due` in place gave the row two contradictory
+    // schedules: `sharedDueOn` answers on the recurrence, but the room drew the stale date, and the
+    // never-both invariant this app states everywhere quietly stopped being true on the one surface
+    // two people read.
+    void commit(
+      tasks.map((task) =>
+        task.id === id ? { ...task, title, recurrence, rawRecurrence: undefined, due: null, updatedAt: now } : task,
+      ),
+    );
   }
 
   /** Put a removed row back. Seven days, and it is the whole reason removal is a tombstone. */
@@ -749,7 +765,15 @@ export default function OursListScreen() {
               /* A cadence this build cannot read stays INERT: re-cadencing it would overwrite
                  whatever a newer build meant, on a list somebody else also keeps. */
               onRepeat={frozen || isUnreadableRepeat(task) ? undefined : () => setCadenceId(task.id)}
-              inert={frozen ? t('ours.frozenRow') : isUnreadableRepeat(task) ? t('ours.repeatUnknown') : undefined}
+              inert={
+                frozen
+                  ? t('ours.frozenRow')
+                  : isUnreadableRepeat(task)
+                    ? t('ours.repeatUnknown')
+                    : tickableInRoom(task, today, now)
+                      ? undefined
+                      : t('ours.tickOnItsDay')
+              }
               /* The shared list has no per-day skip, so Remove must not borrow "Skip today": it ends
                  the repeat, for both of you. The label says what the button does. */
               removesWholeSeries

@@ -123,9 +123,14 @@ export function removedOrigins(tasks: Task[], shared: SharedTask[], pairId: stri
  * that vanishes is the "did I delete that?" loop this app exists to avoid. The note was a patch over
  * a disappearance that should not have been happening.
  *
- * It is marked done WITHOUT `completedAt`, which keeps it out of Lookback by construction. Today is
- * what is on your plate, and it genuinely is off. Lookback is what YOU finished, and its whole value
- * is that it is true.
+ * IT IS MARKED DONE **WITH** `completedAt`, and this paragraph used to claim the exact opposite,
+ * "by construction" and all. Melroy reversed it on 2026-08-11 ("a win counts for both people, not
+ * just one") and the claim survived the change, sitting in the pure, tested layer where a rule looks
+ * authoritative while the actual policy lives in a screen file. A "by construction" sentence is the
+ * kind a future reader stops verifying, which is exactly why a stale one is worse than none.
+ *
+ * The policy lives in today.tsx's settle, deliberately: what enters your Lookback is a product
+ * decision about your week, not a property of this matching function.
  *
  * A REMOVED shared row deliberately does not trigger this. Removal is not completion, and your copy
  * is your own task now; nobody else's tidying should reach into your day.
