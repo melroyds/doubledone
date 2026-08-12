@@ -6526,3 +6526,31 @@ deletion so the app can keep mentioning it is its own kind of creepy.
 of the 18-space one, so a single replace hit both render paths and then the second replace hit one of
 them again, giving a row two `note` attributes. Typecheck caught it immediately. Worth recording
 because indentation-anchored replacements look precise and are not.
+
+## 2026-08-12 The row note was never visible to anybody, and had not been for as long as it existed
+
+Melroy, after I shipped the removed-from-Ours indicator: "I don't see the outline you're referring
+to? I deleted both those tasks from the Ours list."
+
+`TaskRow`'s `note` prop appeared in exactly three places: the type, the destructure, and **the
+accessibility label**. It was never rendered. So my new "no longer on <list>" line was spoken to
+screen readers and shown to nobody, and so was the ROOM'S WASH TEXT ("changed since you looked"),
+which has been in that state since the day it was written.
+
+The prop's own comment claimed it was "a state worth SAYING as well as showing... so it is never
+colour-only". That is the whole defect in one sentence: **a stated intention that nothing
+implemented**, sitting there reassuring every reader including me. The wash therefore shipped as
+colour-only, which is precisely what the comment existed to prevent, and an accessibility promise
+was made in a comment rather than in a component.
+
+**Fixed by rendering it**: the row's content moves into a `rowMain` line and the note takes a quiet
+second line beneath, so a note can exist without every mark on the first line reflowing around it.
+
+**Verified by controlled comparison, not by looking once.** Changing `row` from a flex ROW to a
+COLUMN touches every task row in the app, so I measured three rows (plain, "big" with a long title,
+repeating), stashed the change, reloaded, and measured the same three again. Before: 61 / 81 / 60.
+After: 62 / 82 / 60. A pixel of rounding from the extra nesting.
+
+That mattered more than it sounds. The 81px row wraps to two lines, and had I only measured AFTER I
+would have "discovered" a regression that was pre-existing and gone chasing it. **A layout change
+needs a before, not just an after.**

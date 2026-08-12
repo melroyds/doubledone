@@ -25,7 +25,7 @@ type Props = {
   onBreakdown?: () => void;
   plain?: boolean; // drop the one-off (periwinkle) border. On Today it separates one-offs from repeats; on a list that is almost ALL one-offs it lands on every row and separates nothing
   washed?: boolean; // changed since you last looked (the shared list): the row's OWN surface warms and its OWN border firms, never a second ring drawn around it
-  note?: string; // a state worth SAYING as well as showing (the shared list's quiet wash), folded into the row's spoken label so it is never colour-only
+  note?: string; // a state worth SAYING as well as showing: rendered as a quiet second line AND folded into the spoken label, so it is never colour-only and never screen-reader-only
   inert?: string; // this row cannot be ticked, and this is why: the reason travels WITH the control, so a screen reader hears it and a tap is never silently dead
   removesWholeSeries?: boolean; // the caller's Remove tombstones the SERIES, so it must not borrow the "Skip today" label
   onRepeat?: () => void; // held-state, SHARED rows only: set this row's rhythm, through THE cadence sheet
@@ -690,16 +690,27 @@ export function TaskRow({
       accessibilityLabel={rowLabel}
     >
       <Animated.View pointerEvents="none" style={[styles.washLayer, { opacity: washFade }]} />
-      <CheckCircle done={done} />
-      {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
-      <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
-      {/* Your copy is marked, the shared row is NOT. Any marker over there would be attribution
-          through the side door: "somebody pulled this" is one inference from "somebody". */}
-      {origin ? <Text style={styles.originMark} accessible={false} importantForAccessibility="no">{origin}</Text> : null}
-      {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
-      {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
-      {/* the pin star sits last, at the extreme right, so it stays the clear cue beside any other mark */}
-      {pinned ? <Text style={styles.pinStar} accessible={false} importantForAccessibility="no">★</Text> : null}
+      <View style={styles.rowMain}>
+        <CheckCircle done={done} />
+        {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
+        <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
+        {/* Your copy is marked, the shared row is NOT. Any marker over there would be attribution
+            through the side door: "somebody pulled this" is one inference from "somebody". */}
+        {origin ? <Text style={styles.originMark} accessible={false} importantForAccessibility="no">{origin}</Text> : null}
+        {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
+        {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
+        {/* the pin star sits last, at the extreme right, so it stays the clear cue beside any other mark */}
+        {pinned ? <Text style={styles.pinStar} accessible={false} importantForAccessibility="no">★</Text> : null}
+      </View>
+      {/* THE NOTE, and until now it has never been visible to anybody.
+          The prop existed, two screens passed it, and the only thing that ever consumed it was the
+          accessibility label, so the room's "changed since you looked" and the new "no longer on
+          <list>" were spoken to screen readers and shown to nobody. Its own comment claimed "in
+          WORDS as well as colour", which is the shape of the whole defect: a stated intention that
+          nothing implemented. Melroy found it the only way it could be found, by looking.
+          `accessible={false}` because the words are already inside the row's spoken label; rendering
+          them again here would read the row's state out twice. */}
+      {note ? <Text style={styles.rowNote} accessible={false} importantForAccessibility="no">{note}</Text> : null}
     </Pressable>
   );
 }
@@ -711,10 +722,22 @@ const makeStyles = (t: Theme) => {
   const heroText = t.appearance === 'quiet' ? t.colors.accent : t.scheme === 'dark' ? t.colors.accent : t.colors.onAccent;
   return StyleSheet.create({
     // Quiet strips the card to whitespace + a 5%-ink bottom hairline; standard keeps the soft floating card.
+    // The row's CONTENT line. Everything that used to sit directly on `row` lives here now, so a
+    // note can take a second line without every mark on the first one re-flowing around it.
+    rowMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four, alignSelf: 'stretch' },
+    // Quiet, and in the body colour: this is a fact about the row, not an alarm about it.
+    rowNote: {
+      color: t.colors.inkFaint,
+      fontSize: 13 * t.scale,
+      fontFamily: fonts.body,
+      marginTop: spacing.one,
+      // Clear of the check circle, so it reads as belonging to the title rather than to the control.
+      marginLeft: 24 + spacing.four,
+    },
     row: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.four,
+      flexDirection: 'column',
+      alignItems: 'flex-start',
+      gap: 0,
       ...(t.appearance === 'quiet'
         ? // Match standard's vertical padding so toggling appearance never reflows the list (the spec's
           // top principle "switching never moves anything" wins over its literal 12px, which did not match

@@ -1128,6 +1128,12 @@ CASES = [
     ("OUR-94", "Ours", "P3", "The line goes quiet after the tombstone sweep, rather than guessing",
      "More than seven days after a removal (or with the tombstone swept), check the copy.",
      "No line. A swept origin is indistinguishable from one never pulled, and keeping a permanent record of a deletion so the app can keep mentioning it is its own kind of creepy. Accepted limit, not a bug.", "Both"),
+    ("OUR-95", "Ours", "P1", "A row's note is VISIBLE, not only spoken",
+     "Trigger any row note: have B change a row (the room's wash) or remove a shared row you hold a copy of (Today).",
+     "The words appear as a quiet second line under the title. Before 2026-08-12 the note prop reached only the accessibility label, so every one of these lines was spoken to screen readers and shown to nobody, for as long as the prop had existed.", "Both"),
+    ("OUR-96", "Ours", "P2", "Rows WITHOUT a note are unchanged",
+     "Compare a plain row, a 'big' row and a repeating row against a build before the note landed.",
+     "Same height to within a pixel. The note gave TaskRow a second line, and a row that has no note must not gain one, shift, or reflow.", "Both"),
     # --- Check for updates ------------------------------------------------------
     ("UPD-01", "Updates", "P1", "Settings states the version, and up-to-date is a fact",
      "Open Settings and scroll to the foot.",
