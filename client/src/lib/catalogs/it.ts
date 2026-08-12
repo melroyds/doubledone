@@ -358,7 +358,7 @@ export const it: Catalog = {
     joined: 'Ora condividi questa lista con {name}.',
     keepIt: 'Conservala',
     keptWith: 'Condivisa con {name}',
-    lead: 'Una lista che tenete in due. Da qui non finisce niente nel tuo Oggi se non ce lo metti tu.',
+    lead: "Una lista che tenete in due. Ciò che ha un giorno arriva su entrambi i vostri Oggi. Il resto resta qui.",
     leave: 'Esci da questa lista',
     leaveAloneHint: "Non è entrato nessuno, quindi non c'è niente da chiudere. Il codice smette di funzionare.",
     leaveHint: 'Non si perde niente. Si chiude per te e per la tua persona, ma potete ancora leggere tutto.',
@@ -1136,8 +1136,10 @@ export const it: Catalog = {
     trustLine: 'Gratis. Nessun account. Funziona offline.',
   },
   whatsnew: {
-    line1: 'Settle: una stanza per respirare, sotto gli strumenti della giornata. Gratis, per sempre.',
-    line2: 'Sei in prova gratuita? Ora puoi scegliere il piano annuale quando ti abboni.',
+    line1: 'La nostra lista: una lista che tenete in due. Gratis, per sempre.',
+    line2: 'Fatto è fatto. Niente registra chi lo ha fatto, quindi non può diventare una classifica.',
+    line3: "Quello che ha un giorno compare nell'Oggi di entrambi. Il resto resta sulla lista, così la tua giornata resta tua.",
+    line4: 'Sta arrivando a poche case per volta, e si trova nel Menu.',
     title: 'Novità',
   },
   widget: {

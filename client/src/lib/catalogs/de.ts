@@ -362,7 +362,7 @@ export const de: Catalog = {
     joined: 'Du teilst diese Liste jetzt mit {name}.',
     keepIt: 'Behalten',
     keptWith: 'Geteilt mit {name}',
-    lead: 'Eine Liste, die ihr zu zweit führt. Nichts davon landet in deinem Heute, außer du legst es selbst dorthin.',
+    lead: "Eine Liste, die ihr beide führt. Was einen Tag hat, erscheint in beiden Heute. Alles andere bleibt hier.",
     leave: 'Diese Liste verlassen',
     leaveAloneHint: 'Es ist niemand dabei, also gibt es nichts zu schließen. Der Code funktioniert dann nicht mehr.',
     leaveHint: 'Es geht nichts verloren. Damit ist die Liste für euch beide geschlossen, lesen könnt ihr aber weiterhin alles.',
@@ -1140,8 +1140,10 @@ export const de: Catalog = {
     trustLine: 'Kostenlos. Kein Konto nötig. Funktioniert offline.',
   },
   whatsnew: {
-    line1: 'Settle: ein Raum zum Durchatmen, unter den Werkzeugen des Tages. Kostenlos, für immer.',
-    line2: 'Gerade im Gratismonat? Beim Umstieg kannst du jetzt auch das Jahresabo wählen.',
+    line1: 'Unsere Liste: eine Liste, die ihr zu zweit führt. Kostenlos, für immer.',
+    line2: 'Erledigt ist einfach erledigt. Nirgends steht, wer es war, also wird daraus nie ein Wettbewerb.',
+    line3: 'Was einen Tag hat, erscheint bei euch beiden im Heute. Der Rest bleibt auf der Liste, damit dein Tag deiner bleibt.',
+    line4: 'Sie kommt nach und nach zu weiteren Haushalten, und sie steht im Menü.',
     title: 'Was ist neu',
   },
   widget: {

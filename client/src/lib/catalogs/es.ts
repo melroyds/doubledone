@@ -358,7 +358,7 @@ export const es: Catalog = {
     joined: 'Ya estás compartiendo con {name}.',
     keepIt: 'Conservarla',
     keptWith: 'Compartida con {name}',
-    lead: 'Una lista que llevas con tu persona. Nada de aquí aparece en tu Hoy a menos que lo pongas tú.',
+    lead: "Una lista que cuidáis los dos. Lo que tiene día llega a vuestros dos Hoy. Lo demás se queda aquí.",
     leave: 'Salir de esta lista',
     leaveAloneHint: 'No se ha unido nadie, así que no hay nada que cerrar. El código deja de funcionar.',
     leaveHint: 'No se pierde nada. Se cierra para los dos, y todo se puede seguir leyendo.',
@@ -1136,8 +1136,10 @@ export const es: Catalog = {
     trustLine: 'Gratis. Sin cuenta. Funciona sin conexión.',
   },
   whatsnew: {
-    line1: 'Settle: una sala para respirar, entre las herramientas del día. Gratis, siempre.',
-    line2: '¿Estás en el mes de prueba? Ahora puedes elegir el plan anual al suscribirte.',
+    line1: 'Nuestra lista: una lista que llevas con tu persona. Gratis, siempre.',
+    line2: 'Lo hecho está hecho, sin más. Nada registra quién lo hizo, así que no puede volverse un marcador.',
+    line3: 'Lo que tiene día aparece en el Hoy de los dos. El resto se queda en la lista, para que tu día siga siendo tuyo.',
+    line4: 'Va llegando a unos pocos hogares cada vez, y está en el Menú.',
     title: 'Novedades',
   },
   widget: {

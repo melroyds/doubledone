@@ -6601,3 +6601,39 @@ halves of the original worry are covered, and it only became possible because `i
 and the prose had not. The worst was `settleSharedCopies`'s docstring, the first thing a reader hits,
 still describing the pre-reversal "leave the day, never enter Lookback" on the most emotionally
 load-bearing rule the feature has.
+
+## 2026-08-12 The launch-copy panel, and a claim I had been making that is not quite true
+
+Melroy: "the next important thing is a copy check, not for correctness but to make sure this brand
+new feature is rightfully lauded and advertised. This includes the landing splash page."
+
+Five surfaces drafted and each checked three independent ways (is it TRUE of the code, is it in
+VOICE, does it actually SELL). 20 agents. The drafts are being applied surface by surface; three
+findings landed before any of that, because they are facts rather than words.
+
+**1. A LIVE FALSE CLAIM, fixed here.** `ours.lead` read "A list you both keep. Nothing here ever
+lands on your Today unless you put it there." Tier 1 made that false this morning: a dated or
+repeating shared row now arrives on both Todays by itself. It renders in TWO places (`ours.tsx` and
+`settings.tsx`), so the app was stating the opposite of its own newest behaviour on the screen that
+introduces the feature. It now says what is true, and does the selling at the same time: "Things with
+a day arrive on both your Todays. Everything else stays here."
+
+That is the third time in two days a shipped string outlived the behaviour it described. The pattern
+is now unmistakable: a reversal lands in code and its prose is somewhere else in the tree.
+
+**2. A CLAIM OF MINE THAT IS OVERSTATED, and I have repeated it all day.** I have been saying, in
+commit messages and to Melroy, that "no data anywhere records who did what". Completion genuinely is
+unattributed: `done_at` is a time, `completions` is a per-date log, and `ours-sync.test.ts` bans
+`done_by` / `completed_by` / `created_by` from ever being sent. But `shared_tasks.created_by` DOES
+exist (ours.sql:142), server-stamped by a trigger, kept as the only evidence an abuse report could
+carry. The client never sends it and never reads it.
+
+So the defensible sentence, and the one the store copy will use, is **"nothing on it says who did
+what"**, not "no such data exists". The difference matters most in exactly the place I was about to
+put it: a public claim about privacy.
+
+**3. THE FEATURE CANNOT BE ADVERTISED YET, and this is a gate on the whole exercise rather than a
+copy note.** `create_pair_invite` (ours.sql:514) raises 42501 unless the caller's email is in
+`ours_allowlist`, populated by hand. JOINING with a code is not gated; STARTING a list is. So a
+person who reads a store listing, downloads the app and tries to make a shared list gets a refusal.
+The store copy is drafted and must not ship until the allowlist check and table are dropped.

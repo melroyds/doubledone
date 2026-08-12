@@ -362,7 +362,7 @@ export const en = {
     joined: "You're now sharing with {name}.",
     keepIt: 'Keep it',
     keptWith: 'Kept with {name}',
-    lead: 'A list you both keep. Nothing here ever lands on your Today unless you put it there.',
+    lead: "A list you both keep. Things with a day arrive on both your Todays. Everything else stays here.",
     leave: 'Leave this list',
     leaveAloneHint: 'Nobody has joined, so there is nothing to close. The code stops working.',
     leaveHint: 'Nothing is lost. It closes for both of you, and you can both still read everything.',
@@ -1141,8 +1141,10 @@ export const en = {
     trustLine: 'Free. No account needed. Works offline.',
   },
   whatsnew: {
-    line1: 'Settle: a breathing room, under the day tools. Free, always.',
-    line2: 'On a free trial? You can now choose the annual plan when you convert.',
+    line1: 'Ours: a list two people keep together. Free, always.',
+    line2: 'A finished thing is just finished. Nothing records who did it, so it cannot become a scoreboard.',
+    line3: 'Anything with a day comes to both your Todays. The rest waits on the list, so your day stays yours.',
+    line4: 'It is arriving a few households at a time, and it lives in the Menu.',
     title: "What's new",
   },
   widget: {
