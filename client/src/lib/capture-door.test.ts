@@ -75,40 +75,52 @@ describe('addButtonLabel', () => {
   });
 });
 
-// A DAYLESS surface: the shared list, which is a list two people keep rather than a day one person
-// is getting through. The WHEN row is not rendered there, so the door's language must not mention a
-// day either. If it did, the summary would read "Today" on a list that has no today, and the button
-// would promise a day nothing in the room could keep.
-describe('a whenless door (the shared list)', () => {
-  it('says the calm default out loud rather than rendering an empty line', () => {
-    expect(doorSummary(state({ whenless: true }), TODAY)).toBe('No repeat');
+// THE SHARED LIST, whose resting answer to "when" is Anytime rather than Today. Most of a household
+// list has no day (milk, batteries, ask about the gutter) and must never become somebody's morning;
+// picking a day there is the deliberate exception and means the row appears on BOTH your Todays.
+describe('an anytime-default door (the shared list)', () => {
+  const shared = (over: Partial<DoorState> = {}) => state({ whenDefault: 'anytime', when: 'anytime', ...over });
+
+  it('names the dayless answer in the app voice', () => {
+    expect(whenLabel(shared(), TODAY)).toBe('Anytime');
+    expect(doorSummary(shared(), TODAY)).toBe('Anytime');
   });
 
-  it('names only the cadence once one is set', () => {
-    expect(doorSummary(state({ whenless: true, repeat: 'daily' }), TODAY)).toBe('Daily');
-    expect(doorSummary(state({ whenless: true, repeat: 'weekly', weekdays: [1, 3] }), TODAY)).toBe('Weekly on Mo, We');
+  // "Anytime · Daily" is a contradiction read aloud: a thing with a rhythm is not a thing without a
+  // day, and the rhythm is the more useful half.
+  it('lets a repeat SUPERSEDE the dayless answer rather than joining it', () => {
+    expect(doorSummary(shared({ repeat: 'daily' }), TODAY)).toBe('Daily');
+    expect(doorSummary(shared({ repeat: 'weekly', weekdays: [2] }), TODAY)).toBe('Weekly on Tu');
   });
 
-  // The whole point of the flag: the same state reads differently on a surface that has days.
-  it('drops the when that a day-shaped surface would show', () => {
+  // Elsewhere the when IS the repeat's start, which is worth saying, so the rule must stay local to
+  // the dayless case and not quietly change the other screen.
+  it('still joins when and repeat on a day-shaped surface', () => {
     expect(doorSummary(state({ repeat: 'daily' }), TODAY)).toBe('Today · Daily');
-    expect(doorSummary(state({ whenless: true, repeat: 'daily' }), TODAY)).toBe('Daily');
+    expect(doorSummary(state({ when: 'tomorrow', repeat: 'daily' }), TODAY)).toBe('Tomorrow · Daily');
   });
 
-  // Belt and braces. Such a surface cannot leave `when` on anything but 'today', but the button is
-  // the last thing read before a tap lands, so it must be incapable of promising a day regardless.
-  it('never puts a day on the Add button, even if `when` somehow moved', () => {
-    expect(addButtonLabel(state({ whenless: true, when: 'tomorrow' }), TODAY, 1)).toBe('Add');
-    expect(addButtonLabel(state({ whenless: true, when: 'date' }), TODAY, 1)).toBe('Add');
-    expect(addButtonLabel(state({ whenless: true, when: 'tomorrow', repeat: 'daily' }), TODAY, 1)).toBe('Add · Daily');
+  it('picks a real day out when one is chosen', () => {
+    expect(doorSummary(shared({ when: 'today' }), TODAY)).toBe('Today');
+    expect(doorSummary(shared({ when: 'date' }), TODAY)).toBe(AUG2);
+  });
+
+  // The button names what is UNUSUAL about this capture, measured against the surface's own resting
+  // answer. Comparing against a hard-coded 'today' would make every ordinary shared add read
+  // "Add · Anytime", which is a label shouting about the absence of a choice.
+  it('stays quiet for the resting answer and speaks up for a chosen day', () => {
+    expect(addButtonLabel(shared(), TODAY, 1)).toBe('Add');
+    expect(addButtonLabel(shared({ when: 'today' }), TODAY, 1)).toBe('Add · Today');
+    expect(addButtonLabel(shared({ when: 'tomorrow' }), TODAY, 1)).toBe('Add · Tomorrow');
+    expect(addButtonLabel(shared({ repeat: 'daily' }), TODAY, 1)).toBe('Add · Daily');
+  });
+
+  it('leaves the day-shaped surface reading exactly as before', () => {
+    expect(addButtonLabel(state(), TODAY, 1)).toBe('Add');
+    expect(addButtonLabel(state({ when: 'tomorrow' }), TODAY, 1)).toBe('Add · Tomorrow');
   });
 
   it('still carries the line count of a dump', () => {
-    expect(addButtonLabel(state({ whenless: true }), TODAY, 4)).toBe('Add 4');
-  });
-
-  // Steps are off on that surface too, but the summary is shared code and a caller could pass both.
-  it('keeps steps out of the summary only when there are none', () => {
-    expect(doorSummary(state({ whenless: true, steps: 3 }), TODAY)).toBe('3 steps');
+    expect(addButtonLabel(shared(), TODAY, 4)).toBe('Add 4');
   });
 });

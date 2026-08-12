@@ -6286,3 +6286,53 @@ fridge, and the rows are the only shared artefact.
 **The gate is tagged apart** (`reason: 'ocr_ours'`, not `'ocr'`). A paywall met on a surface a second
 person can see is a genuinely different moment from one met alone, and whether the shared list
 converts is a question worth being able to answer rather than guess.
+
+## 2026-08-12 A shared row with a DAY comes to your Today by itself (Tier 1)
+
+**The complaint, in Melroy's words:** "I am not a fan of the UX where I have to manually decide what
+gets added to my list for today from the Ours list. The whole point is visibility and ease of use."
+
+He is right, and the failure mode is specific to this audience: a second place you have to remember
+to check is a place you do not check. Making every crossing manual turned the shared list into
+exactly that.
+
+**Decided against: everything on Ours appearing on Today.** That hands another person write access
+to your day. Your partner adds eight things to the shopping list and your morning is eight heavier
+without you agreeing to any of it, which is the overwhelm this app exists to prevent and a direct
+breach of the one promise Today makes.
+
+**Decided: the dividing line is whether the row has a DAY** (`sharedDueOn`).
+
+  - A REPEAT is due on the days you two set. Bin night IS Tuesday's business for whoever is home,
+    and fetching it by hand every single Tuesday is precisely the friction complained about.
+  - A DATED one-off is the same without a rhythm, and shows from its day ONWARD. A shared thing
+    nobody did does not stop being one; it would just vanish on the wrong side of midnight.
+  - An UNDATED row stays in the room. The default, the common case, and the load-bearing half.
+
+**The safety property is structural, not a filter.** Shared rows live in their own `sharedTasks`
+state and never enter `tasks`. Everything that decides how heavy today looks (the weight gauge, Plan
+my day, Lighten, the close-the-day count, the Lookback) reads `tasks` or something derived from it,
+so a shared row cannot reach any of them by construction. That is worth far more than a filter
+somebody has to remember to write in six places.
+
+**REVERSED from yesterday: the shared capture now asks WHEN.** Yesterday's `allowWhen={false}` was
+argued from "a shared list is not a day", and that was true then. It stopped being true the moment a
+dated shared row started appearing on both Todays. The room now has days in the only sense that
+matters, so the question is worth asking, with the calm answer pre-selected: **Anytime, Today,
+Tomorrow, Pick a date**, resting on Anytime.
+
+`whenless` became `whenDefault`, which is the better idea anyway: the Add button names the
+consequence only when it differs from THIS SURFACE'S resting answer, so an ordinary shared capture
+reads "Add" and "Add . Today" is the genuinely notable case. Hard-coding 'today' as the comparison
+would have made every ordinary shared add shout about the absence of a choice.
+
+The door's overline is now COMPOSED from the rows a surface actually has, rather than picked from
+pre-written strings, so adding or removing a row can no longer leave the label describing a control
+that is not there. Three catalog keys died with it, across five languages.
+
+**And the parked `due` column is now load-bearing**, which resolves last night's Backlog entry the
+good way: rather than a column nobody read, it is the thing that makes this work.
+
+**Two comments were left actively wrong by this change and are fixed**, including one that told a
+future reader the panel "cannot produce" a due date. That was true for nine hours. A comment stating
+an invariant that has since been reversed is worse than no comment at all.

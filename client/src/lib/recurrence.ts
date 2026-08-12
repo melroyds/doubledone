@@ -80,6 +80,10 @@ function cadenceLabel(r: Recurrence): string {
 // their own start.
 export type CaptureSchedule =
   | { mode: 'today' }
+  // No day at all. Only the shared list offers this, and there it is the DEFAULT: milk and
+  // batteries live in the room and are read when you are going to the shop. It is distinct from
+  // 'today' on that surface, where 'today' means "put this on both our Todays, now".
+  | { mode: 'anytime' }
   | { mode: 'tomorrow' }
   | { mode: 'date'; date: string }
   | { mode: 'daily'; start?: string }
@@ -93,6 +97,7 @@ export function scheduleFields(
 ): { due?: string | null; recurrence?: Recurrence } {
   switch (s.mode) {
     case 'today':
+    case 'anytime':
       return {};
     case 'tomorrow':
       return { due: addDaysISO(today, 1) };

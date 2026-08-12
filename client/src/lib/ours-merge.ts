@@ -48,6 +48,19 @@ export type SharedTask = {
   recurrence?: Recurrence;
   rawRecurrence?: unknown; // a cadence THIS build cannot read, kept verbatim so it is never erased
   completions?: CompletionLog; // per-date tick / un-tick record, by EITHER person, unattributed
+  /**
+   * The day this lands on BOTH your Todays. 'YYYY-MM-DD', local, or absent for the ordinary case.
+   *
+   * Absent is the DEFAULT and the common one: milk, batteries, ask about the gutter. Those live in
+   * the room and are read when you are going to the shop; putting them on a day would be handing
+   * the other person write access to your morning, which is the overwhelm this app exists to
+   * prevent.
+   *
+   * A date is the deliberate exception, for the shared thing that genuinely has a day: the parcel on
+   * Thursday, rent on Friday. A repeat (`recurrence`) is the same idea with a rhythm, and the two are
+   * mutually exclusive in practice for the same reason they are on a personal task.
+   */
+  due?: string | null;
   createdAt: number;
   updatedAt: number;
   deletedAt?: number | null; // tombstone, same convention as tasks

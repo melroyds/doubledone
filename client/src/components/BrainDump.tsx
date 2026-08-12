@@ -36,16 +36,19 @@ type Props = {
   /** Steps (slices). Off on the shared list, whose rows have no `slices` field to store them in. */
   allowSteps?: boolean;
   /**
-   * The WHEN question. Off on the shared list, which is a list two people keep rather than a day
-   * one person is getting through: it has no today, so "Today" on its door would be a word that
-   * means nothing and "Tomorrow" a promise nothing in the room could keep. Repeating still belongs
-   * there (a bin night is a bin night for both of you), which is why this is its own switch.
+   * This surface's RESTING answer to "when". 'today' everywhere except the shared list, which
+   * passes 'anytime' and gains a fourth chip for it.
    *
-   * Deliberately NOT inferred from a missing shared `due` column. The column is the reason it is
-   * off today; the reason it should be off is that a shared list is not a day, and that survives
-   * whatever the schema does next.
+   * Anytime is the shared list's calm default because most of what goes on it has no day: milk,
+   * batteries, ask about the gutter. Those live in the room and are read when you are going to the
+   * shop. Choosing a day there is the deliberate exception, and it means something specific and
+   * worth being deliberate about: the row will appear on BOTH your Todays.
+   *
+   * This REPLACED an `allowWhen` flag that hid the WHEN row on the shared list entirely. That was
+   * right while a shared row could not hold a date. It stopped being right the moment dated shared
+   * rows started surfacing on both Todays.
    */
-  allowWhen?: boolean;
+  whenDefault?: CaptureWhen;
   // Close the panel (the parent owns visibility). The panel's own Close resets the door
   // (back to Today · no repeat · no steps) but NEVER the typed text: text is never lost.
   onClose: () => void;
@@ -79,10 +82,10 @@ const WEEKDAY_KEYS = [
 // controls never appear from nowhere. Iron rules: the first keystroke never waits, typed text
 // survives every tap and collapse, and the door resets to Today · no repeat · no steps after
 // every Add and every Close.
-export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({ onCapture, onBiteElephant, onSort, onClose, today, onCamera, allowSteps = true, allowWhen = true }, ref) {
+export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({ onCapture, onBiteElephant, onSort, onClose, today, onCamera, allowSteps = true, whenDefault = 'today' }, ref) {
   const [value, setValue] = useState('');
   const [doorOpen, setDoorOpen] = useState(false);
-  const [when, setWhen] = useState<CaptureWhen>('today');
+  const [when, setWhen] = useState<CaptureWhen>(whenDefault);
   const [repeat, setRepeat] = useState<CaptureRepeat>(null);
   const [weekdays, setWeekdays] = useState<number[]>([today.getDay()]);
   const [everyNDays, setEveryNDays] = useState(2);
@@ -139,7 +142,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
     weekdays: weekdays.length > 0 ? weekdays : [today.getDay()],
     everyNDays,
     steps: stepsAllowed && sliceCount >= MIN_SLICES ? sliceCount : 0,
-    whenless: !allowWhen,
+    whenDefault,
   };
   const summary = doorSummary(doorState, today);
   const addLabel = addButtonLabel(doorState, today, lineCount);
@@ -147,7 +150,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
 
   // ONE rule composes WHEN with REPEATS: the when IS a repeat's start date ("Tomorrow · Daily"
   // starts tomorrow). "Starting from" in the Repeats row reads the same value; never two truths.
-  const startIso = when === 'today' ? todayIso : when === 'tomorrow' ? addDaysISO(today, 1) : dueDate;
+  const startIso = when === 'today' || when === 'anytime' ? todayIso : when === 'tomorrow' ? addDaysISO(today, 1) : dueDate;
 
   function buildSchedule(): CaptureSchedule {
     if (repeat === 'daily') {
@@ -162,6 +165,13 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
     if (when === 'date') {
       return { mode: 'date', date: dueDate };
     }
+    // On a surface whose default is Anytime, choosing TODAY has to produce a real date, because
+    // `scheduleFields` maps both 'today' and 'anytime' to "no scheduling fields" and on that surface
+    // no-date means "lives in the room". Without this line the chip would look chosen, the button
+    // would read "Add · Today", and the row would quietly never appear on anybody's day.
+    if (when === 'today' && whenDefault === 'anytime') {
+      return { mode: 'date', date: todayIso };
+    }
     return { mode: when };
   }
 
@@ -169,7 +179,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   // and every Close. Never touches the typed text; reset() below clears that too (post-Add).
   function resetDoor() {
     setDoorOpen(false);
-    setWhen('today');
+    setWhen(whenDefault);
     setRepeat(null);
     setWeekdays([today.getDay()]);
     setEveryNDays(2);
@@ -319,6 +329,12 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   // Priority: an error > the Tidy offer (a run-on line) > the AI egress disclosure (any text).
   const showTidy = aiEnabled && canSplit && (busyKind === 'split' || !busy);
 
+  // The door's overline names the rows BEHIND it, composed from the rows this surface actually has
+  // rather than picked from a set of pre-written strings. One fewer thing to keep in step: adding or
+  // removing a row can no longer leave the label describing a control that is not there.
+  const doorRows = [t('capture.rowWhen'), t('capture.rowRepeats'), ...(allowSteps ? [t('capture.rowSteps')] : [])];
+  const doorOverline = doorRows.join(' · ');
+
   return (
     <View style={styles.wrap}>
       <View style={styles.headerRow}>
@@ -398,11 +414,11 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
           onPress={toggleDoor}
           accessibilityRole="button"
           accessibilityState={{ expanded: doorOpen }}
-          accessibilityLabel={allowWhen ? t('capture.doorA11y', { summary }) : t('capture.doorA11yRepeatOnly', { summary })}
+          accessibilityLabel={t('capture.doorA11yComposed', { rows: doorRows.join(', '), summary })}
           style={({ pressed }) => [styles.doorRow, pressed && styles.pressed]}
         >
           <View style={styles.doorTextCol}>
-            <Text style={styles.doorOverline}>{allowWhen ? t('capture.doorOverline') : t('capture.doorOverlineRepeatOnly')}</Text>
+            <Text style={styles.doorOverline}>{doorOverline}</Text>
             <Text style={styles.doorValue}>{summary}</Text>
           </View>
           <Text style={styles.doorCaret}>{doorOpen ? '⌄' : '›'}</Text>
@@ -410,14 +426,16 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
 
         {doorOpen && (
           <View style={styles.composer}>
-            {/* WHEN. Three chips and a fixed detail line: the resolved day plus one Change
-                link into the date picker (the held card's Move-to picker component). Absent
-                entirely on a dayless surface (see `allowWhen`), which leaves `when` on 'today' and
-                so leaves buildSchedule and the repeat's start date working unchanged. */}
-            {allowWhen && (
+            {/* WHEN. Chips plus a fixed detail line: the resolved day and one Change link into the
+                date picker. The shared list gets a fourth chip in FRONT, Anytime, which is its
+                resting state: most of what goes on a household list has no day, and picking one
+                there means the specific, deliberate thing that it appears on both your Todays. */}
             <View style={styles.compRow}>
               <Text style={styles.compOverline}>{t('capture.rowWhen')}</Text>
               <View style={styles.chips}>
+                {whenDefault === 'anytime' && (
+                  <Chip label={t('capture.anytime')} selected={when === 'anytime'} onPress={() => setWhen('anytime')} />
+                )}
                 <Chip label={t('common.today')} selected={when === 'today'} onPress={() => setWhen('today')} />
                 <Chip label={t('common.tomorrow')} selected={when === 'tomorrow'} onPress={() => setWhen('tomorrow')} />
                 <Chip
@@ -438,7 +456,6 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                 </Pressable>
               </View>
             </View>
-            )}
 
             {/* REPEATS. Three toggles (tap again to clear); the detail region holds each
                 cadence's one control plus the Starting-from read-through of the WHEN. */}
@@ -489,7 +506,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                   </Pressable>
                 </View>
               )}
-              {repeat !== null && allowWhen && (
+              {repeat !== null && (
                 <Pressable
                   onPress={() => setPickerOpen(true)}
                   hitSlop={8}

@@ -13,7 +13,7 @@ import { border, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } f
 import { useSessionState } from '@/lib/auth';
 import { clockSkewMs } from '@/lib/clock';
 import { debugLog } from '@/lib/debug-log';
-import { toISODate } from '@/lib/day';
+import { friendlyDate, toISODate } from '@/lib/day';
 import { type CaptureSchedule, type Recurrence, scheduleFields } from '@/lib/recurrence';
 import { t } from '@/lib/locale';
 import { makeSharedRef, pulledFrom } from '@/lib/ours-bridge';
@@ -207,10 +207,10 @@ export default function OursListScreen() {
   // this audience runs on muscle memory: a second, similar-but-different capture is a second thing
   // to learn, and learning it twice is the friction the app exists to remove.
   //
-  // Two powers are switched OFF rather than reimplemented. WHEN, because a shared list is not a day
-  // (see `allowWhen`). STEPS, because a shared row has no `slices` field to put them in, and because
-  // slicing is a personal shaping tool: how you break a thing down is yours, not a household's.
-  // What is left, REPEATING, is the one that genuinely belongs to two people.
+  // STEPS are switched off rather than reimplemented: a shared row has no `slices` field to put them
+  // in, and slicing is a personal shaping tool. How you break a thing down is yours, not a
+  // household's. WHEN and REPEATING both belong here, and WHEN rests on Anytime, because most of a
+  // household list has no day and choosing one means the row appears on BOTH your Todays.
   const [captureOpen, setCaptureOpen] = useState(false);
   const brainDumpRef = useRef<BrainDumpHandle>(null);
   // SCAN (premium), on the shared list because this is where it most belongs. The single most
@@ -464,11 +464,11 @@ export default function OursListScreen() {
    * Add what was captured. One line or many: a dump becomes one row per line, and the door's
    * cadence applies to every one of them, which is the same rule Today follows.
    *
-   * `scheduleFields` can also return a `due`, and this deliberately takes only the recurrence. Not
-   * an oversight and not a type workaround: a shared row has nowhere to put a date (the `due`
-   * column exists on the table and nothing reads or writes it, see the decision log), and with
-   * `allowWhen={false}` the panel cannot produce one anyway. Two locks on the same door, because
-   * tonight proved that a field which exists but is unwired is the most expensive kind.
+   * A DATE and a RHYTHM are mutually exclusive here, and the guard is belt-and-braces: the door
+   * cannot produce both, and if it ever did the repeat would win, because a rhythm is the more
+   * specific promise. This mirrors the rule the public API already enforces on personal tasks
+   * (never both dated and recurring), so a row made here, by an agent, or over REST is the same
+   * shape.
    */
   function capture(text: string, schedule: CaptureSchedule) {
     const titles = parseDump(text);
@@ -478,7 +478,7 @@ export default function OursListScreen() {
     // prove a person is here (opening the panel, and this) feed it instead.
     lastTouch.current = nowMs();
     if (titles.some(willTrim)) setNotice(t('ours.shareTrim')); // said BEFORE, never discovered after
-    const { recurrence } = scheduleFields(schedule, now);
+    const { recurrence, due } = scheduleFields(schedule, now);
     const stamp = nowMs();
     // `stamp + i` rather than one stamp for all: identical `createdAt`s across a dump would make
     // the row order arbitrary, and on a list two people read, an order that shuffles is a list
@@ -490,6 +490,10 @@ export default function OursListScreen() {
       createdAt: stamp + i,
       updatedAt: stamp + i,
       ...(recurrence ? { recurrence } : {}),
+      // A DAY, when one was chosen: this row will appear on both your Todays from that day onward.
+      // Never both a date and a rhythm; the door cannot produce both, and a repeat wins if it ever
+      // somehow did, because a rhythm is the more specific promise.
+      ...(!recurrence && due ? { due } : {}),
     }));
     void commit([...tasks, ...made]);
   }
@@ -663,6 +667,15 @@ export default function OursListScreen() {
               </Text>
             ) : frozen && confirmingId === task.id ? (
               <Text style={styles.cadenceNote}>{t('ours.frozenRow')}</Text>
+            ) : repeatSummaryOf(task) ? (
+              /* The rhythm, in words. A row that will turn up on both your Todays should say so
+                 HERE, in the room where it was made, rather than being a surprise on somebody's
+                 morning. */
+              <Text style={styles.cadenceNote}>{repeatSummaryOf(task)}</Text>
+            ) : task.due ? (
+              /* Same reasoning for a chosen day. Without this a dated row is indistinguishable from
+                 an undated one right up until it silently appears on a Today. */
+              <Text style={styles.cadenceNote}>{friendlyDate(task.due, now)}</Text>
             ) : null}
           </View>
         ))}
@@ -760,9 +773,17 @@ export default function OursListScreen() {
               onCapture={capture}
               onClose={() => setCaptureOpen(false)}
               today={now}
-              /* The two powers a shared list does not have. See the state declaration above for
-                 why each is off, and note that neither is a stub: the rows are simply not there. */
-              allowWhen={false}
+              /* STEPS stay off: a shared row has no `slices` field to hold them, and breaking a
+                 thing down is a personal shaping tool. How you approach a task is yours; that it
+                 needs doing is the household's.
+
+                 WHEN is ON, with ANYTIME as its resting answer, and that is a reversal of the
+                 call made when this bar was built. The reasoning then was that a shared list is
+                 not a day. It has become one, in the only sense that matters: a dated or repeating
+                 shared row now appears on BOTH your Todays, so choosing a day here is a real and
+                 useful act rather than a word that means nothing. Anytime stays the default because
+                 most of a household list has no day and must never become somebody's morning. */
+              whenDefault="anytime"
               allowSteps={false}
               /* Break-it-down and Sort-for-me stay off, by omission rather than a flag: they have a
                  model AUTHOR content that then lands on a list another person reads, and pointing a

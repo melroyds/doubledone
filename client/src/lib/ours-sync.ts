@@ -1,6 +1,6 @@
 import { type SupabaseClient } from '@supabase/supabase-js';
 
-import { type CompletionLog, mergeShared, type SharedTask, stillOnList } from './ours-merge';
+import { type CompletionLog, isSharedDoneOn, mergeShared, type SharedTask, stillOnList } from './ours-merge';
 import { isDueOn, type Recurrence } from './recurrence';
 
 // The Supabase seam for the SHARED list. Same shape as sync.ts: the row <-> task mapping is pure
@@ -44,6 +44,7 @@ export type SharedRow = {
   // may hold a cadence this build has never heard of. knownRecurrence decides what to trust.
   recurrence: unknown;
   completions: CompletionLog | null;
+  due: string | null; // 'YYYY-MM-DD', the day this lands on both Todays; null = lives in the room
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -70,6 +71,7 @@ export function sharedToRow(task: SharedTask, pairId: string): SharedRow {
     done_at: task.doneAt ? new Date(task.doneAt).toISOString() : null,
     recurrence: task.recurrence ?? task.rawRecurrence ?? null,  // an unreadable cadence rides back out verbatim
     completions: task.completions ?? null,
+    due: task.due ?? null,
     created_at: new Date(task.createdAt).toISOString(),
     updated_at: new Date(task.updatedAt).toISOString(),
     deleted_at: task.deletedAt ? new Date(task.deletedAt).toISOString() : null,
@@ -105,6 +107,10 @@ export function rowToShared(row: SharedRow): SharedTask {
   else if (row.recurrence != null) task.rawRecurrence = row.recurrence;
   const completions = sanitiseCompletions(row.completions);
   if (completions) task.completions = completions;
+  // Shape-checked, not trusted. This column is written by the other person's client, and a value
+  // that is not a plain ISO day would flow straight into a string comparison against today and
+  // silently place the row on the wrong day, or on every day. Wrong beats absent here.
+  if (typeof row.due === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(row.due)) task.due = row.due;
   if (row.deleted_at != null) task.deletedAt = finiteOr(Date.parse(row.deleted_at), createdAt);
   return task;
 }
@@ -252,6 +258,56 @@ export function onSharedListOn(task: SharedTask, date: string, when: Date): bool
  * household list is tens of rows; when that stops being true, the fix is a merge that knows it is
  * looking at a delta, not a filter bolted onto this one.
  */
+/**
+ * Does this shared row belong on YOUR TODAY, on this date?
+ *
+ * The rule that resolves the tension Melroy named: "I am not a fan of the UX where I have to
+ * manually decide what gets added to my list for today from the Ours list. The whole point is
+ * visibility and ease of use." He is right that pulling each row across by hand is friction, and for
+ * this audience a second place you must remember to check is a place you do not check. He is also
+ * owed a day that stays finite, which "everything on the shared list appears on your Today" would
+ * destroy: your person adds eight things to the shopping list and your morning is eight heavier
+ * without you agreeing to any of it.
+ *
+ * THE DIVIDING LINE IS WHETHER THE ROW HAS A DAY.
+ *
+ *   · A REPEAT is due on the days you two set. Bin night IS Tuesday's business, for whoever is home,
+ *     and making you fetch it every single Tuesday is precisely the friction complained about.
+ *   · A DATED one-off is the same thing without a rhythm, and it shows from its day ONWARD, not only
+ *     on it. A shared thing nobody did does not stop being a shared thing; it would just quietly
+ *     vanish on the wrong side of midnight.
+ *   · An UNDATED row stays in the room. This is the common case and the default, and it is what
+ *     keeps a shopping list from becoming your day.
+ *
+ * An UNREADABLE cadence is never placed. `onSharedListOn` shows it in the room (so a newer build's
+ * repeat is never invisible to the person who set it) and it is deliberately not placed on a day
+ * here: this build cannot know which days it means, and a wrong day on a shared surface is a thing
+ * the other person then has to puzzle over.
+ *
+ * Being DONE is not checked, on purpose. A row ticked today stays on the day reading as finished,
+ * exactly as a personal task does, so the tick is visible and reversible rather than a row that
+ * disappears the instant you touch it.
+ */
+export function sharedDueOn(task: SharedTask, date: string, when: Date): boolean {
+  if (task.deletedAt) return false;
+  if (isUnreadableRepeat(task)) return false;
+  if (task.recurrence !== undefined && task.recurrence.kind !== 'none') {
+    return isDueOn({ recurrence: task.recurrence }, when);
+  }
+  return typeof task.due === 'string' && task.due <= date;
+}
+
+/**
+ * How many rows are OPEN in the room on this date: the number the door on Today carries.
+ *
+ * Open means on the list and not finished for the day. It counts everything the room is holding,
+ * including rows already surfaced on Today, because the door answers "what is over there" and the
+ * honest answer to that does not change depending on what else you can see from here.
+ */
+export function openInRoom(tasks: SharedTask[], date: string, when: Date): number {
+  return tasks.filter((task) => onSharedListOn(task, date, when) && !isSharedDoneOn(task, date)).length;
+}
+
 export const PAGE_SIZE = 500;
 
 export async function pullPair(client: SupabaseClient, pairId: string): Promise<SharedTask[]> {

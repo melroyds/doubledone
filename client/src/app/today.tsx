@@ -59,7 +59,7 @@ import { checkForUpdate, currentPlatform } from '@/lib/update-check';
 import { FALLBACK_VERSION, shouldMention, type UpdateStatus, updateUrl } from '@/lib/updates';
 import { parseSharedRef, sharedRestNotes } from '@/lib/ours-bridge';
 import { isSharedDoneOn, setSharedDone, type SharedTask } from '@/lib/ours-merge';
-import { isUnreadableRepeat, syncPairOnce, willTrim } from '@/lib/ours-sync';
+import { isUnreadableRepeat, repeatSummaryOf, sharedDueOn, syncPairOnce, willTrim } from '@/lib/ours-sync';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { buildOutcome } from '@/lib/outcome';
 import { scheduleFields, type CaptureSchedule, type Recurrence } from '@/lib/recurrence';
@@ -107,7 +107,7 @@ async function settleSharedCopies(
   pairId: string,
   date: string,
   client: SupabaseClient | null,
-): Promise<{ next: Task[]; notes: { id: string; title: string }[] } | null> {
+): Promise<{ shared: SharedTask[]; settled: { next: Task[]; notes: { id: string; title: string }[] } | null } | null> {
   try {
     // Pull, because Today never writes this cache: only the room does. Reading it cold would mean a
     // device that has not opened /ours-list never learns that anything was handled over there.
@@ -167,7 +167,7 @@ async function settleSharedCopies(
         showsToday: task.done ? doneDay === date : task.due == null || task.due <= date,
       });
     }
-    if (notes.length === 0) return null;
+    if (notes.length === 0) return { shared, settled: null };
     const settling = new Set(notes.map((note) => note.id));
     const now = nowMs();
     // DONE, WITH `completedAt`, which is doing two jobs and both matter.
@@ -201,7 +201,7 @@ async function settleSharedCopies(
         showsToday: Boolean(row && !row.deletedAt && row.completedAt && toISODate(new Date(row.completedAt)) === date),
       });
     }
-    return { next, notes };
+    return { shared, settled: { next, notes } };
   } catch (err) {
     // A courtesy, never a correctness requirement. Silence beats a scary line about a shared list,
     // but silence to the DEVELOPER is how three of tonight's bugs stayed invisible for hours.
@@ -335,6 +335,26 @@ export default function TodayScreen() {
   // and where a tick has to travel. Null whenever there is no live list, which switches every
   // bridge off by construction rather than by a flag anyone has to remember to check.
   const [oursPairId, setOursPairId] = useState<string | null>(null);
+  /**
+   * The shared list's rows, held here ONLY so the ones with a day can appear on this screen.
+   *
+   * This is Tier 1 of the answer to Melroy's complaint: "I am not a fan of the UX where I have to
+   * manually decide what gets added to my list for today from the Ours list. The whole point is
+   * visibility and ease of use." He is right that fetching each row by hand is friction, and for
+   * this audience a second place you must remember to check is a place you do not check.
+   *
+   * The rule that keeps that from eating the day lives in `sharedDueOn`: a row appears here only if
+   * it HAS a day (a repeat due today, or a date that has arrived). Undated rows stay in the room.
+   * Without that line, your person adding eight things to the shopping list would make your morning
+   * eight heavier without you agreeing to any of it, which is the exact overwhelm this app exists to
+   * prevent.
+   *
+   * These are NOT your tasks. They are never in `tasks`, so they cannot reach the weight gauge, the
+   * Lookback, Plan-my-day, Lighten, or the close-the-day count. That separation is by construction
+   * rather than by a filter somebody has to remember: today stays finite because the shared rows are
+   * simply not in the array that defines it.
+   */
+  const [sharedTasks, setSharedTasks] = useState<SharedTask[]>([]);
   // Bumped on every focus, so effects that must re-run per VISIT (rather than per mount) can say so.
   const [visit, setVisit] = useState(0);
   // `?debug=1` on Today too. The settle happens HERE, so the bridge half of the diagnostic was
@@ -389,8 +409,9 @@ export default function TodayScreen() {
     }
     let active = true;
     void settleSharedCopies(oursPairId, toISODate(new Date()), supabase).then((res) => {
-      if (!active) return;
-      if (res) setTasks(res.next);
+      if (!active || !res) return;
+      setSharedTasks(res.shared);
+      if (res.settled) setTasks(res.settled.next);
     });
     return () => {
       active = false;
@@ -732,6 +753,13 @@ export default function TodayScreen() {
   const todayDone = useMemo(() => completionsByDay(tasks).get(toISODate(today)) ?? [], [tasks, today]);
   // One-off, undone tasks on Today: the ones Strategise can re-spread (recurring stay by cadence).
   const spreadable = visible.filter((t) => !isRecurring(t) && !isDoneOn(t, today));
+  // The shared rows that have a day, and whose day is today. Deliberately derived SEPARATELY from
+  // `visible` and never folded into `tasks`: everything that defines how heavy today looks (the
+  // weight gauge, Plan my day, Lighten, the close-the-day count, the Lookback) reads `tasks` or
+  // something derived from it, so a shared row cannot reach any of them by construction. That is
+  // the whole safety property, and it is worth more as a structural fact than as a filter somebody
+  // has to remember to write in six places.
+  const sharedForToday = sharedTasks.filter((row) => sharedDueOn(row, toISODate(today), today));
   // Kept for exactly ONE consumer now that every single-task action lives on the held card: the
   // recurring-aware Remove label on the bulk bar. Searches all tasks (not just Today's) so a lone
   // selected Later repeat is still labelled honestly.
@@ -1691,6 +1719,41 @@ export default function TodayScreen() {
     if (useSlices) track('slices.defined', { total: sliceCount });
   }
 
+  /**
+   * Tick a shared row from Today, without going to the room.
+   *
+   * Read from STORAGE rather than from `sharedTasks`, because the settle effect writes that same
+   * cache and two taps can land inside one render: the screen's copy is a snapshot, the cache is the
+   * truth. This is the same reason `bring` re-reads in the room.
+   *
+   * `noteOursMine` is not optional. It records that this stamp was MINE, so when the room next
+   * opens it does not wash my own tick as though my person had done it. Without it, ticking here
+   * would make the other screen quietly claim somebody else acted.
+   */
+  async function toggleShared(id: string) {
+    if (!oursPairId) return;
+    const iso = toISODate(today);
+    const stamp = nowMs();
+    const cached = await loadOursTasks(oursPairId);
+    const next = withMonotonicStamps(
+      cached.map((row) => (row.id === id ? setSharedDone(row, iso, !isSharedDoneOn(row, iso), stamp) : row)),
+      cached,
+    );
+    setSharedTasks(next); // on screen before the network is asked anything
+    await saveOursTasks(oursPairId, next);
+    await noteOursMine(oursPairId, [id]);
+    if (!supabase) return; // local-only is a fine place to stop: the cache holds it for the next sync
+    try {
+      const { merged } = await syncPairOnce(supabase, oursPairId, next);
+      await saveOursTasks(oursPairId, merged);
+      setSharedTasks(merged);
+    } catch (err) {
+      // The tick is saved locally and will go out on the room's next sync. Saying nothing is right;
+      // saying nothing to the DEVELOPER is how three of the shared list's bugs stayed invisible.
+      console.warn('[ours] tick from Today did not reach the server', err);
+    }
+  }
+
   // "I also did that": log something already done that was never on the list, so the
   // Lookback reflects what you actually did, not just what you ticked. A completed
   // task stamped now (shows checked on Today and in the Lookback). Feeds the moat.
@@ -2390,6 +2453,41 @@ export default function TodayScreen() {
             ))}
           </View>
         )}
+        {/* FROM OURS. The shared rows that have a day, and whose day is today: a repeat you two
+            set, or a date that has arrived. This is what answers "the whole point is visibility and
+            ease of use" without handing another person write access to your morning.
+
+            Its OWN region, below the day and above the door, with its own quiet heading, because
+            these are not your tasks and must never read as though they were. They carry no weight,
+            appear in no count, and reach no Lookback unless you tick them. What they do have is a
+            checkbox that works from right here, which is the whole point: bin night should not
+            require a trip to another room every Tuesday.
+
+            Absent entirely when there is nothing due, so an empty shared list adds no furniture. */}
+        {oursPairId && !selectMode && !isClosed && sharedForToday.length > 0 && (
+          <View style={styles.sharedStrip}>
+            <Text style={styles.sharedStripOverline}>
+              {oursName ? t('ours.todayHeadingNamed', { name: oursName }) : t('ours.todayHeading')}
+            </Text>
+            {sharedForToday.map((row) => (
+              <TaskRow
+                key={row.id}
+                title={row.title}
+                done={isSharedDoneOn(row, toISODate(today))}
+                /* `plain`, matching the room: the one-off border exists on Today to separate
+                   one-offs from repeats, and these rows are already separated by living in their
+                   own region. */
+                plain
+                recurring={row.recurrence !== undefined && row.recurrence.kind !== 'none'}
+                onToggle={() => void toggleShared(row.id)}
+                /* The cadence in words, so "why is this here today" is answered on the row itself
+                   rather than requiring a trip to the room to find out. */
+                note={repeatSummaryOf(row)}
+              />
+            ))}
+          </View>
+        )}
+
         {/* Ours. One hairline row, and NEVER a count on it: a number here is a number another
             person can change, on the one screen whose whole promise is that today is finite. Absent
             entirely when there is no live shared list, so this can never read as an advert. The name
@@ -3757,6 +3855,24 @@ const makeStyles = (t: Theme) =>
       t.appearance === 'quiet'
         ? { borderBottomWidth: border.hair, borderColor: t.quiet.captureUnderline, paddingVertical: spacing.four, paddingHorizontal: 2, alignItems: 'flex-start' }
         : { borderWidth: border.hair, borderColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.four, alignItems: 'center' },
+    // FROM OURS: its own region, set apart by a hairline above it rather than by a card, so it
+    // reads as a window onto the other room and never as a second, competing list of your own.
+    sharedStrip: {
+      marginTop: spacing.five,
+      paddingTop: spacing.four,
+      borderTopWidth: border.hair,
+      borderTopColor: t.colors.line,
+      gap: spacing.two,
+    },
+    sharedStripOverline: {
+      color: t.colors.inkFaint,
+      fontSize: 11 * t.scale,
+      fontFamily: fonts.body,
+      fontWeight: '600',
+      letterSpacing: 1.4,
+      textTransform: 'uppercase',
+      marginBottom: spacing.one,
+    },
     capturePanel: { gap: spacing.two },
     // display none (not unmount): BrainDump keeps its typed text while the panel is away.
     capturePanelHidden: { display: 'none' },

@@ -6,6 +6,7 @@ import {
   isPairReadOnly,
   isUnreadableRepeat,
   onSharedListOn,
+  openInRoom,
   knownRecurrence,
   repeatSummaryOf,
   pullPair,
@@ -13,6 +14,7 @@ import {
   rowToShared,
   sanitiseCompletions,
   type SharedRow,
+  sharedDueOn,
   sharedToRow,
   shouldPoll,
   syncPairOnce,
@@ -27,6 +29,7 @@ function row(over: Partial<SharedRow> & { id: string }): SharedRow {
     done_at: null,
     recurrence: null,
     completions: null,
+    due: null,
     created_at: '2026-08-09T10:00:00.000Z',
     updated_at: '2026-08-09T10:00:00.000Z',
     deleted_at: null,
@@ -107,6 +110,7 @@ describe('sharedToRow', () => {
       'deleted_at',
       'done',
       'done_at',
+      'due',
       'id',
       'pair_id',
       'recurrence',
@@ -546,5 +550,91 @@ describe('what belongs on the shared list on a given day', () => {
 
   it('drops a removed row whatever its shape', () => {
     expect(onSharedListOn(row({ id: 'gone', deletedAt: 5, recurrence: { kind: 'daily' } }), iso(MON), MON)).toBe(false);
+  });
+});
+
+describe('a shared row can carry a day', () => {
+  const base = { id: 'a', pair_id: 'p', title: 'bins', done: false, done_at: null, recurrence: null, completions: null, created_at: '2026-08-01T00:00:00.000Z', updated_at: '2026-08-01T00:00:00.000Z', deleted_at: null };
+
+  it('round-trips a due date out and back', () => {
+    const task = rowToShared({ ...base, due: '2026-08-14' } as SharedRow);
+    expect(task.due).toBe('2026-08-14');
+    expect(sharedToRow(task, 'p').due).toBe('2026-08-14');
+  });
+
+  it('sends null rather than undefined for an undated row', () => {
+    // The client emits every column unconditionally on batch upsert, so this value is always
+    // written. `undefined` would drop the key and leave a stale date standing on the server.
+    expect(sharedToRow(rowToShared({ ...base, due: null } as SharedRow), 'p').due).toBeNull();
+  });
+
+  // Written by the OTHER person's client. A value that is not a plain ISO day would flow into a
+  // string comparison against today and place the row on the wrong day, or on every day.
+  it('drops anything that is not a plain ISO day rather than trusting it', () => {
+    for (const bad of ['', 'tomorrow', '2026-8-1', '2026-08-14T00:00:00Z', '99999-01-01', 42, {}, [], true, null, undefined]) {
+      expect(rowToShared({ ...base, due: bad } as unknown as SharedRow).due).toBeUndefined();
+    }
+  });
+});
+
+describe('which shared rows belong on YOUR Today', () => {
+  const TUE = new Date(2026, 7, 11); // Tue 11 Aug 2026
+  const ISO = '2026-08-11';
+  const task = (over: Partial<SharedTask>): SharedTask => ({ id: 'x', title: 't', done: false, createdAt: 1, updatedAt: 1, ...over });
+
+  // The whole point of Tier 1: bin night IS Tuesday's business, for whoever is home.
+  it('places a repeat on the days it is due, and nowhere else', () => {
+    const bins = task({ recurrence: { kind: 'weekly', weekdays: [2], start: '2026-08-01' } });
+    expect(sharedDueOn(bins, ISO, TUE)).toBe(true);
+    expect(sharedDueOn(bins, '2026-08-12', new Date(2026, 7, 12))).toBe(false);
+  });
+
+  it('places a dated one-off from its day ONWARD, never before', () => {
+    expect(sharedDueOn(task({ due: ISO }), ISO, TUE)).toBe(true);
+    expect(sharedDueOn(task({ due: '2026-08-10' }), ISO, TUE)).toBe(true); // nobody did it; it does not vanish
+    expect(sharedDueOn(task({ due: '2026-08-12' }), ISO, TUE)).toBe(false);
+  });
+
+  // The default, and the load-bearing one: this is what stops a shopping list becoming your day.
+  it('leaves an UNDATED row in the room', () => {
+    expect(sharedDueOn(task({}), ISO, TUE)).toBe(false);
+    expect(sharedDueOn(task({ due: null }), ISO, TUE)).toBe(false);
+  });
+
+  // Shown in the room by onSharedListOn, deliberately not placed on a day: this build cannot know
+  // which days it means, and a wrong day on a shared surface is a thing the other person puzzles over.
+  it('never places a cadence this build cannot read', () => {
+    const alien = task({ rawRecurrence: { kind: 'lunar' } });
+    expect(sharedDueOn(alien, ISO, TUE)).toBe(false);
+    expect(onSharedListOn(alien, ISO, TUE)).toBe(true);
+  });
+
+  it('never places a removed row', () => {
+    expect(sharedDueOn(task({ due: ISO, deletedAt: 5 }), ISO, TUE)).toBe(false);
+  });
+
+  // A tick must stay visible and reversible, exactly as a personal task's does.
+  it('keeps a row that was ticked TODAY on the day, reading as finished', () => {
+    expect(sharedDueOn(task({ due: ISO, done: true, completions: { on: { [ISO]: 9 } } }), ISO, TUE)).toBe(true);
+  });
+});
+
+describe('the count the door on Today carries', () => {
+  const TUE = new Date(2026, 7, 11);
+  const ISO = '2026-08-11';
+  const task = (over: Partial<SharedTask>): SharedTask => ({ id: 'x', title: 't', done: false, createdAt: 1, updatedAt: 1, ...over });
+
+  it('counts what is open in the room, dated or not', () => {
+    const rows = [
+      task({ id: '1' }),
+      task({ id: '2', due: ISO }),
+      task({ id: '3', done: true, completions: { on: { [ISO]: 9 } } }), // finished today
+      task({ id: '4', deletedAt: 5 }), // removed
+    ];
+    expect(openInRoom(rows, ISO, TUE)).toBe(2);
+  });
+
+  it('is zero for an empty room', () => {
+    expect(openInRoom([], ISO, TUE)).toBe(0);
   });
 });
