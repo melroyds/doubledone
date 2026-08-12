@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { makeSharedRef, parseSharedRef, pulledFrom, sharedRestNotes } from './ours-bridge';
+import { makeSharedRef, parseSharedRef, pulledFrom, removedOrigins, sharedRestNotes } from './ours-bridge';
 import { type SharedTask } from './ours-merge';
 import { type Task } from './tasks';
 
@@ -107,4 +107,45 @@ it('never retires a recurring copy, whatever the shared row says', () => {
 it('does not count a copy that is already done', () => {
   const tasks = [task({ id: 'mine-1', sharedRef: makeSharedRef(PAIR, 'milk'), done: true })];
   expect(pulledFrom(tasks, PAIR).size).toBe(0);
+});
+
+// A row taken off the shared list leaves your copy alone (it is your task now) but must SAY so.
+// The deciding case is wasted effort: your person removes "milk" because she already bought it, and
+// a silent copy sends you to the shop for milk.
+describe('a copy whose shared row was REMOVED', () => {
+  const mine = task({ id: 'mine', title: 'milk', sharedRef: makeSharedRef(PAIR, 'milk') });
+  const gone = shared({ id: 'milk', deletedAt: 9000 });
+
+  it('is flagged while the tombstone is still visible', () => {
+    expect([...removedOrigins([mine], [gone], PAIR)]).toEqual(['mine']);
+  });
+
+  it('is not flagged while the shared row is still on the list', () => {
+    expect(removedOrigins([mine], [shared({ id: 'milk' })], PAIR).size).toBe(0);
+  });
+
+  // You did the thing. Its origin's fate is not news, and a note here would read as a correction.
+  it('says nothing about a copy you already finished', () => {
+    expect(removedOrigins([{ ...mine, done: true }], [gone], PAIR).size).toBe(0);
+  });
+
+  it('says nothing about a copy you removed yourself', () => {
+    expect(removedOrigins([{ ...mine, deletedAt: 1 }], [gone], PAIR).size).toBe(0);
+  });
+
+  it('ignores a copy from a different list', () => {
+    expect(removedOrigins([{ ...mine, sharedRef: makeSharedRef('other', 'milk') }], [gone], PAIR).size).toBe(0);
+  });
+
+  // The accepted limit: after the server's seven-day sweep the tombstone is gone, and a removed
+  // origin becomes indistinguishable from one never pulled. It goes quiet rather than guessing.
+  it('goes quiet once the tombstone has been swept, rather than guessing', () => {
+    expect(removedOrigins([mine], [], PAIR).size).toBe(0);
+  });
+
+  // The law, on the one bridge where attribution is most tempting: this returns ids, never people.
+  it('returns ids and nothing that could name a person', () => {
+    const withWho = shared({ id: 'milk', deletedAt: 9000, doneAt: 5000 });
+    expect([...removedOrigins([mine], [withWho], PAIR)]).toEqual(['mine']);
+  });
 });

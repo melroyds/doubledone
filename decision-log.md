@@ -6491,3 +6491,38 @@ while you are clearing things.
 Reuses Today's `selectAll` / `selectHint` / `selectedCount` strings rather than minting parallel ones
 in five languages. The namespace reads oddly (`today.*` on the Ours screen) and the alternative is
 five identical translations of "Select all", which is worse.
+
+## 2026-08-12 A copy says when its shared row was taken off the list
+
+Melroy, having watched it: "I removed tasks from the Ours list and the copies still remain in my
+Today list. I know that's not a bug. But SHOULD it be? Do we leave an indicator?"
+
+**The copy still stays.** `sharedRestNotes` already argues that: removal is not completion, and
+nobody else's tidying should reach into your day. That reasoning is intact.
+
+**What I had got wrong is that it answers a different question.** "Should we delete it" and "should
+we tell you" are not the same, and I had let the first stand in for the second. **The deciding case
+is wasted effort:** your person takes "milk" off the list because she already bought it, your copy
+sits there silent, and you go and buy milk. For this audience effort is the scarce resource, and
+doing cancelled work stings more than almost anything else this app could get wrong.
+
+There was also an inconsistency worth naming: a row FINISHED on the other side already leaves a note
+on your copy. A row REMOVED left nothing, and the silent one is the one that can waste an afternoon.
+
+**What it is, and firmly what it is not.** A faint line on the row: "no longer on <list name>". No
+attribution, because there is no such data anywhere in this feature and a bridge is exactly where
+that temptation comes back. No reason, because removal could be done, not-needed, or tidying and the
+app cannot tell them apart. No action and no prompt: the task is yours, and Remove is already on its
+held card. Not a transient message either, per Melroy on the wash: a thing you might miss should not
+appear and then vanish. It is in WORDS rather than a colour or a strikethrough, so a screen reader
+hears it too.
+
+**Accepted limit, recorded rather than hidden.** The server sweeps tombstones after seven days, after
+which a removed origin is indistinguishable from one never pulled, and the line quietly stops
+appearing. The information matters in the first day or two, and keeping a permanent record of a
+deletion so the app can keep mentioning it is its own kind of creepy.
+
+**A near-miss in the edit itself.** The 14-space `origin={...}` pattern I matched on is a SUBSTRING
+of the 18-space one, so a single replace hit both render paths and then the second replace hit one of
+them again, giving a row two `note` attributes. Typecheck caught it immediately. Worth recording
+because indentation-anchored replacements look precise and are not.

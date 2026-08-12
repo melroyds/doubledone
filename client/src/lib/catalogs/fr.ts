@@ -394,6 +394,8 @@ export const fr: Catalog = {
     todayHeadingNamed: "Pour aujourd'hui · {name}",
     sinceYouLooked: '{count} depuis votre dernier passage',
     removeEndsRepeats: "Retirer une répétition ici y met fin pour vous deux.",
+    noLongerOn: "ne figure plus dans Notre liste",
+    noLongerOnNamed: "ne figure plus dans {name}",
     takeOn: "Je m'en occupe aujourd'hui",
     shareTrim: 'Sur Ours, les titres sont plus courts. Celui-ci sera raccourci pour tenir.',
     sharedToOurs: 'Ajoutée à votre liste partagée.',

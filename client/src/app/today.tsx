@@ -57,7 +57,7 @@ import * as Application from 'expo-application';
 import { isOursOpen, loadMyPairs, syncClock } from '@/lib/ours-api';
 import { checkForUpdate, currentPlatform } from '@/lib/update-check';
 import { FALLBACK_VERSION, shouldMention, type UpdateStatus, updateUrl } from '@/lib/updates';
-import { makeSharedRef, parseSharedRef, sharedRestNotes } from '@/lib/ours-bridge';
+import { makeSharedRef, parseSharedRef, removedOrigins, sharedRestNotes } from '@/lib/ours-bridge';
 import { isSharedDoneOn, setSharedDone, type SharedTask, washedSince } from '@/lib/ours-merge';
 import { isUnreadableRepeat, repeatSummaryOf, sharedDueOn, syncPairOnce, willTrim } from '@/lib/ours-sync';
 import { type SupabaseClient } from '@supabase/supabase-js';
@@ -800,6 +800,9 @@ export default function TodayScreen() {
     }),
   );
   const sharedForToday = sharedTasks.filter((row) => sharedDueOn(row, toISODate(today), today) && !heldCopies.has(row.id));
+  // Copies whose shared row has been taken off the list. A fact on the row, never a prompt: the
+  // task is yours and stays yours, and Remove is already on its held card if you want it gone.
+  const originGone = oursPairId ? removedOrigins(tasks, sharedTasks, oursPairId) : new Set<string>();
   // Kept for exactly ONE consumer now that every single-task action lives on the held card: the
   // recurring-aware Remove label on the bulk bar. Searches all tasks (not just Today's) so a lone
   // selected Later repeat is still labelled honestly.
@@ -2450,6 +2453,9 @@ export default function TodayScreen() {
               onMoveTo={!isRecurring(task) ? () => setMoveIds([task.id]) : undefined}
               onDoneOn={isDoneOn(task, today) && !isRecurring(task) ? () => openDoneOn(task.id) : undefined}
               origin={task.sharedRef ? `· ${t('ours.defaultName')}` : undefined}
+              /* Said in WORDS, not by a colour or a strikethrough, so a screen reader hears it
+                 too and nobody has to infer it from styling. */
+              note={originGone.has(task.id) ? (oursName ? t('ours.noLongerOnNamed', { name: oursName }) : t('ours.noLongerOn')) : undefined}
               onShareToOurs={oursPairId && !task.sharedRef && !sharedToOurs.has(task.id) && !isDoneOn(task, today) ? () => void shareToOurs(task) : undefined}
               pinDim={!premium && task.pinnedAt == null}
               suggestBreakdown={task.suggestBreakdown}
@@ -2526,6 +2532,7 @@ export default function TodayScreen() {
                   onSteps={!isRecurring(task) ? () => openSliceEdit(task.id) : undefined}
                   onMoveTo={!isRecurring(task) ? () => setMoveIds([task.id]) : undefined}
                   origin={task.sharedRef ? `· ${t('ours.defaultName')}` : undefined}
+                  note={originGone.has(task.id) ? (oursName ? t('ours.noLongerOnNamed', { name: oursName }) : t('ours.noLongerOn')) : undefined}
                   onShareToOurs={oursPairId && !task.sharedRef && !sharedToOurs.has(task.id) && !isDoneOn(task, today) ? () => void shareToOurs(task) : undefined}
                   selecting={selectMode}
                   selected={selected.includes(task.id)}

@@ -63,6 +63,47 @@ export function pulledFrom(tasks: Task[], pairId: string): Map<string, string> {
 }
 
 /**
+ * Copies whose shared origin has been REMOVED from the list.
+ *
+ * Melroy raised this having watched it: "I removed tasks from the Ours list and the copies still
+ * remain in my Today list. I know that's not a bug. But SHOULD it be? Do we leave an indicator?"
+ *
+ * The copy deliberately stays (see `sharedRestNotes`: removal is not completion, and nobody else's
+ * tidying should reach into your day). That answers "should we delete it" and says nothing at all
+ * about "should we tell you", and I had conflated the two. THE CASE THAT DECIDES IT IS WASTED
+ * EFFORT: your person takes "milk" off the list because she already bought it, your copy sits there
+ * silent, and you go and buy milk. For this audience effort is the scarce resource, and doing
+ * cancelled work stings more than almost anything else the app could get wrong.
+ *
+ * It is also the sibling of a case already handled. A row FINISHED on the other side leaves a note
+ * on your copy; a row REMOVED left nothing, and the silent one is the one that can waste an
+ * afternoon.
+ *
+ * Returns ids only. What the caller draws must say the fact and nothing more: never who (there is
+ * no such data anywhere in this feature, and this is exactly where the temptation comes back) and
+ * never why (removal could be done, not-needed, or tidying, and the app cannot tell them apart).
+ *
+ * A copy you have already FINISHED is excluded: you did the thing, so its origin's fate is not
+ * news. So is one you have removed yourself.
+ *
+ * KNOWN AND ACCEPTED LIMIT: the server sweeps tombstones after seven days, after which a removed
+ * origin is indistinguishable from one that was never pulled, and the note quietly stops appearing.
+ * That is the right trade. The information matters in the first day or two, and keeping a permanent
+ * record of a deletion so the app can keep mentioning it is its own kind of creepy.
+ */
+export function removedOrigins(tasks: Task[], shared: SharedTask[], pairId: string): Set<string> {
+  const byId = new Map(shared.map((row) => [row.id, row]));
+  const out = new Set<string>();
+  for (const task of tasks) {
+    if (task.deletedAt || task.done) continue;
+    const ref = parseSharedRef(task.sharedRef);
+    if (ref?.pairId !== pairId) continue;
+    if (byId.get(ref.sharedId)?.deletedAt) out.add(task.id);
+  }
+  return out;
+}
+
+/**
  * The copies that should now read as DONE, because the shared row got finished on the other side.
  *
  * REVERSED 2026-08-11, by Melroy, having watched the old behaviour twice: "It should remain and be

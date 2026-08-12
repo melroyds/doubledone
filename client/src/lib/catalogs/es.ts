@@ -394,6 +394,8 @@ export const es: Catalog = {
     todayHeadingNamed: 'Para hoy · {name}',
     sinceYouLooked: '{count} desde tu última visita',
     removeEndsRepeats: "Quitar una repetición aquí la termina para los dos.",
+    noLongerOn: "ya no está en Nuestro",
+    noLongerOnNamed: "ya no está en {name}",
     takeOn: "Encárgate hoy",
     shareTrim: 'En Ours los títulos son más cortos. Este se recortará para que quepa.',
     sharedToOurs: 'Añadida a vuestra lista compartida.',
