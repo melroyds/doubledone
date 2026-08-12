@@ -82,6 +82,19 @@ export default function OursListScreen() {
   const [tasks, setTasks] = useState<SharedTask[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  /**
+   * MULTI-SELECT, which a shared list wants more than a personal day does. A household list is
+   * where six things get bought in one trip and then need ticking off in one go, and where a
+   * finished shopping list needs clearing. Doing that one row at a time on a list two people keep
+   * is the kind of small tax that stops people keeping it.
+   *
+   * Deliberately NARROWER than Today's version. Tick and Remove only: no Combine (an AI action that
+   * would author rows onto a list another person reads), no "mark as a lot" (a personal weighting
+   * concept the shared rows have no field for), and no bulk Move-to (dating several shared rows at
+   * once is a bigger promise than it looks, and one row at a time is honest here).
+   */
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
   const [offline, setOffline] = useState(false);
   // The push failed while the pull worked: my change is on this device and NOT on theirs.
   // `syncPairOnce` has always returned this and nothing has ever read it, which is precisely why a
@@ -516,6 +529,46 @@ export default function OursListScreen() {
     void commit(tasks.map((task) => (task.id === id ? { ...task, deletedAt: now, updatedAt: now } : task)));
   }
 
+  function enterSelectWith(id: string) {
+    setConfirmingId(null);
+    setSelected([id]);
+    setSelectMode(true);
+  }
+  function exitSelect() {
+    setSelectMode(false);
+    setSelected([]);
+  }
+  function toggleSelect(id: string) {
+    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  }
+
+  /** Tick every selected row that is not already done today. Never UN-ticks: a bulk action that
+   *  toggles would silently undo somebody's finished work on a mixed selection. */
+  function bulkTick() {
+    if (selected.length === 0 || isPairFrozen(pair)) return;
+    const set = new Set(selected);
+    const stamp = nowMs();
+    void commit(
+      tasks.map((task) =>
+        set.has(task.id) && !isUnreadableRepeat(task) && !isSharedDoneOn(task, today)
+          ? setSharedDone(task, today, true, stamp)
+          : task,
+      ),
+    );
+    exitSelect();
+  }
+
+  /** Remove every selected row. A tombstone, never a delete, so it reaches the other person and
+   *  Recently removed can put it back. On a REPEAT this ends the series for both of you, which is
+   *  why the shelf says so before the tap rather than after. */
+  function bulkRemove() {
+    if (selected.length === 0 || isPairFrozen(pair)) return;
+    const set = new Set(selected);
+    const stamp = nowMs();
+    void commit(tasks.map((task) => (set.has(task.id) ? { ...task, deletedAt: stamp, updatedAt: stamp } : task)));
+    exitSelect();
+  }
+
   function rename(id: string, title: string) {
     const trimmed = title.trim();
     if (!trimmed) return;
@@ -640,6 +693,10 @@ export default function OursListScreen() {
               onToggle={() => toggle(task.id)}
               onLongPress={() => setConfirmingId(task.id)}
               confirming={confirmingId === task.id}
+              selecting={selectMode}
+              selected={selected.includes(task.id)}
+              onSelect={() => toggleSelect(task.id)}
+              onSelectMore={frozen ? undefined : () => enterSelectWith(task.id)}
               onRemove={frozen ? undefined : () => remove(task.id)}
               onKeep={() => setConfirmingId(null)}
               recurring={task.recurrence !== undefined && task.recurrence.kind !== 'none'}
@@ -755,7 +812,68 @@ export default function OursListScreen() {
           stack raises a bottom-anchored input above an Android keyboard on its own (CLAUDE.md's
           keyboard gotcha, which cost a whole tester round), so it is done by hand here or not at
           all. */}
-      {!frozen && (
+      {/* THE SELECT SHELF. It takes the capture bar's seat rather than stacking above it: two
+          bottom-anchored surfaces competing for the thumb is how a calm screen stops being one, and
+          you are not adding things while you are clearing things.
+
+          Narrower than Today's shelf on purpose. Tick and Remove are the two verbs a household list
+          actually wants (six things bought in one trip, a finished list cleared), and everything
+          else Today offers either authors with a model onto somebody else's screen or leans on a
+          field shared rows do not have. */}
+      {!frozen && selectMode && (
+        <View style={[styles.capture, { paddingBottom: insets.bottom + spacing.three }]}>
+          <View style={styles.selectTop}>
+            <Text style={selected.length === 0 ? styles.selectHint : styles.selectCount}>
+              {selected.length === 0 ? t('today.selectHint') : t('today.selectedCount', { count: selected.length })}
+            </Text>
+            <Pressable
+              onPress={() => setSelected(visible.map((task) => task.id))}
+              disabled={selected.length === visible.length}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: selected.length === visible.length }}
+              accessibilityLabel={t('today.selectAllA11y')}
+              hitSlop={6}
+              style={selected.length === visible.length ? styles.selectOff : undefined}
+            >
+              <Text style={styles.selectAllText}>{t('today.selectAll')}</Text>
+            </Pressable>
+          </View>
+          {/* Said BEFORE the tap, never discovered after. A shared list has no per-day skip, so
+              removing a repeat here ends it for both of you, and that is not a thing to learn from
+              the consequence. */}
+          {selected.some((id) => {
+            const row = tasks.find((task) => task.id === id);
+            return row?.recurrence !== undefined && row.recurrence.kind !== 'none';
+          }) && <Text style={styles.selectNote}>{t('ours.removeEndsRepeats')}</Text>}
+          <View style={styles.selectShelf}>
+            <Pressable onPress={exitSelect} accessibilityRole="button" accessibilityLabel={t('common.cancel')} hitSlop={6}>
+              <Text style={styles.selectCancel}>{t('common.cancel')}</Text>
+            </Pressable>
+            <Pressable
+              onPress={bulkTick}
+              disabled={selected.length === 0}
+              accessibilityRole="button"
+              accessibilityLabel={t('today.markSelectedDoneA11y')}
+              hitSlop={6}
+              style={selected.length === 0 ? styles.selectOff : undefined}
+            >
+              <Text style={styles.selectDone}>{t('common.done')}</Text>
+            </Pressable>
+            <Pressable
+              onPress={bulkRemove}
+              disabled={selected.length === 0}
+              accessibilityRole="button"
+              accessibilityLabel={t('today.removeCountA11y', { count: String(selected.length) })}
+              hitSlop={6}
+              style={selected.length === 0 ? styles.selectOff : undefined}
+            >
+              <Text style={styles.selectRemove}>{t('common.remove')}</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {!frozen && !selectMode && (
         <View
           style={[
             styles.capture,
@@ -901,6 +1019,19 @@ const makeStyles = (t: Theme) =>
       fontWeight: t.appearance === 'quiet' ? '400' : '700',
     },
     capturePanel: { gap: spacing.two, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
+    // The select shelf, sharing the capture bar's container so the two occupy one seat.
+    selectTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.three },
+    selectHint: { color: t.colors.inkFaint, fontSize: 14 * t.scale, fontFamily: fonts.body },
+    selectCount: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    selectAllText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    selectNote: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, marginBottom: spacing.three },
+    selectShelf: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    selectCancel: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body },
+    selectDone: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    selectRemove: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body },
+    // Quiet-unavailable rather than absent: the control keeps its place at lowered contrast, which
+    // is the same treatment every other unavailable action in this app gets.
+    selectOff: { opacity: 0.45 },
     // display none (not unmount): BrainDump keeps its typed text while the panel is away.
     capturePanelHidden: { display: 'none' },
     pressed: { opacity: PRESSED_OPACITY },

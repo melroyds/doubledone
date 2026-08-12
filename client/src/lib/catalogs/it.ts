@@ -393,6 +393,7 @@ export const it: Catalog = {
     todayHeading: 'Per oggi · Nostro',
     todayHeadingNamed: 'Per oggi · {name}',
     sinceYouLooked: '{count} da quando hai guardato',
+    removeEndsRepeats: "Rimuovere una ripetizione qui la termina per entrambi.",
     takeOn: "Prendila in carico oggi",
     shareTrim: 'Su Ours i titoli sono più corti. Questo verrà accorciato per entrare.',
     sharedToOurs: 'Aggiunta alla vostra lista condivisa.',

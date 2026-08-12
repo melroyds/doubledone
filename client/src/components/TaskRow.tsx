@@ -30,9 +30,8 @@ type Props = {
   removesWholeSeries?: boolean; // the caller's Remove tombstones the SERIES, so it must not borrow the "Skip today" label
   onRepeat?: () => void; // held-state, SHARED rows only: set this row's rhythm, through THE cadence sheet
   onBring?: () => void; // held-state, SHARED rows only: bring a copy of this to my own Today (the hero seat, where Break it down sits on a personal card)
-  brought?: boolean;
+  brought?: boolean; // that copy is already on my Today: the hero says so and goes inert, rather than quietly making a second one
   bringLabel?: string; // override for the bring hero's words. In the ROOM it is "Bring to my Today"; on Today itself that sentence is nonsense, and the same action there means "take this on"
- // that copy is already on my Today: the hero says so and goes inert, rather than quietly making a second one
   onShareToOurs?: () => void; // held-state, PERSONAL rows only: put a copy of this on the shared list (in the fold; only when a live list exists)
   origin?: string; // a faint suffix after the title, marking YOUR copy of a shared row ("· Ours"). Render-only: never part of the title, so renaming never eats it
   onDefer?: () => void; // push-to-tomorrow; the held card no longer shows a standalone Tomorrow (folded into the Move-to picker's chip), but the prop stays for that wiring

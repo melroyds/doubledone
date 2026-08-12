@@ -6464,3 +6464,30 @@ went into a SINGLE-quoted TypeScript literal, so the apostrophe ended the string
 stopped parsing. Typecheck, lint and tests all went red together, which is exactly what should
 happen. Rule for the catalogs: any language whose text can contain an apostrophe (fr above all)
 belongs in double quotes, and the gate is what proves it rather than a careful read.
+
+## 2026-08-12 Multi-select comes to the room, narrower than Today's
+
+Melroy: "you can't select multiple tasks in the Ours list. Can you fix that too please?"
+
+A shared list wants this MORE than a personal day does. A household list is where six things get
+bought in one trip and then need ticking off in one go, and where a finished shopping list needs
+clearing. One row at a time is the sort of small tax that stops two people bothering to keep the
+list at all.
+
+**Deliberately narrower than Today's version.** Tick and Remove only. No Combine (an AI action, and
+it would author rows onto a list another person reads). No "mark as a lot" (a personal weighting
+concept, with no field on a shared row). No bulk Move-to (dating several shared rows at once is a
+bigger promise than it looks, and one at a time is honest until somebody asks).
+
+**Two rules that are not cosmetic.** Bulk tick never UN-ticks: a toggle across a mixed selection
+would silently undo somebody's finished work, and on a shared list that somebody may not be you. And
+the shelf SAYS, before the tap, that removing a repeat ends it for both of you, because the room has
+no per-day skip and that is not a thing to learn from the consequence.
+
+**The shelf takes the capture bar's seat** rather than stacking above it. Two bottom-anchored
+surfaces competing for the thumb is how a calm screen stops being one, and you are not adding things
+while you are clearing things.
+
+Reuses Today's `selectAll` / `selectHint` / `selectedCount` strings rather than minting parallel ones
+in five languages. The namespace reads oddly (`today.*` on the Ours screen) and the alternative is
+five identical translations of "Select all", which is worse.

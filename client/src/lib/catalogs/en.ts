@@ -397,6 +397,7 @@ export const en = {
     todayHeading: 'Due today · Ours',
     todayHeadingNamed: 'Due today · {name}',
     sinceYouLooked: '{count} since you looked',
+    removeEndsRepeats: "Removing a repeat here ends it for both of you.",
     takeOn: "Take this on today",
     shareTrim: 'Ours keeps titles shorter. This one will be trimmed to fit.',
     sharedToOurs: 'Added to your shared list.',
