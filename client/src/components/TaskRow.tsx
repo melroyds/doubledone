@@ -362,7 +362,7 @@ export function TaskRow({
               accessibilityLabel={bringLabel ?? t('ours.bring')}
               hitSlop={{ top: 6, bottom: 6 }}
             >
-              <Text style={[styles.actionLabel, styles.heroLabel]}>{t('ours.bring')}</Text>
+              <Text style={[styles.actionLabel, styles.heroLabel]}>{bringLabel ?? t('ours.bring')}</Text>
               {/* A REPEAT crosses as one dated copy and does not inherit the rhythm: the cadence
                   stays on the shared list, which is the only place it repeats. "a copy" was true
                   and vague; Melroy had to ask what happens, which means it was not saying it. */}
@@ -710,7 +710,15 @@ export function TaskRow({
           nothing implemented. Melroy found it the only way it could be found, by looking.
           `accessible={false}` because the words are already inside the row's spoken label; rendering
           them again here would read the row's state out twice. */}
-      {note ? <Text style={styles.rowNote} accessible={false} importantForAccessibility="no">{note}</Text> : null}
+      {/* `inert` rides the same line as `note`, and for the same reason it was written: "the reason
+          travels WITH the control, so a screen reader hears it and a tap is never silently dead".
+          It reached only the spoken label, so on a closed list a sighted person tapped a row that
+          did nothing and was told nothing, which is the exact failure the room's comment claims to
+          have fixed. `note` wins when both are set: a wash is news, an inert reason is a standing
+          condition you can also read from the row being closed. */}
+      {note ?? inert ? (
+        <Text style={styles.rowNote} accessible={false} importantForAccessibility="no">{note ?? inert}</Text>
+      ) : null}
     </Pressable>
   );
 }

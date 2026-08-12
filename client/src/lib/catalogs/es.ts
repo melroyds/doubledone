@@ -345,6 +345,7 @@ export const es: Catalog = {
     errTooManyLists: 'Esta cuenta ha llegado al límite de listas compartidas de DoubleDone.',
     errUnknown: 'Eso no funcionó ahora mismo. ¿Probamos otra vez?',
     errUnpushed: 'Guardado aquí, pero todavía no en la lista de tu persona. Lo sigue intentando.',
+    errClosedList: "Esta lista está cerrada, así que los cambios se quedan en este dispositivo.",
     forget: 'Borrar esta lista para siempre',
     forgetHint: 'Esto borra la lista y todo lo que hay en ella, y no se puede deshacer. Primero lleva a tu Hoy lo que quieras conservar.',
     frozenBody: 'No se pierde nada. Puedes seguir leyéndolo todo aquí, y llevar a tu Hoy lo que quieras, una cosa a la vez.',

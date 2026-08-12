@@ -349,6 +349,7 @@ export const de: Catalog = {
     errTooManyLists: 'Dieses Konto hat das Limit für gemeinsame Listen erreicht.',
     errUnknown: 'Das hat gerade nicht geklappt. Noch mal versuchen?',
     errUnpushed: 'Hier gespeichert, aber noch nicht auf der Liste deiner Person. Es versucht es weiter.',
+    errClosedList: "Diese Liste ist geschlossen, Änderungen bleiben auf diesem Gerät.",
     forget: 'Diese Liste endgültig löschen',
     forgetHint: 'Das löscht die Liste mit allem, was darauf steht, und lässt sich nicht rückgängig machen. Hol dir vorher ruhig in dein Heute, was du behalten möchtest.',
     frozenBody: 'Es ist nichts verloren. Du kannst hier noch alles lesen und dir einzeln in dein Heute holen, was du magst.',

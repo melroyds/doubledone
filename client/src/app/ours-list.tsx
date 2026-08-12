@@ -19,7 +19,7 @@ import { t } from '@/lib/locale';
 import { makeSharedRef, pulledFrom } from '@/lib/ours-bridge';
 import { loadMyPairs, type MyPair, syncClock } from '@/lib/ours-api';
 import { isSharedDoneOn, setSharedDone, type SharedTask, washedSince } from '@/lib/ours-merge';
-import { isUnreadableRepeat, onSharedListOn, POLL_MS, repeatSummaryOf, shouldPoll, syncPairOnce, willTrim } from '@/lib/ours-sync';
+import { isUnreadableRepeat, onSharedListOn, POLL_MS, cadenceLine, shouldPoll, syncPairOnce, willTrim } from '@/lib/ours-sync';
 import { clearOursMine, loadOursMine, loadOursSeen, loadOursTasks, loadTasks, markOursSeen, noteOursMine, pruneOursCache, saveOursTasks, saveTasks } from '@/lib/storage';
 import { usePremium } from '@/lib/premium-provider';
 import { supabase } from '@/lib/supabase';
@@ -111,6 +111,11 @@ export default function OursListScreen() {
   // tick could sit looking finished on one phone and never arrive on the other, with no signal to
   // the user OR to me. Silence was the bug underneath several of tonight's bugs.
   const [unpushed, setUnpushed] = useState(false);
+  // A push refused BECAUSE THE LIST IS CLOSED, which is not the same as one the network dropped.
+  // "Saved here, not there" promises it keeps trying; on a closed list the write can never succeed,
+  // and that promise sits on the one screen a separated or bereaved person may keep for years.
+  // `isPairReadOnly` existed for exactly this and had no call site at all until the audit found it.
+  const [readOnly, setReadOnly] = useState(false);
   const [notice, setNotice] = useState<string | null>(null); // one calm line, for things worth saying once
   // The keyboard lift. NOTHING on this stack raises a bottom-anchored input above the keyboard on
   // its own: SDK 5x Android is edge-to-edge and ignores softwareKeyboardLayoutMode, and there is no
@@ -345,10 +350,11 @@ export default function OursListScreen() {
       setLoaded(true);
 
       try {
-        const { merged, pushError } = await syncPairOnce(client, live_.pairId, cached);
+        const { merged, pushError, readOnly: refused } = await syncPairOnce(client, live_.pairId, cached);
         if (call !== pass.current) return;
         if (pushError) console.warn('[ours] push failed, changes are local only', pushError);
         setUnpushed(Boolean(pushError));
+        setReadOnly(Boolean(refused));
         setTasks(merged);
         setWashed(washFor(merged));
         setOffline(false);
@@ -692,7 +698,9 @@ export default function OursListScreen() {
         {offline ? <Text style={styles.offline}>{t('ours.errOffline')}</Text> : null}
         {/* Saved here, not there. A fact, and a promise that it keeps trying, because the honest
             alternative to silence is not alarm. */}
-        {unpushed && !offline ? <Text style={styles.offline}>{t('ours.errUnpushed')}</Text> : null}
+        {unpushed && !offline ? (
+          <Text style={styles.offline}>{readOnly ? t('ours.errClosedList') : t('ours.errUnpushed')}</Text>
+        ) : null}
         {notice ? (
           <Pressable onPress={() => setNotice(null)} accessibilityRole="button" accessibilityLabel={t('common.gotIt')} hitSlop={6}>
             <Text style={styles.offline}>{notice}</Text>
@@ -754,16 +762,16 @@ export default function OursListScreen() {
                 tapped a row that did nothing. */}
             {isUnreadableRepeat(task) ? (
               <Text style={styles.cadenceNote}>
-                {repeatSummaryOf(task) ? `${repeatSummaryOf(task)}  ·  ` : ''}
+                {cadenceLine(task, now) ? `${cadenceLine(task, now)}  ·  ` : ''}
                 {t('ours.repeatUnknown')}
               </Text>
             ) : frozen && confirmingId === task.id ? (
               <Text style={styles.cadenceNote}>{t('ours.frozenRow')}</Text>
-            ) : repeatSummaryOf(task) ? (
+            ) : cadenceLine(task, now) ? (
               /* The rhythm, in words. A row that will turn up on both your Todays should say so
                  HERE, in the room where it was made, rather than being a surprise on somebody's
                  morning. */
-              <Text style={styles.cadenceNote}>{repeatSummaryOf(task)}</Text>
+              <Text style={styles.cadenceNote}>{cadenceLine(task, now)}</Text>
             ) : task.due ? (
               /* Same reasoning for a chosen day. Without this a dated row is indistinguishable from
                  an undated one right up until it silently appears on a Today. */

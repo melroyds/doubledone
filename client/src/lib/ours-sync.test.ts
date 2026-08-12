@@ -5,6 +5,7 @@ import {
   IDLE_STOP_MS,
   isPairReadOnly,
   isUnreadableRepeat,
+  cadenceLine,
   onSharedListOn,
   openInRoom,
   knownRecurrence,
@@ -636,5 +637,33 @@ describe('the count the door on Today carries', () => {
 
   it('is zero for an empty room', () => {
     expect(openInRoom([], ISO, TUE)).toBe(0);
+  });
+});
+
+// The audit's find: `repeatSummaryOf` reads a `summary` key that NOTHING writes, so a repeating
+// shared row showed no rhythm anywhere, seconds after the cadence sheet promised "You'll both see it
+// on its day". A cadence this build understands must be described locally, in the reader's own
+// language, which is also the only right answer when two people do not share one.
+describe('the rhythm line on a shared row', () => {
+  const TUE = new Date(2026, 7, 11);
+
+  it('describes a cadence this build understands, without waiting for anyone to write words', () => {
+    const daily = task({ id: 'r', recurrence: { kind: 'daily', start: '2026-08-01' } });
+    expect(cadenceLine(daily, TUE)).toBeTruthy();
+    expect(repeatSummaryOf(daily)).toBeUndefined(); // the old path, and why it was never enough
+  });
+
+  it("falls back to the other build's words only when the cadence is unreadable", () => {
+    const alien = task({ id: 'r', rawRecurrence: { kind: 'lunar', summary: 'every full moon' } });
+    expect(cadenceLine(alien, TUE)).toBe('every full moon');
+  });
+
+  it('says nothing at all for a one-off', () => {
+    expect(cadenceLine(task({ id: 'r' }), TUE)).toBeUndefined();
+    expect(cadenceLine(task({ id: 'r', due: '2026-08-14' }), TUE)).toBeUndefined();
+  });
+
+  it('says nothing for an unreadable cadence carrying no words', () => {
+    expect(cadenceLine(task({ id: 'r', rawRecurrence: { kind: 'lunar' } }), TUE)).toBeUndefined();
   });
 });

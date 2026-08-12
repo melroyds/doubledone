@@ -59,7 +59,7 @@ import { checkForUpdate, currentPlatform } from '@/lib/update-check';
 import { FALLBACK_VERSION, shouldMention, type UpdateStatus, updateUrl } from '@/lib/updates';
 import { makeSharedRef, parseSharedRef, removedOrigins, sharedRestNotes } from '@/lib/ours-bridge';
 import { isSharedDoneOn, setSharedDone, type SharedTask, washedSince } from '@/lib/ours-merge';
-import { isUnreadableRepeat, repeatSummaryOf, sharedDueOn, syncPairOnce, willTrim } from '@/lib/ours-sync';
+import { isUnreadableRepeat, cadenceLine, sharedDueOn, syncPairOnce, willTrim } from '@/lib/ours-sync';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { buildOutcome } from '@/lib/outcome';
 import { scheduleFields, type CaptureSchedule, type Recurrence } from '@/lib/recurrence';
@@ -2662,7 +2662,7 @@ export default function TodayScreen() {
                 onToggle={() => void toggleShared(row.id)}
                 /* The cadence in words, so "why is this here today" is answered on the row itself
                    rather than requiring a trip to the room to find out. */
-                note={repeatSummaryOf(row)}
+                note={cadenceLine(row, today)}
                 onLongPress={() => setConfirmingId(row.id)}
                 confirming={confirmingId === row.id}
                 onKeep={() => setConfirmingId(null)}

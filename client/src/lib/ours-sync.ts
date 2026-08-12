@@ -1,7 +1,7 @@
 import { type SupabaseClient } from '@supabase/supabase-js';
 
 import { type CompletionLog, isSharedDoneOn, mergeShared, type SharedTask, stillOnList } from './ours-merge';
-import { isDueOn, type Recurrence } from './recurrence';
+import { describeRecurrence, isDueOn, type Recurrence } from './recurrence';
 
 // The Supabase seam for the SHARED list. Same shape as sync.ts: the row <-> task mapping is pure
 // and unit-tested, and pull / push / syncPairOnce wrap the merge engine (ours-merge.ts) around the
@@ -202,6 +202,27 @@ export function sanitiseCompletions(input: unknown): CompletionLog | undefined {
  * Italian reader is not shown an English one whenever it could have been avoided. The stored
  * summary is a fallback, never the source of truth.
  */
+/**
+ * A repeat's rhythm in words, for the row.
+ *
+ * `repeatSummaryOf` alone was never enough and the audit caught it: it reads a `summary` key that
+ * NOTHING in this codebase writes. `scheduleFields` emits {kind,start} / {kind,weekdays,start} /
+ * {kind,days,anchor}, the Worker never touches shared_tasks at all, and `knownRecurrence`'s carry can
+ * only preserve a summary that already arrived. So it returned undefined for every real row, and a
+ * repeating shared task showed no rhythm anywhere, in the room OR on Today's strip, seconds after
+ * the cadence sheet promised "You'll both see it on its day".
+ *
+ * A cadence THIS build understands is described locally and in the reader's own language, which is
+ * also the right answer for two people who may not share one. Only when the cadence is unreadable
+ * does the partner's plain-English summary matter, and then it is the only thing there is.
+ */
+export function cadenceLine(task: SharedTask, today?: Date): string | undefined {
+  if (task.recurrence !== undefined && task.recurrence.kind !== 'none') {
+    return describeRecurrence(task.recurrence, today);
+  }
+  return repeatSummaryOf(task);
+}
+
 export function repeatSummaryOf(task: SharedTask): string | undefined {
   const from = task.recurrence ?? task.rawRecurrence;
   if (typeof from !== 'object' || from === null) return undefined;
@@ -361,6 +382,15 @@ export async function pushShared(client: SupabaseClient, tasks: SharedTask[], pa
  * forever and the push 42501s forever. Same shape as `isAccountGone` in sync.ts, and the same
  * reason: a caller that cannot tell these apart does something destructive with the wrong one.
  */
+/**
+ * Did the push fail because the list is CLOSED, rather than because the network is?
+ *
+ * Postgres 42501 is insufficient_privilege, which on `shared_tasks` means RLS refused the write: the
+ * pair is closed or disabled. It had no call sites at all, so the room answered a permanent refusal
+ * with "Saved here, not there" — a promise that it keeps trying, on a list where the write can never
+ * succeed. On the one screen a separated or bereaved person may keep for years, that is the cruellest
+ * possible false hope, and the audit was right to rank it above its severity.
+ */
 export function isPairReadOnly(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '42501';
 }
@@ -375,6 +405,8 @@ export function isPairReadOnly(error: unknown): boolean {
  * person having done something.
  */
 export type PairSyncResult = {
+  /** The push was refused for good: the list is closed. Distinct from a network failure, which retries. */
+  readOnly?: boolean;
   merged: SharedTask[];
   /** Set when the pull succeeded and the PUSH did not. The merged set is still good and must still
    *  be cached; only the "your person has seen this" affordance should read this. */
@@ -395,7 +427,7 @@ export async function syncPairOnce(client: SupabaseClient, pairId: string, local
     // screen a bereaved or separated person may keep for years, under copy promising "Nothing is
     // lost. You can still read everything here." Returning the error rather than swallowing it
     // keeps a real push bug diagnosable.
-    return { merged, pushError };
+    return { merged, pushError, readOnly: isPairReadOnly(pushError) };
   }
 }
 
