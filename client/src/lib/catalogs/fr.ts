@@ -390,6 +390,7 @@ export const fr: Catalog = {
     shareTo: 'Partager dans notre liste',
     todayHeading: 'De Notre liste',
     todayHeadingNamed: 'De {name}',
+    sinceYouLooked: '{count} depuis votre dernier passage',
     shareTrim: 'Sur Ours, les titres sont plus courts. Celui-ci sera raccourci pour tenir.',
     sharedToOurs: 'Ajoutée à votre liste partagée.',
     sharingWith: 'Partagée avec {name}',

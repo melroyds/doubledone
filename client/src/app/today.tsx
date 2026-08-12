@@ -58,7 +58,7 @@ import { isOursOpen, loadMyPairs, syncClock } from '@/lib/ours-api';
 import { checkForUpdate, currentPlatform } from '@/lib/update-check';
 import { FALLBACK_VERSION, shouldMention, type UpdateStatus, updateUrl } from '@/lib/updates';
 import { parseSharedRef, sharedRestNotes } from '@/lib/ours-bridge';
-import { isSharedDoneOn, setSharedDone, type SharedTask } from '@/lib/ours-merge';
+import { isSharedDoneOn, setSharedDone, type SharedTask, washedSince } from '@/lib/ours-merge';
 import { isUnreadableRepeat, repeatSummaryOf, sharedDueOn, syncPairOnce, willTrim } from '@/lib/ours-sync';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { buildOutcome } from '@/lib/outcome';
@@ -68,7 +68,7 @@ import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge }
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursTasks, loadReminderHour, loadUpdateMentioned, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveUpdateMentioned, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
+import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursMine, loadOursSeen, loadOursTasks, loadReminderHour, loadUpdateMentioned, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveUpdateMentioned, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
 import { restedOffer } from '@/lib/offers';
 import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/plan-day';
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
@@ -355,6 +355,30 @@ export default function TodayScreen() {
    * simply not in the array that defines it.
    */
   const [sharedTasks, setSharedTasks] = useState<SharedTask[]>([]);
+  /**
+   * How much has changed in the room SINCE YOU LAST LOOKED. Zero, and therefore absent, the moment
+   * you open it.
+   *
+   * The door has always refused a count, and the reason was good: "a number here is a number
+   * another person can change, on the one screen whose whole promise is that today is finite." A
+   * standing tally of open rows would be permanently non-zero on any real household list, sitting
+   * on the calm screen, moving whenever your person types. That is pressure, and this audience does
+   * not need a number to feel behind on.
+   *
+   * This is a different quantity and it survives that objection: it is bounded by your own
+   * attention rather than by the list's size, and LOOKING is what clears it. It cannot climb at you,
+   * because the act of reading it is the act of resolving it.
+   *
+   * It reuses the wash's own arithmetic (`washedSince`), so the door and the room agree by
+   * construction about what counts as changed and about which changes were your own. Your own edits
+   * never count, and a first-ever visit counts nothing.
+   *
+   * Melroy asked whether this could be a setting instead. Deliberately NOT: "remove friction, never
+   * add a setting" is the product's own law, and a self-clearing count is close enough to invisible
+   * that the toggle would be a decision bought for almost no difference. Parked in the Backlog with
+   * a trigger, which is the honest place for it.
+   */
+  const [sharedChanged, setSharedChanged] = useState(0);
   // Bumped on every focus, so effects that must re-run per VISIT (rather than per mount) can say so.
   const [visit, setVisit] = useState(0);
   // `?debug=1` on Today too. The settle happens HERE, so the bridge half of the diagnostic was
@@ -408,10 +432,15 @@ export default function TodayScreen() {
       return;
     }
     let active = true;
-    void settleSharedCopies(oursPairId, toISODate(new Date()), supabase).then((res) => {
+    void settleSharedCopies(oursPairId, toISODate(new Date()), supabase).then(async (res) => {
       if (!active || !res) return;
       setSharedTasks(res.shared);
       if (res.settled) setTasks(res.settled.next);
+      // Same inputs the room's wash uses, so the two can never disagree about what changed.
+      const seen = (await loadOursSeen())[oursPairId] ?? 0;
+      const mine = new Set(await loadOursMine(oursPairId));
+      if (!active) return;
+      setSharedChanged(washedSince(res.shared, seen, mine).size);
     });
     return () => {
       active = false;
@@ -2488,21 +2517,37 @@ export default function TodayScreen() {
           </View>
         )}
 
-        {/* Ours. One hairline row, and NEVER a count on it: a number here is a number another
-            person can change, on the one screen whose whole promise is that today is finite. Absent
-            entirely when there is no live shared list, so this can never read as an advert. The name
-            wraps rather than truncating, because a household's word for its own list is not ours to
-            cut. */}
+        {/* Ours. One hairline row. Absent entirely when there is no live shared list, so this can
+            never read as an advert. The name wraps rather than truncating, because a household's
+            word for its own list is not ours to cut.
+
+            It carries ONE number, and only this one. The old rule here was "never a count", against
+            a standing tally of open rows, and that rule was right: such a number is permanently
+            non-zero on a real household list and moves whenever the other person types, which is
+            pressure on the one screen whose whole promise is that today is finite.
+
+            "Since you looked" is a different quantity and survives that objection. It is bounded by
+            your own attention rather than by the list's length, your own edits never count toward
+            it, and LOOKING is what clears it: the act of reading it is the act of resolving it. It
+            cannot climb at you. Its arithmetic is the room's own wash, so the two always agree. */}
         {oursPairId && !selectMode && (
           <Pressable
             onPress={() => router.push('/ours-list')}
             accessibilityRole="button"
-            accessibilityLabel={oursName ? `${t('ours.defaultName')}: ${oursName}` : t('ours.defaultName')}
+            accessibilityLabel={[
+              oursName ? `${t('ours.defaultName')}: ${oursName}` : t('ours.defaultName'),
+              sharedChanged > 0 ? t('ours.sinceYouLooked', { count: sharedChanged }) : null,
+            ]
+              .filter(Boolean)
+              .join('. ')}
             style={({ pressed }) => [styles.oursDoor, pressed && styles.pressed]}
           >
             <Text style={styles.oursDoorText}>
               {oursName ? `${t('ours.defaultName')} · ${oursName}` : t('ours.defaultName')}
             </Text>
+            {sharedChanged > 0 && (
+              <Text style={styles.oursDoorSince}>{t('ours.sinceYouLooked', { count: sharedChanged })}</Text>
+            )}
             <Text style={styles.oursDoorChevron}>›</Text>
           </Pressable>
         )}
@@ -3873,6 +3918,9 @@ const makeStyles = (t: Theme) =>
       textTransform: 'uppercase',
       marginBottom: spacing.one,
     },
+    // Quiet, in the body colour rather than the accent: this is information about another room,
+    // not an alarm about your own. The door is the action; this only says whether it is worth taking.
+    oursDoorSince: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginLeft: spacing.two },
     capturePanel: { gap: spacing.two },
     // display none (not unmount): BrainDump keeps its typed text while the panel is away.
     capturePanelHidden: { display: 'none' },

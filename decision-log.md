@@ -6336,3 +6336,33 @@ good way: rather than a column nobody read, it is the thing that makes this work
 **Two comments were left actively wrong by this change and are fixed**, including one that told a
 future reader the panel "cannot produce" a due date. That was true for nine hours. A comment stating
 an invariant that has since been reversed is worse than no comment at all.
+
+## 2026-08-12 The Ours door carries one number, and looking is what clears it (Tier 2)
+
+**The door has always refused a count**, in as many words: "NEVER a count on it: a number here is a
+number another person can change, on the one screen whose whole promise is that today is finite."
+That rule was right, and it got MORE right once Tier 1 shipped: with everything dated already
+surfacing on Today, a tally of open rows would mostly be counting the undated shopping list, which
+is permanently non-empty. A number that never reaches zero, moving whenever your person types, on
+the calm screen.
+
+**Decided: a different quantity, which survives the objection.** "N since you looked" is bounded by
+your own attention rather than by the list's length, and LOOKING is what clears it. The act of
+reading it is the act of resolving it, so it cannot climb at you. Your own edits never count. A
+first-ever visit counts nothing, rather than inventing a baseline and opening the app with a number
+already on it.
+
+It reuses `washedSince`, the room's own wash arithmetic, so the door and the room agree by
+construction about what changed and about whose change it was. One source of truth, two surfaces.
+
+**Decided against: a setting.** Melroy asked for one ("any chance we can build the flexibility in
+under a mini-settings toggle"). The product's own law is "remove friction, never add a setting", and
+here a good default costs less than a choice: because the count self-clears, "on" and "off" barely
+differ, so the toggle would buy a decision for almost no behavioural difference on a screen whose
+whole job is to ask nothing of you. Parked in the Backlog with a real trigger: if it bothers either
+of them in use, build it then, with their words as the reason. Adding a setting later is cheap;
+removing one breaks the muscle memory of whoever found it.
+
+**Wording note.** It says "since you looked" rather than "3 new", because a change can be a tick, a
+rename or a removal, and "new" would be a small lie about a third of the time. The phrase also
+teaches its own mechanic: it tells you, in the label, that looking is what makes it go away.

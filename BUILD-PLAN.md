@@ -97,6 +97,21 @@ and the AI features answer in German the moment the resolver says 'de'.*
 
 The single home for consciously parked work. Nothing here is dropped; each item has a trigger for when it earns a place in the sequence. Premium-gated ideas live in [`docs/premium.md`](docs/premium.md).
 
+### Parked: a per-person toggle for the Ours door count
+
+Melroy asked (2026-08-12) whether the door's "since you looked" count could be a setting, so each
+person picks. Deliberately not built, and the reason is the product's own law: **remove friction,
+never add a setting.**
+
+The count as shipped is bounded by your own attention and CLEARS when you open the room, so "on" and
+"off" barely differ in practice: the thing a toggle would protect you from is a standing tally, and
+this is not one. A setting here buys a decision for almost no behavioural difference, on a screen
+whose whole job is to ask nothing of you. Adding one later is cheap; removing one breaks the muscle
+memory of whoever found it.
+
+**Trigger:** if either Melroy or his partner reports the count actually bothering them in real use,
+build it then, with their words as the reason. Real friction beats a hypothetical preference.
+
 ### Parked: a due date on shared rows (Ours)
 
 `shared_tasks.due` is LIVE on the table (`supabase/ours-due.sql`, applied 2026-08-11) and nothing
@@ -109,8 +124,10 @@ date turns a flat, always-visible list into a scheduled one, which needs a Later
 what a dated row does when its day arrives, and an answer for two people whose devices are in
 different timezones.
 
-**Trigger:** when somebody actually asks for a dated shared item. Then build it whole, in one pass,
-with the visual grouping and the timezone rule decided up front.
+**RESOLVED 2026-08-12, one day later.** Melroy asked for exactly the thing this was waiting on, and
+it was built whole as Tier 1: dated and repeating shared rows now surface on both Todays, the room
+shows a row's day on the row, and the capture rests on Anytime with Today / Tomorrow / a date behind
+the door. The column is load-bearing rather than dead. Left here as a record of the call.
 
 
 ### The tiering (re-cut 2026-07-25, evening)

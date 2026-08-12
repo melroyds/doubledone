@@ -394,6 +394,7 @@ export const en = {
     shareTo: 'Share to Ours',
     todayHeading: 'From Ours',
     todayHeadingNamed: 'From {name}',
+    sinceYouLooked: '{count} since you looked',
     shareTrim: 'Ours keeps titles shorter. This one will be trimmed to fit.',
     sharedToOurs: 'Added to your shared list.',
     sharingWith: 'Sharing with {name}',
