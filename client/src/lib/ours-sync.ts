@@ -1,6 +1,6 @@
 import { type SupabaseClient } from '@supabase/supabase-js';
 
-import { type CompletionLog, isSharedDoneOn, mergeShared, type SharedTask, stillOnList } from './ours-merge';
+import { type CompletionLog, mergeShared, type SharedTask, stillOnList } from './ours-merge';
 import { describeRecurrence, isDueOn, type Recurrence } from './recurrence';
 
 // The Supabase seam for the SHARED list. Same shape as sync.ts: the row <-> task mapping is pure
