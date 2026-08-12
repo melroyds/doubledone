@@ -1,5 +1,5 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -70,8 +70,18 @@ export default function OursListScreen() {
   const styles = useThemedStyles(makeStyles);
   const { session, known: sessionKnown } = useSessionState();
   // One Date for the whole render, so the ISO day and the cadence placement can never disagree
-  // across a midnight tick mid-render.
-  const now = useMemo(() => new Date(), []);
+  // across a midnight tick mid-render. STATE, not a useMemo, because it must be allowed to CHANGE.
+  //
+  // Frozen at mount this was the room's version of a bug Today had already fixed, and it was worse
+  // here because the wrong day travels to another person. Leave the room open on the counter
+  // overnight, or open it at 23:58 and tick at 00:02, and `toggle` writes the completion log under
+  // YESTERDAY's key. Your partner's phone computes the real date, asks whether the row is done
+  // today, and gets false. Permanently: the merge is per-date, and the date is wrong. A Tuesday
+  // repeat also keeps rendering on Wednesday, and anything captured as "Tomorrow" lands on today.
+  //
+  // Re-derived on focus and on every poll tick, and ONLY when the ISO day actually differs, so the
+  // identity stays stable and nothing re-renders for nothing.
+  const [now, setNow] = useState(() => new Date());
   const today = toISODate(now);
   // The archive opens a CLOSED list here by id. Without it the room only ever shows the live one,
   // and "you can still read everything" would have been a promise with nowhere to keep it.
@@ -111,6 +121,12 @@ export default function OursListScreen() {
   // Newest-issued-wins, the same guard the pairing screen needed: several call sites, a network
   // round trip in each, and whichever reply lands last would otherwise win regardless of age.
   const pass = useRef(0);
+  // Minted at FIRST RENDER, which is before `syncClock` has measured anything, so this baseline is
+  // raw `Date.now()` while every later reading of `nowMs()` is corrected. On a phone eleven minutes
+  // behind the server that mismatch alone reads as eleven minutes of idleness, and `shouldPoll`'s
+  // ten-minute rule then stops polling for the whole visit while the person sits looking at the
+  // screen. Re-baselined the moment the skew is known (see `syncClock` below), which is the only
+  // point at which a correct value can exist.
   const lastTouch = useRef(nowMs());
   // The quiet wash. `seenAt` is frozen for the whole visit (read once, on the first load) so that
   // marking the list as looked-at does not instantly clear the very tint it was meant to show. `mine`
@@ -278,6 +294,10 @@ export default function OursListScreen() {
       if (!clockSynced.current) {
         clockSynced.current = true;
         await syncClock(client);
+        // The skew is known only now, so re-take the idle baseline against the corrected clock.
+        // Without this the first reading is off by the whole skew and a lagging phone stops polling
+        // immediately, for the entire visit.
+        lastTouch.current = nowMs();
         if (call !== pass.current) return debugLog('sync', { call, stop: 'overtaken-at-clock', by: pass.current });
       }
       const { live, frozen } = res.value;
@@ -397,6 +417,7 @@ export default function OursListScreen() {
       washedAlready.current = new Map();
       clockSynced.current = false;
       focused.current = true;
+      setNow((prev) => (toISODate(prev) === toISODate(new Date()) ? prev : new Date()));
       void syncRef.current();
       return () => {
         focused.current = false;
@@ -445,6 +466,9 @@ export default function OursListScreen() {
   useEffect(() => {
     if (!pairId) return;
     const timer = setInterval(() => {
+      // BEFORE the shouldPoll gate: the day must roll over even on a screen nobody is touching,
+      // because the harm is a tick written into yesterday, not a stale list.
+      setNow((prev) => (toISODate(prev) === toISODate(new Date()) ? prev : new Date()));
       if (!shouldPoll(focused.current, AppState.currentState === 'active', nowMs() - lastTouch.current)) return;
       void syncRef.current();
     }, POLL_MS);

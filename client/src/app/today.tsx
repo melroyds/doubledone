@@ -107,6 +107,18 @@ async function settleSharedCopies(
   pairId: string,
   date: string,
   client: SupabaseClient | null,
+  /**
+   * Has a LOCAL write to this pair's cache landed since this settle started?
+   *
+   * The settle pulls, merges, and saves, and that round trip is a window. Tick a row in the From
+   * Ours strip inside it and `toggleShared` writes the tick to the same cache; if the settle's pull
+   * reached the server first, its merged set has no tick, and its save puts the un-ticked row back.
+   * The checkbox you just ticked un-ticks itself a second later. Recoverable on the next reconcile,
+   * and still exactly the "did I actually do that?" loop this whole feature exists to avoid.
+   *
+   * Checked before every write rather than once at the end, because each await is its own window.
+   */
+  stale: () => boolean,
 ): Promise<{ shared: SharedTask[]; settled: { next: Task[]; notes: { id: string; title: string }[] } | null } | null> {
   try {
     // Pull, because Today never writes this cache: only the room does. Reading it cold would mean a
@@ -117,13 +129,67 @@ async function settleSharedCopies(
     // hour ago, the cache knows, and a failed pull meant your copy stayed on your day regardless.
     if (client) {
       try {
-        shared = (await syncPairOnce(client, pairId, shared)).merged;
+        const merged = (await syncPairOnce(client, pairId, shared)).merged;
+        if (stale()) return null; // somebody ticked while we were on the wire; their write wins
+        shared = merged;
         await saveOursTasks(pairId, shared);
       } catch (err) {
         console.warn('[ours] settle refresh failed, settling from cache', err);
       }
     }
     const mineNow = await loadTasks();
+
+    /**
+     * TICKS THAT NEVER LANDED. `mirrorTickToShared` is the only path carrying a personal tick to its
+     * shared origin, it is fired once, and on a device whose Ours cache is cold it pulls BEFORE it
+     * writes anything. If that pull throws, the tick exists on the personal copy and nowhere else,
+     * and nothing ever tried again: the settle only carries shared -> personal, and `sharedRestNotes`
+     * skips done copies, so the row was excluded from every future reconciliation. Your Today said
+     * done, your partner's list stayed open, and they redid the work.
+     *
+     * Carried with the copy's OWN `completedAt`, as both the date key and the stamp, never `now()`.
+     * That is what makes the retry safe: if your person deliberately un-ticked the row afterwards,
+     * their `off` stamp is later and the CRDT keeps it off. A fresh stamp would silently overrule a
+     * decision somebody made on purpose.
+     */
+    const carry: { id: string; date: string; at: number }[] = [];
+    for (const task of mineNow) {
+      if (task.deletedAt || !task.done || task.completedAt == null || !task.sharedRef) continue;
+      if (task.recurrence !== undefined && task.recurrence.kind !== 'none') continue;
+      const link = parseSharedRef(task.sharedRef);
+      if (link?.pairId !== pairId) continue;
+      const origin = shared.find((row) => row.id === link.sharedId);
+      if (!origin || origin.deletedAt || isUnreadableRepeat(origin)) continue;
+      const on = toISODate(new Date(task.completedAt));
+      if (isSharedDoneOn(origin, on)) continue;
+      // An `off` at or after my tick is a deliberate un-tick by the other side. Leave it alone, and
+      // stop retrying: without this the settle would re-push the same losing write on every visit.
+      const off = origin.completions?.off?.[on];
+      if (off !== undefined && off >= task.completedAt) continue;
+      carry.push({ id: link.sharedId, date: on, at: task.completedAt });
+    }
+    if (carry.length > 0 && client) {
+      const byId = new Map(carry.map((c) => [c.id, c]));
+      const carried = shared.map((row) => {
+        const c = byId.get(row.id);
+        return c ? setSharedDone(row, c.date, true, c.at) : row;
+      });
+      if (stale()) return null;
+      await saveOursTasks(pairId, carried); // local FIRST, so a second failure cannot lose it again
+      shared = carried;
+      debugLog('carry', { rows: carry.length });
+      try {
+        const merged = (await syncPairOnce(client, pairId, carried)).merged;
+        if (!stale()) {
+          shared = merged;
+          await saveOursTasks(pairId, merged);
+          await noteOursMine(pairId, carry.map((c) => c.id)); // my own writes must not wash as theirs
+        }
+      } catch (err) {
+        console.warn('[ours] carrying an unmirrored tick failed; the cache holds it for next time', err);
+      }
+    }
+
     const notes = sharedRestNotes(mineNow, shared, pairId, date);
     // Every input to the decision, so "the copy did not retire" stops being four indistinguishable
     // possibilities: the settle never ran (no line at all), the shared cache is stale (`shared`),
@@ -379,6 +445,9 @@ export default function TodayScreen() {
    * a trigger, which is the honest place for it.
    */
   const [sharedChanged, setSharedChanged] = useState(0);
+  // Bumped by every LOCAL write to the shared cache. The settle reads it before its network round
+  // trip and refuses to save a merge that predates anything written since (see its `stale`).
+  const sharedWrites = useRef(0);
   // Bumped on every focus, so effects that must re-run per VISIT (rather than per mount) can say so.
   const [visit, setVisit] = useState(0);
   // `?debug=1` on Today too. The settle happens HERE, so the bridge half of the diagnostic was
@@ -432,7 +501,8 @@ export default function TodayScreen() {
       return;
     }
     let active = true;
-    void settleSharedCopies(oursPairId, toISODate(new Date()), supabase).then(async (res) => {
+    const startedAt = sharedWrites.current;
+    void settleSharedCopies(oursPairId, toISODate(new Date()), supabase, () => sharedWrites.current !== startedAt).then(async (res) => {
       if (!active || !res) return;
       setSharedTasks(res.shared);
       if (res.settled) setTasks(res.settled.next);
@@ -1617,6 +1687,7 @@ export default function TodayScreen() {
       // repeating task finished forever, for both of you. The room refuses that tap; so must this.
       if (!found || isUnreadableRepeat(found)) return;
       const next = rows.map((task: SharedTask) => (task.id === link.sharedId ? setSharedDone(task, toISODate(today), done, nowMs()) : task));
+      sharedWrites.current += 1;
       await saveOursTasks(link.pairId, next);
       const { merged, pushError } = await syncPairOnce(client, link.pairId, next);
       // The tick is on this device and not on theirs. Nothing on Today should shout about it (this
@@ -1652,6 +1723,7 @@ export default function TodayScreen() {
     try {
       const cached = await loadOursTasks(oursPairId);
       const next = [...cached, copy];
+      sharedWrites.current += 1;
       await saveOursTasks(oursPairId, next);
       const { merged, pushError } = await syncPairOnce(client, oursPairId, next);
       if (pushError) console.warn('[ours] share to Ours did not reach the list', pushError);
@@ -1782,6 +1854,7 @@ export default function TodayScreen() {
       cached.map((row) => (row.id === id ? setSharedDone(row, iso, !isSharedDoneOn(row, iso), stamp) : row)),
       cached,
     );
+    sharedWrites.current += 1;
     setSharedTasks(next); // on screen before the network is asked anything
     await saveOursTasks(oursPairId, next);
     await noteOursMine(oursPairId, [id]);
