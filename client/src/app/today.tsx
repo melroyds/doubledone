@@ -2569,6 +2569,21 @@ export default function TodayScreen() {
                 onLongPress={() => setConfirmingId(row.id)}
                 confirming={confirmingId === row.id}
                 onKeep={() => setConfirmingId(null)}
+                /* THE ONE PRIMARY ACTION, and the answer to Melroy finding the same flaw twice: "the
+                   non-repeating task, I can break down and do all sorts of AI things, but the
+                   repeating one I can't". The asymmetry was never about repeating. It was that a
+                   brought copy is an ORDINARY TASK with the whole held card, while a shared row had
+                   exactly the two actions I had bothered to wire.
+                   Rather than reimplementing Break it down, Make tiny, Steps, Nudge and reorder onto
+                   a second kind of row, taking it on hands you the real thing. The row visibly moves
+                   out of this strip and into your list, which is the message rather than a side
+                   effect: you have taken it on.
+                   It also turns the AI question from forbidden into safe. Break it down was off here
+                   because a model authoring steps onto a list another person reads is a decision
+                   about them. On your own copy the steps land on YOUR day and never on the shared
+                   list, so the very act that unlocks it is the act that makes it harmless. */
+                onBring={() => void takeOnShared(row)}
+                bringLabel={t('ours.takeOn')}
                 /* PIN and MOVE-TO, both of which take the row on as your own copy first (see
                    `takeOnShared`). Melroy asked for these plus reorder; reorder needs no wiring here
                    because taking a row on moves it into your own list, where the existing

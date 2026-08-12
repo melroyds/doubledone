@@ -6404,3 +6404,41 @@ implementation.
 **The trap this opened, caught while writing it:** a taken-on row would render twice, once as your
 task and once as a shared row still due today. Hidden by an id set that includes DONE copies, because
 a finished copy and its finished origin would otherwise both appear.
+
+## 2026-08-12 One shared row, one route: "take this on" replaces a second set of wiring
+
+**Melroy found the same flaw twice, from opposite sides, within minutes.**
+
+First: "TESTMECKSLAIE is a non-repeating task but it sits in another section. But the repeating task
+sits in the From Just Us. Explain the logic here because to me, this is weird."
+
+Then: "The non-repeating task, I can break down and do all sorts of AI things, but the repeating one
+I can't?"
+
+**Neither had anything to do with repeating.** The real split was *whose the row is*. A row he had
+BROUGHT was an ordinary task, in his list, with the whole held card. A row that arrived by itself was
+the shared row, in the strip, with exactly the two actions I had bothered to wire. Two visual
+languages for one relationship, and no explanation on screen for which a row would get.
+
+**The cause was an overlap I created.** Bring was built when hauling a row across by hand was the only
+way onto your day. Tier 1 made that automatic for anything with a day. So a dated or repeating row
+had TWO routes onto Today that landed in two different places.
+
+**Fixed at the source rather than papered over.**
+
+  - The room offers Bring only on rows that will NOT arrive by themselves (undated, non-repeating).
+    One row, one home.
+  - A strip row gets ONE primary action, "Take this on today", which turns it into your own copy in
+    your own list, where the entire held card already works. No second implementation of Break it
+    down, Make tiny, Steps, Nudge or reorder, and none needed.
+  - Pin and Move-to stay as shortcuts that imply it.
+
+**Two things fall out, both better than what I would have designed deliberately.** The row visibly
+moving out of the strip and into the list IS the feedback, rather than a side effect. And the AI
+question flips from forbidden to safe: Break it down was off on shared rows because a model authoring
+steps onto a list another person reads is a decision about them. On your own copy the steps never
+reach the shared list, so the very act that unlocks it is the act that makes it harmless.
+
+**A note on the reports themselves.** Both arrived as "this is weird", not as bug reports, and both
+were right. A design that needs explaining is a design with a defect, and the second question was
+worth more than the first because it proved the first was not a one-off misreading.

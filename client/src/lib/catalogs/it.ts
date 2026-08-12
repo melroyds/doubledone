@@ -393,6 +393,7 @@ export const it: Catalog = {
     todayHeading: 'Da Nostro',
     todayHeadingNamed: 'Da {name}',
     sinceYouLooked: '{count} da quando hai guardato',
+    takeOn: "Prendila in carico oggi",
     shareTrim: 'Su Ours i titoli sono più corti. Questo verrà accorciato per entrare.',
     sharedToOurs: 'Aggiunta alla vostra lista condivisa.',
     sharingWith: 'Condivisa con {name}',

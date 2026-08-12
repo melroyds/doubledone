@@ -644,7 +644,18 @@ export default function OursListScreen() {
               onKeep={() => setConfirmingId(null)}
               recurring={task.recurrence !== undefined && task.recurrence.kind !== 'none'}
               onRename={frozen ? undefined : (next) => rename(task.id, next)}
-              onBring={() => void bring(task)}
+              /* Offered ONLY on a row that will not arrive by itself. Anything dated or repeating
+                 now reaches both Todays through `sharedDueOn`, so keeping Bring on those rows gave
+                 one row two routes onto your day that landed in two different places: a copy in your
+                 list, or the shared row in the From Just Us strip. Melroy hit exactly that and said
+                 the obvious thing, "explain the logic here because to me, this is weird". One row,
+                 one home. On a dated or repeating row the equivalent action lives on Today, where it
+                 reads as taking the thing on rather than fetching it. */
+              onBring={
+                (task.recurrence === undefined || task.recurrence.kind === 'none') && !task.due
+                  ? () => void bring(task)
+                  : undefined
+              }
               brought={pulled.has(task.id)}
               /* A cadence this build cannot read stays INERT: re-cadencing it would overwrite
                  whatever a newer build meant, on a list somebody else also keeps. */

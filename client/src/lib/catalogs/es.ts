@@ -393,6 +393,7 @@ export const es: Catalog = {
     todayHeading: 'De Nuestro',
     todayHeadingNamed: 'De {name}',
     sinceYouLooked: '{count} desde tu última visita',
+    takeOn: "Encárgate hoy",
     shareTrim: 'En Ours los títulos son más cortos. Este se recortará para que quepa.',
     sharedToOurs: 'Añadida a vuestra lista compartida.',
     sharingWith: 'Compartida con {name}',
