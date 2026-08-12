@@ -6366,3 +6366,41 @@ removing one breaks the muscle memory of whoever found it.
 **Wording note.** It says "since you looked" rather than "3 new", because a change can be a tick, a
 rename or a removal, and "new" would be a small lie about a third of the time. The phrase also
 teaches its own mechanic: it tells you, in the label, that looking is what makes it go away.
+
+## 2026-08-12 The capture stopped lying about where your words go, and From Ours rows got a held card
+
+**A false disclosure, found by Melroy reading the screen:** "The text at the bottom about sending to
+Anthropic's Claude. Why is that appearing in the OURS list capture."
+
+The line said "Sort for me and Break it down send what you type to Anthropic's Claude" wherever AI
+was enabled. On the shared list NEITHER button exists, so it was naming two absent features as the
+reason your words leave the device. That is worse than a missing disclosure: it teaches the reader
+that the notice is decorative, and then they stop reading it on the screen where it is true.
+
+The same sentence never mentioned SCAN, which sends an actual photograph. So the affordance with the
+strongest claim to a disclosure had the weakest one. **Fixed both ways:** the line is now chosen from
+what the surface actually offers (text-AI, Scan, or both), and `photoEgressNote` was added to the web
+gallery prompt and over the live viewfinder. It had existed only on the Android permission screen,
+which meant the two paths reachable WITHOUT a prompt said nothing at all.
+
+**Break it down on a shared list:** Melroy asked whether it is too onerous there. It was already off,
+for his reason plus one more (a model authoring rows onto a list another person reads). The note was
+simply a leftover claiming otherwise.
+
+**A From Ours row can now be held**, offering Pin and, on non-repeating rows, Move to. Melroy asked
+for those plus reorder, and for the regular list's interface.
+
+**They route through a COPY, and that is the design rather than an implementation detail.** Pinning
+is a statement about YOUR day; a date is a statement about when YOU will do it. Applied to the shared
+row itself, both would reach across and rearrange the other person's screen: "move to Thursday" would
+take it off her Wednesday too, on a thing she may already have planned around. Applied to a copy they
+mean what they say, and the tick still closes both because the copy carries `sharedRef`.
+
+It also answers "copy the interface from the regular items list" more completely than wiring
+individual actions would: once taken on, the row IS a regular task, with the whole held card, the
+manual reorder, the nudge, all of it. **Reorder therefore needed no wiring** and has no second
+implementation.
+
+**The trap this opened, caught while writing it:** a taken-on row would render twice, once as your
+task and once as a shared row still due today. Hidden by an id set that includes DONE copies, because
+a finished copy and its finished origin would otherwise both appear.

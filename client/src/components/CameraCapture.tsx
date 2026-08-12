@@ -95,6 +95,11 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
         <View style={styles.prompt}>
           <Text style={styles.promptTitle}>{t('capture.scanA11y')}</Text>
           <Text style={styles.promptHint}>{t('capture.choosePhotoHint')}</Text>
+          {/* The same egress line the native permission screen carries. It was on that screen only,
+              which meant the two paths a person can actually reach WITHOUT a permission prompt (web
+              gallery, and native once the camera is already allowed) sent a photograph to a third
+              party having said nothing. Disclosure belongs at the point of use, on every path. */}
+          <Text style={styles.promptHint}>{t('capture.photoEgressNote')}</Text>
           <PrimaryButton
             label={t('capture.choosePhoto')}
             onPress={pickFromGallery}
@@ -154,6 +159,7 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
           </Pressable>
           <View style={styles.controlsSpacer} />
         </View>
+        <Text style={styles.viewfinderNote}>{t('capture.photoEgressNote')}</Text>
       </View>
     );
   }
@@ -201,6 +207,9 @@ const makeStyles = (t: Theme) =>
     headerSpacer: { width: 52 },
     prompt: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.four, paddingHorizontal: spacing.five },
     promptTitle: { ...t.type.subheading, color: t.colors.ink, textAlign: 'center' },
+    // Over the live viewfinder, so the disclosure is present at the moment the shutter is
+    // available, not only behind a permission prompt somebody already dismissed.
+    viewfinderNote: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, textAlign: 'center', paddingHorizontal: spacing.five, paddingBottom: spacing.three },
     promptHint: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', lineHeight: 22 * t.scale },
     linkBtnText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     cameraWrap: { flex: 1 },

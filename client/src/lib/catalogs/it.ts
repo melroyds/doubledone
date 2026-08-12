@@ -57,6 +57,8 @@ export const it: Catalog = {
     addA11y: 'Aggiungi qualcosa, per oggi o per un altro giorno',
     addN: 'Aggiungi {count}',
     aiNote: 'Ordina tu per me e Dividi in passaggi inviano quello che scrivi a Claude di Anthropic.',
+    aiNoteBoth: "Ordina tu, Scomponi e Scansiona inviano ciò che scrivi o fotografi a Claude di Anthropic.",
+    aiNoteScan: "Scansiona invia la tua foto a Claude di Anthropic.",
     allowCamera: 'Consenti fotocamera',
     allowCameraA11y: "Consenti l'uso della fotocamera",
     breakDownA11y: "Dividi in passaggi con l'AI",

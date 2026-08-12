@@ -61,6 +61,8 @@ export const de: Catalog = {
     addA11y: 'Etwas hinzufügen, für heute oder einen anderen Tag',
     addN: '{count} hinzufügen',
     aiNote: '„Sortier für mich“ und „Mach Schritte draus“ schicken, was du tippst, an Claude von Anthropic.',
+    aiNoteBoth: "Sortier das für mich, Aufteilen und Scannen senden, was du tippst oder fotografierst, an Anthropics Claude.",
+    aiNoteScan: "Scannen sendet dein Foto an Anthropics Claude.",
     allowCamera: 'Kamera erlauben',
     allowCameraA11y: 'Die Kamera erlauben',
     breakDownA11y: 'Mit KI Schritte draus machen',

@@ -57,7 +57,7 @@ import * as Application from 'expo-application';
 import { isOursOpen, loadMyPairs, syncClock } from '@/lib/ours-api';
 import { checkForUpdate, currentPlatform } from '@/lib/update-check';
 import { FALLBACK_VERSION, shouldMention, type UpdateStatus, updateUrl } from '@/lib/updates';
-import { parseSharedRef, sharedRestNotes } from '@/lib/ours-bridge';
+import { makeSharedRef, parseSharedRef, sharedRestNotes } from '@/lib/ours-bridge';
 import { isSharedDoneOn, setSharedDone, type SharedTask, washedSince } from '@/lib/ours-merge';
 import { isUnreadableRepeat, repeatSummaryOf, sharedDueOn, syncPairOnce, willTrim } from '@/lib/ours-sync';
 import { type SupabaseClient } from '@supabase/supabase-js';
@@ -788,7 +788,18 @@ export default function TodayScreen() {
   // something derived from it, so a shared row cannot reach any of them by construction. That is
   // the whole safety property, and it is worth more as a structural fact than as a filter somebody
   // has to remember to write in six places.
-  const sharedForToday = sharedTasks.filter((row) => sharedDueOn(row, toISODate(today), today));
+  // Shared ids you already hold a copy of, DONE ones included. The moment a row is taken on (by Pin,
+  // by Move-to, or from the room's own Bring) it must leave this strip, or the same thing is on your
+  // screen twice: once as a shared row and once as your task. Done copies count too, because a
+  // finished copy and its finished origin would otherwise both render.
+  const heldCopies = new Set(
+    tasks.flatMap((task) => {
+      if (task.deletedAt || !task.sharedRef) return [];
+      const link = parseSharedRef(task.sharedRef);
+      return link && link.pairId === oursPairId ? [link.sharedId] : [];
+    }),
+  );
+  const sharedForToday = sharedTasks.filter((row) => sharedDueOn(row, toISODate(today), today) && !heldCopies.has(row.id));
   // Kept for exactly ONE consumer now that every single-task action lives on the held card: the
   // recurring-aware Remove label on the bulk bar. Searches all tasks (not just Today's) so a lone
   // selected Later repeat is still labelled honestly.
@@ -1783,6 +1794,49 @@ export default function TodayScreen() {
     }
   }
 
+  /**
+   * TAKE A SHARED ROW ON for today: a copy of your own, still linked, returned so the caller can act
+   * on it immediately.
+   *
+   * This is what sits under Pin and Move-to on a From Ours row, and routing them through a copy is
+   * the point rather than an implementation detail. Pinning is a statement about YOUR day; a date is
+   * a statement about when YOU will do it. Applied to the shared row itself, both would silently
+   * reach across and rearrange the other person's screen: "move to Thursday" would take it off her
+   * Wednesday too, on a thing she may already have planned around. Applied to a copy, they mean what
+   * they say, and the tick still closes both because the copy carries `sharedRef`.
+   *
+   * It also means the row becomes an ORDINARY task, which is exactly what Melroy asked for ("copy
+   * the interface from the regular items list"): once it is yours it has the whole held card, the
+   * manual reorder, the nudge, everything, with no second implementation of any of it.
+   *
+   * Re-read from storage rather than trusting `tasks`, because two taps land inside one render, and
+   * an existing copy is returned rather than a second one made.
+   */
+  async function takeOnShared(row: SharedTask): Promise<Task | null> {
+    if (!oursPairId) return null;
+    const mineNow = await loadTasks();
+    const existing = mineNow.find((task) => {
+      if (task.deletedAt) return false;
+      const link = task.sharedRef ? parseSharedRef(task.sharedRef) : null;
+      return link?.pairId === oursPairId && link.sharedId === row.id;
+    });
+    if (existing) return existing;
+    const stamp = nowMs();
+    const copy: Task = {
+      id: makeId(),
+      title: row.title,
+      done: false,
+      due: toISODate(today),
+      createdAt: stamp,
+      updatedAt: stamp,
+      sharedRef: makeSharedRef(oursPairId, row.id),
+    };
+    const next = [...mineNow, copy];
+    await saveTasks(next);
+    setTasks(next);
+    return copy;
+  }
+
   // "I also did that": log something already done that was never on the list, so the
   // Lookback reflects what you actually did, not just what you ticked. A completed
   // task stamped now (shows checked on Today and in the Lookback). Feeds the moat.
@@ -2512,6 +2566,22 @@ export default function TodayScreen() {
                 /* The cadence in words, so "why is this here today" is answered on the row itself
                    rather than requiring a trip to the room to find out. */
                 note={repeatSummaryOf(row)}
+                onLongPress={() => setConfirmingId(row.id)}
+                confirming={confirmingId === row.id}
+                onKeep={() => setConfirmingId(null)}
+                /* PIN and MOVE-TO, both of which take the row on as your own copy first (see
+                   `takeOnShared`). Melroy asked for these plus reorder; reorder needs no wiring here
+                   because taking a row on moves it into your own list, where the existing
+                   drag-free up/down already works. One implementation, not two. */
+                onPin={() => void takeOnShared(row).then((copy) => copy && pinRow(copy))}
+                /* Not offered on a REPEAT, matching the rule on your own tasks: a date and a rhythm
+                   are alternatives, and "move bin night to Thursday" is a question about the series
+                   that belongs in the room's cadence sheet, not a one-tap action on a day. */
+                onMoveTo={
+                  row.recurrence === undefined || row.recurrence.kind === 'none'
+                    ? () => void takeOnShared(row).then((copy) => copy && setMoveIds([copy.id]))
+                    : undefined
+                }
               />
             ))}
           </View>

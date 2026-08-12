@@ -61,6 +61,8 @@ export const en = {
     addA11y: 'Add something, for today or another day',
     addN: 'Add {count}',
     aiNote: "Sort for me and Break it down send what you type to Anthropic's Claude.",
+    aiNoteBoth: "Sort for me, Break it down and Scan send what you type or photograph to Anthropic's Claude.",
+    aiNoteScan: "Scan sends your photo to Anthropic's Claude.",
     allowCamera: 'Allow camera',
     allowCameraA11y: 'Allow the camera',
     breakDownA11y: 'Break it down with AI',

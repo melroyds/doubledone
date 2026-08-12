@@ -57,6 +57,8 @@ export const fr: Catalog = {
     addA11y: "Ajoute quelque chose, pour aujourd'hui ou un autre jour",
     addN: 'Ajouter {count}',
     aiNote: "« Trie pour moi » et « Décompose-la » envoient ce que tu écris à Claude d'Anthropic.",
+    aiNoteBoth: "Trier pour moi, Décomposer et Scanner envoient ce que vous tapez ou photographiez à Claude, d'Anthropic.",
+    aiNoteScan: "Scanner envoie votre photo à Claude, d'Anthropic.",
     allowCamera: 'Autoriser la caméra',
     allowCameraA11y: 'Autoriser la caméra',
     breakDownA11y: "Décomposer la tâche avec l'IA",

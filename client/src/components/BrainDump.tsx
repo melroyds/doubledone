@@ -329,6 +329,22 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   // Priority: an error > the Tidy offer (a run-on line) > the AI egress disclosure (any text).
   const showTidy = aiEnabled && canSplit && (busyKind === 'split' || !busy);
 
+  /**
+   * The egress disclosure, naming the affordances THIS surface actually has.
+   *
+   * It used to be one fixed sentence about "Sort for me and Break it down", rendered wherever AI was
+   * enabled. On the shared list neither of those buttons exists, so the line was telling you that
+   * two things you could not see were sending your words to a third party. A false statement about
+   * where your data goes is a worse bug than a missing one: it teaches you the disclosure is
+   * decorative, and then you stop reading it on the screen where it is true.
+   *
+   * The same sentence also never mentioned SCAN, which sends an actual photograph. So the surface
+   * with the strongest claim to a disclosure had none.
+   */
+  const textAI = aiEnabled && Boolean(onBiteElephant && onSort);
+  const scanAI = aiEnabled && Boolean(onCamera);
+  const aiNoteKey = textAI && scanAI ? 'capture.aiNoteBoth' : textAI ? 'capture.aiNote' : scanAI ? 'capture.aiNoteScan' : null;
+
   // The door's overline names the rows BEHIND it, composed from the rows this surface actually has
   // rather than picked from a set of pre-written strings. One fewer thing to keep in step: adding or
   // removing a row can no longer leave the label describing a control that is not there.
@@ -630,8 +646,8 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
               <Text style={styles.splitText}>{t('capture.tidy')}</Text>
             )}
           </Pressable>
-        ) : aiEnabled && value.trim().length > 0 ? (
-          <Text style={styles.aiNote}>{t('capture.aiNote')}</Text>
+        ) : aiNoteKey && value.trim().length > 0 ? (
+          <Text style={styles.aiNote}>{t(aiNoteKey)}</Text>
         ) : null}
       </View>
 

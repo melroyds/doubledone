@@ -57,6 +57,8 @@ export const es: Catalog = {
     addA11y: 'Añade algo, para hoy o para otro día',
     addN: 'Añadir {count}',
     aiNote: 'Ordénalas por mí y Divídela en pasos envían lo que escribes a Claude, de Anthropic.',
+    aiNoteBoth: "Ordénalo tú, Divídelo y Escanear envían lo que escribes o fotografías a Claude, de Anthropic.",
+    aiNoteScan: "Escanear envía tu foto a Claude, de Anthropic.",
     allowCamera: 'Permitir cámara',
     allowCameraA11y: 'Permitir el uso de la cámara',
     breakDownA11y: 'Divídela en pasos con IA',
