@@ -2541,7 +2541,12 @@ export default function TodayScreen() {
             ease of use" without handing another person write access to your morning.
 
             Its OWN region, below the day and above the door, with its own quiet heading, because
-            these are not your tasks and must never read as though they were. They carry no weight,
+            these are not your tasks and must never read as though they were.
+
+            The heading names the RULE, not just the source. "From Ours" said where these rows came
+            from and nothing about why only some of them were here, which invited the reasonable
+            question of whether this was the whole shared list and, if not, what decided. "Due today"
+            answers it in two words, and the door directly below is the way to everything else. They carry no weight,
             appear in no count, and reach no Lookback unless you tick them. What they do have is a
             checkbox that works from right here, which is the whole point: bin night should not
             require a trip to another room every Tuesday.

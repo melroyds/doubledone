@@ -6442,3 +6442,25 @@ reach the shared list, so the very act that unlocks it is the act that makes it 
 **A note on the reports themselves.** Both arrived as "this is weird", not as bug reports, and both
 were right. A design that needs explaining is a design with a defect, and the second question was
 worth more than the first because it proved the first was not a one-off misreading.
+
+## 2026-08-12 The shared strip names its RULE, not just its source
+
+Melroy, after watching it work: "I feel the mechanism of 'From Just Us' maybe needs to change to
+accommodate that it's only the tasks due today (repeating or not) that pop up." Then, having
+confirmed the behaviour: "It works great. Only tasks due today pop up there. It needs to be made
+explicit."
+
+The heading said **From Ours**, which named where the rows came from and said nothing about why only
+some of them were there. That invites a reasonable and unanswerable question: is this the whole
+shared list, and if not, what decided? It now reads **Due today . <list name>**, which answers it in
+two words, and the door directly below remains the way to everything else.
+
+Small change, and worth recording because of where the request came from: the behaviour was correct
+and verified, and the complaint was purely that the screen would not say out loud what it was doing.
+A correct rule the user has to infer is a rule they will get wrong at least once.
+
+**A gate caught a real break in this same change.** The French string is "Pour aujourd'hui", and it
+went into a SINGLE-quoted TypeScript literal, so the apostrophe ended the string and the catalog
+stopped parsing. Typecheck, lint and tests all went red together, which is exactly what should
+happen. Rule for the catalogs: any language whose text can contain an apostrophe (fr above all)
+belongs in double quotes, and the gate is what proves it rather than a careful read.
