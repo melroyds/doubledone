@@ -1167,6 +1167,9 @@ CASES = [
     ("OUR-107", "Ours", "P1", "The shared-list onboarding step can actually be REACHED",
      "Replay the first run and press the primary button through every step without skipping.",
      "The shared-list screen appears as the sixth of eight, between 'What you finish, you keep' and the premium screen. It shipped once as a step that existed, was translated into five languages, and could not be arrived at: the flow advanced by a hand-written map that still went keep -> premium.", "Both"),
+    ("OUR-108", "Ours", "P2", "ONE person, TWO devices: does your own edit wash on your other phone?",
+     "Sign in to the same account on two devices (an iPhone and an Android, say). Change a row in Ours on the FIRST. Open Ours on the SECOND.",
+     "OPEN QUESTION, not a known-good expectation. The 'this edit was mine' record is stored PER DEVICE (noteOursMine writes to local storage), so the second device has no idea the first one did it and will most likely tint the row as changed-since-you-looked. It breaks none of the three laws, since the wording never names a person, but it may still read wrong: your own edit wearing the mark that means 'your person did something'. Only reachable when one person holds two phones, which nobody did until 2026-08-13. If it tints, the fix is to key `mine` on the account rather than the device.", "Both"),
     # --- Check for updates ------------------------------------------------------
     ("UPD-01", "Updates", "P1", "Settings states the version, and up-to-date is a fact",
      "Open Settings and scroll to the foot.",
