@@ -1128,6 +1128,11 @@ export const en = {
     safetyNetLowDayWhat: "one tap at the top of Today, and what counts as enough gently shrinks.",
     safetyNetNoAiBreakWhat: 'into small, doable steps you write yourself.',
     safetyNetTinyWhat: 'a two-minute version, just to begin.',
+    sharedHeading: "A list the two of you keep.",
+    sharedLead1: "One list, kept by two people. For the house, the shopping, or looking after someone.",
+    sharedLead2: "Anything with a day of its own, bin night on a Tuesday, comes to both your Todays on the day. Either of you can tick it, and it closes for both.",
+    sharedLead3: "Everything else waits on the list, so nobody can make your morning heavier. Your day stays yours, and it stays finite.",
+    sharedLead4: "Nothing here keeps score, and a finished thing does not say who finished it.",
     skipA11y: 'Skip the introduction',
     sortMyself: "I'll sort it myself",
     sortMyselfA11y: 'Sort it myself, keep everything on this device',
@@ -1142,9 +1147,9 @@ export const en = {
   },
   whatsnew: {
     line1: 'Ours: a list two people keep together. Free, always.',
-    line2: 'A finished thing is just finished. Nothing records who did it, so it cannot become a scoreboard.',
+    line2: "A finished thing is just finished. Nothing says who did it, so it cannot become a scoreboard.",
     line3: 'Anything with a day comes to both your Todays. The rest waits on the list, so your day stays yours.',
-    line4: 'It is arriving a few households at a time, and it lives in the Menu.',
+    line4: "You'll find it in the Menu.",
     title: "What's new",
   },
   widget: {

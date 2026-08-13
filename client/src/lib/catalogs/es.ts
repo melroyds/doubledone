@@ -1123,6 +1123,11 @@ export const es: Catalog = {
     safetyNetLowDayWhat: 'un toque arriba en Hoy, y lo que cuenta como suficiente se reduce con cuidado.',
     safetyNetNoAiBreakWhat: 'en pasos pequeños y posibles que escribes tú.',
     safetyNetTinyWhat: 'una versión de dos minutos, solo para empezar.',
+    sharedHeading: "Una lista que cuidáis los dos.",
+    sharedLead1: "Una lista, llevada por dos personas. Para la casa, la compra o cuidar de alguien.",
+    sharedLead2: "Lo que tiene día propio, la basura el martes, llega a vuestros dos Hoy ese día. Cualquiera de los dos la marca, y queda hecha para ambos.",
+    sharedLead3: "Lo demás espera en la lista, así nadie te carga la mañana. Tu día sigue siendo tuyo, y sigue siendo finito.",
+    sharedLead4: "Aquí no se lleva la cuenta, y lo hecho no dice quién lo hizo.",
     skipA11y: 'Omitir la introducción',
     sortMyself: 'Lo ordeno yo',
     sortMyselfA11y: 'Ordenarlo por mi cuenta y dejar todo en este dispositivo',
@@ -1137,9 +1142,9 @@ export const es: Catalog = {
   },
   whatsnew: {
     line1: 'Nuestra lista: una lista que llevas con tu persona. Gratis, siempre.',
-    line2: 'Lo hecho está hecho, sin más. Nada registra quién lo hizo, así que no puede volverse un marcador.',
+    line2: "Lo hecho, hecho está. Nada dice quién lo hizo, así que no puede volverse un marcador.",
     line3: 'Lo que tiene día aparece en el Hoy de los dos. El resto se queda en la lista, para que tu día siga siendo tuyo.',
-    line4: 'Va llegando a unos pocos hogares cada vez, y está en el Menú.',
+    line4: "La encontrarás en el Menú.",
     title: 'Novedades',
   },
   widget: {

@@ -6637,3 +6637,52 @@ copy note.** `create_pair_invite` (ours.sql:514) raises 42501 unless the caller'
 `ours_allowlist`, populated by hand. JOINING with a code is not gated; STARTING a list is. So a
 person who reads a store listing, downloads the app and tries to make a shared list gets a refusal.
 The store copy is drafted and must not ship until the allowlist check and table are dropped.
+
+## 2026-08-13 Ours gets a front door: an onboarding step, a What's New entry, a listing, and the gate comes off
+
+Melroy, asked whether to open Ours to everyone at launch or keep the allowlist: **"everybody at
+launch."** That single answer unlocked the rest, because almost every argument against advertising
+the feature was really an argument about the gate.
+
+**THE GATE COMES OFF (`supabase/ours-open.sql`, for Melroy to apply).** `create_pair_invite` refused
+any caller whose email was not in `ours_allowlist`, a table populated by hand because this repo is
+public. Note the asymmetry that made it urgent rather than tidy: JOINING with a code was never gated,
+only STARTING a list. So the gate refused exactly the person a store listing brings you and let
+through the person they invite. The migration replays the shipped function VERBATIM minus the gate
+block, rather than a retyped approximation: copying beats authoring for a definer function on a live
+table. `ours_is_open()` also had to change, because it gates the MENU ROW, and without it the feature
+stays invisible even once invites work.
+
+**AN EIGHTH ONBOARDING STEP, which the copy panel argued against and I built anyway.** Its case was
+good and four of its five reasons were facts about this repo. But two of them, "the app cannot show
+most readers the door" and "a screen about an account-gated feature inside a flow promising no
+account", were arguments about the allowlist, and the panel said so itself: "the eighth step becomes
+right the day the allowlist drops". Melroy dropped it. The step sits between `keep` and `premium`,
+deliberately: a FREE feature read immediately before the premium screen would be taken for part of
+the paid list.
+
+**THE PANEL'S OWN DRAFT CARRIED THE BUG I HAD FIXED AN HOUR EARLIER.** Its `sharedLead2` read
+"Nothing on it lands on your Today unless you put it there" while its `sharedLead3` said dated things
+arrive by themselves. The same false sentence I had just removed from `ours.lead`, reproduced in new
+copy, because the agent read a string that was true when it was written. Rewritten coherently: what
+arrives by itself, what deliberately does not, and the rule that makes it safe.
+
+**"NOTHING RECORDS WHO DID IT" BECAME "NOTHING SAYS WHO DID IT"**, in the What's New line and
+everywhere else. `shared_tasks.created_by` exists, server-stamped, as the only evidence an abuse
+report could carry, and the client never sends or reads it. Completion is genuinely unattributed. The
+distinction is invisible until someone reads the schema of a public repo and calls the store listing
+a lie, which is exactly the sort of claim that should be conservative.
+
+**A COMMIT OF MINE IS MISLABELLED, and I would rather say so than quietly fix it.** The What's New
+agent wrote its changes to the working tree rather than only drafting them, so `892a8d0` (whose
+message is entirely about `ours.lead`) also contains `whats-new.ts` at id 2 and its four catalog
+lines. The code is right and the tests pass; the label does not mention half of what it carries. The
+lesson is small and real: a workflow agent with write access changes what `git add -A` means, and I
+committed without reading the diff.
+
+**Deliberately NOT changed: the subtitle.** The panel argued both sides and landed on keeping "A
+calmer kind of to-do list". Apple indexes it, and "shared" would be a free token, but trading the
+product's one-line promise for one feature is a bad rate. The keyword field carries "shared" at no
+cost to the page. `habits` came OUT of the keywords in the same pass: it ranked us for streak-tracker
+searches, and an app whose thesis is that there is no streak converts those installs into churn and
+stinging reviews.

@@ -1123,6 +1123,11 @@ export const fr: Catalog = {
     safetyNetLowDayWhat: "un geste en haut d'Aujourd'hui, et ce qui compte comme « assez » se réduit en douceur.",
     safetyNetNoAiBreakWhat: 'en petites étapes faisables, que tu écris toi-même.',
     safetyNetTinyWhat: 'une version de deux minutes, juste pour commencer.',
+    sharedHeading: "Une liste que vous tenez à deux.",
+    sharedLead1: "Une liste, tenue par deux personnes. Pour la maison, les courses, ou prendre soin de quelqu'un.",
+    sharedLead2: "Ce qui a son propre jour, les poubelles le mardi, arrive dans vos deux Aujourd'hui ce jour-là. L'un ou l'autre la coche, et elle est faite pour les deux.",
+    sharedLead3: "Le reste attend sur la liste, personne ne peut alourdir votre matin. Votre journée reste la vôtre, et elle reste finie.",
+    sharedLead4: "Ici rien ne compte les points, et une chose faite ne dit pas qui l'a faite.",
     skipA11y: "Passer l'introduction",
     sortMyself: 'Je trie moi-même',
     sortMyselfA11y: 'Trier moi-même, tout garder sur cet appareil',
@@ -1137,9 +1142,9 @@ export const fr: Catalog = {
   },
   whatsnew: {
     line1: "Notre liste : une liste que vous tenez à deux. Gratuit, toujours.",
-    line2: "Ce qui est fait est fait. Rien n'enregistre qui l'a fait, donc cela ne peut pas devenir un tableau de scores.",
+    line2: "Une chose faite est simplement faite. Rien ne dit qui l'a faite, cela ne peut donc pas devenir un tableau de scores.",
     line3: "Ce qui a un jour apparaît dans vos deux Aujourd'hui. Le reste attend sur la liste, pour que ta journée reste la tienne.",
-    line4: "Elle arrive à quelques foyers à la fois, et elle se trouve dans le Menu.",
+    line4: "Vous la trouverez dans le Menu.",
     title: 'Nouveautés',
   },
   widget: {

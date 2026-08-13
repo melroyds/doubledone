@@ -374,7 +374,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 
 | ID | Pri | Platform | Test | Steps | Expected |
 |---|---|---|---|---|---|
-| WN-01 | P2 | Both | The What's New card: once per announcement, never a modal, never to a fresh install | On an existing (onboarded) install after an update that bumps the announcement id, open Today. Tap Got it. Reopen the app. Separately: complete onboarding on a FRESH install and check Today. | A calm dismissible card in the coachmark's shape sits at the top of Today (NEVER a launch modal, never blocking capture): a small WHAT'S NEW title and one or two short lines. 'Got it' retires that announcement id forever (survives reload). A fresh install NEVER sees the card (onboarding stamps the current id: their whole app is new). A release with nothing user-visible bumps no id and shows nothing. |
+| WN-01 | P2 | Both | The What's new card appears once, and is dismissible | Open Today after a version whose WHATS_NEW id has bumped. | A calm card at the top of Today, never a modal. The Ours entry runs to FOUR lines where earlier ones took two, which is the difference between a change and a surface: what it is, why it cannot become a scoreboard, why it cannot make your day heavier, and where to find it. One tap on Got it retires it forever. |
 
 ## Web landing
 
@@ -609,6 +609,8 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | OUR-102 | P2 | Both | Setting a rhythm clears any date the row was carrying | Give a DATED shared row a weekly rhythm, then read the row. | One schedule, not two. The date is gone. Leaving it made the row answer differently depending on which code asked. |
 | OUR-103 | P2 | Both | Renaming inside the cadence sheet warns about the 500-character cap | Open a row's rhythm sheet, paste a title over 500 characters, save. | The trim notice appears BEFORE the save, the same as renaming on the row. It used to save silently and the server clamped it, so the words vanished a second later. |
 | OUR-104 | P3 | Both | No dead reorder rail on shared rows | Hold a row in the room and in the From Ours strip. | No up/down rail. Neither surface supplies those handlers, so it was two permanently inert controls on the screen briefed to be plainer than Today. Dim-in-place is for a control that is sometimes live. |
+| OUR-105 | P1 | Both | First run introduces the shared list | Reset onboarding (Settings, replay the first run) and step through it. | An eighth step sits between 'keep' and 'premium', headed 'A list the two of you keep.' It says what arrives by itself, what deliberately does NOT, and that nothing keeps score. Its position matters: a FREE feature read immediately before the premium screen would be mistaken for part of the paid list. |
+| OUR-106 | P1 | Both | Anyone can start a shared list, not just an allowlisted address | With supabase/ours-open.sql applied, sign in as an account that was never in ours_allowlist and create an invite. | It works. Before that migration only JOINING was open; STARTING was gated, so the refusal hit exactly the person a store listing brings you. |
 
 ## Updates
 

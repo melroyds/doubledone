@@ -25,7 +25,9 @@ import emptyArt from '../../assets/images/empty.jpg';
 // calm pass at the AI safety net and what-you-keep, then hands off to Today. Skippable on
 // every screen but the last; the rest of the app's features are left for in-context discovery
 // (curate, don't catalogue). The Today screen redirects here once, when onboarded is unset.
-const STEPS = ['welcome', 'capture', 'reveal', 'safetynet', 'keep', 'premium', 'handoff'] as const;
+// 'shared' sits between 'keep' and 'premium' DELIBERATELY: Ours is free, and a free feature read
+// immediately before the premium screen would be mistaken for part of the paid list.
+const STEPS = ['welcome', 'capture', 'reveal', 'safetynet', 'keep', 'shared', 'premium', 'handoff'] as const;
 type Step = (typeof STEPS)[number];
 
 const PRIMARY: Record<Step, string> = {
@@ -34,6 +36,7 @@ const PRIMARY: Record<Step, string> = {
   reveal: t('welcome.primaryLooksGood'),
   safetynet: t('common.gotIt'),
   keep: t('common.continue'),
+  shared: t('common.continue'),
   premium: t('common.continue'),
   handoff: t('welcome.primaryOpenToday'),
 };
@@ -381,6 +384,25 @@ export default function WelcomeScreen() {
             {/* The free monthly scrapbook, mentioned where the payoff is being promised (it was
                 advertised nowhere but the premium page). AI-off users never hear about an AI feature. */}
             {aiEnabled && <Text style={styles.lead}>{t('welcome.keepScrapbook')}</Text>}
+          </View>
+        )}
+
+        {/* OURS, the one free feature that was advertised nowhere. Its own step rather than a line,
+            because Melroy asked for one and because the objection that carried most weight against it
+            (a screen teaching a feature whose door most accounts could not see) died when the
+            allowlist was dropped for launch.
+
+            The four leads are ordered so that stopping early still leaves you with something true:
+            what it is, what arrives by itself, what deliberately does NOT, and the rule that makes it
+            safe. The third is the one that matters most to a person hearing "shared" and bracing:
+            your partner cannot make your morning heavier. */}
+        {step === 'shared' && (
+          <View style={styles.block}>
+            <Text style={styles.h1}>{t('welcome.sharedHeading')}</Text>
+            <Text style={styles.lead}>{t('welcome.sharedLead1')}</Text>
+            <Text style={styles.lead}>{t('welcome.sharedLead2')}</Text>
+            <Text style={styles.lead}>{t('welcome.sharedLead3')}</Text>
+            <Text style={styles.lead}>{t('welcome.sharedLead4')}</Text>
           </View>
         )}
 

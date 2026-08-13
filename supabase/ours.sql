@@ -446,12 +446,9 @@ security definer
 stable
 set search_path = ''
 as $$
-  select exists (
-    select 1
-    from public.ours_allowlist a
-    join auth.users u on lower(btrim(u.email)) = lower(btrim(a.email))
-    where u.id = auth.uid()
-  );
+  -- OPEN, 2026-08-13. It read the hand-populated `ours_allowlist` during the dogfood; see
+  -- supabase/ours-open.sql for the migration that dropped both the gate and the table.
+  select auth.uid() is not null;
 $$;
 
 revoke all on function public.ours_is_open() from public, anon;
@@ -507,13 +504,6 @@ begin
   perform pg_advisory_xact_lock(hashtextextended(v_uid::text, 0));
 
   select lower(btrim(u.email)) into v_email from auth.users u where u.id = v_uid;
-
-  -- The build-time gate. Normalised on the READ side, so it forgives an address already pasted
-  -- into the dashboard with stray case or a trailing space. Delete this block and the table to
-  -- open Ours to everyone.
-  if not exists (select 1 from public.ours_allowlist a where lower(btrim(a.email)) = v_email) then
-    raise exception 'ours is not open yet' using errcode = '42501';
-  end if;
 
   if position('@' in v_invited) = 0 then
     raise exception 'an email is required' using errcode = '22023';

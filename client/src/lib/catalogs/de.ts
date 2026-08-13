@@ -1127,6 +1127,11 @@ export const de: Catalog = {
     safetyNetLowDayWhat: 'ein Fingertipp oben in Heute, und was als genug zählt, wird sanft kleiner.',
     safetyNetNoAiBreakWhat: 'in kleine, machbare Schritte, die du selbst schreibst.',
     safetyNetTinyWhat: 'eine Zwei-Minuten-Version, nur zum Anfangen.',
+    sharedHeading: "Eine Liste, die ihr beide führt.",
+    sharedLead1: "Eine Liste, von zwei Menschen geführt. Für den Haushalt, den Einkauf oder die Pflege.",
+    sharedLead2: "Was einen eigenen Tag hat, die Mülltonne am Dienstag, erscheint an dem Tag in euren beiden Heute. Wer abhakt, hakt für beide ab.",
+    sharedLead3: "Alles andere wartet auf der Liste, niemand kann dir den Morgen schwerer machen. Dein Tag bleibt deiner, und er bleibt endlich.",
+    sharedLead4: "Hier zählt nichts mit, und Erledigtes sagt nicht, wer es erledigt hat.",
     skipA11y: 'Die Einführung überspringen',
     sortMyself: 'Ich sortiere selbst',
     sortMyselfA11y: 'Selbst sortieren, alles bleibt auf diesem Gerät',
@@ -1141,9 +1146,9 @@ export const de: Catalog = {
   },
   whatsnew: {
     line1: 'Unsere Liste: eine Liste, die ihr zu zweit führt. Kostenlos, für immer.',
-    line2: 'Erledigt ist einfach erledigt. Nirgends steht, wer es war, also wird daraus nie ein Wettbewerb.',
+    line2: "Erledigt ist einfach erledigt. Nichts sagt, wer es war, also kann daraus kein Wettbewerb werden.",
     line3: 'Was einen Tag hat, erscheint bei euch beiden im Heute. Der Rest bleibt auf der Liste, damit dein Tag deiner bleibt.',
-    line4: 'Sie kommt nach und nach zu weiteren Haushalten, und sie steht im Menü.',
+    line4: "Du findest sie im Menü.",
     title: 'Was ist neu',
   },
   widget: {
