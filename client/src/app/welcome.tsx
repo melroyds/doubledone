@@ -223,30 +223,24 @@ export default function WelcomeScreen() {
     void makeDay(false);
   }
 
+  /**
+   * Advance, DRIVEN BY `STEPS` ORDER rather than a hand-written map of transitions.
+   *
+   * The map is how the shared-list step shipped unreachable. It was added to `STEPS`, to the label
+   * map and to the render, typecheck passed, and the one place that decides what comes next still
+   * said `case 'keep': setStep('premium')`. So the screen existed, was translated into five
+   * languages, and no person could ever arrive at it. `back()` was already order-driven and was
+   * therefore always correct; only this half could drift.
+   *
+   * Two steps keep their own behaviour because they do something other than advance: capture runs
+   * the triage, and handoff leaves the flow. Everything else is "the next one", which is a fact
+   * `STEPS` already states.
+   */
   function onPrimary() {
-    switch (step) {
-      case 'welcome':
-        setStep('capture');
-        break;
-      case 'capture':
-        void makeDay(aiEnabled);
-        break;
-      case 'reveal':
-        setStep('safetynet');
-        break;
-      case 'safetynet':
-        setStep('keep');
-        break;
-      case 'keep':
-        setStep('premium');
-        break;
-      case 'premium':
-        setStep('handoff');
-        break;
-      case 'handoff':
-        void leave();
-        break;
-    }
+    if (step === 'capture') return void makeDay(aiEnabled);
+    if (step === 'handoff') return void leave();
+    const next = STEPS[stepIndex + 1];
+    if (next) setStep(next);
   }
 
   // Every path now lands the whole dump on Today (allOnToday), so this filter is a
@@ -483,8 +477,17 @@ export default function WelcomeScreen() {
               <View key={s} style={[styles.dot, i === stepIndex && styles.dotOn]} />
             ))}
           </View>
+          {/* testID for the screenshot harness only. The welcome flow's steps are internal state
+              rather than routes, so the only way to photograph the shared-list screen is to walk
+              there, and the primary's LABEL changes every step and every locale. */}
           {!captureEmpty && (
-            <PrimaryButton label={primaryLabel} onPress={onPrimary} loading={busy} accessibilityLabel={primaryLabel} />
+            <PrimaryButton
+              label={primaryLabel}
+              onPress={onPrimary}
+              loading={busy}
+              accessibilityLabel={primaryLabel}
+              testID="welcome-primary"
+            />
           )}
           {step === 'capture' && !captureEmpty && !busy ? (
             aiEnabled ? (

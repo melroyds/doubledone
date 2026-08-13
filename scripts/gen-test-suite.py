@@ -1164,6 +1164,9 @@ CASES = [
     ("OUR-106", "Ours", "P1", "Anyone can start a shared list, not just an allowlisted address",
      "With supabase/ours-open.sql applied, sign in as an account that was never in ours_allowlist and create an invite.",
      "It works. Before that migration only JOINING was open; STARTING was gated, so the refusal hit exactly the person a store listing brings you.", "Both"),
+    ("OUR-107", "Ours", "P1", "The shared-list onboarding step can actually be REACHED",
+     "Replay the first run and press the primary button through every step without skipping.",
+     "The shared-list screen appears as the sixth of eight, between 'What you finish, you keep' and the premium screen. It shipped once as a step that existed, was translated into five languages, and could not be arrived at: the flow advanced by a hand-written map that still went keep -> premium.", "Both"),
     # --- Check for updates ------------------------------------------------------
     ("UPD-01", "Updates", "P1", "Settings states the version, and up-to-date is a fact",
      "Open Settings and scroll to the foot.",

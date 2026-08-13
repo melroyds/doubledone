@@ -6686,3 +6686,32 @@ product's one-line promise for one feature is a bad rate. The keyword field carr
 cost to the page. `habits` came OUT of the keywords in the same pass: it ranked us for streak-tracker
 searches, and an app whose thesis is that there is no streak converts those installs into churn and
 stinging reviews.
+
+## 2026-08-13 The onboarding step I shipped was unreachable, and the screenshot harness is what found it
+
+I told Melroy the shared-list onboarding screen had shipped. It had not. It was added to `STEPS`, to
+the `PRIMARY` label map, and rendered as its own block. Typecheck passed. Five locales were
+translated. And `onPrimary` is a hand-written SWITCH of transitions whose `case 'keep'` still said
+`setStep('premium')`, so no person could ever arrive at it.
+
+**That is the seventh instance today of the same class**, and the first one I committed AFTER
+spending the morning fixing the other six. Built, typed, translated, reviewed, and connected to
+nothing.
+
+**What actually caught it was trying to photograph the screen.** Not the typecheck, not the tests,
+not my own reading of the diff. The harness walked the flow, could not find the heading, and the
+timeout was the bug report. Adding a screenshot of a new surface is worth more than it looks: it is
+the cheapest possible proof that a human can reach the thing.
+
+**Fixed at the source rather than by adding a case.** `onPrimary` is now driven by `STEPS` order,
+with two named exceptions that genuinely do something other than advance (capture runs the triage,
+handoff leaves). `back()` was ALREADY order-driven and was therefore always correct, which is why
+only one direction could rot. A map that restates an order the code already has is a map that will
+disagree with it eventually.
+
+**The harness learned to walk.** `advance: N` presses the primary N times before shooting, targeting
+a new `testID` on the welcome primary rather than a position or a label. Position failed because with
+AI off the last button on the capture step is "Change AI in Settings", which navigates away and
+derailed the walk; a label fails because the primary's words change every step and every locale. The
+walked shot also forces `aiEnabled: false`, so regenerating screenshots never fires a live Anthropic
+call, which it would have done on the capture step otherwise.

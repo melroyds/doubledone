@@ -98,7 +98,12 @@ const LOOKBACK_TASKS = [
 
 // Default to reduce-motion so the gentle fades / scrolling titles are frozen for a
 // clean capture; a shot can override (e.g. Settings shows the honest "Follow system").
-const settings = (theme, motion = 'reduce') => JSON.stringify({ theme, textSize: 'default', motion });
+// `ai` matters for one shot only, and it matters a lot: on the welcome flow's capture step the
+// primary button is "Sort for me" when AI is on, which would fire a real Anthropic call every time
+// anybody regenerated the screenshots. With AI off the same button reads "Put on Today" and the walk
+// costs nothing.
+const settings = (theme, motion = 'reduce', ai = true) =>
+  JSON.stringify({ theme, textSize: 'default', motion, aiEnabled: ai });
 
 // One free Workers-AI call so the scrapbook shot shows a real keepsake. On any
 // failure (or AI_OFF) the shot falls back to the honest invite state.
@@ -133,7 +138,7 @@ async function capture(browser, shot) {
   });
   const payload = {
     'doubledone.tasks.v1': JSON.stringify(shot.tasks),
-    'doubledone.settings.v1': settings(shot.theme, shot.motion),
+    'doubledone.settings.v1': settings(shot.theme, shot.motion, shot.ai !== false),
     // Returning-user app: skip the first-run redirect (Today -> /welcome) so the
     // Today/Lookback/Settings shots capture the real screen, not onboarding. The
     // welcome shot uses /welcome directly, which renders regardless of this flag.
@@ -154,6 +159,33 @@ async function capture(browser, shot) {
   if (LOCALE) await page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {});
   await page.evaluate(() => document.fonts.ready.then(() => true));
   await page.waitForTimeout(shot.delay ?? (LOCALE ? 1500 : 700)); // let the calm fades settle
+
+  // `advance`: press the primary button N times before shooting. The ONLY interaction this harness
+  // performs, and it exists for one reason: the welcome flow's steps are internal state rather than
+  // routes, so a seeded shot can never reach step six. Ours got its own onboarding screen and
+  // nobody could look at it without stepping the whole flow by hand.
+  //
+  // Clicks the LAST role=button rather than a label, because the primary's words change per step
+  // (Begin, Sort for me, Looks good, Got it, Continue) and again in every locale.
+  if (shot.advance) {
+    // The capture step shows NO primary until the box holds something, so the walk would stall
+    // there. Typing is part of the walk, not a nicety.
+    const box = page.locator('textarea, input[type="text"]').first();
+    for (let i = 0; i < shot.advance; i += 1) {
+      if (await box.isVisible().catch(() => false)) await box.fill(shot.type ?? 'Book the dentist');
+      await page.waitForTimeout(200);
+      // By testID, never by position: with AI off the LAST button on the capture step is
+      // "Change AI in Settings", which navigates away and derailed the whole walk.
+      await page.locator('[data-testid="welcome-primary"]').click({ timeout: 10000 });
+      await page.waitForTimeout(600);
+    }
+  }
+  if (shot.advance) {
+    if (shot.afterText && !LOCALE) {
+      await page.getByText(shot.afterText, { exact: false }).first().waitFor({ timeout: 15000 });
+    }
+    await page.waitForTimeout(500);
+  }
 
   const file = path.join(OUT, `${shot.name}.${EXT}`);
   const opts = EXT === 'jpeg' ? { path: file, type: 'jpeg', quality: 92 } : { path: file };
@@ -193,6 +225,18 @@ async function run() {
         { name: 'settings-light', route: '/settings', tasks: TODAY_TASKS, theme: 'light', motion: 'system', waitText: 'Theme' },
         { name: 'settings-dark', route: '/settings', tasks: TODAY_TASKS, theme: 'dark', motion: 'system', waitText: 'Theme' },
         { name: 'welcome', route: '/welcome', tasks: TODAY_TASKS, theme: 'light', waitText: 'A calmer kind of to-do' },
+        // The shared-list step, five presses in (welcome, capture, reveal, safetynet, keep). It is the
+        // one onboarding screen that cannot be reached by a route, so without this nobody can look at it.
+        {
+          name: 'welcome-shared',
+          route: '/welcome',
+          tasks: TODAY_TASKS,
+          theme: 'light',
+          waitText: 'A calmer kind of to-do',
+          advance: 5,
+          ai: false,
+          afterText: 'A list the two of you keep',
+        },
         // The breathing room, caught ~2.5s into the swell so the blob is risen and the
         // guide word fully faded in (real headless Chrome runs the animation normally).
         { name: 'settle-light', route: '/settle', tasks: TODAY_TASKS, theme: 'light', waitText: 'Breathing guide', delay: 2000 },
