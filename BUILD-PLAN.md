@@ -97,6 +97,26 @@ and the AI features answer in German the moment the resolver says 'de'.*
 
 The single home for consciously parked work. Nothing here is dropped; each item has a trigger for when it earns a place in the sequence. Premium-gated ideas live in [`docs/premium.md`](docs/premium.md).
 
+### NEXT: changing WHEN on a shared row (design prompt written)
+
+Melroy, 2026-08-13: "I can't change the date for a task in the Ours room once I set a date... and
+[can't change] a repeating task back into a normal task or vice versa."
+
+A shared row's date and rhythm can each be set ONCE. Neither can be changed, neither can be cleared,
+and there is no route back to a plain dateless row. The only escape is remove-and-recreate, which on
+a repeat is the action that ends the series for both people.
+
+**Why it happened, and the reason it is worth a design pass rather than a patch:** dated shared rows
+are two days old. Before Tier 1 a shared row had no date, so nothing was missing. The FIELD grew and
+the EDITING SURFACE did not follow it. The design should make that class harder to repeat.
+
+Not blocking 1.3.0. The workaround exists, nothing is lost or corrupted, and the failure mode is
+"clumsy" rather than "loses your work" or "lies to you", which were the two bars everything else
+tonight had to clear.
+
+**Design prompt:** `docs/design/ours-when-prompt.md`, ready to paste into Claude Design.
+**Trigger:** first thing in 1.3.1, once 1.3.0 clears review.
+
 ### Parked: a per-person toggle for the Ours door count
 
 Melroy asked (2026-08-12) whether the door's "since you looked" count could be a setting, so each
