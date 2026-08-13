@@ -358,7 +358,7 @@ export const fr: Catalog = {
     joined: 'Tu partages maintenant cette liste avec {name}.',
     keepIt: 'La garder',
     keptWith: 'Partagée avec {name}',
-    lead: "Une liste que vous tenez à deux. Ce qui a une date arrive dans vos deux Aujourd'hui. Le reste reste ici.",
+    lead: "Une liste que vous tenez à deux. Ce qui a une date arrive dans vos deux Aujourd'hui. Le reste attend ici, même si la liste s'allonge, pour que ta journée reste la tienne.",
     leave: 'Quitter cette liste',
     leaveAloneHint: "Personne n'a rejoint, donc il n'y a rien à fermer. Le code cesse de marcher.",
     leaveHint: "Rien n'est perdu. Elle se ferme pour vous deux, et vous pouvez encore tout lire.",

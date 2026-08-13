@@ -362,7 +362,7 @@ export const en = {
     joined: "You're now sharing with {name}.",
     keepIt: 'Keep it',
     keptWith: 'Kept with {name}',
-    lead: "A list you both keep. Things with a day arrive on both your Todays. Everything else stays here.",
+    lead: "A list you both keep. Things with a day arrive on both your Todays. Everything else stays here, however long it gets, so your day stays yours.",
     leave: 'Leave this list',
     leaveAloneHint: 'Nobody has joined, so there is nothing to close. The code stops working.',
     leaveHint: 'Nothing is lost. It closes for both of you, and you can both still read everything.',

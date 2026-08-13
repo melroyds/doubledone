@@ -362,7 +362,7 @@ export const de: Catalog = {
     joined: 'Du teilst diese Liste jetzt mit {name}.',
     keepIt: 'Behalten',
     keptWith: 'Geteilt mit {name}',
-    lead: "Eine Liste, die ihr beide führt. Was einen Tag hat, erscheint in beiden Heute. Alles andere bleibt hier.",
+    lead: "Eine Liste, die ihr beide führt. Was einen Tag hat, erscheint in beiden Heute. Alles andere bleibt hier, egal wie lang die Liste wird, damit dein Tag deiner bleibt.",
     leave: 'Diese Liste verlassen',
     leaveAloneHint: 'Es ist niemand dabei, also gibt es nichts zu schließen. Der Code funktioniert dann nicht mehr.',
     leaveHint: 'Es geht nichts verloren. Damit ist die Liste für euch beide geschlossen, lesen könnt ihr aber weiterhin alles.',
