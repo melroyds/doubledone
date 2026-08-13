@@ -5,7 +5,9 @@
 Three words used below:
 
 - **The room** = the Ours list screen (Menu → Ours).
-- **The strip** = the "DUE TODAY · <list name>" section further down your Today screen.
+- **The DUE TODAY section** = the part further down your Today screen headed
+  "DUE TODAY · <list name>". Rows there are the SHARED rows themselves, on loan to your day. They
+  are not yours and you have not taken them on.
 - **A brought copy** = a task you took from the room onto your own list. It sits in your normal
   list with a faint "· Ours" after the title.
 
@@ -15,12 +17,15 @@ Do these in order. Each one sets up the next.
 
 ## 4.1 Tick straight after reopening
 
-1. On **A**, make sure something is showing in **the strip** on Today. If nothing is, go to the room
-   and add a task set to repeat **daily**, then come back to Today.
-2. On **A**, swipe the app away into the background. Wait five seconds.
-3. Open the app again.
-4. **Immediately** tap the circle on the strip row. Do not wait.
-5. Keep watching that circle for **ten seconds**. Do not tap anything else.
+1. On **A**, look at Today for the **DUE TODAY** section. If it is not there, go to the room, add a
+   task, hold it, set it to repeat **daily**, then go back to Today. It appears within seconds.
+2. **Do NOT bring it over.** You are going to tick it where it sits, inside that section. That is
+   the whole point of this test: 4.1 ticks a SHARED row directly, and 4.2 ticks a copy you took.
+   They are different code and they broke separately.
+3. On **A**, swipe the app away into the background. Wait five seconds.
+4. Open the app again.
+5. **Immediately** tap the circle on that row, inside the DUE TODAY section. Do not wait.
+6. Keep watching that circle for **ten seconds**. Do not tap anything else.
 
 ✅ **Pass:** it stays ticked.
 ❌ **Fail:** it un-ticks itself after a second or two.
