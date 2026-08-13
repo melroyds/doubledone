@@ -64,14 +64,21 @@ function cadenceLabel(r: Recurrence): string {
       return t('repeat.everyDay');
     case 'interval':
       return r.days === 1 ? t('repeat.everyDay') : t('repeat.everyNDays', { days: r.days });
-    case 'weekly':
+    case 'weekly': {
       if (r.weekdays.length === 7) return t('repeat.everyDay');
       if (r.weekdays.length === 0) return t('capture.modeWeekly');
-      return r.weekdays
+      // FRAMED, not bare. This returned just the weekday names ("Gio"), which read as a stray label
+      // rather than a rhythm and was the odd one out beside its own siblings, "Every day" and
+      // "Every 3 days". Melroy, looking at a shared row: "it just says Thursday. It doesn't specify
+      // anything. Feels random." Worse where he found it, because a shared row's rhythm is the
+      // answer to "why is this here and when does it come back".
+      const days = r.weekdays
         .slice()
         .sort((a, b) => a - b)
         .map(weekdayName)
         .join(', ');
+      return t('repeat.everyWeekday', { days });
+    }
   }
 }
 

@@ -555,6 +555,7 @@ export const es: Catalog = {
     empty: 'Aún no hay tareas que se repitan. Al añadir algo, abre Cuándo · Repetición · Pasos y elige cómo se repite.',
     everyDay: 'Cada día',
     everyNDays: 'Cada {days} días',
+    everyWeekday: 'Cada {days}',
     fromDate: '{base} · desde {date}',
     oneOff: 'Una sola vez',
     removeSeriesA11y: 'Quitar {title} y todas sus repeticiones',

@@ -555,6 +555,7 @@ export const fr: Catalog = {
     empty: 'Pas encore de tâche récurrente. Quand tu ajoutes une tâche, ouvre Quand · Répétition · Étapes et choisis comment elle se répète.',
     everyDay: 'Chaque jour',
     everyNDays: 'Tous les {days} jours',
+    everyWeekday: 'Tous les {days}',
     fromDate: '{base} · dès le {date}',
     oneOff: 'Ponctuelle',
     removeSeriesA11y: 'Retirer {title} et toutes ses répétitions',

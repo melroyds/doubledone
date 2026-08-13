@@ -559,6 +559,7 @@ export const en = {
     empty: 'No repeating tasks yet. When you add something, open When · Repeating · Steps and choose how it repeats.',
     everyDay: 'Every day',
     everyNDays: 'Every {days} days',
+    everyWeekday: 'Every {days}',
     fromDate: '{base} · from {date}',
     oneOff: 'One-off',
     removeSeriesA11y: 'Remove {title} and all its repeats',

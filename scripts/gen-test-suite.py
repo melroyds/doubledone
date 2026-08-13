@@ -1170,6 +1170,12 @@ CASES = [
     ("OUR-108", "Ours", "P2", "ONE person, TWO devices: does your own edit wash on your other phone?",
      "Sign in to the same account on two devices (an iPhone and an Android, say). Change a row in Ours on the FIRST. Open Ours on the SECOND.",
      "OPEN QUESTION, not a known-good expectation. The 'this edit was mine' record is stored PER DEVICE (noteOursMine writes to local storage), so the second device has no idea the first one did it and will most likely tint the row as changed-since-you-looked. It breaks none of the three laws, since the wording never names a person, but it may still read wrong: your own edit wearing the mark that means 'your person did something'. Only reachable when one person holds two phones, which nobody did until 2026-08-13. If it tints, the fix is to key `mine` on the account rather than the device.", "Both"),
+    ("OUR-109", "Ours", "P1", "A repeat's rhythm sits INSIDE its own card and reads as a rhythm",
+     "Give a shared task a weekly repeat on a weekday that is not today. Look at it in the room.",
+     "The line is indented under that row's title, inside the card, and reads 'Every Thu' rather than a bare 'Thu'. It used to be drawn BELOW the card, so it floated between two rows belonging to neither, and said only the weekday.", "Both"),
+    ("OUR-110", "Ours", "P1", "A circle you cannot tick LOOKS like one you cannot tick",
+     "Find that same repeat on a day it is not due, or open any row on a closed list.",
+     "The circle is visibly faded. It used to render identically to a live one, so the row offered a control that looked tappable and did nothing, which is the exact failure the 'quiet-unavailable' rule was written to prevent.", "Both"),
     # --- Check for updates ------------------------------------------------------
     ("UPD-01", "Updates", "P1", "Settings states the version, and up-to-date is a fact",
      "Open Settings and scroll to the foot.",

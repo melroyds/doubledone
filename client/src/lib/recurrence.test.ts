@@ -60,8 +60,12 @@ describe('describeRecurrence', () => {
     expect(describeRecurrence({ kind: 'daily' })).toBe('Every day');
   });
 
-  it('weekly lists its weekdays, and a full week reads as every day', () => {
-    expect(describeRecurrence({ kind: 'weekly', weekdays: [1, 3] })).toBe('Mon, Wed');
+  // FRAMED, not bare. This asserted 'Mon, Wed', which is what shipped and what Melroy hit on a
+  // shared row: "it just says Thursday. It doesn't specify anything. Feels random." A bare weekday
+  // was also the odd one out beside its own siblings, 'Every day' and 'Every 2 days'.
+  it('weekly reads as a rhythm, and a full week collapses to every day', () => {
+    expect(describeRecurrence({ kind: 'weekly', weekdays: [1, 3] })).toBe('Every Mon, Wed');
+    expect(describeRecurrence({ kind: 'weekly', weekdays: [4] })).toBe('Every Thu');
     expect(describeRecurrence({ kind: 'weekly', weekdays: [0, 1, 2, 3, 4, 5, 6] })).toBe('Every day');
   });
 

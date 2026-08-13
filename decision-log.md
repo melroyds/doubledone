@@ -6715,3 +6715,42 @@ AI off the last button on the capture step is "Change AI in Settings", which nav
 derailed the walk; a label fails because the primary's words change every step and every locale. The
 walked shot also forces `aiEnabled: false`, so regenerating screenshots never fires a live Anthropic
 call, which it would have done on the capture step otherwise.
+
+## 2026-08-13 A rhythm that belonged to no row, and a circle that lied about being tappable
+
+Three faults on one shared row, all found by Melroy looking at an Italian screenshot of his own
+list. None of them would have been found by reading the code.
+
+**1. The line belonged to nothing.** The rhythm was drawn as a SIBLING below the card, so "Gio" sat
+in the gap between two rows and the eye had no way to bind it to either. His words: "Does the
+Thursday apply to the row above or below? It's not clear." No amount of better wording fixes a line
+that is not attached to its row. It now goes through TaskRow's own note slot, indented under the
+title, inside the card.
+
+The irony is worth keeping: **that slot was added this morning for exactly this**, and the room was
+never moved onto it. A fix that lands in a component does not travel to the screens that predate it.
+
+**2. The rhythm was bare.** `cadenceLabel` returned just the weekday names for weekly, so "Gio",
+while its own siblings read "Every day" and "Every 3 days". It was also weaker than the capture door
+that SET it, which says "Weekly on Thu". So the place you choose a rhythm and the place you read it
+disagreed, and the reading one lost. Now framed: "Every Thu".
+
+**3. The circle looked tappable and was not.** `CheckCircle` took one prop, `done`. `inert` removed
+the handler, suppressed the press animation, and reached the spoken label, but never touched the
+control. So a repeat on its off day offered a circle that looked exactly like every live one and did
+nothing. Melroy: "the circle isn't faded. It looks clickable but actually isn't."
+
+The rule was written down three lines from the code ignoring it: *"the control keeps its place at
+lowered contrast; the line below says why. Never absent, never locked."* Stated, never implemented.
+**Third time today**, after `note` and `bringLabel`. The pattern is now unmistakable: this codebase
+states intentions in comments and does not always carry them out, and only a person looking at a
+screen catches it.
+
+**One consequence worth noting:** with the circle properly dimmed and the rhythm properly worded, the
+extra "you can tick this on its day" line is no longer needed on screen. A faded control plus "Every
+Thu" says it without another sentence. The string still reaches the spoken label via `inert`, so
+nothing is lost for a screen reader.
+
+**And a near-miss in the doing.** The new catalog key first landed in the `capture` namespace rather
+than `repeat`, because my anchor matched the FIRST `everyNDays` in the file and both namespaces have
+one. Typecheck passed happily; the test caught it by getting the key name back instead of the words.

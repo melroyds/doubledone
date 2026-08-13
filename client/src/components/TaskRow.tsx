@@ -698,7 +698,7 @@ export function TaskRow({
     >
       <Animated.View pointerEvents="none" style={[styles.washLayer, { opacity: washFade }]} />
       <View style={styles.rowMain}>
-        <CheckCircle done={done} />
+        <CheckCircle done={done} dim={Boolean(inert)} />
         {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
         <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
         {/* Your copy is marked, the shared row is NOT. Any marker over there would be attribution

@@ -555,6 +555,7 @@ export const it: Catalog = {
     empty: 'Ancora nessuna attività ricorrente. Quando aggiungi qualcosa, apri Quando · Ripetizione · Passaggi e scegli come si ripete.',
     everyDay: 'Ogni giorno',
     everyNDays: 'Ogni {days} giorni',
+    everyWeekday: 'Ogni {days}',
     fromDate: '{base} · dal {date}',
     oneOff: 'Una volta sola',
     removeSeriesA11y: 'Rimuovi {title} e tutte le sue ripetizioni',

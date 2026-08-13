@@ -559,6 +559,7 @@ export const de: Catalog = {
     empty: 'Noch keine wiederkehrenden Aufgaben. Wenn du etwas hinzufügst, öffne Wann · Wiederholung · Schritte und wähl, wie es sich wiederholt.',
     everyDay: 'Jeden Tag',
     everyNDays: 'Alle {days} Tage',
+    everyWeekday: 'Jeden {days}',
     fromDate: '{base} · ab {date}',
     oneOff: 'Einmalig',
     removeSeriesA11y: '{title} und alle Wiederholungen entfernen',

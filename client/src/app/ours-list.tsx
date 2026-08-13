@@ -563,6 +563,36 @@ export default function OursListScreen() {
     void commit(tasks.map((task) => (task.id === id ? { ...task, deletedAt: now, updatedAt: now } : task)));
   }
 
+  /**
+   * The one line under a row's title, and the ONE place that decides it.
+   *
+   * It used to be drawn as a sibling BELOW the card, which is how "Gio" ended up floating between
+   * two rows belonging to neither. Melroy: "Does the Thursday apply to the row above or below? It's
+   * not clear." He is right, and no amount of better wording fixes a line the eye cannot bind to a
+   * row. It now goes through TaskRow's own note slot, indented under the title, inside the card.
+   *
+   * The irony worth recording: that slot was added this morning for exactly this, and the room was
+   * never moved onto it.
+   *
+   * Order matters and each step earns its place:
+   *   1. CLOSED beats everything. Nothing else about the row can be acted on anyway.
+   *   2. A CHANGE you have not seen is news, and news outranks a standing fact.
+   *   3. An UNREADABLE cadence keeps both halves: the other build's words AND that we cannot read
+   *      them, because either alone is misleading.
+   *   4. The RHYTHM, so a row that will turn up on both Todays says so here, in the room where it
+   *      was made, rather than being a surprise on somebody's morning.
+   *   5. A chosen DAY, for the same reason.
+   */
+  function rowNote(task: SharedTask): string | undefined {
+    if (frozen) return t('ours.frozenRow');
+    if (washed.has(task.id)) return t('ours.changedSince');
+    if (isUnreadableRepeat(task)) {
+      const words = cadenceLine(task, now);
+      return words ? `${words}  ·  ${t('ours.repeatUnknown')}` : t('ours.repeatUnknown');
+    }
+    return cadenceLine(task, now) ?? (task.due ? friendlyDate(task.due, now) : undefined);
+  }
+
   function enterSelectWith(id: string) {
     setConfirmingId(null);
     setSelected([id]);
@@ -737,7 +767,7 @@ export default function OursListScreen() {
                  nothing: chrome on everything, on the screen briefed to be plainer than Today. */
               plain
               washed={washed.has(task.id)}
-              note={washed.has(task.id) ? t('ours.changedSince') : undefined}
+              note={rowNote(task)}
               onToggle={() => toggle(task.id)}
               onLongPress={() => setConfirmingId(task.id)}
               confirming={confirmingId === task.id}
@@ -781,26 +811,6 @@ export default function OursListScreen() {
             {/* A cadence this build cannot read: SHOWN, never hidden, because hiding it means one
                 person sees the task and the other does not and each concludes the other deleted it.
                 Inert, with whatever plain-English line the writing app left. */}
-            {/* Why this row does not respond, in words, on screen. It used to reach a screen reader
-                through the row's label and nobody else, so a sighted user on a closed list simply
-                tapped a row that did nothing. */}
-            {isUnreadableRepeat(task) ? (
-              <Text style={styles.cadenceNote}>
-                {cadenceLine(task, now) ? `${cadenceLine(task, now)}  ·  ` : ''}
-                {t('ours.repeatUnknown')}
-              </Text>
-            ) : frozen && confirmingId === task.id ? (
-              <Text style={styles.cadenceNote}>{t('ours.frozenRow')}</Text>
-            ) : cadenceLine(task, now) ? (
-              /* The rhythm, in words. A row that will turn up on both your Todays should say so
-                 HERE, in the room where it was made, rather than being a surprise on somebody's
-                 morning. */
-              <Text style={styles.cadenceNote}>{cadenceLine(task, now)}</Text>
-            ) : task.due ? (
-              /* Same reasoning for a chosen day. Without this a dated row is indistinguishable from
-                 an undated one right up until it silently appears on a Today. */
-              <Text style={styles.cadenceNote}>{friendlyDate(task.due, now)}</Text>
-            ) : null}
           </View>
         ))}
 
