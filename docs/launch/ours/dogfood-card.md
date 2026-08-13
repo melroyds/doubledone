@@ -74,6 +74,10 @@ Break it down, Make it tiny, Steps, reorder.*
 
 *Every one of these is a bug that happened during the build. They are the regression set.*
 
+> **Confused by these? Use [section-4-steps.md](section-4-steps.md) instead.** Same seven tests,
+> written as literal numbered steps with the setup spelled out, rather than as a summary that
+> assumes you remember what broke.
+
 **4.1 — the settle race.** A: background the app, reopen, and IMMEDIATELY tick something in the
 DUE TODAY strip.
 *It stays ticked. It must not un-tick itself a second or two later.*
