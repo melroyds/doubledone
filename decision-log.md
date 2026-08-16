@@ -6813,3 +6813,41 @@ suite is the manual launch gate, and a gate whose P1s disagree cannot arbitrate 
 that an unfinished overdue row is still there tomorrow rather than reporting the correct behaviour as
 a bug.
 
+---
+
+## 2026-08-17 · Step 1 of the When editor: ending a rhythm lets go of its ticks
+
+**Decided: a pure `releaseCompletions(log, now)`, shipped ALONE, before any UI can call it.**
+
+A repeat's ticks live only in `completions`. The row's own `done` stays false, because a repeat is
+never finished, it is finished *on a day*. The moment a write clears the recurrence, `reconcile`
+stops treating the row as repeating and starts projecting `done` from that same log, which is right
+for a one-off and catastrophic here: "Every Thursday", ticked twice last month, becomes a row that
+says DONE, for both people, carrying a `doneAt` from whenever it was last ticked. And it pushes, so
+the other phone gets it too.
+
+Nothing in the shipped app can reach that today, because `CadenceSheet` cannot emit "no rhythm". The
+When editor is the thing that creates the write. So the guard ships first, on its own, with nothing
+else in flight.
+
+**Decided against deleting the keys.** The obvious fix is to drop the `on` entries, and it does not
+work: `mergeStamps` re-supplies them from whichever copy still has them, which on a two-person list
+is the other person's phone. A completion log is a CRDT. The only way to say "not done" is to say it
+LOUDER, which is exactly what an `off` stamp is for, and `clearOn` already owns the rule that an off
+must STRICTLY beat the on it clears because a tie resolves to done.
+
+**Decided against erasing the history.** Releasing by out-stamping keeps every `on` entry intact.
+That matters: the Lookback is built on this log, and a month of bin nights somebody actually did
+should not vanish because the rhythm ended. A test asserts the `on` map is untouched.
+
+**The part most likely to be got wrong later, so it is in the function's own comment:** ALL THREE
+forms of stopping-to-repeat need this call. `{ kind: 'none' }`, an absent recurrence, and the DATED
+one. The dated one is the easiest to miss, because setting a date does not feel like an ending, and
+it is the worst to get wrong: the row lands on both Todays already struck through, and stays.
+
+**The test that makes it stick.** Three sibling cases, one per form, each merging my changed row
+against a partner copy that still holds the old repeating row with its ticks, because that is the
+real situation: nobody has told them yet. Plus a CONTROL asserting the same merge WITHOUT the release
+comes back `done: true`. That control is the whole point. Without it these tests would pass against
+an empty function and nobody would know.
+

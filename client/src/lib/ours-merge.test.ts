@@ -7,6 +7,7 @@ import {
   isDoneOn,
   mergeCompletions,
   mergeShared,
+  releaseCompletions,
   type SharedTask,
   isSharedDoneOn,
   setSharedDone,
@@ -591,5 +592,70 @@ describe('what still belongs on the list today', () => {
   it('drops only what was removed', () => {
     expect(stillOnList(task({ id: 'a', deletedAt: 5000 }), TODAY)).toBe(false);
     expect(stillOnList(setSharedDone(task({ id: 'b' }), TODAY, true, 1000), TODAY)).toBe(true);
+  });
+});
+
+// The trap this whole function exists for, and the reason it ships ALONE, before any UI can call it.
+describe('releaseCompletions, when a rhythm ends', () => {
+  const NOW = 9_000;
+  // A weekly bin night, ticked on two of its days, exactly as a real one would be.
+  const ticked = { on: { '2026-08-04': 1000, '2026-08-11': 2000 } };
+
+  it('leaves a row that has never been ticked completely alone', () => {
+    expect(releaseCompletions(undefined, NOW)).toBeUndefined();
+    expect(releaseCompletions({ on: {} }, NOW)).toEqual({ on: {} });
+  });
+
+  it('stops every ticked date counting as done', () => {
+    const freed = releaseCompletions(ticked, NOW);
+    expect(completedDatesOf(freed)).toEqual([]);
+    expect(isDoneOn(freed, '2026-08-04')).toBe(false);
+    expect(isDoneOn(freed, '2026-08-11')).toBe(false);
+  });
+
+  // The history is the Lookback. A week of bin nights somebody actually DID must survive the rhythm
+  // ending, so this releases by out-stamping, never by deleting.
+  it('keeps the record of what was done', () => {
+    const freed = releaseCompletions(ticked, NOW);
+    expect(freed?.on).toEqual(ticked.on);
+    expect(Object.keys(freed?.off ?? {})).toEqual(['2026-08-04', '2026-08-11']);
+  });
+
+  // A tie resolves to done, so an off that merely equals its on releases nothing at all.
+  it('out-stamps STRICTLY, even against a tick from the future', () => {
+    const ahead = { on: { '2026-08-04': NOW + 5_000 } }; // a phone whose clock runs fast
+    expect(completedDatesOf(releaseCompletions(ahead, NOW))).toEqual([]);
+  });
+
+  // ALL THREE forms of stopping-to-repeat, because only one of them feels like an ending and the
+  // other two are where a builder forgets to call this.
+  describe('the row it produces survives a merge with an untouched partner copy', () => {
+    const repeating = task({ id: 'bins', recurrence: { kind: 'weekly', weekdays: [2] }, completions: ticked });
+
+    for (const [label, ended] of [
+      ['cleared to none', { recurrence: { kind: 'none' } as const }],
+      ['recurrence dropped', { recurrence: undefined }],
+      ['turned into a dated one-off', { recurrence: undefined, due: '2026-08-20' }],
+    ] as const) {
+      it(label, () => {
+        // A later stamp, so last-write-wins takes MY row. Set by hand rather than through
+        // `withMonotonicStamps`, which works on arrays and would put the mechanics of a different
+        // module in the middle of a test about this one.
+        const mine = { ...repeating, ...ended, completions: releaseCompletions(ticked, NOW), updatedAt: 5000 };
+        // The partner still holds the OLD repeating row, ticks and all: nobody has told them yet.
+        const { merged } = mergeShared([mine], [repeating]);
+        expect(merged).toHaveLength(1);
+        expect(merged[0].done).toBe(false); // <- without releaseCompletions this is true, for both people
+        expect(merged[0].doneAt ?? null).toBeNull();
+      });
+    }
+  });
+
+  // The control: the same merge WITHOUT the release, proving these tests would catch its absence.
+  it('and the same merge without it marks the row done, which is the bug', () => {
+    const repeating = task({ id: 'bins', recurrence: { kind: 'weekly', weekdays: [2] }, completions: ticked });
+    const careless = { ...repeating, recurrence: { kind: 'none' as const }, updatedAt: 5000 };
+    const { merged } = mergeShared([careless], [repeating]);
+    expect(merged[0].done).toBe(true);
   });
 });

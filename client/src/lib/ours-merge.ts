@@ -112,6 +112,36 @@ export function clearOn(log: CompletionLog | undefined, date: string, now: numbe
 }
 
 /**
+ * Let go of every date a log currently counts as done, because the row has stopped repeating.
+ *
+ * THE trap this exists for, and it is the sharpest one in the whole When design. A repeat's ticks
+ * live ONLY in `completions`: `done` stays false on the row, because a repeat is never finished, it
+ * is finished *on a day*. The moment a write clears the recurrence, `reconcile` stops treating the
+ * row as repeating and starts projecting `done` from that same log, which is correct for a one-off
+ * and catastrophic here. "Every Thursday", ticked twice in the past month, becomes a row that says
+ * DONE, for both people, carrying a doneAt from whenever it was last ticked. And it PUSHES, so the
+ * other phone gets it too.
+ *
+ * Deleting the keys does not work. `mergeStamps` re-supplies them from whichever copy still has
+ * them, which on a two-person list is the other person's phone. A completion log is a CRDT: the
+ * only way to say "not done" is to say it LOUDER, which is what an `off` stamp is for.
+ *
+ * So: an off stamp per currently-on date, through `clearOn`, which already owns the rule that an
+ * off must STRICTLY beat the on it clears (a tie resolves to done). The history survives, which
+ * matters: the Lookback is built on it, and a week of bin nights somebody actually did should not
+ * be erased because the rhythm ended.
+ *
+ * Call this on EVERY write that makes a repeating row non-repeating. All three forms do it: a
+ * `{ kind: 'none' }`, an absent recurrence, and the dated one. The dated one is the easiest to
+ * miss, because setting a date does not feel like an ending, and it is the worst to get wrong: the
+ * row lands on both Todays already struck through and stays.
+ */
+export function releaseCompletions(log: CompletionLog | undefined, now: number): CompletionLog | undefined {
+  if (!log) return log;
+  return completedDatesOf(log).reduce((acc, date) => clearOn(acc, date, now), log);
+}
+
+/**
  * Whether a shared row counts as done on a given day.
  *
  * ONE function for both shapes, because the alternative is every caller remembering which kind of
