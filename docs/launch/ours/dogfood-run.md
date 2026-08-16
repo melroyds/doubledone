@@ -230,6 +230,11 @@ gives the full card: Break it down, Make it tiny, Steps, reorder.
 ❌ No line, or a line that names the other account.
 
 **4.5 — the wash.**
+
+> **First, un-tick `DF-02 batteries`.** 2.4 left it done, and a completed row's held card has no
+> rename: its title is a plain line, not an edit control, because a finished thing needs nothing
+> shaped. That is deliberate, not a bug. One tap on the circle and it is editable again.
+
 1. On **A**, open the room, look at it, then **leave** (go to Today).
 2. On **B**, hold `DF-02 batteries` → tap the title → change it to `DF-02 batteries AA` → save.
 3. Wait 20 seconds. On **A**, open the room and start counting.
@@ -241,6 +246,9 @@ normal by itself after about eight seconds.
 ❌ The mark is back for the same change.
 
 **4.6 — your own edits, both halves.**
+
+> **Un-tick `DF-03 gutter` first too**, for the same reason as 4.5.
+
 1. On **A**, rename `DF-03 gutter` to `DF-03 gutter clean`. Stay in the room.
 
 ✅ No mark on the row you just changed.
