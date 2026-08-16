@@ -94,7 +94,7 @@ keyboard that covers the screen, and the native app runs the other half entirely
 | 4.5 | the wash | | |
 | 4.6 | own edits never wash | | |
 | 4.7 | repeat on its off day | | |
-| 4.8 | the pile-up (**web only**, needs tomorrow) | | |
+| 4.8 | the pile-up (**web only**) | **OPEN** | first attempt did not test it properly, re-run on a clean day |
 | 5.1 | two phones, both directions | | |
 | 5.2 | clocks | | |
 | 5.3 | keyboard, native app | | |

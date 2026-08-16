@@ -6851,3 +6851,35 @@ real situation: nobody has told them yet. Plus a CONTROL asserting the same merg
 comes back `done: true`. That control is the whole point. Without it these tests would pass against
 an empty function and nobody would know.
 
+---
+
+## 2026-08-17 · Step 2: what a WHEN answer writes, and when it declines to write at all
+
+**Decided: a pure `whenFields(schedule, today)` in `client/src/lib/when.ts`, correcting
+`scheduleFields` in exactly two ways rather than replacing it.**
+
+`scheduleFields` stays the one place cadences are built. It is right for CREATION and wrong twice
+for an EDIT on a shared row.
+
+**It returns both keys, always.** `scheduleFields` OMITS the half you did not choose, which is
+correct when a row is being made and destructive when one is being changed: a row that carried a
+rhythm and now carries a date must be TOLD the rhythm is over. Leave `recurrence` out of the patch
+and the old one survives, and the row is both dated and repeating, which is the single state the
+model says cannot exist. So `{ kind: 'none' }` is a value here, never an absence, and never-both
+holds by construction instead of by every caller remembering.
+
+**Today writes a real date.** `scheduleFields` maps BOTH `'today'` and `'anytime'` to no fields.
+Correct personally, where undated means today. Silently wrong on a shared row, where no date means
+"lives in the room, reaches nobody's day". **This app has already shipped that exact bug**, on the
+shared capture bar directly above this sheet, and the fix is still inline in `BrainDump`. Extracting
+the rule is what stops the sheet repeating it, and the test names it as the reason.
+
+**Also decided: `whenChanges`, so an idle Set does not write.** Every mutator on the shared list ends
+in a commit with a fresh stamp, and a fresh stamp is precisely what the other person's screen reads
+as "changed since you looked". A Set that alters nothing would still wash the row on their next
+visit and send them hunting for a change nobody made. On a surface whose whole promise is that
+nothing moves because the other person acted, a no-op that announces itself is worse than a wasted
+write. It treats an absent recurrence and an explicit `none` as the same nothing, and it counts a
+moved START as a real change, because "Every Tuesday" reads identically before and after while an
+interval's anchor decides which days it actually lands on.
+
