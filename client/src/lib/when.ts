@@ -1,5 +1,6 @@
-import { addDaysISO, toISODate } from './day';
-import { type CaptureSchedule, type Recurrence, scheduleFields } from './recurrence';
+import { addDaysISO, friendlyDate, toISODate } from './day';
+import { t } from './i18n-active';
+import { describeRecurrence, type CaptureSchedule, type Recurrence, scheduleFields } from './recurrence';
 
 // The WHEN answer for a shared row, as fields.
 //
@@ -58,4 +59,86 @@ export function whenChanges(answer: WhenAnswer, current: { due?: string | null; 
 /** Tomorrow, as this surface means it. Exported so a caller never re-derives the offset by hand. */
 export function tomorrowISO(today: Date): string {
   return addDaysISO(today, 1);
+}
+
+/** A rhythm's start, wherever that rhythm happens to keep it. An interval calls it an anchor. */
+export function startOf(r: Recurrence | undefined): string | undefined {
+  if (r === undefined) return undefined;
+  if (r.kind === 'daily' || r.kind === 'weekly') return r.start;
+  if (r.kind === 'interval') return r.anchor;
+  return undefined;
+}
+
+/** What the sheet says about an answer, before anything commits. */
+export type WhenSummary = {
+  /** The detail line: dot-joined pieces naming the state. */
+  fragment: string;
+  /** A whole fixed sentence stating the consequence. Never assembled around a mid-clause slot, so
+   *  five locales translate it entire rather than in pieces that fight their own grammar. */
+  sentence: string;
+  /** The commit button. Names the outcome; never "Save". */
+  commit: string;
+  /** Whether this answer ends a rhythm that is currently running, which is said first and plainly. */
+  ends: boolean;
+};
+
+/**
+ * The words for an answer.
+ *
+ * TWO STRINGS, not one, and the split is deliberate. The FRAGMENT carries detail and is built from
+ * dot-joined pieces, so a locale can reorder them without grammar. The SENTENCE is whole and fixed
+ * per case, because a sentence assembled around a slot in the middle cannot survive German word
+ * order. Nothing here interpolates into the body of a clause.
+ *
+ * The rhythm's start is ALWAYS shown, and that is why this does not reach for `describeRecurrence`
+ * with a date. That helper surfaces a start only when it is in the FUTURE, which is right for the
+ * Repeating drawer (a not-yet-active habit is the interesting case) and wrong here: on a live
+ * series the anchor would then appear nowhere, and for "every 3 days" the anchor IS the schedule.
+ * A builder reaching for the obvious helper reintroduces exactly the gap this sheet exists to close,
+ * and it would look correct in every test written afterwards. So: `describeRecurrence(r)` with no
+ * date for the bare words, and `repeat.fromDate` to attach the start ourselves.
+ */
+export function whenSummary(answer: WhenAnswer, today: Date, was?: { recurrence?: Recurrence }): WhenSummary {
+  const wasRepeating = was?.recurrence !== undefined && was.recurrence.kind !== 'none';
+  const repeating = answer.recurrence.kind !== 'none';
+  const ends = wasRepeating && !repeating;
+
+  if (repeating) {
+    const base = describeRecurrence(answer.recurrence); // no date: the bare words, on purpose
+    const start = startOf(answer.recurrence);
+    return {
+      fragment: start ? t('repeat.fromDate', { base, date: friendlyDate(start, today) }) : base,
+      sentence: t('ours.whenRhythm'),
+      commit: t('ours.whenSet', { what: base }),
+      ends: false,
+    };
+  }
+
+  if (answer.due === null) {
+    const anytime = t('capture.anytime');
+    return { fragment: anytime, sentence: t('ours.whenPlain'), commit: t('ours.whenSet', { what: anytime }), ends };
+  }
+
+  // Today is the one answer whose encoding is invisible, so the fragment SAYS which date it became.
+  // The button stays short: the date is already on the chip and in the line above it.
+  const isToday = answer.due === toISODate(today);
+  const day = friendlyDate(answer.due, today);
+  const short = isToday ? t('common.today') : day;
+  return {
+    fragment: isToday ? `${t('common.today')}  ·  ${day}` : day,
+    sentence: isToday ? t('ours.whenToday') : t('ours.whenDay'),
+    commit: t('ours.whenSet', { what: short }),
+    ends,
+  };
+}
+
+/**
+ * The value beside the door on a held card, which must never be blank.
+ *
+ * A door named after only one of two possible answers is what let dates ship without an editor in
+ * the first place, so this one names whatever the row actually carries.
+ */
+export function whenValue(row: { due?: string | null; recurrence?: Recurrence }, today: Date): string {
+  if (row.recurrence !== undefined && row.recurrence.kind !== 'none') return describeRecurrence(row.recurrence);
+  return typeof row.due === 'string' ? friendlyDate(row.due, today) : t('capture.anytime');
 }

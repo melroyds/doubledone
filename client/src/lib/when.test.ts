@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { type CaptureSchedule } from './recurrence';
-import { tomorrowISO, whenChanges, whenFields } from './when';
+import { startOf, tomorrowISO, whenChanges, whenFields, whenSummary, whenValue } from './when';
 
 // Sun 16 Aug 2026, local, matching the design boards.
 const TODAY = new Date(2026, 7, 16);
@@ -118,5 +118,94 @@ describe('tomorrowISO', () => {
   it('crosses a month end without arithmetic at the call site', () => {
     expect(tomorrowISO(new Date(2026, 7, 31))).toBe('2026-09-01');
     expect(tomorrowISO(TODAY)).toBe('2026-08-17');
+  });
+});
+
+describe('whenSummary', () => {
+  const answer = (schedule: CaptureSchedule) => whenFields(schedule, TODAY);
+  const weekly = { kind: 'weekly' as const, weekdays: [2], start: '2026-08-04' };
+
+  it('names Anytime, and says plainly that it reaches nobody', () => {
+    const s = whenSummary(answer({ mode: 'anytime' }), TODAY);
+    expect(s.fragment).toBe('Anytime');
+    expect(s.sentence).toBe("It stays on the list. It reaches nobody's day.");
+    expect(s.commit).toBe('Set · Anytime');
+  });
+
+  // Today's encoding is the one that is invisible, so the fragment shows which date it became. The
+  // button stays short: the date is already on the chip and on the line above it.
+  it('shows Today AS a date in the line, and stays short on the button', () => {
+    const s = whenSummary(answer({ mode: 'today' }), TODAY);
+    expect(s.fragment).toContain('Today');
+    expect(s.fragment).toContain('16 Aug');
+    expect(s.commit).toBe('Set · Today');
+    expect(s.sentence).toBe("You'll both see it today.");
+  });
+
+  it('names another day as itself', () => {
+    const s = whenSummary(answer({ mode: 'date', date: '2026-08-20' }), TODAY);
+    // Asserted by content, not by punctuation: the runtime's date format is its own business and
+    // pinning a comma here would break the moment a locale or a Node version disagrees.
+    expect(s.fragment).toContain('20 Aug');
+    expect(s.commit).toBe(`Set · ${s.fragment}`);
+    expect(s.sentence).toBe("You'll both see it that day.");
+  });
+
+  // THE build-note case. `describeRecurrence` surfaces a start only when it is in the FUTURE, so a
+  // builder reaching for it would drop the anchor on every LIVE series, which is the exact gap this
+  // sheet exists to close, and it would look right in every test written afterwards.
+  it('always shows a live rhythm PAST start, which describeRecurrence would have dropped', () => {
+    const s = whenSummary(answer({ mode: 'weekly', weekdays: [2], start: '2026-08-04' }), TODAY);
+    expect(s.fragment).toContain('4 Aug'); // the start is in the past, and still shown
+    expect(s.fragment).toContain('·');
+    expect(s.sentence).toBe("You'll both see it on its days.");
+  });
+
+  // For an interval the anchor IS the schedule, so losing it loses which days the row lands on.
+  it("keeps an interval's anchor in the words", () => {
+    const s = whenSummary(answer({ mode: 'everyN', days: 3, start: '2026-08-13' }), TODAY);
+    expect(s.fragment).toContain('13 Aug');
+    expect(s.commit).toBe('Set · Every 3 days');
+  });
+
+  it('flags an ending only when a running rhythm is actually stopping', () => {
+    expect(whenSummary(answer({ mode: 'anytime' }), TODAY, { recurrence: weekly }).ends).toBe(true);
+    expect(whenSummary(answer({ mode: 'date', date: '2026-08-20' }), TODAY, { recurrence: weekly }).ends).toBe(true);
+    expect(whenSummary(answer({ mode: 'daily' }), TODAY, { recurrence: weekly }).ends).toBe(false); // rhythm to rhythm
+    expect(whenSummary(answer({ mode: 'anytime' }), TODAY, { recurrence: undefined }).ends).toBe(false);
+    expect(whenSummary(answer({ mode: 'anytime' }), TODAY).ends).toBe(false);
+  });
+
+  // Whole sentences, never a slot in the middle of a clause, so five locales translate them entire.
+  it('keeps every consequence sentence whole and slot-free', () => {
+    for (const schedule of [
+      { mode: 'anytime' },
+      { mode: 'today' },
+      { mode: 'date', date: '2026-08-20' },
+      { mode: 'weekly', weekdays: [2] },
+    ] as CaptureSchedule[]) {
+      expect(whenSummary(answer(schedule), TODAY).sentence).not.toMatch(/[{}]/);
+    }
+  });
+});
+
+describe('whenValue, the words beside the door', () => {
+  it('never comes back blank, whatever the row carries', () => {
+    expect(whenValue({}, TODAY)).toBe('Anytime');
+    expect(whenValue({ due: null }, TODAY)).toBe('Anytime');
+    expect(whenValue({ recurrence: { kind: 'none' } }, TODAY)).toBe('Anytime');
+    expect(whenValue({ due: '2026-08-20' }, TODAY)).toContain('20 Aug');
+    expect(whenValue({ recurrence: { kind: 'daily' } }, TODAY)).toBe('Every day');
+    expect(whenValue({ recurrence: { kind: 'weekly', weekdays: [2] } }, TODAY)).toContain('Every');
+  });
+});
+
+describe('startOf', () => {
+  it('finds a start under whichever key its kind keeps it', () => {
+    expect(startOf({ kind: 'daily', start: '2026-08-04' })).toBe('2026-08-04');
+    expect(startOf({ kind: 'weekly', weekdays: [2], start: '2026-08-04' })).toBe('2026-08-04');
+    expect(startOf({ kind: 'interval', days: 3, anchor: '2026-08-13' })).toBe('2026-08-13');
+    expect(startOf({ kind: 'none' })).toBeUndefined();
+    expect(startOf(undefined)).toBeUndefined();
   });
 });
