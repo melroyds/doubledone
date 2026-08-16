@@ -90,6 +90,23 @@ keyboard that covers the screen, and the native app runs the other half entirely
 | 5.3b | keyboard, phone's browser | | |
 | 6.1 | one account, two devices | | |
 
+### How each screen refreshes, which changes what you wait for
+
+**The room polls. Today does not.** The room looks again every 15 seconds while it is focused, the
+app is active, and you have touched it in the last ten minutes. Today has no poll at all: it
+refreshes when you navigate TO it, and on a warm resume (the tab going hidden, then visible).
+
+That is deliberate, not a gap. Ours law three is *nothing moves because the other person acted; you
+find things changed when you look.* Today is YOUR screen, so a poll rewriting it under you would
+break that law. The room is where looking IS the activity.
+
+**Consequence for this rig:** two windows side by side are both VISIBLE, so neither ever fires the
+warm resume. So on Today, a shared change lands when you **navigate away and back** (Today → Ours →
+Today) or reload. In the room, just wait.
+
+Every step below says which screen to be on and what to do. Where it says *(look away and back)*,
+that is not a workaround for a bug, it is how the screen is meant to work.
+
 ---
 
 ## 1. Getting paired
@@ -143,17 +160,19 @@ the two accounts.
 1. On **B**, add `DF-04 bin night`.
 2. Hold it → **Repeat…** → **Weekly** → tick **today's weekday** → commit.
 
-✅ It appears on **both** Todays under **DUE TODAY**, without either of you fetching it.
+✅ On both Todays under **DUE TODAY**. A is already on Today, so *look away and back* (Ours → Today)
+to see it arrive. In the room it would have appeared on its own.
 
 **3.2 — STOP if this fails.** On **A**, add `DF-05 lightbulbs` with the door left on **Anytime**.
-✅ In the room on both. On **neither** Today. This is the rule that stops one person filling the
+✅ In the room on both. On **neither** Today, and no amount of looking away and back makes it appear. This is the rule that stops one person filling the
 other's morning.
 
 **3.3** Look at the weight gauge at the top of Today on A.
 ✅ It has not moved. Shared rows never count toward how heavy your day looks.
 
-**3.4** On **A**, tick `DF-04 bin night` where it sits in the DUE TODAY strip.
-✅ Ticked on B too. Nothing names anybody.
+**3.4** On **A**, tick `DF-04 bin night` where it sits in the DUE TODAY strip. Then check **B**.
+✅ Ticked on B. If B is sitting in the **room**, it lands on its own within 15 seconds. If B is on
+**Today**, look away and back. Either way, nothing names anybody.
 
 **3.5**
 1. On **A**, add `DF-06 parcel` in the room, with the door set to **Today**.
