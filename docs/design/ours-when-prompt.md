@@ -1,5 +1,16 @@
 # Design prompt: changing WHEN on a shared row
 
+> **SUPERSEDED, and kept as the record of a mistake.** Two premises below are false and one label
+> does not exist in the app, because this was written from memory of the app rather than from the
+> app. The boards that came back reproduced all three faithfully, which is the whole lesson: a
+> design pack can only be as true as its brief. Use
+> [`ours-when-prompt-v2.md`](ours-when-prompt-v2.md) instead.
+>
+> What was wrong: line 33 says a rhythm can never be changed (it always could, from the held card's
+> `Repeat…`, pre-seeded); line 49 calls that control "Set a rhythm" (no such label exists); and the
+> brief never mentioned that `CadenceSheet` already holds a start date, that Today's Move-to has
+> four presets, or that Ours has no per-occurrence skip.
+
 *Paste into Claude Design. Written 2026-08-13, after Melroy found that a shared row's date and
 rhythm can be set once and never changed.*
 
