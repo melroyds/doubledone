@@ -7086,3 +7086,12 @@ here because the names overlap and the mistake is invisible until somebody is in
 
 Eight slides now, in upload order: welcome, today-light, ours-room, lookback-light, ours-when,
 today-dark, settle-light, settings-light.
+
+**And the same for the App Store set, an hour later.** `IOS=1 node scripts/screenshots.mjs` had the
+same hole: seven slides, no Settle. Same fix, same `motion: 'system'` reasoning, same 2.6s delay,
+now eight at Apple's 6.9-inch 1320x2868. Worth naming the pattern rather than the instance: this
+repo has THREE screenshot generators (raw, Play-framed, App Store), a new screen has to be added to
+each one by hand, and nothing fails when it is missed. A screen shipped on 2026-08-01 was still
+absent from every store listing on 2026-08-16. The rule that would have caught it is in
+BUILD-PLAN's Backlog now: a new user-facing screen adds its slide to all three sets in the same
+commit as the screen.
