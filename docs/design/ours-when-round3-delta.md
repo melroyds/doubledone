@@ -99,9 +99,14 @@ from memory and it is wrong about which route.
   offer Bring. A4 draws no Bring. **It is that row's only route onto anybody's day**, so removing it
   strands the row completely.
 
-**Fix:** redraw A4 with `Bring to my Today` present and leading, and change the reassurance to the
-future tense the app already ships: it will appear on its days after an update. Delete the "keeps
-firing" sentence from the prose.
+**Worth noting, because it sharpens the lesson:** the app already ships the correct sentence. It
+reads "On a rhythm this version can't read yet. It's safe, and it'll appear on its days after an
+update." Future tense, accurate. The board replaced correct shipped copy with new copy that says the
+opposite. So this is not a gap the design failed to fill, it is a true thing that was overwritten,
+and the cause was one sentence in the brief.
+
+**Fix:** redraw A4 with `Bring to my Today` present and leading, restore the shipped string verbatim
+rather than cutting a new key, and delete the "keeps firing" sentence from the prose.
 
 ---
 
