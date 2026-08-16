@@ -14,7 +14,7 @@ import { useSessionState } from '@/lib/auth';
 import { clockSkewMs } from '@/lib/clock';
 import { debugLog } from '@/lib/debug-log';
 import { friendlyDate, toISODate } from '@/lib/day';
-import { type CaptureSchedule, type Recurrence, scheduleFields } from '@/lib/recurrence';
+import { type CaptureSchedule, scheduleFields } from '@/lib/recurrence';
 import { t } from '@/lib/locale';
 import { makeSharedRef, pulledFrom } from '@/lib/ours-bridge';
 import { loadMyPairs, type MyPair, syncClock } from '@/lib/ours-api';
