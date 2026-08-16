@@ -200,9 +200,13 @@ gives the full card: Break it down, Make it tiny, Steps, reorder.
 
 **4.2 — the cold cache.**
 1. On **A**, add `DF-08 stamps` in the room, door on **Anytime**. Hold it → **Bring to my Today**.
-2. DevTools → Network → **Offline**. (Or aeroplane mode on a phone.)
+2. Go offline on **A**: press **F12**, open the **Network** tab, and change the dropdown that reads
+   **No throttling** to **Offline**. **Leave DevTools open**, because closing it resets the throttle
+   and would silently undo this test rather than failing it visibly.
+   *Simpler alternative: just turn off the machine's wifi. It takes B offline too, which does not
+   matter here, and it is closer to what happens to a person on a train.*
 3. Tick `DF-08 stamps` on A's Today.
-4. Back **Online**. Wait 30 seconds. Reload A.
+4. Set that dropdown back to **No throttling** (or wifi back on). Wait 30 seconds. Reload A.
 5. Look at **B**.
 
 ✅ `DF-08 stamps` is ticked on B.
