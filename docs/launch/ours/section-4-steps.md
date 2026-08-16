@@ -1,6 +1,7 @@
 # Section 4, step by step
 
-**A = your iPhone. B = her Android.**
+**A and B are the two test accounts** (`…+ourstest1@…` and `…+ourstest2@…`). Two browser
+windows, one of them incognito, is the easiest rig. Only section 5 of the main card needs real phones.
 
 Three words used below:
 
@@ -22,7 +23,7 @@ Do these in order. Each one sets up the next.
 2. **Do NOT bring it over.** You are going to tick it where it sits, inside that section. That is
    the whole point of this test: 4.1 ticks a SHARED row directly, and 4.2 ticks a copy you took.
    They are different code and they broke separately.
-3. On **A**, swipe the app away into the background. Wait five seconds.
+3. On **A**, background the app (or reload the tab). Wait five seconds.
 4. Open the app again.
 5. **Immediately** tap the circle on that row, inside the DUE TODAY section. Do not wait.
 6. Keep watching that circle for **ten seconds**. Do not tap anything else.
@@ -37,9 +38,9 @@ Do these in order. Each one sets up the next.
 1. On **A**, go to the room. Find a task with **no date and no repeat** (a plain one).
 2. Press and hold it. Tap **Bring to my Today**.
 3. Go to Today. You should see it in your normal list with "· Ours" after the title.
-4. Turn on **aeroplane mode**.
+4. Go offline (aeroplane mode on a phone, or DevTools -> Network -> Offline in a browser).
 5. Tick that row.
-6. Turn aeroplane mode **off**. Wait thirty seconds.
+6. Go back online. Wait thirty seconds.
 7. Swipe the app away, then open it again.
 8. Now look at **B**. Open the room there.
 
@@ -48,7 +49,7 @@ Do these in order. Each one sets up the next.
 
 ---
 
-## 4.3 She ticks something you took
+## 4.3 B ticks something A took
 
 1. On **A**, go to the room. Pick a different plain task. Hold it, tap **Bring to my Today**.
 2. Check it is on **A**'s Today, with "· Ours" after it. Leave it un-ticked.
@@ -61,7 +62,7 @@ too.
 
 ---
 
-## 4.4 She removes something you took
+## 4.4 B removes something A took
 
 1. On **A**, go to the room. Pick another plain task. Hold it, tap **Bring to my Today**.
 2. Check it is on **A**'s Today with "· Ours". Leave it un-ticked.
@@ -70,7 +71,7 @@ too.
 
 ✅ **Pass:** the row is still there, and underneath the title there is a small grey line reading
 **"no longer on <your list name>"**.
-❌ **Fail:** no line at all, or a line that mentions her by name.
+❌ **Fail:** no line at all, or a line that mentions the other account by name.
 
 ---
 
