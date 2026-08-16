@@ -104,9 +104,15 @@ Terms of use: https://doubledone.app/terms
 ## Screenshots (docs/appstore/, 1320x2868 JPEG, upload in this order)
 1. welcome (the promise, best first impression)
 2. today-light (the core)
-3. lookback-light (what you finish, you keep)
-4. today-dark
-5. settings-light
+3. ours-room (the shared list, which is what 1.3.x is FOR)
+4. ours-when (setting a shared row's day, the thing 1.3.1 adds)
+5. lookback-light (what you finish, you keep)
+6. today-dark
+7. settings-light
+
+Apple surfaces the first three in search results, so the room sits third: promise, core, the new
+thing. Before 1.3.1 there was no Ours shot in the set at all, which meant the listing for a release
+about a shared list never showed one.
 
 The Premium screen is deliberately not in the set: the web-rendered paywall shows the Stripe
 line, and an App Store screenshot pointing at external purchase is a review flag.
