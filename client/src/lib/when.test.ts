@@ -209,3 +209,27 @@ describe('startOf', () => {
     expect(startOf(undefined)).toBeUndefined();
   });
 });
+
+// Melroy's first run found the path back to plain unintuitive: it took releasing the cadence chip
+// AND then tapping Anytime. Anytime is now one tap from anywhere, so the ANSWER it produces has to
+// be identical whether a rhythm was running or not. If those two ever diverge, the shortcut becomes
+// a second, subtly-different way to do the same thing, which is how a two-person list drifts.
+describe('the one-tap way back to plain', () => {
+  const weekly = { due: null, recurrence: { kind: 'weekly' as const, weekdays: [1], start: '2026-08-17' } };
+
+  it('answers identically from a running rhythm and from a plain row', () => {
+    const fromRhythm = whenFields({ mode: 'anytime' }, TODAY);
+    const fromPlain = whenFields({ mode: 'anytime' }, TODAY);
+    expect(fromRhythm).toEqual(fromPlain);
+    expect(fromRhythm).toEqual({ due: null, recurrence: { kind: 'none' } });
+  });
+
+  it('still counts as a change, and still narrates the ending', () => {
+    const answer = whenFields({ mode: 'anytime' }, TODAY);
+    expect(whenChanges(answer, weekly)).toBe(true);
+    const s = whenSummary(answer, TODAY, { recurrence: weekly.recurrence });
+    expect(s.ends).toBe(true);
+    expect(s.fragment).toBe('Anytime');
+    expect(s.sentence).toBe("It stays on the list. It reaches nobody's day.");
+  });
+});

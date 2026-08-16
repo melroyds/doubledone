@@ -6934,3 +6934,40 @@ relabel, or the release-tap. That look is Melroy's, on a device, at the largest 
 also where the `ModalCard` overflow question gets answered: the sheet passes neither `scroll` nor
 `maxHeight` and has just gained several rows.
 
+---
+
+## 2026-08-17 · Two things the first real run found, both mine
+
+Melroy tested the When editor within minutes of it existing and found two. One made the feature
+unreachable on the rows most likely to need it.
+
+**Decided: a repeat you have already done today KEEPS its held card.** `TaskRow`'s done branch
+renders a deliberately minimal card, on the sound principle that a finished thing needs nothing
+shaped. But the room passes `done={isSharedDoneOn(task, today)}`, which for a repeat means done ON
+THIS DAY. So ticking bin night on Monday took its entire held card away until Tuesday: no When, no
+rename, nothing. In his words: *"I can't edit When… for a repeating task that's marked as done."*
+
+A repeat is not a finished thing. It comes back, and the day you did it is precisely when you think
+"actually, let's move this to Fridays". So the done card keeps the When door when the row recurs,
+and **withholds the "Done is done." line there**, because that sentence is untrue about a series. The
+door's own value says it better: "Every Mon". A finished one-off still gets the minimal card,
+unchanged, because for a one-off the original principle holds exactly.
+
+**Decided: Anytime is always available, and ends a rhythm in ONE tap.** The v3 design dimmed it while
+a rhythm ran, reasoning that a rhythm has no anytime. Logically tidy, and backwards in practice:
+Anytime is *where you go to stop*, so hiding the exit while the thing you want to leave is running is
+the wrong way round. It made the path back to plain three separate acts, and Melroy called it
+unintuitive on first contact, which is the only test of intuitive that counts.
+
+**Decided against a "Stop repeating" button**, which the design refused for a good reason and which
+this makes unnecessary anyway. Anytime stays a state among states rather than a destructive Clear,
+the release-tap still works for anyone who finds it natural, and both routes produce a byte-identical
+answer, which a test now pins so the shortcut can never drift into a second slightly-different way of
+doing the same thing.
+
+**Worth recording about the process.** The adversarial review predicted the second one exactly:
+*"going back to a plain row is now release, then Anytime, then Set. Three acts. The original brief
+said clearing must be as easy as setting."* I shipped it anyway because the design argued the other
+way, and the review was right. The first one nobody predicted, and nothing could have: it needed
+somebody to tick a real row and then try to edit it.
+

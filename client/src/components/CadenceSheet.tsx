@@ -252,13 +252,21 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
             {rhythmOn ? t('ours.whenStarting') : t('ours.whenDayZone')}
           </Text>
           <View style={styles.chips}>
-            {!rhythmOn && (
-              <Chip
-                label={t('capture.anytime')}
-                selected={day.mode === 'anytime'}
-                onPress={() => setDay({ mode: 'anytime' })}
-              />
-            )}
+            {/* ALWAYS here, including while a rhythm runs, and tapping it ends that rhythm in ONE
+                tap. The design hid it behind releasing the cadence chip first, on the tidy logic
+                that "a rhythm has no anytime". True, and backwards in practice: Anytime is where
+                you go to STOP, so hiding the exit while the thing you want to leave is running is
+                the wrong way round. Melroy, first run: "unticking weekly to get Anytime was
+                unintuitive." He is right. It stays a state among states, never a destructive Clear,
+                and the summary still narrates the ending before anything commits. */}
+            <Chip
+              label={t('capture.anytime')}
+              selected={!rhythmOn && day.mode === 'anytime'}
+              onPress={() => {
+                setRhythmOn(false);
+                setDay({ mode: 'anytime' });
+              }}
+            />
             <Chip
               label={t('common.today')}
               selected={!rhythmOn && day.mode === 'date' && day.date === todayIso}

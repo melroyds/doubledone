@@ -310,8 +310,29 @@ export function TaskRow({
               <Text style={styles.actionLabel}>{t('today.doneOn')}</Text>
             </Pressable>
           )}
-          {/* The inscription sits ABOVE the shelf (v2): the card's last word before its floor. */}
-          <Text style={styles.doneIsDone}>{t('today.heldDoneIsDone')}</Text>
+          {/* A REPEAT is not a finished thing, so the finished card must not be the whole card.
+              `done` here means done ON THIS DAY (the room passes `isSharedDoneOn`), and a series you
+              did today still needs its When: bin night got done on Monday and you want it on Fridays
+              from now on. Without this, ticking a repeat took its entire held card away until the
+              next day, which made the editor unreachable on exactly the rows most likely to need it.
+              Melroy hit it on the first try: "I can't edit When... for a repeating task that's
+              marked as done." */}
+          {recurring && onRepeat && (
+            <Pressable
+              onPress={onRepeat}
+              style={styles.actionRow}
+              accessibilityRole="button"
+              accessibilityLabel={repeatValue ? t('ours.whenA11y', { value: repeatValue }) : t('ours.repeat')}
+              hitSlop={{ top: 6, bottom: 6 }}
+            >
+              <Text style={styles.actionLabel}>{repeatLabel ?? t('ours.repeat')}</Text>
+              {repeatValue ? <Text style={styles.actionSub}>{repeatValue}</Text> : null}
+            </Pressable>
+          )}
+          {/* The inscription sits ABOVE the shelf (v2): the card's last word before its floor. It is
+              withheld on a repeat, where "done is done" is simply untrue: this one comes back. The
+              door's own value says so better ("Every Mon"), without a second sentence. */}
+          {!recurring && <Text style={styles.doneIsDone}>{t('today.heldDoneIsDone')}</Text>}
           {terminalRow}
         </Animated.View>
       );
