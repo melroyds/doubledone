@@ -116,8 +116,19 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
     typeof due === 'string' ? { mode: 'date', date: due } : { mode: 'anytime' },
   );
 
-  /** The row's own current day, offered as a chip so its value is readable without tapping. */
-  const seededChip = rhythmOn ? (startOf(recurrence) ?? null) : (typeof due === 'string' ? due : null);
+  /**
+   * The row's own current day, offered as a chip so its value is readable without tapping.
+   *
+   * WITHHELD when a named chip already IS that day. A row starting today rendered both "Today" and
+   * "Sun, 16 Aug", side by side, both lit, for one date: two controls for one answer, which reads as
+   * a bug even when it behaves correctly. Melroy: "I'm seeing today twice and the pills are both
+   * selected." The named chip wins, because a person reads "Today" faster than they read a date.
+   * A seeded day that is neither today nor tomorrow still earns its own chip, which is the case
+   * this exists for: a January anchor you would otherwise have to open the grid to discover.
+   */
+  const seededDay = rhythmOn ? (startOf(recurrence) ?? null) : (typeof due === 'string' ? due : null);
+  const seededChip =
+    seededDay !== null && seededDay !== todayIso && seededDay !== addDaysISO(today, 1) ? seededDay : null;
 
   /**
    * THE chosen day, wherever the zone happens to be keeping it.
