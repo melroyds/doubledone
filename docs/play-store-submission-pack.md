@@ -135,7 +135,16 @@ data-deletion URL. No ads, no third-party analytics/trackers, no advertising ID.
 
 **Short description** (<=80): `A calm to-do app for ADHD and overwhelm. Shows only today. AI optional.`
 
-**Full description** (<=4000):
+**Full description** (<=4000). *Rewritten 2026-08-16 for 1.3.1. The previous copy is in git history; it
+was two months stale in five ways, and the audit that found them is worth repeating before any future
+release. **Ours was absent entirely**, so a listing for a release about a shared list never mentioned
+one. The **scrapbook was listed as Premium-only** when there is a free monthly one, which under-sold
+the free tier. The **Premium list named six of nine** features (no Pin, Quiet, Plan my day, or energy
+matching). **Settle and repeating tasks** were missing from the free list. And the trial read "30
+days" where the app says "a month" everywhere. Rule for next time: diff this against
+[premium.md](premium.md)'s wall and the live paywall catalog before shipping, not after.*
+
+3,983 characters of 4,000.
 
 ```
 Today is finite and achievable.
@@ -145,38 +154,65 @@ DoubleDone shows you only what today needs, sized to be doable, and quietly keep
 Most to-do apps hand you the whole list and call it motivation. For a lot of us, that is the overwhelm. DoubleDone is the opposite. A calm home screen, a small day, and a list that never shames you for a task simply existing.
 
 MADE FOR
-People with ADHD, autism, the AuDHD overlap, OCD, and anyone whose list has ever felt like too much. Built with care for how those brains actually work: low friction, no streaks to break, no guilt mechanics, no punishment for a task that has waited a while.
+People with ADHD, autism, the AuDHD overlap, OCD, and anyone whose list has ever felt like too much. Built for how those brains actually work: low friction, no streaks to break, no guilt mechanics, no punishment for a task that has waited a while.
 
 THE CALM CORE, FREE FOREVER
 - Capture anything in seconds. One thing per line, in any order.
 - See only today, sized so it feels possible.
-- Break it down: take a dreaded task and turn it into small, doable steps.
+- Break it down: turn a dreaded task into small, doable steps.
 - Make it tiny: a two-minute version, just to begin.
-- Lighten today: ease a too-full day by moving a few things to later.
-- Combine: fold several small tasks into one when the day feels cluttered.
+- Lighten today: ease a too-full day by moving things to later.
+- Combine: fold small tasks into one when the day feels cluttered.
+- Repeating tasks, for the things that come back.
 - Gentle reminders, only the ones you ask for. Never nagging.
+- Settle: a quiet room with a breathing guide, for when the day is loud.
 - Close the day kindly. It honours what you did, never what you didn't.
 - Lookback: see everything you have actually finished, including the old task you dreaded for weeks. Your brain can't tell you that you did nothing.
+- A free monthly scrapbook: a keepsake picture of what you finished.
+
+OURS: ONE SHARED LIST, WITH ONE OTHER PERSON
+Free, and unlike every shared list you have used. Nothing on it says who did what, and nothing counts or compares, so it cannot become a scoreboard.
+
+A shared thing with a day on it, bin night on Tuesday, arrives on both your Todays by itself. One without a day, milk and batteries, stays on the shared list and never reaches your Today, so your person cannot make your morning heavier. Tick it from either phone and it closes for both.
+
+You start it by reading somebody a six-character code. There is no feed, no browsing, and nobody can reach you unless you handed them that code. Either of you can leave whenever you like, no reason needed. Like sync, Ours needs only the simple email sign-in.
 
 AI THAT HELPS, FULLY OPTIONAL
-AI is on by default and does real work: it sorts a brain-dump into your day, breaks a hard task into steps, and reads a photo of a written list into tasks. But it is genuinely optional. One tap in Settings turns it off, and then nothing you type is sent anywhere. The whole app keeps working, entirely on your device. If you are wary of AI or just like things private, this is built for you.
+AI is on by default and does real work: it sorts a brain-dump into your day, breaks a hard task into steps, and reads a photo of a list into tasks. But it is genuinely optional. One tap in Settings turns it off, and then nothing you type is sent anywhere. The whole app keeps working, entirely on your device. If you are wary of AI or just like things private, this is built for you.
 
 PRIVATE BY DEFAULT
 - Your tasks live on your device. No account needed to use the app.
 - Optional sync across devices needs only an email and a one-time code. No password.
-- When AI is on, only the text you choose goes to Anthropic's Claude to do its work, and it is not used to train models. When AI is off, nothing leaves your device.
+- When AI is on, only the text you choose goes to Anthropic's Claude, and it is never used to train models. When AI is off, nothing leaves your device.
 - No ads. No third-party trackers. Nothing sold.
 - Export your data or delete your account any time.
 
 PREMIUM, WHEN YOU WANT A LITTLE MORE
-Everything above is free, forever. Premium adds a few extras, never anything you need: a weekly keepsake scrapbook of what you finished, scan a written list with your camera, Chart a course from a goal into ordered steps, a gentle suggested order for today, your quiet patterns, and custom colour themes. Try it free for 30 days, no card needed. A$5 a month or A$50 a year, cancel any time.
+Everything above is free, forever. Premium adds a few extras, never anything you need:
+- A weekly AI scrapbook of what you finished, growing the longer you stay
+- Scan a written list with your camera, straight into tasks
+- Pin the day's one thing
+- Plan my day: a gentle suggested order for today
+- Chart a course: turn a goal into calm, ordered steps
+- Your patterns: gentle stats and a warm weekly reflection
+- Energy matching without limits: ask what fits right now
+- Quiet: a borderless look where nothing shouts
+- Seven calm colour themes
 
-Premium is billed through Stripe web checkout, not Google Play, and you will never see card details stored by us.
+Try it free for a month, no card needed. A$5 a month or A$50 a year, cancel any time.
+
+Premium is billed through Stripe web checkout, not Google Play. We never see or store your card details.
 
 you're allowed to go slowly
 
 Read the plain-English privacy policy at doubledone.app/privacy.
 ```
+
+> **Adding Ours to the listing raises the stakes on the content rating.** Google's UGC policy keys off
+> what the app does, not what the listing says, so the rating answers were already owed. But a listing
+> that advertises a shared list next to a content rating claiming no user interaction is the kind of
+> contradiction a reviewer notices. Do the rating first, or at the same time. Exact answers in
+> [ours-store-compliance.md](ours-store-compliance.md).
 
 **What's new (versionCode 11, 2026-07-12):** `Keepsakes now follow your account across devices, and they share as a proper page with their caption on the picture. Rhythms can nudge every 30 or 90 minutes and arrive on time once 'Alarms & reminders' is allowed. Plus calmer details and small fixes throughout.`
 
@@ -186,18 +222,35 @@ Read the plain-English privacy policy at doubledone.app/privacy.
 
 ---
 
-## Screenshots (5, portrait ~1080x1920)
+## Screenshots (8, regenerated 2026-08-16)
 
-I can generate these from the app (the screenshot harness in `scripts/screenshots.mjs`). The set:
+**Which folder: `docs/play-store/`, NOT `docs/screenshots/`.** This repo has two screenshot sets with
+overlapping filenames and they are easy to confuse (a ship checklist already sent Melroy to the wrong
+one). `docs/screenshots/` is the RAW app at 780x1688, for the README and review packs.
+`docs/play-store/` is the STORE set: each screen framed in a phone body on a dusk slide with a
+one-line caption, which is what the live listing uses.
 
-1. **Today** with a few tasks — "Only today, sized to feel possible. The rest waits calmly."
-2. **Break it down** result (steps) — "Hand a dreaded task to DoubleDone and get small, doable steps."
-3. **Capture** mid-sort — "Empty your head. Sort it yourself, or let AI order your day."
-4. **Close the day** at dusk — "Close the day kindly. It honours what you did, never what you didn't."
-5. **Lookback** with finished tasks — "Everything you finish, you keep. Proof your brain can't argue with."
+Generate with `node scripts/play-assets.mjs` (needs `npm run dev` on :8081 and Chrome). It writes all
+three sizes plus the icon and feature graphic. **Upload in this order**, which is the order the SHOTS
+array is written in:
 
-*(v11 note, 2026-07-12: if the set is ever refreshed, the strongest new candidates are Rhythms, the gentle
-recurring nudges on the Routines screen, and the Quiet interface.)*
+| # | File | Caption | Why here |
+|---|---|---|---|
+| 1 | `welcome` | Today is finite and achievable. | The promise. Best first impression. |
+| 2 | `today-light` | Only today, sized to feel possible. | The core idea, in one look. |
+| 3 | `ours-room` | One shared list. Never a scoreboard. | **What 1.3.x is for.** Play weights the early ones. |
+| 4 | `lookback-light` | Everything you finish, you keep. | The emotional payoff. |
+| 5 | `ours-when` | A shared day, set from either phone. | What 1.3.1 specifically adds. |
+| 6 | `today-dark` | A calm home screen, day or night. | Proves the night face. |
+| 7 | `settle-light` | A quiet room, for when today gets loud. | The most distinctive screen in the app. |
+| 8 | `settings-light` | AI that helps. One tap turns it off. | The privacy proof, for the wary. |
+
+Sizes, all well inside Play's limits (min 320px, max 3840px, 8MB): `phone/` 1080x1920,
+`tablet7/` 1200x1920, `tablet10/` 1600x2560. Same eight names in each.
+
+*Before 1.3.1 the set was five June slides and **none showed Ours**, so the listing for a release
+about a shared list pictured no shared list. If a release adds a screen, add its slide in the same
+commit.*
 
 ---
 
