@@ -9,6 +9,12 @@ going.
 
 Where a test names a device, **A = your iPhone, B = her Android.**
 
+> **You can start this alone.** As of 2026-08-16 Ours is live on the web, so a browser signed in as a
+> second account is a perfectly good "other person" for sections 1 to 4. It is faster to set up than
+> coordinating an evening, and it means you reach section 5 already knowing the basics work. Section
+> 5 is the one that genuinely needs two phones, because it is the only test of two operating systems
+> and two clocks against one list.
+
 ---
 
 ## 1. Getting paired
@@ -102,6 +108,19 @@ the mark is gone. It must not return for the same change.*
 **4.7 — a repeat on its off day.** Look for the repeating row in the room on a day it is not due.
 *It IS there, with its rhythm in words, and its checkbox is inert saying "you can tick this on its
 day". It must not vanish, and it must not be tickable.*
+
+**4.8 - the pile-up.** *(Fixed 2026-08-16, never tested on a device. The awkward one, because it
+needs a day to pass.)* Give a shared row TODAY's date so it shows under DUE TODAY on both phones.
+Tick it. Look at both Todays now, then again tomorrow morning.
+*Today: still there on both, struck through, and you can un-tick it. Tomorrow: gone from both.*
+
+*Both halves matter. Before the fix it stayed forever, and that strip is excluded from the weight
+gauge and the close-the-day count, so nothing would ever have cleared it. But a row that vanishes the
+instant you touch it is worse, so check it is still there today first.*
+
+*Do not want to wait a day? Set one phone's date forward by one day, open the app, look, then set it
+back. Check the other half too: an UNFINISHED row with a past date is still there tomorrow, and that
+is correct, not a bug.*
 
 ---
 
