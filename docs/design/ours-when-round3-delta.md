@@ -130,3 +130,69 @@ A1, A2, A3 and every refusal stand as drawn.
 No em-dashes at all. Minimal semicolons. Calm, plain, no exclamation marks. Nothing clinical. Five
 locales (en/de/es/fr/it), fragments and whole sentences only, never a sentence assembled around a
 mid-clause slot.
+
+
+---
+
+# ACCEPTED. The design is settled. Build it.
+
+*2026-08-16, after checking the v3 corrections pack against the code.*
+
+All five corrections landed. Checked for new factual errors and found none:
+
+- Every date and weekday pair on the board is correct (16 Aug Sun, 17 Aug Mon, 20 Aug Thu, 4 Aug Tue,
+  13 Aug Thu, 6 Jan Tue). Six for six.
+- The B3 fragment "Every Tuesday · from Tue 4 Aug" is not invented. It is the verbatim output of the
+  shipped `repeat.fromDate` key, which is `'{base} · from {date}'`. The board reused an existing
+  string shape rather than cutting a new one.
+- It corrected only what was asked and declined to redraw A1 to A3.
+
+**Per the stopping rule, this is the last design round.** Three build notes follow, so they are not
+lost. They are implementation details, not another round.
+
+## Build note 1: `describeRecurrence` will silently undo correction 3
+
+The fragment for a repeating row must show the anchor **always**. `describeRecurrence` shows a start
+only when it is in the FUTURE (`recurrence.ts:53`, `start > toISODate(today)`), because it was
+written for the drawer, where a not-yet-active habit is the case worth surfacing.
+
+So a build that reaches for `describeRecurrence` to make the fragment gets "Every Tuesday" for a live
+series and drops the anchor, which is exactly the bug correction 3 exists to fix. Fixed in the design,
+reintroduced in the code, and it would look right in every test written after the fact.
+
+**The fragment builder passes the anchor itself.** Reuse `repeat.fromDate`, do not reuse
+`describeRecurrence`.
+
+## Build note 2: the commit button contradicts itself on the board
+
+The board states the rule as `"Set · " + fragment`, and then writes the Today case as
+**"Set · Today, Sun 16 Aug"** with a comma, while its own fragment for that case is
+**"Today · Sun 16 Aug"** with a dot. Applying the stated rule gives "Set · Today · Sun 16 Aug".
+
+Two dots in one button reads badly, which is presumably why the comma appeared. Pick one and write it
+down, because as drawn this produces two catalog keys where one was intended. My preference: keep the
+rule, and let the Today fragment be just "Today". The date is already on the chip, and the fixed
+sentence beneath says "You'll both see it today."
+
+## Build note 3: the unreadable string is a rewrite, not the restore that was asked for
+
+The delta asked for the shipped string verbatim. The board wrote "It's safe. It will appear on its
+days after an update." against the shipped `ours.repeatUnknown`, which reads "On a rhythm this version
+can't read yet. It's safe, and it'll appear on its days after an update."
+
+This is defensible: the leading clause moved onto the door's value line, and the row note and the held
+card's reason are genuinely different slots. So a second key is legitimate. Just be deliberate about
+it, and keep the two in step, rather than letting the room and the card drift into saying the same
+thing two ways.
+
+## Still open, and it is mine, not the design's
+
+The extended sheet's **overflow** was never asked. `CadenceSheet` calls `<ModalCard>` with no `scroll`
+and no `maxHeight` (`CadenceSheet.tsx:101`), and `ModalCard` supports both (`ModalCard.tsx:62`,
+`:79-86`). B3 now stacks a title, two zone labels, seven chips, seven weekday toggles, a fragment, a
+sentence and a button, and C1 adds a stepper row. At the largest accessible text size that overflows
+with nothing to scroll.
+
+I named this as the main reason to run round three and then left it out of the delta. It is a build
+decision, taken on a device at the largest text size, with `BreakdownQuestions.tsx:60-61` as the
+precedent for the scroll host.

@@ -114,8 +114,26 @@ Not blocking 1.3.0. The workaround exists, nothing is lost or corrupted, and the
 "clumsy" rather than "loses your work" or "lies to you", which were the two bars everything else
 tonight had to clear.
 
-**Design prompt:** `docs/design/ours-when-prompt.md`, ready to paste into Claude Design.
-**Trigger:** first thing in 1.3.1, once 1.3.0 clears review.
+**DESIGN SETTLED 2026-08-16, after three rounds and two adversarial reviews.** Build from
+`docs/design/ours-when-round3-delta.md` (its ACCEPTED section carries the three build notes) plus the
+v3 boards. The earlier prompts are kept as the record of how a brief written from memory produces a
+confidently wrong pack: `ours-when-prompt.md` (v1, superseded, its errors named) and
+`ours-when-prompt-v2.md`.
+
+**Build order, and the first two are pure logic with no UI:**
+1. `releaseCompletions(log, now)` in `ours-merge.ts`, alone, with its test. Without it, ending a
+   rhythm marks the row DONE for both people forever, because `reconcile` re-reads a repeat's
+   completion log as a one-off's tick the moment the row stops repeating. Fires on all three forms
+   (`{kind:'none'}`, `undefined`, AND the dated one), and the dated one is the easiest to miss
+   because it does not feel like an ending.
+2. A `whenFields(choice, today)` returning `{due?, recurrence?}`, where Today produces a REAL ISO
+   date on Ours. Assert never-both, Anytime writes neither, a rhythm clears due.
+3. The fragment builder. Reuse `repeat.fromDate`, never `describeRecurrence` (build note 1).
+4. `CadenceSheet`: the three new props, the relabel, the release-tap, a scroll host.
+5. The room's `setCadence` widened; the door renamed; A4 keeps Bring.
+6. Five catalogs, E2E cases, decision log.
+
+**Trigger:** after the merge, the dogfood pass and the launch. Not before.
 
 ### Parked: a per-person toggle for the Ours door count
 
