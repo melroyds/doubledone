@@ -18,16 +18,36 @@ A calmer kind of to-do list
 
 ## Promotional text (170 max, editable later WITHOUT review)
 ```
-Today is finite and achievable. The whole calm daily loop is free, forever. Premium adds the extras, a weekly AI scrapbook and gentle insights, never anything you need.
+New: Ours, one shared list with one other person. Nothing says who did what, nothing counts, so it cannot become a scoreboard. Free, like the whole calm daily loop.
 ```
-(168 chars.)
+(164 chars.) Keeps the two phrases the previous version earned, "Free" and "the whole calm daily loop",
+so the free-forever promise is not lost when this field turns over. "Cannot" is the load-bearing
+word: not "does not", not "we promise not to". The claim is about FINISHING, never about adding,
+because `shared_tasks.created_by` exists server-side for abuse reports and the honest sentence is
+"nothing says who did what" rather than "no such data exists".
+
+*Previous, if you want it back:* `Today is finite and achievable. The whole calm daily loop is free,
+forever. Premium adds the extras, a weekly AI scrapbook and gentle insights, never anything you
+need.` (168 chars.)
 
 ## Keywords (100 max, comma-separated, no spaces)
 ```
-adhd,focus,planner,tasks,routine,autism,neurodivergent,gentle,overwhelm,daily,habits,simple
+adhd,focus,planner,tasks,routine,autism,neurodivergent,gentle,overwhelm,shared,couples,household
 ```
-(91 chars. Deliberately no "calm", "to-do" or "list": the subtitle already indexes those, and
-repeating name or subtitle words wastes the budget.)
+(96 chars, 12 terms. Deliberately no "calm", "to-do" or "list": the subtitle already indexes those,
+and repeating name or subtitle words wastes the budget.)
+
+**Out:** `simple` (generic, no intent, unwinnable). `daily` (weak alone; "planner" and "tasks"
+still form the combinations that matter). And `habits`, which is the interesting one: it ranked us
+for habit-tracker and streak searches, and this app's whole thesis is that there is no streak, so
+those installs churn and the reviews sting.
+
+**In:** `shared` (the token everything else combines with), `couples` (the highest-intent term for
+this exact feature), `household` (the calm, accurate word for the use case).
+
+**Deliberately NOT in:** `chores`, despite several times the volume of `household`. It brings
+chore-chart and reward-chart seekers, which is precisely the product Ours refuses to be, so we would
+rank for a term we convert near zero on. `family` is out too: it promises more than two people.
 
 ## Description (4000 max; ends with the terms URL, which doubles as the EULA link)
 ```
@@ -39,6 +59,8 @@ When a task is too big to start, Break it down turns it into a few small steps. 
 
 There are no streaks, no scores, and nothing that shames you. A task is never punished for existing. What you finish, you keep: the Lookback shows everything you actually did, including the old dreaded things you finally closed, because that deserves to be seen.
 
+If you keep a list with somebody, Ours is one shared list between exactly two of you. Nothing on it says who did what, and nothing counts or compares, so it cannot become the scoreboard that shared lists usually turn into. A shared thing with a day on it, bin night on Tuesday, arrives on both your Todays by itself. One without a day, milk and batteries, stays on the shared list and never reaches your Today, so your person cannot make your morning heavier. Tick it from either phone and it closes for both. Ours is free, and like sync it needs only the simple email sign-in.
+
 DoubleDone was built with ADHD, autistic and OCD friends and colleagues in mind, and for anyone who lives with chronic overwhelm. Calm, predictable, and quiet by design.
 
 Free, forever:
@@ -49,6 +71,7 @@ Free, forever:
 - Close the day, and a shame-free return whenever you have been away
 - The Lookback, everything you finished, kept
 - A free monthly AI scrapbook of your finished things
+- Ours, one shared list with one other person, and never a scoreboard
 - Sync across your devices with a simple email sign-in, no password
 
 Premium, if you ever want more:
@@ -87,3 +110,19 @@ Terms of use: https://doubledone.app/terms
 
 The Premium screen is deliberately not in the set: the web-rendered paywall shows the Stripe
 line, and an App Store screenshot pointing at external purchase is a review flag.
+
+---
+
+## Where the Ours paragraph sits, and why
+
+Between "There are no streaks, no scores, and nothing that shames you..." and "DoubleDone was built
+with ADHD, autistic and OCD friends...". That seam is chosen, not convenient: the paragraph above it
+already says nothing keeps score for one person, so Ours reads as "and that holds when there are two
+of you", which is an argument rather than a feature announcement.
+
+## Before any of this ships
+
+`supabase/ours-open.sql` must be applied. Until it is, `create_pair_invite` refuses anyone not in the
+hand-populated allowlist, so a person who reads this listing, installs the app and tries to start a
+shared list is refused with no way to fix it. Joining with a code was never gated, only starting,
+which means the gate blocked exactly the person a store listing brings you.

@@ -150,9 +150,23 @@ Every unobvious choice closes a confirmed finding:
 - **`title` is capped in the schema**, because a direct PostgREST call walks around a
   client-side limit. Mirror it on the input so an honest user never meets the error.
 - **PK is `(pair_id, id)`**, so an id collision can never cross two households.
-- **One trigger:** after delete on `pair_members`, delete the pair when no members remain. It
-  holds for every exit path (leave, remove, account deletion, a future third person) rather
-  than only the one function someone remembered to update.
+- **One trigger:** after delete on `pair_members`, delete the pair when no members remain, and
+  **freeze it when one does**. That second branch is what makes account deletion,
+  Remove-this-list and a direct membership delete behave like Leave; without it the survivor
+  keeps adding to a list with no second reader, indefinitely, because `closed_at` is the
+  client's only signal and nothing set it. It assumes two people, which the functions enforce;
+  a third seat must revisit that branch or one of three leaving would freeze the other two.
+- **The invited address is stored hashed, never in plaintext.** It is only ever compared, never
+  returned or rendered, and plaintext would leave every address every user ever typed at
+  pairing at rest forever, including people who never joined, have no account and no erasure
+  path. Honest about the limit: an email hash is dictionary-reversible, so this is
+  pseudonymisation rather than encryption.
+- **A frozen list costs no slot.** The one-pair cap counts LIVE pairs only, or leaving would
+  lock a person out of ever sharing again and "nothing is lost" would quietly mean "unless you
+  ever want to share with anyone else".
+- **A sole member of a live pair can re-mint the code.** With the address hashed and the
+  binding strict, a mistyped invitee is a normal failure rather than an exotic one, and without
+  re-minting the only escape would be the one destructive path in the whole feature.
 
 **Access is two SECURITY DEFINER RPCs, hardened like the live `delete_account()`.** The
 draft's client-side membership writes do not run *and* are not safe: a joiner is not yet a
@@ -424,6 +438,21 @@ location · nagging · sender-initiated per-item pings · a conflict-resolution 
 RSD-prone user to adjudicate against their partner is the exact vector the laws exist to
 prevent) · per-item hide · a block-list table · content filtering of a couple's own words ·
 shared tasks over MCP and the public API.
+
+**Added 2026-08-09, after a panel spent eight thousand words on it: no per-person completion state,
+PENDING or final, in any shape, including on a device.** Mutual confirm, "both of us have to agree",
+verify together, two-key done and sign-off are the same feature wearing different names, and this
+line refuses all of them in advance. The reason is narrow and worth keeping exactly: any gate that
+actually works has to be visible to the server, and server-visible per-party completion state on a
+list of exactly two people is `done_by` with a clock bolted on. The local-only construction really
+does exist and really does pass the letter of §4, and it dies on your own second device, which holds
+no memory of having armed the gate, so the gate closes with one human and zero agreement. There is
+no third option. The full argument, including where that panel overreached, is in
+[`ours-features-review.md`](ours-features-review.md).
+
+Two needs hide under the request and both have better answers already in the plan. "Ticked does not
+always mean done" is a definition-of-done problem, and this app's answer to that is decomposition.
+"Things change under me and I do not know" is §12's change dot and Phase 5's Recently removed.
 
 ## 12. Deferred, with triggers
 

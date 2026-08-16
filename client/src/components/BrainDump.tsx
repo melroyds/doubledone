@@ -28,8 +28,27 @@ const CAPTURE_ACCESSORY_ID = 'ddCaptureAccessory';
 
 type Props = {
   onCapture: (text: string, schedule: CaptureSchedule, slices?: number) => void;
-  onBiteElephant: (text: string) => Promise<void>;
-  onSort: (text: string) => Promise<void>;
+  // The AI shapers. OPTIONAL, because the shared list does not offer them: the steps they produce
+  // land on a list another person reads, and pointing a model at a shared surface is a decision
+  // about somebody else's screen, not a UI tidy-up. Absent = the buttons are not rendered.
+  onBiteElephant?: (text: string) => Promise<void>;
+  onSort?: (text: string) => Promise<void>;
+  /** Steps (slices). Off on the shared list, whose rows have no `slices` field to store them in. */
+  allowSteps?: boolean;
+  /**
+   * This surface's RESTING answer to "when". 'today' everywhere except the shared list, which
+   * passes 'anytime' and gains a fourth chip for it.
+   *
+   * Anytime is the shared list's calm default because most of what goes on it has no day: milk,
+   * batteries, ask about the gutter. Those live in the room and are read when you are going to the
+   * shop. Choosing a day there is the deliberate exception, and it means something specific and
+   * worth being deliberate about: the row will appear on BOTH your Todays.
+   *
+   * This REPLACED an `allowWhen` flag that hid the WHEN row on the shared list entirely. That was
+   * right while a shared row could not hold a date. It stopped being right the moment dated shared
+   * rows started surfacing on both Todays.
+   */
+  whenDefault?: CaptureWhen;
   // Close the panel (the parent owns visibility). The panel's own Close resets the door
   // (back to Today · no repeat · no steps) but NEVER the typed text: text is never lost.
   onClose: () => void;
@@ -63,10 +82,10 @@ const WEEKDAY_KEYS = [
 // controls never appear from nowhere. Iron rules: the first keystroke never waits, typed text
 // survives every tap and collapse, and the door resets to Today · no repeat · no steps after
 // every Add and every Close.
-export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({ onCapture, onBiteElephant, onSort, onClose, today, onCamera }, ref) {
+export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({ onCapture, onBiteElephant, onSort, onClose, today, onCamera, allowSteps = true, whenDefault = 'today' }, ref) {
   const [value, setValue] = useState('');
   const [doorOpen, setDoorOpen] = useState(false);
-  const [when, setWhen] = useState<CaptureWhen>('today');
+  const [when, setWhen] = useState<CaptureWhen>(whenDefault);
   const [repeat, setRepeat] = useState<CaptureRepeat>(null);
   const [weekdays, setWeekdays] = useState<number[]>([today.getDay()]);
   const [everyNDays, setEveryNDays] = useState(2);
@@ -109,7 +128,9 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   const canSplit = lineCount === 1 && wordCount >= 6;
   // Steps only make sense for a single, one-off task (a thing with parts). The row stays in
   // place regardless (fixed regions, not appearing controls); it goes quiet and says why.
-  const stepsAllowed = lineCount <= 1 && repeat === null;
+  // `allowSteps` is the caller saying the surface cannot hold them at all; the rest is the existing
+  // per-capture rule (a multi-line dump, or a repeat, cannot also be sliced).
+  const stepsAllowed = allowSteps && lineCount <= 1 && repeat === null;
   const todayIso = toISODate(today);
 
   // The one door state the summary, the Add label, and buildSchedule all read. The weekday
@@ -121,6 +142,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
     weekdays: weekdays.length > 0 ? weekdays : [today.getDay()],
     everyNDays,
     steps: stepsAllowed && sliceCount >= MIN_SLICES ? sliceCount : 0,
+    whenDefault,
   };
   const summary = doorSummary(doorState, today);
   const addLabel = addButtonLabel(doorState, today, lineCount);
@@ -128,7 +150,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
 
   // ONE rule composes WHEN with REPEATS: the when IS a repeat's start date ("Tomorrow · Daily"
   // starts tomorrow). "Starting from" in the Repeats row reads the same value; never two truths.
-  const startIso = when === 'today' ? todayIso : when === 'tomorrow' ? addDaysISO(today, 1) : dueDate;
+  const startIso = when === 'today' || when === 'anytime' ? todayIso : when === 'tomorrow' ? addDaysISO(today, 1) : dueDate;
 
   function buildSchedule(): CaptureSchedule {
     if (repeat === 'daily') {
@@ -143,6 +165,13 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
     if (when === 'date') {
       return { mode: 'date', date: dueDate };
     }
+    // On a surface whose default is Anytime, choosing TODAY has to produce a real date, because
+    // `scheduleFields` maps both 'today' and 'anytime' to "no scheduling fields" and on that surface
+    // no-date means "lives in the room". Without this line the chip would look chosen, the button
+    // would read "Add · Today", and the row would quietly never appear on anybody's day.
+    if (when === 'today' && whenDefault === 'anytime') {
+      return { mode: 'date', date: todayIso };
+    }
     return { mode: when };
   }
 
@@ -150,7 +179,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   // and every Close. Never touches the typed text; reset() below clears that too (post-Add).
   function resetDoor() {
     setDoorOpen(false);
-    setWhen('today');
+    setWhen(whenDefault);
     setRepeat(null);
     setWeekdays([today.getDay()]);
     setEveryNDays(2);
@@ -244,7 +273,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
     setError(null);
     setBusyKind('bite');
     try {
-      await onBiteElephant(task);
+      await onBiteElephant?.(task);
       reset();
     } catch {
       setError(aiErrorLine(t('capture.breakDownError')));
@@ -259,7 +288,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
     setError(null);
     setBusyKind('sort');
     try {
-      await onSort(text);
+      await onSort?.(text);
       reset();
     } catch {
       setError(aiErrorLine(t('capture.sortError')));
@@ -299,6 +328,28 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   // The one fixed hint line under the actions: content swaps in place, position never moves.
   // Priority: an error > the Tidy offer (a run-on line) > the AI egress disclosure (any text).
   const showTidy = aiEnabled && canSplit && (busyKind === 'split' || !busy);
+
+  /**
+   * The egress disclosure, naming the affordances THIS surface actually has.
+   *
+   * It used to be one fixed sentence about "Sort for me and Break it down", rendered wherever AI was
+   * enabled. On the shared list neither of those buttons exists, so the line was telling you that
+   * two things you could not see were sending your words to a third party. A false statement about
+   * where your data goes is a worse bug than a missing one: it teaches you the disclosure is
+   * decorative, and then you stop reading it on the screen where it is true.
+   *
+   * The same sentence also never mentioned SCAN, which sends an actual photograph. So the surface
+   * with the strongest claim to a disclosure had none.
+   */
+  const textAI = aiEnabled && Boolean(onBiteElephant && onSort);
+  const scanAI = aiEnabled && Boolean(onCamera);
+  const aiNoteKey = textAI && scanAI ? 'capture.aiNoteBoth' : textAI ? 'capture.aiNote' : scanAI ? 'capture.aiNoteScan' : null;
+
+  // The door's overline names the rows BEHIND it, composed from the rows this surface actually has
+  // rather than picked from a set of pre-written strings. One fewer thing to keep in step: adding or
+  // removing a row can no longer leave the label describing a control that is not there.
+  const doorRows = [t('capture.rowWhen'), t('capture.rowRepeats'), ...(allowSteps ? [t('capture.rowSteps')] : [])];
+  const doorOverline = doorRows.join(' · ');
 
   return (
     <View style={styles.wrap}>
@@ -379,11 +430,11 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
           onPress={toggleDoor}
           accessibilityRole="button"
           accessibilityState={{ expanded: doorOpen }}
-          accessibilityLabel={t('capture.doorA11y', { summary })}
+          accessibilityLabel={t('capture.doorA11yComposed', { rows: doorRows.join(', '), summary })}
           style={({ pressed }) => [styles.doorRow, pressed && styles.pressed]}
         >
           <View style={styles.doorTextCol}>
-            <Text style={styles.doorOverline}>{t('capture.doorOverline')}</Text>
+            <Text style={styles.doorOverline}>{doorOverline}</Text>
             <Text style={styles.doorValue}>{summary}</Text>
           </View>
           <Text style={styles.doorCaret}>{doorOpen ? '⌄' : '›'}</Text>
@@ -391,11 +442,16 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
 
         {doorOpen && (
           <View style={styles.composer}>
-            {/* WHEN. Three chips and a fixed detail line: the resolved day plus one Change
-                link into the date picker (the held card's Move-to picker component). */}
+            {/* WHEN. Chips plus a fixed detail line: the resolved day and one Change link into the
+                date picker. The shared list gets a fourth chip in FRONT, Anytime, which is its
+                resting state: most of what goes on a household list has no day, and picking one
+                there means the specific, deliberate thing that it appears on both your Todays. */}
             <View style={styles.compRow}>
               <Text style={styles.compOverline}>{t('capture.rowWhen')}</Text>
               <View style={styles.chips}>
+                {whenDefault === 'anytime' && (
+                  <Chip label={t('capture.anytime')} selected={when === 'anytime'} onPress={() => setWhen('anytime')} />
+                )}
                 <Chip label={t('common.today')} selected={when === 'today'} onPress={() => setWhen('today')} />
                 <Chip label={t('common.tomorrow')} selected={when === 'tomorrow'} onPress={() => setWhen('tomorrow')} />
                 <Chip
@@ -480,6 +536,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
               )}
             </View>
 
+            {allowSteps && (<>
             {/* STEPS. The stepper holds its place always; when steps cannot apply (a multi-line
                 dump, or a repeat) it goes quiet and the hint line says why, in plain words. */}
             <View style={styles.compRow}>
@@ -518,7 +575,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                     ? t('capture.stepsHintOff')
                     : t('capture.stepsHintOn')}
               </Text>
-            </View>
+            </View></>)}
           </View>
         )}
       </View>
@@ -528,6 +585,8 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
           consequence. With AI off the slot is absent and Add takes the full row. */}
       <View style={styles.actions}>
         {aiEnabled &&
+          onBiteElephant &&
+          onSort &&
           (lineCount >= 2 ? (
             <Pressable
               onPress={sortDump}
@@ -587,8 +646,8 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
               <Text style={styles.splitText}>{t('capture.tidy')}</Text>
             )}
           </Pressable>
-        ) : aiEnabled && value.trim().length > 0 ? (
-          <Text style={styles.aiNote}>{t('capture.aiNote')}</Text>
+        ) : aiNoteKey && value.trim().length > 0 ? (
+          <Text style={styles.aiNote}>{t(aiNoteKey)}</Text>
         ) : null}
       </View>
 

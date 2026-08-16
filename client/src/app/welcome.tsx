@@ -25,7 +25,9 @@ import emptyArt from '../../assets/images/empty.jpg';
 // calm pass at the AI safety net and what-you-keep, then hands off to Today. Skippable on
 // every screen but the last; the rest of the app's features are left for in-context discovery
 // (curate, don't catalogue). The Today screen redirects here once, when onboarded is unset.
-const STEPS = ['welcome', 'capture', 'reveal', 'safetynet', 'keep', 'premium', 'handoff'] as const;
+// 'shared' sits between 'keep' and 'premium' DELIBERATELY: Ours is free, and a free feature read
+// immediately before the premium screen would be mistaken for part of the paid list.
+const STEPS = ['welcome', 'capture', 'reveal', 'safetynet', 'keep', 'shared', 'premium', 'handoff'] as const;
 type Step = (typeof STEPS)[number];
 
 const PRIMARY: Record<Step, string> = {
@@ -34,6 +36,7 @@ const PRIMARY: Record<Step, string> = {
   reveal: t('welcome.primaryLooksGood'),
   safetynet: t('common.gotIt'),
   keep: t('common.continue'),
+  shared: t('common.continue'),
   premium: t('common.continue'),
   handoff: t('welcome.primaryOpenToday'),
 };
@@ -220,30 +223,24 @@ export default function WelcomeScreen() {
     void makeDay(false);
   }
 
+  /**
+   * Advance, DRIVEN BY `STEPS` ORDER rather than a hand-written map of transitions.
+   *
+   * The map is how the shared-list step shipped unreachable. It was added to `STEPS`, to the label
+   * map and to the render, typecheck passed, and the one place that decides what comes next still
+   * said `case 'keep': setStep('premium')`. So the screen existed, was translated into five
+   * languages, and no person could ever arrive at it. `back()` was already order-driven and was
+   * therefore always correct; only this half could drift.
+   *
+   * Two steps keep their own behaviour because they do something other than advance: capture runs
+   * the triage, and handoff leaves the flow. Everything else is "the next one", which is a fact
+   * `STEPS` already states.
+   */
   function onPrimary() {
-    switch (step) {
-      case 'welcome':
-        setStep('capture');
-        break;
-      case 'capture':
-        void makeDay(aiEnabled);
-        break;
-      case 'reveal':
-        setStep('safetynet');
-        break;
-      case 'safetynet':
-        setStep('keep');
-        break;
-      case 'keep':
-        setStep('premium');
-        break;
-      case 'premium':
-        setStep('handoff');
-        break;
-      case 'handoff':
-        void leave();
-        break;
-    }
+    if (step === 'capture') return void makeDay(aiEnabled);
+    if (step === 'handoff') return void leave();
+    const next = STEPS[stepIndex + 1];
+    if (next) setStep(next);
   }
 
   // Every path now lands the whole dump on Today (allOnToday), so this filter is a
@@ -384,6 +381,25 @@ export default function WelcomeScreen() {
           </View>
         )}
 
+        {/* OURS, the one free feature that was advertised nowhere. Its own step rather than a line,
+            because Melroy asked for one and because the objection that carried most weight against it
+            (a screen teaching a feature whose door most accounts could not see) died when the
+            allowlist was dropped for launch.
+
+            The four leads are ordered so that stopping early still leaves you with something true:
+            what it is, what arrives by itself, what deliberately does NOT, and the rule that makes it
+            safe. The third is the one that matters most to a person hearing "shared" and bracing:
+            your partner cannot make your morning heavier. */}
+        {step === 'shared' && (
+          <View style={styles.block}>
+            <Text style={styles.h1}>{t('welcome.sharedHeading')}</Text>
+            <Text style={styles.lead}>{t('welcome.sharedLead1')}</Text>
+            <Text style={styles.lead}>{t('welcome.sharedLead2')}</Text>
+            <Text style={styles.lead}>{t('welcome.sharedLead3')}</Text>
+            <Text style={styles.lead}>{t('welcome.sharedLead4')}</Text>
+          </View>
+        )}
+
         {step === 'premium' && (
           <View style={styles.block}>
             <Text style={styles.h1}>{t('welcome.premiumHeading')}</Text>
@@ -461,8 +477,17 @@ export default function WelcomeScreen() {
               <View key={s} style={[styles.dot, i === stepIndex && styles.dotOn]} />
             ))}
           </View>
+          {/* testID for the screenshot harness only. The welcome flow's steps are internal state
+              rather than routes, so the only way to photograph the shared-list screen is to walk
+              there, and the primary's LABEL changes every step and every locale. */}
           {!captureEmpty && (
-            <PrimaryButton label={primaryLabel} onPress={onPrimary} loading={busy} accessibilityLabel={primaryLabel} />
+            <PrimaryButton
+              label={primaryLabel}
+              onPress={onPrimary}
+              loading={busy}
+              accessibilityLabel={primaryLabel}
+              testID="welcome-primary"
+            />
           )}
           {step === 'capture' && !captureEmpty && !busy ? (
             aiEnabled ? (

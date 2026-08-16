@@ -74,3 +74,53 @@ describe('addButtonLabel', () => {
     expect(addButtonLabel(state({ steps: 3 }), TODAY, 1)).toBe('Add');
   });
 });
+
+// THE SHARED LIST, whose resting answer to "when" is Anytime rather than Today. Most of a household
+// list has no day (milk, batteries, ask about the gutter) and must never become somebody's morning;
+// picking a day there is the deliberate exception and means the row appears on BOTH your Todays.
+describe('an anytime-default door (the shared list)', () => {
+  const shared = (over: Partial<DoorState> = {}) => state({ whenDefault: 'anytime', when: 'anytime', ...over });
+
+  it('names the dayless answer in the app voice', () => {
+    expect(whenLabel(shared(), TODAY)).toBe('Anytime');
+    expect(doorSummary(shared(), TODAY)).toBe('Anytime');
+  });
+
+  // "Anytime · Daily" is a contradiction read aloud: a thing with a rhythm is not a thing without a
+  // day, and the rhythm is the more useful half.
+  it('lets a repeat SUPERSEDE the dayless answer rather than joining it', () => {
+    expect(doorSummary(shared({ repeat: 'daily' }), TODAY)).toBe('Daily');
+    expect(doorSummary(shared({ repeat: 'weekly', weekdays: [2] }), TODAY)).toBe('Weekly on Tu');
+  });
+
+  // Elsewhere the when IS the repeat's start, which is worth saying, so the rule must stay local to
+  // the dayless case and not quietly change the other screen.
+  it('still joins when and repeat on a day-shaped surface', () => {
+    expect(doorSummary(state({ repeat: 'daily' }), TODAY)).toBe('Today · Daily');
+    expect(doorSummary(state({ when: 'tomorrow', repeat: 'daily' }), TODAY)).toBe('Tomorrow · Daily');
+  });
+
+  it('picks a real day out when one is chosen', () => {
+    expect(doorSummary(shared({ when: 'today' }), TODAY)).toBe('Today');
+    expect(doorSummary(shared({ when: 'date' }), TODAY)).toBe(AUG2);
+  });
+
+  // The button names what is UNUSUAL about this capture, measured against the surface's own resting
+  // answer. Comparing against a hard-coded 'today' would make every ordinary shared add read
+  // "Add · Anytime", which is a label shouting about the absence of a choice.
+  it('stays quiet for the resting answer and speaks up for a chosen day', () => {
+    expect(addButtonLabel(shared(), TODAY, 1)).toBe('Add');
+    expect(addButtonLabel(shared({ when: 'today' }), TODAY, 1)).toBe('Add · Today');
+    expect(addButtonLabel(shared({ when: 'tomorrow' }), TODAY, 1)).toBe('Add · Tomorrow');
+    expect(addButtonLabel(shared({ repeat: 'daily' }), TODAY, 1)).toBe('Add · Daily');
+  });
+
+  it('leaves the day-shaped surface reading exactly as before', () => {
+    expect(addButtonLabel(state(), TODAY, 1)).toBe('Add');
+    expect(addButtonLabel(state({ when: 'tomorrow' }), TODAY, 1)).toBe('Add · Tomorrow');
+  });
+
+  it('still carries the line count of a dump', () => {
+    expect(addButtonLabel(shared(), TODAY, 4)).toBe('Add 4');
+  });
+});

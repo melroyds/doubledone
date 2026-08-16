@@ -3,6 +3,7 @@
 // (see tasks.test.ts). The AsyncStorage wrapper lives in storage.ts and stays a
 // thin, untested SDK seam.
 
+import { correctedNow } from './clock';
 import { type Recurrence } from './recurrence';
 
 // A task with parts: a thing done in N steps (10 TV episodes, a 3-step chore).
@@ -36,6 +37,7 @@ export type Task = {
   nudgeId?: string; // the scheduled-notification id, so the nudge can be cancelled when the task is done / removed / deferred
   pinnedAt?: number; // epoch ms this task was pinned as the day's ONE priority (premium). The at-most-one invariant lives in the pin action, not here. A leaf field: never auto-cleared, so a pinned task that rolls forward unfinished just rolls. Floats to the top of Today via pinFirst.
   manualOrder?: number; // LOCAL-ONLY (premium "Plan my order"): a render-time sort slot, floated by applyManualOrder. NOT synced (deliberately absent from sync.ts taskToRow/rowToTask), so it persists on-device and survives sync (local wins), but cross-device order is a documented follow-up needing a remote column.
+  sharedRef?: string; // 'pairId/sharedTaskId': this task is YOUR copy of a row on a shared list, brought over on purpose (see lib/ours-bridge). Drives the faint "· Ours" suffix, the tick that closes both, and the rest-note when it gets handled on Ours. SYNCED (the shared_ref column), so the bridge works on every device rather than only the phone that pulled it.
   big?: boolean; // user-marked "this one is a lot": weights the day's gauge (counts as BIG_WEIGHT normal tasks, with a floor so one lone big still reads at least "full") and the heavy-day signal, and makes finishing it a big-win (reward.isBigWin). A leaf field, never auto-cleared. SYNCED since 2026-07-12 (the `big` column + sync.ts mapping; plain LWW because setBig bumps updatedAt, plus a tie-seed in sync-merge for marks from the pre-column era).
 };
 
@@ -168,8 +170,13 @@ export function completeOnDay(task: Task, dayIso: string, now: number): Task {
  * remote's (foreign) updatedAt after a sync, +1 clears the remote too, so the change wins.
  * A `<` comparison (never `<=`) means an UNCHANGED task, whose updatedAt equals prev, is never
  * touched, so this adds no spurious pushes. Pure; the screen calls it inside commit().
+ *
+ * Generic over the row shape (it only ever reads `id` and `updatedAt`), because the shared list has
+ * the same hazard in a sharper form: there, the "different clock" is not a Worker or your own other
+ * phone, it is ANOTHER PERSON's phone writing the same row in the same minute. One implementation,
+ * so the two paths cannot drift into disagreeing about who won.
  */
-export function withMonotonicStamps(next: Task[], prev: Task[]): Task[] {
+export function withMonotonicStamps<T extends { id: string; updatedAt: number }>(next: T[], prev: T[]): T[] {
   const prevById = new Map(prev.map((t) => [t.id, t]));
   return next.map((t) => {
     const p = prevById.get(t.id);
@@ -207,7 +214,12 @@ export function makeId(): string {
  * rule rejects `Date.now()` called from a function defined during render, since a re-render would
  * silently produce a different value. Module scope keeps every screen's handlers pure by construction
  * rather than by each one remembering to declare its own copy.
+ *
+ * It is now the DEVICE clock plus a correction established against the server's (see lib/clock),
+ * because every stamp written here drives last-write-wins against rows a different clock wrote: the
+ * MCP Worker's, your other phone's, and on a shared list another person's. The correction is zero
+ * until a sync sets it, so this is exactly `Date.now()` on a device that has never synced.
  */
 export function nowMs(): number {
-  return Date.now();
+  return correctedNow(Date.now());
 }

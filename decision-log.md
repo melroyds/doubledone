@@ -4735,3 +4735,2081 @@ Melroy asked whether a user could hold several shared lists, one per person (co-
 **Three changes made now because they are free before the first row exists**, and expensive after: `tasks.shared_id` gains `shared_pair_id` beside it (shared task ids are only unique within a pair by design, so the link is ambiguous the moment anyone is in two lists, and "practically unique is good enough" is precisely the assumption that produced the makeId defect above); the local cache is keyed by pair from day one; and the cap is the constant above. **Also recorded as an invariant:** every pair is a sealed room, and nothing renders how many lists a person is in, or with whom, to anybody but them.
 
 **Decided against, for now:** groups of three or more. The schema would allow it by lifting the member cap, but the never-shame maths inverts (at two, "who did not do it" is always inferable, which is why those laws were rewritten honestly; at three, anonymity returns), and groups invite exactly the roles pressure Tier 4 refuses. A separate question with a separate answer.
+
+## 2026-08-09 The Ours Phase-1 SQL, and what an adversarial review found before it touched a database
+
+The schema, RLS and pairing functions were written, then reviewed by a four-lens panel (RLS and privilege, does-it-actually-run, abuse and enumeration, and whether the schema makes the product's laws true by construction) BEFORE being applied anywhere. 44 findings raised, 33 confirmed, verdict: **do not apply as-is**. Eight must-fix defects, two of which silently disabled their own security controls. The full argument, including four reviewer contradictions it resolved and three proposed fixes it rejected as actively harmful, is kept verbatim in `docs/ours-sql-review.md`.
+
+**The two that could not have been found by reading.** First: `join_pair` recorded its rate-limit attempt row inside the same transaction as every `raise exception` below it, and PostgREST rolls an RPC back on error, so the attempts table only ever recorded SUCCESSFUL joins, which the one-pair cap limits to one per account for life. Both ceilings were unreachable by construction, and the throttle protected nothing. The fix inverts it: count FAILURES only, and return zero rows instead of raising on the one path a guesser can reach. Second: the email binding was a separate `if v_invited <> v_email` check, which evaluates to NULL when an account has no email, and plpgsql treats NULL as false, so the binding was skipped entirely. It now lives inside the consume statement's predicate, where a null can never match, and where a wrong-address attempt also stops being able to burn the real invitee's code.
+
+**Six more, each closing a real hole:** `is_pair_writable()` was a definer oracle any account could poll about any household id it had ever seen (true while alive, false once frozen: a relationship-state signal about a home you were removed from, in the one feature whose threat model is domestic), now scoped to the caller's own membership; `created_by` and `pair_id` were client-writable, so either partner could forge the other's authorship or walk a row into another household, now server-coerced by a BEFORE trigger that also clamps far-future timestamps (an unbounded stamp wins every last-write-wins comparison forever, so one patch could pin a tombstone the other person can never restore); the prune trigger only fired at zero members, leaving account deletion to produce a live, writable, one-person zombie list, now it freezes at one; the one-pair cap counted frozen memberships, so Leave permanently locked a user out of the feature, contradicting "nothing is lost" by name; the invited address was stored in plaintext forever with no erasure path for a third party who never even joined, now hashed; and every user-authored string except `title` was uncapped and, for labels, immutable for life on someone else's home screen.
+
+**Decided beyond the panel:** take the re-mint path now rather than later. With the address hashed and the binding strict, a mistyped invitee is a NORMAL failure, and without re-minting the only escape was `forget_pair`, the single destructive path in the whole feature, in a product whose law is "leaving is one tap, and nothing is lost". A sole member of a live pair may now expire the outstanding code and issue a fresh one.
+
+**Recorded honestly as a live tension (the panel's N1, which no finding caught):** the architecture chose a code over an email invite *because* it needed no address, and binding the code to one now reintroduces "you must know their exact account email". For two existing users it is strictly safer. For a partner who has not signed up yet it is a real dead end, and Phase 2's copy must say plainly that a code only works for the address it was written for.
+
+## 2026-08-09 The list's name was in the strings and not in the schema, and a door that could lie
+
+Phase 2 began by building the pairing screen against the fifty catalog strings, which surfaced a
+gap Phase 1 had not: the copy asks **"what is this list for?"** and offers five answers, and
+Melroy's ask was explicit that the chosen name appear "across both devices/profiles". There was no
+`name` column on `pairs`, and `create_pair_invite` had nowhere to put one. Closed additively:
+`pairs.name` (nullable, capped at 40), a third parameter on `create_pair_invite`, a third output
+column on `join_pair` so the joiner sees what they walked into on the first screen, and
+`rename_pair()` so a typo made at the kitchen table is not permanent for the life of a
+relationship's list. Both function changes needed a real `drop function` first, recorded in the
+file: a defaulted third parameter creates an OVERLOAD that PostgREST cannot disambiguate by named
+arguments, and `create or replace` cannot change a `RETURNS TABLE` shape at all.
+
+**NULL is the normal state of that column, not a missing value.** It means "the app's own word for
+this", which each reader then sees in their own language. Storing the literal `Ours` would freeze
+one household into one language forever and hand an Italian partner an English name for their own
+home. The seam enforces it: an empty name travels as `null`, never as a word, and there is a test
+that fails if that ever changes. **Decided against** storing a preset KEY (`preset:house`) and
+translating it on render, which would have kept both people's screens in their own language: a name
+someone picked is a name they picked, the picker already renders in their language, and two kinds
+of value in one text column is the sort of cleverness that is discovered years later.
+
+**A rename is a definer RPC, not an UPDATE policy on `pairs`,** so the table keeps zero write grants
+and the paths in stay countable on one hand. It refuses on a frozen list, because a freeze stops
+every write and a name is no exception: what the list was called is part of what the list *was*.
+
+**The second decision is `ours_is_open()`.** Settings now has the Phase-2 door, and the build-time
+allowlist means most accounts would tap it and be told "shared lists aren't open yet". A door that
+opens onto a refusal is a small lie, and this app does not tell them. The RPC answers about the
+CALLER only, never about an address someone types, so it is not a membership oracle for the
+allowlist; the client fails **closed** on any error, null, or non-boolean, because a door that stays
+shut when the network is confused is a smaller harm than one that opens onto an error. When the gate
+is dropped at launch the function answers true for everyone and the row becomes permanent with no
+client change.
+
+**The screen itself is deliberately plain, and that is the plan, not a shortcut.** It is built to the
+strings and to one-state-at-a-time so that Claude Design has something real and working to redesign,
+per the ritual that produced the held card, the capture panel and Settle. The brief is
+`docs/design-source/ours-design-prompt.md`, and it names what the designer may argue with (where the
+naming question sits, whether "waiting" deserves its own screen, and whether the word **Ours** is
+right at all).
+
+## 2026-08-09 The shared merge: what two people are allowed to lose, and what they are not
+
+`lib/ours-merge.ts` is `sync-merge.ts`'s sibling and deliberately **not** its reuse. The two solve
+the same-shaped problem under different physics: a personal task is edited by one person across
+several devices hours apart, and a shared task is edited by two people in the same kitchen in the
+same minute. Same last-write-wins spine, different things treated as un-losable.
+
+**`completedDates` is a grow-only union.** Two people ticking the bins from two phones is the
+likeliest simultaneous write this feature will ever see, and whole-row last-write-wins drops
+whichever tick lost the timestamp race, so somebody's finished work silently un-completes on their
+partner's screen. That is not a sync bug in this product, it is the never-shame law failing in
+public. The union cannot lose one, and it cannot record who: it is a set of dates, and that is the
+whole of the information that exists.
+
+**A tombstone is not special, and that is a decision, not an omission.** The obvious rule for a
+shared list is "delete always wins", which is safe on paper and wrong here: it lets one person's
+stale removal beat the other's fresh re-add, so the app takes the side of whoever gave up on the
+task. Removal is an `updatedAt` bump like any other and races resolve by time. Tested in **both**
+orderings, because the answer has to be a fact about the clock and never about whose phone happened
+to run the merge, or the two people see two different lists and each is certain the other deleted
+something.
+
+**`withMonotonicStamps` was widened, not copied.** It already existed in `tasks.ts`, solving exactly
+this against the MCP Worker's clock; on a shared list the foreign clock is another person's phone.
+**Decided against** a shared-specific variant (which is what was written first and then deleted):
+two implementations of "whose write won" is precisely how two people end up looking at two different
+lists, and this file's whole job is that they never do.
+
+**Also recorded:** one test asserts the merged row carries no field that could attribute a
+completion to a person. There is no `done_by` column to read, so the test cannot fail today; it
+exists so that the first commit which adds one fails here, loudly, before it reaches anybody's
+kitchen.
+
+## 2026-08-09 The one key on the device that holds someone else's words
+
+`doubledone.ours.v1` caches the shared lists offline, keyed by pair (already decided, 2026-08-09,
+"One person, many people"). What this commit settles is what happens when you stop being in one.
+
+**`pruneOursCache(keep)` takes the confirmed memberships and drops everything else,** so leaving a
+list, being removed from one, and having one killed by the abuse switch all converge on the same
+outcome without a special path each. **Decided against** a `forgetPair`-triggered targeted delete,
+which is the obvious shape and is wrong: it only fires on the exit path the app can see, and the
+other two exits (the partner's `leave_pair`, a hand-flipped `disabled_at`) would leave the rows
+sitting on the phone indefinitely. Reconciling against membership on every read cannot miss one.
+An empty `keep` is meaningful and clears everything, so a caller who genuinely belongs to nothing
+is not a silent no-op.
+
+**It is also in `wipeLocalData`, and in that function's regression test, in this commit,** per the
+standing rule that put the key list there in the first place. This key deserves it more than any
+other on the list: it is the only one holding words ANOTHER person wrote, and an account deletion
+that left it behind would strand a household's list on the phone of someone whose account no longer
+exists. That is the exact shape of the bug the scrapbook once had.
+
+**The loader is defensive on purpose.** Anything on disk can be from an older build or a
+half-written save, and a screen whose entire promise is calm must never be handed a shape that
+crashes it, so non-array entries are dropped rather than trusted. Tested with three kinds of junk.
+
+## 2026-08-09 One clock, and why it corrects rather than replaces
+
+Every timestamp DoubleDone writes drives last-write-wins, and every one of them was the device's
+own clock. That was already a live problem before shared lists: the MCP server writes rows on a
+Cloudflare Worker's clock, so a browser running a few minutes slow produced edits that lost to the
+copy they replaced and appeared to undo themselves. `withMonotonicStamps` papered over it per-row.
+The shared list makes it sharper, because the other clock is now another person's phone, and the
+person watching their change revert is in the same room as the person whose phone won.
+
+`lib/clock.ts` reads the server's clock once per sync and keeps the OFFSET. **Decided: a
+correction, never a time source.** The app keeps using `Date.now()`; this only adjusts it. A skew
+that cannot be established leaves the app exactly as it was before the file existed, a known and
+survivable state, where a skew got WRONG would poison every timestamp written afterwards. So every
+guard fails open to zero: a missing reading, an unparseable one, a non-finite one, and a bracket
+whose reply arrived before it was sent are all simply not believed.
+
+**The plausibility bound is on the SERVER reading only, and that asymmetry is the whole point.** A
+device whose clock is years out is the thing this exists to fix and must be corrected in full; a
+server value outside 2020-2100 is a garbage reply (a null that became 0, a truncated string) and
+believing it would rewrite the app's entire sense of time off one bad response. Tested both ways.
+
+**The round trip is split at its midpoint** rather than charged entirely to the server, which is the
+difference between a correction accurate to milliseconds and one quietly half a slow request behind,
+on the one code path whose job is making two devices agree.
+
+**Cleared from `useSession`'s auth listener, not from the three sign-out call sites.** The
+correction was learned for one account's session, and the next person to use the device is owed
+their own clock. There are three sign-out paths today and there will be a fourth some day: the
+listener is the one place every session ending must pass through. Same reasoning as the single key
+list in `wipeLocalData`, and the same bug it prevents.
+
+**Honest state:** nothing calls `applyServerTime` yet, so in production the correction is zero and
+`nowMs()` is exactly what it was. Wiring it into the sync read is the next box on the plan. That is
+deliberately the safe direction to be incomplete in.
+
+## 2026-08-09 The Ours copy review, and the string that was a false privacy promise
+
+Fifty-two strings, five lenses, refute-by-default verifiers on every finding: 159 raised, 113
+confirmed, 30 keys rewritten and one added. Full argument verbatim in
+[`docs/ours-copy-review.md`](docs/ours-copy-review.md). Three findings were load-bearing enough to
+change what gets built, not only what it says.
+
+**`signedOutBody` was false, and it was the privacy promise.** It said your tasks stay on this
+device either way, sitting directly above a Sign in button, when signing in is precisely what stops
+that: the app's own shipped `signIn.subtitle` says so. The one sentence a rejection-sensitive reader
+weighs hardest broke the moment they acted on it. It now tells the truth and moves the reassurance
+to where it stays true (only you can read them, your person never does).
+
+**`waiting` claimed something the app cannot know.** `pair_invites` has zero RLS policies and the
+expiry is returned exactly once, so after a reload the screen knows only that nobody has joined: it
+cannot tell a live code from one that died yesterday. The old line also made the absent person the
+subject of a pending state, so every return visit read as "they still haven't", which is the
+watching frame this feature exists to avoid. The rewrite asserts nothing about the code's liveness
+and names the remedy instead. **Decided against** a definer RPC returning the caller's own
+outstanding invite's `expires_at`: it would buy a live countdown, and copy is enough for v1.
+
+**The email binding has a dead end that only copy can currently soften.** Anyone signing in with an
+Apple private relay address, a work alias, or simply a different address than their person typed
+fails forever with the undifferentiated `invalid-code`, and the creator cannot look up what they
+typed because it is hashed. Four strings now carry the precondition, and `newCode` stays visible on
+the code screen rather than buried, because re-minting is the only escape. **This is the thing to
+watch in the two-couple dogfood; if it bites, the fix is product, not words.**
+
+**One decision made against the panel's preferred shape.** It showed that "Delete this list for
+good" cannot be undone once the RPC returns, so an undo toast would be a lie and the only honest
+version is a delayed commit. `forgetHint` ships now and makes the current state truthful. The
+affordance itself waits for the Claude Design pass rather than being built twice, on a branch that
+does not deploy. Recorded as a build-plan item so it cannot be lost.
+
+**Also settled: the copy states the app's own limits instead of correcting the reader.**
+`errAlreadyPaired` names the one-list-at-a-time cap and the way out rather than telling someone what
+they already have; `errListFull` stops implying a third person is in there; `errRateLimited` stops
+counting the reader's failures back at them, which matters because it can fire from the global
+ceiling with the reader doing nothing at all. And the whole block went back to house typography:
+the curly apostrophes were entirely mine, and this catalog has used straight ones in a double-quoted
+delimiter for a thousand strings.
+
+## 2026-08-09 Two features refused and one, and a bug found by refusing them
+
+Melroy proposed two additions to Ours: **both people must agree an item is done**, and **reminders
+sent to both people, coordinated server side**. A five-lens panel with three attackers pointed at
+its own consensus, one briefed that refusing a founder's request on ethical grounds he did not ask
+for is paternalism. Full decision, including where it says the panel overreached, in
+[`docs/ours-features-review.md`](ours-features-review.md).
+
+**Two-party completion: Tier 4, and now a standing rule so it cannot return under another name.**
+Melroy reached the same answer independently ("if somebody doesn't like it being done, they can just
+untick the box, becomes a couple's thing to sort out"), which is also the right one.
+
+The load-bearing reason is narrower than the one four lenses gave, and the narrower one is the true
+one. A clever local-only construction really does exist: `pending_since timestamptz`, a time and not
+a person, exactly the `done_at` precedent. It dies on your own second device, which holds no memory
+of having armed the gate, so the laptop renders "your turn", you tap, and the gate closes with one
+human and zero agreement. Make that survive the second device and you have synced it, and a synced
+record of which of two people confirmed is `done_by` with a clock bolted on. **Decided against** the
+maximalist claim the panel first offered (that any per-party state at N=2 is inherently a per-person
+record): it is false as written, it proves too much, and it would have applied equally to `done_at`,
+which shipped. Better a smaller true argument than a larger false one.
+
+The second reason is product rather than architecture: a gate turns inaction into a veto. An
+un-tick takes an act; withholding takes nothing. Asleep, driving, phone dead, and quietly furious
+all produce the same screen, indefinitely. For a rejection-sensitive reader the ambiguity IS the
+payload, and no copy fixes it because the payload is the silence.
+
+**Shared reminders: Tier 2 for the outcome, in a shape that costs nothing.** Not the mechanism I
+recommended. Each person pulls the row to their own Today and arms their own existing local nudge
+(`nudgeAt` / `nudgeId`, already local-only and already absent from the sync mapping). No column on
+`shared_tasks`, no `user_id` in `push_subs`, no cron change. **My own proposal, a `remind_at` field
+on the shared row, is deferred to Tier 3** behind a trigger and three unmet preconditions, one of
+which is a real attack I had not seen: a client re-arming a notification on merge rebuilds its
+content from the CURRENT title, so you could set a benign shared reminder, wait for the other phone
+to arm it, then edit the title, and your words fire on their lock screen at your chosen hour.
+Server coordination stays Tier 4 on arithmetic, not taste: the cron holds no user token,
+`service_role` is a hard never, and the row already syncs to both phones. **Sync is the
+coordination.**
+
+**And the reason the panel paid for itself: `reconcile()` made un-ticking a repeating shared task
+impossible.** `completedDates` was a grow-only union, which cannot lose a tick (right) and therefore
+cannot express an un-tick (wrong). Removing today's date locally was restored by the very next merge
+and never reached the server at all. Sixteen tests passed, because every one of them asked "can a
+tick be lost", where "no, never, by construction" is also the defect. Two shipped promises rested on
+it: the finality affirmations are withheld on Ours BECAUSE your person can un-tick, and Phase 5
+stops rendering done rows at the day boundary so un-tick works all day. Both were half true, and
+un-ticking is precisely the safety valve on which BOTH the panel and Melroy refused two-party
+completion.
+
+Fixed by replacing the set with a **`CompletionLog`**: `{on: {date: ms}, off: {date: ms}}`, merged
+per date by max, later stamp winning. A last-write-wins element set, so merge order cannot change
+the answer, no tick and no un-tick is ever lost, and a date can be ticked again after being cleared,
+which a plain add-set plus remove-set could never do. A dead-heat tie resolves to DONE, because of
+the two ways to be wrong, "your finished work quietly un-finished itself" is the one this audience
+cannot afford. Still a record of WHEN and never of WHO. The column is renamed `completions` while it
+is still empty, guarded so the file stays re-runnable, because `completed_dates` holding a
+tick-and-un-tick log would mislead every future reader. Ten new tests, one of which exists purely to
+kill the cheaper `growsBeyond` that counts keys instead of comparing stamps and would have silently
+stranded every re-tick on one phone.
+
+## 2026-08-09 The shared sync seam, and the optimisation that would have deleted people's tasks
+
+`lib/ours-sync.ts` is `sync.ts`'s sibling: row mapping pure and tested, pull / push / `syncPairOnce`
+wrapping the merge engine around the network, the caller's own client under RLS, no elevated key.
+Three decisions in it are worth the trail.
+
+**The pull is FULL, and the build plan's own "filter on `updated_at`" line is deliberately not
+implemented as a delta.** An `updated_at > watermark` pull reads as the obvious optimisation and is
+a data-loss bug against this merge engine: `mergeShared` treats a local row missing from the remote
+set as local-only and pushes it, so every row outside the delta would be re-pushed on every poll,
+and a row the other person had genuinely deleted would be resurrected by yours. What that line was
+really guarding was the opposite thing, and it stands: **there is no `deleted_at is null` filter and
+there must never be one.** A tombstone is how a removal travels; filtered out, a row your person
+removed simply stops arriving, your copy never learns it is gone, and your next push puts it back on
+their screen. A household list is tens of rows. When that stops being true the fix is a merge that
+knows it is looking at a delta, not a filter bolted onto this one.
+
+**The upsert conflicts on the COMPOSITE key `(pair_id, id)`.** A shared task's id is only unique
+within its pair by design (that is why `tasks` needed `shared_pair_id` beside `shared_id`), so
+conflicting on `id` alone would let one household's write collide with another's.
+
+**`created_by` is never sent.** A BEFORE trigger stamps it from `auth.uid()` and would overwrite
+anything we sent, and the reason that trigger exists is that either partner could otherwise forge
+the other's authorship. A test asserts the key is absent, and a second asserts that a `done_by`
+arriving from the server is ignored on the way in rather than quietly carried.
+
+**Also: the completion log is sanitised at the wire, not trusted.** It is jsonb in a column the
+OTHER person's client writes, possibly from an older or newer build, so a shape this build does not
+expect degrades to "no completions" rather than reaching the merge engine and throwing on somebody's
+shared list. Decided against trusting it because the failure mode is a crash on the calmest surface
+in the app, caused by a stranger's build.
+
+**Deferred on purpose:** the polling hook itself (AppState, focus, idle timer). The rule is here and
+pure (`shouldPoll`, all three conditions required); the timer belongs with the screen, which the
+design pass is about to reshape.
+
+## 2026-08-09 The Phase 3 audit: nine engine defects, and the one sitting under most of the list
+
+Five lenses over the merge engine, the sync seam, the clock and the cache, every finding then put to
+a refute-by-default verifier that had to state the exact sequence of events. 53 raised, 41
+confirmed, 19 distinct defects. Verbatim in [`docs/ours-phase3-audit.md`](ours-phase3-audit.md).
+Nine engine ones are fixed here; the six that block the dogfood are all in the screen.
+
+**The worst: the completion log protected repeats and left ONE-OFFS outside it entirely.** A
+one-off's tick lives in `done` / `doneAt`, which rode whole-row last-write-wins, so any newer
+unrelated edit by the other person (a retitle, a restore) took the whole row and the tick was gone
+from both phones and the server, with `growsBeyond` not even pushing it back because it inspects
+only the log. The field answer for this feature is "mostly one-offs with a few recurrences", so the
+protected case was the minority. `done` is now a PROJECTION of the log for one-offs, which removes
+the second completion code path rather than giving it a second set of rules. **Decided against**
+keeping whichever side's `doneAt` is later: an un-ticked one-off has no stamp to compete with, so a
+tick would beat every un-tick forever, which is the grow-only bug re-created on the one-off path.
+
+**A refused push threw away a successful pull, permanently.** The select policy needs only
+membership; both write policies need `is_pair_writable`, which also requires the pair to be live. So
+a frozen pair pulls forever and pushes never, and nothing but a successful push empties `toPush`, so
+the device was pinned at its last complete sync on the one screen a bereaved or separated person may
+keep for years, under copy promising "Nothing is lost. You can still read everything here."
+`syncPairOnce` returns `{ merged, pushError }` now. **Decided against** a `writable` flag from
+`loadMyPair`: the freeze lands mid-session, so any flag is one poll stale and the push throws anyway.
+
+**The server clamps `updated_at` and the client never learned.** The trigger clamps to `now() + 1
+day` rather than rejecting, and the upsert had no read-back, so a device more than a day fast kept
+its own stamp, stayed "newer" forever, and re-pushed every poll, each push re-clamping to a fresh
+ceiling that beat anything the other phone could legitimately write. The partner's retitle reverted
+every fifteen seconds from a phone lying face-down on a table. `pushShared` now reads back what was
+stored. `pushTasks` is safe without this only because no trigger touches `tasks.updated_at`, and
+that precondition does not travel to this table.
+
+**Four more, each closing a real hole.** A title legal on the personal list (no cap) is fatal on the
+shared one (500), and the whole push is ONE statement, so a single long title aborted every row in
+it and the pair silently stopped converging in both directions; clamped at the seam, by code points
+rather than UTF-16 units so the cut never lands inside an emoji. `tickOn` / `clearOn` asked the
+CALLER for a stamp later than the one they compete with, which no caller can honour because that
+stamp came from the other person's phone; they lift their own now. The completion log had no ceiling
+against a 64KB CHECK, roughly six years for a daily repeat, and crossing it poisons the batch
+forever because even the tombstone carries the payload; capped at 730 dates by COUNT rather than by
+a time horizon, so the file stays clock-free and the cap still commutes. And `pullPair` was
+unpaginated, which past PostgREST's max-rows makes `mergeShared` read every locally-cached row
+outside the page as "added while offline" and push it: exactly the resurrection failure the full
+pull exists to prevent, reintroduced through the transport.
+
+**Partner-written `recurrence` jsonb was taken on trust**, one line above the function whose
+docstring states the rule. `isDueOn` does `r.weekdays.includes` unguarded, so a `{"kind":"weekly"}`
+from a newer or hand-rolled client white-screens the other person's whole list. Validated now, and
+**an unreadable cadence is kept VERBATIM and pushed back byte-identical**, so a build that cannot
+read a repeat is never the build that erases it for the person who set it.
+
+**And one that reaches the SHIPPED personal list.** `applyServerTime` bounded a reading's order but
+never its width, and the midpoint only cancels a symmetric round trip, so a forty-second reply on a
+train sets a correction tens of seconds wrong, and `nowMs()` is the single mint point for every
+timestamp in the app. A 2-second ceiling gates it now. **Decided against** keeping the smallest-RTT
+sample of the session: phone clocks jump, and a latched sample then applies a stale offset to an
+already-correct clock and refuses the fresh reading that would fix it. Newest-believable is the
+retention rule, and the RTT gate is what makes "believable" mean something.
+
+**Three of these were found by reading a comment that promised what the code beneath it did not do.**
+That is a good problem to have: the reasoning was written down, so the drift was visible. All three
+comments were corrected in the same commit, or the next reader trusts them again.
+
+## 2026-08-09 Frozen lists stay, and resuming one takes both people
+
+Two product calls from Melroy, both raised by the Phase 3 audit rather than by anyone's taste.
+
+**A closed list stays readable, tucked away.** The code holds a single pair, so the moment someone
+started a new shared list the old frozen one stopped rendering anywhere, while its own copy promised
+"Nothing is lost. You can still read everything here" in five languages. `loadMyPair` becomes
+`{ live, frozen[] }`. **Decided against** the cheaper option of one list on screen and softening the
+copy: this is the sentence someone reads on the day they were left, and it is the one place in the
+feature where the app should be strictest with itself.
+
+**And a frozen list can be RESUMED, by the same handshake that made it.** Melroy asked, and the
+answer is yes with one absolute constraint: never unilaterally. In a domestic threat model the whole
+value of "it closes for both of you" is that leaving is a door the other person cannot drag you back
+through, so a one-sided reopen would quietly turn leaving into a pause somebody else can undo, on
+the one surface whose threat model is domestic. So resuming is the pairing handshake again: one
+member mints a fresh code bound to the other's address, the other redeems it, `closed_at` clears,
+and every row is still there. Both people actively choose it, which is exactly the property that
+keeps leaving safe. It works only while both memberships still exist, and a frozen list costs no
+live slot, so an old list can be woken later even while a current one exists.
+
+**Tombstone redaction at 30 days.** Nothing deletes a tombstone today, so on a shared list "remove"
+means "stop rendering" while the words stay on both devices and the server indefinitely. A definer
+sweep blanks the title past the horizon WITHOUT touching `updated_at`, so both devices adopt the
+redaction on their next pull and neither pushes the old words back, and it is gated on
+`is_pair_member` rather than `is_pair_writable` or it would no-op on exactly the frozen lists that
+need it most. 30 days is the smallest number comfortably past Phase 5's seven-day Restore window,
+and writing that coupling down is the point. **Decided against** hard deletion for now: it fixes
+unbounded growth as well, but it cannot ship until a cached row can say "the server has seen this",
+or a task created offline is indistinguishable from a swept one.
+
+## 2026-08-09 The six that blocked the dogfood, all in one screen
+
+The Phase 3 audit's headline was that none of the merge or seam defects could bite yet, because
+none of that code has a caller. Everything that could hurt a real tester was in the pairing screen,
+and testers leave and re-pair constantly, which is exactly the path that was broken.
+
+**Leaving was a one-way door out of the entire feature.** `leave_pair` freezes without deleting a
+membership, so the frozen branch returned before create, join and the idle state, and its only
+control was "Delete this list for good". The answer to "I want to share a list with someone new"
+was therefore "first permanently destroy everything your ex, or your late partner, wrote". The
+database says the opposite everywhere: both pairing functions count LIVE pairs only, a frozen list
+costs no slot, and the schema's own post-apply read-back asserts that someone who leaves can pair
+again. The client was the only thing refusing.
+
+**The minted code could vanish before anyone read it.** The code rendered inside `if (pair)`, and
+`pair` was null until the two-query refresh landed, so between the RPC returning and that read
+completing the screen fell through to the intro: someone who had just tapped "Get a code" was
+looking at "Start a shared list". If the refresh then failed, that was the resting state, and the
+code is unrecoverable because the server returns it exactly once. Both RPCs now seed the pair from
+their own return value.
+
+**"Get a new code" was a dead button that destroyed the code on screen.** The waiting branch
+returned before the create form could render, so the button blanked six characters the user could
+still have read aloud and reached nothing, while the copy actively told them to press it. The
+server's deliberate re-mint path, which exists so a mistyped invitee address is recoverable without
+the hard delete, was unreachable from the app.
+
+**And three that are about reads.** `loadMyPair` picked `rows.find(...)` on an unordered PostgREST
+result with no liveness preference, which in practice yields the oldest, which is the frozen one, so
+every later call pointed at the wrong list; it is now `loadMyPairs`, ranking live over frozen and
+newest over older, and **returning frozen lists rather than filtering them**, because "you can still
+read everything here" is promised in five languages. A failed read had no else branch, so it read as
+"you have no shared list" and offered to start one, which then either contradicts itself or
+re-mints and kills the code the other person is holding. And seven call sites raced with no
+sequencing, so whichever reply landed last won: the arrival beat could announce, drop back to
+waiting, and announce again, and a rename's slow read landing after a Leave could restore a live
+Leave button for someone who had already left. That beat carries `leave`, which is permanent for
+both people, and the likeliest response to a screen that looks broken is to tap the escape.
+
+**Three cheaper ones in the same pass.** `disabledAt` was read from the server and never used, so a
+killed pair rendered as "Sharing with Sam" with an editable name; it folds into one `frozen`
+derivation and needs no new strings, because the shipped frozen copy is literally true for a killed
+list. A live pair nobody had joined had no exit at all, so someone who made a list to see what it
+was and changed their mind was met with "waiting" forever; that needed its own hint rather than
+`leaveHint`, which says "it closes for both of you" and is false when there is no both. And the poll
+had no focus gate, no app-state gate and no ceiling, so a tab left open made two reads every ten
+seconds all night, long after the 24-hour invite TTL had made the answer impossible.
+
+## 2026-08-09 The four language passes, and why a fifth agent read them together
+
+Three native lenses per language over the 54 `ours` strings, every finding put to a refute-by-default
+verifier, then a per-language synthesis and a cross-language terminology check: 174 raised, 124
+confirmed, **61 keys rewritten** (es 21, it 15, fr 13, de 12). Four agents then applied their own
+language to their own file in parallel, and a fifth read all five files together.
+
+**That fifth read is what earned its keep, and the reason is worth keeping.** Each applier saw only
+its own language and its own report, so nothing in that arrangement could catch a defect that only
+exists BETWEEN files. It found four, two of them real:
+
+- **German's `notThem` still said "Person"**, the only occurrence of that noun in 1092 lines, against
+  nine keys in the same block naming the same human "dein Mensch". The terminology agent had named
+  this exact break, and the German pass had not applied it. It fires on the joiner's screen at the
+  moment someone is deciding whether a stranger is holding their code.
+- **`theirEmail` split two-and-two.** French and German moved to "address" in this pass; Spanish and
+  Italian were left on "email", which in both reads first as THE MESSAGE your person sent, on the one
+  field sitting directly above a hint promising the app will never email them.
+
+Plus French spacing (a breakable space before `?` lets a lone question mark wrap to its own line on a
+narrow phone, and two of the five are screen titles), and **English becoming the outlier on its own
+irreversible action**: all four locales now use their own delete verb in `forgetHint`, and English
+said "removes", the one word indistinguishable from "leave", which is the other action on the same
+screen and the reversible one.
+
+**Decided against sweeping the pre-existing typography drift the verification found outside the
+`ours` namespace.** Curly apostrophes and escaped delimiters in fifteen shipped, native-reviewed
+strings across four files. Both forms render identically, so it is tidiness rather than a defect, and
+a copy commit is the wrong place to touch strings nobody reviewed today. Backlogged with a trigger.
+
+**Also parked rather than acted on:** `notThem` frames its judgement on the HUMAN in French and
+German ("la bonne personne", "der richtige Mensch") where Spanish and Italian use the speaker-side
+frame ("quien esperabas", "chi ti aspettavi"). One agent raised it, no verifier ever saw it, and it
+belongs beside `wasntWho`, which already moved to the speaker-side frame in Italian and German. It
+goes to the round-two copy pass, not into this commit on one unverified opinion.
+
+## 2026-08-09 A repeat you cannot read is shown, not hidden
+
+Two people on a shared list can be on different app versions, which is the ordinary state rather
+than an exotic one: staggered store rollouts, web against native, someone who has not opened the
+store in a month. So one of them can set a cadence the other's build has never heard of, and that
+build genuinely cannot work out which days it lands on.
+
+The dangerous half was already fixed by the Phase 3 audit: an unreadable cadence is kept verbatim
+and pushed back byte-identical, so the build that cannot read a repeat is never the build that
+erases it. What was open was purely what the reader SEES, and Melroy chose: show it.
+
+**The argument, because it generalises.** Hiding the row is the tidier interface and the worse
+outcome. One person sees the task and the other does not, and when it is undone each has a
+reasonable and completely wrong story about the other having deleted it. That is the invisible
+disagreement this entire feature exists to prevent, and it compounds quietly for weeks. A visible
+oddity is the cheaper failure, every time, on a surface two people share.
+
+**The mechanism keeps it cheap.** The writing client, which understands the cadence, writes a
+plain-English summary alongside the machine form, and it rides INSIDE the recurrence object, so it
+needs no column and is preserved for free by the verbatim carry that already protects the cadence.
+Same shape the public REST API already uses (a normalised object plus a `repeats` summary), so it
+is a known pattern here rather than an invention.
+
+**The subtle part, and the one with a test:** `knownRecurrence` rebuilds a clean object for the
+kinds it knows, so without an explicit carry the client that UNDERSTANDS a cadence would silently
+strip, on its very next sync, the fallback the client that does not understand it depends on. The
+person whose app is up to date would be the one breaking it for the person whose app is not.
+
+**One accepted ugliness:** the stored summary is in the writer's language, so an Italian reader can
+be shown an English cadence line. A reader that understands the cadence must ignore the stored one
+and render its own, so this only ever appears where the alternative was nothing at all.
+
+## 2026-08-09 The order stands: SQL, then design, then merge
+
+I argued for merging first, on the grounds that the audit's number one risk is the email binding and
+that is a mechanics question only a real pairing with a real account can answer, so finding it early
+would make the design brief better. Melroy overruled it and kept his original order: finish the
+resume SQL, do the design pass, and only then push. **"If we're going to push something, let's get
+it in the best possible state that we can."**
+
+Recorded because the reasoning is worth keeping and because it is the second time this instinct has
+been right on this project. The counter-argument I did not weigh heavily enough: a dogfood of an
+un-designed screen teaches the flow twice, once badly, and the two households who asked for this are
+not a resource to spend on a version nobody intends to keep. The email-binding risk does not expire;
+it will still be there to find after the design lands, and by then finding it costs one conversation
+rather than one first impression.
+
+## 2026-08-09 Where an update notice lives, and why it is a recommendation rather than a question
+
+Melroy asked whether the out-of-date message on iOS and Android belongs in Settings or on Today. The
+answer is neither, and the third place was already in the codebase: `restedOffer` in `lib/offers.ts`,
+a ladder of gentle offers shown ONE AT A TIME on the rested screen, which already carries the daily
+reminder, the home-screen widget and the scrapbook keepsake.
+
+**Settings alone achieves nothing.** Almost nobody opens it, and the person whose build cannot read
+their partner's cadence is exactly the person not going looking for a version number. **Today is the
+wrong surface**, because its promise is that the day is finite and an update notice is a demand with
+nothing to do with the person's day. **The rested screen** fires when someone has finished, is not
+mid-task, and the app has already softened. Same shape as "your week could be a keepsake".
+
+So: Settings carries the always-true fact and absorbs the version line already there; the rare
+mention is a fourth rung on the ladder, gated at two minor versions behind and once a fortnight.
+
+**Recorded honestly: the gap.** Someone who never closes a day never sees the rested screen, so they
+never get the nudge. The counter is that a person who never closes a day is struggling, and
+interrupting them with a version notice is precisely the wrong instinct.
+
+**And a note on process, which is the transferable part.** This went into the design brief as a
+RECOMMENDATION rather than an open question, for three reasons. Round one's handoff contains four
+positions where it argued back against the brief, so a stated position gets tested rather than
+obeyed. The offer ladder is not discoverable from a description of the app, so withholding it means
+a Today surface designed in good faith and a round spent unpicking it. And "Settings or Today" is
+not a neutral question: posing it with two options quietly rules out the one that is right. The
+guard against anchoring is that the reasoning ships with it and rejecting it is invited explicitly.
+
+## 2026-08-09 The resume SQL: twelve defects across two passes, and one the passes could not see
+
+Three rounds on `supabase/ours-resume.sql` before a line of it reaches a database.
+
+**Pass 1 (eight defects, "do not apply as-is").** Verbatim in
+[`docs/ours-resume-sql-review.md`](ours-resume-sql-review.md). It began by TRACING rather than
+asserting that a one-sided reopen is impossible: `closed_at` is cleared in exactly one statement in
+the whole schema, behind seven conditions in one predicate, and the binding is minted server-side
+against the OTHER member, so no code can ever be bound to its own minter. The law holds
+structurally, which is the only way it is worth having.
+
+The two that would have hurt. **A person could end up holding two live lists, one their own app
+could neither render nor leave**: nothing re-read the other member between the mint and the redeem,
+up to 24 hours later, so they could start a fresh list in between; the app gives the visible slot to
+the newest join and files only frozen pairs in the archive, so the woken one rendered nowhere while
+the other person wrote into it freely. And **the thirty-day redaction clock was set by whoever wrote
+the row**: `deleted_at` was client-supplied and unclamped, so a phone a month slow would have had
+its first sweep permanently blank a task removed a minute earlier, from inside the seven-day Restore
+window, with the same wrong stamp having already hidden it from "Recently removed".
+
+**The one worth remembering.** I wrote in the file that resume needed its own function BECAUSE
+`join_pair` refuses closed pairs. True of its consume statement, false of the function: its
+idempotent branch checked only hash, expiry and membership, and a resume code's redeemer is a member
+by construction, so every resume code satisfied it. The design decision was right and my
+justification for it was one branch short of the truth.
+
+**Pass 2 (four more, all in the APPLICATION rather than the design).** The tombstone normalisation
+sat forty lines BELOW the trigger that makes `deleted_at` immutable, so it reported rows updated and
+wrote the backdated stamp straight back. `join_pair`'s fix existed only in `ours.sql`, so applying
+the migration on its own, which is exactly what its own header invites, left the old branch live.
+`ours.sql` still shipped the old trigger while calling itself re-runnable, which would hand the
+retention clock back to the client while the sweep was reading it. And read-back 4 was satisfied by
+the very body it existed to reject. **Decided as a rule from this:** a read-back that cannot fail is
+worse than no read-back, because it converts an unchecked assumption into a signed-off one.
+
+**Pass 3 could not have found the last one, and neither could passes 1 or 2**, because all three
+were reviews of the SQL. `classifyPairError` keys on the exact message strings the SQL raises, and
+this migration changed three of them. Reading the two files AGAINST each other found that
+`'that list is already live'` fell through the 42501 fork to `not-yours`, which the screen renders
+as "This list is closed to changes": exactly backwards, since the whole problem is that it is not
+closed. It now has its own failure name, and **the screen answers it by refreshing rather than
+explaining**, because the state the person asked for is the state that exists. Telling them about an
+error there would be pedantry at the warmest possible moment.
+
+**Decided against** more reading passes of the same shape after this. Pass 1 found design defects,
+pass 2 found my application errors, pass 3 checked the last edits, and the marginal find is now
+falling fast. What no reading pass can buy is Postgres parsing the file, so the next verification is
+execution: apply to a throwaway project and run read-backs `e` through `i`, which need two test
+accounts and cannot be checked by reading at all.
+
+## 2026-08-09 Who calls the sweep, and why the update check does not need a Worker
+
+**The retention sweep now has a caller, and it had to.** Nothing else in the system would ever have
+run it: no cron, `pg_cron` not enabled, and the Worker's hourly job holds only the anon key while
+`service_role` is a standing never. A thirty-day promise implemented as a function nobody invokes is
+a worse position than never having made the promise, because the copy would have been false and
+nothing would have surfaced that.
+
+It rides on `loadMyPairs`, which already enumerates every pair, live and frozen, on every open of
+Ours. Fire-and-forget so it cannot delay the list appearing, and swallowing every failure, because a
+redaction sweep must never be the reason somebody cannot see their shared list. **Frozen lists are
+swept on purpose**: they are the ones that have been sitting longest and exactly the ones somebody
+might want to stop carrying the words of.
+
+**The copy this obliges is not optional**, and it is written where whoever drafts the privacy page
+will read it: removed items keep their words for **at least** thirty days and are blanked the next
+time either person opens the list. Never "within thirty days". Coverage here is "either of you opens
+the app", not a guarantee about elapsed time, and that sentence is what Google fetches during
+review. Cheap to pin now, expensive to have promised wrong.
+
+**Decided against a cron or a server-side sweep.** Both need standing access to every household's
+task text on a timer, in the one feature whose threat model is domestic. The client-triggered
+version needs no elevated key and runs under the caller's own RLS, which is the same posture as
+everything else in Ours.
+
+**And the update check does not need a Worker route after all.** The plan said one endpoint on
+`doubledone-ai`. That would mean a deploy per release, a cold start per check, and a hand-maintained
+value somewhere Melroy does not otherwise go. A static `client/public/version.json` is updated by
+the same push that deploys the web, needs no deploy, no secret and no cold start, and is cached at
+the edge.
+
+**The part that actually shaped it: web and store versions are not the same number.** The web
+deploys the moment `main` is pushed; the stores lag behind review and staged rollout. A single
+auto-stamped "latest" would tell an iPhone that 1.3.0 is out while 1.3.0 sits in App Review, and
+send someone to a store page showing the version they already have. So three numbers: `web` stamped
+automatically at build, because it IS the deployed version and cannot be wrong, and the two store
+numbers bumped by hand when a release actually goes live, which is a moment Melroy is already in
+those dashboards. **Flagged for the build:** confirm Pages serves the file before the SPA fallback
+in `_redirects` catches it, because a version.json that returns the whole app as HTML fails
+confusingly.
+
+## 2026-08-09 The self-rename seam, and why a display field should not have been load-bearing
+
+The design puts "the name your person sees you by" on the management screen. `pair_members` has a
+select policy and a delete-self policy and deliberately **no update policy**, because that absence
+is what stops either person editing the other's row. So this is a definer function scoped to
+`auth.uid()` in its WHERE clause rather than an update policy: there is no predicate to loosen
+later, and the scope is one line in one place. Same shape as `rename_pair`.
+
+**Decided: it refuses on a frozen list**, matching `rename_pair`. A freeze stops every write, and
+the name you had is part of what the list WAS. Changing how you are labelled inside a closed
+relationship is editing a record rather than updating a name.
+
+**And an empty name is refused rather than coalesced, which is where this got interesting.** The two
+existing writers of that column coalesce an empty label to the word "me", which is fine for the
+person who typed it and reads absurdly on the OTHER person's screen ("Sharing with me"). Storing
+null instead is worse, and that is the bug this surfaced: `loadMyPair` derived `partnerLabel` from
+the other member's row, and the screen keyed "is somebody in this list" on that label. A null label
+is legal in the column. So a member with no name would have rendered as **"waiting for someone to
+join" over a list two people were actively using**, with a live Leave button and no way to reach the
+list.
+
+`MyPair` now carries `hasPartner`, derived from whether a membership row EXISTS, which is the
+question the screen was actually asking. The label went back to being for display only. **The
+lesson worth keeping:** a field that answers one question was quietly answering two, and the second
+answer was only correct by accident of a coalesce in a different function.
+
+**Decided against** fixing it by making the server never write a null label. That would have worked
+today and left the screen still keying on the wrong thing, so the next person to touch either
+function could reintroduce it from a distance.
+
+## 2026-08-09 Put it away, and why it is local
+
+"Put it away" is the design's ordinary exit from a closed list, and it deliberately supersedes the
+destructive `forget_pair`: it tucks the list into the archive, where it stays readable forever,
+rather than deleting anything. Deleting survives only as the one irreversible action, behind the
+delete window. That is round two's answer to a problem the Phase 3 audit raised and the build could
+not solve, because an undo toast on an unrecoverable delete would have been a lie.
+
+**Decided: the tuck is LOCAL, and the trade-off is named rather than hidden.** Putting a list away
+on your phone does not put it away on your laptop. Server-side would mean another column, another
+migration and another dashboard trip, and this is a per-person acknowledgement of a closure rather
+than shared state. The cost of getting it wrong is seeing a quiet archive row twice. If that ever
+grates, `pair_members` is the natural home and it is one nullable timestamptz.
+
+It stores an ACKNOWLEDGEMENT and never content: a set of pair ids and nothing else. Which is exactly
+why it still belongs in `wipeLocalData`, with its regression test in the same commit per the
+standing rule: a list of pair ids is a list of which relationships you had.
+
+**And untuck exists** because putting away must not be a one-way door either. That is the same
+instinct as freeze-not-delete and resume-not-rebuild, applied to a much smaller thing.
+
+## 2026-08-09 The doors: the Menu carries it, Today only once there is something to open
+
+The design's navigation, built. **The Menu is where Ours is discovered, and when there is no shared
+list it is the ONLY entry.** Today gets a hairline row, "Ours · {name} ›", only once a live list
+exists. That asymmetry is the whole point: nothing on the working surface ever advertises the
+feature to somebody who will never use it, so there is no funnel on the one screen whose promise is
+that today is finite.
+
+**Never a count on that row**, which is now enforced by there being nothing to count in the code
+rather than by anyone remembering. A number there would be a number the other person can change, on
+that screen.
+
+**Only the LIVE list gets a door.** A frozen one is reached through the Menu and its archive,
+because a closed relationship does not belong on Today.
+
+Both doors are gated on `ours_is_open()`, the same caller-scoped probe as the Settings row, so
+neither can lead somewhere the server will refuse. The Settings row survives for now as a harmless
+third way in and retires when the management screen lands.
+
+**Two lint warnings fixed rather than suppressed**, and one was a real trap: `refresh` in ours.tsx
+referenced `report`, which is rebuilt every render, so including it in the dependency array would
+have rebuilt the callback every render and excluding it left a stale closure. Resolved by noting
+that a READ can never produce 'already-live' (only the two resume RPCs raise it), so the
+refresh-instead-of-explain branch cannot apply there, and the else branch sets the failure directly.
+
+## 2026-08-09 The room: the shared list itself, and the tick that had no caller
+
+`ours-list.tsx`, the screen the doors lead to. Until now Ours was a relationship with nowhere to
+put anything: `syncPairOnce` had no caller in the app at all.
+
+**Decided: the room and the relationship are two screens, not one.** `/ours-list` is the tasks,
+`/ours` is the pairing, the naming, the archive, leaving, resuming, deleting. One line joins them
+("Kept with {name} ›"). The alternative, one screen with a management section under the list, would
+put "Leave this list" on the surface somebody opens twenty times a day to tick the milk. Destructive
+controls belong one deliberate tap away, not below the fold of a daily surface.
+
+**Decided: the room is PLAINER than Today, not richer.** No weight gauge, no day tools, no motto.
+Today is a day one person is getting through and its furniture serves that. This is a list two
+people keep, and the calm here comes from it being less. It was tempting to reuse Today's whole
+frame for free; that would have imported a gauge measuring a load that is not one person's.
+
+**Decided against a second empty state for "no live list".** Landing on the room without one now
+`replace`s to `/ours`, which already knows how to say every version of the absence (signed out,
+never paired, closed, partner gone). Two screens explaining the same absence is how they drift and
+start contradicting each other. `replace` rather than `push`, so Back still leaves.
+
+**Every tick goes through the completion log, one-offs included** (`setSharedDone`). The log is the
+only structure here that can express an un-tick, and un-ticking is load-bearing: it is the whole
+reason two-party done-confirmation was refused ("they can just untick it, it becomes a couple's
+thing to sort out") and the reason the finality affirmations are withheld on Ours. A one-off's
+`done` flag is now a projection of the same log rather than a second source of truth, so the two
+cannot disagree.
+
+**Removal writes a tombstone, never a delete.** It is how the removal reaches the other phone at
+all, and it is what the 30-day redaction sweep and Recently-removed both read.
+
+**A failed read keeps what is on screen** and says so in one faint line, rather than emptying the
+list. This is somebody's household; showing it stale beats showing it gone.
+
+**Found by looking, not by a test: signed out, the room hung on a bare title forever.** The early
+return for "no session" skipped `setLoaded`, and the redirect waits on `loaded`. Every gate was
+green. Rule this reinforces: an early return in a loader must still say the load FINISHED, because
+some other branch is almost certainly waiting on that flag.
+
+## 2026-08-09 The quiet wash, and the one thing it must never accidentally say
+
+Rows changed since you last looked get a tint and a slightly firmer edge. The design argued FOR it
+on one ground and it is the right one: it **bounds the re-reading loop**. Without it, the only way
+to know whether anything moved is to read the whole list against your memory of it, every single
+visit, which for this audience is the checking compulsion handed a new object.
+
+**Decided: your OWN edits never wash.** `washedSince` subtracts a set of the rows you wrote this
+visit. This is not politeness. A wash on a row you just ticked reads as "your person touched this
+too", which is attribution invented out of nothing, on a screen whose entire data model refuses to
+store who did what. The `mine` set is the only reason the wash does not quietly become the
+per-person marker the schema was designed to make uncomputable.
+
+**Decided: the wash is STATIC and clears itself.** No animation, ever, because nothing in this room
+may move on account of the other person. And it clears on the way IN, not the way out: arriving
+re-reads the stored last-look and the reconcile moves it forward, so "gone next open" is literally
+true rather than true-only-if-the-OS-unmounted-the-screen. The alternative, writing the last-look on
+blur, loses to the commonest exit on a phone, which is the app being killed. A wash that never
+clears is a permanent "something happened" badge, which is precisely the anxiety this bounds.
+
+**Decided: `lastSeenAt` is LOCAL**, per pair, same reasoning as the tuck. "Since I last looked" is a
+fact about a person at a device; syncing it would let your laptop clear the wash on your phone,
+which is the opposite of the point. It stores a TIME per pair and never content, and it joins
+`wipeLocalData` in this commit with its regression test, per the standing rule, because a list of
+pair ids is a list of which relationships you had.
+
+**It never moves backwards.** A device an hour behind would otherwise re-wash rows you have already
+read, every visit. Known and accepted: `updatedAt` comes from whichever phone wrote it and `seenAt`
+from this one, so bad skew can wash a row that is not new or miss one that is. Both fail quietly,
+both clear next open, and that is exactly why this is a tint and never a notification.
+
+**A first-ever visit washes nothing.** Opening a list you have just joined should not be a wall of
+highlights saying "all of this is new", which is technically true and useless.
+
+## 2026-08-09 The bridges, part one: the link, and why it earns a column on a live table
+
+Nothing crosses between a shared list and your Today without a person choosing it. This entry is
+about what happens AFTER a person chooses: how the two copies stay joined.
+
+**Decided: `shared_ref` is a real synced column on `public.tasks`, not local-only state.** The
+tempting cheap option was `manualOrder`'s precedent, a local-only field with a documented follow-up.
+It was wrong here, and not cosmetically. Without the link on the server, you pull "milk" on your
+phone, tick it on your laptop, and the shared row does not close, because the laptop's copy has no
+idea it is a copy. A bridge that works on one device and silently does not on another is worse than
+no bridge: you would learn to distrust the tick everywhere.
+
+The column is additive, nullable, RLS untouched, and holds **no second person's data**. It records
+which of YOUR tasks came from a shared list, never anything the other person wrote and never who did
+what. A task that has not crossed a bridge stays null forever. Older builds ignore a column they do
+not know about, which is why it can be applied before the client that writes it ships, and **must
+be**: the client emits every column unconditionally on batch upsert, so a build writing `shared_ref`
+against a table without it would fail every sync, not just the shared ones. Apply
+`supabase/tasks-shared-ref.sql` BEFORE this branch merges.
+
+**Decided: one string, `pairId/sharedTaskId`, not two columns.** One additive column on a live table
+with real subscribers rather than two, and nothing queries it server-side; it is only ever written
+and read whole. `parseSharedRef` refuses anything malformed rather than returning half a link,
+because a half-parsed ref matches the WRONG list, and a tick bridged to a stranger's task is the
+worst failure this feature has.
+
+**Decided: a copy handled on Ours LEAVES your day, and never enters your Lookback.** The work is
+done, but you did not do it, and a Lookback entry would be the app inventing a memory of you doing
+it. Striking it through on Today is the same lie in smaller type. So the copy is tombstoned with no
+`completedAt`, which keeps it out of Lookback **by construction** rather than by a filter somebody
+could later remove. A dashed line takes its place for that visit, because a row that silently
+vanishes reads as "did I delete that?", which is where a checking loop starts.
+
+**Decided (an assumption worth challenging): a REMOVED shared row does not retire your copy.**
+Only a finished one does. "Handled on Ours" would be false, and once you have brought a task over it
+is your own task; the other person taking it off the shared list should not reach into your day. The
+opposite reading, that removal means "we are not doing this", is defensible. This one is the calmer
+default and the one that never lies.
+
+## 2026-08-09 The bridges, part two: the four crossings, and what each one refuses to say
+
+**Bring to my Today** takes the hero seat on a shared held card, the one Break it down holds on a
+personal one. It fits because the AI shapers are cut from the shared card, and because it is the
+only action on that card that moves anything between two lists. It goes INERT once the copy exists
+("Already on your Today") rather than disappearing or making a second copy, and the check is
+re-run against fresh storage before writing, because two taps land inside one render.
+
+**The shared row gets no marker when you pull it.** That was the tempting small feature and it is
+the side door: "somebody pulled this" is one inference from "somebody". Only YOUR copy is marked,
+with a faint "· Ours" that sits with the row's other marks on the right, and it keys off the link
+alone rather than the currently-live list, because a copy from a list that has since closed still
+came from a shared list, and dropping the mark would quietly rewrite where it came from.
+
+**Your tick closes both, and your un-tick re-opens both.** Fire-and-forget, deliberately: your own
+Today must never wait on somebody else's list, and must never fail because of it. The completion is
+already saved locally and the merge is order-independent, so a tick that does not reach the server
+now reaches it on the next reconcile from whichever side opens first.
+
+**Their tick retires your copy and leaves a dashed sage line.** The three candidates were: strike it
+through (a lie, you did not do it), silently vanish it ("did I delete that?", which is where the
+checking loop starts), or say what happened and stop. The note names nobody, carries no `completedAt`
+so Lookback cannot see it however anyone later changes the filters, and is gone next open.
+
+**Deviation from the design, small and worth knowing:** the design puts the rest-note "in its
+place", meaning where the row was. Ours renders the notes as a group directly under the day's list,
+because the row is genuinely gone from the task array by then and interleaving a note into a
+position that no longer exists would mean keeping a retired task in the list purely to hold a slot.
+The note still appears on the same screen, on the same visit, in the same reading order. If it reads
+as detached when Melroy sees it on a device, the fix is the interleave, not the copy.
+
+**Share to Ours sits in the FOLD, never a lead action.** It is rare, deliberate, and it puts your
+words in front of another person; that is not a thing to make one thumb-width away. The 500-character
+trim is announced BEFORE the copy is made, from `willTrim`, which calls the same clamp that does the
+trimming, so the warning can never drift from the behaviour it warns about.
+
+**The settle runs in its own effect, gated on the day's tasks having loaded.** Both it and the task
+load read the same storage, and interleaving them let one overwrite the other's save. That was
+caught by the linter refusing a call to a function declared below it, which turned out to be
+pointing at a real ordering bug rather than a style preference.
+
+## 2026-08-09 Repeating on Ours: one cadence surface, made true by extraction
+
+The design asked for "the same repeating drawer as home, one cadence surface in the app". The cheap
+reading is "build one that looks the same". The honest one is that there must literally be one, so
+`CadenceSheet` was lifted out of `RepeatingDrawer` and both now open it.
+
+**Decided: extract rather than duplicate, even though it meant refactoring a shipped component with
+live users.** A second picker would have been ~120 lines of near-identical UI, and near-identical is
+the state a fortnight before "why does the shared one not offer weekly". The extraction took
+`RepeatingDrawer` from 464 lines to 259 and left it doing only what it is for: listing series,
+removing them, and undoing that. Verified in the preview end to end: prefill, mode change, save, and
+the stored recurrence came back `{kind:'interval', days:2, anchor:'2026-08-09'}`.
+
+**Decided: the commit button NAMES the cadence** ("Every day", "Every 2 days") rather than saying
+Save, on both surfaces. It was an Ours-specific ask in the design and it is better everywhere: the
+last thing you read before committing should be the thing you are committing to, and on a shared
+list it is the thing you are committing your person to as well. It comes from `describeRecurrence`,
+so the button and the row's own description can never disagree.
+
+**Decided: `note` is the sheet's only surface-specific seam.** Ours passes "You'll both see it on
+its day."; the personal drawer passes nothing, because it needs no such promise. One prop rather
+than a `variant` flag, so the shared component never learns which screen it is on.
+
+**Decided: an unreadable cadence is inert to the TICK, not only to the editor.** This was the real
+find. A cadence a newer build wrote leaves `recurrence` undefined and `rawRecurrence` set, and every
+done-helper here treats an absent recurrence as a one-off, so a single tap would have marked a
+repeating task finished forever, for both people, on a row that was supposed to come back. So the
+tick returns early, and `Repeat…` is withheld too, because re-cadencing would overwrite whatever the
+newer build meant on a list somebody else also keeps.
+
+The hold card stays reachable on those rows, though: rename and remove still work. "Inert" must not
+become "trapped with a row you cannot read and cannot get rid of."
+
+**And the unreadable-cadence copy got the design's fuller line.** It used to say only that the
+schedule could not be shown. What was missing was the reassurance, and the reassurance is the point:
+the two other readings of a row you cannot tick are "this is broken" and "they deleted it and this
+is the wreckage". It now says it is safe and that it will reappear on its days after an update.
+
+## 2026-08-09 The adversarial pass over the room, the bridges and repeating: 39 raised, 24 real
+
+Six lenses (correctness, the three laws, data-loss, the refactor, calm, i18n/a11y), every finding
+handed to a verifier told to refute it by default. Fifteen died there. Twenty-four survived, and
+several were mine from the same afternoon. The three that mattered:
+
+**A tick on a brought copy was silently discarded on any device that had not opened the room.**
+`mirrorTickToShared` read the shared row out of the LOCAL cache and treated "not in my cache" as
+"removed on the other side". Nothing on Today ever writes that cache; only the room does. So on a
+laptop, a second phone, or after a reinstall it was empty, and every tick on a pulled copy went
+nowhere: no write, no push, no retry, no complaint. This is precisely the failure the synced
+`shared_ref` column was added to prevent, five hours earlier, in this same log. The column made the
+copy appear; the handler still could not act on it. It now pulls before giving up, and seeds the
+cache so that costs one round trip ever.
+
+**Un-ticking a shared one-off was a permanent no-op after the day it was ticked.** `clearOn` only
+ever stamped the date handed to it, so un-ticking on Monday wrote `off['monday']` against
+`on['sunday']`, which is inert; the projection stayed done and no further tap could ever change it,
+on any phone. Each dead tap still bumped `updatedAt`, so it ALSO washed on the other person's
+screen: the room announcing a change that had not happened. Sixteen tests passed because every one
+of them handed the same day to the tick and the un-tick. It fires across a timezone gap on day one.
+An un-tick now clears every date the log reports as on, which keeps the structure a commutative
+last-write-wins element set. This one is the sharpest reminder available that a green suite proves
+only what it asked.
+
+**"Skip today" deleted the whole repeat, for both people, unrecoverably.** `TaskRow` relabels Remove
+as "Skip today" for any recurring row, because on the personal side a skip is real. The shared list
+has no per-day skip, so the room inherited the reassuring label over a button that tombstones the
+series. The label now follows what the button DOES (`removesWholeSeries`), never the row's shape.
+
+Then a family of the same mistake, which is worth naming as one thing: **four places wrote a
+screen's in-memory snapshot back over storage.** The foreground nudge sweep, the cloud sync (twice),
+and the settle. Any of them could erase a task brought over in the room while Today sat in the
+background. All four now re-READ before writing. `tasksRef` is what is on screen; storage is what is
+true, and only storage may decide what the whole list is.
+
+The rest, grouped:
+
+- **A dropped signal ejected you from the room.** A failed membership read nulled the pair, which
+  fired the redirect. Now only a read that SUCCEEDED and returned no live list can redirect.
+- **The settle ran once per mount**, so a task your person finished sat on your day until the app
+  was restarted. It runs per VISIT now, and pulls first, for the same cache reason as above.
+- **Your own writes from Today came back tinted as your person's.** Fixed with a persisted per-pair
+  set of ids you wrote (`oursMine.v1`), NOT by advancing the last-look, which would also have
+  cleared the wash on their unlooked-at changes. In `wipeLocalData` with its test, per the rule.
+- **The wash was invisible and colour-only**: the tint sat behind the card's own opaque background,
+  and said nothing to a screen reader. Padded so it shows, and spoken as "changed since you last
+  looked", which still names nobody.
+- **The room silently truncated at 500 characters** on capture and rename, while Share to Ours
+  warned first. All three warn now, from the one `willTrim`.
+- **An unreadable repeat looked and sounded like an ordinary task** and tapping it did nothing. The
+  reason now travels WITH the control (`inert`), so it is spoken, and the row reports itself
+  disabled rather than as an unchecked box.
+- **"Ours" was left in English** in `shareTo` and `handled` while `defaultName` is localised, naming
+  a surface no non-English user ever sees. They now say "our list", the way the rest of their UI
+  does. French also slipped to *vous* for the user's own private day in a *tu* catalog.
+- **The Today door read "Ours · Ours"** for an unnamed list, and worse, keying the door off the NAME
+  meant an unnamed list had no door at all. It keys off the list.
+- **The naming commit button had no width bound** and pushed Cancel off the screen edge: the way out
+  of the sheet, gone. And the stepper label lost its reserved width in the extraction, so the "+"
+  jumped under the finger at the 9-to-10 boundary.
+
+The one worth keeping as a rule: **the adversarial pass found more real defects in my own six hours
+of work than in the six months before it.** Fresh code reviewed by the person who just wrote it is
+the weakest review there is, and the sixteen-passing-tests case proves the suite does not save you.
+
+## 2026-08-09 The guards: a closed list you can still read, and seven days to change your mind
+
+**Recently removed, folded at the list's foot.** Dimmed rows and one action, "Put it back", for
+seven days, matching the server's own tombstone sweep so the fold never offers to restore something
+already redacted. It names nobody: it says a thing came off the list, never which of you took it
+off. This is what makes removal on a shared list survivable at all. Without it, one person tidying
+is indistinguishable from one person deleting your task, and there is no way to tell which happened
+or to undo it.
+
+**A closed list is READABLE, and reachable by id.** `/ours-list?pair=<id>` is how the archive opens
+one, and without it "you can still read everything here" was a promise with nowhere to keep it: the
+room only ever loaded the live list and redirected away from anything else.
+
+**Read-only means the capture bar is GONE, not disabled.** A field you can tap into and then not use
+is crueller than no field. Ticking, renaming, removing and re-cadencing are all withheld, and each
+row keeps exactly one action: taking a copy for yourself. The row says so in words rather than
+simply failing to respond.
+
+**And the frozen check moved into one function, used by every write path.** It started as a prop
+threaded to the row, which meant `add()` and `toggle()` did not know about it: the screen would have
+let somebody type into a list the server was about to refuse. `isPairFrozen` is now consulted by all
+of them. The lesson is the same one the adversarial pass kept finding: a guard that lives in the
+render is not a guard, it is a hint.
+
+## 2026-08-09 The management half: everything the SQL could already do, and no screen ever asked
+
+Four RPCs and two storage helpers had been built, reviewed, applied to the live database and covered
+by tests, and not one of them was reachable from the app. `tuckPair`, `untuckPair`,
+`loadTuckedPairs`, `inviteToResume`, `resumePair`, `renameSelf`: zero call sites in any screen. That
+is its own lesson, and the reason a "built" checkbox should mean reachable, not merely written.
+
+**The archive.** Every closed list, readable forever, ranked behind the live one. Purpose and
+closed-month only: no task counts, no "you two finished 214 things", nothing that turns a
+relationship that ended into a scoreboard. The month is month-and-year, never a date and never a
+time, because a to-the-minute stamp on the end of a relationship is a thing to flinch at every time
+the archive is opened. It hangs under whichever state is showing rather than inside one of them, so
+a closed list is reachable from all of them.
+
+**Put it away is local, and reversible.** It hides a closed list from the default view; it does not
+delete it, and "Show the ones put away" brings them back. That was already decided when the tuck was
+built; this is the screen finally honouring it.
+
+**Reopening is a handshake, never unilateral.** "Reopen together…" mints a code with no email
+re-ask, because the address is already on the membership and making somebody retype their person's
+email to un-close a list they both kept is asking them to prove a relationship the database already
+knows about. It is withheld when the other person is no longer on the list: there is nobody to
+reopen it WITH, and offering would end in a refusal that reads as a bug rather than as a fact.
+
+**Decided: ONE field for both kinds of code, and the person typing never learns there were two.** A
+code that opens a new list and a code that reopens a closed one look identical, so the join field
+tries the ordinary join and falls through to the reopen. The alternative was making somebody know
+which sort of invitation they had been handed, which is a distinction that exists for the database's
+benefit and nobody else's.
+
+**The delete window, built as the audit asked and not as a timer.** Asking commits nothing. The
+intent is held, "Keep it" is the only button, and the delete actually runs when the screen closes.
+`forget_pair` cascades and cannot be reversed, so an undo toast over it would have been a lie; a
+visible countdown over it would be a pressure device aimed at the audience least able to think under
+one. There is a thirty-minute ceiling so a screen left open all night does not hold the intent
+forever, and nothing on screen mentions it.
+
+**Rename yourself, and only yourself.** `pair_members` has no update policy by design, which is what
+stops either person editing the other's row, so this goes through the definer RPC scoped to
+`auth.uid()` rather than opening one. The screen offers your name and has no affordance at all for
+theirs.
+
+## 2026-08-09 Check for updates, on all three platforms, as a fact and never a demand
+
+Why it exists at all, because it changes what it is allowed to do: two people on a shared list can
+be on different app versions, which is the ordinary state rather than an exotic one, and a version
+gap is what makes one of them unable to read a cadence the other set. This SHRINKS that window. It
+does not close it (rollouts stagger by days, people decline, some older Android devices cannot take
+the newest build), so the show-never-hide handling of an unreadable cadence stays the real safety
+net. Both, never either.
+
+**The Worker answers, config vars answer the Worker.** `GET /version` returns the newest shipped
+version per platform from `LATEST_WEB` / `LATEST_IOS` / `LATEST_ANDROID`. Not a table: there is one
+right answer at a time and it changes when a build ships, which is already a deploy. Cached an hour.
+Absent vars answer null, so a half-configured Worker is silent rather than wrong.
+
+**Decided: "could not tell" is NOT "up to date", and conflating them was a real bug caught in the
+preview.** The first build answered "Up to date" to a request that never arrived, which is a small
+lie told confidently, and confidence is the one thing it has no right to there. `checkForUpdate`
+now returns null for a failure, a malformed reply, an absent value or an unreachable Worker, and
+every caller renders nothing at all for it.
+
+**Three surfaces, three honest offers.** Settings states it plainly, because a person there has come
+looking for facts about their app: "v1.2.0 (11) · Up to date", or one sage line and one control.
+Web reloads onto assets the server already has, and says "Anything you were typing is kept". Native
+opens the store, and says "Your lists stay exactly as they are". Both reassurances are literally
+true and must stay true.
+
+**The fourth rung, which knowingly reopens a closed decision.** The goodnight ladder was fixed at
+three rungs with Melroy on 2026-07-26, on the grounds that a ladder which keeps growing becomes the
+sales pitch that screen exists never to be. Round two's design asks for an update mention on it, and
+I have built it, LAST, with the reasoning left in `offers.ts` to be argued with rather than buried.
+The case for it: it is the only rung that is not about a feature of ours, it sells nothing, and it is
+far rarer than the three above it, which fire at the first opportunity while this one needs a
+major-or-two-minor gap AND a fortnight since it was last said. It is framed as what the newer build
+can do FOR the person's person, never as this one being out of date, because the second framing is a
+demand and this screen makes none. **If Melroy would rather it stayed at three, deleting the branch
+costs nothing**: Settings states the same fact, and the unreadable-cadence handling is the safety
+net either way. It never displaces a rung above it, which is tested, because those are one-time
+introductions and this one comes round again.
+
+**"Not now" is never remembered as a refusal.** All that is stored is WHEN it was last mentioned,
+which is the only thing standing between one line and a nag. Deliberately not in `wipeLocalData`: it
+is not personal data, it says nothing about which relationships you had, and clearing it on account
+deletion would mean the very next goodnight screen mentioned an update again.
+
+## 2026-08-09 Done rows let go at the day boundary, and the suite catches up
+
+**A row ticked today stays visible all day; tomorrow it is gone.** Staying all day is what makes
+un-ticking possible all day, and un-ticking is the reason two-party done-confirmation was refused.
+Letting go at the boundary is what stops a shared list becoming a wall of somebody else's finished
+work, which is the exact overwhelm this app exists to take away. Repeats are untouched: they are
+placed by their cadence, and one ticked yesterday is simply not done today.
+
+**A row a pre-log build ticked is KEPT**, because its day is unknowable and the two errors are not
+symmetrical: showing a finished row one extra day is recoverable, hiding a live one is not.
+
+**Twenty-four E2E cases added** (OUR-20 to OUR-38, UPD-01 to UPD-05), suite regenerated to 289. They
+are written to catch the things this round got wrong rather than only the things it got right:
+OUR-22 is the cross-day un-tick, OUR-25 is ticking a brought copy on a device that has never opened
+the room, OUR-32 is the "Skip today" label that deleted a series. A suite that only tests the happy
+path would have passed every one of those.
+
+## 2026-08-09 The pre-merge pass: 52 raised, 43 real, and two of them would have shipped broken
+
+Seven lenses over the whole feature, every finding handed to a refuter. Nine died there. The two
+that would have reached paying users:
+
+**Shared repeating rows were never placed on their day.** The room filtered on `stillOnList` alone,
+which abstains on repeats in favour of a cadence step that was never wired. So "every Monday" sat on
+the shared list all seven days, un-ticked, directly under a sheet that had just promised "You'll both
+see it on its day." in five languages. Worse, it was tappable on a day it was not due, which wrote a
+completion for that date into the SHARED log and still read as un-ticked on the real day. Three
+artifacts said it was already done: the docstring, a ticked plan line, and a decision-log entry.
+None of them was code.
+
+The fix had a landmine the refuter caught and I would not have: handing rows to `isDueOn` wholesale
+HIDES unreadable cadences (they fall through to `kind: 'none'`, read a `due` field shared rows do not
+have, and answer false), which reverses the one decision whose whole point is that hiding makes each
+person think the other deleted it. It also hides every one-off, for the same reason.
+`onSharedListOn` therefore forks three ways, and the two exemptions are the tested part.
+
+**I broke the entire frozen state myself, this afternoon.** Swapping `refresh()` from `loadMyPair`
+(which returns `live ?? frozen[0]`) to `loadMyPairs` (which returns only `live`) made `frozen`
+permanently false, so "This list is closed" stopped rendering and took Reopen-together and
+Delete-for-good with it. The person who had just been left got the intro screen offering to start a
+new list, which is the exact reading that copy exists to prevent, and two P1 launch-gate cases could
+not be executed at all. Built and reviewed the same day, unreachable within the hour.
+
+The rest, and what each one really was:
+
+- **A closed list hid every finished task**, under copy promising you can still read everything here.
+  The day-boundary drop is now live-lists-only.
+- **You were ejected mid-visit if your person left while you were reading.** The room now holds the
+  list it opened and lets it close in place, which is what "reads stay, writes stop" meant.
+- **A failed read rendered an empty WRITABLE list** and silently ate what you typed into it, because
+  `commit` needs a pairId and had none. Every write path now refuses without a resolved list.
+- **The capture bar had no keyboard plan**, on a stack where CLAUDE.md records that nothing lifts a
+  bottom-anchored input on its own and that this exact omission cost a whole tester round.
+- **`pruneOursCache` had no caller anywhere**, so another person's words stayed on the device after
+  you left or deleted the list. That is the second time this round a thing was written, reviewed,
+  tested and never called.
+- **Solo-leave said "there is nothing to close" and then froze the list into the archive forever.**
+  Leaving a list nobody joined now deletes the membership, so `prune_empty_pair` disposes of it and
+  the copy becomes true.
+- **An empty name silently became the server's fallback**, so the other person read "Kept with me"
+  forever. Both entry points now refuse it, as `rename_self` already did.
+- **One mistyped join code spent TWO of the ten hourly attempts**, because the resume fall-through
+  is a second call, so the lockout fired after five wrong guesses. The probe is now skipped when
+  there is no closed list for a resume code to belong to.
+- **The goodnight update line said "your person" to everybody**, including the overwhelming majority
+  with no shared list: untrue, and a funnel on the one screen the design forbids funnels on.
+- **Share to Ours succeeded in silence** and could be tapped again into a duplicate on somebody
+  else's list.
+- **The wash tinted your own edits as your person's on a second device**, because `oursMine` is
+  device-local. Every brought copy carries `sharedRef` in the synced tasks table, so those are
+  provably yours everywhere, without syncing anything new.
+- **The privacy policy said nothing about shared lists**, in either copy: what the other person can
+  see, that authorship is not stored, that leaving freezes rather than deletes, and the thirty-day
+  window on removed wording. Both copies, same commit, per the standing rule.
+- Plus: a dead Remove control on a frozen row, one hardcoded version literal in two screens, the
+  signed-out flash during session hydration, the missing monotonic lift on the rest-note tombstone,
+  and the room not recording its own writes when a sync fails.
+
+**The lesson, and it is the same one twice in one day:** built, reviewed, tested and applied to the
+live database is not the same as REACHABLE. Three separate things this round had zero call sites,
+and one of them was the entire management screen. A checkbox should mean a user can get to it.
+
+## 2026-08-09 Check for updates, rebuilt as the plan actually said: a static file, not a Worker route
+
+I built the Worker route and deployed it, and the build plan had been revised THAT MORNING to say
+"a static `client/public/version.json`, NOT a Worker route". I did not read the revision. This is
+the correction, and the plan was right on the merits:
+
+**The web version must not be hand-maintained.** A Worker var is a number in a dashboard Melroy does
+not otherwise visit, bumped by remembering. The web deploys the moment `main` is pushed, so the two
+drift the first time anybody forgets, and the failure mode is the worst one this feature has: every
+web user told forever that a newer version is ready, while reloading changes nothing. Stamped from
+`app.json` at build (`scripts/stamp-version.mjs`), `web` IS the deployed version and cannot be wrong.
+
+**The store numbers stay hand-maintained, and that asymmetry is the point.** iOS and Android lag
+behind review and staged rollout. Auto-stamping all three would tell an iPhone that a version still
+sitting in App Review is out, and send somebody to a store page showing the build they already have.
+So `web` is stamped and `ios`/`android` are edited by hand in `client/public/version.json`, at the
+moment a release actually goes live, which is a moment Melroy is already in those dashboards.
+
+**It also removes a whole deploy from the release path**, and a Worker cold start from a check
+nobody is waiting for. The file is cached at the edge with no Worker involved at all.
+
+**The SPA fallback is handled by construction rather than by hoping.** `client/public/_redirects`
+sends `/*` to index.html, so if Pages ever served the app's HTML for this path, `res.json()` throws
+and `checkForUpdate` returns null: "we could not tell", which renders nothing. Verified in the dev
+server as `application/json`; the real Pages check is an E2E case (UPD-04) because "should" is not
+"does" and this is exactly the kind of thing that fails quietly.
+
+**CI stamps and verifies**, so a broken stamp fails the build rather than the deploy, and the file
+can never silently vanish from the export and take the whole check with it.
+
+**The Worker route is removed from source.** The live Worker still answers `/version` until the next
+deploy, harmlessly, because nothing reads it any more. Leaving it in source would have been a second
+number to bump, which is the exact drift the static file was chosen to avoid.
+
+## 2026-08-09 Phase 7: the store compliance a shared list obliges, built for the person reporting
+
+Apple 1.2 and Play's UGC policy want four things of any app where one person's words reach another's
+screen: filtering, reporting, blocking, and a way to contact the developer. Three of the four
+already existed and only needed naming; the fourth is new.
+
+**Report this list.** One quiet row, last on the screen, and never a red button. It reuses the
+existing `/feedback` route rather than growing a second reporting pipe, because a second pipe is a
+second inbox to forget to read. What travels is a context tag and the PAIR ID and nothing else: no
+task text, no address, no name. The pair id is enough to find the list and act, and it means the
+report cannot become a copy of the reported thing sitting in an inbox.
+
+**Decided: reporting is SILENT, optimistic, and unfailable.** The other person is never told, and
+the screen says so before you tap, because somebody reporting a person they live with may be in a
+situation where being seen to report is the actual danger. It has no error state: a failed send
+still reads as sent, because the alternative is asking somebody in a bad moment to try again. And
+the fact of having reported is not persisted and never read back from the server, since a mark is a
+thing the other person could notice.
+
+**Blocking is Leave**, which already existed and needed no new control: instant, no reason asked,
+closes for both, no rejoin without a fresh two-sided handshake. **Filtering is honestly
+not-applicable** and the compliance sheet says so rather than inventing a moderation story: there is
+no feed, no discovery, no profiles, and no way to reach anybody you have not exchanged a code with.
+
+**The kill path was already in the schema and is now written down.** `pairs.disabled_at`, set by
+hand in the dashboard, makes a list read-only for both people instantly with no deploy. The app
+renders a disabled list EXACTLY as an ordinary closed one, and that identical rendering is now a
+tested case (OUR-40) rather than an intention: any distinguishing mark would tell the reported
+person they had been reported, which is precisely what endangers the reporter.
+
+**Terms gained two sections in both copies**, naming what is not allowed and committing to a
+24-hour look at reports. Privacy gained its shared-list sections earlier today. Both documents exist
+twice (in-app and static web) and both copies moved in the same commit, per the standing rule.
+
+**`docs/ours-store-compliance.md` holds the exact form answers**, because these forms are filled in
+months apart, at speed, late at night, and a wrong tick costs a whole review cycle. Expected outcome
+of declaring UGC: still 4+, and nothing new to declare on Play's data safety, because a shared task
+lives in rows already covered and the app records no authorship, so there is no new data type.
+
+## 2026-08-10 The dogfood gate: six defects in forty minutes, none of them findable without a person
+
+Melroy and his wife, two accounts, two phones, on a Pages preview of the branch. Everything below
+was found by them in under an hour, after two adversarial audits and 895 passing tests had signed
+the feature off. Worth recording in full, because the pattern is the lesson.
+
+**1. The poll never fired. Not once, in the feature's entire life.** `sync` calls `setPair` with a
+freshly built object every run, so `pair` changed identity, so `sync` did, so the `setInterval` was
+cleared and recreated before it could ever reach fifteen seconds. Changes only ever arrived on
+re-entering the screen. `shouldPoll` is pure, tested, and had never been reached: the tests check the
+RULE, and nothing checked that the rule was consulted. Fixed by keying the interval on the pair's
+ID **string** and calling sync through a ref, so nothing it depends on changes during a visit.
+
+**2. Opening your own list was an endless loop.** `useSession()` returns null for BOTH "signed out"
+and "not checked yet". The room read the first render's null, concluded there was no list, and
+redirected to the pairing screen. My own regression from the pre-merge pass, added to stop a
+signed-out visitor sitting on a blank screen. There is now a `known` flag (`useSessionState`), and
+`useSession` delegates to it so the two can never drift.
+
+**3. The pairing screen was a dead end.** You finish pairing, the screen congratulates you, and there
+was no route to the list from it at all: the only link to the room was for CLOSED lists in the
+archive. Reaching your own live list meant going back to Today and knowing to look. The first thing
+every new pair hits, and no test I can run has to find a button, because they navigate by URL.
+
+**4. The quiet wash never cleared.** The last-look was stamped with MY clock; their rows carry
+THEIR phone's clock. Any skew at all and their rows stay permanently "newer than the last time I
+looked". The SQL clamp permits stamps a day into the future, so this is not milliseconds. The stamp
+is now the later of my clock and the newest row I actually displayed, which is what the last-look
+means anyway and is true whoever wrote it.
+
+**5. The wash drew a SECOND border around the card.** It sat on a wrapper View, because the row's own
+background is opaque and the tint was invisible behind it. Melroy's first words on seeing it were
+"what does the OUTER boundary mean?", which is the entire verdict on a signal. It is now the row's
+own surface and border, one card, via a `washed` prop.
+
+**Decided (Melroy, having used it): the wash APPEARS AND DISAPPEARS.** Eight seconds, then gone. The
+old "gone next open" was worse than it sounded: a mark that sits for the whole visit stops being
+information and becomes furniture you read around. It **vanishes rather than fades**, so the law that
+nothing animates because of the other person stays literally true.
+
+**6. A repeating task could not be ADDED, only converted.** Today's capture has the
+WHEN · REPEATING · STEPS door; the room's capture bar had nothing, so the only path was to add a task
+and then know to long-press it. "There is no way to add Repeating Tasks" was true of the only route
+anybody would look for. The capture bar now has a Repeat door onto the same cadence sheet, and the
+button that names the rhythm is the button that adds the task.
+
+**Decided: the Today door is PROMINENT, reversing my own call.** It was a hairline in inkSoft,
+deliberately faint so nothing on the working surface advertised the feature. That reasoning was
+muddled, and Melroy was right to call it: the row only exists once a live list does, so the no-funnel
+rule is already served by the gating. What was left was navigation to a thing used daily, dressed as
+a footnote. It is now a tinted, accented card.
+
+**The pattern, and it is the whole argument for a dogfood gate.** Two adversarial audits found 67
+real defects between them and none of these six. Every one needed a human being opening the app the
+way a human opens an app: not knowing where things are, not finding the button, asking what a border
+means, waiting for something to appear and giving up. A test suite cannot be surprised, and being
+surprised is the entire skill here.
+
+## 2026-08-10 The two-device dogfood: nine more defects, and the one pattern behind most of them
+
+Melroy and his wife, two accounts, two devices, several hours on a Pages preview. This is the
+session that found what two adversarial audits and 895 passing tests could not, and the pattern is
+worth stating before the list, because it is the actual lesson:
+
+**Every failing thing was WIRING, and almost none of it was logic.** `shouldPoll` is pure and tested
+and had never been called. `washedSince` is pure and tested and was fed a poisoned input.
+`sharedRestNotes` is pure and tested and was never reached on a warm resume. The rules were right
+nearly every time; what fed them was wrong.
+
+**And FOUR separate things were built, reviewed, tested, applied to the live database, and never
+called from anywhere.** `pushError` (returned by `syncPairOnce`, read by nobody). `pruneOursCache`
+(zero call sites). The whole management half (`tuckPair`, `inviteToResume`, `renameSelf`, and the
+rest). And `server_now()` + `applyServerTime`, whose own SQL comment describes tonight's worst bug
+in advance: *"the moment a second account writes the same row, the faster phone wins every conflict
+forever and invisibly."* Somebody wrote that, wrote the fix, and never plugged it in.
+
+**A merged feature must mean REACHABLE.** Zero call sites should be as loud a smell as zero tests.
+
+### What was found
+
+1. **The poll never fired, once, in the feature's life.** `setPair` rebuilt the pair object every
+   sync, changing `sync`'s identity, which cleared and recreated the fifteen-second interval before
+   it could ever tick. Keyed on the pair's ID string now, and called through a ref.
+2. **Opening your own list was an endless loop.** `useSession()` returns null for both "signed out"
+   and "not checked yet". Now `useSessionState()` carries a `known` flag.
+3. **A mount that beat the session left the room empty forever**, because the focus effect fires
+   once and nothing re-asked. A coin flip, which is why it read as intermittent.
+4. **The pairing screen was a dead end**, with no route to the list it had just created.
+5. **A warm resume never settled.** `visit` was bumped only by focus, and a resume does not re-fire
+   focus, which is why the AppState listener exists. Sequenced after the nudge sweep's save, because
+   bumping it before races two read-modify-write cycles over the same store.
+6. **Finished rows vanished from the shared list at midnight.** Today's logic where it does not
+   belong: a household list is not a day. Reversed. Nothing leaves without a trace now.
+7. **The wash strobed**, then over-corrected into silence, then broke on one device only. Four
+   symptoms, one root cause: comparing a wall clock against stamps written by a different wall clock.
+8. **Device A never highlighted anything, ever.** I had excluded every row with a copy on your Today
+   from washing, reasoning that a brought copy proves the row is yours. Bringing a row over is a
+   READ. On the one device where somebody actually uses the bridge, that disqualified most of the
+   list. Deterministic, and invisible because neither of us was looking at that input.
+9. **`pushError` was never read**, so a push that failed looked exactly like one that worked. The
+   room now says "Saved here, but not on your person's list yet", and the silent catches log.
+
+### The decisions inside that
+
+**Decided: the wash APPEARS AND DISAPPEARS** (Melroy, having used it). Eight seconds, then gone, and
+it VANISHES rather than fading, so "nothing animates because of the other person" stays literally
+true. Re-lights only on a genuinely newer stamp, so the same change never flashes twice.
+
+**Decided: ONE CLOCK.** `syncClock` reads `server_now()` once per visit on both screens. Every
+stamp both people write is now measured against the same reference. The `oursSeen` key moved to v2
+because pre-correction devices could stamp their last-look into the future, and the setter refuses
+to move backwards by design.
+
+**Decided: no one-off border on the shared list.** It separates one-offs from repeats on Today; a
+shared list is almost all one-offs, so it landed on every row and separated nothing, on the screen
+briefed to be plainer than Today.
+
+**Decided: attribution stays OUT.** Melroy asked for "Handled on Ours by {name}". I argued it is a
+schema change that makes a per-person tally computable, and offered the inference-by-elimination
+version that needs no column. He chose to keep the current wording. Recorded because the request
+will come back, and the answer to it is already worked out.
+
+## 2026-08-10 A diagnostic you can read on a phone, and the fade
+
+**`?debug=1` renders an on-screen log.** Two devices, one of them a phone, and every failure looked
+identical from the outside: "it didn't highlight", "it didn't propagate". The console holds the
+answer and a phone will not show you the console without a cable and a laptop. Hours went into
+guessing at things one visible line settles.
+
+It is opt-in by URL, holds twelve lines in memory, persists nothing and sends nothing. **Task text
+never goes in it**, only counts, ids and flags: these lines get screenshotted and pasted into chats,
+and a shared list is two people's words.
+
+**Every exit from `sync` is traced, not just the happy path.** The first version logged only where
+the decision was made, which is useless when the function returns before reaching it: "no wash line"
+was indistinguishable from a dozen different early returns. A diagnostic that can itself be skipped
+is not a diagnostic.
+
+**And the panel had the same bug as the code it was built to diagnose.** It read `debugLines()`
+during render and forced a re-render with a counter. Under the React Compiler that call looks pure
+and dependency-free, so it is memoised and returns its first value forever: empty. The panel read
+"nothing logged yet" through highlights that had provably fired. **A value read once and never
+re-read** is now the fourth distinct bug of this shape tonight, after the poll interval, the session
+hydration and the frozen day. It is the pattern of this whole session.
+
+**Decided: the wash FADES out, and still arrives instantly.** Melroy, watching it: "is there a way
+to make them disappear in a smooth gradient than just simple switch off?" The law that nothing
+animates because of the other person is about presence and pulsing triggered by your partner; the
+arrival is still a plain state change, and the fade is the app letting go on its own timer several
+seconds after anybody did anything. For this audience the snap was the more attention-grabbing of
+the two. Reduce-motion still gets the instant version.
+
+Built as an opacity fade on an absolutely-positioned overlay rather than an animated Pressable: it
+is the one form that cannot disturb the row's touch handling or its style-as-function pressed state.
+
+## 2026-08-10 "Mine" needed a stamp too, and the panel finally proved the wash
+
+The last of six wash bugs, found by Melroy in one move: **B ticks a row, A un-ticks it, B stays
+dark.** `mine` was a Set of ids, so once a device had touched a row it believed that row was its own
+edit for the whole visit and suppressed every later change the OTHER person made to it. The
+direction that worked only worked because that device had not touched the row first.
+
+**`mine` is now a Map of id → the stamp I wrote it at.** My own write does not wash; the moment
+their change lands, the row's stamp rises above mine and it stops being my edit. That is the same
+correction `washedAlready` needed an hour earlier, which is worth noticing: **twice in one evening,
+an id was standing in for an event.** An id says "this happened once, ever". These rules are about
+"has anything happened SINCE", and only a stamp can answer that.
+
+Confirmed live on the device that had never highlighted once all evening:
+
+```
+wash lit=1 litIds=5sd4 shownIds=- mineIds=- rows=8 seenAgo=18s newestAgo=10s mine=0 shown=0 skew=-3s
+```
+
+Every suppressor off, the row named, and the highlight visible on screen. **The panel is what made
+the last three fixes possible**: `lit=1` with nothing on screen, and `lit=0` when something should
+have shown, are four different bugs each, and no amount of reading the code separated them.
+
+**Also logged: which rows, not just how many.** `lit=1` with nothing visible could be one row stuck
+lit, a different row each poll, or a row scrolled out of sight. Counts alone could not tell those
+apart and cost an iteration.
+
+**Noted, not fixed:** two syncs race on mount (`stop=overtaken-at-pairs by=2`), the focus effect and
+the session effect. The newer one completes and the older stands down, so it is correct and merely
+wasteful. Tidy it when the screen is next opened, not under a tester.
+
+## 2026-08-11 A win counts for both people: the rest-note deleted, and the copy simply goes done
+
+**REVERSED, by Melroy, having watched it fail twice:** *"It should remain and be marked as done. A
+win counts for both people. Not just one."*
+
+The old behaviour retired your copy (a tombstone) and left a dashed sage note in its place. I argued
+for that hard: the work is done but YOU did not do it, so completing it would invent a memory, and
+striking it through would be the same lie in smaller type.
+
+**That reasoning holds for a task of your own, and does not hold for a list two people keep on
+purpose.** The shopping got done. The day is genuinely lighter. The person who did not do it this
+time is not owed a smaller day for it. My version had the day quietly emptying itself, and the note
+was a patch over a disappearance that should not have been happening in the first place.
+
+**And it lands in Lookback too** (Melroy, asked explicitly). The Lookback's job is to show a week
+that actually happened, not an audit of your own labour. Nothing anywhere records which of you did
+it, which is what keeps this honest: it is a week, not a scoreboard. The one thing to watch, named
+at the time: if a partner's work ever reads as padding on a hard week, that is the signal to
+revisit, and it is one line.
+
+**The reversal DELETED a whole class of bug, and that is the part worth remembering.** The note had
+a lifecycle: created, tagged with a visit, cleared, re-cleared. It cost three separate rounds
+tonight, ending with the worst one, where two settles landed in the same second and the second
+(correctly finding nothing left to do) wiped the note the first had just created. The copy vanished
+and nothing took its place: the exact "did I delete that?" failure the note existed to prevent,
+caused by the note's own machinery.
+
+A row that goes done and stays put has no lifecycle to get wrong. **The simpler behaviour was also
+the more humane one**, which is worth noticing: the elaborate version existed to protect a
+distinction (whose win was it) that the product does not actually want to draw.
+
+## 2026-08-11 done without a date is a row that disappears, and an edit I never verified
+
+**The bug behind three rounds of "the task vanished".** A copy settled by the other side was marked
+`done: true` with `completedAt: null`. `tasksForToday` places a finished task by its completion day,
+so done-without-a-date is a row Today cannot place and Lookback never sees: it simply stops
+existing. Melroy called it before the deploy landed: *"i'm certain on resyncing the item will just
+disappear. And it did."*
+
+**Why it survived so long is the part worth recording, and it is a process failure not a logic one.**
+When he asked for these to count in Lookback, my edit script changed that line and then hit a FAILED
+ASSERTION further down the same script. The script writes the file once, at the end. The assertion
+threw first, so the successful change was discarded with it, and I reported the work as done. Every
+round afterwards had him testing the old behaviour while I reasoned about the new.
+
+That is the second time in one session a change was believed rather than verified (the first:
+three `washFor` replacements made without asserting they matched). **A multi-edit script must be
+re-read from the file afterwards, never trusted on its exit code.**
+
+**`completedAt` is now doing two jobs**, and the second was invisible until it broke: it puts the row
+in Lookback, AND it is what makes the row visible on Today at all.
+
+**Also fixed: a finished copy no longer blocks re-adding.** `pulledFrom` skipped only tombstoned
+copies, so once the other side marked one done you had something you could not see on Today and
+could not bring over again from Ours. Melroy: *"before this fix, I could re-add the missing completed
+task. Now I can't from the Ours screen."* A finished copy is not on your plate, so it no longer
+counts as already-brought.
+
+**And a note on cleaning test data.** A plain `update … set updated_at = now()` tombstone can LOSE to
+a device whose clock runs ahead: the device wins the merge and pushes its undeleted row back. Test
+cleanup needs `now() + interval '1 hour'` so no device clock can beat it. Another face of the same
+clock problem that produced four wash bugs.
+
+## 2026-08-11 Ours captures through Today's capture, minus the two powers it does not have
+
+**Decided: the same component, not a lookalike.** The shared list's bespoke one-line bar is gone and
+`BrainDump` is in its place, launcher and mounted-hidden panel, exactly as Today arranges it. Melroy
+asked for this in those words ("I want consistent UI between Today and Ours"), and the reason it
+earns the wiring is that this audience runs on muscle memory: a second, similar-but-different
+capture is a second thing to learn, and learning it twice is the friction the app exists to remove.
+Sharing the object rather than the appearance is also the only version that cannot drift.
+
+**Decided against: reimplementing the door on Ours.** The bespoke bar had grown a Repeat link that
+opened a CadenceSheet, which was a fine patch for "there is no way to add Repeating Tasks" and a bad
+place to stop: two capture surfaces, two sets of wording, two things to keep in step.
+
+**Two powers are switched off, and each for its own reason.**
+
+*WHEN* (new `allowWhen` prop). A shared list is not a day. It has no today, so "Today" on its door
+would be a word that means nothing, and "Tomorrow" a promise nothing in the room could keep. The
+door's language follows: `doorSummary` and `addButtonLabel` take a `whenless` flag, the summary says
+"No repeat" rather than rendering an empty line under a live overline, and the Add button is
+incapable of naming a day even if `when` somehow moved (belt and braces, because the button is the
+last thing read before a tap lands).
+
+*STEPS*. A shared row has no `slices` field to hold them, and breaking a thing down is a personal
+shaping tool. How you approach a task is yours; that it needs doing is the household's.
+
+*AI stays off* by omission rather than a flag, which was already true and is worth restating: steps a
+model proposes would land on a list another person reads, and pointing a model at somebody else's
+screen is a decision about them, not a UI convenience. Speak stays, being on-device dictation.
+
+**Deliberately NOT built: a due date on shared rows.** `shared_tasks.due` exists on the live table
+(`supabase/ours-due.sql`, applied) and NOTHING reads or writes it: not the `SharedTask` type, not the
+sync, not the room. That is the fifth thing this feature has had built, applied live and left with
+zero call sites, which is the single most expensive pattern of the whole build. Recording it here and
+in the Backlog so it is parked rather than lost. It is a real feature (a household list absolutely
+has "by Friday") and it is not a capture-bar job: it turns a flat, always-visible list into a
+scheduled one, which needs a Later grouping, a rule for what a dated row does when its day arrives,
+and an answer for two people in two timezones. Trigger: pick it up when somebody actually asks for a
+dated shared item, and build it whole.
+
+**And one bug caught before it shipped, by comparing against Today rather than by testing.** The
+launcher focused the input in its press handler, while the panel was still `display:none`. Focusing a
+`display:none` input does nothing, silently, so it would have shipped a launcher that opens a panel
+you then have to tap again. Today has always done it in an effect keyed on the open flag. Reading the
+working version beside the new one is worth more than it looks.
+
+## 2026-08-11 Scan comes to the shared list, and the rule I wrote an hour earlier was wrong
+
+**Decided: Scan (premium OCR) is offered on the Ours capture**, gated exactly as it is on Today.
+Melroy asked for it, and it belongs here more than it belongs on a personal day: the most
+photographed list anybody owns is the one on the fridge, and that list is shared by definition. A
+handwritten shopping list, a recipe's ingredients, the school's bring-these-things note.
+
+**The interesting part is that my own comment, written an hour before, would have blocked it.** I had
+justified leaving AI off the shared capture with "the steps a model proposes would land on a list
+another person reads, and pointing a model at somebody else's screen is a decision about them". That
+is a good rule and it is TRUE OF THE WRONG THINGS. It describes Break-it-down and Sort-for-me, where
+a model AUTHORS content that then commits. Scan does not do that: it reads a photo you pointed a
+camera at and drops the words into YOUR capture box, where you read them, edit them and Add them
+yourself. The model commits nothing. It is a camera-shaped keyboard.
+
+Worth recording because the near-miss is the lesson: a principle stated at the level of "no AI here"
+would have cost a genuinely good feature, and the same principle stated at the level of "nothing a
+model authors commits to a surface another person reads" admits it immediately. **Write the rule at
+the level of the harm, not the level of the technology.** The comment in `ours-list.tsx` now says
+both halves out loud so the next person does not have to re-derive it.
+
+**Privacy, stated rather than assumed.** The photo never reaches the shared table. It is sent to be
+read and discarded, and what your person sees is the rows you added, exactly as if you had typed
+them. Nothing tells them an image was involved, and nothing needs to: it was your photo of your
+fridge, and the rows are the only shared artefact.
+
+**The gate is tagged apart** (`reason: 'ocr_ours'`, not `'ocr'`). A paywall met on a surface a second
+person can see is a genuinely different moment from one met alone, and whether the shared list
+converts is a question worth being able to answer rather than guess.
+
+## 2026-08-12 A shared row with a DAY comes to your Today by itself (Tier 1)
+
+**The complaint, in Melroy's words:** "I am not a fan of the UX where I have to manually decide what
+gets added to my list for today from the Ours list. The whole point is visibility and ease of use."
+
+He is right, and the failure mode is specific to this audience: a second place you have to remember
+to check is a place you do not check. Making every crossing manual turned the shared list into
+exactly that.
+
+**Decided against: everything on Ours appearing on Today.** That hands another person write access
+to your day. Your partner adds eight things to the shopping list and your morning is eight heavier
+without you agreeing to any of it, which is the overwhelm this app exists to prevent and a direct
+breach of the one promise Today makes.
+
+**Decided: the dividing line is whether the row has a DAY** (`sharedDueOn`).
+
+  - A REPEAT is due on the days you two set. Bin night IS Tuesday's business for whoever is home,
+    and fetching it by hand every single Tuesday is precisely the friction complained about.
+  - A DATED one-off is the same without a rhythm, and shows from its day ONWARD. A shared thing
+    nobody did does not stop being one; it would just vanish on the wrong side of midnight.
+  - An UNDATED row stays in the room. The default, the common case, and the load-bearing half.
+
+**The safety property is structural, not a filter.** Shared rows live in their own `sharedTasks`
+state and never enter `tasks`. Everything that decides how heavy today looks (the weight gauge, Plan
+my day, Lighten, the close-the-day count, the Lookback) reads `tasks` or something derived from it,
+so a shared row cannot reach any of them by construction. That is worth far more than a filter
+somebody has to remember to write in six places.
+
+**REVERSED from yesterday: the shared capture now asks WHEN.** Yesterday's `allowWhen={false}` was
+argued from "a shared list is not a day", and that was true then. It stopped being true the moment a
+dated shared row started appearing on both Todays. The room now has days in the only sense that
+matters, so the question is worth asking, with the calm answer pre-selected: **Anytime, Today,
+Tomorrow, Pick a date**, resting on Anytime.
+
+`whenless` became `whenDefault`, which is the better idea anyway: the Add button names the
+consequence only when it differs from THIS SURFACE'S resting answer, so an ordinary shared capture
+reads "Add" and "Add . Today" is the genuinely notable case. Hard-coding 'today' as the comparison
+would have made every ordinary shared add shout about the absence of a choice.
+
+The door's overline is now COMPOSED from the rows a surface actually has, rather than picked from
+pre-written strings, so adding or removing a row can no longer leave the label describing a control
+that is not there. Three catalog keys died with it, across five languages.
+
+**And the parked `due` column is now load-bearing**, which resolves last night's Backlog entry the
+good way: rather than a column nobody read, it is the thing that makes this work.
+
+**Two comments were left actively wrong by this change and are fixed**, including one that told a
+future reader the panel "cannot produce" a due date. That was true for nine hours. A comment stating
+an invariant that has since been reversed is worse than no comment at all.
+
+## 2026-08-12 The Ours door carries one number, and looking is what clears it (Tier 2)
+
+**The door has always refused a count**, in as many words: "NEVER a count on it: a number here is a
+number another person can change, on the one screen whose whole promise is that today is finite."
+That rule was right, and it got MORE right once Tier 1 shipped: with everything dated already
+surfacing on Today, a tally of open rows would mostly be counting the undated shopping list, which
+is permanently non-empty. A number that never reaches zero, moving whenever your person types, on
+the calm screen.
+
+**Decided: a different quantity, which survives the objection.** "N since you looked" is bounded by
+your own attention rather than by the list's length, and LOOKING is what clears it. The act of
+reading it is the act of resolving it, so it cannot climb at you. Your own edits never count. A
+first-ever visit counts nothing, rather than inventing a baseline and opening the app with a number
+already on it.
+
+It reuses `washedSince`, the room's own wash arithmetic, so the door and the room agree by
+construction about what changed and about whose change it was. One source of truth, two surfaces.
+
+**Decided against: a setting.** Melroy asked for one ("any chance we can build the flexibility in
+under a mini-settings toggle"). The product's own law is "remove friction, never add a setting", and
+here a good default costs less than a choice: because the count self-clears, "on" and "off" barely
+differ, so the toggle would buy a decision for almost no behavioural difference on a screen whose
+whole job is to ask nothing of you. Parked in the Backlog with a real trigger: if it bothers either
+of them in use, build it then, with their words as the reason. Adding a setting later is cheap;
+removing one breaks the muscle memory of whoever found it.
+
+**Wording note.** It says "since you looked" rather than "3 new", because a change can be a tick, a
+rename or a removal, and "new" would be a small lie about a third of the time. The phrase also
+teaches its own mechanic: it tells you, in the label, that looking is what makes it go away.
+
+## 2026-08-12 The capture stopped lying about where your words go, and From Ours rows got a held card
+
+**A false disclosure, found by Melroy reading the screen:** "The text at the bottom about sending to
+Anthropic's Claude. Why is that appearing in the OURS list capture."
+
+The line said "Sort for me and Break it down send what you type to Anthropic's Claude" wherever AI
+was enabled. On the shared list NEITHER button exists, so it was naming two absent features as the
+reason your words leave the device. That is worse than a missing disclosure: it teaches the reader
+that the notice is decorative, and then they stop reading it on the screen where it is true.
+
+The same sentence never mentioned SCAN, which sends an actual photograph. So the affordance with the
+strongest claim to a disclosure had the weakest one. **Fixed both ways:** the line is now chosen from
+what the surface actually offers (text-AI, Scan, or both), and `photoEgressNote` was added to the web
+gallery prompt and over the live viewfinder. It had existed only on the Android permission screen,
+which meant the two paths reachable WITHOUT a prompt said nothing at all.
+
+**Break it down on a shared list:** Melroy asked whether it is too onerous there. It was already off,
+for his reason plus one more (a model authoring rows onto a list another person reads). The note was
+simply a leftover claiming otherwise.
+
+**A From Ours row can now be held**, offering Pin and, on non-repeating rows, Move to. Melroy asked
+for those plus reorder, and for the regular list's interface.
+
+**They route through a COPY, and that is the design rather than an implementation detail.** Pinning
+is a statement about YOUR day; a date is a statement about when YOU will do it. Applied to the shared
+row itself, both would reach across and rearrange the other person's screen: "move to Thursday" would
+take it off her Wednesday too, on a thing she may already have planned around. Applied to a copy they
+mean what they say, and the tick still closes both because the copy carries `sharedRef`.
+
+It also answers "copy the interface from the regular items list" more completely than wiring
+individual actions would: once taken on, the row IS a regular task, with the whole held card, the
+manual reorder, the nudge, all of it. **Reorder therefore needed no wiring** and has no second
+implementation.
+
+**The trap this opened, caught while writing it:** a taken-on row would render twice, once as your
+task and once as a shared row still due today. Hidden by an id set that includes DONE copies, because
+a finished copy and its finished origin would otherwise both appear.
+
+## 2026-08-12 One shared row, one route: "take this on" replaces a second set of wiring
+
+**Melroy found the same flaw twice, from opposite sides, within minutes.**
+
+First: "TESTMECKSLAIE is a non-repeating task but it sits in another section. But the repeating task
+sits in the From Just Us. Explain the logic here because to me, this is weird."
+
+Then: "The non-repeating task, I can break down and do all sorts of AI things, but the repeating one
+I can't?"
+
+**Neither had anything to do with repeating.** The real split was *whose the row is*. A row he had
+BROUGHT was an ordinary task, in his list, with the whole held card. A row that arrived by itself was
+the shared row, in the strip, with exactly the two actions I had bothered to wire. Two visual
+languages for one relationship, and no explanation on screen for which a row would get.
+
+**The cause was an overlap I created.** Bring was built when hauling a row across by hand was the only
+way onto your day. Tier 1 made that automatic for anything with a day. So a dated or repeating row
+had TWO routes onto Today that landed in two different places.
+
+**Fixed at the source rather than papered over.**
+
+  - The room offers Bring only on rows that will NOT arrive by themselves (undated, non-repeating).
+    One row, one home.
+  - A strip row gets ONE primary action, "Take this on today", which turns it into your own copy in
+    your own list, where the entire held card already works. No second implementation of Break it
+    down, Make tiny, Steps, Nudge or reorder, and none needed.
+  - Pin and Move-to stay as shortcuts that imply it.
+
+**Two things fall out, both better than what I would have designed deliberately.** The row visibly
+moving out of the strip and into the list IS the feedback, rather than a side effect. And the AI
+question flips from forbidden to safe: Break it down was off on shared rows because a model authoring
+steps onto a list another person reads is a decision about them. On your own copy the steps never
+reach the shared list, so the very act that unlocks it is the act that makes it harmless.
+
+**A note on the reports themselves.** Both arrived as "this is weird", not as bug reports, and both
+were right. A design that needs explaining is a design with a defect, and the second question was
+worth more than the first because it proved the first was not a one-off misreading.
+
+## 2026-08-12 The shared strip names its RULE, not just its source
+
+Melroy, after watching it work: "I feel the mechanism of 'From Just Us' maybe needs to change to
+accommodate that it's only the tasks due today (repeating or not) that pop up." Then, having
+confirmed the behaviour: "It works great. Only tasks due today pop up there. It needs to be made
+explicit."
+
+The heading said **From Ours**, which named where the rows came from and said nothing about why only
+some of them were there. That invites a reasonable and unanswerable question: is this the whole
+shared list, and if not, what decided? It now reads **Due today . <list name>**, which answers it in
+two words, and the door directly below remains the way to everything else.
+
+Small change, and worth recording because of where the request came from: the behaviour was correct
+and verified, and the complaint was purely that the screen would not say out loud what it was doing.
+A correct rule the user has to infer is a rule they will get wrong at least once.
+
+**A gate caught a real break in this same change.** The French string is "Pour aujourd'hui", and it
+went into a SINGLE-quoted TypeScript literal, so the apostrophe ended the string and the catalog
+stopped parsing. Typecheck, lint and tests all went red together, which is exactly what should
+happen. Rule for the catalogs: any language whose text can contain an apostrophe (fr above all)
+belongs in double quotes, and the gate is what proves it rather than a careful read.
+
+## 2026-08-12 Multi-select comes to the room, narrower than Today's
+
+Melroy: "you can't select multiple tasks in the Ours list. Can you fix that too please?"
+
+A shared list wants this MORE than a personal day does. A household list is where six things get
+bought in one trip and then need ticking off in one go, and where a finished shopping list needs
+clearing. One row at a time is the sort of small tax that stops two people bothering to keep the
+list at all.
+
+**Deliberately narrower than Today's version.** Tick and Remove only. No Combine (an AI action, and
+it would author rows onto a list another person reads). No "mark as a lot" (a personal weighting
+concept, with no field on a shared row). No bulk Move-to (dating several shared rows at once is a
+bigger promise than it looks, and one at a time is honest until somebody asks).
+
+**Two rules that are not cosmetic.** Bulk tick never UN-ticks: a toggle across a mixed selection
+would silently undo somebody's finished work, and on a shared list that somebody may not be you. And
+the shelf SAYS, before the tap, that removing a repeat ends it for both of you, because the room has
+no per-day skip and that is not a thing to learn from the consequence.
+
+**The shelf takes the capture bar's seat** rather than stacking above it. Two bottom-anchored
+surfaces competing for the thumb is how a calm screen stops being one, and you are not adding things
+while you are clearing things.
+
+Reuses Today's `selectAll` / `selectHint` / `selectedCount` strings rather than minting parallel ones
+in five languages. The namespace reads oddly (`today.*` on the Ours screen) and the alternative is
+five identical translations of "Select all", which is worse.
+
+## 2026-08-12 A copy says when its shared row was taken off the list
+
+Melroy, having watched it: "I removed tasks from the Ours list and the copies still remain in my
+Today list. I know that's not a bug. But SHOULD it be? Do we leave an indicator?"
+
+**The copy still stays.** `sharedRestNotes` already argues that: removal is not completion, and
+nobody else's tidying should reach into your day. That reasoning is intact.
+
+**What I had got wrong is that it answers a different question.** "Should we delete it" and "should
+we tell you" are not the same, and I had let the first stand in for the second. **The deciding case
+is wasted effort:** your person takes "milk" off the list because she already bought it, your copy
+sits there silent, and you go and buy milk. For this audience effort is the scarce resource, and
+doing cancelled work stings more than almost anything else this app could get wrong.
+
+There was also an inconsistency worth naming: a row FINISHED on the other side already leaves a note
+on your copy. A row REMOVED left nothing, and the silent one is the one that can waste an afternoon.
+
+**What it is, and firmly what it is not.** A faint line on the row: "no longer on <list name>". No
+attribution, because there is no such data anywhere in this feature and a bridge is exactly where
+that temptation comes back. No reason, because removal could be done, not-needed, or tidying and the
+app cannot tell them apart. No action and no prompt: the task is yours, and Remove is already on its
+held card. Not a transient message either, per Melroy on the wash: a thing you might miss should not
+appear and then vanish. It is in WORDS rather than a colour or a strikethrough, so a screen reader
+hears it too.
+
+**Accepted limit, recorded rather than hidden.** The server sweeps tombstones after seven days, after
+which a removed origin is indistinguishable from one never pulled, and the line quietly stops
+appearing. The information matters in the first day or two, and keeping a permanent record of a
+deletion so the app can keep mentioning it is its own kind of creepy.
+
+**A near-miss in the edit itself.** The 14-space `origin={...}` pattern I matched on is a SUBSTRING
+of the 18-space one, so a single replace hit both render paths and then the second replace hit one of
+them again, giving a row two `note` attributes. Typecheck caught it immediately. Worth recording
+because indentation-anchored replacements look precise and are not.
+
+## 2026-08-12 The row note was never visible to anybody, and had not been for as long as it existed
+
+Melroy, after I shipped the removed-from-Ours indicator: "I don't see the outline you're referring
+to? I deleted both those tasks from the Ours list."
+
+`TaskRow`'s `note` prop appeared in exactly three places: the type, the destructure, and **the
+accessibility label**. It was never rendered. So my new "no longer on <list>" line was spoken to
+screen readers and shown to nobody, and so was the ROOM'S WASH TEXT ("changed since you looked"),
+which has been in that state since the day it was written.
+
+The prop's own comment claimed it was "a state worth SAYING as well as showing... so it is never
+colour-only". That is the whole defect in one sentence: **a stated intention that nothing
+implemented**, sitting there reassuring every reader including me. The wash therefore shipped as
+colour-only, which is precisely what the comment existed to prevent, and an accessibility promise
+was made in a comment rather than in a component.
+
+**Fixed by rendering it**: the row's content moves into a `rowMain` line and the note takes a quiet
+second line beneath, so a note can exist without every mark on the first line reflowing around it.
+
+**Verified by controlled comparison, not by looking once.** Changing `row` from a flex ROW to a
+COLUMN touches every task row in the app, so I measured three rows (plain, "big" with a long title,
+repeating), stashed the change, reloaded, and measured the same three again. Before: 61 / 81 / 60.
+After: 62 / 82 / 60. A pixel of rounding from the extra nesting.
+
+That mattered more than it sounds. The 81px row wraps to two lines, and had I only measured AFTER I
+would have "discovered" a regression that was pre-existing and gone chasing it. **A layout change
+needs a before, not just an after.**
+
+## 2026-08-12 The pre-merge audit: 55 raised, 20 survived, all 20 fixed
+
+Melroy asked for an adversarial pass before the merge. Six independent lenses over the shared-list
+code (dead wiring, false comments, the three shared-list laws, two-device races, never-shame, data
+loss), each finding verified by a refute-by-default skeptic. 61 agents, ~19 minutes. **55 raised, 35
+refuted, 20 confirmed.** The 64% kill rate is the number that makes the other 20 worth reading.
+
+**One lost data, and it was mine from that morning.** Pin on a From Ours row ran
+`takeOnShared().then(pinRow)`, and `pinTask` builds its array from the `tasks` STATE CLOSURE, which
+was the pre-copy snapshot. The copy had been written to storage but React had not re-rendered, so
+`commit` saved the stale array back over it: the copy vanished, nothing was pinned, whatever WAS
+pinned got cleared by the at-most-one rule, and the affirmation said "pinned" over all of it.
+
+**Three more diverged two phones**, which is the specific harm this feature cannot afford. The
+room's date froze at mount, so a tick after midnight wrote into yesterday and the partner's phone
+disagreed permanently. A settle could overwrite a tick made while it was on the wire. And a tick on a
+brought copy was lost FOREVER on a device with a cold Ours cache if the pull failed, because the only
+carrier pulled before writing and nothing ever retried.
+
+**Six were the same shape as the `note` bug a human found hours earlier:** built, wired at the call
+site, consumed by nothing that renders. `bringLabel` (found by three lenses independently), `inert`,
+`repeatSummaryOf` reading a key nothing writes, `isPairReadOnly` with no call sites.
+
+**And one was mine, made in the very session I was fixing the class.** `openInRoom` was written for
+Tier 2, then Tier 2 shipped as `washedSince` instead, and the function was left with zero call sites.
+Deleted. The pattern is not carelessness about a rule, it is that a call site is the ONLY proof, and
+tests, types and review all pass happily without one.
+
+**One finding was half wrong, which is why the skeptics matter and why I check anyway.** It claimed
+the tombstone sweep never runs, so the removed-origin note is permanent. The sweep exists and IS
+called, but its horizon is THIRTY days, not the seven I had written. Correcting my own number was the
+real fix, and thirty days is longer than that note deserves to live.
+
+**One was a genuine design correction rather than a bug.** Placing a readable repeat by its cadence
+in `onSharedListOn` hid "every Monday" from the room six days a week: unreachable to edit, unreachable
+to remove, and a household whose list is only repeats was told "Nothing here yet". But the original
+reasoning was sound too, and documented: showing it every day made it tappable on a day it was not
+due, writing a completion for the wrong date into the SHARED log. Neither option was right. The room
+IS the list, so everything on it belongs there; WHICH DAY a repeat is due is a separate question,
+answered by `sharedDueOn` for Today and by the new `tickableInRoom` for the room's checkbox. Both
+halves of the original worry are covered, and it only became possible because `inert` now renders.
+
+**Four comments asserted the opposite of the shipped code**, all of them where a reversal had landed
+and the prose had not. The worst was `settleSharedCopies`'s docstring, the first thing a reader hits,
+still describing the pre-reversal "leave the day, never enter Lookback" on the most emotionally
+load-bearing rule the feature has.
+
+## 2026-08-12 The launch-copy panel, and a claim I had been making that is not quite true
+
+Melroy: "the next important thing is a copy check, not for correctness but to make sure this brand
+new feature is rightfully lauded and advertised. This includes the landing splash page."
+
+Five surfaces drafted and each checked three independent ways (is it TRUE of the code, is it in
+VOICE, does it actually SELL). 20 agents. The drafts are being applied surface by surface; three
+findings landed before any of that, because they are facts rather than words.
+
+**1. A LIVE FALSE CLAIM, fixed here.** `ours.lead` read "A list you both keep. Nothing here ever
+lands on your Today unless you put it there." Tier 1 made that false this morning: a dated or
+repeating shared row now arrives on both Todays by itself. It renders in TWO places (`ours.tsx` and
+`settings.tsx`), so the app was stating the opposite of its own newest behaviour on the screen that
+introduces the feature. It now says what is true, and does the selling at the same time: "Things with
+a day arrive on both your Todays. Everything else stays here."
+
+That is the third time in two days a shipped string outlived the behaviour it described. The pattern
+is now unmistakable: a reversal lands in code and its prose is somewhere else in the tree.
+
+**2. A CLAIM OF MINE THAT IS OVERSTATED, and I have repeated it all day.** I have been saying, in
+commit messages and to Melroy, that "no data anywhere records who did what". Completion genuinely is
+unattributed: `done_at` is a time, `completions` is a per-date log, and `ours-sync.test.ts` bans
+`done_by` / `completed_by` / `created_by` from ever being sent. But `shared_tasks.created_by` DOES
+exist (ours.sql:142), server-stamped by a trigger, kept as the only evidence an abuse report could
+carry. The client never sends it and never reads it.
+
+So the defensible sentence, and the one the store copy will use, is **"nothing on it says who did
+what"**, not "no such data exists". The difference matters most in exactly the place I was about to
+put it: a public claim about privacy.
+
+**3. THE FEATURE CANNOT BE ADVERTISED YET, and this is a gate on the whole exercise rather than a
+copy note.** `create_pair_invite` (ours.sql:514) raises 42501 unless the caller's email is in
+`ours_allowlist`, populated by hand. JOINING with a code is not gated; STARTING a list is. So a
+person who reads a store listing, downloads the app and tries to make a shared list gets a refusal.
+The store copy is drafted and must not ship until the allowlist check and table are dropped.
+
+## 2026-08-13 Ours gets a front door: an onboarding step, a What's New entry, a listing, and the gate comes off
+
+Melroy, asked whether to open Ours to everyone at launch or keep the allowlist: **"everybody at
+launch."** That single answer unlocked the rest, because almost every argument against advertising
+the feature was really an argument about the gate.
+
+**THE GATE COMES OFF (`supabase/ours-open.sql`, for Melroy to apply).** `create_pair_invite` refused
+any caller whose email was not in `ours_allowlist`, a table populated by hand because this repo is
+public. Note the asymmetry that made it urgent rather than tidy: JOINING with a code was never gated,
+only STARTING a list. So the gate refused exactly the person a store listing brings you and let
+through the person they invite. The migration replays the shipped function VERBATIM minus the gate
+block, rather than a retyped approximation: copying beats authoring for a definer function on a live
+table. `ours_is_open()` also had to change, because it gates the MENU ROW, and without it the feature
+stays invisible even once invites work.
+
+**AN EIGHTH ONBOARDING STEP, which the copy panel argued against and I built anyway.** Its case was
+good and four of its five reasons were facts about this repo. But two of them, "the app cannot show
+most readers the door" and "a screen about an account-gated feature inside a flow promising no
+account", were arguments about the allowlist, and the panel said so itself: "the eighth step becomes
+right the day the allowlist drops". Melroy dropped it. The step sits between `keep` and `premium`,
+deliberately: a FREE feature read immediately before the premium screen would be taken for part of
+the paid list.
+
+**THE PANEL'S OWN DRAFT CARRIED THE BUG I HAD FIXED AN HOUR EARLIER.** Its `sharedLead2` read
+"Nothing on it lands on your Today unless you put it there" while its `sharedLead3` said dated things
+arrive by themselves. The same false sentence I had just removed from `ours.lead`, reproduced in new
+copy, because the agent read a string that was true when it was written. Rewritten coherently: what
+arrives by itself, what deliberately does not, and the rule that makes it safe.
+
+**"NOTHING RECORDS WHO DID IT" BECAME "NOTHING SAYS WHO DID IT"**, in the What's New line and
+everywhere else. `shared_tasks.created_by` exists, server-stamped, as the only evidence an abuse
+report could carry, and the client never sends or reads it. Completion is genuinely unattributed. The
+distinction is invisible until someone reads the schema of a public repo and calls the store listing
+a lie, which is exactly the sort of claim that should be conservative.
+
+**A COMMIT OF MINE IS MISLABELLED, and I would rather say so than quietly fix it.** The What's New
+agent wrote its changes to the working tree rather than only drafting them, so `892a8d0` (whose
+message is entirely about `ours.lead`) also contains `whats-new.ts` at id 2 and its four catalog
+lines. The code is right and the tests pass; the label does not mention half of what it carries. The
+lesson is small and real: a workflow agent with write access changes what `git add -A` means, and I
+committed without reading the diff.
+
+**Deliberately NOT changed: the subtitle.** The panel argued both sides and landed on keeping "A
+calmer kind of to-do list". Apple indexes it, and "shared" would be a free token, but trading the
+product's one-line promise for one feature is a bad rate. The keyword field carries "shared" at no
+cost to the page. `habits` came OUT of the keywords in the same pass: it ranked us for streak-tracker
+searches, and an app whose thesis is that there is no streak converts those installs into churn and
+stinging reviews.
+
+## 2026-08-13 The onboarding step I shipped was unreachable, and the screenshot harness is what found it
+
+I told Melroy the shared-list onboarding screen had shipped. It had not. It was added to `STEPS`, to
+the `PRIMARY` label map, and rendered as its own block. Typecheck passed. Five locales were
+translated. And `onPrimary` is a hand-written SWITCH of transitions whose `case 'keep'` still said
+`setStep('premium')`, so no person could ever arrive at it.
+
+**That is the seventh instance today of the same class**, and the first one I committed AFTER
+spending the morning fixing the other six. Built, typed, translated, reviewed, and connected to
+nothing.
+
+**What actually caught it was trying to photograph the screen.** Not the typecheck, not the tests,
+not my own reading of the diff. The harness walked the flow, could not find the heading, and the
+timeout was the bug report. Adding a screenshot of a new surface is worth more than it looks: it is
+the cheapest possible proof that a human can reach the thing.
+
+**Fixed at the source rather than by adding a case.** `onPrimary` is now driven by `STEPS` order,
+with two named exceptions that genuinely do something other than advance (capture runs the triage,
+handoff leaves). `back()` was ALREADY order-driven and was therefore always correct, which is why
+only one direction could rot. A map that restates an order the code already has is a map that will
+disagree with it eventually.
+
+**The harness learned to walk.** `advance: N` presses the primary N times before shooting, targeting
+a new `testID` on the welcome primary rather than a position or a label. Position failed because with
+AI off the last button on the capture step is "Change AI in Settings", which navigates away and
+derailed the walk; a label fails because the primary's words change every step and every locale. The
+walked shot also forces `aiEnabled: false`, so regenerating screenshots never fires a live Anthropic
+call, which it would have done on the capture step otherwise.
+
+## 2026-08-13 A rhythm that belonged to no row, and a circle that lied about being tappable
+
+Three faults on one shared row, all found by Melroy looking at an Italian screenshot of his own
+list. None of them would have been found by reading the code.
+
+**1. The line belonged to nothing.** The rhythm was drawn as a SIBLING below the card, so "Gio" sat
+in the gap between two rows and the eye had no way to bind it to either. His words: "Does the
+Thursday apply to the row above or below? It's not clear." No amount of better wording fixes a line
+that is not attached to its row. It now goes through TaskRow's own note slot, indented under the
+title, inside the card.
+
+The irony is worth keeping: **that slot was added this morning for exactly this**, and the room was
+never moved onto it. A fix that lands in a component does not travel to the screens that predate it.
+
+**2. The rhythm was bare.** `cadenceLabel` returned just the weekday names for weekly, so "Gio",
+while its own siblings read "Every day" and "Every 3 days". It was also weaker than the capture door
+that SET it, which says "Weekly on Thu". So the place you choose a rhythm and the place you read it
+disagreed, and the reading one lost. Now framed: "Every Thu".
+
+**3. The circle looked tappable and was not.** `CheckCircle` took one prop, `done`. `inert` removed
+the handler, suppressed the press animation, and reached the spoken label, but never touched the
+control. So a repeat on its off day offered a circle that looked exactly like every live one and did
+nothing. Melroy: "the circle isn't faded. It looks clickable but actually isn't."
+
+The rule was written down three lines from the code ignoring it: *"the control keeps its place at
+lowered contrast; the line below says why. Never absent, never locked."* Stated, never implemented.
+**Third time today**, after `note` and `bringLabel`. The pattern is now unmistakable: this codebase
+states intentions in comments and does not always carry them out, and only a person looking at a
+screen catches it.
+
+**One consequence worth noting:** with the circle properly dimmed and the rhythm properly worded, the
+extra "you can tick this on its day" line is no longer needed on screen. A faded control plus "Every
+Thu" says it without another sentence. The string still reaches the spoken label via `inert`, so
+nothing is lost for a screen reader.
+
+**And a near-miss in the doing.** The new catalog key first landed in the `capture` namespace rather
+than `repeat`, because my anchor matched the FIRST `everyNDays` in the file and both namespaces have
+one. Typecheck passed happily; the test caught it by getting the key name back instead of the words.
+
+---
+
+## 2026-08-16 · A finished shared row now leaves the day, and three launch-gate cases stop contradicting each other
+
+**Decided: `sharedDueOn` checks `done`, and a finished dated shared row appears only on the day it
+was finished.** Found by an adversarial review of the When design pack, in code that had nothing to
+do with the design.
+
+`sharedDueOn`'s rule for a one-off was `due <= date` and nothing else, under a comment saying being
+done "is not checked, on purpose... exactly as a personal task does". That comparison was false.
+`tasksForToday` requires a finished one-off's `completedAt` to be TODAY, and says so three lines from
+the code: *"a completed task never carries into the next day."* Here the row stayed forever.
+
+So every dated shared row either person ever ticked sat on BOTH Todays, struck through, permanently,
+under DUE TODAY. And that strip is excluded from the weight gauge, the Lookback, Lighten and the
+close-the-day count by construction, so nothing else in the app would ever have swept it. An
+unbounded pile, on the one screen whose whole premise is that a day is finite.
+
+**Decided against making it a timestamp comparison.** The obvious mirror of the personal rule is
+`toISODate(new Date(doneAt)) === today`, and it is worse here. The completion log is keyed by DATE
+already, written by whichever phone did the ticking, so reading the day off the log needs no
+local-midnight arithmetic and cannot have two devices in two places disagree about which day a
+millisecond belongs to. `doneAt` survives only as the second of three fallbacks, for rows written by
+a client older than the log.
+
+**What the old comment was RIGHT about, and what the fix keeps.** A row must not vanish the instant
+you touch it. Ticking is the reversible act on this list, which is why the finality affirmations are
+withheld here and why two-party confirmation was refused. So a row ticked today stays on screen all
+day, un-tickable again. The test asserts BOTH halves in one case, because this fix has two ways to be
+wrong and only one of them is the bug we came for.
+
+**The third fallback is deliberately generous.** A finished row that knows neither a log date nor a
+`doneAt` keeps showing. We cannot know when it happened, and of the two ways to be wrong, a lingering
+row is recoverable and a disappeared one is not.
+
+**Proved the tests bite.** They were written after the fix, which makes them worthless unless they
+fail against the old code, so the old rule was temporarily restored: three of the five new cases went
+red, and the two that stayed green are the regression guards (an unfinished overdue row still rolls
+forward; an amnesiac finished row still shows). That is the right split.
+
+**Also decided: three E2E cases in the shipped launch gate stop contradicting each other.** The
+suite is the manual launch gate, and a gate whose P1s disagree cannot arbitrate anything.
+
+- **OUR-58** said the shared door offers Repeating ONLY, with no When row. **OUR-71**, also P1, says
+  the When row reads Anytime / Today / Tomorrow / Pick a date. Both shipped. OUR-58 was written for
+  an intermediate state and is now rewritten to match what exists, pointing at OUR-71.
+- **OUR-61** said no Scan on the shared capture. **OUR-62**, also P1, says Scan reaches it, which is
+  what Melroy asked for and what shipped. OUR-61 is corrected rather than deleted, because it is
+  still right about Break-it-down and Sort-for-me, and the reason it gives for Scan being different
+  is worth stating: Scan reads a photo INTO the box for you to edit, it does not author anything
+  onto a list another person reads.
+- **OUR-46** tested tapping a `Repeat…` control above the capture box, which the door redesign
+  replaced. Deleted, since adding with a cadence is covered by the door cases.
+
+**New: OUR-111 (P1)** for the rule above, and it names the second half explicitly so a tester checks
+that an unfinished overdue row is still there tomorrow rather than reporting the correct behaviour as
+a bug.
+

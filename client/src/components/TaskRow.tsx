@@ -23,6 +23,17 @@ type Props = {
   onAdvance?: () => void;
   onRetreat?: () => void;
   onBreakdown?: () => void;
+  plain?: boolean; // drop the one-off (periwinkle) border. On Today it separates one-offs from repeats; on a list that is almost ALL one-offs it lands on every row and separates nothing
+  washed?: boolean; // changed since you last looked (the shared list): the row's OWN surface warms and its OWN border firms, never a second ring drawn around it
+  note?: string; // a state worth SAYING as well as showing: rendered as a quiet second line AND folded into the spoken label, so it is never colour-only and never screen-reader-only
+  inert?: string; // this row cannot be ticked, and this is why: the reason travels WITH the control, so a screen reader hears it and a tap is never silently dead
+  removesWholeSeries?: boolean; // the caller's Remove tombstones the SERIES, so it must not borrow the "Skip today" label
+  onRepeat?: () => void; // held-state, SHARED rows only: set this row's rhythm, through THE cadence sheet
+  onBring?: () => void; // held-state, SHARED rows only: bring a copy of this to my own Today (the hero seat, where Break it down sits on a personal card)
+  brought?: boolean; // that copy is already on my Today: the hero says so and goes inert, rather than quietly making a second one
+  bringLabel?: string; // override for the bring hero's words. In the ROOM it is "Bring to my Today"; on Today itself that sentence is nonsense, and the same action there means "take this on"
+  onShareToOurs?: () => void; // held-state, PERSONAL rows only: put a copy of this on the shared list (in the fold; only when a live list exists)
+  origin?: string; // a faint suffix after the title, marking YOUR copy of a shared row ("· Ours"). Render-only: never part of the title, so renaming never eats it
   onDefer?: () => void; // push-to-tomorrow; the held card no longer shows a standalone Tomorrow (folded into the Move-to picker's chip), but the prop stays for that wiring
   onMakeTiny?: () => void;
   onBig?: () => void; // held-state: mark / unmark this task "a lot"
@@ -69,6 +80,17 @@ export function TaskRow({
   onAdvance,
   onRetreat,
   onBreakdown,
+  onBring,
+  onRepeat,
+  plain,
+  washed,
+  note,
+  inert,
+  removesWholeSeries,
+  brought,
+  bringLabel,
+  onShareToOurs,
+  origin,
   onMakeTiny,
   onBig,
   onPin,
@@ -135,10 +157,33 @@ export function TaskRow({
     Animated.timing(foldFade, { toValue: 1, duration: reducedMotion ? 90 : 160, useNativeDriver: false }).start();
   }, [moreOpen, reducedMotion, foldFade]);
   // Select mode's checkbox cross-fade (the congruency pass): the circle eases in with the mode.
+  // The wash ARRIVES instantly and LEAVES over most of a second.
+  //
+  // Melroy, having watched it: "is there a way to make them disappear in a smooth gradient than just
+  // simple switch off?" He is right, and it does not reopen the law. "Nothing animates because of
+  // the other person" is about presence and pulsing triggered by your partner; the arrival is still
+  // a plain state change, and the fade is the app letting go on its OWN timer, several seconds after
+  // anybody did anything. For this audience the snap was the more attention-grabbing of the two.
+  //
+  // An overlay rather than an animated Pressable: opacity on an absolutely-positioned layer is the
+  // one form that cannot disturb the row's touch handling or its style-as-function pressed state.
+  const [washFade] = useState(() => new Animated.Value(washed ? 1 : 0));
   const [selFade] = useState(() => new Animated.Value(0));
   useEffect(() => {
     Animated.timing(selFade, { toValue: selecting ? 1 : 0, duration: reducedMotion ? 1 : 120, useNativeDriver: false }).start();
   }, [selecting, reducedMotion, selFade]);
+  useEffect(() => {
+    // On is immediate either way: the mark is information, and information should not creep in.
+    // Off is 700ms, or instant for anybody who has asked for less motion.
+    const animation = Animated.timing(washFade, {
+      toValue: washed ? 1 : 0,
+      duration: washed || reducedMotion ? 0 : 700,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: false,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [washed, reducedMotion, washFade]);
   const [wasConfirming, setWasConfirming] = useState(confirming);
   if (wasConfirming !== confirming) {
     setWasConfirming(confirming);
@@ -159,7 +204,10 @@ export function TaskRow({
     (pinned ? t('today.rowLabelPinned', { title }) : title) +
     (big ? t('today.rowLabelBigSuffix') : '') +
     (recurring ? t('today.rowLabelRepeatingSuffix') : '') +
-    (nudgeAt ? t('today.rowLabelReminderSuffix', { time: formatNudgeTime(nudgeAt) }) : '');
+    (nudgeAt ? t('today.rowLabelReminderSuffix', { time: formatNudgeTime(nudgeAt) }) : '') +
+    (origin ? t('ours.rowLabelOriginSuffix') : '') +
+    (note ? `, ${note}` : '') +
+    (inert ? `. ${inert}` : '');
 
   // Multi-select mode: every row becomes a checkbox (tap to pick), and the calm
   // tap-to-complete / long-press menu are suspended until the user leaves select mode.
@@ -199,6 +247,12 @@ export function TaskRow({
     // The way out, shared by both variants: Close (safe, easy reach, bottom-left), Select more, then
     // Remove (far right, out of the reflex path). On a repeating task, Remove is "Skip today": the
     // series continues, so the label must say so.
+    //
+    // Unless the caller's Remove actually ends the series, which is the case on the SHARED list: it
+    // has no per-day skip, so borrowing the reassuring label there promised "just today" and then
+    // deleted the whole repeat, for two people, unrecoverably. The label follows what the button
+    // does, never the row's shape.
+    const skips = recurring && !removesWholeSeries;
     const terminalRow = (
       <View style={styles.terminalRow}>
         <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel={t('common.close')} hitSlop={{ top: 12, bottom: 12 }}>
@@ -209,14 +263,18 @@ export function TaskRow({
             <Text style={styles.selectMore}>{t('today.selectMore')}</Text>
           </Pressable>
         )}
+        {/* Only when there is something to remove. A closed list passes no handler, and the control
+            used to render anyway: a live-looking Remove that did nothing at all. */}
+        {onRemove && (
         <Pressable
           onPress={onRemove}
           accessibilityRole="button"
-          accessibilityLabel={recurring ? t('repeat.skipTodayA11y', { title }) : t('today.removeTaskLabel', { title })}
+          accessibilityLabel={skips ? t('repeat.skipTodayA11y', { title }) : recurring ? t('repeat.removeSeriesA11y', { title }) : t('today.removeTaskLabel', { title })}
           hitSlop={{ top: 12, bottom: 12 }}
         >
-          <Text style={styles.remove}>{recurring ? t('repeat.skipToday') : t('common.remove')}</Text>
+          <Text style={styles.remove}>{skips ? t('repeat.skipToday') : t('common.remove')}</Text>
         </Pressable>
+        )}
       </View>
     );
 
@@ -255,8 +313,8 @@ export function TaskRow({
 
     // An open task: the v2 card ("Four species, four grammars"). The More preview names its
     // everyday contents; Pin deliberately stays out of it (premium recedes, never advertises).
-    const hasMore = canSteps || canPin || Boolean(onNudge);
-    const morePreview = [canSteps && t('today.steps'), onNudge && t('reminders.remindMe')].filter(Boolean).join(' · ');
+    const hasMore = canSteps || canPin || Boolean(onNudge) || Boolean(onShareToOurs);
+    const morePreview = [canSteps && t('today.steps'), onNudge && t('reminders.remindMe'), onShareToOurs && t('ours.shareTo')].filter(Boolean).join(' · ');
     const undoOff = !slices || slices.done <= 0;
     return (
       <Animated.View ref={cardRef} style={[styles.row, styles.confirmRow, styles.confirmColumn, riseStyle]}>
@@ -284,6 +342,44 @@ export function TaskRow({
             <Text style={[styles.confirmTitle, onRename && styles.confirmTitleEditable]} numberOfLines={2}>
               {slices ? `${title}  ·  ${slices.done} / ${slices.total}` : title}
             </Text>
+          </Pressable>
+        )}
+
+        {/* The shared card's hero, in the seat Break it down holds on a personal one: the only action
+            that moves anything between the two lists, and the design's answer to "nothing crosses
+            without a person choosing it". Inert once the copy exists, so a second tap cannot make a
+            second copy of the same row. */}
+        {onBring &&
+          (brought ? (
+            <View style={styles.actionRow}>
+              <Text style={[styles.actionLabel, styles.broughtLabel]}>{t('ours.broughtAlready')}</Text>
+            </View>
+          ) : (
+            <Pressable
+              onPress={onBring}
+              style={[styles.actionRow, styles.heroRow]}
+              accessibilityRole="button"
+              accessibilityLabel={bringLabel ?? t('ours.bring')}
+              hitSlop={{ top: 6, bottom: 6 }}
+            >
+              <Text style={[styles.actionLabel, styles.heroLabel]}>{bringLabel ?? t('ours.bring')}</Text>
+              {/* A REPEAT crosses as one dated copy and does not inherit the rhythm: the cadence
+                  stays on the shared list, which is the only place it repeats. "a copy" was true
+                  and vague; Melroy had to ask what happens, which means it was not saying it. */}
+              <Text style={[styles.actionSub, styles.heroSub]}>{t(recurring ? 'ours.bringSubRepeat' : 'ours.bringSub')}</Text>
+            </Pressable>
+          ))}
+
+        {onRepeat && (
+          <Pressable
+            onPress={onRepeat}
+            style={styles.actionRow}
+            accessibilityRole="button"
+            accessibilityLabel={t('ours.repeat')}
+            hitSlop={{ top: 6, bottom: 6 }}
+          >
+            <Text style={styles.actionLabel}>{t('ours.repeat')}</Text>
+            {recurring ? <Text style={styles.actionSub}>↻</Text> : null}
           </Pressable>
         )}
 
@@ -338,8 +434,14 @@ export function TaskRow({
         {/* The rail (design v2): the reorder pair as ONE segmented, hairline-bordered control.
             Bordered = act-and-stay, the card's only such element (three places is three taps
             with the card held open, never three long-presses). An edge dims its cell in place;
-            a pinned task rests the WHOLE rail (the pin holds the top by other means). Always
-            rendered on an open card, so the card never reshapes under a hovering finger. */}
+            a pinned task rests the WHOLE rail (the pin holds the top by other means).
+
+            "Always rendered" means always on a surface that HAS reordering. On the shared list and
+            the From Ours strip neither handler is ever supplied, so the rail sat there permanently
+            dead: two controls that can never do anything, on the screen briefed to be plainer than
+            Today. Dim-in-place is for a control that is sometimes live; a control that is never live
+            is just furniture. */}
+        {(onMoveUp || onMoveDown) && (
         <View style={styles.rail}>
           <Pressable
             onPress={onMoveUp}
@@ -363,6 +465,7 @@ export function TaskRow({
             <Text style={[styles.railLabel, !onMoveDown && styles.railOff]}>{t('today.moveDown')}</Text>
           </Pressable>
         </View>
+        )}
 
         {/* More: the rarer actions, folded away by default so the card reads as four calm helpers. */}
         {hasMore && (
@@ -392,6 +495,20 @@ export function TaskRow({
                 {/* The purified fold (v2): Steps, Undo a step, Remind me, and Pin LAST, so
                     premium recedes rather than advertises. Unavailable dims in place with an
                     honest reason, never disappears. */}
+                {/* Sharing your own task onto the list. In the FOLD, never a lead action: it is
+                    rare, it is deliberate, and it puts your words in front of another person. Only
+                    rendered when a live list exists, which the caller decides. */}
+                {onShareToOurs && (
+                  <Pressable
+                    onPress={onShareToOurs}
+                    style={[styles.actionRow, styles.moreItem]}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('ours.shareTo')}
+                    hitSlop={{ top: 6, bottom: 6 }}
+                  >
+                    <Text style={styles.actionLabel}>{t('ours.shareTo')}</Text>
+                  </Pressable>
+                )}
                 {canSteps && (
                   <Pressable
                     onPress={onSteps}
@@ -566,21 +683,49 @@ export function TaskRow({
 
   return (
     <Pressable
-      onPress={onToggle}
+      onPress={inert ? undefined : onToggle}
       onLongPress={onLongPress}
       delayLongPress={400}
-      style={({ pressed }) => [styles.row, !recurring && styles.rowUnique, pinned && styles.rowPinned, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.row,
+        !recurring && !plain && styles.rowUnique,
+        pinned && styles.rowPinned,
+        pressed && !inert && styles.pressed,
+      ]}
       accessibilityRole="checkbox"
-      accessibilityState={{ checked: done }}
+      accessibilityState={{ checked: done, disabled: Boolean(inert) }}
       accessibilityLabel={rowLabel}
     >
-      <CheckCircle done={done} />
-      {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
-      <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
-      {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
-      {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
-      {/* the pin star sits last, at the extreme right, so it stays the clear cue beside any other mark */}
-      {pinned ? <Text style={styles.pinStar} accessible={false} importantForAccessibility="no">★</Text> : null}
+      <Animated.View pointerEvents="none" style={[styles.washLayer, { opacity: washFade }]} />
+      <View style={styles.rowMain}>
+        <CheckCircle done={done} dim={Boolean(inert)} />
+        {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
+        <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
+        {/* Your copy is marked, the shared row is NOT. Any marker over there would be attribution
+            through the side door: "somebody pulled this" is one inference from "somebody". */}
+        {origin ? <Text style={styles.originMark} accessible={false} importantForAccessibility="no">{origin}</Text> : null}
+        {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
+        {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
+        {/* the pin star sits last, at the extreme right, so it stays the clear cue beside any other mark */}
+        {pinned ? <Text style={styles.pinStar} accessible={false} importantForAccessibility="no">★</Text> : null}
+      </View>
+      {/* THE NOTE, and until now it has never been visible to anybody.
+          The prop existed, two screens passed it, and the only thing that ever consumed it was the
+          accessibility label, so the room's "changed since you looked" and the new "no longer on
+          <list>" were spoken to screen readers and shown to nobody. Its own comment claimed "in
+          WORDS as well as colour", which is the shape of the whole defect: a stated intention that
+          nothing implemented. Melroy found it the only way it could be found, by looking.
+          `accessible={false}` because the words are already inside the row's spoken label; rendering
+          them again here would read the row's state out twice. */}
+      {/* `inert` rides the same line as `note`, and for the same reason it was written: "the reason
+          travels WITH the control, so a screen reader hears it and a tap is never silently dead".
+          It reached only the spoken label, so on a closed list a sighted person tapped a row that
+          did nothing and was told nothing, which is the exact failure the room's comment claims to
+          have fixed. `note` wins when both are set: a wash is news, an inert reason is a standing
+          condition you can also read from the row being closed. */}
+      {note ?? inert ? (
+        <Text style={styles.rowNote} accessible={false} importantForAccessibility="no">{note ?? inert}</Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -592,10 +737,22 @@ const makeStyles = (t: Theme) => {
   const heroText = t.appearance === 'quiet' ? t.colors.accent : t.scheme === 'dark' ? t.colors.accent : t.colors.onAccent;
   return StyleSheet.create({
     // Quiet strips the card to whitespace + a 5%-ink bottom hairline; standard keeps the soft floating card.
+    // The row's CONTENT line. Everything that used to sit directly on `row` lives here now, so a
+    // note can take a second line without every mark on the first one re-flowing around it.
+    rowMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four, alignSelf: 'stretch' },
+    // Quiet, and in the body colour: this is a fact about the row, not an alarm about it.
+    rowNote: {
+      color: t.colors.inkFaint,
+      fontSize: 13 * t.scale,
+      fontFamily: fonts.body,
+      marginTop: spacing.one,
+      // Clear of the check circle, so it reads as belonging to the title rather than to the control.
+      marginLeft: 24 + spacing.four,
+    },
     row: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.four,
+      flexDirection: 'column',
+      alignItems: 'flex-start',
+      gap: 0,
       ...(t.appearance === 'quiet'
         ? // Match standard's vertical padding so toggling appearance never reflows the list (the spec's
           // top principle "switching never moves anything" wins over its literal 12px, which did not match
@@ -671,6 +828,24 @@ const makeStyles = (t: Theme) => {
         ? {}
         : { backgroundColor: t.scheme === 'dark' ? t.colors.accentSoft : t.colors.accent, borderRadius: radius.sm },
     heroLabel: { color: heroText, fontWeight: '700' },
+    // The hero seat once the copy exists: a settled fact, in the quiet voice, not a dead button.
+    broughtLabel: { color: t.colors.inkFaint },
+    // The quiet wash, on the row's OWN surface. It was a wrapper with its own border, which drew a
+    // second ring around the card and read as a rendering fault rather than a signal: Melroy's first
+    // question on seeing it was "what does the outer boundary mean?", which is the whole verdict.
+    washLayer: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      borderRadius: radius.md,
+      borderWidth: border.thin,
+      borderColor: t.colors.accent,
+      backgroundColor: t.colors.accentSoft,
+    },
+    // The faint "· Ours" on YOUR copy. Quiet enough to be a fact and not a badge.
+    originMark: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginLeft: spacing.two },
     heroSub: { color: heroText, opacity: 0.82 },
     // Mark-as-a-lot, active: the row tints and its text lifts to accent, the app quietly agreeing.
     actionRowActive: t.appearance === 'quiet' ? {} : { backgroundColor: t.colors.accentSoft, borderRadius: radius.sm },

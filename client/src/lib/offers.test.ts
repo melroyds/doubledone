@@ -13,6 +13,8 @@ const quiet: OfferState = {
   weekFinishes: 0,
   scrapbookMade: true,
   scrapbookOfferMade: true,
+  updateWorthMentioning: false,
+  hasSharedList: true,
 };
 
 // A week with enough finishes that the scrapbook mention would be plainly true.
@@ -84,4 +86,31 @@ describe('restedOffer', () => {
     expect(restedOffer({ ...earned, reminderOn: false, reminderOfferMade: false })).toBe('reminder');
     expect(restedOffer({ ...earned, widgetPlaced: false, widgetOfferMade: false })).toBe('widget');
   });
+});
+
+// The fourth rung, added for the shared list. It sits LAST and it never displaces a rung above it,
+// because those are one-time introductions to the app itself and this one comes round again.
+describe('the update mention', () => {
+  it('is offered when this build is far enough behind', () => {
+    expect(restedOffer({ ...quiet, updateWorthMentioning: true })).toBe('update');
+  });
+
+  it('is silent when it is not', () => {
+    expect(restedOffer({ ...quiet, updateWorthMentioning: false })).toBeNull();
+  });
+
+  // It must never take the goodnight screen's one slot from an introduction that only ever gets
+  // one chance. The update mention comes round again in a fortnight; the others do not.
+  it('never displaces a rung above it', () => {
+    const behind = { updateWorthMentioning: true };
+    expect(restedOffer({ ...quiet, ...behind, reminderOn: false, reminderOfferMade: false })).toBe('reminder');
+    expect(restedOffer({ ...quiet, ...behind, widgetPlaced: false, widgetOfferMade: false })).toBe('widget');
+    expect(restedOffer({ ...earned, ...behind })).toBe('scrapbook');
+  });
+});
+
+// The rung's sentence is about "your person". Without one it is untrue, and it would be a funnel
+// on the one screen the design forbids funnels on.
+it('is silent for somebody with no shared list, however far behind they are', () => {
+  expect(restedOffer({ ...quiet, updateWorthMentioning: true, hasSharedList: false })).toBeNull();
 });

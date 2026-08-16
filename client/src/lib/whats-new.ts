@@ -6,11 +6,26 @@
 // open-the-app-to-dump-a-thought moment the capture redesign protects.
 
 /** The current announcement. Bump `id` and swap the keys when something new is worth telling;
- *  the four catalogs carry the words. */
+ *  the four catalogs carry the words.
+ *
+ * id 2 is Ours, and it takes FOUR lines where every announcement before it took two. That is not
+ * drift, it is the difference between a change and a surface. Two lines suit "Settle moved" or
+ * "annual is selectable now"; Ours is a new room with a rule that a reader must be told, because
+ * the rule is the reason it is safe. The four are ordered so that stopping early still leaves you
+ * with something true: what it is, why it cannot turn into a scoreboard, why it cannot make your
+ * day heavier, and where to find it.
+ *
+ * The last line exists because the card reaches EVERY existing device while `ours_is_open` still
+ * gates the Menu row per account. Without it, a reader outside the allowlist is told about a door
+ * that is not on their screen, which is the one thing a What's New card must never do. It names
+ * the rollout without ranking anybody: no queue, no waitlist, no place in line. When the allowlist
+ * drops and the RPC answers true for everyone, that line is the only one that needs retiring, and
+ * retiring it does NOT justify bumping the id (nobody needs re-telling).
+ */
 export const WHATS_NEW = {
-  id: 1,
+  id: 2,
   titleKey: 'whatsnew.title',
-  lineKeys: ['whatsnew.line1', 'whatsnew.line2'],
+  lineKeys: ['whatsnew.line1', 'whatsnew.line2', 'whatsnew.line3', 'whatsnew.line4'],
 } as const;
 
 /**

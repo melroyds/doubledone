@@ -1,0 +1,414 @@
+# Ours: the build sequence
+
+*The staged plan for the `ours` branch. Architecture in [`shared-lists.md`](shared-lists.md),
+the adversarial argument behind it in [`shared-lists-review.md`](shared-lists-review.md).
+Full scope, including recurrence, decided 2026-08-09.*
+
+> **Branch rule.** `ours` does NOT deploy. `main` auto-deploys the web on every push, so all of
+> this is built here and merged only on Melroy's explicit word, exactly as `premium` and
+> `settle` were. The merge IS the web deploy.
+
+**The immediate next action is always the first unchecked box.**
+
+---
+
+## Prerequisites, already on `main`
+
+- [x] `makeId()` gains a random tail (the cross-device primary-key collision, e70f809)
+- [x] `isAccountGone()` requires the constraint name, fails safe (e70f809)
+
+Both were found by the architecture panel reading shipped code, and both had to land before
+any second table carrying a user foreign key existed.
+
+---
+
+## Phase 1 · Foundation (Supabase only, nothing user-visible)
+
+Nothing in the client changes. Ships to live Supabase ahead of any client that reads it, per
+the `skipped_dates` / `big` precedent, because `taskToRow` emits every field unconditionally.
+
+- [x] `pairs`, `pair_members`, `pair_invites`, `shared_tasks` per the locked schema
+      (`shared-lists.md` §3), including `recurrence` and `completed_dates` on `shared_tasks`
+- [x] `tasks` gains **two** nullable columns: `shared_id`, `shared_pair_id` (a shared task's
+      id is only unique within its pair, so the link needs both, §5a)
+- [x] `is_pair_member(uuid)` definer helper; RLS on all four tables. `pair_invites` gets
+      **zero policies**; `pair_members` gets **no insert and no update policy** (that absence
+      is the security control)
+- [x] `create_pair_invite()` and `join_pair(code)`, hardened like the live `delete_account()`:
+      server-side entropy, hash-only storage, single-statement verify-and-consume, per-account
+      and global rate limits inside the function, `MAX_PAIRS_PER_USER = 1` as a named constant
+- [x] **Invites are bound to one email address** (Melroy, 2026-08-09). A mistyped code then
+      fails instead of handing a stranger a place in the household, which also closes the
+      confirmed finding about a mis-texted code. Discloses nothing: the creator already knows
+      the address they typed, and the joiner is never shown one.
+- [x] **`ours_allowlist` gates creation during the build.** Populated by hand in the dashboard,
+      never in this repo, which is public: nobody's email belongs in source control. Removing
+      the gate at launch is one `if` block and one `drop table`.
+- [x] `leave_pair()` (freeze + expire outstanding invites) and `forget_pair()`
+- [x] `after delete on pair_members` trigger: delete the pair when no members remain
+- [x] `server_now()` stable function (the clock, phase 3 consumes it)
+- [x] Schema-as-code in `supabase/ours.sql`, its own file so `tasks`' policies are never
+      touched. **Adversarially reviewed before it is applied** (RLS and definer mistakes are
+      the whole risk), then applied by Melroy and verified by a read-back
+
+## Phase 2 · Pairing
+
+- [x] `lib/pairing.ts`: pure formatting, normalisation, validation and error classification, plus
+      `lib/ours-api.ts`, the RPC seam. 45 tests, no database needed
+- [x] **The list's NAME, which Phase 1 had no column for.** `pairs.name` (nullable, capped),
+      a third argument on `create_pair_invite`, a third output column on `join_pair`, and
+      `rename_pair()`. NULL means "the app's own word", so an unnamed list reads in each
+      person's own language rather than being frozen into the creator's
+- [x] `ours_is_open()`: a caller-scoped probe so the Settings door is never drawn for an
+      account the allowlist will refuse. Fails closed on anything ambiguous
+- [x] Create flow: preset picker (The shop · The house · Looking after someone · Just us ·
+      name it yourself, default Ours), self-chosen label, code display, OS share sheet
+      (clipboard where there is no share sheet)
+- [x] Join flow: code entry, self-label, **no pre-join preview** (§2), post-join confirmation
+      both ways ("You're now sharing with Sam. Not them? Leave." / "Sam joined · That wasn't
+      who I meant")
+- [x] Leave: one tap, on the Ours screen itself, expiring outstanding invites in the same
+      statement. Plus the frozen state and "Remove this list"
+- [x] Signed-out Ours: the calm one-screen explanation, never a nag
+- [x] The Phase-2 door, in Settings (Today's quiet door is Phase 3)
+- [x] **Claude Design pass** over all nine states, brief in
+      [`design-source/ours-design-prompt.md`](design-source/ours-design-prompt.md). The screen
+      built here is deliberately plain: working, on-strings, one state at a time, so the design
+      has something real to replace
+- [x] **Adversarial copy review, English pass.** Five lenses, refute-by-default verifiers,
+      113 of 159 findings confirmed: 30 keys rewritten, `forgetHint` added, and the whole
+      block swept back to house apostrophes. Verbatim synthesis in
+      [`ours-copy-review.md`](ours-copy-review.md)
+- [x] **Full per-language adversarial pass** for es/fr/it/de against the settled English. Three
+      native lenses each, refute-by-default verifiers, then a per-language synthesis and a
+      cross-language terminology check: 174 raised, 124 confirmed, 61 keys rewritten (es 21,
+      it 15, fr 13, de 12). A separate cross-file verification then caught four more, including
+      the one terminology break the terminology agent had named and the German pass had missed
+- [x] **An honest undo for "Delete this list for good".** It cannot be undone once the RPC
+      returns (no INSERT policy on `pair_members`, no rejoin path, and the prune trigger
+      hard-deletes and cascades once the second member has gone), so the only truthful undo is
+      a DELAYED COMMIT: hold it locally, call the RPC when the window closes. `forgetHint`
+      ships now and makes the current state honest; the affordance itself waits for the design
+      pass rather than being built twice
+- [x] **The six dogfood blockers from the Phase 3 audit**, all in this screen: the minted code
+      could vanish before it was readable; "Get a new code" was a dead button that destroyed the
+      code on screen; leaving was a one-way door out of the whole feature whose only exit was the
+      irreversible delete; `loadMyPair` picked an arbitrary membership; a failed read told someone
+      they had no list; and a stale read could overwrite a newer one and re-arm the arrival beat.
+      Plus the kill switch being read and ignored, a live pair nobody joined having no exit, and
+      the poll never stopping
+- [ ] **Dogfood gate:** Melroy and his wife pair on web before Phase 3 starts
+
+## Phase 3 · The list and its clock
+
+- [x] `withMonotonicStamps` widened to `<T extends { id: string; updatedAt: number }>` (the
+      existing tasks.ts one, not a second copy) and exercised on shared rows
+- [x] `lib/clock.ts`: the correction itself. Round-trip midpoint, a plausibility bound on the
+      SERVER reading only (a device years wrong is the thing being fixed), fails open to zero,
+      and cleared on session end from `useSession` so the next person gets their own clock.
+      `nowMs()` applies it, so this fixes personal cross-device and MCP skew in the same stroke
+- [ ] Call `server_now()` once per sync and feed `applyServerTime`. Until this lands the
+      correction is a no-op in production, which is deliberately the safe direction
+- [x] `lib/ours-merge.ts`: LWW + tombstones + **grow-only union of `completedDates`**, pure,
+      16 tests (two people ticking the bins from two phones converge; a removal races a re-add
+      by TIME and gives the same answer whichever phone merges; a corrupt stamp loses)
+- [x] `lib/ours-sync.ts`: push/pull, reconcile after **every** write, the poll policy as a pure
+      testable rule (`shouldPoll`), and a FULL pull with no `deleted_at` filter. 25 tests. Note
+      the deliberate reversal: an `updated_at > watermark` delta looks like an optimisation and
+      is a data-loss bug here, because `mergeShared` reads a local row missing from the remote
+      set as local-only and pushes it, so every row outside the delta would be re-pushed on
+      every poll and a row the other person deleted would be resurrected by yours
+- [x] The polling HOOK itself (AppState + focus + idle timer), which belongs with the screen and
+      waits for the design pass
+- [x] Local cache `doubledone.ours.v1` = `{ [pairId]: tasks[] }`, rendered only when the pair
+      matches a confirmed membership. **Added to `wipeLocalData` and its regression test in the
+      same commit**
+- [x] The Ours screen: Today's grammar, same rows, same held card minus the AI actions
+- [x] The quiet door on Today: reads `Ours` (or the chosen name). **No count**, ever
+
+---
+
+## Phase 3.5 · Building to the design (rounds one + two)
+
+*The handoff is [`design-source/ours-design-round2.md`](design-source/ours-design-round2.md). Listed
+here in build order rather than the handoff's order, because some of it needs a seam first.*
+
+### The four build seams the design needs and the build does not have
+
+- [x] **Self-rename RPC.** `pair_members` has a select policy and a delete-self policy and
+      deliberately NO update policy, because that absence is what stops either person editing the
+      other's row. A definer RPC scoped to `auth.uid()` preserves that control. Goes in a small
+      `ours-rename-self.sql`, reviewed before it is applied like everything else.
+- [x] **`joined_at` surfaced** for "Kept with Alex · since June". Already returned by `loadMyPairs`;
+      just unused.
+- [x] **"Put it away" = tuck, not destroy.** The archive supersedes `forget_pair` as the ordinary
+      exit. `forget_pair` survives ONLY as "Delete this list for good", behind the delete window.
+- [x] **The Today door and the Menu entry.** The Menu carries Ours and is its ONLY entry when no
+      list exists; Today gets a hairline row, "Ours · {name} ›", only once a live list does, and
+      never a count. The Settings row stays for now as a third way in, harmless and gated on the
+      same probe, and goes when the management screen lands.
+
+### The room
+
+- [x] The shared list: Today's rows, one header line ("Kept with {name}"), and deliberately PLAINER
+      than Today. No weight gauge, no day tools, no motto.
+- [x] **The quiet wash.** Rows changed since your last open carry an accentSoft tint and a slightly
+      stronger border. Static, names nobody, counts nothing, gone next open. Needs a per-pair
+      `lastSeenAt` in the local cache, which is new state: it must be added to `wipeLocalData` and
+      its regression test in the SAME commit, like the cache itself was.
+- [x] The shared held card: **Bring to my Today** in the hero seat, Repeat, the rail, More →
+      Remind me, shelf Close / Select more / Remove. Gone: every AI shaper, Mark as a lot, Pin.
+- [x] Empty state, and the capture bar speaking the list's name.
+
+### The bridges
+
+- [x] Pull: your Today copy carries a faint "· Ours" suffix, in YOUR room only. The shared row is
+      untouched, because any marker on it would be attribution through the side door.
+- [x] Your tick closes both and enters YOUR Lookback. From the other side it is simply done.
+- [x] **Their tick, when you had pulled it:** your copy is never struck through and never enters
+      your Lookback. In its place, this visit only, a dashed sage rest-note: "Handled on Ours. It's
+      off your day." A silent vanish reads as "did I delete that?", and a strike-through would be a
+      lie about who did the work.
+- [x] Share to Ours from the personal held card, only when a live list exists, with the 500-char cap
+      stated honestly BEFORE the copy rather than after it.
+
+### Repeating, and the guards
+
+- [x] Shared repeating rows through the existing engine; untick stays one tap, because it is the
+      reason two-party confirm was refused.
+- [x] Cadence through the SAME repeating drawer as home. One cadence surface in the app.
+- [x] The unreadable cadence renders inert and explains itself, per the decision already built into
+      `repeatSummaryOf` / `isUnreadableRepeat`.
+- [x] Recently removed: folded at the list's foot, seven days, naming nobody.
+- [x] Frozen list in use: read-only, capture bar gone, each undone row keeps ONE action, "Bring
+      over".
+- [x] **The delete window.** Deletion commits when the SCREEN CLOSES, not on a timer. "Until then,
+      nothing has been told to anyone, and one tap keeps it." Keep it is the only button, and there
+      is no countdown, because a visible timer is a pressure device. This is the honest delayed
+      commit the Phase 3 audit asked for: an undo toast would have been a lie, and this is not.
+- [x] The archive: quiet rows, purpose and closed-month only, readable forever.
+- [x] Resume, both frames. Offering mints a code with no email re-ask. **Being asked** is the
+      delicate one, and declining is SILENT: the code lapses, and nothing renders on the other side,
+      so a decline is indistinguishable from never having seen it.
+- [x] Solo-leave: "Nobody ever joined this one. Close it and it's simply gone." No freeze theatre.
+- [x] Report-closed renders EXACTLY as ordinary closed. Any distinguishing mark would tell someone
+      they had been reported.
+
+### Check for updates (recommendation accepted, and improved)
+
+- [x] Settings absorbs the version line. Up to date is a sage FACT, not a control.
+- [x] Web: "A newer version is ready", reload, and "Anything you were typing is kept" (true, drafts
+      persist, and it must stay true).
+- [x] Native: "This build is getting old", the store, and "Your lists stay exactly as they are".
+- [x] The rare mention on the rested ladder, **reframed as an offer FOR the person**: "The newer one
+      can read everything your person sets, rhythms included." Better than the brief's framing,
+      which was about being out of date. Not now costs nothing and is never remembered.
+
+### Then
+
+- [x] Strings for every new surface, five locales, through the never-shame lens.
+- [x] E2E cases in `gen-test-suite.py`, suite regenerated.
+- [ ] Screenshots including Ours, all locales.
+- [ ] **Dogfood, then merge**, in Melroy's order.
+
+## Phase 4 · The bridges
+
+- [x] Pull to my Today: fresh id, fresh `createdAt`, `shared_id` + `shared_pair_id` set,
+      idempotent (a second pull focuses the existing copy)
+- [x] **Your** tick closes the shared row (one hop, the `completeAncestors` shape)
+- [x] **Their** tick tombstones your copy; it never marks it done (work you did not do must
+      never enter your Lookback)
+- [x] A shared removal never removes anything from your Today
+- [x] Share to Ours from the personal held card
+
+## Phase 5 · The guards that make the laws true
+
+*Swapped ahead of recurrence on the field answer (couple 1, 2026-08-09: "mostly one-offs with
+a few recurrences"). The list is therefore usable without a cadence picker, so the safety work
+lands first and a real household gets a real thing sooner.*
+
+- [x] Freeze on unpair: `pairs.closed_at`, reads stay, writes stop, **zero rows move**
+- [x] **Frozen lists stay readable, tucked away** (Melroy, 2026-08-09). `loadMyPair` becomes
+      `{ live, frozen[] }` and the design draws a quiet read-only archive below the live list.
+      Without this, starting a new list makes the old one vanish while its own copy promises
+      "you can still read everything here", in five languages
+- [x] **Resuming a frozen list, by the SAME handshake that made it** (SQL applied and verified
+      2026-08-09; the SCREEN affordance waits for the design pass, and `invite_to_resume` must not
+      be reachable from any UI until it lands) (Melroy, 2026-08-09). One
+      member mints a fresh code bound to the other's address, the other redeems it, and
+      `closed_at` clears with every row still in place. **Never unilateral**, and that is the
+      whole design: in a domestic threat model the value of "it closes for both of you" is that
+      it is a door the other person cannot drag you back through, so a one-sided reopen would
+      turn leaving into a pause someone else can undo. Needs a reopen path in
+      `join_pair` (which today refuses closed pairs, correctly), and it only works while BOTH
+      memberships still exist. A frozen list costs no live slot, so LEAVING never blocks you from
+      starting a new list. **Waking one is different and needs a free live slot on BOTH sides**,
+      which the SQL enforces at mint and again at redeem: the review found that without the second
+      check a person could end up holding two live lists, one of which their own app could neither
+      render nor leave. The earlier wording here said a frozen list could be woken while a live one
+      exists; that was wrong, and loosening the check to match it would reopen the defect
+- [x] "Put it away" on a frozen list: TUCKS, deletes nothing (round one's D8, which replaces the
+      build's destructive `forget_pair` and removes the delayed-commit-undo problem entirely)
+- [x] **Tombstone redaction at 30 days** (Melroy, 2026-08-09; SQL applied and verified). Still
+      OPEN and Melroy's call: WHO calls the sweep. There is no cron and no client call site, so
+      redaction happens only when something explicitly asks for one pair. Cheapest answer is one
+      call from `loadMyPairs`, which already enumerates every pair on every Ours open, making
+      coverage "either person opens the app". Whatever is chosen, the privacy copy must say removed
+      items keep their words for **at least** 30 days, never "within 30 days". A definer
+      `sweep_shared_tombstones(pair)` blanks the TITLE on tombstones past the horizon without
+      touching `updated_at`, so both devices adopt the redaction on their next pull and neither
+      pushes the old words back. Gated on `is_pair_member`, not `is_pair_writable`, or it
+      silently no-ops on the frozen lists that need it most. 30 is the smallest number
+      comfortably past Phase 5's seven-day Restore window, and that coupling is deliberate.
+      **Decided against** hard deletion for now: it fixes growth too, but cannot ship until a
+      cached row can say "the server has seen this", or a task created offline is
+      indistinguishable from a swept one
+- [ ] "Remove this list" on a frozen list deletes your own membership
+- [x] Done rows stop rendering at the day boundary (parity with `tasksForToday`)
+- [x] Tombstones under seven days: dimmed "Recently removed" with Restore, naming nobody
+- [x] The finality affirmations do NOT fire on Ours (the app only promises finality where it
+      controls finality, and here your person can un-tick)
+
+## Phase 6 · Recurrence (full scope, decided 2026-08-09)
+
+*"A few recurrences" is still most of what makes a household list a household list: the bins
+do not become one-offs because the rest of the list is.*
+
+- [x] Render shared recurring tasks through the existing engine unchanged (`tasksForToday` is
+      already generic over a structural type), feeding it `completedDatesOf(row.completions)`
+- [x] Cadence capture on Ours, reusing the repeating drawer rather than a second surface
+- [x] **The completion log stays unattributed.** Dates and times only, no per-occurrence
+      attribution, ever, or the model becomes the chore ledger the never-shame laws outlaw.
+      Built and tested in `lib/ours-merge.ts`, including the un-tick the first version could not
+      express (2026-08-09)
+- [ ] Confirm by test that a miss is unstorable, so no witness can ever see one
+- [x] **A cadence the reader's build cannot understand SHOWS, it does not hide** (Melroy,
+      2026-08-09). The seam already keeps an unreadable cadence verbatim; `repeatSummaryOf` and
+      `isUnreadableRepeat` are the reader's half, and `knownRecurrence` carries the summary
+      through so the client that DOES understand a cadence never strips the fallback the client
+      that does not depends on
+- [ ] The cadence WRITER must include a plain-English `summary` in the recurrence object, in its
+      own language, whenever it writes one. Same shape the public REST API already uses. A reader
+      that understands the cadence ignores it and renders its own localised line; the stored one
+      is a fallback, never the source of truth
+- [x] Render an unreadable repeat: shown, never placed on a day, never counted as due today
+
+## Phase 7 · Compliance, before any store binary
+
+Two accounts seeing each other's free text puts DoubleDone under Apple 1.2 and Play's UGC
+policy. After two guideline rejections in July, a third blocks the whole release.
+
+- [x] Report: one quiet row → existing `/feedback` Worker route with a context tag and pair id
+- [x] Block: "Leave this list" on the Ours screen (already Phase 2), named honestly
+- [x] Kill path: `pairs.disabled_at`, one clause in the RLS predicate, flipped by hand
+- [x] Privacy policy, **both copies, same commit**, plus the delete-account clause in 5 locales
+- [x] Terms paragraph defining objectionable content
+- [x] Store forms: Play IARC and Apple age rating gain user interaction + UGC; annotate the
+      existing Data Safety row; App Review notes pointing at Report and Block
+
+## Phase 8 · Finish
+
+- [ ] Five locales, through the never-shame string audit (the presets are a values statement)
+- [x] E2E cases in `gen-test-suite.py`, suite regenerated
+- [ ] Screenshots including Ours, all locales
+- [ ] Decision-log entries recording what was decided **against**, per the panel: `created_by`
+      kept while `done_by` dropped; freeze over copy; the answer to the clock assumption
+      dangling at `decision-log.md:303`
+- [ ] **Web first.** Merge to `main` on Melroy's word, live with two real households for a
+      fortnight, and only then does Phase 7's kit gate an AAB or IPA
+
+---
+
+## Standing rules for this branch
+
+- **No `done_by` column, in any phase.** A tally must be impossible because the data does not
+  exist, the Rhythms bar (`product-spec.md:102`), not because the UI declines to render it.
+- **No number on Today that another person can change.**
+- **No assignment, no roles, no per-person stats, ever.** A request from the second seat is a
+  partner request, never counted as user demand.
+- **No per-person completion state, pending or final, in any shape, including on a device.**
+  Mutual confirm, verify together, two-key done, sign-off and every other name for it are refused
+  by this line. The reason is narrow and worth keeping: any gate that actually works has to be
+  visible to the server, and server-visible per-party completion state on a list of exactly two
+  people is `done_by` with a clock bolted on. The local-only version dies on your own second
+  device, which holds no memory of who armed it. (Decided 2026-08-09, panel in
+  [`ours-features-review.md`](ours-features-review.md).) The need underneath, "ticked does not
+  always mean done", is a definition-of-done problem and belongs to decomposition; the other need,
+  "things change under me", is Phase 5's change surface.
+- **Every pair is a sealed room.** Nothing renders how many lists someone is in, or with whom.
+- **No user's email or account identifier is ever shown to another user, in any surface.**
+- Tests for every pure module; gates green before every commit; decision-log entry on every
+  feat commit; E2E case in the same commit as the feature.
+
+
+## Check for updates (all three platforms)
+
+*Agreed with Melroy 2026-08-09, and deliberately sequenced AFTER the dogfood gate and the round-two
+design pass, so it does not compete with either.*
+
+**Order, REVISED 2026-08-09 (Melroy):** the update surfaces go INTO the round-two design brief, so
+they are designed once alongside Ours rather than bolted on afterwards. The design-independent logic
+is built now; the surfaces wait for the design like everything else.
+
+- [x] `lib/updates.ts`: version comparison that is numeric rather than lexical, a status that fails
+      QUIET on anything it cannot believe, the per-platform route (web reloads, phones go to their
+      store), and `shouldMention`, which is deliberately hard to satisfy: nothing outside Settings
+      unless the build is two minor versions or a major behind, and then once a fortnight at most,
+      because a message that repeats is a nag however gently it is worded. 17 tests.
+
+**What it is for.** Two people on a shared list can be on different app versions, which is the
+ordinary state. This shrinks that window. **It does not close it**, and the plan must not pretend
+otherwise: rollouts are staggered by days, people decline updates, and some older Android devices
+cannot take the newest build at all. The "show, do not hide" handling of an unreadable cadence stays
+the safety net for the window that remains. Both, never either.
+
+- [ ] **Web.** The biggest win and the only one needing nothing external: a tab or an installed PWA
+      can be weeks stale with no signal, because the browser keeps serving what it cached. Detect a
+      newer build and offer a quiet reload.
+- [ ] **Android and iOS: point at the respective store** (Melroy's explicit preference). There is no
+      in-app update API on iOS at all, and Play's needs a native module, so the honest shape is the
+      app comparing its own version against a published latest and offering a link.
+- [x] **A static `client/public/version.json`, NOT a Worker route** (revised 2026-08-09). The
+      Worker version would mean a deploy per release, a cold start per check, and a hand-maintained
+      value somewhere Melroy does not otherwise go. A static file is updated by the same push that
+      deploys the web, needs no Worker deploy and no secret, and is cached at the edge.
+
+      **Three numbers, not one, and this is the part that matters:** web and store versions are
+      NOT the same thing. The web deploys the moment main is pushed; the stores lag behind review
+      and staged rollout. A single auto-stamped "latest" would tell an iPhone that 1.3.0 is out
+      while 1.3.0 is still in App Review, and send someone to a store page showing the version they
+      already have. So: `{ "web": ..., "ios": ..., "android": ... }`, with `web` stamped
+      automatically at build (it IS the deployed version and cannot be wrong) and the two store
+      numbers bumped by hand when a release actually goes live, which is a moment Melroy is already
+      in those dashboards.
+- [x] **Verify Pages serves it before the SPA fallback.** `client/public/_redirects` sends `/*` to
+      index.html. Static assets should win over the catch-all, but "should" is not "does", and a
+      version.json that returns the whole app as HTML would fail confusingly.
+- [x] **A quiet fact, never a nag.** No badge, no repeated modal, nothing that reads as "you are out
+      of date" to someone who opened the app to write down one thing. The standing rule is remove
+      friction, never add a setting, and an update prompt is a demand on attention. A line in
+      Settings that is simply true, plus at most one unobtrusive mention when a build is genuinely
+      old.
+- [x] Strings in five locales, through the same never-shame lens as everything else.
+- [x] E2E cases per platform, and a real check that the web path does not loop on a reload.
+
+## Backlog
+
+
+- **House typography drift OUTSIDE the `ours` namespace** (found by the language verification pass,
+  2026-08-09, deliberately not swept in a copy commit). Curly apostrophes at `en.ts:860,867`,
+  `fr.ts:389,512,844,845,856,863,865`, `it.ts:393,856,857,863`, `de.ts:115,1000`; backslash-escaped
+  delimiters that should be delimiter switches at `fr.ts:573,722,724` and `it.ts:32,967`. All
+  pre-existing, all in shipped native-reviewed strings, and both forms render identically, so this
+  is tidiness rather than a defect. **Trigger:** the next time any of those namespaces is edited for
+  another reason.
+- **French `presetOwn` drops the self-agency the other four keep** (en "Name it yourself", es "Ponle
+  tú el nombre", it "Dalle un nome tu", de "Selbst benennen", fr "Lui donner un nom"), and it
+  near-duplicates fr's own `namePlaceholder` on the very next screen. Low severity, flagged rather
+  than proposed by the verification pass. **Trigger:** a French reader mentions it, or the round-two
+  design pass changes that screen.
+- **`notThem` frames the judgement on the HUMAN in fr and de** ("la bonne personne", "der richtige
+  Mensch"), where es and it use the speaker-side frame ("quien esperabas", "chi ti aspettavi"). The
+  German terminology break was fixed; the framing question was raised by one agent and never put to
+  a verifier, so it is parked rather than acted on. **Trigger:** the round-two copy pass, where it
+  belongs beside `wasntWho`, which already moved to the speaker-side frame in it and de.

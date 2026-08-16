@@ -68,6 +68,19 @@ export default function TermsScreen() {
           set out in our Privacy policy.
         </Section>
 
+        <Section styles={styles} heading="Shared lists, and what is not allowed on them">
+          A shared list is between two people who each choose to be there. You are responsible for what you put on
+          one. Do not use a shared list to harass, threaten, abuse or frighten the other person, to send content that
+          is unlawful, or to send sexual content involving anyone under 18.
+        </Section>
+
+        <Section styles={styles} heading="Reporting, and what we will do">
+          Every shared list carries a Report this list link, and reporting never tells the other person. We aim to
+          look at reports within 24 hours. Where a report is founded we may close the list, remove its contents, or
+          suspend the accounts involved, without notice and without refund. You can also leave a shared list at any
+          moment, which closes it for both of you immediately and needs no reason and no permission.
+        </Section>
+
         <Section styles={styles} heading="Our liability">
           DoubleDone is provided as it is and as available, without warranties beyond those that cannot be excluded by
           law. To the extent the law allows, we are not liable for indirect or consequential loss, and our total

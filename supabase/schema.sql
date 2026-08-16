@@ -30,6 +30,7 @@ create table if not exists public.tasks (
   parent_id text,                 -- set when this task is a decomposition step / tiny-version of another task
   pinned_at timestamptz,          -- when this one-off was pinned as the day's ONE priority (premium); null = not pinned
   big boolean,                    -- user-marked "this one is a lot"; null/false = not big (LWW like any field)
+  shared_ref text,                -- 'pairId/sharedTaskId' when this task is YOUR copy of a row on a shared list (Ours); null = an ordinary task
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz          -- soft-delete tombstone; null = live
@@ -103,6 +104,14 @@ create index if not exists tasks_user_id_idx on public.tasks (user_id);
 -- the merge's tie rule (sync-merge.ts) on each device's first sync after this:
 -- alter table public.tasks
 --   add column if not exists big boolean;
+--
+-- Ours added the shared_ref column (see supabase/tasks-shared-ref.sql, which is the file to
+-- actually run). Additive and nullable, and RLS is untouched: it is an ordinary column on a row
+-- the owner already owns. It carries no second person's data, only which of YOUR tasks came from
+-- a shared list, so a task that never crossed a bridge stays null forever.
+--
+--   alter table public.tasks
+--   add column if not exists shared_ref text;
 
 -- ---------------------------------------------------------------------------
 -- scrapbooks: cross-device keepsakes (added 2026-07-12). One row per user per

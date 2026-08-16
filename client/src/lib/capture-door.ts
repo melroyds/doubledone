@@ -12,7 +12,7 @@
 import { friendlyDate } from './day';
 import { t } from './i18n-active';
 
-export type CaptureWhen = 'today' | 'tomorrow' | 'date';
+export type CaptureWhen = 'today' | 'tomorrow' | 'date' | 'anytime';
 export type CaptureRepeat = 'daily' | 'weekly' | 'everyN' | null;
 
 export type DoorState = {
@@ -26,6 +26,21 @@ export type DoorState = {
   everyNDays: number;
   /** The slice count; 0 = whole task. */
   steps: number;
+  /**
+   * This surface's RESTING answer to "when", which is 'today' everywhere except the shared list.
+   *
+   * It exists so the Add button can stay quiet. The button names the consequence only when the
+   * consequence is not the default, so "Add" means "the ordinary thing" on both screens and
+   * "Add · Tomorrow" always means you changed something. Hard-coding 'today' as the comparison
+   * would have Ours reading "Add · Anytime" on every single ordinary capture, which is a label
+   * shouting about the absence of a choice.
+   *
+   * REPLACED an earlier `whenless` flag, which hid the WHEN row entirely on the shared list. That
+   * was right when a shared row could not hold a date at all. It stopped being right the moment
+   * dated shared rows started surfacing on both Todays: the room now genuinely has days, so the
+   * question is worth asking there, with the calm answer pre-selected.
+   */
+  whenDefault?: CaptureWhen;
 };
 
 const WEEKDAY_KEYS = [
@@ -40,6 +55,7 @@ const WEEKDAY_KEYS = [
 
 /** "Today" / "Tomorrow" / the picked day, in the app's friendly-date voice. */
 export function whenLabel(s: Pick<DoorState, 'when' | 'dueDate'>, today: Date): string {
+  if (s.when === 'anytime') return t('capture.anytime');
   if (s.when === 'today') return t('common.today');
   if (s.when === 'tomorrow') return t('common.tomorrow');
   return friendlyDate(s.dueDate, today);
@@ -62,8 +78,12 @@ export function repeatLabel(s: Pick<DoorState, 'repeat' | 'weekdays' | 'everyNDa
  * (the caller renders it without numberOfLines).
  */
 export function doorSummary(s: DoorState, today: Date): string {
-  const parts = [whenLabel(s, today)];
   const rep = repeatLabel(s);
+  const parts: string[] = [];
+  // A repeat SUPERSEDES the when rather than joining it. On a dayless default, "Anytime · Daily"
+  // is a contradiction read aloud: a thing with a rhythm is not a thing without a day, and the
+  // rhythm is the more useful half. Elsewhere the when is a repeat's START, which is worth saying.
+  if (!(rep && s.when === 'anytime')) parts.push(whenLabel(s, today));
   if (rep) parts.push(rep);
   if (s.steps > 0) parts.push(t('today.stepsCount', { count: s.steps }));
   return parts.join(' · ');
@@ -77,6 +97,10 @@ export function doorSummary(s: DoorState, today: Date): string {
  */
 export function addButtonLabel(s: DoorState, today: Date, lineCount: number): string {
   const base = lineCount >= 2 ? t('capture.addN', { count: lineCount }) : t('capture.add');
-  const consequence = repeatLabel(s) ?? (s.when !== 'today' ? whenLabel(s, today) : null);
+  // Measured against THIS SURFACE'S default, not against 'today'. The button's job is to name what
+  // is unusual about this capture, so on the shared list an ordinary undated add reads "Add", and
+  // "Add · Today" there is the genuinely notable case: it will appear on both your days.
+  const resting = s.whenDefault ?? 'today';
+  const consequence = repeatLabel(s) ?? (s.when !== resting ? whenLabel(s, today) : null);
   return consequence ? `${base} · ${consequence}` : base;
 }

@@ -97,6 +97,77 @@ and the AI features answer in German the moment the resolver says 'de'.*
 
 The single home for consciously parked work. Nothing here is dropped; each item has a trigger for when it earns a place in the sequence. Premium-gated ideas live in [`docs/premium.md`](docs/premium.md).
 
+### NEXT: changing WHEN on a shared row (design prompt written)
+
+Melroy, 2026-08-13: "I can't change the date for a task in the Ours room once I set a date... and
+[can't change] a repeating task back into a normal task or vice versa."
+
+A shared row's date and rhythm can each be set ONCE. Neither can be changed, neither can be cleared,
+and there is no route back to a plain dateless row. The only escape is remove-and-recreate, which on
+a repeat is the action that ends the series for both people.
+
+**Why it happened, and the reason it is worth a design pass rather than a patch:** dated shared rows
+are two days old. Before Tier 1 a shared row had no date, so nothing was missing. The FIELD grew and
+the EDITING SURFACE did not follow it. The design should make that class harder to repeat.
+
+Not blocking 1.3.0. The workaround exists, nothing is lost or corrupted, and the failure mode is
+"clumsy" rather than "loses your work" or "lies to you", which were the two bars everything else
+tonight had to clear.
+
+**DESIGN SETTLED 2026-08-16, after three rounds and two adversarial reviews.** Build from
+`docs/design/ours-when-round3-delta.md` (its ACCEPTED section carries the three build notes) plus the
+v3 boards. The earlier prompts are kept as the record of how a brief written from memory produces a
+confidently wrong pack: `ours-when-prompt.md` (v1, superseded, its errors named) and
+`ours-when-prompt-v2.md`.
+
+**Build order, and the first two are pure logic with no UI:**
+1. `releaseCompletions(log, now)` in `ours-merge.ts`, alone, with its test. Without it, ending a
+   rhythm marks the row DONE for both people forever, because `reconcile` re-reads a repeat's
+   completion log as a one-off's tick the moment the row stops repeating. Fires on all three forms
+   (`{kind:'none'}`, `undefined`, AND the dated one), and the dated one is the easiest to miss
+   because it does not feel like an ending.
+2. A `whenFields(choice, today)` returning `{due?, recurrence?}`, where Today produces a REAL ISO
+   date on Ours. Assert never-both, Anytime writes neither, a rhythm clears due.
+3. The fragment builder. Reuse `repeat.fromDate`, never `describeRecurrence` (build note 1).
+4. `CadenceSheet`: the three new props, the relabel, the release-tap, a scroll host.
+5. The room's `setCadence` widened; the door renamed; A4 keeps Bring.
+6. Five catalogs, E2E cases, decision log.
+
+**Trigger:** after the merge, the dogfood pass and the launch. Not before.
+
+### Parked: a per-person toggle for the Ours door count
+
+Melroy asked (2026-08-12) whether the door's "since you looked" count could be a setting, so each
+person picks. Deliberately not built, and the reason is the product's own law: **remove friction,
+never add a setting.**
+
+The count as shipped is bounded by your own attention and CLEARS when you open the room, so "on" and
+"off" barely differ in practice: the thing a toggle would protect you from is a standing tally, and
+this is not one. A setting here buys a decision for almost no behavioural difference, on a screen
+whose whole job is to ask nothing of you. Adding one later is cheap; removing one breaks the muscle
+memory of whoever found it.
+
+**Trigger:** if either Melroy or his partner reports the count actually bothering them in real use,
+build it then, with their words as the reason. Real friction beats a hypothetical preference.
+
+### Parked: a due date on shared rows (Ours)
+
+`shared_tasks.due` is LIVE on the table (`supabase/ours-due.sql`, applied 2026-08-11) and nothing
+reads or writes it: not the `SharedTask` type, not the sync, not the room. Parked deliberately when
+the Ours capture bar was built, rather than bolted onto it.
+
+It is a real feature. A household list absolutely has "by Friday", and Ours already carries
+repeating, so "a shared list has no time in it" is not true. What it is NOT is a capture-bar job: a
+date turns a flat, always-visible list into a scheduled one, which needs a Later grouping, a rule for
+what a dated row does when its day arrives, and an answer for two people whose devices are in
+different timezones.
+
+**RESOLVED 2026-08-12, one day later.** Melroy asked for exactly the thing this was waiting on, and
+it was built whole as Tier 1: dated and repeating shared rows now surface on both Todays, the room
+shows a row's day on the row, and the capture rests on Anytime with Today / Tomorrow / a date behind
+the door. The column is load-bearing rather than dead. Left here as a record of the call.
+
+
 ### The tiering (re-cut 2026-07-25, evening)
 
 *Second re-cut of the day, because the morning's Tier 1 finished by the afternoon. Two constraints frame it. **Melroy is employed again**, so the scarce resource is hours, not ideas. And **the product is now production-ready**: web is live and taking money, both store builds are cut and sitting in queues, and nothing on this list blocks a launch. That changes the Tier 1 test from "what should we build next" to something narrower and more honest: **does the app currently tell the user something that is not true?** Everything else, however good, is a want.*

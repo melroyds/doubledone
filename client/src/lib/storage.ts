@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { type SharedTask } from './ours-merge';
 import { deserializeRoutines, type Routine, serializeRoutines } from './routines';
 import { type Scrapbook } from './scrapbook';
 import { DEFAULT_SETTINGS, parseSettings, serializeSettings, type Settings } from './settings';
@@ -27,6 +28,17 @@ const WHATSNEW_KEY = 'doubledone.whatsnew.v1'; // the last What's New content id
 const REMINDERHOUR_KEY = 'doubledone.reminderhour.v1'; // the hour (0-23) the daily reminder fires; default 9am
 const DEV_PREMIUM_KEY = 'doubledone.devPremium.v1'; // DEV/preview only: the premium-flag override (see premium-flag.ts)
 const ENERGY_USES_KEY = 'doubledone.energyUses.v1'; // energy-match use timestamps (the freemium meter, see lib/energy.ts)
+const OURS_KEY = 'doubledone.ours.v1'; // shared lists, keyed BY PAIR (see loadOursCache); holds another person's words
+const OURS_TUCKED_KEY = 'doubledone.oursTucked.v1'; // closed lists you have put away, by pair id
+// v2: v1 values could be POISONED. Before the server-clock correction landed, the last-look was
+// stamped with max(device clock, newest row), so a device running fast wrote a time in the future,
+// and `markOursSeen` never moves backwards by design. Any device that did this could never wash a
+// row again. Rather than teach the setter to walk backwards (which would reopen the very re-wash
+// problem the guard exists for), the key moves and the bad values are simply abandoned. The cost is
+// one quiet first visit per device, which is the same thing a new install already sees.
+const OURS_SEEN_KEY = 'doubledone.oursSeen.v2'; // when you last looked at each shared list, by pair id
+const OURS_MINE_KEY = 'doubledone.oursMine.v1'; // shared rows YOU changed from outside the room, by pair id
+const UPDATE_MENTIONED_KEY = 'doubledone.updateMentioned.v1'; // when the goodnight screen last mentioned a newer build
 
 /**
  * Load Today's tasks. On a brand-new install (nothing ever stored) seed once so
@@ -473,6 +485,253 @@ export async function saveReminderOfferMade(): Promise<void> {
 }
 
 /**
+ * The offline copy of the shared lists, keyed BY PAIR from day one.
+ *
+ * Keyed rather than flat even though only one pair can exist today, because the schema already
+ * allows many (`pair_members`' key is `(pair_id, user_id)`; the cap is a constant in one function)
+ * and a flat cache would silently blend two households' rows together the day that number changes.
+ * Cheap now, a data-corruption bug later.
+ *
+ * This is the one thing on the device holding ANOTHER PERSON's words, which is why it is in
+ * `wipeLocalData` and why `pruneOursCache` exists: a list you are no longer in must not linger in
+ * a file on your phone.
+ */
+export type OursCache = Record<string, SharedTask[]>;
+
+export async function loadOursCache(): Promise<OursCache> {
+  try {
+    const raw = await AsyncStorage.getItem(OURS_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    // Defensive: anything on disk can be from an older build or half-written. Keep only the
+    // entries that are actually arrays, rather than handing a screen something it will crash on.
+    const out: OursCache = {};
+    for (const [pairId, rows] of Object.entries(parsed as Record<string, unknown>)) {
+      if (Array.isArray(rows)) out[pairId] = rows as SharedTask[];
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export async function saveOursCache(cache: OursCache): Promise<void> {
+  try {
+    await AsyncStorage.setItem(OURS_KEY, JSON.stringify(cache));
+  } catch {
+    // best effort, like every other saver here
+  }
+}
+
+/** One pair's rows. Returns empty for a pair this device has never cached, which is not an error. */
+export async function loadOursTasks(pairId: string): Promise<SharedTask[]> {
+  return (await loadOursCache())[pairId] ?? [];
+}
+
+export async function saveOursTasks(pairId: string, tasks: SharedTask[]): Promise<void> {
+  const cache = await loadOursCache();
+  cache[pairId] = tasks;
+  await saveOursCache(cache);
+}
+
+/**
+ * Drop every cached pair that is not in `keep`, which is the caller's CONFIRMED memberships.
+ *
+ * Called after each membership read, so leaving a list, being removed from one, or having one
+ * killed all converge on the same outcome without a special path each: the rows stop being on this
+ * device. Passing an empty list is meaningful and clears everything, so a caller that genuinely
+ * belongs to nothing is not a no-op.
+ */
+export async function pruneOursCache(keep: string[]): Promise<void> {
+  const cache = await loadOursCache();
+  const allowed = new Set(keep);
+  let changed = false;
+  for (const pairId of Object.keys(cache)) {
+    if (!allowed.has(pairId)) {
+      delete cache[pairId];
+      changed = true;
+    }
+  }
+  if (changed) await saveOursCache(cache);
+}
+
+/**
+ * The closed lists you have PUT AWAY, by pair id.
+ *
+ * "Put it away" is the design's ordinary exit from a closed list, and it deliberately supersedes
+ * the destructive `forget_pair`: it tucks the list into the archive, where it stays readable
+ * forever, rather than deleting anything. Deleting survives only as the one irreversible action,
+ * behind the delete window.
+ *
+ * LOCAL, and that is a real trade-off rather than an oversight. Putting a list away on your phone
+ * does not put it away on your laptop, because doing it server-side would mean another column,
+ * another migration and another dashboard trip. It is a per-person acknowledgement of a closure,
+ * not shared state, and the cost of getting it wrong is seeing a quiet archive row twice. If that
+ * ever grates, `pair_members` is the natural home and it is one nullable timestamptz.
+ *
+ * It stores an ACKNOWLEDGEMENT, never content: a set of pair ids and nothing else. Which is also
+ * why it belongs in wipeLocalData: it says which relationships you had.
+ */
+export async function loadTuckedPairs(): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(OURS_TUCKED_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * When you last looked at each shared list, by pair id. Local for the same reason the tuck is:
+ * "since I last looked" is a fact about a PERSON at a DEVICE, and syncing it would let your laptop
+ * clear the wash on your phone, which is the opposite of what it is for.
+ *
+ * It stores a TIME per pair and never content, and it belongs in wipeLocalData for the same reason
+ * the tuck does: a list of pair ids is a list of which relationships you had.
+ */
+export async function loadOursSeen(): Promise<Record<string, number>> {
+  try {
+    const raw = await AsyncStorage.getItem(OURS_SEEN_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {};
+    const out: Record<string, number> = {};
+    for (const [id, at] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof at === 'number' && Number.isFinite(at)) out[id] = at;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * When the goodnight screen last mentioned that a newer build exists.
+ *
+ * The only thing standing between one quiet line and a nag. Deliberately NOT in `wipeLocalData`:
+ * it is not personal data, it says nothing about which relationships you had, and clearing it on
+ * account deletion would mean the very next goodnight screen mentioned an update again.
+ */
+export async function loadUpdateMentioned(): Promise<number | null> {
+  try {
+    const raw = await AsyncStorage.getItem(UPDATE_MENTIONED_KEY);
+    const at = raw == null ? Number.NaN : Number(raw);
+    return Number.isFinite(at) ? at : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveUpdateMentioned(at: number): Promise<void> {
+  if (!Number.isFinite(at)) return;
+  try {
+    await AsyncStorage.setItem(UPDATE_MENTIONED_KEY, String(at));
+  } catch {
+    // best effort, like every other saver here
+  }
+}
+
+/**
+ * Shared rows you changed from OUTSIDE the room, per pair.
+ *
+ * The quiet wash subtracts the rows you wrote yourself, because a wash on a row you just ticked
+ * reads as "your person touched this too". The room could only ever know about writes made IN the
+ * room, so ticking a brought copy on Today came back tinted as your partner's change: the room
+ * announcing a change that was your own.
+ *
+ * The obvious cheap fix, advancing the last-look when you write from Today, is wrong in a way that
+ * is easy to miss: it would also clear the wash on THEIR changes that arrived before your write and
+ * that you have not looked at yet. So this records the specific ids instead, and nothing else. Ids,
+ * never titles: a row id says which relationships you had, exactly like the tuck, and no more.
+ */
+export async function loadOursMine(pairId: string): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(OURS_MINE_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return [];
+    const mine = (parsed as Record<string, unknown>)[pairId];
+    return Array.isArray(mine) ? mine.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** The most ids one pair keeps. A wash is a courtesy, so an unbounded list of them is not worth a
+ *  byte more; oldest fall off first, and the room clears the list every time it marks itself seen. */
+const OURS_MINE_MAX = 200;
+
+/** Remember that you wrote these rows. Idempotent and capped. */
+export async function noteOursMine(pairId: string, ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  try {
+    const raw = await AsyncStorage.getItem(OURS_MINE_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : {};
+    const all: Record<string, string[]> = typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? (parsed as Record<string, string[]>) : {};
+    const current = Array.isArray(all[pairId]) ? all[pairId].filter((id) => typeof id === 'string') : [];
+    const next = [...current.filter((id) => !ids.includes(id)), ...ids].slice(-OURS_MINE_MAX);
+    await AsyncStorage.setItem(OURS_MINE_KEY, JSON.stringify({ ...all, [pairId]: next }));
+  } catch {
+    // best effort, like every other saver here
+  }
+}
+
+/** Forget them, which the room does the moment it has marked itself seen: from then on the
+ *  last-look covers those writes and the list is only taking up space. */
+export async function clearOursMine(pairId: string): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(OURS_MINE_KEY);
+    if (!raw) return;
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return;
+    const all = { ...(parsed as Record<string, string[]>) };
+    if (!(pairId in all)) return;
+    delete all[pairId];
+    await AsyncStorage.setItem(OURS_MINE_KEY, JSON.stringify(all));
+  } catch {
+    // best effort
+  }
+}
+
+/** Mark a list as looked at. Never moves BACKWARDS, so a device whose clock runs behind cannot
+ *  re-wash rows you have already read by storing an older "last looked" than the one already there. */
+export async function markOursSeen(pairId: string, at: number): Promise<void> {
+  if (!Number.isFinite(at)) return;
+  const seen = await loadOursSeen();
+  if ((seen[pairId] ?? 0) >= at) return;
+  try {
+    await AsyncStorage.setItem(OURS_SEEN_KEY, JSON.stringify({ ...seen, [pairId]: at }));
+  } catch {
+    // best effort, like every other saver here
+  }
+}
+
+/** Put a closed list away. Idempotent, so a double tap is one tuck. */
+export async function tuckPair(pairId: string): Promise<void> {
+  const tucked = await loadTuckedPairs();
+  if (tucked.includes(pairId)) return;
+  try {
+    await AsyncStorage.setItem(OURS_TUCKED_KEY, JSON.stringify([...tucked, pairId]));
+  } catch {
+    // best effort, like every other saver here
+  }
+}
+
+/** Bring one back out, which the archive needs so putting away is never a one-way door either. */
+export async function untuckPair(pairId: string): Promise<void> {
+  const tucked = await loadTuckedPairs();
+  if (!tucked.includes(pairId)) return;
+  try {
+    await AsyncStorage.setItem(OURS_TUCKED_KEY, JSON.stringify(tucked.filter((id) => id !== pairId)));
+  } catch {
+    // best effort
+  }
+}
+
+/**
  * Erase everything tied to the person from this device, for account deletion: both the
  * explicit in-app delete and the detected remote-deletion path call this. One key list,
  * so neither path can quietly forget one again, which is exactly how the scrapbook used
@@ -486,7 +745,10 @@ export async function wipeLocalData(): Promise<void> {
   await saveTasks([]);
   await saveSyncedOwner(null);
   try {
-    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, DAYENERGY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY, SYNCOK_KEY]);
+    // OURS_KEY belongs here more than anything else on the list: it is the only key holding words
+    // ANOTHER person wrote. A delete that left it behind would leave a household's list sitting on
+    // the phone of someone whose account no longer exists.
+    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, DAYENERGY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY, SYNCOK_KEY, OURS_KEY, OURS_TUCKED_KEY, OURS_SEEN_KEY, OURS_MINE_KEY]);
   } catch {
     // best effort, like the per-key savers above
   }

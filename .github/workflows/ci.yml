@@ -80,3 +80,12 @@ jobs:
           node scripts/inject-web-meta.mjs
           grep -q 'property="og:image"' client/dist/index.html
           grep -q 'interactive-widget=resizes-content' client/dist/index.html
+      - name: Stamp + verify the version file
+        # The app asks doubledone.app/version.json whether a newer build exists. Gate it here so a
+        # broken stamp fails CI rather than the deploy, and so the file can never silently vanish
+        # from the export: if it does, every build answers "cannot tell" and the check goes quietly
+        # dead with nothing on screen to show for it.
+        run: |
+          node scripts/stamp-version.mjs
+          node -e "const v=require('./client/dist/version.json'); const a=require('./client/app.json').expo.version; if(v.web!==a) throw new Error('version.json web '+v.web+' != app.json '+a); for(const k of ['ios','android']) if(typeof v[k]!=='string'||!v[k]) throw new Error('version.json missing '+k);"
+

@@ -43,6 +43,25 @@ export default function PrivacyScreen() {
           sign out, or stop syncing, any time.
         </Section>
 
+        <Section styles={styles} heading="Shared lists">
+          A shared list is between exactly two people, and nothing crosses into it or out of it unless one of you
+          chooses it. What you put on a shared list, the other person can read, change, tick and remove; what is on
+          your own Today stays yours and they never see it. Bringing a shared task to your own day makes a copy, and
+          the copy is yours.
+        </Section>
+
+        <Section styles={styles} heading="Shared lists: who did what">
+          DoubleDone does not record which of you did what. There is no column for it, so who added, ticked or removed
+          something is not withheld from you, it is not stored at all and cannot be worked out later.
+        </Section>
+
+        <Section styles={styles} heading="Leaving, removing, deleting">
+          Leaving a shared list closes it rather than deleting it: you can both still read everything, and neither of
+          you can take the other&apos;s words away. Something removed from a shared list keeps its wording for up to
+          thirty days so the other person can put it back, and is then blanked. Deleting a shared list for good removes
+          it and everything on it for both of you, and cannot be undone.
+        </Section>
+
         <View style={styles.section}>
           <Text style={styles.heading}>The AI features</Text>
           <Text style={styles.body}>

@@ -11,6 +11,9 @@ type Props = {
   pill?: boolean;
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
+  /** RN-web renders this as data-testid. Used only by the screenshot harness, to hold onto the
+   *  primary while it walks the welcome flow to a step that has no route of its own. */
+  testID?: string;
 };
 
 // The primary action button: the solid mauve-accent CTA, the one shared shape for "this is the main thing to
@@ -25,6 +28,7 @@ export function PrimaryButton({
   pill = false,
   accessibilityLabel,
   style,
+  testID,
 }: Props) {
   const t = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -34,6 +38,7 @@ export function PrimaryButton({
       onPress={onPress}
       disabled={isInert}
       accessibilityRole="button"
+      testID={testID}
       accessibilityLabel={accessibilityLabel ?? label}
       style={({ pressed }) => [
         styles.btn,
