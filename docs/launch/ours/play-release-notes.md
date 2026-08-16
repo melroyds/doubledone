@@ -2,6 +2,14 @@
 
 *Play caps each language at 500 characters. Counts below are real, measured, not estimated.*
 
+> **These files must be written with a UTF-8-aware editor, never through a shell heredoc.** Every
+> non-English block below was ascii-fied when first written (`Muelltonne`, `manana`, `partagee`,
+> `puo`), almost certainly by a Git Bash heredoc on a non-UTF-8 codepage stripping the diacritics on
+> the way to disk. It was invisible in English, and it was one paste away from shipping. The app's
+> own catalogs are fine (`client/src/lib/catalogs/de.ts` alone carries 528 umlauts), so this was the
+> docs pipeline, not the translations. Fixed 2026-08-16. **Re-check with the one-liner at the bottom
+> of this file before pasting anything into the Console.**
+
 ## en-AU  (472 / 500)
 
 ```
@@ -16,18 +24,18 @@ Tick it from either phone and it closes for both. Free, like the rest of the dai
 And a shared row's day can now be changed, or taken away again.
 ```
 
-## de-DE  (490 / 500)
+## de-DE  (485 / 500)
 
 ```
 Unser: eine gemeinsame Liste mit einer weiteren Person.
 
-Nichts darauf sagt, wer was getan hat, und nichts zaehlt oder vergleicht. Ein Wettbewerb kann daraus nicht werden.
+Nichts darauf sagt, wer was getan hat, und nichts zählt oder vergleicht. Ein Wettbewerb kann daraus nicht werden.
 
-Was einen eigenen Tag hat, die Muelltonne am Dienstag, erscheint an dem Tag in euren beiden Heute. Alles andere wartet auf der Liste, niemand macht dir den Morgen schwerer.
+Was einen eigenen Tag hat, die Mülltonne am Dienstag, erscheint an dem Tag in euren beiden Heute. Alles andere wartet auf der Liste, niemand macht dir den Morgen schwerer.
 
-Abhaken kann jeder von euch, es gilt fuer beide. Kostenlos.
+Abhaken kann jeder von euch, es gilt für beide. Kostenlos.
 
-Und der Tag einer geteilten Zeile laesst sich jetzt aendern oder wieder entfernen.
+Und der Tag einer geteilten Zeile lässt sich jetzt ändern oder wieder entfernen.
 ```
 
 ## es-ES  (416 / 500)
@@ -35,27 +43,27 @@ Und der Tag einer geteilten Zeile laesst sich jetzt aendern oder wieder entferne
 ```
 Nuestro: una lista compartida con otra persona.
 
-Nada en ella dice quien hizo que, y nada cuenta ni compara, asi que no puede volverse un marcador.
+Nada en ella dice quién hizo qué, y nada cuenta ni compara, así que no puede volverse un marcador.
 
-Lo que tiene dia propio, la basura el martes, llega a vuestros dos Hoy ese dia. Lo demas espera en la lista, nadie te carga la manana.
+Lo que tiene día propio, la basura el martes, llega a vuestros dos Hoy ese día. Lo demás espera en la lista, nadie te carga la mañana.
 
 La marca cualquiera de los dos y queda hecha para ambos. Gratis.
 
-Y ahora el dia de una fila compartida se puede cambiar, o quitar.
+Y ahora el día de una fila compartida se puede cambiar, o quitar.
 ```
 
 ## fr-FR  (476 / 500)
 
 ```
-Notre liste: une liste partagee avec une seule autre personne.
+Notre liste : une liste partagée avec une seule autre personne.
 
 Rien n'y dit qui a fait quoi, et rien ne compte ni ne compare, cela ne peut donc pas devenir un tableau de scores.
 
-Ce qui a son propre jour, les poubelles le mardi, arrive dans vos deux Aujourd'hui ce jour-la. Le reste attend sur la liste, personne n'alourdit votre matin.
+Ce qui a son propre jour, les poubelles le mardi, arrive dans vos deux Aujourd'hui ce jour-là. Le reste attend sur la liste, personne n'alourdit votre matin.
 
 L'un ou l'autre la coche, elle est faite pour les deux. Gratuit.
 
-Et le jour d'une ligne partagee peut maintenant etre change, ou retire.
+Et le jour d'une ligne partagée peut maintenant être changé, ou retiré.
 ```
 
 ## it-IT  (429 / 500)
@@ -63,13 +71,13 @@ Et le jour d'une ligne partagee peut maintenant etre change, ou retire.
 ```
 Nostro: una lista condivisa con un'altra persona.
 
-Nulla dice chi ha fatto cosa, e nulla conta o confronta, quindi non puo diventare una classifica.
+Nulla dice chi ha fatto cosa, e nulla conta o confronta, quindi non può diventare una classifica.
 
-Cio che ha un giorno suo, i rifiuti il martedi, arriva su entrambi i vostri Oggi quel giorno. Il resto aspetta sulla lista, nessuno ti appesantisce la mattina.
+Ciò che ha un giorno suo, i rifiuti il martedì, arriva su entrambi i vostri Oggi quel giorno. Il resto aspetta sulla lista, nessuno ti appesantisce la mattina.
 
 La spunta uno dei due e vale per entrambi. Gratis.
 
-E ora il giorno di una riga condivisa si puo cambiare, o togliere.
+E ora il giorno di una riga condivisa si può cambiare, o togliere.
 ```
 
 ## If you only want one line
@@ -86,3 +94,13 @@ Ours: one shared list with one other person. Nothing on it says who did what, so
   is that nothing SAYS who did what)
 - anything about shared lists being new to iOS or web, since Play notes are read only by Android users
 - exclamation marks, em-dashes, or the word "seamless"
+- German with `ae` / `oe` / `ue` / `ss` standing in for `ä ö ü ß`, Spanish without its accents or `ñ`,
+  French without accents, Italian without `à è ì ò ù`. A native reader sees broken software, not
+  economy. The fix is never a blind find-and-replace: German `aktuell`, `neue` and `Dauer` all
+  contain those letter pairs legitimately and must not be touched.
+
+## Before pasting, check the diacritics survived
+
+```bash
+node -e "const s=require('fs').readFileSync('docs/launch/ours/play-release-notes.md','utf8');for(const[l,re]of[['de',/[äöüß]/],['es',/[áéíóúñ¿]/],['fr',/[éèêàçôûù]/],['it',/[àèéìòù]/]])console.log(l,re.test(s.split('## '+l+'-')[1].split('```')[1])?'ok':'ASCII-FIED, do not paste')"
+```
