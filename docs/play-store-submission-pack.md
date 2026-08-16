@@ -167,7 +167,7 @@ THE CALM CORE, FREE FOREVER
 - Gentle reminders, only the ones you ask for. Never nagging.
 - Settle: a quiet room with a breathing guide, for when the day is loud.
 - Close the day kindly. It honours what you did, never what you didn't.
-- Lookback: see everything you have actually finished, including the old task you dreaded for weeks. Your brain can't tell you that you did nothing.
+- Calendar: see everything you have actually finished, including the old task you dreaded for weeks. Your brain can't tell you that you did nothing.
 - A free monthly scrapbook: a keepsake picture of what you finished.
 
 OURS: ONE SHARED LIST, WITH ONE OTHER PERSON

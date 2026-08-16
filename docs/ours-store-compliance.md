@@ -4,8 +4,17 @@
 list. Written down because these forms are filled in months apart, at speed, late at night, and a
 wrong answer here is a rejection that costs a review cycle.*
 
-**This gates a store BINARY, not the web deploy.** Ours is also gated behind `ours_allowlist`, so
-until Melroy adds an address by hand, no store reviewer or user can reach the feature at all.
+**This gates a store BINARY, not the web deploy.**
+
+> **The allowlist is GONE, and this sheet used to say otherwise.** Until 2026-08-16 the line above
+> continued "Ours is also gated behind `ours_allowlist`, so until Melroy adds an address by hand, no
+> store reviewer or user can reach the feature at all", and the App Review note below told Apple to
+> email us for access. `supabase/ours-open.sql` dropped that table, and `python
+> scripts/check-migrations.py` confirms it live (`ours_allowlist DROPPED — PGRST205`). Ours is open
+> to every signed-in user. Telling a reviewer a feature is gated when it is not is a metadata
+> inaccuracy under 2.3, and the likelier outcome is worse than a rejection: the reviewer emails
+> asking to be enabled, and the submission sits idle for a cycle waiting on a reply about a table
+> that no longer exists.
 
 ---
 
@@ -82,10 +91,25 @@ work out which answer raised it rather than accepting it: a 13+ on a calm to-do 
 > contact anyone you have not exchanged a code with out-of-band. Every shared list carries "Report
 > this list", which reaches us directly and never notifies the other person, and "Leave this list",
 > which closes it for both people immediately. We act on reports within 24 hours and can disable any
-> list server-side without an app update.
+> list server-side, with no app update.
 >
-> The feature is behind an allowlist during the initial rollout. To exercise it, please tell us the
-> review account's email address and we will enable it.
+> HOW TO REACH IT. There is no allowlist, invitation or approval step, and nothing needs to be
+> enabled by us. Open the app, tap the menu at the top right of Today, and choose Ours. Sign in if
+> you have not: the review account is in App Review Information, and any other address you control
+> also works, because accounts self-provision from a six-digit code sent by email. Then tap "Start a
+> shared list", enter any second email address, and the app shows the six-character code to read to
+> that person. To see the receiving side, sign in on a second device with the address you entered
+> and choose "Join with a code". "Report this list" and "Leave this list" are both on that same
+> Ours screen.
+>
+> DoubleDone is a to-do app. It is designed with ADHD, autistic and OCD users in mind and describes
+> itself that way, but it makes no medical, diagnostic or treatment claim, offers no health
+> information, and collects no health data.
+
+*The old final paragraph promised a manual allowlisting step that no longer exists. See the warning
+at the top of this file. The paragraph naming the review account is new: a reviewer who cannot get
+in at all is the other way to lose a cycle, and telling them the accounts self-provision removes the
+dependency on us entirely.*
 
 ## The Google Play form
 

@@ -7095,3 +7095,52 @@ each one by hand, and nothing fails when it is missed. A screen shipped on 2026-
 absent from every store listing on 2026-08-16. The rule that would have caught it is in
 BUILD-PLAN's Backlog now: a new user-facing screen adds its slide to all three sets in the same
 commit as the screen.
+
+## The App Store pass, and the codename that was never a word
+
+*2026-08-16, after Play shipped.*
+
+**The one that would have cost a review cycle: the App Review note promised an allowlist that no
+longer exists.** It told Apple "the feature is behind an allowlist during the initial rollout, please
+tell us the review account's email address and we will enable it". `supabase/ours-open.sql` dropped
+that table, and `python scripts/check-migrations.py` confirms it live (`ours_allowlist DROPPED —
+PGRST205`). A reviewer reading that either waits for a reply that is not coming, or files it under
+"cannot test the feature". The note now says plainly that there is nothing to enable and walks them
+through reaching Ours, including that accounts self-provision from an emailed code so they never
+depend on us at all. The sheet's stale header went with it, with the correction left visible rather
+than quietly deleted.
+
+**"Lookback" is not a word this app has ever shown a user.** `lookback.title` is `'Calendar'`, the
+menu row renders that same string, and every other user-facing reference says Calendar. The word
+"Lookback" appears in ZERO shipped strings. It is an internal codename that had leaked into both
+store descriptions, twice on Apple and once on Play, and the Play one had already been handed over.
+Someone installing on the strength of that paragraph would go looking for a Lookback and find
+nothing by that name.
+
+**The instructive part is which copy got it right.** The four localised listings written the same
+night all said Kalender / Calendario / Calendrier / Calendario, correctly, because they were written
+by agents bound to the shipped catalogs and told the catalog wins over their own judgement. Only the
+English was wrong, because nobody was ever bound to anything when writing English. The lesson is not
+"check the codenames", it is that **the English copy has no equivalent of the terminology-lead step
+the translations get**, and it is the only language where the writer can pattern-match from memory
+instead of reading the catalog.
+
+**Decided: the subtitle stops naming the category and starts making the promise.** `A calmer kind of
+to-do list` becomes `A to-do list, never overdue`, both 27 of 30. Apple weights the subtitle second
+only to the name, and the old one spent it on words the keywords field can carry perfectly well.
+"Nothing is ever overdue" is the one claim a competitor cannot copy without changing their product.
+It costs one keyword move: "calm" leaves the subtitle so it must re-enter the keywords, and "list"
+enters the subtitle so repeating it in keywords would be waste.
+
+**Decided against touching `footAnonymousIap`**, the paywall line reading "Already Premium on the
+web? Sign in first and this screen will know." An audit flagged it as a 3.1.1 risk. It is not:
+3.1.1 bars calls to action directing customers to other purchasing mechanisms, and this is a
+restore-entitlement instruction with no link and no invitation to buy. Guideline **3.1.3(b),
+multiplatform services**, expressly permits accessing content acquired on another platform when the
+same thing is also sold as IAP in the app, and `IAP_AVAILABLE` is `true` on iOS. Recorded because
+the flag will be raised again by the next reader, and the answer should not have to be re-derived.
+
+**Also: the free tier was under-described on Apple.** Focus on one thing, Lighten today and Settle
+are all free and ungated, and none of them was in a list presenting itself as the complete free
+tier. Plus the 3.1.2 hole: the description disclosed auto-renewal but never the price or the term,
+which is a common cite on auto-renewable subscriptions.
