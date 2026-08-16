@@ -43,7 +43,11 @@ const OUT = path.join(process.cwd(), 'docs', IOS ? 'appstore' : LOCALE ? `screen
 // 428x926 -> 1284x2778 (6.5-inch, what some ASC records ask for instead).
 const IOS_VP = { width: Number(process.env.IOS_W ?? 440), height: Number(process.env.IOS_H ?? 956) };
 const VIEWPORT = IOS ? IOS_VP : { width: 390, height: 844 };
-const SCALE = IOS ? 3 : 2;
+// SHOT_SCALE overrides the device pixel ratio. The iPhone sizes are all divisible by 3, so IOS mode
+// defaults there, but the iPad ones are NOT: 2732 / 3 is 910.67, and a fractional CSS viewport
+// silently rounds and lands a pixel off the size Apple demands. iPad needs scale 2
+// (1024x1366 -> 2048x2732, 1032x1376 -> 2064x2752).
+const SCALE = Number(process.env.SHOT_SCALE ?? (IOS ? 3 : 2));
 const EXT = IOS ? 'jpeg' : 'png';
 
 function chromePath() {

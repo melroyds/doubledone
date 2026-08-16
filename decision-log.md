@@ -7144,3 +7144,40 @@ the flag will be raised again by the next reader, and the answer should not have
 are all free and ungated, and none of them was in a list presenting itself as the complete free
 tier. Plus the 3.1.2 hole: the description disclosed auto-renewal but never the price or the term,
 which is a common cite on auto-renewable subscriptions.
+
+## Three screenshot sizes, and the one you should not upload
+
+*2026-08-17, mid-submission, because App Store Connect refused the set.*
+
+ASC rejected the 6.9-inch set with "dimensions should be 1242x2688, 2688x1242, 1284x2778 or
+2778x1284", which is the **6.5-inch** slot. The harness had always known this could happen: the
+`IOS_W`/`IOS_H` override existed and its comment named 428x926 as "what some ASC records ask for
+instead". Nobody had ever run it, so the knowledge was a comment and not a file. Now:
+
+| Folder | Size | Slot |
+|---|---|---|
+| `docs/appstore/` | 1320x2868 | iPhone 6.9-inch, the required one |
+| `docs/appstore/6.5-inch/` | 1284x2778 | iPhone 6.5-inch |
+| `docs/appstore/ipad-13/` | 2048x2732 | iPad 12.9/13-inch |
+
+**`SHOT_SCALE` is new, and iPad is why.** Every iPhone size divides by 3, so IOS mode hardcoded a
+device pixel ratio of 3. No iPad size does: 2732 / 3 is 910.67, and a fractional CSS viewport rounds
+silently and lands a pixel off what Apple demands. iPad needs scale 2.
+
+**Decided: generate the iPad set, and recommend against uploading it.** `client/app.json` has
+`supportsTablet: false`, so the binary declares iPhone only and Apple does not require iPad
+screenshots. More to the point, they are a bad advertisement: the layout is centred with a max-width
+rather than stretched, which means it does not break, but roughly two fifths of a 13-inch screen is
+empty. The files exist so the choice is Melroy's and so a future universal build has them, not
+because the listing wants them.
+
+**The recipe, since all three write to the same directory.** Generate, move the output into its
+subfolder, then `git checkout -- docs/appstore/` to restore the 6.9-inch set:
+
+```
+IOS=1 IOS_W=428 IOS_H=926 node scripts/screenshots.mjs                 # 6.5-inch
+IOS=1 SHOT_SCALE=2 IOS_W=1024 IOS_H=1366 node scripts/screenshots.mjs  # iPad 13
+```
+
+Every size was verified by reading the JPEG SOF header, never by trusting a filename, because the
+whole failure mode here is a file that is named right and sized wrong.
