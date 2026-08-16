@@ -6754,3 +6754,62 @@ nothing is lost for a screen reader.
 **And a near-miss in the doing.** The new catalog key first landed in the `capture` namespace rather
 than `repeat`, because my anchor matched the FIRST `everyNDays` in the file and both namespaces have
 one. Typecheck passed happily; the test caught it by getting the key name back instead of the words.
+
+---
+
+## 2026-08-16 · A finished shared row now leaves the day, and three launch-gate cases stop contradicting each other
+
+**Decided: `sharedDueOn` checks `done`, and a finished dated shared row appears only on the day it
+was finished.** Found by an adversarial review of the When design pack, in code that had nothing to
+do with the design.
+
+`sharedDueOn`'s rule for a one-off was `due <= date` and nothing else, under a comment saying being
+done "is not checked, on purpose... exactly as a personal task does". That comparison was false.
+`tasksForToday` requires a finished one-off's `completedAt` to be TODAY, and says so three lines from
+the code: *"a completed task never carries into the next day."* Here the row stayed forever.
+
+So every dated shared row either person ever ticked sat on BOTH Todays, struck through, permanently,
+under DUE TODAY. And that strip is excluded from the weight gauge, the Lookback, Lighten and the
+close-the-day count by construction, so nothing else in the app would ever have swept it. An
+unbounded pile, on the one screen whose whole premise is that a day is finite.
+
+**Decided against making it a timestamp comparison.** The obvious mirror of the personal rule is
+`toISODate(new Date(doneAt)) === today`, and it is worse here. The completion log is keyed by DATE
+already, written by whichever phone did the ticking, so reading the day off the log needs no
+local-midnight arithmetic and cannot have two devices in two places disagree about which day a
+millisecond belongs to. `doneAt` survives only as the second of three fallbacks, for rows written by
+a client older than the log.
+
+**What the old comment was RIGHT about, and what the fix keeps.** A row must not vanish the instant
+you touch it. Ticking is the reversible act on this list, which is why the finality affirmations are
+withheld here and why two-party confirmation was refused. So a row ticked today stays on screen all
+day, un-tickable again. The test asserts BOTH halves in one case, because this fix has two ways to be
+wrong and only one of them is the bug we came for.
+
+**The third fallback is deliberately generous.** A finished row that knows neither a log date nor a
+`doneAt` keeps showing. We cannot know when it happened, and of the two ways to be wrong, a lingering
+row is recoverable and a disappeared one is not.
+
+**Proved the tests bite.** They were written after the fix, which makes them worthless unless they
+fail against the old code, so the old rule was temporarily restored: three of the five new cases went
+red, and the two that stayed green are the regression guards (an unfinished overdue row still rolls
+forward; an amnesiac finished row still shows). That is the right split.
+
+**Also decided: three E2E cases in the shipped launch gate stop contradicting each other.** The
+suite is the manual launch gate, and a gate whose P1s disagree cannot arbitrate anything.
+
+- **OUR-58** said the shared door offers Repeating ONLY, with no When row. **OUR-71**, also P1, says
+  the When row reads Anytime / Today / Tomorrow / Pick a date. Both shipped. OUR-58 was written for
+  an intermediate state and is now rewritten to match what exists, pointing at OUR-71.
+- **OUR-61** said no Scan on the shared capture. **OUR-62**, also P1, says Scan reaches it, which is
+  what Melroy asked for and what shipped. OUR-61 is corrected rather than deleted, because it is
+  still right about Break-it-down and Sort-for-me, and the reason it gives for Scan being different
+  is worth stating: Scan reads a photo INTO the box for you to edit, it does not author anything
+  onto a list another person reads.
+- **OUR-46** tested tapping a `Repeat…` control above the capture box, which the door redesign
+  replaced. Deleted, since adding with a cadence is covered by the door cases.
+
+**New: OUR-111 (P1)** for the rule above, and it names the second half explicitly so a tester checks
+that an unfinished overdue row is still there tomorrow rather than reporting the correct behaviour as
+a bug.
+

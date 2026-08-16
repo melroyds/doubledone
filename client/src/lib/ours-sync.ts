@@ -1,7 +1,8 @@
 import { type SupabaseClient } from '@supabase/supabase-js';
 
-import { type CompletionLog, mergeShared, type SharedTask, stillOnList } from './ours-merge';
+import { completedDatesOf, type CompletionLog, mergeShared, type SharedTask, stillOnList } from './ours-merge';
 import { describeRecurrence, isDueOn, type Recurrence } from './recurrence';
+import { toISODate } from './day';
 
 // The Supabase seam for the SHARED list. Same shape as sync.ts: the row <-> task mapping is pure
 // and unit-tested, and pull / push / syncPairOnce wrap the merge engine (ours-merge.ts) around the
@@ -322,9 +323,29 @@ export function tickableInRoom(task: SharedTask, date: string, when: Date): bool
  * here: this build cannot know which days it means, and a wrong day on a shared surface is a thing
  * the other person then has to puzzle over.
  *
- * Being DONE is not checked, on purpose. A row ticked today stays on the day reading as finished,
- * exactly as a personal task does, so the tick is visible and reversible rather than a row that
- * disappears the instant you touch it.
+ * Being DONE is checked, and the check is the whole of the second half of this function.
+ *
+ * It used to be skipped, with a comment claiming that matched "exactly what a personal task does".
+ * It did not. `tasksForToday` requires a finished one-off's `completedAt` to be TODAY, and says so
+ * three lines from the code: "a completed task never carries into the next day." Here the rule was
+ * `due <= date` alone, which is true forever once the day arrives. So every dated shared row either
+ * of you ever ticked stayed on BOTH Todays, struck through, for good, on a strip that is excluded
+ * from the weight gauge, the Lookback, Lighten and the close-the-day count by construction. An
+ * unbounded pile, on the one screen whose whole premise is that a day is finite.
+ *
+ * What the old comment was RIGHT about, and what this keeps: a row must not vanish the instant you
+ * touch it. Ticking is the reversible act on this list (it is why the finality affirmations are
+ * withheld here), so the tick has to stay on screen, un-tickable again, for the rest of that day.
+ * The completion log answers that directly and better than a timestamp does, because it is keyed by
+ * DATE already: no local-midnight arithmetic, and no disagreement between two phones in two places
+ * about which day a millisecond belongs to.
+ *
+ * Three fallbacks, and the last one is deliberately generous:
+ *   · the log knows the day -> show it on that day only.
+ *   · no log but a `doneAt` (a row from a client older than the log) -> that timestamp's local day.
+ *   · neither -> keep showing it. We cannot know when it happened, and of the two ways to be wrong,
+ *     a row that lingers is recoverable and a row that disappears is the thing this audience cannot
+ *     afford.
  */
 export function sharedDueOn(task: SharedTask, date: string, when: Date): boolean {
   if (task.deletedAt) return false;
@@ -332,7 +353,18 @@ export function sharedDueOn(task: SharedTask, date: string, when: Date): boolean
   if (task.recurrence !== undefined && task.recurrence.kind !== 'none') {
     return isDueOn({ recurrence: task.recurrence }, when);
   }
-  return typeof task.due === 'string' && task.due <= date;
+  if (typeof task.due !== 'string' || task.due > date) return false;
+  if (!task.done) return true; // an open one-off rolls forward calmly, exactly as a personal one does
+  const day = doneDayOf(task);
+  return day === undefined || day === date;
+}
+
+/** The day a finished one-off was finished, if anything on the row knows it. See `sharedDueOn`. */
+function doneDayOf(task: SharedTask): string | undefined {
+  const dates = completedDatesOf(task.completions);
+  const last = dates[dates.length - 1];
+  if (last !== undefined) return last;
+  return typeof task.doneAt === 'number' ? toISODate(new Date(task.doneAt)) : undefined;
 }
 
 export const PAGE_SIZE = 500;

@@ -578,6 +578,8 @@ describe('a shared row can carry a day', () => {
 describe('which shared rows belong on YOUR Today', () => {
   const TUE = new Date(2026, 7, 11); // Tue 11 Aug 2026
   const ISO = '2026-08-11';
+  const WED = new Date(2026, 7, 12); // the morning after, which is where the pile-up showed
+  const WED_ISO = '2026-08-12';
   const task = (over: Partial<SharedTask>): SharedTask => ({ id: 'x', title: 't', done: false, createdAt: 1, updatedAt: 1, ...over });
 
   // The whole point of Tier 1: bin night IS Tuesday's business, for whoever is home.
@@ -614,6 +616,43 @@ describe('which shared rows belong on YOUR Today', () => {
   // A tick must stay visible and reversible, exactly as a personal task's does.
   it('keeps a row that was ticked TODAY on the day, reading as finished', () => {
     expect(sharedDueOn(task({ due: ISO, done: true, completions: { on: { [ISO]: 9 } } }), ISO, TUE)).toBe(true);
+  });
+
+  // THE bug this pair of assertions exists for. Both halves, always, because the fix has two ways to
+  // be wrong and only one of them is the one we came for: a row that never leaves, or a row that
+  // vanishes under your finger the moment you tick it.
+  it('drops that same row the NEXT day, and never sooner', () => {
+    const ticked = task({ due: ISO, done: true, completions: { on: { [ISO]: 9 } } });
+    expect(sharedDueOn(ticked, ISO, TUE)).toBe(true); // still there on the day it happened
+    expect(sharedDueOn(ticked, WED_ISO, WED)).toBe(false); // and gone the morning after
+  });
+
+  it('does not place a row ticked on an EARLIER day, however old its date', () => {
+    const old = task({ due: '2026-08-04', done: true, completions: { on: { '2026-08-04': 9 } } });
+    expect(sharedDueOn(old, ISO, TUE)).toBe(false);
+  });
+
+  // An OPEN dated row is untouched by any of this: it rolls forward calmly and shames nobody, which
+  // is what `tasksForToday` does with an overdue personal one-off and is the half that was correct.
+  it('still rolls an UNFINISHED overdue row forward, indefinitely', () => {
+    const waiting = task({ due: '2026-07-01' });
+    expect(sharedDueOn(waiting, ISO, TUE)).toBe(true);
+    expect(sharedDueOn(waiting, WED_ISO, WED)).toBe(true);
+  });
+
+  // A row finished by a client older than the completion log: no per-date record, just a timestamp.
+  it('falls back to doneAt when there is no completion log', () => {
+    const legacy = task({ due: ISO, done: true, doneAt: new Date(2026, 7, 11, 9, 30).getTime() });
+    expect(sharedDueOn(legacy, ISO, TUE)).toBe(true);
+    expect(sharedDueOn(legacy, WED_ISO, WED)).toBe(false);
+  });
+
+  // And when the row knows NOTHING about when it happened, it stays. Of the two ways to be wrong,
+  // a lingering row is recoverable and a disappeared one is not.
+  it('keeps a finished row that cannot say which day it was finished', () => {
+    const amnesiac = task({ due: '2026-08-01', done: true });
+    expect(sharedDueOn(amnesiac, ISO, TUE)).toBe(true);
+    expect(sharedDueOn(amnesiac, WED_ISO, WED)).toBe(true);
   });
 });
 
