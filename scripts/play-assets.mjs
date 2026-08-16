@@ -86,16 +86,118 @@ const LOOKBACK_TASKS = [
 
 const seedSettings = (theme, motion = 'reduce') => JSON.stringify({ theme, textSize: 'default', motion });
 
+// --- Ours (the shared list), captured without a real account or a real network call ---
+//
+// The room only renders for a signed-in member of a pair, so a seeded shot cannot reach it the way
+// Today can. Playwright answers the network itself instead: every Supabase read below is served
+// from a fixture and NOTHING real is contacted. That keeps the shots deterministic and, more to the
+// point, keeps a session token out of this repo, which is public. The one real value is the storage
+// KEY supabase-js reads its session from, derived from the project ref, so it is lifted from
+// client/.env (gitignored) at run time rather than written down here.
+//
+// Mirrors scripts/screenshots.mjs. If the room's queries change, both harnesses change together.
+const OURS_PAIR = '00000000-1111-2222-3333-444444444444';
+const OURS_USER = '55555555-6666-7777-8888-999999999999';
+const OURS_NAME = 'Just us';
+
+/** A shared list that reads like a real household's, because strangers on a store page see it. */
+function oursRows() {
+  const iso = (d) => new Date(d).toISOString();
+  const row = (id, title, over = {}) => ({
+    pair_id: OURS_PAIR,
+    id,
+    title,
+    done: false,
+    done_at: null,
+    recurrence: null,
+    completions: null,
+    due: null,
+    created_at: iso(noon - DAY),
+    updated_at: iso(noon),
+    deleted_at: null,
+    ...over,
+  });
+  return [
+    row('a1', 'Bin night', { recurrence: { kind: 'weekly', weekdays: [new Date(noon).getDay()], start: isoDay(noon - 30 * DAY) } }),
+    row('a2', 'Pick up the parcel', { due: isoDay(noon) }),
+    row('a3', 'Cat food, the kidney one'),
+    row('a4', 'Ask about the gutter'),
+    row('a5', 'Batteries, the small ones'),
+    row('a6', 'Book the car service', { due: isoDay(noon + 3 * DAY) }),
+  ];
+}
+
+/** The project ref, so the seeded session lands under the key supabase-js will look in. */
+function projectRef() {
+  const env = path.join(ROOT, 'client', '.env');
+  if (!existsSync(env)) return null;
+  const m = readFileSync(env, 'utf8').match(/EXPO_PUBLIC_SUPABASE_URL\s*=\s*"?https:\/\/([a-z0-9]+)\./i);
+  return m ? m[1] : null;
+}
+
+/** Answer every Supabase read from the fixture. Nothing leaves the machine. */
+async function stubSupabase(page) {
+  const rows = oursRows();
+  await page.route('**/rest/v1/**', async (route) => {
+    const url = new URL(route.request().url());
+    const json = (body) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+    if (url.pathname.endsWith('/pair_members')) {
+      return json([{ pair_id: OURS_PAIR, user_id: OURS_USER, label: 'me', joined_at: new Date(noon - 40 * DAY).toISOString() }]);
+    }
+    if (url.pathname.endsWith('/pairs')) return json([{ id: OURS_PAIR, name: OURS_NAME, closed_at: null, disabled_at: null }]);
+    if (url.pathname.endsWith('/shared_tasks')) {
+      // pullPair keyset-walks and stops on an EMPTY page, so the second call must return nothing.
+      const after = url.searchParams.get('id');
+      return json(after && after.startsWith('gt.') ? [] : rows);
+    }
+    if (url.pathname.includes('/rpc/server_now')) return json(new Date(noon).toISOString());
+    if (url.pathname.includes('/rpc/')) return json(true);
+    return json([]);
+  });
+  await page.route('**/auth/v1/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }),
+  );
+}
+
+/** A session supabase-js accepts from storage without asking anybody. Not a credential: every
+ *  request it could authenticate is answered by `stubSupabase` and never reaches the internet. */
+function oursSession() {
+  const ref = projectRef();
+  if (!ref) throw new Error('Ours shots need client/.env for the project ref');
+  const exp = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 365;
+  const enc = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const jwt = `${enc({ alg: 'HS256', typ: 'JWT' })}.${enc({ sub: OURS_USER, role: 'authenticated', exp })}.stub`;
+  return {
+    key: `sb-${ref}-auth-token`,
+    value: JSON.stringify({
+      access_token: jwt,
+      refresh_token: 'stub',
+      token_type: 'bearer',
+      expires_in: 31536000,
+      expires_at: exp,
+      user: { id: OURS_USER, aud: 'authenticated', role: 'authenticated', email: 'you@example.invalid' },
+    }),
+  };
+}
+
 const RAW_VP = { width: 412, height: 892 };
 const RAW_RATIO = RAW_VP.height / RAW_VP.width;
 
 // The store screens. Captions are user-facing: no em-dashes.
+// Listed in the order they should be UPLOADED to the Console, which is the order a shopper swipes:
+// the promise, the core, then the thing this version is for.
 const SHOTS = [
-  { name: 'today-light', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Drink a glass of water', caption: 'Only today, sized to feel possible.' },
   { name: 'welcome', route: '/welcome', tasks: TODAY_TASKS, theme: 'light', waitText: 'A calmer kind of to-do', caption: 'Today is finite and achievable.' },
+  { name: 'today-light', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Drink a glass of water', caption: 'Only today, sized to feel possible.' },
+  { name: 'ours-room', route: '/ours-list', tasks: TODAY_TASKS, theme: 'light', ours: true, waitText: 'Bin night', caption: 'One shared list. Never a scoreboard.' },
   { name: 'lookback-light', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'light', waitText: 'Water the plants', caption: 'Everything you finish, you keep.' },
-  { name: 'settings-light', route: '/settings', tasks: TODAY_TASKS, theme: 'light', motion: 'system', waitText: 'Theme', caption: 'AI that helps. One tap turns it off.' },
+  { name: 'ours-when', route: '/ours-list', tasks: TODAY_TASKS, theme: 'light', ours: true, waitText: 'Cat food', hold: 'Cat food', then: 'when-door', caption: 'A shared day, set from either phone.' },
   { name: 'today-dark', route: '/today', tasks: TODAY_TASKS, theme: 'dark', waitText: 'Drink a glass of water', caption: 'A calm home screen, day or night.' },
+  // Settle breathes on a chained Animated loop, so it needs longer than the others to reach a frame
+  // worth photographing. `motion: 'system'` on purpose: 'reduce' stops the breathing this shot is OF.
+  { name: 'settle-light', route: '/settle', tasks: TODAY_TASKS, theme: 'light', motion: 'system', waitText: 'Breathing guide', delay: 2600, caption: 'A quiet room, for when today gets loud.' },
+  { name: 'settings-light', route: '/settings', tasks: TODAY_TASKS, theme: 'light', motion: 'system', waitText: 'Theme', caption: 'AI that helps. One tap turns it off.' },
 ];
 
 const DEVICES = [
@@ -113,16 +215,45 @@ async function captureRaw(browser, shot) {
   const payload = {
     'doubledone.tasks.v1': JSON.stringify(shot.tasks),
     'doubledone.settings.v1': seedSettings(shot.theme, shot.motion),
+    // Seeded state must bypass EVERY render gate, not just supply data. Without `onboarded` the
+    // first-run redirect eats the Today shot; without `whatsnew` the announcement card grows on it.
     'doubledone.onboarded.v1': 'yes',
+    'doubledone.whatsnew.v1': '99',
   };
+  if (shot.ours) {
+    const session = oursSession();
+    payload[session.key] = session.value;
+  }
   await ctx.addInitScript((seed) => {
     for (const [k, v] of Object.entries(seed)) localStorage.setItem(k, v);
   }, payload);
   const page = await ctx.newPage();
+  if (shot.ours) await stubSupabase(page);
   await page.goto(`${BASE}${shot.route}`, { waitUntil: 'domcontentloaded', timeout: 120000 });
   if (shot.waitText) await page.getByText(shot.waitText, { exact: false }).first().waitFor({ timeout: 60000 });
   await page.evaluate(() => document.fonts.ready.then(() => true));
-  await page.waitForTimeout(700);
+  await page.waitForTimeout(shot.delay ?? 700); // let the calm fades settle
+
+  // `hold`: long-press a row by its words, then tap something on the card that opens. The held card
+  // and the When sheet are state rather than routes, so no amount of seeding reaches them.
+  if (shot.hold) {
+    const row = page.getByText(shot.hold, { exact: false }).first();
+    await row.waitFor({ timeout: 20000 });
+    const box = await row.boundingBox();
+    if (box) {
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.waitForTimeout(700); // longer than the press threshold, shorter than patience
+      await page.mouse.up();
+      await page.waitForTimeout(500);
+    }
+    // By testID, never by words, so the door is found whatever it is called.
+    if (shot.then) {
+      await page.locator(`[data-testid="${shot.then}"]`).first().click({ timeout: 15000 });
+      await page.waitForTimeout(700);
+    }
+  }
+
   const buf = await page.screenshot();
   await ctx.close();
   return buf.toString('base64');

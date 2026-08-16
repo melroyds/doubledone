@@ -7044,3 +7044,45 @@ locale, fits comfortably.
 work and is fine for a review pack, and it would be wrong for a localised store listing. Noted rather
 than fixed.
 
+
+## The Play set catches up: Ours, Settle, and the two sets that were being confused
+
+*2026-08-16, alongside the 1.3.1 store push.*
+
+The Google Play screenshot set had five slides, all captured in June, and **none of them showed
+Ours**. A release whose whole point is a shared list was going to the store with a listing that never
+pictured one. The App Store set had already been fixed; Play had not, because the two sets come from
+different generators and only one of them had been touched.
+
+**Decided: `scripts/play-assets.mjs` learns the same tricks `screenshots.mjs` already knew**, rather
+than hand-cropping anything. The Ours room only renders for a signed-in member of a pair, so the
+fixture-and-`page.route` approach was ported over whole: every Supabase read is answered locally and
+nothing real is contacted. Same reasoning as before, and it matters more here, not less: these
+assets are committed to a public repo.
+
+**Decided against a second generator, or a shared module.** Two harnesses now hold near-identical
+Ours fixtures, which is duplication with a real cost if the room's queries change. The alternative,
+extracting a shared module, means a script in `scripts/` importing from `scripts/`, and both files
+are run by hand, months apart, by one person. The duplication is loud and greppable; a shared import
+would be quiet and would break both at once. A comment in each points at the other.
+
+**Found while in there: the Play generator never seeded `doubledone.whatsnew.v1`.** Any regenerated
+Today slide would have grown the What's-New announcement card over the content, and it would have
+looked deliberate. This is the gotcha the repo already recorded once, for `onboarded`, relearned in
+the one place that had not applied it. Seeded state must bypass EVERY render gate, not just supply
+data.
+
+**Settle joins the set, and takes `motion: 'system'`.** The other slides seed `reduce`, which is
+right for a still photograph of a static screen and exactly wrong for the one screen whose subject
+IS the motion: reduce stops the breathing, and the shot would be an empty room. It also needs a
+longer settle (2.6s) to reach a frame worth keeping, so `delay` is now honoured here as it already
+was in the other harness.
+
+**Decided: the framed set is the store set, and the raw set is not.** `docs/screenshots/` (raw app,
+780x1688) and `docs/play-store/{phone,tablet7,tablet10}/` (framed, captioned, 1080x1920 and up) had
+started being cited interchangeably, and a ship checklist written that way sent Melroy to a folder
+for a file that was in the other one. The framed set is what the live listing already uses. Recorded
+here because the names overlap and the mistake is invisible until somebody is in the Console.
+
+Eight slides now, in upload order: welcome, today-light, ours-room, lookback-light, ours-when,
+today-dark, settle-light, settings-light.
