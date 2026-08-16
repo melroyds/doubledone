@@ -13,11 +13,20 @@ here maps straight back to what the test was for.
 
 | Role | Sign in as | Where |
 |---|---|---|
-| **A** | `…+ourstest1@…` | normal browser window |
-| **B** | `…+ourstest2@…` | incognito window |
+| **A** | `…+ourstest1@…` | **Chrome**, normal window |
+| **B** | `…+ourstest2@…` | **Edge**, normal window |
 
-Both at **doubledone.app**. Put the windows side by side. Sections 1 to 4 are all here. Section 5
-moves to the two phones.
+Both at **doubledone.app**, side by side on the one PC. Sections 1 to 4 are all here. Section 5 moves
+to the two phones.
+
+**Two different browsers, NOT one browser plus incognito.** Two reasons, and the first one decides it:
+
+- **4.8 needs both sessions to still exist tomorrow.** An incognito window closed overnight loses its
+  session and its cache, so B would come back signed out and empty, and you would be redoing setup to
+  finish a test whose entire point is that a day passed.
+- **4.2 goes offline and back.** That leans on the local cache behaving normally, and incognito is
+  where storage behaves abnormally. A failure there would leave you unable to tell a real bug from a
+  browser policy.
 
 **Before you start:** on A, Menu → Ours. If A is already in a list, this is the wrong account. These
 must be fresh test accounts, because one live list per account is the rule.
@@ -35,6 +44,9 @@ Harmless, and it is the state every real user is in right now.
 | **4.8** | **Web only** | This IS the fix. The phones do not have it and will fail it correctly. Do not run it there. |
 | 5 | **The installed apps** | Two real OSes, two real clocks. Nothing in section 5 touches the fix. |
 | 5.3b (new) | **A phone's browser** | See below. |
+
+**Everything in 1 to 4 runs on one PC.** No second machine, no second network, no second clock. That
+is precisely what section 5 exists to add, which is why it is the only part that needs real hardware.
 
 **5.3b, five minutes, never tested by anyone.** The keyboard fix has two completely separate halves:
 native uses a `Keyboard` listener feeding the footer, web uses `interactive-widget=resizes-content`
