@@ -22,6 +22,29 @@ moves to the two phones.
 **Before you start:** on A, Menu → Ours. If A is already in a list, this is the wrong account. These
 must be fresh test accounts, because one live list per account is the rule.
 
+### Which surface runs which section
+
+The phones are **one commit behind web**, and that commit is `sharedDueOn`, which decides what to
+DRAW and writes nothing. So an old phone and today's web can be paired safely: they agree on every
+byte in the database and disagree only about whether a ticked dated row is still drawn on Today.
+Harmless, and it is the state every real user is in right now.
+
+| Section | Where | Why |
+|---|---|---|
+| 1 to 4, except 4.8 | **Desktop browsers** | Identical on all three surfaces. Two windows side by side is the best rig. |
+| **4.8** | **Web only** | This IS the fix. The phones do not have it and will fail it correctly. Do not run it there. |
+| 5 | **The installed apps** | Two real OSes, two real clocks. Nothing in section 5 touches the fix. |
+| 5.3b (new) | **A phone's browser** | See below. |
+
+**5.3b, five minutes, never tested by anyone.** The keyboard fix has two completely separate halves:
+native uses a `Keyboard` listener feeding the footer, web uses `interactive-widget=resizes-content`
+injected into the shipped HTML. A desktop browser cannot exercise the web half, because it has no
+keyboard that covers the screen, and the native app runs the other half entirely. So: open
+**doubledone.app in Chrome on the Android**, sign in as B, open the Ours capture, and type
+`DF-18 mobile web keyboard`.
+✅ The **ADD** button stays visible above the keyboard.
+*If this fails, it is a real bug and only a phone's browser could have found it.*
+
 ---
 
 ## Results, fill in as you go
@@ -48,10 +71,11 @@ must be fresh test accounts, because one live list per account is the rule.
 | 4.5 | the wash | | |
 | 4.6 | own edits never wash | | |
 | 4.7 | repeat on its off day | | |
-| 4.8 | the pile-up (needs tomorrow) | | |
+| 4.8 | the pile-up (**web only**, needs tomorrow) | | |
 | 5.1 | two phones, both directions | | |
 | 5.2 | clocks | | |
-| 5.3 | keyboard | | |
+| 5.3 | keyboard, native app | | |
+| 5.3b | keyboard, phone's browser | | |
 | 6.1 | one account, two devices | | |
 
 ---
@@ -203,7 +227,8 @@ normal by itself after about eight seconds.
 3. Tap the circle anyway.
 ✅ Nothing happens.
 
-**4.8 — the pile-up.** *(Fixed today, never tested on a device. Needs a day to pass.)*
+**4.8 — the pile-up. WEB ONLY.** *(Fixed today. The store builds predate the fix, so running this on
+a phone tests the old code and fails for the wrong reason. It reaches the phones at the next build.)*
 1. On **A**, add `DF-12 recycling bin` in the room, door set to **Today**.
 2. It appears under DUE TODAY on both. Tick it on either.
 3. **Check now:** still on both Todays, struck through, and you can un-tick it.
