@@ -190,7 +190,11 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle, onEditS
           sheetTitle={t('repeat.editSheetTitle')}
           title={editing.title}
           recurrence={editing.recurrence}
-          onSave={(title, recurrence) => onEditSeries(editing.id, title, recurrence)}
+          /* `allowNone` is off here, so the sheet can only ever answer with a readable recurrence
+             and a null due. Unwrapping it keeps the drawer's own contract exactly as it was: an
+             entry here IS a rhythm, and "no rhythm" would mean the entry should not exist, which is
+             removal, which lives in this drawer and deliberately not in the sheet. */
+          onSave={(title, answer) => onEditSeries(editing.id, title, answer.recurrence)}
         />
       )}
     </View>

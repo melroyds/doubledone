@@ -133,7 +133,11 @@ confidently wrong pack: `ours-when-prompt.md` (v1, superseded, its errors named)
 5. The room's `setCadence` widened; the door renamed; A4 keeps Bring.
 6. Five catalogs, E2E cases, decision log.
 
-**Trigger:** after the merge, the dogfood pass and the launch. Not before.
+**BUILT 2026-08-17, steps 1 to 6.** Not pushed: the new half of the sheet has never been seen on a
+screen, because it renders only under `allowNone` and that needs a signed-in pair. Melroy looks
+first, at the largest text size, which is also where the `ModalCard` overflow question gets settled
+(the sheet passes neither `scroll` nor `maxHeight` and has gained several rows). E2E cases OUR-112
+to OUR-117 cover it.
 
 ### Parked: a per-person toggle for the Ours door count
 

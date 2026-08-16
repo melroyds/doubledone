@@ -28,7 +28,11 @@ type Props = {
   note?: string; // a state worth SAYING as well as showing: rendered as a quiet second line AND folded into the spoken label, so it is never colour-only and never screen-reader-only
   inert?: string; // this row cannot be ticked, and this is why: the reason travels WITH the control, so a screen reader hears it and a tap is never silently dead
   removesWholeSeries?: boolean; // the caller's Remove tombstones the SERIES, so it must not borrow the "Skip today" label
-  onRepeat?: () => void; // held-state, SHARED rows only: set this row's rhythm, through THE cadence sheet
+  onRepeat?: () => void; // held-state, SHARED rows only: set this row's WHEN, through THE cadence sheet
+  repeatLabel?: string; // override for that row's words. "Repeat…" names half the field, and naming half
+                        // a field is exactly what let dates ship with no editor: a door named after one
+                        // of two possible answers cannot be the way you reach the other one.
+  repeatValue?: string; // the row's CURRENT answer, beside the label, so it is readable without opening
   onBring?: () => void; // held-state, SHARED rows only: bring a copy of this to my own Today (the hero seat, where Break it down sits on a personal card)
   brought?: boolean; // that copy is already on my Today: the hero says so and goes inert, rather than quietly making a second one
   bringLabel?: string; // override for the bring hero's words. In the ROOM it is "Bring to my Today"; on Today itself that sentence is nonsense, and the same action there means "take this on"
@@ -82,6 +86,8 @@ export function TaskRow({
   onBreakdown,
   onBring,
   onRepeat,
+  repeatLabel,
+  repeatValue,
   plain,
   washed,
   note,
@@ -375,11 +381,15 @@ export function TaskRow({
             onPress={onRepeat}
             style={styles.actionRow}
             accessibilityRole="button"
-            accessibilityLabel={t('ours.repeat')}
+            accessibilityLabel={repeatValue ? t('ours.whenA11y', { value: repeatValue }) : t('ours.repeat')}
             hitSlop={{ top: 6, bottom: 6 }}
           >
-            <Text style={styles.actionLabel}>{t('ours.repeat')}</Text>
-            {recurring ? <Text style={styles.actionSub}>↻</Text> : null}
+            <Text style={styles.actionLabel}>{repeatLabel ?? t('ours.repeat')}</Text>
+            {repeatValue ? (
+              <Text style={styles.actionSub}>{repeatValue}</Text>
+            ) : recurring ? (
+              <Text style={styles.actionSub}>↻</Text>
+            ) : null}
           </Pressable>
         )}
 

@@ -18,8 +18,9 @@ import { type CaptureSchedule, type Recurrence, scheduleFields } from '@/lib/rec
 import { t } from '@/lib/locale';
 import { makeSharedRef, pulledFrom } from '@/lib/ours-bridge';
 import { loadMyPairs, type MyPair, syncClock } from '@/lib/ours-api';
-import { isSharedDoneOn, setSharedDone, type SharedTask, washedSince } from '@/lib/ours-merge';
+import { isSharedDoneOn, releaseCompletions, setSharedDone, type SharedTask, washedSince } from '@/lib/ours-merge';
 import { isUnreadableRepeat, onSharedListOn, POLL_MS, cadenceLine, shouldPoll, syncPairOnce, tickableInRoom, willTrim } from '@/lib/ours-sync';
+import { whenValue, type WhenAnswer } from '@/lib/when';
 import { clearOursMine, loadOursMine, loadOursSeen, loadOursTasks, loadTasks, markOursSeen, noteOursMine, pruneOursCache, saveOursTasks, saveTasks } from '@/lib/storage';
 import { usePremium } from '@/lib/premium-provider';
 import { supabase } from '@/lib/supabase';
@@ -672,7 +673,7 @@ export default function OursListScreen() {
 
   /** Set a rhythm. THE cadence sheet, the same one the personal Repeating drawer opens, so a repeat
    *  made here, made there, made by the REST API or made by an agent over MCP is one shape. */
-  function setCadence(id: string, title: string, recurrence: Recurrence) {
+  function setCadence(id: string, title: string, answer: WhenAnswer) {
     const now = nowMs();
     setCadenceId(null);
     // The 500-character cap, said BEFORE the save. `rename` has always warned; this path did not,
@@ -686,9 +687,26 @@ export default function OursListScreen() {
     // never-both invariant this app states everywhere quietly stopped being true on the one surface
     // two people read.
     void commit(
-      tasks.map((task) =>
-        task.id === id ? { ...task, title, recurrence, rawRecurrence: undefined, due: null, updatedAt: now } : task,
-      ),
+      tasks.map((task) => {
+        if (task.id !== id) return task;
+        // A rhythm ENDING has to let go of its ticks, and this is the only place that can know.
+        // A repeat's completions live per date and the row's own `done` stays false; the moment the
+        // recurrence goes, `reconcile` reads that same log as a one-off's tick and the row comes
+        // back DONE, for both people, carrying a doneAt from whenever it was last ticked. All three
+        // forms of stopping do it, including the dated one, which is the easy one to miss because
+        // setting a date does not feel like an ending.
+        const wasRepeating = task.recurrence !== undefined && task.recurrence.kind !== 'none';
+        const stops = wasRepeating && answer.recurrence.kind === 'none';
+        return {
+          ...task,
+          title,
+          recurrence: answer.recurrence,
+          rawRecurrence: undefined,
+          due: answer.due,
+          ...(stops ? { completions: releaseCompletions(task.completions, now), done: false, doneAt: null } : {}),
+          updatedAt: now,
+        };
+      }),
     );
   }
 
@@ -794,7 +812,13 @@ export default function OursListScreen() {
               brought={pulled.has(task.id)}
               /* A cadence this build cannot read stays INERT: re-cadencing it would overwrite
                  whatever a newer build meant, on a list somebody else also keeps. */
+              /* "Repeat…" named HALF the field, and that is the label that let dates ship without
+                 an editor at all: a door named after one of two possible answers cannot be the way
+                 you reach the other. "When…" asks the question both answers answer, and the value
+                 rides beside it so the row's current answer is readable without opening anything. */
               onRepeat={frozen || isUnreadableRepeat(task) ? undefined : () => setCadenceId(task.id)}
+              repeatLabel={t('ours.when')}
+              repeatValue={whenValue(task, now)}
               inert={
                 frozen
                   ? t('ours.frozenRow')
@@ -861,10 +885,16 @@ export default function OursListScreen() {
           sheetTitle={t('repeat.editSheetTitle')}
           title={cadenceTask.title}
           recurrence={cadenceTask.recurrence}
-          /* The one line that is true here and nowhere else. Not a warning, and never a count: it
-             says what will happen, which is the whole of what anyone needs before committing. */
-          note={t('ours.repeatNote')}
-          onSave={(title, recurrence) => setCadence(cadenceTask.id, title, recurrence)}
+          /* The row's current day, so the sheet can see the value the door beside it already names.
+             Without it the seeded chip has nothing to fill it from. */
+          due={cadenceTask.due}
+          /* The whole of the When editor: this surface can answer with NO rhythm. The drawer cannot,
+             because there "no rhythm" means the entry should not exist. */
+          allowNone
+          /* `note` retires here. It said "You'll both see it on its day", which was accurate on
+             every save the old sheet could make and becomes a lie the moment Anytime is possible.
+             The state-aware summary says it per state instead, and says what ENDS as well. */
+          onSave={(title, answer) => setCadence(cadenceTask.id, title, answer)}
         />
       )}
 

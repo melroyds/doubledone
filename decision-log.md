@@ -6883,3 +6883,54 @@ write. It treats an absent recurrence and an explicit `none` as the same nothing
 moved START as a real change, because "Every Tuesday" reads identically before and after while an
 interval's anchor decides which days it actually lands on.
 
+---
+
+## 2026-08-17 · Steps 3 to 5: the When editor, built on one sheet
+
+**Decided: `CadenceSheet` grows, and no second sheet is built.** It already owns the month grid
+inlined in its own ModalCard, the outcome-naming commit button, the editable title, the note slot,
+and the anchor seeding that keeps an interval's phase across an edit. A fresh `WhenSheet` would have
+duplicated four of those and silently lost the fifth. Its header comment stays true: it owns the
+cadence and nothing else, no series list, no removal, no undo.
+
+**Three new props, not one.** `allowNone` is the power (the room may answer with no rhythm; the
+drawer may not, because there "no rhythm" means the entry should not exist, which is removal, which
+lives in the drawer deliberately). `due` is the row's current date, without which the seeded day
+chip has nothing to fill it from. And `onSave` widens from a `Recurrence` to a `WhenAnswer`, which is
+how a caller says what it can take back.
+
+**Decided: `rhythmOn` sits BESIDE `mode`, not folded into it as a null.** The obvious shape is
+`EditMode | null`, and it loses the weekdays. Release Weekly, change your mind, tap Weekly again, and
+a null-based state hands you an empty week to re-pick. Keeping the two separate means releasing a
+rhythm forgets nothing.
+
+**Decided: releasing a rhythm defaults to Anytime, NOT to the carried anchor.** The old anchor is
+usually in the past (bin night set in January), a past date renders as a bare "Mon 6 Jan" because
+this app refuses overdue rendering, and a shared row with a past date lands on both Todays from that
+day onward with no end. The two defaults are not symmetric: Anytime costs nothing and is undoable, a
+stale date costs two people their mornings.
+
+**Decided: the `note` prop retires on the shared surface.** It read "You'll both see it on its day",
+which was accurate on every save the old sheet could make and becomes a lie the moment Anytime is
+possible. The state-aware summary replaces it and says what ENDS as well. Note the earlier round's
+stated reason for retiring it was wrong (it claimed the note already lied), and that reason is struck
+from the record: it is retiring because something better exists, not because it was broken.
+
+**Decided: the door is renamed `Repeat…` to `When…`, with its value beside it.** "Repeat…" named half
+the field, and naming half a field is precisely what let dates ship with no editor at all: a door
+named after one of two possible answers cannot be the way you reach the other. `whenValue` never
+returns blank.
+
+**Decided against `describeRecurrence` for the summary fragment**, and this is the one most likely to
+be undone later. It surfaces a start only when the start is in the FUTURE, which suits the drawer and
+is wrong here: on a live series the anchor would appear nowhere, and for "every 3 days" the anchor IS
+the schedule. A builder reaching for the obvious helper reintroduces the exact gap this sheet exists
+to close, and every test written afterwards would still look green.
+
+**Not verified visually, and said plainly.** The new half of the sheet renders only under
+`allowNone`, which only the room passes, and the room needs a signed-in pair. The pure logic has 41
+tests, typecheck is clean and the app boots without error, but nobody has yet SEEN the day zone, the
+relabel, or the release-tap. That look is Melroy's, on a device, at the largest text size, and it is
+also where the `ModalCard` overflow question gets answered: the sheet passes neither `scroll` nor
+`maxHeight` and has just gained several rows.
+

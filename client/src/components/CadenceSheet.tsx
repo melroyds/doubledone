@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
-import { friendlyDate, toISODate } from '@/lib/day';
+import { addDaysISO, friendlyDate, toISODate } from '@/lib/day';
 import { t } from '@/lib/locale';
 import { describeRecurrence, scheduleFields, type CaptureSchedule, type Recurrence } from '@/lib/recurrence';
+import { startOf, whenChanges, whenFields, whenSummary, type WhenAnswer } from '@/lib/when';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 import { Chip } from './Chip';
@@ -52,12 +53,38 @@ type Props = {
    *  surprise re-cadence. */
   recurrence?: Recurrence;
   /** A line under the controls, for anything true only on this surface (Ours: "You'll both see it
-   *  on its day."). Absent on the personal drawer, which needs no such promise. */
+   *  on its day."). Absent on the personal drawer, which needs no such promise, and absent on Ours
+   *  too once `allowNone` is on, because the state-aware summary says it better and per state. */
   note?: string;
-  onSave: (title: string, recurrence: Recurrence) => void;
+  /**
+   * The row's CURRENT date, so the day zone's fourth chip can be seeded.
+   *
+   * Without it the sheet cannot see the value the door beside it already names, and B2's "Thu 20
+   * Aug" chip has nothing to fill it from. Seeding happens once per open (the caller's `key`
+   * remounts this), so it has to arrive as a prop.
+   */
+  due?: string | null;
+  /**
+   * Whether this surface can answer with NO rhythm, which is the whole of the When editor.
+   *
+   * The room passes true: a shared row may be plain, dated, or repeating, and getting back to plain
+   * was the gap this build exists to close. The personal Repeating drawer passes false (the
+   * default), because there "no rhythm" means the entry should not exist, and offering it as a
+   * choice would be a delete wearing a chip's clothes. Removal stays in the drawer, deliberately
+   * outside this sheet, which is what keeps the header comment above true.
+   */
+  allowNone?: boolean;
+  /**
+   * The answer, once the sheet can give more than a cadence.
+   *
+   * BOTH keys, always, and never both set: `whenFields` guarantees it. A caller on the drawer
+   * (`allowNone` false) only ever receives a readable recurrence with a null due, so its own code
+   * path is unchanged in practice while the type stays honest about what a shared caller can get.
+   */
+  onSave: (title: string, answer: WhenAnswer) => void;
 };
 
-export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recurrence, note, onSave }: Props) {
+export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recurrence, note, due, allowNone = false, onSave }: Props) {
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
   const todayIso = toISODate(today);
@@ -75,21 +102,77 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
   );
   const [pickerOpen, setPickerOpen] = useState(false);
 
+  /**
+   * Whether a rhythm is RUNNING, kept BESIDE `mode` rather than folded into it as a null.
+   *
+   * `mode` has to survive the rhythm being released: release Weekly, change your mind, tap Weekly
+   * again, and it must come back with the weekdays you had. A `EditMode | null` loses that, so the
+   * user re-picks days they already picked. On the drawer this is always on and cannot be turned
+   * off: an entry there IS a rhythm.
+   */
+  const [rhythmOn, setRhythmOn] = useState(!allowNone || (recurrence !== undefined && recurrence.kind !== 'none'));
+  /** The day zone's answer, only meaningful when no rhythm is running. Seeded from the row's date. */
+  const [day, setDay] = useState<CaptureSchedule>(
+    typeof due === 'string' ? { mode: 'date', date: due } : { mode: 'anytime' },
+  );
+
+  /** The row's own current day, offered as a chip so its value is readable without tapping. */
+  const seededChip = rhythmOn ? (startOf(recurrence) ?? null) : (typeof due === 'string' ? due : null);
+
   function schedule(): CaptureSchedule {
+    if (!rhythmOn) return day;
     if (mode === 'weekly') return { mode: 'weekly', weekdays: weekdays.length > 0 ? weekdays : [today.getDay()], start };
     if (mode === 'everyN') return { mode: 'everyN', days: everyN, start };
     return { mode: 'daily', start };
   }
 
-  // The commit button NAMES the cadence rather than saying "Save": on a shared list especially, the
+  /**
+   * Release a running rhythm, or pick a different one.
+   *
+   * Tapping the SELECTED chip releases it, which is the design's "ending is its own act": the zone
+   * above relabels from Starting back to A day, and the summary says the rhythm ends before
+   * anything commits. The old anchor is deliberately NOT carried over as the offered day. It is
+   * usually in the past (bin night set in January), a past date renders as a bare "Mon 6 Jan" with
+   * no marker because this app refuses overdue rendering, and a shared row with a past date lands
+   * on both Todays from that day onward with no end. Anytime costs nothing and is undoable; a stale
+   * date costs two people their mornings. The defaults are not symmetric, so this picks the safe one.
+   */
+  function tapRhythm(m: EditMode) {
+    if (!allowNone) return setMode(m);
+    if (rhythmOn && mode === m) {
+      setRhythmOn(false);
+      setDay({ mode: 'anytime' });
+      return;
+    }
+    setMode(m);
+    setRhythmOn(true);
+  }
+
+  // The commit button NAMES the outcome rather than saying "Save": on a shared list especially, the
   // last thing you read before committing should be the thing you are committing your person to.
-  const pending = scheduleFields(schedule(), today).recurrence;
-  const commitLabel = pending ? describeRecurrence(pending) : t('routines.saveChanges');
+  //
+  // Two paths, because the two surfaces answer different questions. The DRAWER still commits a
+  // cadence and nothing else, so its label is the cadence, exactly as before. The ROOM commits a
+  // WHEN, which may be a day, a rhythm, or neither, so its label comes from the same builder that
+  // writes the summary and they can never drift apart.
+  const answer = whenFields(schedule(), today);
+  const summary = allowNone ? whenSummary(answer, today, { recurrence }) : undefined;
+  const legacy = scheduleFields(schedule(), today).recurrence;
+  const commitLabel = summary ? summary.commit : legacy ? describeRecurrence(legacy) : t('routines.saveChanges');
+
+  // An idle Set must not write. Every mutator on the shared list commits with a fresh stamp, and a
+  // fresh stamp is what the OTHER person's screen reads as "changed since you looked", so a Set that
+  // altered nothing would still wash the row on their next visit and send them looking for a change
+  // nobody made. A retitle counts, which is why the title is compared too.
+  const titleMoved = draft.trim() !== title.trim();
+  const idle = allowNone && !titleMoved && !whenChanges(answer, { due, recurrence });
 
   function save() {
     const trimmed = draft.trim();
-    if (!trimmed || !pending) return;
-    onSave(trimmed, pending);
+    if (!trimmed) return;
+    if (!allowNone && !legacy) return; // the drawer cannot commit "no rhythm"
+    if (idle) return onClose(); // nothing to say, so say nothing, and do not wash their row
+    onSave(trimmed, answer);
     onClose();
   }
 
@@ -108,12 +191,18 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
         returnKeyType="done"
         accessibilityLabel={t('repeat.titleInputA11y')}
       />
+      {allowNone && <Text style={styles.zone}>{t('ours.whenRhythmZone')}</Text>}
       <View style={styles.chips}>
         {EDIT_MODES.map(({ mode: m, labelKey }) => (
-          <Chip key={m} label={t(labelKey)} selected={mode === m} onPress={() => setMode(m)} />
+          <Chip
+            key={m}
+            label={t(labelKey)}
+            selected={rhythmOn && mode === m}
+            onPress={() => tapRhythm(m)}
+          />
         ))}
       </View>
-      {mode === 'weekly' && (
+      {rhythmOn && mode === 'weekly' && (
         <View style={styles.weekdays}>
           {WEEKDAY_KEYS.map((key, d) => (
             <Pressable
@@ -130,7 +219,7 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
           ))}
         </View>
       )}
-      {mode === 'everyN' && (
+      {rhythmOn && mode === 'everyN' && (
         <View style={styles.stepperRow}>
           <Pressable
             onPress={() => setEveryN((n) => Math.max(2, n - 1))}
@@ -153,7 +242,50 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
           </Pressable>
         </View>
       )}
-      <View style={styles.startRow}>
+      {/* THE relabel, and the resolution the third design round settled on: the same zone asks a
+          different question depending on whether a rhythm is alive. No rhythm and it is "A day",
+          meaning the day this happens. A rhythm, and it is "Starting", meaning from when. The words
+          change in front of you rather than being a rule somebody has to learn. */}
+      {allowNone && (
+        <>
+          <Text style={[styles.zone, rhythmOn && styles.zoneLive]}>
+            {rhythmOn ? t('ours.whenStarting') : t('ours.whenDayZone')}
+          </Text>
+          <View style={styles.chips}>
+            {!rhythmOn && (
+              <Chip
+                label={t('capture.anytime')}
+                selected={day.mode === 'anytime'}
+                onPress={() => setDay({ mode: 'anytime' })}
+              />
+            )}
+            <Chip
+              label={t('common.today')}
+              selected={!rhythmOn && day.mode === 'date' && day.date === todayIso}
+              onPress={() => (rhythmOn ? setStart(todayIso) : setDay({ mode: 'date', date: todayIso }))}
+            />
+            <Chip
+              label={t('common.tomorrow')}
+              selected={!rhythmOn && day.mode === 'date' && day.date === addDaysISO(today, 1)}
+              onPress={() =>
+                rhythmOn ? setStart(addDaysISO(today, 1)) : setDay({ mode: 'date', date: addDaysISO(today, 1) })
+              }
+            />
+            {/* The seeded value keeps a chip of its own, SELECTED, so the row's current answer is
+                always readable without tapping anything. For an "every 3 days" rhythm the anchor IS
+                the schedule, so a sheet that hid it would make reading the start cost a re-phase. */}
+            {seededChip !== null && (
+              <Chip
+                label={friendlyDate(seededChip, today)}
+                selected={rhythmOn ? start === seededChip : day.mode === 'date' && day.date === seededChip}
+                onPress={() => (rhythmOn ? setStart(seededChip) : setDay({ mode: 'date', date: seededChip }))}
+              />
+            )}
+            <Chip label={t('capture.pickDate')} selected={pickerOpen} onPress={() => setPickerOpen((v) => !v)} />
+          </View>
+        </>
+      )}
+      <View style={[styles.startRow, allowNone && styles.hidden]}>
         <Text style={styles.startLabel}>{t('capture.startingFrom')}</Text>
         <Pressable
           onPress={() => setPickerOpen((v) => !v)}
@@ -177,7 +309,15 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
           }}
         />
       )}
-      {note ? <Text style={styles.note}>{note}</Text> : null}
+      {summary ? (
+        <View style={styles.summary}>
+          {summary.ends && <Text style={styles.ends}>{t('ours.whenEnds')}</Text>}
+          <Text style={styles.fragment}>{summary.fragment}</Text>
+          <Text style={styles.note}>{summary.sentence}</Text>
+        </View>
+      ) : note ? (
+        <Text style={styles.note}>{note}</Text>
+      ) : null}
       <View style={styles.sheetActions}>
         <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={t('common.cancel')} hitSlop={8}>
           <Text style={styles.sheetCancel}>{t('common.cancel')}</Text>
@@ -191,6 +331,16 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
     sheetTitle: { ...t.type.heading, color: t.colors.ink, marginBottom: spacing.three },
+    // The zone labels. `zoneLive` is the sheet's ONE accent label, marking the moment the day zone
+    // stopped asking "which day" and started asking "from when".
+    zone: { ...t.type.caption, color: t.colors.inkSoft, marginTop: spacing.two, textTransform: 'uppercase', letterSpacing: 0.8 },
+    zoneLive: { color: t.colors.accent },
+    // The start row survives for the drawer and is hidden (not unmounted) on the shared surface,
+    // whose day zone above already owns the same value. Unmounting it would drop the inline picker.
+    hidden: { display: 'none' },
+    summary: { gap: spacing.one, marginTop: spacing.two },
+    ends: { ...t.type.body, color: t.colors.ink, fontWeight: '600' },
+    fragment: { ...t.type.body, color: t.colors.ink },
     sheetInput: {
       borderWidth: border.hair,
       borderColor: t.colors.line,
