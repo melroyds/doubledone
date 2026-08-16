@@ -14,8 +14,8 @@ button, no per-occurrence skip, no second sheet, no tooltip, no confirms, no ove
 two-line summary rule of a dot-joined fragment plus a whole fixed sentence. Keep the door rename.
 Keep A1, A2, A3 exactly as drawn.
 
-**This asks for five corrections and four boards back.** It is not a redesign and should not be
-treated as one. Round two got the app right where round one got it wrong; what follows is the
+**This asks for five corrections and five boards back** (A4, B2, B3, B4, C1). It is not a redesign
+and should not be treated as one. Round two got the app right where round one got it wrong; what follows is the
 remaining gap between the boards and the code.
 
 ---
