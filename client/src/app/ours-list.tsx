@@ -882,7 +882,11 @@ export default function OursListScreen() {
           visible
           onClose={() => setCadenceId(null)}
           today={now}
-          sheetTitle={t('repeat.editSheetTitle')}
+          /* "Edit repeating task" was true when this sheet only did rhythms, and is wrong on a
+             row that may be plain or dated. Both callers used to pass the same key; the drawer
+             keeps it, because there the sheet genuinely IS editing a repeating task, and that word
+             is the only thing telling you a change lands on the whole series. */
+          sheetTitle={t('ours.when').replace('…', '')}
           title={cadenceTask.title}
           recurrence={cadenceTask.recurrence}
           /* The row's current day, so the sheet can see the value the door beside it already names.

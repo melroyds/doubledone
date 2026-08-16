@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { addDaysISO, friendlyDate, toISODate } from '@/lib/day';
@@ -119,6 +119,19 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
   /** The row's own current day, offered as a chip so its value is readable without tapping. */
   const seededChip = rhythmOn ? (startOf(recurrence) ?? null) : (typeof due === 'string' ? due : null);
 
+  /**
+   * THE chosen day, wherever the zone happens to be keeping it.
+   *
+   * The zone answers two different questions depending on whether a rhythm is alive: the day this
+   * happens, or the day it starts from. Those live in two different pieces of state, and the chips
+   * were comparing against only one of them, so with a rhythm running nothing highlighted: tapping
+   * Today moved the start and lit nothing up. Melroy: "Clicking Today doesn't highlight the cell."
+   * One derived value, one comparison, and the zone's two moods cannot disagree about what is
+   * selected.
+   */
+  const chosenDay = rhythmOn ? start : day.mode === 'date' ? day.date : null;
+  const pickDay = (iso: string) => (rhythmOn ? setStart(iso) : setDay({ mode: 'date', date: iso }));
+
   function schedule(): CaptureSchedule {
     if (!rhythmOn) return day;
     if (mode === 'weekly') return { mode: 'weekly', weekdays: weekdays.length > 0 ? weekdays : [today.getDay()], start };
@@ -181,7 +194,13 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
   }
 
   return (
-    <ModalCard visible={visible} onClose={onClose}>
+    // The sheet SCROLLS now. It was a bare ModalCard with neither `scroll` nor `maxHeight`, which
+    // was survivable at three chips and a date row and is not once a whole day zone, a month grid
+    // and a two-line summary arrive: the content simply ran past the bottom of the screen with no
+    // way to reach the commit button. Capped at 82% of the viewport so the card still reads as a
+    // card rather than a page, with the same scaffold BreakdownQuestions uses.
+    <ModalCard visible={visible} onClose={onClose} scroll maxHeight="82%">
+      <ScrollView contentContainerStyle={styles.scrollBody} keyboardShouldPersistTaps="handled">
       <Text style={styles.sheetTitle}>{sheetTitle}</Text>
       <TextInput
         style={styles.sheetInput}
@@ -191,6 +210,68 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
         returnKeyType="done"
         accessibilityLabel={t('repeat.titleInputA11y')}
       />
+      {/* THE DAY ZONE LEADS. It read "OR A RHYTHM" as the very first label under the title, with
+          nothing for the "or" to refer back to, which is nonsense on first sight. The question is
+          "when does this happen: a day, or a rhythm", and it has to be asked in that order. */}
+      {/* THE relabel, and the resolution the third design round settled on: the same zone asks a
+          different question depending on whether a rhythm is alive. No rhythm and it is "A day",
+          meaning the day this happens. A rhythm, and it is "Starting", meaning from when. The words
+          change in front of you rather than being a rule somebody has to learn. */}
+      {allowNone && (
+        <>
+          <Text style={[styles.zone, rhythmOn && styles.zoneLive]}>
+            {rhythmOn ? t('ours.whenStarting') : t('ours.whenDayZone')}
+          </Text>
+          <View style={styles.chips}>
+            {/* ALWAYS here, including while a rhythm runs, and tapping it ends that rhythm in ONE
+                tap. The design hid it behind releasing the cadence chip first, on the tidy logic
+                that "a rhythm has no anytime". True, and backwards in practice: Anytime is where
+                you go to STOP, so hiding the exit while the thing you want to leave is running is
+                the wrong way round. Melroy, first run: "unticking weekly to get Anytime was
+                unintuitive." He is right. It stays a state among states, never a destructive Clear,
+                and the summary still narrates the ending before anything commits. */}
+            <Chip
+              label={t('capture.anytime')}
+              selected={!rhythmOn && day.mode === 'anytime'}
+              onPress={() => {
+                setRhythmOn(false);
+                setDay({ mode: 'anytime' });
+              }}
+            />
+            <Chip label={t('common.today')} selected={chosenDay === todayIso} onPress={() => pickDay(todayIso)} />
+            <Chip
+              label={t('common.tomorrow')}
+              selected={chosenDay === addDaysISO(today, 1)}
+              onPress={() => pickDay(addDaysISO(today, 1))}
+            />
+            {/* The seeded value keeps a chip of its own, SELECTED, so the row's current answer is
+                always readable without tapping anything. For an "every 3 days" rhythm the anchor IS
+                the schedule, so a sheet that hid it would make reading the start cost a re-phase. */}
+            {seededChip !== null && (
+              <Chip
+                label={friendlyDate(seededChip, today)}
+                selected={chosenDay === seededChip}
+                onPress={() => pickDay(seededChip)}
+              />
+            )}
+            <Chip label={t('capture.pickDate')} selected={pickerOpen} onPress={() => setPickerOpen((v) => !v)} />
+          </View>
+          {/* The grid unfolds INSIDE this zone, directly under the chip that asked for it. It used
+              to render further down beside the drawer's own start row, which on a sheet this tall
+              put it below the fold with nothing to scroll, so tapping Pick a date looked like it did
+              nothing at all. */}
+          {pickerOpen && (
+            <DatePicker
+              value={chosenDay !== null && chosenDay >= todayIso ? chosenDay : null}
+              today={today}
+              onChange={(iso) => {
+                pickDay(iso);
+                setPickerOpen(false);
+              }}
+            />
+          )}
+        </>
+      )}
       {allowNone && <Text style={styles.zone}>{t('ours.whenRhythmZone')}</Text>}
       <View style={styles.chips}>
         {EDIT_MODES.map(({ mode: m, labelKey }) => (
@@ -242,57 +323,6 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
           </Pressable>
         </View>
       )}
-      {/* THE relabel, and the resolution the third design round settled on: the same zone asks a
-          different question depending on whether a rhythm is alive. No rhythm and it is "A day",
-          meaning the day this happens. A rhythm, and it is "Starting", meaning from when. The words
-          change in front of you rather than being a rule somebody has to learn. */}
-      {allowNone && (
-        <>
-          <Text style={[styles.zone, rhythmOn && styles.zoneLive]}>
-            {rhythmOn ? t('ours.whenStarting') : t('ours.whenDayZone')}
-          </Text>
-          <View style={styles.chips}>
-            {/* ALWAYS here, including while a rhythm runs, and tapping it ends that rhythm in ONE
-                tap. The design hid it behind releasing the cadence chip first, on the tidy logic
-                that "a rhythm has no anytime". True, and backwards in practice: Anytime is where
-                you go to STOP, so hiding the exit while the thing you want to leave is running is
-                the wrong way round. Melroy, first run: "unticking weekly to get Anytime was
-                unintuitive." He is right. It stays a state among states, never a destructive Clear,
-                and the summary still narrates the ending before anything commits. */}
-            <Chip
-              label={t('capture.anytime')}
-              selected={!rhythmOn && day.mode === 'anytime'}
-              onPress={() => {
-                setRhythmOn(false);
-                setDay({ mode: 'anytime' });
-              }}
-            />
-            <Chip
-              label={t('common.today')}
-              selected={!rhythmOn && day.mode === 'date' && day.date === todayIso}
-              onPress={() => (rhythmOn ? setStart(todayIso) : setDay({ mode: 'date', date: todayIso }))}
-            />
-            <Chip
-              label={t('common.tomorrow')}
-              selected={!rhythmOn && day.mode === 'date' && day.date === addDaysISO(today, 1)}
-              onPress={() =>
-                rhythmOn ? setStart(addDaysISO(today, 1)) : setDay({ mode: 'date', date: addDaysISO(today, 1) })
-              }
-            />
-            {/* The seeded value keeps a chip of its own, SELECTED, so the row's current answer is
-                always readable without tapping anything. For an "every 3 days" rhythm the anchor IS
-                the schedule, so a sheet that hid it would make reading the start cost a re-phase. */}
-            {seededChip !== null && (
-              <Chip
-                label={friendlyDate(seededChip, today)}
-                selected={rhythmOn ? start === seededChip : day.mode === 'date' && day.date === seededChip}
-                onPress={() => (rhythmOn ? setStart(seededChip) : setDay({ mode: 'date', date: seededChip }))}
-              />
-            )}
-            <Chip label={t('capture.pickDate')} selected={pickerOpen} onPress={() => setPickerOpen((v) => !v)} />
-          </View>
-        </>
-      )}
       <View style={[styles.startRow, allowNone && styles.hidden]}>
         <Text style={styles.startLabel}>{t('capture.startingFrom')}</Text>
         <Pressable
@@ -332,12 +362,15 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
         </Pressable>
         <PrimaryButton label={commitLabel} onPress={save} disabled={draft.trim().length === 0} accessibilityLabel={commitLabel} style={styles.commit} />
       </View>
+      </ScrollView>
     </ModalCard>
   );
 }
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
+    // A scroll-host ModalCard drops its own padding and gap, so the content container takes both.
+    scrollBody: { padding: spacing.six, gap: spacing.three },
     sheetTitle: { ...t.type.heading, color: t.colors.ink, marginBottom: spacing.three },
     // The zone labels. `zoneLive` is the sheet's ONE accent label, marking the moment the day zone
     // stopped asking "which day" and started asking "from when".

@@ -6971,3 +6971,38 @@ said clearing must be as easy as setting."* I shipped it anyway because the desi
 way, and the review was right. The first one nobody predicted, and nothing could have: it needed
 somebody to tick a real row and then try to edit it.
 
+---
+
+## 2026-08-17 · Four more from one screenshot, and the reason a screenshot beat 964 tests
+
+Melroy opened the sheet, photographed it, and every one of these was visible in that single image.
+None of them could fail a unit test, because all four are about what a person sees.
+
+**The chips did not highlight while a rhythm ran.** The zone asks two different questions, and the
+two answers lived in two different pieces of state (`day` for a plain row, `start` for a rhythm's
+beginning). The chips compared against only the first, so with a rhythm alive, tapping Today moved
+the start and lit nothing up. *"Clicking Today doesn't highlight the cell."* Fixed by deriving ONE
+`chosenDay`, so the zone's two moods cannot disagree about what is selected.
+
+**"Pick a date" looked dead.** The grid was rendering further down the sheet, beside the drawer's own
+start row, which on a sheet this tall put it below the fold with nothing to scroll. It now unfolds
+inside the day zone, directly under the chip that asked for it.
+
+**"OR A RHYTHM" was the first label under the title**, with nothing for the "or" to refer back to.
+Nonsense on first sight. The question is *when does this happen: a day, or a rhythm*, and it has to
+be asked in that order, so the day zone leads.
+
+**The sheet did not scroll.** It was a bare `ModalCard` with neither `scroll` nor `maxHeight`, which
+was survivable at three chips and a date row and is not once a day zone, a month grid and a two-line
+summary arrive. Capped at 82% of the viewport, same scaffold `BreakdownQuestions` uses. **The
+adversarial review predicted this one too**, and named the precedent to copy.
+
+**And the sheet was titled "Edit repeating task"** on a row that may be plain or dated. Both callers
+passed the same key. The drawer keeps it, because there the sheet genuinely is editing a repeating
+task and that word is the only thing telling you the change lands on the whole series.
+
+**The lesson worth keeping.** 964 tests were green through all five of these, and every one was
+obvious in a photograph. Pure logic tests catch what a function computes; they cannot catch a label
+that reads as nonsense, a chip that never lights, or a button below the fold. The moment a surface
+exists, somebody has to look at it, and no amount of coverage substitutes.
+
