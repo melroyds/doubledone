@@ -7006,3 +7006,41 @@ obvious in a photograph. Pure logic tests catch what a function computes; they c
 that reads as nonsense, a chip that never lights, or a button below the fold. The moment a surface
 exists, somebody has to look at it, and no amount of coverage substitutes.
 
+---
+
+## 2026-08-17 · The screenshot harness reaches Ours, without a credential
+
+**Decided: stub Supabase in Playwright rather than sign anything in.** I had told Melroy the room was
+out of reach: it seeds `localStorage`, and a pair comes from `loadMyPairs` over the network, so a
+seeded run renders the pairing screen. He pushed back, and he was right. The harness drives the
+browser, so it can answer the network too. Every read the room makes (`pair_members`, `pairs`,
+`shared_tasks`, `server_now`) is now served from a fixture and **nothing real is contacted**.
+
+**Decided against putting a real session anywhere near it.** The tempting shortcut is to lift a live
+Supabase token into the script. This repo is public and git history is permanent, so that is a
+credential published forever. The stub needs only a well-formed token, and the one thing that must be
+real, the storage key's project ref, is read from the gitignored `client/.env` at run time.
+
+**Decided: the When shot is held on a PLAIN row, not the repeat.** The repeat state adds seven
+weekday toggles and a third row of chips, and at 390px the commit button then falls below the fold,
+so the shot showed a sheet with no visible way to finish. The plain state also happens to be the
+honest one for a listing: giving a shared row a day is the move the release exists for.
+
+**Decided against a Today-with-the-strip shot at all.** Any Ours-enabled Today renders "Synced to
+&lt;address&gt;" in its footer, and a fabricated address in a store listing is not something to ship.
+That one stays a real device's job, or it does not happen.
+
+**A testID on the When door**, because the first localised run died clicking the English word "When"
+on a German screen. Same lesson the harness already recorded for `waitText`, relearned one layer up.
+`welcome-primary` was the precedent.
+
+**What it produced, and what it proved.** Room (light and dark) and the When sheet, in en/de/es/it,
+plus both in the App Store set at 1320x2868. And an answer to a question three rounds of design
+could not settle from a picture: at 390px the sheet with a rhythm running is TALL, chips wrapping to
+three rows and weekdays to two, and it needs the scroll host it was given. German, the longest-string
+locale, fits comfortably.
+
+**Still English in the localised sets:** the seeded task titles and the list name. That predates this
+work and is fine for a review pack, and it would be wrong for a localised store listing. Noted rather
+than fixed.
+

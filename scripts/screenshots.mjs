@@ -19,7 +19,7 @@
 // Add a screen by adding a SHOTS entry below. State is seeded, so no live AI is
 // needed except the optional scrapbook image (one free Workers-AI call).
 
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -129,6 +129,91 @@ function seedLocalStorage(payload) {
   for (const [k, v] of Object.entries(payload)) localStorage.setItem(k, v);
 }
 
+/**
+ * OURS, without a real account.
+ *
+ * The room is the one screen this harness could not reach, and it is the screen the whole 1.3.0
+ * release is about: no listing anywhere showed a shared list. It resisted the usual trick because a
+ * pair does not come from localStorage, it comes from `loadMyPairs` over the network, so a seeded
+ * run just rendered the pairing screen.
+ *
+ * The answer is not a real session. Playwright can answer the network itself, so every Supabase read
+ * the room makes is served from the fixture below and NOTHING real is contacted. That keeps the shots
+ * deterministic, localisable, and free of any credential: this repo is public, and a session token in
+ * a script would be a credential in it forever.
+ *
+ * The one thing that must be real is the storage KEY supabase-js reads its session from, which is
+ * derived from the project ref, so it is lifted from client/.env (gitignored) at run time rather
+ * than written down here.
+ */
+const OURS_PAIR = '00000000-1111-2222-3333-444444444444';
+const OURS_USER = '55555555-6666-7777-8888-999999999999';
+const OURS_NAME = 'Just us';
+
+/** A shared list that reads like a real household's, because strangers will see it. */
+function oursRows(noon) {
+  const iso = (d) => new Date(d).toISOString();
+  const day = (d) => isoDay(new Date(d));
+  const row = (id, title, over = {}) => ({
+    pair_id: OURS_PAIR,
+    id,
+    title,
+    done: false,
+    done_at: null,
+    recurrence: null,
+    completions: null,
+    due: null,
+    created_at: iso(noon - DAY),
+    updated_at: iso(noon),
+    deleted_at: null,
+    ...over,
+  });
+  return [
+    row('a1', 'Bin night', { recurrence: { kind: 'weekly', weekdays: [new Date(noon).getDay()], start: day(noon - 30 * DAY) } }),
+    row('a2', 'Pick up the parcel', { due: day(noon) }),
+    row('a3', 'Cat food, the kidney one'),
+    row('a4', 'Ask about the gutter'),
+    row('a5', 'Batteries, the small ones'),
+    row('a6', 'Book the car service', { due: day(noon + 3 * DAY) }),
+  ];
+}
+
+/** The project ref, so the seeded session lands under the key supabase-js will look in. */
+function projectRef() {
+  const env = path.join(process.cwd(), 'client', '.env');
+  if (!existsSync(env)) return null;
+  const text = readFileSync(env, 'utf8');
+  const m = text.match(/EXPO_PUBLIC_SUPABASE_URL\s*=\s*"?https:\/\/([a-z0-9]+)\./i);
+  return m ? m[1] : null;
+}
+
+/** Answer every Supabase read from the fixture. Nothing leaves the machine. */
+async function stubSupabase(page, noon) {
+  const rows = oursRows(noon);
+  await page.route('**/rest/v1/**', async (route) => {
+    const url = new URL(route.request().url());
+    const json = (body) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+    if (url.pathname.endsWith('/pair_members')) {
+      return json([{ pair_id: OURS_PAIR, user_id: OURS_USER, label: 'me', joined_at: new Date(noon - 40 * DAY).toISOString() }]);
+    }
+    if (url.pathname.endsWith('/pairs')) {
+      return json([{ id: OURS_PAIR, name: OURS_NAME, closed_at: null, disabled_at: null }]);
+    }
+    if (url.pathname.endsWith('/shared_tasks')) {
+      // pullPair keyset-walks and stops on an EMPTY page, so the second call must return nothing.
+      const after = url.searchParams.get('id');
+      return json(after && after.startsWith('gt.') ? [] : rows);
+    }
+    if (url.pathname.includes('/rpc/server_now')) return json(new Date(noon).toISOString());
+    if (url.pathname.includes('/rpc/')) return json(true);
+    return json([]);
+  });
+  await page.route('**/auth/v1/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }),
+  );
+}
+
 async function capture(browser, shot) {
   const ctx = await browser.newContext({
     viewport: VIEWPORT,
@@ -148,9 +233,27 @@ async function capture(browser, shot) {
     'doubledone.whatsnew.v1': '99',
   };
   if (shot.scrapbooks) payload['doubledone.scrapbooks.v1'] = JSON.stringify(shot.scrapbooks);
+  // A session that supabase-js will accept from storage without asking anybody. Not a credential:
+  // every request it could authenticate is answered by `stubSupabase` and never leaves the machine.
+  if (shot.ours) {
+    const ref = projectRef();
+    if (!ref) throw new Error('OURS shots need client/.env for the project ref');
+    const exp = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 365;
+    const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+    const jwt = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: OURS_USER, role: 'authenticated', exp })}.stub`;
+    payload[`sb-${ref}-auth-token`] = JSON.stringify({
+      access_token: jwt,
+      refresh_token: 'stub',
+      token_type: 'bearer',
+      expires_in: 31536000,
+      expires_at: exp,
+      user: { id: OURS_USER, aud: 'authenticated', role: 'authenticated', email: 'you@example.invalid' },
+    });
+  }
   await ctx.addInitScript(seedLocalStorage, payload);
 
   const page = await ctx.newPage();
+  if (shot.ours) await stubSupabase(page, noon);
   await page.goto(`${BASE}${shot.route}`, { waitUntil: 'domcontentloaded', timeout: 120000 });
   // The waitText anchors are ENGLISH UI copy, so under LOCALE they would never appear:
   // localized runs wait for network idle + a longer settle instead (the app is seeded, so
@@ -187,6 +290,27 @@ async function capture(browser, shot) {
     await page.waitForTimeout(500);
   }
 
+  // `hold`: long-press a row by its words, then optionally tap something on the card that opens.
+  // The held card and the When sheet are state, not routes, so no amount of seeding reaches them.
+  if (shot.hold) {
+    const row = page.getByText(shot.hold, { exact: false }).first();
+    await row.waitFor({ timeout: 20000 });
+    const box = await row.boundingBox();
+    if (box) {
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.waitForTimeout(700); // longer than the press threshold, shorter than patience
+      await page.mouse.up();
+      await page.waitForTimeout(500);
+    }
+    // By testID, never by words: this runs in five locales, where the door reads Wann, Cuándo,
+    // Quand and Quando. Clicking by English text worked in English and nowhere else.
+    if (shot.then) {
+      await page.locator(`[data-testid="${shot.then}"]`).first().click({ timeout: 15000 });
+      await page.waitForTimeout(700);
+    }
+  }
+
   const file = path.join(OUT, `${shot.name}.${EXT}`);
   const opts = EXT === 'jpeg' ? { path: file, type: 'jpeg', quality: 92 } : { path: file };
   if (shot.testid) {
@@ -213,6 +337,9 @@ async function run() {
         { name: 'today-light', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Drink a glass of water' },
         { name: 'today-dark', route: '/today', tasks: TODAY_TASKS, theme: 'dark', waitText: 'Drink a glass of water' },
         { name: 'lookback-light', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'light', waitText: 'Water the plants' },
+        // The release's headline, and until now absent from every listing.
+        { name: 'ours-room', route: '/ours-list', tasks: TODAY_TASKS, theme: 'light', ours: true, waitText: 'Bin night' },
+        { name: 'ours-when', route: '/ours-list', tasks: TODAY_TASKS, theme: 'light', ours: true, waitText: 'Cat food', hold: 'Cat food', then: 'when-door' },
         { name: 'welcome', route: '/welcome', tasks: TODAY_TASKS, theme: 'light', waitText: 'A calmer kind of to-do' },
         { name: 'settings-light', route: '/settings', tasks: TODAY_TASKS, theme: 'light', motion: 'system', waitText: 'Theme' },
       ]
@@ -239,6 +366,19 @@ async function run() {
         },
         // The breathing room, caught ~2.5s into the swell so the blob is risen and the
         // guide word fully faded in (real headless Chrome runs the animation normally).
+        // OURS. The screens the whole 1.3.0 release is about, and the ones no listing showed.
+        // Every Supabase read is answered by the fixture in `stubSupabase`; nothing real is touched.
+        { name: 'ours-room', route: '/ours-list', tasks: TODAY_TASKS, theme: 'light', ours: true, waitText: 'Bin night' },
+        { name: 'ours-room-dark', route: '/ours-list', tasks: TODAY_TASKS, theme: 'dark', ours: true, waitText: 'Bin night' },
+        // Held on a PLAIN row, not the repeat. A repeating row adds seven weekday toggles and a
+        // third line of chips, and at 390px the commit button then falls below the fold, so the
+        // shot shows a sheet with no visible way to finish. The plain state is also the honest one
+        // for a listing: it is the move the release exists for, giving a shared row a day.
+        //
+        // There is deliberately NO Today-with-the-strip shot. Any Ours-enabled Today renders
+        // "Synced to <address>" in its footer, and a fabricated address in a store listing is not
+        // something to ship. That one stays a real device's job.
+        { name: 'ours-when', route: '/ours-list', tasks: TODAY_TASKS, theme: 'light', ours: true, waitText: 'Cat food', hold: 'Cat food', then: 'when-door' },
         { name: 'settle-light', route: '/settle', tasks: TODAY_TASKS, theme: 'light', waitText: 'Breathing guide', delay: 2000 },
         { name: 'settle-dark', route: '/settle', tasks: TODAY_TASKS, theme: 'dark', waitText: 'Breathing guide', delay: 2000 },
       ]

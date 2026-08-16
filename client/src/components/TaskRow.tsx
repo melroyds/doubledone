@@ -404,6 +404,9 @@ export function TaskRow({
             accessibilityRole="button"
             accessibilityLabel={repeatValue ? t('ours.whenA11y', { value: repeatValue }) : t('ours.repeat')}
             hitSlop={{ top: 6, bottom: 6 }}
+            // By id, never by words: the screenshot harness opens this door in five locales, where
+            // the label is Wann, Cuándo, Quand and Quando. Same reason welcome-primary has one.
+            testID="when-door"
           >
             <Text style={styles.actionLabel}>{repeatLabel ?? t('ours.repeat')}</Text>
             {repeatValue ? (
