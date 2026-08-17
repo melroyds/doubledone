@@ -510,6 +510,7 @@ export const en = {
     priceMonthly: 'A$5 / month. Cancel anytime. No ads, ever.',
     refreshA11y: 'Refresh your Premium status',
     renews: 'Renews {periodLabel}.',
+    renewalTask: 'Your DoubleDone year renews on {date}. Nothing to do.',
     scrapbookGrows: 'The weekly scrapbook grows the longer you stay:',
     settingUp: 'Thanks. Setting up your Premium, this updates in a moment.',
     signInToGoPremium: 'Sign in to go Premium',

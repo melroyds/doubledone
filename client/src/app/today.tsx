@@ -68,7 +68,8 @@ import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge }
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
-import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursMine, loadOursSeen, loadOursTasks, loadReminderHour, loadUpdateMentioned, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveUpdateMentioned, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
+import { decideRenewalNotice } from '@/lib/renewal';
+import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursMine, loadOursSeen, loadOursTasks, loadReminderHour, loadRenewalMemory, loadUpdateMentioned, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveRenewalMemory, saveUpdateMentioned, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
 import { restedOffer } from '@/lib/offers';
 import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/plan-day';
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
@@ -339,7 +340,9 @@ export default function TodayScreen() {
   const [energyErr, setEnergyErr] = useState<string | null>(null);
   const [energyNote, setEnergyNote] = useState<string | null>(null); // the calm "n left this month" line, at 10 and 5
   const [energyUses, setEnergyUses] = useState<number[]>([]);
-  const { premium, loading: premiumLoading } = usePremium(); // gates Pin; a dev override drives it locally
+  // `entitlement` is the RAW server one, deliberately: the dev override must never conjure a
+  // renewal notice about money that is not moving.
+  const { premium, loading: premiumLoading, entitlement } = usePremium(); // gates Pin; a dev override drives it locally
   const brainDumpRef = useRef<BrainDumpHandle>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false); // the OCR photo-capture modal (premium)
@@ -1930,6 +1933,42 @@ export default function TodayScreen() {
     setTasks(stamped);
     return copy;
   }
+
+  // The annual renewal notice: one task, once, a week before a yearly charge. See lib/renewal for
+  // the rules, including how "annual" is known without the server saying so.
+  //
+  // This is the ONLY place DoubleDone writes a task nobody typed, and that is a line worth naming.
+  // It is justified because A$50 landing once a year is exactly the charge people forget agreeing
+  // to, and because the emails Stripe and Apple send about it go unread. It is kept honest by the
+  // decision living in a pure, tested module rather than here: never monthly, never when cancelling,
+  // never twice for the same period, and never dated into the past.
+  useEffect(() => {
+    if (premiumLoading) return;
+    let active = true;
+    void (async () => {
+      const decided = decideRenewalNotice(await loadRenewalMemory(), entitlement, Date.now());
+      await saveRenewalMemory(decided.memory);
+      if (!active || !decided.noticeOn || !decided.renewsOn) return;
+      // Read tasks FRESH rather than from the render closure. The shared-copy path above documents
+      // what the closure costs: a stale array saved straight back over a write that already landed.
+      const fresh = await loadTasks();
+      const stamp = nowMs();
+      const notice: Task = {
+        id: makeId(),
+        title: t('premium.renewalTask', { date: friendlyDate(decided.renewsOn, new Date()) }),
+        done: false,
+        due: decided.noticeOn,
+        createdAt: stamp,
+        updatedAt: stamp,
+      };
+      const next = withMonotonicStamps([...fresh, notice], fresh);
+      await saveTasks(next);
+      if (active) setTasks(next);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [entitlement, premiumLoading]);
 
   // "I also did that": log something already done that was never on the list, so the
   // Lookback reflects what you actually did, not just what you ticked. A completed

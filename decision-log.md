@@ -7268,3 +7268,40 @@ tested; the join input simply never called it. The separator was always cosmetic
 strips it before any comparison), but a person READ a code as K7M-P4Q, typing into a field that
 never showed a dash, reasonably concludes they have it wrong. One line, zero logic change, and it
 lands at the highest-intent moment in the whole feature.
+
+## The annual renewal notice, and the one line it crosses
+
+*2026-08-17, at Melroy's ask.*
+
+A$50 landing once a year is exactly the charge people forget agreeing to, and the emails Stripe and
+Apple send about it go unread. So an annual subscriber now gets **one task, once, a week before the
+charge**: "Your DoubleDone year renews on {date}. Nothing to do."
+
+**This is the only place DoubleDone writes a task nobody typed, and that deserves naming rather than
+sliding past.** The list is supposed to be entirely theirs. It was put to Melroy as a decision rather
+than built quietly, and he took it: a surprise task is kinder than a surprise charge. The line is
+kept narrow by putting the whole judgement in a pure, tested module (`lib/renewal.ts`, 13 tests)
+instead of inline in a screen.
+
+**Only annual, and "annual" is inferred rather than told.** The entitlement carries
+`currentPeriodEnd` but no interval, and adding one is a Worker change. It is not needed: a monthly
+period end is never more than ~31 days out, so the first time a period is seen ending 40+ days ahead
+it is annual, and that judgement is remembered against that specific period end. Monthly subscribers
+must never get this. Twelve notices a year is nagging, which this app does not do.
+
+**Decided: seven days before the charge, not on the day.** The first version dated the task on the
+renewal day, which meant it would arrive on the morning the money left. That is a receipt, not a
+warning, and it was caught while wiring the screen rather than by a test, because every test asserted
+the behaviour I had wrongly intended. A week is enough to cancel without hurrying.
+
+**It never fires while `cancelAtPeriodEnd` is set.** Nothing is renewing, so a notice saying it is
+would be false, and distressing to somebody who has already decided to leave. It still LEARNS the
+period is annual in that state, so a change of heart is covered.
+
+**And it never dates the task into the past.** A device first looking with three days left would
+otherwise write a task dated backwards, arriving already overdue on the one screen whose entire
+promise is that nothing ever is.
+
+**The known gap, recorded as a cost rather than left as a surprise:** a fresh install inside the last
+40 days never sees the period long, so cannot tell it from monthly, and gives no notice that year. It
+self-corrects the year after. A test asserts this so it stays a decision.

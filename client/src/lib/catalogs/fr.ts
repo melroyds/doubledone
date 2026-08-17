@@ -506,6 +506,7 @@ export const fr: Catalog = {
     priceMonthly: '5 $A / mois. Résiliable à tout moment. Aucune pub, jamais.',
     refreshA11y: 'Actualiser ton statut Premium',
     renews: 'Se renouvelle le {periodLabel}.',
+    renewalTask: 'Ton année DoubleDone se renouvelle le {date}. Rien à faire.',
     scrapbookGrows: "L'album souvenir de la semaine grandit au fil du temps :",
     settingUp: "Merci. Ton Premium se met en place, ça s'actualise dans un instant.",
     signInToGoPremium: 'Connecte-toi pour passer à Premium',

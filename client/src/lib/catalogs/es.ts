@@ -506,6 +506,7 @@ export const es: Catalog = {
     priceMonthly: 'A$5 al mes. Cancela cuando quieras. Sin anuncios, nunca.',
     refreshA11y: 'Actualizar tu estado de Premium',
     renews: 'Se renueva el {periodLabel}.',
+    renewalTask: 'Tu año de DoubleDone se renueva el {date}. No hay nada que hacer.',
     scrapbookGrows: 'El álbum semanal crece cuanto más tiempo te quedas:',
     settingUp: 'Gracias. Estamos preparando tu Premium, se actualiza en un momento.',
     signInToGoPremium: 'Inicia sesión para pasarte a Premium',

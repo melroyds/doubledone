@@ -6,6 +6,7 @@ import { type Scrapbook } from './scrapbook';
 import { DEFAULT_SETTINGS, parseSettings, serializeSettings, type Settings } from './settings';
 import { deserialize, SEED, serialize, type Task } from './tasks';
 import { track } from './telemetry';
+import { NO_RENEWAL_MEMORY, type RenewalMemory } from './renewal';
 
 // Versioned so a future shape change can migrate rather than silently drop data.
 const STORAGE_KEY = 'doubledone.tasks.v1';
@@ -24,6 +25,7 @@ const REMINDEROFFER_KEY = 'doubledone.reminderoffer.v1'; // one-time "offer the 
 const WIDGETOFFER_KEY = 'doubledone.widgetoffer.v1'; // one-time "offer the home-screen widget" on the rested screen
 const SCRAPBOOKOFFER_KEY = 'doubledone.scrapbookoffer.v1'; // one-time "your week could be a keepsake" mention, the ladder's last rung
 const SETTLEGUIDE_KEY = 'doubledone.settleguide.v1'; // the breathing room's ONE remembered toggle (never a settings screen)
+const RENEWAL_KEY = 'doubledone.renewal.v1'; // what this device knows about an annual subscription's shape (see lib/renewal)
 const WHATSNEW_KEY = 'doubledone.whatsnew.v1'; // the last What's New content id this device has seen
 const REMINDERHOUR_KEY = 'doubledone.reminderhour.v1'; // the hour (0-23) the daily reminder fires; default 9am
 const DEV_PREMIUM_KEY = 'doubledone.devPremium.v1'; // DEV/preview only: the premium-flag override (see premium-flag.ts)
@@ -456,6 +458,28 @@ export async function loadWhatsNewSeen(): Promise<number | null> {
     return Number.isFinite(n) ? n : null;
   } catch {
     return null;
+  }
+}
+
+/** What this device has worked out about an annual renewal. Never throws; a lost value only means
+ *  the notice is re-derived, and the ANNUAL judgement is re-learned on the next far-out look. */
+export async function loadRenewalMemory(): Promise<RenewalMemory> {
+  try {
+    const raw = await AsyncStorage.getItem(RENEWAL_KEY);
+    if (!raw) return NO_RENEWAL_MEMORY;
+    const p = JSON.parse(raw) as Partial<RenewalMemory>;
+    const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+    return { annualPeriodEnd: num(p.annualPeriodEnd), noticedPeriodEnd: num(p.noticedPeriodEnd) };
+  } catch {
+    return NO_RENEWAL_MEMORY;
+  }
+}
+
+export async function saveRenewalMemory(m: RenewalMemory): Promise<void> {
+  try {
+    await AsyncStorage.setItem(RENEWAL_KEY, JSON.stringify(m));
+  } catch {
+    // best effort
   }
 }
 

@@ -510,6 +510,7 @@ export const de: Catalog = {
     priceMonthly: 'A$5 / Monat. Jederzeit kündbar. Keine Werbung, nie.',
     refreshA11y: 'Deinen Premium-Status aktualisieren',
     renews: 'Verlängert sich am {periodLabel}.',
+    renewalTask: 'Dein DoubleDone-Jahr verlängert sich am {date}. Nichts zu tun.',
     scrapbookGrows: 'Das wöchentliche Erinnerungsalbum wächst, je länger du bleibst:',
     settingUp: 'Danke. Dein Premium wird gerade eingerichtet, das hier aktualisiert sich gleich.',
     signInToGoPremium: 'Anmelden und Premium holen',
