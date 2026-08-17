@@ -982,8 +982,12 @@ export default function OursScreen() {
           <Text style={styles.title}>{t('ours.enterCode')}</Text>
           <TextInput
             value={typedCode}
+            // Formatted as they type, so what they see matches the K7M-P4Q they were READ. The
+            // separator was always cosmetic (normaliseCode strips it before anything is compared),
+            // but a person given a code with a dash, typing into a field that never shows one,
+            // reasonably concludes they have got it wrong. Reported by a real user on 2026-08-17.
             onChangeText={(v) => {
-              setTypedCode(v);
+              setTypedCode(formatCode(v));
               if (failure === 'invalid-code') setFailure(null);
             }}
             placeholder={t('ours.codePlaceholder')}

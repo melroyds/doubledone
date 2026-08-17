@@ -7232,3 +7232,39 @@ apart". `shift` skips a fraction of the screenshot's height before the visible w
 one tap turns it off", and it would have been a lie against that image: the AI toggle sits below the
 fold and is not in the screenshot at all. The slide shows text size, motion and theme, so it says so.
 A caption has to be true of the picture under it, not of the app in general.
+
+## Three fixes from the first real user report
+
+*2026-08-17. A user installed after a launch post, could not find Ours, and reported it as broken.
+It was not broken; he had never signed in. His own three-item follow-up is the best product feedback
+this project has had, and all three are shipped here.*
+
+**The root cause was a LABEL, not the missing row.** The only door to the account read
+`Sync across devices`, and he read it exactly as written: a feature for people with several devices,
+which he is not, so he skipped it. That one decision then silently removed Ours, sync and the
+premium attachment, with no explanation anywhere. It is now **`Sync and sharing`**, and the sign-in
+subtitle names Ours explicitly, so the cost and the reason are both visible at the moment of asking.
+
+**Decided: stop saying "sign in" at that door.** He also flagged that "sign in" fights the app's own
+promise that no account is needed, and he is right. The new label and subtitle describe what the
+email DOES ("It syncs your other devices, and it is what Ours needs") rather than demanding an
+identity. His own suggestion was "Connect"; it was rejected as too vague for an audience that needs
+precision, in favour of naming both uses.
+
+**Decided: the signed-out Ours row is a row, not an absence.** Until now, `oursOpen` started false
+and was only ever raised by a server call made `if (supabase && session)`, so a signed-out user saw
+no Ours row in the Menu, none in Settings, and no hint that the feature existed. The code called
+this deliberate, "no funnel on the working surface", and that reasoning is right about **Today** and
+wrong about the **Menu**, which the app itself calls the place discovery happens. Naming a feature
+and its one requirement is not a funnel. A silently missing row is a dead end, and it read to a real
+person as "this app does not have that".
+
+**Decided against moving sign-in earlier in onboarding, or nudging for an account on Today.**
+Anonymous-first is a genuine trust asset with this audience and most of why people stay. The fix is
+telling people Ours exists and what it costs, never making everyone pay it up front.
+
+**And the invite field now formats as you type.** `formatCode` already existed and was already
+tested; the join input simply never called it. The separator was always cosmetic (`normaliseCode`
+strips it before any comparison), but a person READ a code as K7M-P4Q, typing into a field that
+never showed a dash, reasonably concludes they have it wrong. One line, zero logic change, and it
+lands at the highest-intent moment in the whole feature.

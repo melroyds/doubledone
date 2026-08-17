@@ -22,6 +22,8 @@ type Props = {
   onSettings: () => void;
   /** Absent when Ours is not open to this account, so the row is simply not drawn. */
   onOurs?: () => void;
+  /** Signed out: the row still shows, but says what it needs instead of what it is. */
+  oursNeedsSync?: boolean;
   premium: boolean;
 };
 
@@ -35,6 +37,7 @@ export function RoomsSheet({
   onPremium,
   onSettings,
   onOurs,
+  oursNeedsSync,
   premium,
 }: Props) {
   const styles = useThemedStyles(makeStyles);
@@ -56,7 +59,15 @@ export function RoomsSheet({
     { key: 'lookback', label: t('lookback.title'), hint: t('rooms.lookbackHint'), onPress: go(onLookback) },
     // Ours lives here, and when there is no shared list this is its ONLY entry: Today gets a door
     // only once a list exists, so nothing on the working surface ever advertises the feature.
-    ...(onOurs ? [{ key: 'ours', label: t('ours.defaultName'), hint: t('rooms.oursHint'), onPress: go(onOurs) }] : []),
+    //
+    // `oursNeedsSync` is the SIGNED-OUT case, and it is a row rather than an absence for a reason.
+    // Ours needs an account (a shared list has to reach another phone), and until 2026-08-17 a
+    // signed-out user saw no trace of it anywhere: no row here, none in Settings, no explanation. A
+    // real user read a launch post, installed, could not find the feature, and reported it as broken.
+    // Naming a feature and its one requirement is not a funnel. A silently missing row is a dead end.
+    ...(onOurs
+      ? [{ key: 'ours', label: t('ours.defaultName'), hint: t(oursNeedsSync ? 'rooms.oursNeedsSync' : 'rooms.oursHint'), onPress: go(onOurs) }]
+      : []),
     { key: 'chart', label: t('actions.chartACourse'), hint: t('rooms.chartHint'), onPress: go(onChart), premium: true, ai: true },
     {
       key: 'premium',

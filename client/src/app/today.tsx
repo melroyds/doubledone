@@ -3760,7 +3760,18 @@ export default function TodayScreen() {
           router.push('/premium');
         }}
         onSettings={() => router.push('/settings')}
-        onOurs={oursOpen ? () => router.push(oursPairId ? '/ours-list' : '/ours') : undefined}
+        // Three states, not two. Signed in with Ours open: the real door. SIGNED OUT: still a row,
+        // pointing at the one thing it needs, because a shared list cannot work without an account
+        // and a silently absent row reads as "this app does not have that feature" (it did, to a
+        // real user, on 2026-08-17). Sync not configured at all: no row, since Ours can never work.
+        onOurs={
+          oursOpen
+            ? () => router.push(oursPairId ? '/ours-list' : '/ours')
+            : isSyncConfigured && !session
+              ? () => router.push('/sign-in')
+              : undefined
+        }
+        oursNeedsSync={!session}
         premium={premium}
       />
       <Bloom data={bloom} onDone={dismissBloom} />
