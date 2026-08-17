@@ -45,6 +45,17 @@ Harmless, and it is the state every real user is in right now.
 | 5 | **The installed apps** | Two real OSes, two real clocks. Nothing in section 5 touches the fix. |
 | 5.3b (new) | **A phone's browser** | See below. |
 
+> ### If nothing is happening, reload
+>
+> This will catch you more than once. Today holds its idea of the current day, and of the shared
+> rows, from the moment you opened it. Nothing pushes to it. So **a reload is the answer to almost
+> every "why has this not updated"**: a change the other side made, a tick that should have crossed,
+> and the day itself.
+>
+> That last one matters for 4.8. **Changing your machine's clock fires no event**, so the page keeps
+> yesterday's date until you reload. The clock correction is a red herring here: it adjusts the
+> timestamps written for last-write-wins, and never the date that decides what lands on Today.
+
 **Everything in 1 to 4 runs on one PC.** No second machine, no second network, no second clock. That
 is precisely what section 5 exists to add, which is why it is the only part that needs real hardware.
 
@@ -275,7 +286,11 @@ a phone tests the old code and fails for the wrong reason. It reaches the phones
 1. On **A**, add `DF-12 recycling bin` in the room, door set to **Today**.
 2. It appears under DUE TODAY on both. Tick it on either.
 3. **Check now:** still on both Todays, struck through, and you can un-tick it.
-4. **Tomorrow morning** (or move the clock forward a day and reload): look again.
+4. **Tomorrow morning, and RELOAD the tab.** Or move the clock forward a day and then reload.
+   Moving the clock alone does nothing: no event fires, so the page is still holding the date it had
+   when you opened it. Reloading is what re-reads the day.
+   *If a real day has passed since step 2, put the clock back on automatic and just reload. The
+   genuine test is better than the simulated one.*
 
 ✅ Now: still there on both. Tomorrow: **gone from both**.
 ❌ Still there tomorrow. That is the bug.
