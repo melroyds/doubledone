@@ -7181,3 +7181,34 @@ IOS=1 SHOT_SCALE=2 IOS_W=1024 IOS_H=1366 node scripts/screenshots.mjs  # iPad 13
 
 Every size was verified by reading the JPEG SOF header, never by trusting a filename, because the
 whole failure mode here is a file that is named right and sized wrong.
+
+## Social slides: stop posting raw screenshots
+
+*2026-08-17. Instagram, and a shape problem.*
+
+A phone screenshot is roughly 0.46 wide-to-tall. Instagram's TALLEST feed slot is 4:5, which is 0.8,
+and its square is 1.0. So a raw screenshot has only two possible fates there, and both are bad: it
+letterboxes into a stamp surrounded by dead margin, or it centre-crops and throws away the top and
+bottom of the screen. There is no third option, because the aspect ratios simply do not meet.
+
+**Decided: the phone BLEEDS off the bottom of the slide.** `scripts/social-slides.mjs` puts it at
+78% of the slide width, starting below the caption and running past the frame edge. The slide fills,
+the phone still reads as a phone, and the top of the screen (the part that carries the idea) is
+shown large instead of shrunk to fit.
+
+**Decided: the caption carries the message, not the screenshot.** At feed scale, viewed on a phone,
+a 1080px slide renders around 400px wide. Nothing phone-sized inside it is readable and chasing that
+is wasted effort. The caption is set at 6.2% of the slide width in Newsreader and does the talking.
+
+**The bleed needed a dissolve.** A hard crop at the frame edge slices whatever row happens to land
+there, and a half-cut line of text reads as a mistake rather than as deliberate bleed. The last 16%
+of the screen now fades into **the app's own paper colour**, which is why each slide carries a
+`paper` value and the dark slide carries a different one. Fading to a fixed light colour would have
+put a white bar across the bottom of the night-mode slide.
+
+**Sources are the App Store JPEGs, not a fresh harness run.** They are 1320x2868 and current, so the
+slides need no dev server and no Expo boot. That is the difference between this being a 20-second
+job and a five-minute one.
+
+Six slides, 1080x1350, in `docs/launch/ours/instagram/`. Carousel order leads with Ours, because
+slide one is the only one most people see.
