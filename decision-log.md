@@ -7212,3 +7212,23 @@ job and a five-minute one.
 
 Six slides, 1080x1350, in `docs/launch/ours/instagram/`. Carousel order leads with Ours, because
 slide one is the only one most people see.
+
+**Two slide sets, and a `shift`.** *(2026-08-17, same session.)* The first carousel was Ours-led,
+which is wrong for anyone meeting the app for the first time, so `scripts/social-slides.mjs` now
+holds two named sets: `core` (what the app IS, following the arc of a day: the promise, the idea,
+too big, too much, the payoff, comfort) and `ours` (the shared list, which is an argument rather
+than a feature and earns its own post).
+
+**A new screenshot had to exist first: the HELD CARD.** Every relief tool in this app lives behind a
+long-press, so a screenshot set without it only ever shows a list, and a list is the least
+interesting thing here. `IOS=1` now captures it via the harness's existing `hold`, and it is the one
+frame that shows Break down, Make it tiny, Move to and Mark as a lot together.
+
+**Which forced `shift`.** The held card sits partway down Today, and the slide crops from the top, so
+cropping normally would have shown an energy selector on a slide captioned "hold it and it comes
+apart". `shift` skips a fraction of the screenshot's height before the visible window starts.
+
+**Decided against captioning the settings slide about AI.** The obvious line is "the AI is optional,
+one tap turns it off", and it would have been a lie against that image: the AI toggle sits below the
+fold and is not in the screenshot at all. The slide shows text size, motion and theme, so it says so.
+A caption has to be true of the picture under it, not of the app in general.

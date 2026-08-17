@@ -55,14 +55,30 @@ const SANS = FONT_SANS ? "'AK', system-ui, sans-serif" : 'system-ui, sans-serif'
 // half-cut line of text reads as a mistake rather than as a deliberate bleed.
 const LIGHT = '#FAF6F1';
 const DARK = '#1B1917';
-const SLIDES = [
-  { file: 'ours-room.jpeg', caption: 'One shared list.\nNever a scoreboard.', paper: LIGHT },
-  { file: 'today-light.jpeg', caption: 'Only today.\nNothing is ever overdue.', paper: LIGHT },
-  { file: 'settle-light.jpeg', caption: 'A quiet room,\nfor when today gets loud.', paper: LIGHT },
-  { file: 'ours-when.jpeg', caption: 'A shared day,\nset from either phone.', paper: LIGHT },
-  { file: 'lookback-light.jpeg', caption: 'Everything you finish,\nyou keep.', paper: LIGHT },
-  { file: 'today-dark.jpeg', caption: 'It has a night face.', paper: DARK },
-];
+
+// `shift` skips that fraction of the screenshot's height before the visible window starts. Most
+// screens lead with their own heading and want 0, but the held card sits partway down Today, and
+// cropping from the top would show an energy selector instead of the thing the slide is about.
+const SETS = {
+  // What the app IS. The arc of a day: the promise, the idea, too big, too much, the payoff, comfort.
+  core: [
+    { file: 'welcome.jpeg', caption: 'A to-do app for people\nwho find to-do apps too much.', paper: LIGHT },
+    { file: 'today-light.jpeg', caption: 'The home screen is Today.\nOnly today.', paper: LIGHT },
+    { file: 'held-card.jpeg', caption: 'Too big to start?\nHold it. It comes apart.', paper: LIGHT, shift: 0.215 },
+    { file: 'settle-light.jpeg', caption: 'Too loud?\nA room, and a breathing guide.', paper: LIGHT },
+    { file: 'lookback-light.jpeg', caption: 'Everything you finish,\nyou keep.', paper: LIGHT },
+    { file: 'settings-light.jpeg', caption: 'Built to be adjusted.\nText, motion, colour.', paper: LIGHT },
+  ],
+  // Ours, which gets its own post because it is an argument, not a feature.
+  ours: [
+    { file: 'ours-room.jpeg', caption: 'One shared list.\nNever a scoreboard.', paper: LIGHT },
+    { file: 'today-light.jpeg', caption: 'Only today.\nNothing is ever overdue.', paper: LIGHT },
+    { file: 'settle-light.jpeg', caption: 'A quiet room,\nfor when today gets loud.', paper: LIGHT },
+    { file: 'ours-when.jpeg', caption: 'A shared day,\nset from either phone.', paper: LIGHT },
+    { file: 'lookback-light.jpeg', caption: 'Everything you finish,\nyou keep.', paper: LIGHT },
+    { file: 'today-dark.jpeg', caption: 'It has a night face.', paper: DARK },
+  ],
+};
 
 /** #RRGGBB to "r,g,b", so the dissolve can fade its own paper colour to transparent. */
 const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(',');
@@ -76,9 +92,10 @@ const PHONE_TOP = Math.round(H * 0.255);
 const BEZEL = Math.max(8, Math.round(PHONE_W * 0.016));
 const RADIUS = Math.round(PHONE_W * 0.082);
 
-function slideHTML(caption, shotB64, paper) {
+function slideHTML(caption, shotB64, paper, shift = 0) {
   const lines = caption.split('\n').map((l) => `<span>${l}</span>`).join('');
   const p = rgb(paper);
+  const up = Math.round(shift * PHONE_H);
   return `<!doctype html><html><head><meta charset="utf-8"><style>
 ${FONT_FACE}
 *{margin:0;padding:0;box-sizing:border-box}
@@ -95,7 +112,7 @@ html,body{width:${W}px;height:${H}px;overflow:hidden}
   box-shadow:0 ${Math.round(H * 0.014)}px ${Math.round(H * 0.05)}px rgba(74,52,38,.22)}
 .phone .glass{position:relative;width:100%;height:100%;overflow:hidden;
   border-radius:${RADIUS - BEZEL}px ${RADIUS - BEZEL}px 0 0}
-.phone img{width:100%;display:block}
+.phone img{width:100%;display:block;margin-top:-${up}px}
 /* Dissolve the last stretch of screen into the app's OWN paper colour, so whatever row happens to
    land at the frame edge fades out instead of being sliced through its letterforms. Anchored to the
    slide's bottom edge, not the phone's, because the phone runs far past it. */
@@ -111,24 +128,30 @@ html,body{width:${W}px;height:${H}px;overflow:hidden}
 }
 
 async function run() {
-  await mkdir(OUT, { recursive: true });
+  const only = process.env.SET;
   const browser = await chromium.launch({ executablePath: chromePath(), headless: true });
   try {
-    let i = 0;
-    for (const s of SLIDES) {
-      const src = path.join(SRC, s.file);
-      if (!existsSync(src)) { console.log(`  ! skipped, missing ${s.file}`); continue; }
-      i += 1;
-      const shot = readFileSync(src).toString('base64');
-      const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
-      const page = await ctx.newPage();
-      await page.setContent(slideHTML(s.caption, shot, s.paper ?? LIGHT), { waitUntil: 'load' });
-      await page.evaluate(() => document.fonts.ready.then(() => true));
-      await page.waitForTimeout(220);
-      const name = `${String(i).padStart(2, '0')}-${s.file.replace(/\.jpe?g$/, '')}.png`;
-      await page.screenshot({ path: path.join(OUT, name) });
-      await ctx.close();
-      console.log(`  ✓ ${name}`);
+    for (const [set, slides] of Object.entries(SETS)) {
+      if (only && only !== set) continue;
+      const dir = path.join(OUT, set);
+      await mkdir(dir, { recursive: true });
+      console.log(`· ${set}`);
+      let i = 0;
+      for (const s of slides) {
+        const src = path.join(SRC, s.file);
+        if (!existsSync(src)) { console.log(`  ! skipped, missing ${s.file}`); continue; }
+        i += 1;
+        const shot = readFileSync(src).toString('base64');
+        const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+        const page = await ctx.newPage();
+        await page.setContent(slideHTML(s.caption, shot, s.paper ?? LIGHT, s.shift ?? 0), { waitUntil: 'load' });
+        await page.evaluate(() => document.fonts.ready.then(() => true));
+        await page.waitForTimeout(220);
+        const name = `${String(i).padStart(2, '0')}-${s.file.replace(/\.jpe?g$/, '')}.png`;
+        await page.screenshot({ path: path.join(dir, name) });
+        await ctx.close();
+        console.log(`  ✓ ${set}/${name}`);
+      }
     }
   } finally {
     await browser.close();

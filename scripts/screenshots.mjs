@@ -345,6 +345,9 @@ async function run() {
         { name: 'ours-room', route: '/ours-list', tasks: TODAY_TASKS, theme: 'light', ours: true, waitText: 'Bin night' },
         { name: 'ours-when', route: '/ours-list', tasks: TODAY_TASKS, theme: 'light', ours: true, waitText: 'Cat food', hold: 'Cat food', then: 'when-door' },
         { name: 'welcome', route: '/welcome', tasks: TODAY_TASKS, theme: 'light', waitText: 'A calmer kind of to-do' },
+        // The held card, which is where every relief tool actually lives. Screenshots of a to-do app
+        // otherwise only ever show a list, and a list is the least interesting thing here.
+        { name: 'held-card', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Book the dentist', hold: 'Book the dentist' },
         // `motion: 'system'` on purpose. The other shots seed 'reduce', which is right for a still
         // photograph of a static screen and exactly wrong for the one screen whose subject IS the
         // motion: reduce stops the breathing and this becomes a picture of an empty room.
