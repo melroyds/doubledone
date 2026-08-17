@@ -62,10 +62,10 @@ const DARK = '#1B1917';
 const SETS = {
   // What the app IS. The arc of a day: the promise, the idea, too big, too much, the payoff, comfort.
   core: [
-    { file: 'welcome.jpeg', caption: 'A to-do app for people\nwho find to-do apps too much.', paper: LIGHT },
+    { file: 'welcome.jpeg', caption: 'For people who find\nto-do apps too much.', paper: LIGHT },
     { file: 'today-light.jpeg', caption: 'The home screen is Today.\nOnly today.', paper: LIGHT },
     { file: 'held-card.jpeg', caption: 'Too big to start?\nHold it. It comes apart.', paper: LIGHT, shift: 0.215 },
-    { file: 'settle-light.jpeg', caption: 'Too loud?\nA room, and a breathing guide.', paper: LIGHT },
+    { file: 'settle-light.jpeg', caption: 'Too loud?\nA room that asks nothing.', paper: LIGHT, shift: 0.25 },
     { file: 'lookback-light.jpeg', caption: 'Everything you finish,\nyou keep.', paper: LIGHT },
     { file: 'settings-light.jpeg', caption: 'Built to be adjusted.\nText, motion, colour.', paper: LIGHT },
   ],
@@ -73,8 +73,8 @@ const SETS = {
   ours: [
     { file: 'ours-room.jpeg', caption: 'One shared list.\nNever a scoreboard.', paper: LIGHT },
     { file: 'today-light.jpeg', caption: 'Only today.\nNothing is ever overdue.', paper: LIGHT },
-    { file: 'settle-light.jpeg', caption: 'A quiet room,\nfor when today gets loud.', paper: LIGHT },
-    { file: 'ours-when.jpeg', caption: 'A shared day,\nset from either phone.', paper: LIGHT },
+    { file: 'settle-light.jpeg', caption: 'Too loud?\nA room that asks nothing.', paper: LIGHT, shift: 0.25 },
+    { file: 'ours-when.jpeg', caption: 'A shared day,\nset from either phone.', paper: LIGHT, shift: 0.14 },
     { file: 'lookback-light.jpeg', caption: 'Everything you finish,\nyou keep.', paper: LIGHT },
     { file: 'today-dark.jpeg', caption: 'It has a night face.', paper: DARK },
   ],
@@ -147,6 +147,15 @@ async function run() {
         await page.setContent(slideHTML(s.caption, shot, s.paper ?? LIGHT, s.shift ?? 0), { waitUntil: 'load' });
         await page.evaluate(() => document.fonts.ready.then(() => true));
         await page.waitForTimeout(220);
+        // A caption line that WRAPS silently steals a line's height from the phone below it and
+        // pushes the screen out of frame, which is exactly how the Settle slide ended up as an empty
+        // rectangle. Each authored line must render as one line; if it does not, shorten the words.
+        const wrapped = await page.evaluate(() => {
+          const spans = [...document.querySelectorAll('.cap span')];
+          const one = parseFloat(getComputedStyle(spans[0]).lineHeight);
+          return spans.filter((s) => s.getBoundingClientRect().height > one * 1.4).map((s) => s.textContent);
+        });
+        for (const line of wrapped) console.log(`  ! WRAPS, shorten it: "${line}"`);
         const name = `${String(i).padStart(2, '0')}-${s.file.replace(/\.jpe?g$/, '')}.png`;
         await page.screenshot({ path: path.join(dir, name) });
         await ctx.close();
