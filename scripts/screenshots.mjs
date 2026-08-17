@@ -344,6 +344,12 @@ async function run() {
         // The release's headline, and until now absent from every listing.
         { name: 'ours-room', route: '/ours-list', tasks: TODAY_TASKS, theme: 'light', ours: true, waitText: 'Bin night' },
         { name: 'ours-when', route: '/ours-list', tasks: TODAY_TASKS, theme: 'light', ours: true, waitText: 'Cat food', hold: 'Cat food', then: 'when-door' },
+        // TRIED AND ABANDONED, 2026-08-17: Today WITH the shared strip, which would be the single
+        // best Ours frame (your day, the shared day, no scoreboard). Seeding `ours: true` on /today
+        // renders a signed-in Today but NO strip: the Ours-to-Today bridge needs a sync cycle the
+        // network stub never completes, so the shared rows never reach local state. The footer also
+        // renders "Synced to <address>", which is the original reason this shot was ruled out. Both
+        // would have to be solved. It remains a phone job, exactly as docs/launch/ours/README says.
         { name: 'welcome', route: '/welcome', tasks: TODAY_TASKS, theme: 'light', waitText: 'A calmer kind of to-do' },
         // The held card, which is where every relief tool actually lives. Screenshots of a to-do app
         // otherwise only ever show a list, and a list is the least interesting thing here.

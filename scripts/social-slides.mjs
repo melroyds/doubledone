@@ -70,13 +70,18 @@ const SETS = {
     { file: 'settings-light.jpeg', caption: 'Built to be adjusted.\nText, motion, colour.', paper: LIGHT },
   ],
   // Ours, which gets its own post because it is an argument, not a feature.
+  //
+  // TWO slides only, and they are slides 2 and 3 of the post. Slide 1 is
+  // docs/launch/ours/05-kitchen-table.png, which is built by scripts/compose-social.mjs and is
+  // already 1200x1500, the same 4:5, so the carousel stays aspect-consistent.
+  //
+  // It was six. Four of those six were Today, Settle, Lookback and the night face, which are four of
+  // the six slides in `core` as well, so anyone who saw that post would swipe the same images twice.
+  // There are only two Ours screenshots in existence, so padding was the only way to reach six and
+  // padding was not worth it. A short carousel is not a weakness on Instagram, it is completion rate.
   ours: [
     { file: 'ours-room.jpeg', caption: 'One shared list.\nNever a scoreboard.', paper: LIGHT },
-    { file: 'today-light.jpeg', caption: 'Only today.\nNothing is ever overdue.', paper: LIGHT },
-    { file: 'settle-light.jpeg', caption: 'Too loud?\nA room that asks nothing.', paper: LIGHT, shift: 0.25 },
     { file: 'ours-when.jpeg', caption: 'A shared day,\nset from either phone.', paper: LIGHT, shift: 0.14 },
-    { file: 'lookback-light.jpeg', caption: 'Everything you finish,\nyou keep.', paper: LIGHT },
-    { file: 'today-dark.jpeg', caption: 'It has a night face.', paper: DARK },
   ],
 };
 
