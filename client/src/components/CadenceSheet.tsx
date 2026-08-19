@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 
 import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { addDaysISO, friendlyDate, toISODate } from '@/lib/day';
+import { ordinalDay } from '@/lib/i18n-active';
 import { t } from '@/lib/locale';
 import { describeRecurrence, scheduleFields, type CaptureSchedule, type Recurrence } from '@/lib/recurrence';
 import { startOf, whenChanges, whenFields, whenSummary, type WhenAnswer } from '@/lib/when';
@@ -22,13 +23,20 @@ import { PrimaryButton } from './PrimaryButton';
 // It owns the cadence and nothing else: no series list, no removal, no undo. The caller says what
 // the title and cadence start as and what to do with the answer.
 
-type EditMode = 'daily' | 'weekly' | 'everyN';
+type EditMode = 'daily' | 'weekly' | 'everyN' | 'monthly';
 
 const EDIT_MODES: { mode: EditMode; labelKey: string }[] = [
   { mode: 'daily', labelKey: 'capture.modeDaily' },
   { mode: 'weekly', labelKey: 'capture.modeWeekly' },
   { mode: 'everyN', labelKey: 'capture.modeEveryN' },
+  { mode: 'monthly', labelKey: 'capture.modeMonthly' },
 ];
+
+// 1..31, laid out as a grid. Every day of every month is offered, including the three that some
+// months do not have: a rent due on the 31st is a real thing people are asked to remember, and the
+// picker refusing to say it would send them to a workaround. What a short month does with it is
+// answered by the line under the grid, not by taking the choice away.
+const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 
 // index 0=Sun .. 6=Sat (the same table BrainDump renders)
 const WEEKDAY_KEYS = [
@@ -92,13 +100,26 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
   // Seeded from the props on each open. The `key` on the caller's side is what re-mounts this, so
   // the fields are initialised once per opening rather than resynced by an effect.
   const [draft, setDraft] = useState(title);
-  const [mode, setMode] = useState<EditMode>(recurrence?.kind === 'weekly' ? 'weekly' : recurrence?.kind === 'interval' ? 'everyN' : 'daily');
+  const [mode, setMode] = useState<EditMode>(
+    recurrence?.kind === 'weekly'
+      ? 'weekly'
+      : recurrence?.kind === 'interval'
+        ? 'everyN'
+        : recurrence?.kind === 'monthly'
+          ? 'monthly'
+          : 'daily',
+  );
   const [weekdays, setWeekdays] = useState<number[]>(
     recurrence?.kind === 'weekly' && recurrence.weekdays.length > 0 ? recurrence.weekdays : [today.getDay()],
   );
   const [everyN, setEveryN] = useState(recurrence?.kind === 'interval' ? Math.max(2, recurrence.days) : 2);
+  // Defaults to TODAY's day of the month, which is what somebody reaching for Monthly nearly always
+  // means and saves them a second decision at the moment they are already deciding something.
+  const [monthDay, setMonthDay] = useState(recurrence?.kind === 'monthly' ? recurrence.day : today.getDate());
   const [start, setStart] = useState(
-    recurrence?.kind === 'interval' ? recurrence.anchor : (recurrence?.kind === 'weekly' ? recurrence.start : recurrence?.kind === 'daily' ? recurrence.start : undefined) ?? todayIso,
+    recurrence?.kind === 'interval'
+      ? recurrence.anchor
+      : (recurrence?.kind === 'weekly' || recurrence?.kind === 'daily' || recurrence?.kind === 'monthly' ? recurrence.start : undefined) ?? todayIso,
   );
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -147,6 +168,7 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
     if (!rhythmOn) return day;
     if (mode === 'weekly') return { mode: 'weekly', weekdays: weekdays.length > 0 ? weekdays : [today.getDay()], start };
     if (mode === 'everyN') return { mode: 'everyN', days: everyN, start };
+    if (mode === 'monthly') return { mode: 'monthly', day: monthDay, start };
     return { mode: 'daily', start };
   }
 
@@ -334,6 +356,29 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
           </Pressable>
         </View>
       )}
+      {rhythmOn && mode === 'monthly' && (
+        <>
+          <View style={styles.monthDays}>
+            {MONTH_DAYS.map((d) => (
+              <Pressable
+                key={d}
+                onPress={() => setMonthDay(d)}
+                style={[styles.monthDay, monthDay === d && styles.dayOn]}
+                hitSlop={4}
+                accessibilityRole="button"
+                accessibilityState={{ selected: monthDay === d }}
+                accessibilityLabel={t('capture.repeatOnDayA11y', { day: ordinalDay(d) })}
+              >
+                <Text style={[styles.monthDayText, monthDay === d && styles.dayTextOn]}>{d}</Text>
+              </Pressable>
+            ))}
+          </View>
+          {/* Said ONLY once a short-month day is actually chosen. Standing under every choice it
+              would be noise on the 3rd, and this app does not explain things nobody asked about.
+              Standing nowhere, the 31st would look like a month it silently skips. */}
+          {monthDay > 28 && <Text style={styles.note}>{t('capture.monthlyShortMonths')}</Text>}
+        </>
+      )}
       <View style={[styles.startRow, allowNone && styles.hidden]}>
         <Text style={styles.startLabel}>{t('capture.startingFrom')}</Text>
         <Pressable
@@ -418,6 +463,19 @@ const makeStyles = (t: Theme) =>
     dayOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
     dayText: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
     dayTextOn: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    // A calendar-shaped grid rather than a stepper: reaching the 28th by tapping + twenty-six times
+    // is not a picker, it is a punishment. Seven across on a phone, so it reads as a month.
+    monthDays: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two, marginTop: spacing.three },
+    monthDay: {
+      width: 34,
+      height: 34,
+      borderRadius: radius.pill,
+      borderWidth: border.hair,
+      borderColor: t.colors.line,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    monthDayText: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
     stepperRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.four, marginTop: spacing.three },
     stepBtn: {
       width: 40,

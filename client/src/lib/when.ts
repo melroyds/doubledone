@@ -52,8 +52,23 @@ export function whenChanges(answer: WhenAnswer, current: { due?: string | null; 
   const wasRepeating = current.recurrence !== undefined && current.recurrence.kind !== 'none';
   const nowRepeating = answer.recurrence.kind !== 'none';
   if (wasRepeating !== nowRepeating) return true;
-  if (nowRepeating) return JSON.stringify(answer.recurrence) !== JSON.stringify(current.recurrence);
+  if (nowRepeating) return cadenceKey(answer.recurrence) !== cadenceKey(current.recurrence as Recurrence);
   return (answer.due ?? null) !== (current.due ?? null);
+}
+
+/**
+ * A cadence's identity, for comparing two of them.
+ *
+ * Two things it must survive, and a plain `JSON.stringify` survives neither. A shared row's cadence
+ * carries a `summary` for readers whose build cannot compute the rhythm itself, so the copy that
+ * came back from the server has a key the copy built locally does not, and comparing them raw
+ * reports a change nobody made: the idle-Set guard stops guarding and the other person's row gets
+ * washed for nothing. Key ORDER is the second: two objects with the same fields written in a
+ * different order stringify differently. Sorting the entries settles both.
+ */
+function cadenceKey(r: Recurrence): string {
+  const { summary: _summary, ...rest } = r as Recurrence & { summary?: string };
+  return JSON.stringify(Object.entries(rest).sort(([a], [b]) => a.localeCompare(b)));
 }
 
 /** Tomorrow, as this surface means it. Exported so a caller never re-derives the offset by hand. */
@@ -64,7 +79,7 @@ export function tomorrowISO(today: Date): string {
 /** A rhythm's start, wherever that rhythm happens to keep it. An interval calls it an anchor. */
 export function startOf(r: Recurrence | undefined): string | undefined {
   if (r === undefined) return undefined;
-  if (r.kind === 'daily' || r.kind === 'weekly') return r.start;
+  if (r.kind === 'daily' || r.kind === 'weekly' || r.kind === 'monthly') return r.start;
   if (r.kind === 'interval') return r.anchor;
   return undefined;
 }

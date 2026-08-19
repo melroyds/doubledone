@@ -10,10 +10,10 @@
 // read through, never a second source of truth that could disagree.
 
 import { friendlyDate } from './day';
-import { t } from './i18n-active';
+import { ordinalDay, t } from './i18n-active';
 
 export type CaptureWhen = 'today' | 'tomorrow' | 'date' | 'anytime';
-export type CaptureRepeat = 'daily' | 'weekly' | 'everyN' | null;
+export type CaptureRepeat = 'daily' | 'weekly' | 'everyN' | 'monthly' | null;
 
 export type DoorState = {
   when: CaptureWhen;
@@ -24,6 +24,8 @@ export type DoorState = {
   weekdays: number[];
   /** The N in every-N-days; only read when `repeat === 'everyN'`. */
   everyNDays: number;
+  /** The day of the month, 1-31; only read when `repeat === 'monthly'`. */
+  monthDay?: number;
   /** The slice count; 0 = whole task. */
   steps: number;
   /**
@@ -61,9 +63,13 @@ export function whenLabel(s: Pick<DoorState, 'when' | 'dueDate'>, today: Date): 
   return friendlyDate(s.dueDate, today);
 }
 
-/** "Daily" / "Weekly on Mo, We" / "Every 3 days", or null when the task does not repeat. */
-export function repeatLabel(s: Pick<DoorState, 'repeat' | 'weekdays' | 'everyNDays'>): string | null {
+/** "Daily" / "Weekly on Mo, We" / "Every 3 days" / "Monthly on the 15th", or null when it does not repeat. */
+export function repeatLabel(s: Pick<DoorState, 'repeat' | 'weekdays' | 'everyNDays' | 'monthDay'>): string | null {
   if (s.repeat === 'daily') return t('capture.modeDaily');
+  // The shorter of the two monthly wordings on purpose. `repeat.monthlyOnDay` ("Every month on the
+  // 15th") is the drawer's full sentence; a door line and a button label sit beside two or three
+  // other pieces and have to stay tight.
+  if (s.repeat === 'monthly') return t('capture.monthlyOn', { day: ordinalDay(s.monthDay ?? 1) });
   if (s.repeat === 'weekly') {
     const days = [...s.weekdays].sort((a, b) => a - b).map((d) => t(WEEKDAY_KEYS[d] ?? 'capture.weekdayShortSun'));
     return t('capture.weeklyOn', { days: days.join(', ') });

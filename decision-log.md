@@ -7305,3 +7305,74 @@ promise is that nothing ever is.
 **The known gap, recorded as a cost rather than left as a surprise:** a fresh install inside the last
 40 days never sees the period long, so cannot tell it from monthly, and gives no notice that year. It
 self-corrects the year after. A test asserts this so it stays a decision.
+
+---
+
+## 2026-08-19 Monthly, the cadence that was missing
+
+Melroy, plainly: "DoubleDone is lacking a 'monthly' picker btw." He is right, and the code said so
+too: `recurrence.ts` has carried the comment *"Kept deliberately small; monthly can join later"*
+since the first week. Rent, bills, the flea treatment, the monthly report. This is not an exotic
+rhythm, it is one of the four ordinary ones, and until today the workaround was "every 30 days",
+which drifts off the date it was meant to sit on within a year.
+
+**A day of the month, and nothing else.** Not "the first Monday", not "the last working day". Those
+are real rhythms and they are also a second dimension of choice at the exact moment somebody wants
+to stop thinking. The 1-31 grid answers the overwhelming majority of what people actually mean by
+monthly, in one tap, and a picker that asks two questions to place a rent reminder has already lost.
+Ordinal-weekday can join later if anybody asks; nobody has.
+
+**A short month CLAMPS, it never skips.** "The 31st" is the 28th in February, the 29th in a leap
+year, the 30th in April. Skipping is the tidier implementation and the crueller product: the months
+it would silently drop are precisely the ones a rent or a bill cannot afford to miss, and a task
+that simply fails to appear is the kind of quiet failure this audience stops trusting an app for. So
+the picker offers all thirty-one days, and one quiet line under the grid explains what a short month
+does with the last three. That line shows ONLY when 29, 30 or 31 is chosen: standing under every
+choice it would be noise on the 3rd, standing nowhere it would make the 31st look like a gamble.
+
+**Decided against a stepper.** Every-N-days uses one and it suits a number between 2 and 30 that you
+nudge. Reaching the 28th by tapping + twenty-seven times is not a picker, it is a punishment. A
+calendar-shaped grid also LOOKS like the thing it is choosing, which is worth more than the vertical
+space it costs on a sheet that already scrolls.
+
+**Defaults to today's day of the month.** Somebody tapping Monthly on the 15th almost always means
+the 15th, so the common case is one tap. The MCP tool does the same thing with an omitted `day`, for
+the same reason: an agent saying "make this monthly" means the day it is saying it on.
+
+**Both surfaces, one engine.** The chip and the grid ship on the capture door (`BrainDump`) and on
+the cadence sheet (`CadenceSheet`, which serves the personal Repeating drawer AND the shared room),
+and the cadence itself is built by the same `scheduleFields` everything else goes through. The
+Worker's mirrored engine (`server/src/cadence.ts`) learned it in the same commit, so a monthly task
+made by an agent over MCP, by the REST API, or by a thumb in the app is the same object. The OpenAPI
+spec goes to **1.2.0**.
+
+### The version-skew hole this opened, and closed
+
+Monthly is the first new cadence kind since the shared list shipped, which makes it the first time
+one partner can genuinely hold a rhythm the other's build has never heard of. The architecture for
+that was already written and commented in `ours-sync.ts` (decided 2026-08-09: a repeat whose cadence
+you cannot read is SHOWN with the writer's plain-English summary, never hidden, because one person
+seeing a task the other does not is the invisible disagreement the whole feature exists to prevent).
+The read half existed. **Nothing had ever written the summary.** `repeatSummaryOf` read a key no code
+path produced, so it returned undefined for every real row, and the fallback was a fiction.
+
+So `sharedToRow` now stamps `summary: describeRecurrence(r)` on every readable repeating cadence.
+A cadence this build CANNOT read still rides back out untouched, summary and all. A cadence it CAN
+read is **re-derived** rather than echoed, which overwrites a partner's line in their language: that
+sounds rude and is the better of the two, because a line computed from the cadence can never fall out
+of step with it, and only a build that cannot read the cadence ever sees it anyway.
+
+That change needed one more: `whenChanges` compared recurrences with a raw `JSON.stringify`, so the
+copy that came back from the server (carrying `summary`) would never equal the copy built locally,
+the idle-Set guard would stop guarding, and the other person's row would get washed for a change
+nobody made. It now compares a sorted, summary-free key, which also fixes a latent key-order bug.
+
+**No migration, no schema change.** The summary rides inside the existing jsonb, exactly as designed.
+
+### Assumptions worth challenging
+
+- **Nobody needs "the first Monday of the month."** If a user asks, this is a small addition to the
+  same grid surface, not a rewrite.
+- **Clamping is right for everyone.** It is right for bills. Somebody who genuinely wants "only in
+  months that have a 31st" gets an extra occurrence they did not want, in three months a year. That
+  trade is deliberate and this is where to argue with it.

@@ -116,7 +116,10 @@ describe('buildRecurrence (the MCP repeat -> internal Recurrence gate)', () => {
   });
 
   it('rejects an unknown kind, a bad start, and non-objects (null, never throws)', () => {
-    expect(buildRecurrence({ kind: 'monthly' }, today)).toBeNull();
+    // 'monthly' USED to be the unknown-kind example here, and it is now supported (2026-08-19), so
+    // this reaches for one that is genuinely not in the vocabulary. Worth keeping a real unknown:
+    // the point of the case is that an agent inventing a cadence gets a calm null, not a 500.
+    expect(buildRecurrence({ kind: 'yearly' }, today)).toBeNull();
     expect(buildRecurrence({ kind: 'daily', start: 'not-a-date' }, today)).toBeNull();
     expect(buildRecurrence({ kind: 'daily', start: 123 }, today)).toBeNull();
     expect(buildRecurrence(null, today)).toBeNull();
@@ -131,5 +134,47 @@ describe('buildRecurrence (the MCP repeat -> internal Recurrence gate)', () => {
     expect(r).not.toBeNull();
     expect(asRecurrence(r)).toEqual(r); // the built shape is a valid internal Recurrence
     expect(isDueOn(r!, today)).toBe(true); // and it reads as due on its weekday
+  });
+});
+
+describe('monthly (client parity)', () => {
+  const on = (day: number, start?: string) => ({ kind: 'monthly' as const, day, start });
+
+  it('lands on its day, and clamps a short month to its last day rather than skipping', () => {
+    expect(isDueOn(on(15), '2026-06-15')).toBe(true);
+    expect(isDueOn(on(15), '2026-06-16')).toBe(false);
+    expect(isDueOn(on(31), '2026-02-28')).toBe(true); // clamped
+    expect(isDueOn(on(31), '2026-02-27')).toBe(false);
+    expect(isDueOn(on(31), '2026-04-30')).toBe(true);
+    expect(isDueOn(on(31), '2026-01-31')).toBe(true); // no clamp needed
+    expect(isDueOn(on(30), '2028-02-29')).toBe(true); // leap year
+  });
+
+  it('respects a start date', () => {
+    expect(isDueOn(on(15, '2026-07-01'), '2026-06-15')).toBe(false);
+    expect(isDueOn(on(15, '2026-07-01'), '2026-07-15')).toBe(true);
+  });
+
+  it('round-trips through the JSONB narrowing, and refuses a nonsense day', () => {
+    expect(asRecurrence({ kind: 'monthly', day: 15, start: '2026-06-01' })).toEqual({ kind: 'monthly', day: 15, start: '2026-06-01' });
+    expect(asRecurrence({ kind: 'monthly', day: 0 })).toBeNull();
+    expect(asRecurrence({ kind: 'monthly', day: 32 })).toBeNull();
+    expect(asRecurrence({ kind: 'monthly', day: 1.5 })).toBeNull();
+    expect(asRecurrence({ kind: 'monthly' })).toBeNull();
+  });
+
+  // An agent saying "monthly" with no day means the day it is saying it on, which mirrors the app,
+  // where choosing Monthly defaults to today's day of the month.
+  it('builds from an agent repeat spec, defaulting the day to the start', () => {
+    expect(buildRecurrence({ kind: 'monthly' } as RepeatSpec, '2026-06-17')).toEqual({ kind: 'monthly', day: 17, start: '2026-06-17' });
+    expect(buildRecurrence({ kind: 'monthly', day: 1 } as RepeatSpec, '2026-06-17')).toEqual({ kind: 'monthly', day: 1, start: '2026-06-17' });
+    expect(buildRecurrence({ kind: 'monthly', day: 1, start: '2026-09-01' } as RepeatSpec, '2026-06-17')).toEqual({ kind: 'monthly', day: 1, start: '2026-09-01' });
+  });
+
+  it('refuses a malformed agent spec with null rather than throwing', () => {
+    expect(buildRecurrence({ kind: 'monthly', day: 0 } as RepeatSpec, '2026-06-17')).toBeNull();
+    expect(buildRecurrence({ kind: 'monthly', day: 32 } as RepeatSpec, '2026-06-17')).toBeNull();
+    expect(buildRecurrence({ kind: 'monthly', day: 'first' } as RepeatSpec, '2026-06-17')).toBeNull();
+    expect(buildRecurrence({ kind: 'monthly', start: 'not-a-day' } as RepeatSpec, '2026-06-17')).toBeNull();
   });
 });

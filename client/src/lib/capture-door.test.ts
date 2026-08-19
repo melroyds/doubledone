@@ -30,6 +30,25 @@ describe('repeatLabel', () => {
     expect(repeatLabel(state({ repeat: 'daily' }))).toBe('Daily');
     expect(repeatLabel(state({ repeat: 'weekly', weekdays: [1] }))).toBe('Weekly on Mo');
     expect(repeatLabel(state({ repeat: 'everyN', everyNDays: 3 }))).toBe('Every 3 days');
+    expect(repeatLabel(state({ repeat: 'monthly', monthDay: 15 }))).toBe('Monthly on the 15th');
+  });
+
+  // The door line sits beside two or three other pieces, so it takes the SHORT monthly wording.
+  // The drawer's full sentence ("Every month on the 15th") belongs where it is the only thing said.
+  it('inflects the day of the month the way English writes it', () => {
+    const day = (d: number) => repeatLabel(state({ repeat: 'monthly', monthDay: d }));
+    expect(day(1)).toBe('Monthly on the 1st');
+    expect(day(2)).toBe('Monthly on the 2nd');
+    expect(day(3)).toBe('Monthly on the 3rd');
+    expect(day(4)).toBe('Monthly on the 4th');
+    // The teens are the trap every hand-rolled ordinal falls into: 11th, not 11st.
+    expect([day(11), day(12), day(13)]).toEqual(['Monthly on the 11th', 'Monthly on the 12th', 'Monthly on the 13th']);
+    expect([day(21), day(22), day(23), day(31)]).toEqual([
+      'Monthly on the 21st',
+      'Monthly on the 22nd',
+      'Monthly on the 23rd',
+      'Monthly on the 31st',
+    ]);
   });
 
   it('sorts weekly days into calendar order however they were tapped', () => {

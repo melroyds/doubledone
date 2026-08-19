@@ -1,5 +1,5 @@
 import { addDaysISO, daysBetween, friendlyDate, fromISODate, toISODate } from './day';
-import { fmt, t } from './i18n-active';
+import { fmt, ordinalDay, t } from './i18n-active';
 
 // A task is either one-off (no recurrence, optionally with a due date) or it
 // repeats: daily, on chosen weekdays, or every N days from a start date (e.g.
@@ -11,7 +11,13 @@ export type Recurrence =
   | { kind: 'none' }
   | { kind: 'daily'; start?: string }
   | { kind: 'weekly'; weekdays: number[]; start?: string } // 0=Sun .. 6=Sat
-  | { kind: 'interval'; days: number; anchor: string }; // every `days` days from `anchor` (ISO date); anchor is the start
+  | { kind: 'interval'; days: number; anchor: string } // every `days` days from `anchor` (ISO date); anchor is the start
+  // Monthly, on a day of the month (1-31). A day the month does not have CLAMPS to that month's
+  // last day rather than being skipped: "the 31st" in February is the 28th (29th in a leap year).
+  // Skipping would be the crueller reading, because the months it silently drops are the ones a
+  // rent or a bill reminder cannot afford to miss, and a task that just does not appear is exactly
+  // the kind of quiet failure this audience stops trusting an app for.
+  | { kind: 'monthly'; day: number; start?: string };
 
 export type Schedulable = {
   due?: string | null; // 'YYYY-MM-DD' for a one-off; null/undefined = someday
@@ -34,9 +40,27 @@ export function isDueOn(task: Schedulable, date: Date): boolean {
       const diff = daysBetween(fromISODate(r.anchor), date);
       return diff >= 0 && diff % r.days === 0;
     }
+    case 'monthly':
+      return date.getDate() === effectiveMonthDay(r.day, date) && startedBy(r.start, date);
     case 'none':
       return task.due != null && task.due === toISODate(date);
   }
+}
+
+/**
+ * Which day of THIS month a monthly recurrence actually lands on.
+ *
+ * A month that is too short clamps to its last day: "the 31st" is the 28th in February, the 29th in
+ * a leap year, the 30th in April. It never skips. Skipping is the crueller reading, because the
+ * months it silently drops are precisely the ones a rent or a bill cannot afford to miss, and a task
+ * that simply fails to appear is the kind of quiet failure this audience stops trusting an app for.
+ *
+ * Day 0 of the NEXT month is the last day of this one, which is the standard trick and avoids a
+ * leap-year table.
+ */
+export function effectiveMonthDay(day: number, date: Date): number {
+  const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  return Math.min(Math.max(day, 1), lastDay);
 }
 
 // A daily/weekly recurrence can start in the future; before its start the task is
@@ -49,7 +73,7 @@ function startedBy(start: string | undefined, date: Date): boolean {
 export function describeRecurrence(r: Recurrence, today?: Date): string {
   const base = cadenceLabel(r);
   // Surface a future start so a not-yet-active habit is legible in the drawer.
-  const start = r.kind === 'daily' || r.kind === 'weekly' ? r.start : r.kind === 'interval' ? r.anchor : undefined;
+  const start = r.kind === 'daily' || r.kind === 'weekly' || r.kind === 'monthly' ? r.start : r.kind === 'interval' ? r.anchor : undefined;
   if (today && start && start > toISODate(today)) {
     return t('repeat.fromDate', { base, date: friendlyDate(start, today) });
   }
@@ -62,6 +86,8 @@ function cadenceLabel(r: Recurrence): string {
       return t('repeat.oneOff');
     case 'daily':
       return t('repeat.everyDay');
+    case 'monthly':
+      return t('repeat.monthlyOnDay', { day: ordinalDay(r.day) });
     case 'interval':
       return r.days === 1 ? t('repeat.everyDay') : t('repeat.everyNDays', { days: r.days });
     case 'weekly': {
@@ -95,7 +121,10 @@ export type CaptureSchedule =
   | { mode: 'date'; date: string }
   | { mode: 'daily'; start?: string }
   | { mode: 'weekly'; weekdays: number[]; start?: string }
-  | { mode: 'everyN'; days: number; start?: string };
+  | { mode: 'everyN'; days: number; start?: string }
+  // `day` is a day of the month, 1-31. A month too short for it clamps to its last day rather
+  // than skipping; see effectiveMonthDay.
+  | { mode: 'monthly'; day: number; start?: string };
 
 /** Map a capture choice to a task's scheduling fields, relative to `today`. */
 export function scheduleFields(
@@ -112,6 +141,10 @@ export function scheduleFields(
       return { due: s.date };
     case 'daily':
       return { recurrence: { kind: 'daily', start: s.start ?? toISODate(today) } };
+    case 'monthly':
+      // Defaults to TODAY's day of the month, which is what somebody choosing "monthly" almost
+      // always means, and saves a second decision at the moment of capture.
+      return { recurrence: { kind: 'monthly', day: s.day, start: s.start ?? toISODate(today) } };
     case 'weekly':
       return { recurrence: { kind: 'weekly', weekdays: s.weekdays, start: s.start ?? toISODate(today) } };
     case 'everyN':

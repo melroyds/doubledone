@@ -100,7 +100,7 @@ HTTP**, URL = the endpoint above. For the token tools add a header
 
 | Tool | Arguments | Does |
 |---|---|---|
-| `add_task` | `title` (string); optional `due` (`YYYY-MM-DD`) **or** `repeat` (object), not both | Adds a task. By default it lands on today. `due` schedules a one-off for a future day; `repeat` makes it recur (`daily`, `weekly` with `weekdays` 0–6, or `every_n_days` with `days`, plus an optional `start`). |
+| `add_task` | `title` (string); optional `due` (`YYYY-MM-DD`) **or** `repeat` (object), not both | Adds a task. By default it lands on today. `due` schedules a one-off for a future day; `repeat` makes it recur (`daily`, `weekly` with `weekdays` 0–6, `every_n_days` with `days`, or `monthly` with an optional `day` 1–31, plus an optional `start`). A monthly repeat on a day a month does not have uses that month's last day rather than skipping it. |
 | `list_today` | none | Lists what's open on your Today, each with its id: one-off tasks (undated or due today or earlier) plus any repeating task due today that you haven't done or skipped yet. |
 | `list_upcoming` | optional `days` (1–30, default 7) | Looks ahead: your future-dated tasks and the next occurrence of each repeat within the window, in date order, each with its id. Read-only. |
 | `complete_task` | `id` (string, from `list_today`) | Marks that task done. |

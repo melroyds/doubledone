@@ -432,7 +432,10 @@ describe('a cadence written by the other person’s client', () => {
   // A build that cannot READ a cadence must never be the build that ERASES it for the person who
   // set it, so the unreadable original rides along untouched and goes back out byte-identical.
   it('keeps an unreadable cadence verbatim and pushes it back unchanged', () => {
-    const weird = { kind: 'monthly', day: 3 };
+    // 'monthly' stood here until 2026-08-19, when it stopped being unreadable. Something genuinely
+    // outside the vocabulary keeps the case honest, and every future cadence kind will do the same
+    // thing to whichever stand-in is chosen next.
+    const weird = { kind: 'lunar', phase: 'full' };
     const t = rowToShared(row({ id: 'x', recurrence: weird as never }));
     expect(t.recurrence).toBeUndefined();
     expect(sharedToRow(t, 'p-1').recurrence).toEqual(weird);
@@ -458,7 +461,7 @@ describe('pullPair pages rather than trusting one truncated read', () => {
 // to prevent.
 describe('a cadence this build cannot place on a day', () => {
   it('is flagged as unreadable rather than treated as a one-off', () => {
-    const weird = rowToShared(row({ id: 'rent', recurrence: { kind: 'monthly', day: 1 } as never }));
+    const weird = rowToShared(row({ id: 'rent', recurrence: { kind: 'lunar', phase: 'full' } as never }));
     expect(isUnreadableRepeat(weird)).toBe(true);
 
     const known = rowToShared(row({ id: 'bins', recurrence: { kind: 'daily' } as never }));
@@ -468,15 +471,15 @@ describe('a cadence this build cannot place on a day', () => {
   });
 
   it('surfaces the summary the writing client left for readers like this one', () => {
-    const t = rowToShared(row({ id: 'rent', recurrence: { kind: 'monthly', day: 1, summary: 'every month on the 1st' } as never }));
-    expect(repeatSummaryOf(t)).toBe('every month on the 1st');
+    const t = rowToShared(row({ id: 'rent', recurrence: { kind: 'lunar', phase: 'full', summary: 'every full moon' } as never }));
+    expect(repeatSummaryOf(t)).toBe('every full moon');
   });
 
   it('has no summary to show when the writer did not leave one', () => {
-    expect(repeatSummaryOf(rowToShared(row({ id: 'rent', recurrence: { kind: 'monthly' } as never })))).toBeUndefined();
+    expect(repeatSummaryOf(rowToShared(row({ id: 'rent', recurrence: { kind: 'lunar' } as never })))).toBeUndefined();
     expect(repeatSummaryOf(rowToShared(row({ id: 'milk' })))).toBeUndefined();
     // A blank one is not a summary.
-    expect(repeatSummaryOf(rowToShared(row({ id: 'x', recurrence: { kind: 'monthly', summary: '   ' } as never })))).toBeUndefined();
+    expect(repeatSummaryOf(rowToShared(row({ id: 'x', recurrence: { kind: 'lunar', summary: '   ' } as never })))).toBeUndefined();
   });
 
   // THE ONE THAT MATTERS. The client that UNDERSTANDS a cadence must not become the client that
@@ -489,7 +492,26 @@ describe('a cadence this build cannot place on a day', () => {
 
     expect(isUnreadableRepeat(t)).toBe(false); // this build can place it
     expect(repeatSummaryOf(t)).toBe('every Monday and Wednesday'); // and still carries the fallback
-    expect(sharedToRow(t, 'p-1').recurrence).toMatchObject({ summary: 'every Monday and Wednesday' });
+    // It goes back out RE-DERIVED rather than echoed, which is the stronger version of the same
+    // promise: a line computed from the cadence itself can never fall out of step with it, and it
+    // is written in this reader's language. Only a build that cannot read the cadence ever sees it.
+    expect(sharedToRow(t, 'p-1').recurrence).toMatchObject({ summary: 'Every Mon, Wed' });
+  });
+
+  // The WRITE half, which nothing exercised until monthly arrived: `repeatSummaryOf` read a key no
+  // code path had ever written, so every real row carried nothing to fall back on. Monthly is the
+  // first cadence kind added since the shared list shipped, so it is the first time one partner can
+  // hold a rhythm the other's build has genuinely never heard of.
+  it('writes a plain-English line for a reader whose build cannot compute the rhythm', () => {
+    const t = rowToShared(row({ id: 'rent', recurrence: { kind: 'monthly', day: 1, start: '2026-08-01' } as never }));
+    expect(t.recurrence).toEqual({ kind: 'monthly', day: 1, start: '2026-08-01' });
+    expect(sharedToRow(t, 'p-1').recurrence).toMatchObject({ kind: 'monthly', day: 1, summary: 'Every month on the 1st' });
+  });
+
+  // A one-off is not a rhythm, so there is nothing to describe and nothing to leave behind.
+  it('leaves a non-repeating row alone, with nothing to describe', () => {
+    expect(sharedToRow(rowToShared(row({ id: 'milk' })), 'p-1').recurrence).toBeNull();
+    expect(sharedToRow(rowToShared(row({ id: 'x', recurrence: { kind: 'none' } as never })), 'p-1').recurrence).toEqual({ kind: 'none' });
   });
 
   it('carries it through every cadence kind this build knows', () => {

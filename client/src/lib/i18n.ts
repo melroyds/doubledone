@@ -87,6 +87,31 @@ export function pluralize(loc: Locale, count: number, forms: PluralForms, params
   return interpolate(template, { count, ...params });
 }
 
+/**
+ * A day of the month as that locale writes it: "15th" in English, "15." in German, "15" elsewhere.
+ *
+ * Hand-rolled for exactly the reason `pluralize` above is: Hermes has no `Intl.PluralRules`, so the
+ * ordinal variant is not available on Android either, and reaching for it would crash on device
+ * while passing every browser test. English is the only shipped locale that inflects the numeral;
+ * Spanish, French and Italian write the bare number, and German appends a full stop.
+ */
+export function ordinalDay(loc: Locale, day: number): string {
+  if (loc === 'de') return `${day}.`;
+  if (loc !== 'en') return String(day);
+  const teens = day % 100;
+  if (teens >= 11 && teens <= 13) return `${day}th`;
+  switch (day % 10) {
+    case 1:
+      return `${day}st`;
+    case 2:
+      return `${day}nd`;
+    case 3:
+      return `${day}rd`;
+    default:
+      return `${day}th`;
+  }
+}
+
 function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }

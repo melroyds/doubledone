@@ -70,13 +70,37 @@ export function sharedToRow(task: SharedTask, pairId: string): SharedRow {
     title: clampTitle(task.title),
     done: task.done,
     done_at: task.doneAt ? new Date(task.doneAt).toISOString() : null,
-    recurrence: task.recurrence ?? task.rawRecurrence ?? null,  // an unreadable cadence rides back out verbatim
+    recurrence: stampSummary(task),
     completions: task.completions ?? null,
     due: task.due ?? null,
     created_at: new Date(task.createdAt).toISOString(),
     updated_at: new Date(task.updatedAt).toISOString(),
     deleted_at: task.deletedAt ? new Date(task.deletedAt).toISOString() : null,
   };
+}
+
+/**
+ * The cadence as it goes ON THE WIRE, carrying a plain-English line for readers that cannot compute
+ * the rhythm themselves.
+ *
+ * This is the write half of the fallback `repeatSummaryOf` has always read and, until now, nothing
+ * ever wrote. Monthly is what made it matter: it is the first new cadence kind since the shared list
+ * shipped, so it is the first time one partner can genuinely hold a rhythm the other's build has
+ * never heard of. Without a line to show, that partner sees a repeating row with no rhythm at all,
+ * on the one screen built so two people never end up with different stories about the same task.
+ *
+ * A cadence this build CANNOT read rides back out untouched, summary and all: refusing to strip the
+ * fallback somebody else depends on is the whole point.
+ *
+ * A cadence it CAN read is re-described from the cadence itself, in this reader's language. That
+ * overwrites a partner's line in their language, which sounds rude and is the better of the two:
+ * a re-derived summary can never fall out of step with the rhythm it describes, and only a build
+ * that cannot read the cadence ever sees it, in whichever language it happened to arrive.
+ */
+function stampSummary(task: SharedTask): unknown {
+  const r = task.recurrence;
+  if (r === undefined || r.kind === 'none') return r ?? task.rawRecurrence ?? null;
+  return { ...r, summary: describeRecurrence(r) };
 }
 
 /**
@@ -145,6 +169,7 @@ export function knownRecurrence(input: unknown): Recurrence | undefined {
     kind?: unknown;
     weekdays?: unknown;
     days?: unknown;
+    day?: unknown;
     anchor?: unknown;
     start?: unknown;
     summary?: unknown;
@@ -167,6 +192,14 @@ export function knownRecurrence(input: unknown): Recurrence | undefined {
     if (typeof r.days !== 'number' || !Number.isInteger(r.days) || r.days < 1) return undefined;
     if (typeof r.anchor !== 'string') return undefined;
     return carry({ kind: 'interval', days: r.days, anchor: r.anchor });
+  }
+  if (r.kind === 'monthly') {
+    // The day is bounded HERE as well as at the picker, because this value goes on to index a
+    // calendar. Anything outside 1-31 is not a day of any month, and a partner's client is not
+    // trusted to have asked nicely.
+    if (typeof r.day !== 'number' || !Number.isInteger(r.day) || r.day < 1 || r.day > 31) return undefined;
+    if (!startOk) return undefined;
+    return carry({ kind: 'monthly', day: r.day, ...(typeof r.start === 'string' ? { start: r.start } : {}) } as Recurrence);
   }
   return undefined;
 }

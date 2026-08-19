@@ -112,6 +112,21 @@ describe('whenChanges', () => {
   it('is true when the weekdays change', () => {
     expect(whenChanges(whenFields({ mode: 'weekly', weekdays: [5], start: '2026-08-04' }, TODAY), weekly)).toBe(true);
   });
+
+  it('sees a monthly day move, and sees a monthly that did not', () => {
+    const monthly = { due: null, recurrence: { kind: 'monthly' as const, day: 1, start: '2026-08-01' } };
+    expect(whenChanges(whenFields({ mode: 'monthly', day: 1, start: '2026-08-01' }, TODAY), monthly)).toBe(false);
+    expect(whenChanges(whenFields({ mode: 'monthly', day: 15, start: '2026-08-01' }, TODAY), monthly)).toBe(true);
+  });
+
+  // A shared row's cadence carries a plain-English `summary` for partners whose build cannot compute
+  // the rhythm. It is not part of the answer, so a raw comparison against the copy that came back
+  // from the server reports a change nobody made, the idle-Set guard stops guarding, and the other
+  // person's row gets washed for nothing.
+  it('ignores the summary a shared row carries for older readers', () => {
+    const carried = { due: null, recurrence: { kind: 'weekly' as const, weekdays: [2], start: '2026-08-04', summary: 'Every Tue' } };
+    expect(whenChanges(whenFields({ mode: 'weekly', weekdays: [2], start: '2026-08-04' }, TODAY), carried)).toBe(false);
+  });
 });
 
 describe('tomorrowISO', () => {
@@ -205,6 +220,7 @@ describe('startOf', () => {
     expect(startOf({ kind: 'daily', start: '2026-08-04' })).toBe('2026-08-04');
     expect(startOf({ kind: 'weekly', weekdays: [2], start: '2026-08-04' })).toBe('2026-08-04');
     expect(startOf({ kind: 'interval', days: 3, anchor: '2026-08-13' })).toBe('2026-08-13');
+    expect(startOf({ kind: 'monthly', day: 1, start: '2026-08-01' })).toBe('2026-08-01');
     expect(startOf({ kind: 'none' })).toBeUndefined();
     expect(startOf(undefined)).toBeUndefined();
   });

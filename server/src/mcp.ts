@@ -61,13 +61,20 @@ const REPEAT_SCHEMA = {
   type: 'object',
   description: 'Make the task repeat. Mutually exclusive with `due`.',
   properties: {
-    kind: { type: 'string', enum: ['daily', 'weekly', 'every_n_days'], description: 'How it repeats.' },
+    kind: { type: 'string', enum: ['daily', 'weekly', 'every_n_days', 'monthly'], description: 'How it repeats.' },
     weekdays: {
       type: 'array',
       items: { type: 'integer', minimum: 0, maximum: 6 },
       description: 'For weekly: the days, 0=Sun .. 6=Sat. Required when kind is weekly.',
     },
     days: { type: 'integer', minimum: 1, description: 'For every_n_days: the interval in days. Required when kind is every_n_days.' },
+    day: {
+      type: 'integer',
+      minimum: 1,
+      maximum: 31,
+      description:
+        'For monthly: the day of the month, 1-31. Optional; defaults to the day the task is created on. A month with no such day uses its last day (the 31st is the 28th in February), so a monthly task is never skipped.',
+    },
     start: { type: 'string', description: "Optional 'YYYY-MM-DD' the repeat begins; defaults to today." },
   },
   required: ['kind'],
@@ -607,7 +614,7 @@ async function runTool(env: McpEnv, token: string, name: string, args: Record<st
     }
     if (hasRepeat) {
       recurrence = buildRecurrence(args.repeat as RepeatSpec, todayIso);
-      if (!recurrence) return toolText("I couldn't read that repeat. Use daily, weekly (with weekdays 0-6), or every_n_days (with days).", true);
+      if (!recurrence) return toolText("I couldn't read that repeat. Use daily, weekly (with weekdays 0-6), every_n_days (with days), or monthly (with an optional day 1-31).", true);
     }
     const taskId = `mcp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const { url, init } = addTaskRequest(env, token, { id: taskId, userId: sub, title, now, due, recurrence });
@@ -671,7 +678,7 @@ async function runTool(env: McpEnv, token: string, name: string, args: Record<st
       if (args.repeat === null) fields.recurrence = null;
       else {
         const recurrence = buildRecurrence(args.repeat as RepeatSpec, todayIso);
-        if (!recurrence) return toolText("I couldn't read that repeat. Use daily, weekly (with weekdays 0-6), or every_n_days (with days), or null to stop it.", true);
+        if (!recurrence) return toolText("I couldn't read that repeat. Use daily, weekly (with weekdays 0-6), every_n_days (with days), or monthly (with an optional day 1-31), or null to stop it.", true);
         fields.recurrence = recurrence;
       }
     }

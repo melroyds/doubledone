@@ -20,7 +20,7 @@ https://api.doubledone.app/api/v1
 ## Browse it
 
 - **Interactive docs (Swagger UI):** [`/api/v1/docs`](https://api.doubledone.app/api/v1/docs)
-- **OpenAPI 3.1 spec (version 1.1.0):** [`/api/v1/openapi.json`](https://api.doubledone.app/api/v1/openapi.json)
+- **OpenAPI 3.1 spec (version 1.2.0):** [`/api/v1/openapi.json`](https://api.doubledone.app/api/v1/openapi.json)
 
 ## Auth: your token
 
@@ -85,11 +85,16 @@ day, so the two never coexist. Either can be cleared with `null` on a `PATCH`.
 { "kind": "daily" }
 { "kind": "weekly", "weekdays": [1, 3, 5] }
 { "kind": "every_n_days", "days": 3, "start": "2026-07-10" }
+{ "kind": "monthly", "day": 1 }
 ```
 
 - **`daily`** — every day.
 - **`weekly`** — on the given `weekdays` (`0` = Sunday … `6` = Saturday, non-empty).
 - **`every_n_days`** — every `days` days, optionally anchored from `start` (defaults to today).
+- **`monthly`** — on `day` of the month (`1`–`31`, defaults to the day of creation). A month with
+  no such day uses its **last** day, so "the 31st" is the 28th in February and the 30th in April.
+  It clamps rather than skipping: the months a skip would silently drop are exactly the ones a rent
+  or a bill cannot afford to miss.
 
 This repeat vocabulary, the UTC-calendar-day basis, and the recurrence math are **shared
 verbatim with the [MCP server](mcp.md)** (the one `buildRecurrence` cadence engine), so a

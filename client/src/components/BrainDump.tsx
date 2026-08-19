@@ -6,6 +6,7 @@ import { split } from '@/lib/ai';
 import { addButtonLabel, type CaptureRepeat, type CaptureWhen, doorSummary, whenLabel } from '@/lib/capture-door';
 import { aiErrorLine } from '@/lib/connection';
 import { addDaysISO, toISODate } from '@/lib/day';
+import { ordinalDay } from '@/lib/i18n-active';
 import { appendPhrase } from '@/lib/dictation';
 import { t } from '@/lib/locale';
 import { type CaptureSchedule } from '@/lib/recurrence';
@@ -73,6 +74,11 @@ const WEEKDAY_KEYS = [
   'capture.weekdayShortSat',
 ];
 
+// 1..31. Every day is offered, including the three some months lack: a rent due on the 31st is a
+// real thing people are asked to remember, and a picker that refuses to say it just sends them to a
+// workaround. What a short month does with it is answered by the line under the grid.
+const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
+
 // Capture, rebuilt to "Reflex first, one door" (Claude Design capture handoff, Melroy's pick
 // 2026-07-26). The reflex path is input + Add and nothing else demanding attention. Every
 // shaping power (when, repeating, steps) lives behind ONE constant, labelled door whose value
@@ -89,6 +95,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   const [repeat, setRepeat] = useState<CaptureRepeat>(null);
   const [weekdays, setWeekdays] = useState<number[]>([today.getDay()]);
   const [everyNDays, setEveryNDays] = useState(2);
+  const [monthDay, setMonthDay] = useState(today.getDate()); // day of the month for a Monthly repeat; today's, which is nearly always what is meant
   const [dueDate, setDueDate] = useState(() => toISODate(today)); // ISO for a picked day (due date, or a repeat's start)
   const [pickerOpen, setPickerOpen] = useState(false);
   const [sliceCount, setSliceCount] = useState(0); // 0 = whole task; >=MIN_SLICES = tracked in steps
@@ -141,6 +148,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
     repeat,
     weekdays: weekdays.length > 0 ? weekdays : [today.getDay()],
     everyNDays,
+    monthDay,
     steps: stepsAllowed && sliceCount >= MIN_SLICES ? sliceCount : 0,
     whenDefault,
   };
@@ -161,6 +169,9 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
     }
     if (repeat === 'everyN') {
       return { mode: 'everyN', days: everyNDays, start: startIso };
+    }
+    if (repeat === 'monthly') {
+      return { mode: 'monthly', day: monthDay, start: startIso };
     }
     if (when === 'date') {
       return { mode: 'date', date: dueDate };
@@ -473,7 +484,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
               </View>
             </View>
 
-            {/* REPEATS. Three toggles (tap again to clear); the detail region holds each
+            {/* REPEATS. Four toggles (tap again to clear); the detail region holds each
                 cadence's one control plus the Starting-from read-through of the WHEN. */}
             <View style={styles.compRow}>
               <Text style={styles.compOverline}>{t('capture.rowRepeats')}</Text>
@@ -481,6 +492,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                 <Chip label={t('capture.modeDaily')} selected={repeat === 'daily'} onPress={() => setRepeat((r) => (r === 'daily' ? null : 'daily'))} />
                 <Chip label={t('capture.modeWeekly')} selected={repeat === 'weekly'} onPress={() => setRepeat((r) => (r === 'weekly' ? null : 'weekly'))} />
                 <Chip label={t('capture.modeEveryN')} selected={repeat === 'everyN'} onPress={() => setRepeat((r) => (r === 'everyN' ? null : 'everyN'))} />
+                <Chip label={t('capture.modeMonthly')} selected={repeat === 'monthly'} onPress={() => setRepeat((r) => (r === 'monthly' ? null : 'monthly'))} />
               </View>
               {repeat === 'weekly' && (
                 <View style={styles.weekdays}>
@@ -521,6 +533,29 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                     <Text style={styles.stepBtnText}>+</Text>
                   </Pressable>
                 </View>
+              )}
+              {repeat === 'monthly' && (
+                <>
+                  <View style={styles.monthDays}>
+                    {MONTH_DAYS.map((d) => (
+                      <Pressable
+                        key={d}
+                        onPress={() => setMonthDay(d)}
+                        style={[styles.day, monthDay === d && styles.dayOn]}
+                        hitSlop={4}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: monthDay === d }}
+                        accessibilityLabel={t('capture.repeatOnDayA11y', { day: ordinalDay(d) })}
+                      >
+                        <Text style={[styles.dayText, monthDay === d && styles.dayTextOn]}>{d}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  {/* Only once a day some months lack is actually chosen. Under every choice it
+                      would be noise on the 3rd; nowhere at all, the 31st looks like a month the
+                      app silently skips. */}
+                  {monthDay > 28 && <Text style={styles.shortMonths}>{t('capture.monthlyShortMonths')}</Text>}
+                </>
               )}
               {repeat !== null && (
                 <Pressable
@@ -755,6 +790,10 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   detailValue: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
   changeLink: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   weekdays: { flexDirection: 'row', gap: spacing.two, marginTop: spacing.one },
+  // Same cells as the weekday row, but WRAPPING: thirty-one of them never fit on one line, and a
+  // non-wrapping row would squash every cell rather than starting a second one.
+  monthDays: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two, marginTop: spacing.one },
+  shortMonths: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.two },
   day: {
     width: 34,
     height: 34,

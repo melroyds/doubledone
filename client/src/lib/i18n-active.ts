@@ -10,6 +10,7 @@ import {
   formatRelativeDay,
   formatTime,
   formatWeekday,
+  ordinalDay as ordinalDayIn,
   type Locale,
   type PluralForms,
   pluralize,
@@ -56,3 +57,8 @@ export const fmt = {
   plural: (count: number, forms: PluralForms, params?: Record<string, string | number>): string =>
     pluralize(active, count, forms, { count, ...params }),
 };
+
+/** A day of the month written the way the ACTIVE locale writes it ("15th", "15.", "15"). */
+export function ordinalDay(day: number): string {
+  return ordinalDayIn(active, day);
+}

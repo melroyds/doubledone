@@ -75,7 +75,31 @@ describe('describeRecurrence', () => {
     expect(describeRecurrence({ kind: 'interval', days: 1, anchor: '2026-07-01' })).toBe('every day');
     expect(describeRecurrence({ kind: 'weekly', weekdays: [0, 6] })).toBe('Sun, Sat');
     expect(describeRecurrence({ kind: 'weekly', weekdays: [0, 1, 2, 3, 4, 5, 6] })).toBe('every day');
+    expect(describeRecurrence({ kind: 'monthly', day: 1 })).toBe('every month on the 1st');
     expect(describeRecurrence(null)).toBeNull();
+  });
+
+  // The ordinal is hand-rolled here for the same reason it is on the client: this summary must be
+  // computable without an i18n dependency. The teens are where every hand-rolled ordinal breaks.
+  it('inflects the day of the month, teens included', () => {
+    const day = (d: number) => describeRecurrence({ kind: 'monthly', day: d });
+    expect([day(1), day(2), day(3), day(4)]).toEqual([
+      'every month on the 1st',
+      'every month on the 2nd',
+      'every month on the 3rd',
+      'every month on the 4th',
+    ]);
+    expect([day(11), day(12), day(13)]).toEqual([
+      'every month on the 11th',
+      'every month on the 12th',
+      'every month on the 13th',
+    ]);
+    expect([day(21), day(22), day(23), day(31)]).toEqual([
+      'every month on the 21st',
+      'every month on the 22nd',
+      'every month on the 23rd',
+      'every month on the 31st',
+    ]);
   });
 });
 

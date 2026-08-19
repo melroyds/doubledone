@@ -15,12 +15,12 @@ export const OPENAPI_SPEC = {
   openapi: '3.1.0',
   info: {
     title: 'DoubleDone API',
-    version: '1.1.0',
+    version: '1.2.0',
     description:
       'A small REST API over your DoubleDone tasks. Authenticate with your own DoubleDone token ' +
       '(in the app: Settings, API access), which scopes every call to your own data through ' +
       'row-level security. The server holds no elevated key. Tokens refresh about hourly. ' +
-      'Tasks can repeat (daily, on chosen weekdays, or every N days); a repeat and a due date ' +
+      'Tasks can repeat (daily, on chosen weekdays, every N days, or monthly on a day of the month); a repeat and a due date ' +
       'are mutually exclusive. Listing supports search (q) and a look-ahead window (upcoming).',
   },
   servers: [{ url: API_BASE, description: 'Production' }],
@@ -179,25 +179,34 @@ export const OPENAPI_SPEC = {
         type: 'object',
         description: 'A repeat rule, in the same vocabulary the DoubleDone app and AI agent use. Mutually exclusive with due.',
         properties: {
-          kind: { type: 'string', enum: ['daily', 'weekly', 'every_n_days'], description: 'How it repeats.' },
+          kind: { type: 'string', enum: ['daily', 'weekly', 'every_n_days', 'monthly'], description: 'How it repeats.' },
           weekdays: {
             type: 'array',
             items: { type: 'integer', minimum: 0, maximum: 6 },
             description: 'For weekly: the days, 0=Sun .. 6=Sat. Required and non-empty when kind is weekly.',
           },
           days: { type: 'integer', minimum: 1, description: 'For every_n_days: the interval in days. Required when kind is every_n_days.' },
+          day: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 31,
+            description:
+              'For monthly: the day of the month, 1-31. Optional; defaults to the day the task is created on. A month with no such day uses its last day (the 31st is the 28th in February), so a monthly task is never skipped.',
+          },
           start: { type: 'string', format: 'date', description: "Optional 'YYYY-MM-DD' the repeat begins; defaults to today." },
         },
         required: ['kind'],
       },
       Recurrence: {
         type: 'object',
-        description: 'The normalised repeat rule as stored and returned on a task (weekly carries its weekdays; an interval carries its day-count and anchor).',
+        description:
+          'The normalised repeat rule as stored and returned on a task (weekly carries its weekdays; an interval carries its day-count and anchor; monthly carries its day of the month).',
         properties: {
-          kind: { type: 'string', enum: ['daily', 'weekly', 'interval'] },
+          kind: { type: 'string', enum: ['daily', 'weekly', 'interval', 'monthly'] },
           weekdays: { type: 'array', items: { type: 'integer', minimum: 0, maximum: 6 }, description: 'For weekly: the days, 0=Sun .. 6=Sat.' },
           days: { type: 'integer', minimum: 1, description: 'For interval: the number of days between occurrences.' },
-          start: { type: 'string', format: 'date', description: 'For daily/weekly: the day tracking begins.' },
+          day: { type: 'integer', minimum: 1, maximum: 31, description: 'For monthly: the day of the month, clamped to the last day of a month too short for it.' },
+          start: { type: 'string', format: 'date', description: 'For daily/weekly/monthly: the day tracking begins.' },
           anchor: { type: 'string', format: 'date', description: 'For interval: the reference day the every-N-days cadence counts from.' },
         },
         required: ['kind'],

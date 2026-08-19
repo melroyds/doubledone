@@ -53,6 +53,13 @@ function todayIsoUtc(): string {
 
 const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+/** "1st", "2nd", "11th", "21st". English only, matching the rest of this summary. */
+function ordinalEn(n: number): string {
+  const teens = n % 100;
+  if (teens >= 11 && teens <= 13) return `${n}th`;
+  return `${n}${['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
+}
+
 /** A short, calm, English human summary of a recurrence ("every day", "Mon, Wed, Fri",
  *  "every 3 days"), mirroring the client's describeRecurrence semantics without its i18n
  *  dependency (the server must not import the client). null for a one-off / no recurrence. */
@@ -72,6 +79,10 @@ export function describeRecurrence(r: Recurrence | null): string | null {
     }
     case 'interval':
       return r.days === 1 ? 'every day' : `every ${r.days} days`;
+    case 'monthly':
+      // English-only here on purpose, like its siblings: this is the API's `repeats` summary, not
+      // app copy, and the server deliberately does not import the client's i18n.
+      return `every month on the ${ordinalEn(r.day)}`;
     case 'none':
       return null;
   }

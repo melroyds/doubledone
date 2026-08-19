@@ -13,7 +13,10 @@ export type Recurrence =
   | { kind: 'none' }
   | { kind: 'daily'; start?: string }
   | { kind: 'weekly'; weekdays: number[]; start?: string } // 0=Sun .. 6=Sat
-  | { kind: 'interval'; days: number; anchor: string };
+  | { kind: 'interval'; days: number; anchor: string }
+  // Monthly on a day of the month (1-31). A month too short CLAMPS to its last day rather than
+  // skipping, exactly as the client does; see effectiveMonthDay in client/src/lib/recurrence.ts.
+  | { kind: 'monthly'; day: number; start?: string };
 
 /** Milliseconds at UTC midnight of an ISO date, or NaN if unparseable. */
 function isoToUtcMs(iso: string): number {
@@ -57,6 +60,14 @@ export function isDueOn(r: Recurrence, todayIso: string): boolean {
       const diff = daysBetween(r.anchor, todayIso);
       return !Number.isNaN(diff) && diff >= 0 && diff % r.days === 0;
     }
+    case 'monthly': {
+      const d = new Date(`${todayIso}T00:00:00Z`);
+      if (Number.isNaN(d.getTime())) return false;
+      // Day 0 of the NEXT month is the last day of this one: no leap-year table needed.
+      const lastDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+      const wanted = Math.min(Math.max(r.day, 1), lastDay);
+      return d.getUTCDate() === wanted && startedBy(r.start, todayIso);
+    }
     case 'none':
       return false;
   }
@@ -66,13 +77,16 @@ export function isDueOn(r: Recurrence, todayIso: string): boolean {
  *  malformed row must never throw or wrongly surface a task. */
 export function asRecurrence(v: unknown): Recurrence | null {
   if (v == null || typeof v !== 'object') return null;
-  const r = v as { kind?: unknown; weekdays?: unknown; days?: unknown; anchor?: unknown; start?: unknown };
+  const r = v as { kind?: unknown; weekdays?: unknown; days?: unknown; anchor?: unknown; start?: unknown; day?: unknown };
   if (r.kind === 'daily') return { kind: 'daily', start: typeof r.start === 'string' ? r.start : undefined };
   if (r.kind === 'weekly' && Array.isArray(r.weekdays) && r.weekdays.every((d) => typeof d === 'number')) {
     return { kind: 'weekly', weekdays: r.weekdays as number[], start: typeof r.start === 'string' ? r.start : undefined };
   }
   if (r.kind === 'interval' && typeof r.days === 'number' && typeof r.anchor === 'string') {
     return { kind: 'interval', days: r.days, anchor: r.anchor };
+  }
+  if (r.kind === 'monthly' && typeof r.day === 'number' && Number.isInteger(r.day) && r.day >= 1 && r.day <= 31) {
+    return { kind: 'monthly', day: r.day, start: typeof r.start === 'string' ? r.start : undefined };
   }
   return null; // 'none' or anything unrecognised is not a recurring task
 }
@@ -104,6 +118,7 @@ export type RepeatSpec = {
   weekdays?: unknown;
   days?: unknown;
   start?: unknown;
+  day?: unknown; // 'monthly': the day of the month, 1-31
 };
 
 /** ISO 'YYYY-MM-DD' shape check (a real calendar day, parseable by isoToUtcMs). */
@@ -131,6 +146,13 @@ export function buildRecurrence(repeat: RepeatSpec | null | undefined, todayIso:
       const wd = repeat.weekdays;
       if (!wd.every((d) => typeof d === 'number' && Number.isInteger(d) && d >= 0 && d <= 6)) return null;
       return { kind: 'weekly', weekdays: wd as number[], start: anchor };
+    }
+    case 'monthly': {
+      // `day` optional: an agent saying "monthly" with no day means the day it is saying it on,
+      // which mirrors the app, where choosing Monthly defaults to today's day of the month.
+      const day = repeat.day === undefined ? Number(anchor.slice(8, 10)) : repeat.day;
+      if (typeof day !== 'number' || !Number.isInteger(day) || day < 1 || day > 31) return null;
+      return { kind: 'monthly', day, start: anchor };
     }
     case 'every_n_days': {
       // days required, an integer >= 1.
