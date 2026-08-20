@@ -5,13 +5,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { useSession } from '@/lib/auth';
 import { weeklyAllowance } from '@/lib/entitlement';
 import { purchaseGate } from '@/lib/iap';
 import { t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
-import { premiumPrimaryAction } from '@/lib/premium-ui';
+import { premiumPrimaryAction, trialSlot } from '@/lib/premium-ui';
 import { buy, IAP_AVAILABLE, loadOffers, openAppleSubscriptions, restore, type StoreOffer } from '@/lib/purchases';
 import { loadEntitlement, startCheckout, startPortal, startTrial } from '@/lib/stripe';
 import { track } from '@/lib/telemetry';
@@ -85,6 +85,9 @@ export default function PremiumScreen() {
   // What the primary CTA should do, given sign-in + entitlement state. On web/Android this is
   // always 'hidden' (IAP off), so the existing Stripe CTA renders instead.
   const gate = purchaseGate({ iapAvailable: IAP_AVAILABLE, signedIn: Boolean(session), loading, premium });
+  // Where the free month goes. Pure and tested (lib/premium-ui): on iOS it moves out from under
+  // the buy button rather than disappearing.
+  const slot = trialSlot({ signedIn: Boolean(session), iapAvailable: IAP_AVAILABLE });
   useEffect(() => {
     if (status !== 'success' || premium) return;
     let tries = 0;
@@ -473,7 +476,7 @@ export default function PremiumScreen() {
                 style={styles.ctaSpace}
               />
             )}
-            {session && (
+            {slot === 'inline' && (
               <Pressable
                 onPress={startFreeTrial}
                 disabled={busy}
@@ -485,7 +488,7 @@ export default function PremiumScreen() {
                 <Text style={styles.trialLinkText}>{t('premium.trialLink')}</Text>
               </Pressable>
             )}
-            {trialNote ? <Text style={styles.trialNoteText}>{trialNote}</Text> : null}
+            {slot === 'inline' && trialNote ? <Text style={styles.trialNoteText}>{trialNote}</Text> : null}
             {/* Signed-out on iOS gets Apple's suggested explanation instead of the account
                 pitch: no account is needed, signing in extends Premium to other devices, and
                 an existing web subscriber is pointed to sign in BEFORE buying (the double-charge
@@ -525,6 +528,24 @@ export default function PremiumScreen() {
                   <Text style={styles.restoreLinkText}>{t('premium.restorePurchases')}</Text>
                 </Pressable>
                 {restoreMsg ? <Text style={styles.trialNoteText}>{restoreMsg}</Text> : null}
+                {/* The free month, in its OWN zone rather than twelve pixels under a button that
+                    takes real money. Same offer, same tap, just not sitting where a thumb reaching
+                    for one thing lands on the other. */}
+                {slot === 'separated' && (
+                  <View style={styles.trialZone}>
+                    <Pressable
+                      onPress={startFreeTrial}
+                      disabled={busy}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('premium.trialLinkA11y')}
+                      hitSlop={6}
+                    >
+                      <Text style={styles.trialLinkText}>{t('premium.trialLink')}</Text>
+                    </Pressable>
+                    <Text style={styles.foot}>{t('premium.trialNoCard')}</Text>
+                    {trialNote ? <Text style={styles.trialNoteText}>{trialNote}</Text> : null}
+                  </View>
+                )}
               </>
             ) : (
               <Pressable
@@ -594,6 +615,16 @@ const makeStyles = (t: Theme) =>
     planPillText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     planPillTextOn: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '700' },
     trialLink: { marginTop: spacing.three, alignSelf: 'center' },
+    // Its own zone: a rule above it and real space, so it reads as a separate offer rather than a
+    // footnote to the buy button.
+    trialZone: {
+      marginTop: spacing.six,
+      paddingTop: spacing.five,
+      borderTopWidth: border.hair,
+      borderTopColor: t.colors.line,
+      alignItems: 'center',
+      gap: spacing.one,
+    },
     trialLinkText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     trialNoteText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.two },
     // iOS Apple-disclosure block: the Terms · Privacy row (required, functional links) and the

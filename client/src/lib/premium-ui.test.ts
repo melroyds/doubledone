@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { premiumPrimaryAction } from './premium-ui';
+import { premiumPrimaryAction, trialSlot } from './premium-ui';
 
 // The full state -> control table for the entitled panel. Each row here is a cell that either
 // shipped wrong (trial, comp) or must never drift (the live Stripe path). See premium-ui.ts for
@@ -31,5 +31,32 @@ describe('premiumPrimaryAction (the Premium panel primary control)', () => {
   it('an unknown or null status falls back to manage rather than hiding the control', () => {
     expect(premiumPrimaryAction(null, false)).toBe('manage');
     expect(premiumPrimaryAction('something_new', false)).toBe('manage');
+  });
+});
+
+// The free month sat twelve pixels under a button that takes real money instantly, in the same
+// accent, with copy opening "Or". No evidence ties that layout to any actual charge, and it is
+// still a trap worth removing on its own merits.
+describe('trialSlot', () => {
+  it('hides the offer when signed out, because it could only ever error there', () => {
+    expect(trialSlot({ signedIn: false, iapAvailable: true })).toBe('hidden');
+    expect(trialSlot({ signedIn: false, iapAvailable: false })).toBe('hidden');
+  });
+
+  // SEPARATED, not removed. Hiding it relocates a genuinely free offer to somewhere an iPhone-only
+  // user would never look, and creates a platform difference we could not explain kindly.
+  it('moves the offer out from under the buy button on iOS, without removing it', () => {
+    expect(trialSlot({ signedIn: true, iapAvailable: true })).toBe('separated');
+  });
+
+  it('leaves web and Android exactly as they were', () => {
+    expect(trialSlot({ signedIn: true, iapAvailable: false })).toBe('inline');
+  });
+
+  // It is never absent for a signed-in user on any platform: the offer survives the fix.
+  it('always offers it to a signed-in user somewhere', () => {
+    for (const iapAvailable of [true, false]) {
+      expect(trialSlot({ signedIn: true, iapAvailable })).not.toBe('hidden');
+    }
   });
 });

@@ -7517,3 +7517,42 @@ period to cancel AT.
 reachable path in the web preview. The pure mapper is unit-tested; the wiring wants a real device
 before it is trusted. Same shape as the `Intl.PluralRules` gotcha that shipped a launch crash past
 three clean days of browser testing.
+
+---
+
+## 2026-08-19 The free month moves out from under the buy button
+
+The fourth and last defect from the billing investigation, and the only one where the evidence does
+NOT support the story that produced it.
+
+The reporting customer signed in at 12:01 UTC and bought at 12:18. The card-free trial link only
+renders when signed in, so the shape looked like somebody reaching for the free month and hitting
+the paid button beside it. Attractive, and it does not hold up. StoreKit's sheet shows the product,
+the price and the period and needs Face ID, so a mis-tap has to survive a price-bearing
+confirmation. `premium.trial_tapped` is tracked on-device but never beaconed, so there is no record
+of the tap. And for the OTHER Apple subscriber, who is anonymous and has no session, the trial
+control never rendered at all, which makes the mis-tap impossible rather than merely unproven.
+
+**So this is not the cause of anything, and it is written down as a UX fix on its own merits.** Not
+inventing a defect to explain a customer report is the whole point; the temptation to let a
+satisfying fix stand in for an unexplained event is exactly how a real cause goes unfound.
+
+The defect itself is real enough. The trial control was the ONE platform-conditional block on that
+screen gated on `session` alone where every sibling checks `IAP_AVAILABLE`. It predates Apple IAP
+entirely and was never revisited. It painted in the same accent as `PrimaryButton`, twelve pixels
+below it, with copy opening "Or", which only parses as an alternative to whatever sits above.
+
+**Decided: separated, not hidden.** Hiding it on iOS was the other option and is worse. It relocates
+a genuinely free offer to somewhere an iPhone-only user would never look, and creates a platform
+difference we could not explain kindly to anybody who asked why the iPhone app has no free trial.
+
+**Hidden when signed out**, stated as a reason rather than left as a bare `session &&` condition:
+`startTrial()` can only answer `sign_in` there, and this file's own rule is that we never render a
+control whose only outcome is an error.
+
+**The "Or" is gone in all five locales**, and the non-English ones were re-capitalised now that the
+phrase stands alone rather than hanging off a conjunction.
+
+Placement is a pure, tested function (`trialSlot`) rather than a condition inline in the screen,
+which is the same lesson `premiumPrimaryAction` was extracted for after shipping wrong for three
+weeks.

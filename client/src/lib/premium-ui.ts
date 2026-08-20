@@ -24,3 +24,32 @@ export function premiumPrimaryAction(status: string | null, iapAvailable: boolea
   if (status === 'comp') return 'nothing';
   return 'manage';
 }
+
+/** Where the card-free trial offer sits on the paywall, or whether it sits there at all. */
+export type TrialSlot = 'inline' | 'separated' | 'hidden';
+
+/**
+ * WHERE to put the free month.
+ *
+ * SIGNED OUT: hidden. `startTrial()` can only answer `sign_in` there, and this file's own rule is
+ * that we never render a control whose only outcome is an error. (It was already effectively hidden,
+ * gated on `session`; this states the reason rather than leaving it as a bare condition.)
+ *
+ * ON iOS: SEPARATED, not removed. It sat twelve pixels under the "Go Premium" button, painted in the
+ * same accent, with copy opening "Or", which only parses as an alternative to whatever is directly
+ * above it. Beside a control that takes real money instantly, that adjacency is a trap worth
+ * removing. Hiding it altogether was the other option and is worse: it relocates a genuinely free
+ * offer to somewhere an iPhone-only user would never look, and creates a platform difference we
+ * could not explain kindly to anyone who asked.
+ *
+ * ELSEWHERE: inline, unchanged. Nothing on that screen can charge anyone without a Stripe redirect,
+ * so there is no adjacency to fix.
+ *
+ * Honest about its own limits: no evidence ties this layout to any real charge. It is a UX defect
+ * on its own merits, not a proven cause. See the decision log for the hypothesis and why it stayed
+ * one.
+ */
+export function trialSlot(s: { signedIn: boolean; iapAvailable: boolean }): TrialSlot {
+  if (!s.signedIn) return 'hidden';
+  return s.iapAvailable ? 'separated' : 'inline';
+}
