@@ -97,6 +97,34 @@ and the AI features answer in German the moment the resolver says 'de'.*
 
 The single home for consciously parked work. Nothing here is dropped; each item has a trigger for when it earns a place in the sequence. Premium-gated ideas live in [`docs/premium.md`](docs/premium.md).
 
+### Parked from the 2026-08-19 billing investigation
+
+Five things the adversarial panel deliberately did NOT build, each with the trigger that would earn
+it a place. See the decision log entries of that date for the full reasoning.
+
+- **Verify Apple receipts ourselves** (App Store Server API), making an anonymous purchase
+  resolvable without RevenueCat at all. Technically sound; a whole verification stack plus a
+  key-rotation story for two customers. **Trigger:** more than roughly 20 anonymous iOS subscribers.
+- **Pull the Apple subscriber count from RevenueCat's REST API into the analytics card**, now that
+  `RC_SECRET_KEY` exists. The interim is the honest label plus `docs/operations.md` naming RevenueCat
+  as the authority on the Apple count. **Trigger:** the analytics centre is used to make a pricing
+  or churn decision.
+- **An `rc_events` strip on the token-gated `/admin/analytics` page.** At two subscribers a
+  `wrangler d1 execute` one-liner is enough. **Trigger:** a third Apple subscriber, or a second
+  billing question that takes more than an hour.
+- **The iOS mid-trial dead end** (`premium-ui.ts`, `premiumPrimaryAction('trial', true) === 'none'`):
+  an iOS user on the card-free trial gets no control at all, so no in-app route to Apple's manage
+  sheet. Not fixed alongside the rest because changing it risks rendering an Apple buy button that
+  the pre-purchase entitlement re-read would silently swallow. **Trigger:** the first iOS user who
+  starts the card-free trial. Note for whoever picks it up: the current comment blames StoreKit
+  refusing a second purchase, which is FALSE for a card-free trial, because that Premium is our
+  server's grant and StoreKit cannot see it.
+- **The `/checkout` double-charge guard requires a non-null Stripe customer id**
+  (`stripe.ts`), and every Apple row carries `customerId: null` (`revenuecat.ts`), so an Apple-only
+  subscriber can still be minted a Stripe Checkout Session on top of their Apple sub. Narrower than
+  it sounds (`entitlements.ts` COALESCEs and preserves a prior Stripe id, so it only bites
+  Apple-only subscribers). **Trigger:** any report of a double charge, or a third Apple subscriber.
+
 ### NEXT: changing WHEN on a shared row (design prompt written)
 
 Melroy, 2026-08-13: "I can't change the date for a task in the Ours room once I set a date... and
