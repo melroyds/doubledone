@@ -7440,3 +7440,41 @@ renders when signed in, so the shape is consistent with somebody reaching for th
 tapping the paid button beside it. That is a HYPOTHESIS, not a finding: StoreKit's sheet shows the
 price and needs Face ID, and `premium.trial_tapped` is tracked on-device but never beaconed, so
 there is no record of the tap. The paywall layout is being fixed on its own merits, not as a cause.
+
+---
+
+## 2026-08-19 Sandbox purchases were writing the production entitlements table
+
+Found while investigating the billing question above. `revenuecat.ts` never read RevenueCat's
+`environment` field: a repo-wide grep for it returned exactly one hit, and that hit was a test
+fixture. So StoreKit **sandbox** and TestFlight events, running on Apple's accelerated fake clock
+with no money moving, were processed identically to real charges and wrote the production
+`entitlements` table.
+
+Two consequences, one embarrassing and one worse. The embarrassing one: a TestFlight customer with a
+fake 2013 first-seen and daily accelerated renewals sat in our data among two genuine subscribers,
+so the dashboard could show three Apple subscribers where there were two. The worse one: **anybody
+with a TestFlight build could grant themselves real Premium.**
+
+**Decided: ignore sandbox events outright.** Acknowledged with a 200, logged with `outcome:
+'sandbox'` so testing stays visible, never applied.
+
+**Decided against "record but non-granting."** Writing `premium = 0` for a shared-namespace user id
+IS the revoke this guard exists to prevent. It would also stamp `started_at` through the COALESCE in
+`writeEntitlement`, and still put a fake Apple row in the store of record. Ignoring is both safer and
+simpler, and the audit log gives the observability that idea was reaching for.
+
+**It fails OPEN on a missing or unrecognised `environment`.** Treating "we were not told" as sandbox
+would drop a real purchase and cost a paying customer their access, which is far worse than the stray
+test row this exists to prevent. Absent the field, behaviour is exactly what it was before.
+
+**Testers lose nothing**, which is what made ignoring safe rather than merely cheap. RevenueCat still
+grants the entitlement on-device in sandbox, so `localPremium()` reads true and
+`premium-provider.tsx` merges it over the server's answer. A TestFlight tester still sees and can
+exercise the paid surface. What changes is only that their test purchase stops being written down as
+if it were revenue.
+
+**The one stale row is being left alone.** `521fb16f…` is already `premium = 0, status = expired`,
+and `readEntitlement` returns the identical all-false view for a missing row, so it is inert for
+access and filtered out of every metric. Deleting live production rows to tidy up a number that is
+already correct is not a trade worth making.

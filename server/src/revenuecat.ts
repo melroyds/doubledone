@@ -110,6 +110,28 @@ export function entitlementFromRcEvent(event: unknown, nowMs: number): Entitleme
 }
 
 /**
+ * Is this a StoreKit SANDBOX / TestFlight delivery rather than a real one?
+ *
+ * Until 2026-08-19 nothing here read `environment` at all, so sandbox events were processed exactly
+ * like real charges and wrote the PRODUCTION entitlements table. That is how a TestFlight customer
+ * with a fake 2013 first-seen and daily accelerated renewals ended up counted among real
+ * subscribers, and it means anyone with a TestFlight build could grant themselves Premium.
+ *
+ * FAILS OPEN on a missing or unrecognised value, deliberately. Treating "we were not told" as
+ * sandbox would drop a real purchase and cost a paying customer their access, which is far worse
+ * than the stray test row this guard exists to prevent. Absent `environment`, behaviour is exactly
+ * what it was before this guard existed.
+ *
+ * TestFlight testers do NOT lose anything: RevenueCat still grants the entitlement on-device, so
+ * `localPremium()` reads true and the provider merges it over the server's answer. What changes is
+ * only that the test purchase stops being written to the store of record.
+ */
+export function isSandboxEvent(event: unknown): boolean {
+  const env = (event as { environment?: unknown } | null)?.environment;
+  return typeof env === 'string' && env.toUpperCase() === 'SANDBOX';
+}
+
+/**
  * WHY a delivery ended the way it did, recorded on every logged row so the audit log answers "what
  * happened to this event" and not merely "this event arrived".
  *
@@ -261,6 +283,13 @@ export async function handleRcWebhook(request: Request, env: RcEnv, nowISO: stri
     await alertOwner(env, 'DoubleDone: a RevenueCat TRANSFER fired', `A TRANSFER event arrived, which should not happen under keep-with-original Restore Behavior. Resolve it in the RevenueCat dashboard. Event id: ${typeof event.id === 'string' ? event.id : '(none)'}.`).catch(() => {});
     await logRcEvent(env.DB, rcEventRow(event, 'transfer'), nowISO);
     return new Response(JSON.stringify({ received: true, transfer: true }), { headers: { 'content-type': 'application/json' } });
+  }
+
+  // Sandbox and TestFlight deliveries are acknowledged and logged, never applied. See
+  // isSandboxEvent for why this fails open on a missing environment.
+  if (isSandboxEvent(event)) {
+    await logRcEvent(env.DB, rcEventRow(event, 'sandbox'), nowISO);
+    return new Response(JSON.stringify({ received: true, sandbox: true }), { headers: { 'content-type': 'application/json' } });
   }
 
   const ent = entitlementFromRcEvent(event, nowMs);

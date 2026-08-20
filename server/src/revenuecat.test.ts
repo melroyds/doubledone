@@ -5,6 +5,7 @@ import {
   appUserIdFromRcEvent,
   entitlementFromRcEvent,
   handleRcWebhook,
+  isSandboxEvent,
   rcEventRow,
   rcIgnoreOutcome,
   verifyRcAuth,
@@ -378,6 +379,67 @@ describe('the RevenueCat delivery log', () => {
     };
     const res = await handleRcWebhook(rawReq({ event: rcEvent() }), env(broken), '2026-07-18T00:00:00Z', NOW_MS);
     expect(res.status).toBe(200);
+    expect(db.rows.get(UID)?.premium).toBe(1);
+  });
+});
+
+// Sandbox contamination (found 2026-08-19). Nothing here read `environment`, so StoreKit sandbox
+// and TestFlight events, running on Apple's accelerated fake clock with no money moving, were
+// processed identically to real charges and wrote the PRODUCTION entitlements table.
+describe('sandbox deliveries never reach the store of record', () => {
+  it('recognises SANDBOX, case-insensitively, and nothing else', () => {
+    expect(isSandboxEvent(rcEvent({ environment: 'SANDBOX' }))).toBe(true);
+    expect(isSandboxEvent(rcEvent({ environment: 'sandbox' }))).toBe(true);
+    expect(isSandboxEvent(rcEvent({ environment: 'PRODUCTION' }))).toBe(false);
+  });
+
+  // FAILS OPEN on purpose. "We were not told" must never be read as sandbox, because dropping a
+  // real purchase costs a paying customer their access, which is far worse than a stray test row.
+  it('fails OPEN when environment is missing or not a string', () => {
+    expect(isSandboxEvent(rcEvent({ environment: undefined }))).toBe(false);
+    expect(isSandboxEvent(rcEvent({ environment: 42 }))).toBe(false);
+    expect(isSandboxEvent({})).toBe(false);
+    expect(isSandboxEvent(null)).toBe(false);
+  });
+
+  it('acknowledges a sandbox purchase and writes no entitlement', async () => {
+    const db = fakeDb();
+    const res = await handleRcWebhook(
+      rawReq({ event: rcEvent({ environment: 'SANDBOX' }) }), env(db), '2026-07-18T00:00:00Z', NOW_MS,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ received: true, sandbox: true });
+    expect(db.rows.size).toBe(0);
+  });
+
+  // Still logged, so testing remains visible rather than becoming a blind spot.
+  it('logs the sandbox delivery it refused to apply', async () => {
+    const db = fakeDb();
+    await handleRcWebhook(rawReq({ event: rcEvent({ environment: 'SANDBOX' }) }), env(db), '2026-07-18T00:00:00Z', NOW_MS);
+    expect(db.events).toHaveLength(1);
+    expect(db.events[0]?.[14]).toBe('sandbox'); // outcome
+    expect(db.events[0]?.[13]).toBe(0); // applied
+  });
+
+  // THE ONE THAT MATTERS FOR SAFETY. A sandbox event for a user who is ALREADY a real paying
+  // subscriber must leave them exactly as they were. Ignoring is what makes that true; writing
+  // premium=0 (the "record but non-granting" idea) would BE the revoke this guard exists to prevent.
+  it('cannot revoke a real subscriber who also has sandbox traffic', async () => {
+    const db = fakeDb();
+    await handleRcWebhook(rawReq({ event: rcEvent({ id: 'real-1' }) }), env(db), '2026-07-18T00:00:00Z', NOW_MS);
+    expect(db.rows.get(UID)?.premium).toBe(1);
+
+    await handleRcWebhook(
+      rawReq({ event: rcEvent({ id: 'sbx-1', type: 'EXPIRATION', environment: 'SANDBOX', expiration_at_ms: NOW_MS - HOUR_MS }) }),
+      env(db), '2026-07-19T00:00:00Z', NOW_MS,
+    );
+    expect(db.rows.get(UID)?.premium).toBe(1); // untouched
+    expect(db.rows.get(UID)?.status).toBe('active');
+  });
+
+  it('still applies a PRODUCTION event, so the guard is not just an off switch', async () => {
+    const db = fakeDb();
+    await handleRcWebhook(rawReq({ event: rcEvent({ environment: 'PRODUCTION' }) }), env(db), '2026-07-18T00:00:00Z', NOW_MS);
     expect(db.rows.get(UID)?.premium).toBe(1);
   });
 });
