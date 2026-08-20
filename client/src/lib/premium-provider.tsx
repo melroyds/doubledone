@@ -62,7 +62,11 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
     let active = true;
     void Promise.all([loadEntitlement(), localPremium()]).then(([e, appleLocal]) => {
       if (!active) return;
-      setEntitlement(!e.premium && appleLocal ? { ...e, premium: true, status: 'active', source: 'apple' } : e);
+      // Merge the device's FIELDS, not just its yes. Spreading only `e` (the FREE entitlement here)
+      // left `since` null, and weeklyAllowance(null) is 1 keepsake a week where a signed-in
+      // subscriber gets 4: same money, a quarter of the product. `currentPeriodEnd` was null too,
+      // so we never told an anonymous buyer when they would next be charged.
+      setEntitlement(!e.premium && appleLocal ? { ...e, ...appleLocal, premium: true, status: 'active', source: 'apple' } : e);
       setLoading(false);
     });
     return () => {

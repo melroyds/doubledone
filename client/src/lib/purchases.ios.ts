@@ -9,8 +9,8 @@
 
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 
-import { packagesToOffers, purchaseOutcome } from './iap';
-import type { BuyResult, RestoreResult, StoreOffer } from './purchases';
+import { localEntitlement, packagesToOffers, purchaseOutcome } from './iap';
+import type { BuyResult, LocalEntitlement, RestoreResult, StoreOffer } from './purchases';
 import { track } from './telemetry';
 
 // The RevenueCat entitlement id (configured in the dashboard). A purchase counts as Premium only
@@ -62,19 +62,20 @@ export async function identifyPurchaser(userId: string): Promise<void> {
   }
 }
 
-// The device's own answer: is the RevenueCat 'premium' entitlement active for the CURRENT
-// customer, anonymous included? This is the truth an ANONYMOUS Apple purchaser runs on
+// The device's own answer for the CURRENT customer, anonymous included: the 'premium' entitlement
+// as FIELDS (tenure, period end, whether it renews), not merely a boolean. It used to be a boolean,
+// which left an anonymous subscriber with `since: null` and therefore one keepsake a week instead
+// of four. This is the truth an ANONYMOUS Apple purchaser runs on
 // (App Review 5.1.1: registration before purchase must be optional): they have no server
 // entitlement row until they sign in and the alias lands, so the provider merges this local
 // read over the server's answer. The SDK serves a cached CustomerInfo when offline, so a
 // paid-up user is never locked out by a dead connection.
-export async function localPremium(): Promise<boolean> {
-  if (!configured) return false;
+export async function localPremium(): Promise<LocalEntitlement | null> {
+  if (!configured) return null;
   try {
-    const info = await Purchases.getCustomerInfo();
-    return typeof info.entitlements.active[ENTITLEMENT] !== 'undefined';
+    return localEntitlement(await Purchases.getCustomerInfo());
   } catch {
-    return false; // store unreachable and no cache: fail free, never crash the provider
+    return null; // store unreachable and no cache: fail free, never crash the provider
   }
 }
 

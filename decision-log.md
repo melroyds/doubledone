@@ -7478,3 +7478,42 @@ if it were revenue.
 and `readEntitlement` returns the identical all-false view for a missing row, so it is inert for
 access and filtered out of every metric. Deleting live production rows to tidy up a number that is
 already correct is not a trade worth making.
+
+---
+
+## 2026-08-19 An anonymous Apple subscriber was paying full price for a quarter of the product
+
+The third defect from the billing investigation, and the only one where a live customer was
+measurably worse off rather than merely invisible.
+
+`localPremium()` answered a bare boolean, and `premium-provider.tsx` merged only that boolean over
+the FREE entitlement. So for an ANONYMOUS Apple subscriber, the one App Review 5.1.1(v) forces us to
+support and who has no server row at all, `since` stayed **null**. `weeklyAllowance(null, now)`
+returns 1. A six-month anonymous subscriber therefore got **one keepsake a week where a signed-in
+one gets four**: identical money, a quarter of the product. One of our two real Apple customers has
+been in exactly that state since 9 August.
+
+`currentPeriodEnd` stayed null for the same reason, so our app also never told them when they would
+next be charged. They saw "You're Premium" and no date anywhere.
+
+**Decided: the device answers with FIELDS, not a flag.** `localPremium()` now returns `since`,
+`currentPeriodEnd` and `cancelAtPeriodEnd`, read from RevenueCat's `CustomerInfo`. Apple's
+`originalPurchaseDate` is the first purchase in the subscription's whole history, which is precisely
+what `since` means to `weeklyAllowance`, so the tenure is correct with no server round-trip and no
+sign-in.
+
+**The mapping is a pure function in `iap.ts`, not in the glue.** `purchases.ios.ts` cannot be
+unit-tested (it imports the native SDK and is excluded from coverage on purpose), and this is the
+sort of logic that must be. Every field is read defensively across that seam: an unparseable or
+wrong-typed date degrades to null, which is exactly the old behaviour, rather than crashing or
+inventing a date. A wrong date here would be worse than no date.
+
+**One subtlety worth writing down.** A lifetime or non-expiring entitlement reports `willRenew:
+false` with no expiry. That is not a scheduled cancel, and reading it as one would tell somebody
+their access is ending when it is not. `cancelAtPeriodEnd` is therefore only true when there is a
+period to cancel AT.
+
+**Still not verifiable here.** `IAP_AVAILABLE` is a compile-time false off iOS, so none of this has a
+reachable path in the web preview. The pure mapper is unit-tested; the wiring wants a real device
+before it is trusted. Same shape as the `Intl.PluralRules` gotcha that shipped a launch crash past
+three clean days of browser testing.

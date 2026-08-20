@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { packagesToOffers, purchaseGate, purchaseOutcome } from './iap';
+import { weeklyAllowance } from './entitlement';
+import { localEntitlement, packagesToOffers, purchaseGate, purchaseOutcome } from './iap';
 
 describe('purchaseOutcome (thrown SDK purchase error -> one calm outcome)', () => {
   it('reads userCancelled first, before any code', () => {
@@ -132,5 +133,70 @@ describe('purchaseGate (the double-charge guard)', () => {
   it('loading is checked before premium, so a stale false-premium never opens the button mid-read', () => {
     // signed in, still loading, premium not yet true -> must be wait, not buy
     expect(purchaseGate({ iapAvailable: true, signedIn: true, loading: true, premium: false })).toBe('wait');
+  });
+});
+
+// The device-local entitlement (2026-08-19). `localPremium()` answered a bare boolean, so an
+// ANONYMOUS Apple subscriber kept `since: null` from FREE_ENTITLEMENT, and weeklyAllowance(null)
+// is 1 keepsake a week where a signed-in subscriber gets 4. Identical money, a quarter of the
+// product, and it had been true for one of our two real Apple customers since 9 August.
+describe('localEntitlement', () => {
+  const info = (over: Record<string, unknown> = {}) => ({
+    entitlements: {
+      active: {
+        premium: {
+          originalPurchaseDate: '2026-02-09T05:22:00Z',
+          expirationDate: '2026-09-09T05:22:00Z',
+          willRenew: true,
+          ...over,
+        },
+      },
+    },
+  });
+
+  it('carries the tenure clock, the period end and the renewal state', () => {
+    expect(localEntitlement(info())).toEqual({
+      since: '2026-02-09T05:22:00Z',
+      currentPeriodEnd: Math.floor(Date.parse('2026-09-09T05:22:00Z') / 1000),
+      cancelAtPeriodEnd: false,
+    });
+  });
+
+  // THE regression this exists to stop. Six months of tenure has to reach weeklyAllowance.
+  it('gives an anonymous six-month subscriber the four keepsakes they paid for', () => {
+    const now = Date.parse('2026-08-19T00:00:00Z');
+    const local = localEntitlement(info());
+    expect(weeklyAllowance(local?.since ?? null, now)).toBe(4);
+    // What it used to do, kept as the contrast so the defect stays legible.
+    expect(weeklyAllowance(null, now)).toBe(1);
+  });
+
+  it('is null when the entitlement is not active, so the merge only ever ADDS premium', () => {
+    expect(localEntitlement({ entitlements: { active: {} } })).toBeNull();
+    expect(localEntitlement({ entitlements: {} })).toBeNull();
+    expect(localEntitlement({})).toBeNull();
+    expect(localEntitlement(null)).toBeNull();
+    expect(localEntitlement(undefined)).toBeNull();
+  });
+
+  // Crossing the SDK seam. A bad date must degrade to the OLD behaviour (null), never crash and
+  // never produce a wrong date, which would be worse than no date.
+  it('degrades an unparseable or wrong-typed date to null rather than guessing', () => {
+    expect(localEntitlement(info({ originalPurchaseDate: 'not-a-date' }))?.since).toBeNull();
+    expect(localEntitlement(info({ originalPurchaseDate: 12345 }))?.since).toBeNull();
+    expect(localEntitlement(info({ expirationDate: 'nope' }))?.currentPeriodEnd).toBeNull();
+    expect(localEntitlement(info({ expirationDate: undefined }))?.currentPeriodEnd).toBeNull();
+  });
+
+  it('reads a cancelled-but-still-running subscription as cancelling', () => {
+    expect(localEntitlement(info({ willRenew: false }))?.cancelAtPeriodEnd).toBe(true);
+  });
+
+  // A lifetime / non-expiring entitlement reports willRenew false with NO expiry. That is not a
+  // scheduled cancel, and calling it one would tell somebody their access is ending when it is not.
+  it('does not call a non-expiring entitlement a scheduled cancel', () => {
+    const lifetime = localEntitlement(info({ willRenew: false, expirationDate: null }));
+    expect(lifetime?.cancelAtPeriodEnd).toBe(false);
+    expect(lifetime?.currentPeriodEnd).toBeNull();
   });
 });

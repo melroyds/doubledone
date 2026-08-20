@@ -13,6 +13,8 @@
 // new IAP branches away by construction on the platforms that already carry paying
 // customers. Do not add `react-native-purchases` to this file.
 
+import type { Entitlement } from './entitlement';
+
 export const IAP_AVAILABLE = false;
 
 // A store package flattened to what the paywall needs. The iOS file builds these from the
@@ -39,7 +41,11 @@ export async function buy(_packageId: string): Promise<BuyResult> {
 export async function restore(): Promise<RestoreResult> {
   return { ok: false, premium: false, code: 'unavailable' };
 }
-export async function localPremium(): Promise<boolean> {
-  return false; // no store on web/Android: local Apple entitlement can never exist here
+export type LocalEntitlement = Pick<Entitlement, 'since' | 'currentPeriodEnd' | 'cancelAtPeriodEnd'>;
+
+/** The device's own Apple entitlement, or null. Always null off iOS. */
+export async function localPremium(): Promise<LocalEntitlement | null> {
+  return null;
 }
+
 export async function openAppleSubscriptions(): Promise<void> {}

@@ -3,9 +3,14 @@
 // the SDK is the thin `purchases.ios.ts`, which hands its raw shapes to these functions. Keep it
 // that way: logic here, glue there.
 
+import type { Entitlement } from './entitlement';
 import type { StoreOffer } from './purchases';
 
 // RevenueCat's package identifiers for the two packages in the 'default' offering.
+// The RevenueCat entitlement id, mirroring purchases.ios.ts (which cannot be imported here:
+// it pulls in the native SDK).
+const ENTITLEMENT_ID = 'premium';
+
 const PKG_MONTHLY = '$rc_monthly';
 const PKG_ANNUAL = '$rc_annual';
 
@@ -109,4 +114,37 @@ export function purchaseGate(s: {
   if (s.signedIn && s.loading) return 'wait'; // entitlement still resolving after sign-in: the double-charge window, button disabled
   if (s.premium) return 'already_premium'; // already entitled (Stripe, Apple, trial, or comp): never charge again
   return 'buy'; // signed-in and resolved, OR anonymous: Apple requires the anonymous path (5.1.1)
+}
+
+/**
+ * The DEVICE's own entitlement, read from a RevenueCat CustomerInfo, as the fields our model uses.
+ *
+ * WHY IT IS MORE THAN A BOOLEAN NOW. `localPremium()` used to answer yes/no, and the provider merged
+ * only that, so an ANONYMOUS Apple subscriber (the path App Review 5.1.1(v) forces) kept
+ * `since: null` from FREE_ENTITLEMENT. `weeklyAllowance(null, now)` returns 1, so a six-month
+ * anonymous subscriber got ONE keepsake a week where a signed-in one gets four: identical money,
+ * a quarter of the product. `currentPeriodEnd` stayed null too, so our app never told them when
+ * they would next be charged.
+ *
+ * Every field is read defensively, because this crosses the SDK seam. A missing or unparseable
+ * date degrades to null, which is exactly the old behaviour, never a crash and never a wrong date.
+ * Returns null when the entitlement is not active, so the caller's merge stays "only ever ADDS".
+ */
+export function localEntitlement(info: unknown): Pick<Entitlement, 'since' | 'currentPeriodEnd' | 'cancelAtPeriodEnd'> | null {
+  const active = (info as { entitlements?: { active?: Record<string, unknown> } } | null)?.entitlements?.active;
+  const ent = active?.[ENTITLEMENT_ID] as
+    | { originalPurchaseDate?: unknown; expirationDate?: unknown; willRenew?: unknown }
+    | undefined;
+  if (!ent) return null;
+  const iso = (v: unknown): string | null => (typeof v === 'string' && Number.isFinite(Date.parse(v)) ? v : null);
+  const expires = iso(ent.expirationDate);
+  return {
+    // The TENURE clock. Apple's originalPurchaseDate is the first purchase in the subscription's
+    // whole history, which is precisely what `since` means to weeklyAllowance.
+    since: iso(ent.originalPurchaseDate),
+    currentPeriodEnd: expires ? Math.floor(Date.parse(expires) / 1000) : null,
+    // A lifetime / non-expiring entitlement reports willRenew false with no expiry. That is not a
+    // scheduled cancel, so only treat false as "cancelling" when there is a period to cancel AT.
+    cancelAtPeriodEnd: ent.willRenew === false && expires !== null,
+  };
 }
