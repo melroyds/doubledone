@@ -109,6 +109,126 @@ export function entitlementFromRcEvent(event: unknown, nowMs: number): Entitleme
   return null;
 }
 
+/**
+ * WHY a delivery ended the way it did, recorded on every logged row so the audit log answers "what
+ * happened to this event" and not merely "this event arrived".
+ *
+ * `sandbox` is declared one commit AHEAD of its use. The guard that rejects sandbox events lands
+ * next, and having the member here already makes that change purely additive against this type.
+ */
+export type RcOutcome =
+  | 'applied'
+  | 'duplicate'
+  | 'transfer'
+  | 'unresolved-user'
+  | 'other-entitlement'
+  | 'stale-expiration'
+  | 'sandbox'
+  | 'no-op';
+
+/** One row of the delivery log. A named allowlist: everything here is deliberate, and anything not
+ *  listed (country, subscriber_attributes, IP, the raw body) is deliberately not kept. */
+export type RcEventRow = {
+  eventId: string | null;
+  type: string;
+  periodType: string | null;
+  environment: string | null;
+  store: string | null;
+  productId: string | null;
+  appUserId: string | null;
+  originalTransactionId: string | null;
+  userId: string | null;
+  price: number | null;
+  priceInPurchasedCurrency: number | null;
+  currency: string | null;
+  isTrialConversion: number | null;
+  applied: number;
+  outcome: RcOutcome;
+  eventTimestampMs: number | null;
+};
+
+/** Total coercers. A wrong-typed field from a webhook becomes null rather than landing a string in
+ *  a REAL column, and an empty string is not a value worth keeping. */
+const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
+const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+/**
+ * Project an event onto the log row. TOTAL: `{}`, `null` and every wrong-typed field are handled,
+ * because a logging failure must never be able to take down a billing webhook.
+ */
+export function rcEventRow(event: unknown, outcome: RcOutcome): RcEventRow {
+  const e = (event ?? {}) as Record<string, unknown>;
+  return {
+    eventId: str(e.id),
+    type: typeof e.type === 'string' ? e.type : '',
+    periodType: str(e.period_type),
+    environment: str(e.environment),
+    store: str(e.store),
+    productId: str(e.product_id),
+    appUserId: str(e.app_user_id),
+    originalTransactionId: str(e.original_transaction_id),
+    userId: appUserIdFromRcEvent(event),
+    price: num(e.price),
+    priceInPurchasedCurrency: num(e.price_in_purchased_currency),
+    currency: str(e.currency),
+    // Three-valued on purpose: missing stays NULL. "We were not told" and "it was not a conversion"
+    // are different billing answers, and collapsing them to 0 is how a log starts lying.
+    isTrialConversion: typeof e.is_trial_conversion === 'boolean' ? (e.is_trial_conversion ? 1 : 0) : null,
+    applied: outcome === 'applied' ? 1 : 0,
+    outcome,
+    eventTimestampMs: num(e.event_timestamp_ms),
+  };
+}
+
+/**
+ * The reason `entitlementFromRcEvent` returned null, mirroring its precedence EXACTLY (user first,
+ * then the entitlement id, then the stale-EXPIRATION guard, then simply a type we do not act on).
+ * Kept beside it so the two cannot drift; a test asserts the mirror over the shared fixtures.
+ */
+export function rcIgnoreOutcome(event: unknown, nowMs: number): RcOutcome {
+  const e = (event ?? {}) as { type?: unknown; entitlement_ids?: unknown; expiration_at_ms?: unknown };
+  if (!appUserIdFromRcEvent(event)) return 'unresolved-user';
+  const ids = Array.isArray(e.entitlement_ids) ? e.entitlement_ids : [];
+  if (!ids.includes(ENTITLEMENT)) return 'other-entitlement';
+  if (e.type === 'EXPIRATION') {
+    const expMs = num(e.expiration_at_ms);
+    if (expMs != null && expMs > nowMs) return 'stale-expiration';
+  }
+  return 'no-op';
+}
+
+/** Create-if-missing, so a Worker deploy never has to wait on a schema apply (the scrapbook_log
+ *  lesson: rows vanished for weeks because the table postdated the code that wrote it). */
+export const RC_EVENTS_DDL =
+  "CREATE TABLE IF NOT EXISTS rc_events (id integer primary key autoincrement, event_id text unique, type text not null, period_type text, environment text, store text, product_id text, app_user_id text, original_transaction_id text, user_id text, price real, price_in_purchased_currency real, currency text, is_trial_conversion integer, applied integer not null default 0, outcome text not null, event_timestamp_ms integer, created_at text not null default (datetime('now')))";
+
+/**
+ * Append one row. NEVER throws and never returns a failure: observability that can break a billing
+ * path is worse than no observability. INSERT OR IGNORE plus the UNIQUE event_id makes an
+ * at-least-once re-delivery a no-op rather than a duplicate row.
+ */
+export async function logRcEvent(db: D1LikeDatabase, row: RcEventRow, nowISO: string): Promise<void> {
+  try {
+    await db.prepare(RC_EVENTS_DDL).run();
+    await db
+      .prepare(
+        `INSERT OR IGNORE INTO rc_events (event_id, type, period_type, environment, store, product_id, app_user_id,
+           original_transaction_id, user_id, price, price_in_purchased_currency, currency, is_trial_conversion,
+           applied, outcome, event_timestamp_ms, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)`,
+      )
+      .bind(
+        row.eventId, row.type, row.periodType, row.environment, row.store, row.productId, row.appUserId,
+        row.originalTransactionId, row.userId, row.price, row.priceInPurchasedCurrency, row.currency,
+        row.isTrialConversion, row.applied, row.outcome, row.eventTimestampMs, nowISO,
+      )
+      .run();
+  } catch {
+    // Deliberately silent. A missing table, a locked database, a schema drift: none of them are
+    // worth failing a purchase over.
+  }
+}
+
 /** Email the owner via the same proven send path as the monitor and the Stripe money alerts. */
 async function alertOwner(env: RcEnv, subject: string, body: string): Promise<void> {
   if (!env.SEND_EMAIL || !env.FEEDBACK_TO) return;
@@ -139,11 +259,17 @@ export async function handleRcWebhook(request: Request, env: RcEnv, nowISO: stri
   // carries no expiration to grant the new owner with.
   if (type === 'TRANSFER') {
     await alertOwner(env, 'DoubleDone: a RevenueCat TRANSFER fired', `A TRANSFER event arrived, which should not happen under keep-with-original Restore Behavior. Resolve it in the RevenueCat dashboard. Event id: ${typeof event.id === 'string' ? event.id : '(none)'}.`).catch(() => {});
+    await logRcEvent(env.DB, rcEventRow(event, 'transfer'), nowISO);
     return new Response(JSON.stringify({ received: true, transfer: true }), { headers: { 'content-type': 'application/json' } });
   }
 
   const ent = entitlementFromRcEvent(event, nowMs);
-  if (!ent) return new Response(JSON.stringify({ received: true, ignored: true }), { headers: { 'content-type': 'application/json' } });
+  if (!ent) {
+    // The one that mattered most: an ANONYMOUS purchase dies here, and until now died silently, so
+    // a paying customer existed nowhere in our data at all.
+    await logRcEvent(env.DB, rcEventRow(event, rcIgnoreOutcome(event, nowMs)), nowISO);
+    return new Response(JSON.stringify({ received: true, ignored: true }), { headers: { 'content-type': 'application/json' } });
+  }
 
   // Idempotency: RevenueCat delivers at-least-once. Skip an event we already applied. Fail OPEN on
   // any dedup-store error: writeEntitlement is an idempotent upsert, so re-processing is harmless,
@@ -152,12 +278,17 @@ export async function handleRcWebhook(request: Request, env: RcEnv, nowISO: stri
   if (eventId) {
     try {
       const seen = await env.DB.prepare('SELECT 1 FROM processed_events WHERE event_id = ?1').bind(eventId).first();
-      if (seen) return new Response(JSON.stringify({ received: true, duplicate: true }), { headers: { 'content-type': 'application/json' } });
+      if (seen) {
+        await logRcEvent(env.DB, rcEventRow(event, 'duplicate'), nowISO);
+        return new Response(JSON.stringify({ received: true, duplicate: true }), { headers: { 'content-type': 'application/json' } });
+      }
     } catch {
       // fail open: proceed to write
     }
   }
   await writeEntitlement(env.DB, ent, nowISO);
+  // AFTER the write, never before, so `applied = 1` can never claim something that did not happen.
+  await logRcEvent(env.DB, rcEventRow(event, 'applied'), nowISO);
   if (eventId) {
     try {
       await env.DB.prepare('INSERT OR IGNORE INTO processed_events (event_id, created_at) VALUES (?1, ?2)').bind(eventId, nowISO).run();

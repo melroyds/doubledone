@@ -7376,3 +7376,67 @@ nobody made. It now compares a sorted, summary-free key, which also fixes a late
 - **Clamping is right for everyone.** It is right for bills. Somebody who genuinely wants "only in
   months that have a 31st" gets an extra occurrence they did not want, in three months a year. That
   trade is deliberate and this is where to argue with it.
+
+---
+
+## 2026-08-19 A customer asked why Apple billed them, and we could not answer from our own data
+
+A real subscriber reported being billed by Apple after what they believed was a free premium month.
+Answering that took a full day and two third-party dashboards. The answer, in the end, was that
+nothing had gone wrong: they installed on 1 August, used the free tier for sixteen days, signed in,
+subscribed to Premium Monthly seventeen minutes later, and Apple charged A$5 once, exactly as it
+says it will. No introductory offer exists on the product, RevenueCat has never had a trialing
+subscriber, and our own card-free trial cannot bill anybody.
+
+**The defect was not in the billing. It was that the question was unanswerable.** Three things
+compounded:
+
+1. `entitlementFromRcEvent` read past **`period_type`** and **`environment`** and kept no history, so
+   "was that a trial or a real charge, and was it even production" had no answer in our database.
+2. The `entitlements` table is one row per user, last-write-wins. It says what access somebody has
+   NOW and nothing about how it got there.
+3. An **anonymous** Apple purchase (the path App Review 5.1.1(v) forces on us) resolves to no
+   Supabase id, so `handleRcWebhook` drops the event entirely. One of our two real Apple subscribers
+   is exactly that: paying, and existing nowhere in our own data.
+
+**Decided: an append-only `rc_events` log, written on EVERY delivery including the ignored ones.**
+Each row carries an `outcome` naming why the event ended as it did (`applied`, `duplicate`,
+`transfer`, `unresolved-user`, `other-entitlement`, `stale-expiration`, `sandbox`, `no-op`), so the
+log explains itself rather than just recording arrivals.
+
+**Decided against adding `period_type` and `environment` columns to `entitlements`.** One row per
+user cannot answer a historical question; the anonymous purchaser has no row there at all; and it
+would mean editing the single UPDATE in this codebase that can revoke a paying customer, for an
+observability change. Not worth the blast radius.
+
+**Decided against a payload dump.** The columns are a named allowlist. No country, no
+`subscriber_attributes` (which can carry `$email` / `$displayName`), no IP, no raw body. Same
+pseudonymous posture as the rest of this database, which is public-repo-safe by construction.
+
+**Decided against backfilling.** RevenueCat does not replay historical webhooks, and an audit log
+that mixes observed rows with reconstructed ones is worse than one that honestly starts empty,
+because the next person cannot tell which rows are evidence. The known history is this entry.
+
+**It fails silently, on purpose.** `logRcEvent` swallows everything and returns void, and the table
+is create-if-missing at the call site (the `scrapbook_log` lesson, where 14 generations vanished
+because the table postdated the code). Observability that can break a billing path is worse than no
+observability, and a test asserts premium is still granted when the log store throws.
+
+### What this investigation established, recorded because nothing else records it
+
+- **Two real Apple subscribers**, both Australian, both Premium Monthly, one charge each at A$5
+  (~USD 3.54 net of Apple's commission), ~$7 lifetime Apple revenue.
+- **One of them is anonymous** and has no entitlements row. They bought on 9 August.
+- **A third RevenueCat customer was SANDBOX/TestFlight**, with a fake 2013 first-seen and daily
+  accelerated renewals, and **its events were written into the production entitlements table**. That
+  is the next commit.
+- The App Store product has **no introductory offer**, and RevenueCat reports **zero** trialing
+  subscribers, ever.
+
+### Assumption worth challenging
+
+The reporting customer signed in at 12:01 UTC and purchased at 12:18. The card-free trial link only
+renders when signed in, so the shape is consistent with somebody reaching for the free month and
+tapping the paid button beside it. That is a HYPOTHESIS, not a finding: StoreKit's sheet shows the
+price and needs Face ID, and `premium.trial_tapped` is tracked on-device but never beaconed, so
+there is no record of the tap. The paywall layout is being fixed on its own merits, not as a cause.

@@ -66,6 +66,25 @@ The D1 schema (the `alerts_sent` dedup table) is additive and safe. Key rotation
 
 `POST /rc-webhook` (`server/src/revenuecat.ts`) is a second billing webhook beside `/stripe-webhook`. It writes the SAME D1 `entitlements` row (via the `source` column) when an Apple subscription changes. It is authed by the **`RC_WEBHOOK_AUTH`** Worker secret, which RevenueCat has no HMAC for, so the secret IS the auth: it must be a long random string set both here AND as the webhook's Authorization header in the RevenueCat dashboard, and the two must match. No secret set → the route 503s (safe default). A wrong header → 401, no write. If Apple purchases stop unlocking Premium, check (1) the two secrets still match, (2) the Worker is deployed, (3) the RevenueCat dashboard shows the webhook delivering 2xx. A TRANSFER event (should never fire under keep-with-original Restore Behavior) emails `FEEDBACK_TO` and writes nothing. The webhook is idempotent (the `rc:`-namespaced event id in `processed_events`) and fails open, like the Stripe one, so a redelivery or a dedup hiccup is harmless.
 
+**Every delivery is logged, including the ones we ignore** (the `rc_events` D1 table, added 2026-08-19). The `entitlements` row is one-per-user and last-write-wins, so it says what somebody's access is NOW and nothing about how it got there. On 2026-08-19 a customer asked why Apple had billed them, and answering "was that a trial or a real charge, and was it even production" took a day across two third-party dashboards, because the webhook read past `period_type` and `environment` and kept no history. Worse, an ANONYMOUS purchase resolves to no Supabase id and is dropped at the door, so a paying customer existed nowhere in our data at all. The table is a named allowlist of columns (no country, no `subscriber_attributes`, no IP, no raw body), self-creating at the call site so deploy order never matters, and every row carries an `outcome` saying WHY the event ended as it did. The three queries worth knowing:
+
+```bash
+# What has Apple actually sent us, and how much of it was real?
+npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --command "SELECT environment, period_type, type, COUNT(*) n FROM rc_events GROUP BY 1,2,3 ORDER BY n DESC"
+```
+
+```bash
+# Paying customers we cannot see: an event we could not attribute to any account.
+npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --command "SELECT app_user_id, type, period_type, datetime(event_timestamp_ms/1000,'unixepoch') at FROM rc_events WHERE user_id IS NULL ORDER BY event_timestamp_ms DESC LIMIT 20"
+```
+
+```bash
+# Where did this person's entitlement come from? (provenance, incl. sandbox contamination)
+npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --command "SELECT e.user_id, e.status, e.source, r.type, r.period_type, r.environment, r.outcome, r.created_at FROM entitlements e LEFT JOIN rc_events r ON r.user_id = e.user_id ORDER BY r.created_at DESC LIMIT 30"
+```
+
+The log starts the day it deploys and is deliberately NOT backfilled: RevenueCat does not replay historical webhooks, and an audit log mixing observed rows with reconstructed ones is worse than one that honestly starts empty, because the next person cannot tell which rows are evidence. The history up to that point is written as dated prose in `decision-log.md` instead.
+
 ## The /energy route in the spend picture
 
 Energy matching ("What fits right now?", shipped 2026-07-11, living inside Focus mode's picker since 2026-07-12) calls `POST /energy` on the Worker: today's open tasks plus an energy level in, ONE picked task with a short warm line out ([`server/src/energy.ts`](../server/src/energy.ts)). What an operator needs to know:

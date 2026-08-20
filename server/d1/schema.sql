@@ -167,3 +167,43 @@ create table if not exists mcp_grants (
   revoked_at integer                    -- epoch ms; set = the grant is dead regardless of provider state
 );
 create index if not exists mcp_grants_user on mcp_grants (user_id);
+
+-- The RevenueCat DELIVERY LOG: one append-only row per webhook received, INCLUDING the ones we
+-- deliberately ignore. The entitlements table above is one row per user, last-write-wins, so it can
+-- say what somebody's access is NOW and nothing whatever about how it got that way.
+--
+-- That gap cost a full day on 2026-08-19. A customer asked why Apple had billed them, and answering
+-- "was that a trial or a real charge, and was it even production" required two third-party
+-- dashboards, because entitlementFromRcEvent reads past `period_type` and `environment` and no
+-- history is kept anywhere. Worse, the anonymous purchaser (App Review 5.1.1(v) forces that path)
+-- resolves to no Supabase id, so their events are dropped at the door and left no trace at all: a
+-- paying customer who existed nowhere in our own data.
+--
+-- A NAMED ALLOWLIST of columns, never a payload dump. No country, no `subscriber_attributes` (which
+-- can carry $email / $displayName), no IP, no raw body. Same pseudonymous posture as the rest of
+-- this database. Also self-creating at the call site (the scrapbook_log lesson: 14 generations once
+-- vanished because the table postdated the code), so deploy order never matters. Apply once
+-- (idempotent):
+--   npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --file d1/schema.sql
+create table if not exists rc_events (
+  id integer primary key autoincrement,
+  event_id text unique,                 -- RevenueCat's own event id; UNIQUE makes a re-delivery a no-op
+  type text not null,                   -- INITIAL_PURCHASE | RENEWAL | CANCELLATION | EXPIRATION | TRANSFER | ...
+  period_type text,                     -- TRIAL | NORMAL | INTRO | PROMOTIONAL. THE field this table exists for.
+  environment text,                     -- SANDBOX | PRODUCTION. The other one.
+  store text,                           -- APP_STORE | PLAY_STORE | ...
+  product_id text,
+  app_user_id text,                     -- as sent, so an $RCAnonymousID is preserved rather than erased
+  original_transaction_id text,
+  user_id text,                         -- the RESOLVED Supabase uid, or null when it could not be resolved
+  price real,
+  price_in_purchased_currency real,
+  currency text,
+  is_trial_conversion integer,          -- 1 | 0 | null; null means "not stated", which is not "no"
+  applied integer not null default 0,   -- 1 only when writeEntitlement actually ran
+  outcome text not null,                -- WHY: applied | duplicate | transfer | unresolved-user | ...
+  event_timestamp_ms integer,
+  created_at text not null default (datetime('now'))
+);
+create index if not exists rc_events_env on rc_events (environment, type);
+create index if not exists rc_events_user on rc_events (user_id);
