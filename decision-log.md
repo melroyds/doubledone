@@ -7556,3 +7556,60 @@ phrase stands alone rather than hanging off a conjunction.
 Placement is a pure, tested function (`trialSlot`) rather than a condition inline in the screen,
 which is the same lesson `premiumPrimaryAction` was extracted for after shipping wrong for three
 weeks.
+
+---
+
+## 2026-08-19 A paying customer who existed nowhere in our data
+
+The last and worst of the four defects. App Review 5.1.1(v) forbids requiring registration before
+purchase, so an iOS user can buy while signed out. RevenueCat gives them an `$RCAnonymousID:`, and
+`appUserIdFromRcEvent` refuses anything that is not a UUID, so **every webhook for that purchase is
+dropped**. One of our two real Apple subscribers bought on 9 August and had existed nowhere in our
+database for ten days when we found them.
+
+What that costs them, concretely: no renewal date anywhere in our app, the tenure-scaled keepsake
+allowance broken on every other device, Premium simply absent on web and Android, and no way for us
+to answer a question about their own money if they ask one.
+
+**Decided: `POST /apple/reconcile`, called once on sign-in.** Signing in already calls
+`Purchases.logIn(supabaseId)`, which puts the Supabase id in RevenueCat's alias group for that
+customer. From that moment RevenueCat can answer for the UUID, but **no new webhook fires**, so the
+account stays empty until the next renewal, which can be a month away and may arrive as a `TRANSFER`
+we deliberately do not act on. So we ask, once, at the moment the alias appears.
+
+**The trust model is the whole design: the client asserts NOTHING.** No receipt, no product, no
+customer id, no claim of being premium, no request body at all. The server takes the
+cryptographically verified `sub` from the caller's own token and asks RevenueCat about exactly that
+App User ID. A caller can therefore only ever reconcile themselves, and only into a purchase
+RevenueCat already agrees is theirs.
+
+**Decided against verifying Apple receipts ourselves** via the App Store Server API. Technically
+sound, and it would make an anonymous purchase resolvable without RevenueCat at all, but it is a
+whole verification stack plus a key-rotation story for two customers. Backlog, trigger: more than
+roughly twenty anonymous iOS subscribers.
+
+**v1 and not v2**, deliberately. `GET /v1/subscribers/{id}` returns `subscriptions` keyed by product
+with a per-subscription `is_sandbox`, in one call. The v2 customer endpoints need a project id, a
+different shape and pagination to answer the same question. Verified against RevenueCat's own docs
+before the key was created, rather than assumed.
+
+**It fails closed in every direction**, because unlike everything else in this build it GRANTS
+premium. No entitlement, no expiry, an unparseable expiry, an expiry in the past, no matching
+subscription row, or a sandbox row: all `attached: false`. The missing-row case matters most and is
+easy to get wrong: only the per-product row carries `is_sandbox`, so an entitlement with no
+`product_identifier` cannot be looked up, cannot be proven to be production, and must not be
+granted. Without that, a TestFlight tester could reconcile themselves real Premium, reopening the
+hole the sandbox webhook guard had just closed.
+
+**An upstream failure answers 502, never `attached: false`.** Reporting a RevenueCat outage as "you
+have no subscription" is a lie that reads to the user as a downgrade. And `attached: false` is
+deliberately not an error: it is the ordinary answer for every web user, every Android user and
+every free iOS user, all of whom hit this on sign-in.
+
+**Ordering, which a future edit could easily break.** The reconcile must AWAIT `identifyPurchaser`,
+because that call is what creates the alias it depends on. Racing them means asking RevenueCat about
+an id it has not been told about yet, and getting a confident, wrong "nothing".
+
+**Not verifiable here.** `IAP_AVAILABLE` is a compile-time false off iOS, so the client half has no
+reachable path in the web preview. The server half is fully unit-tested with a stubbed fetch, but
+the end-to-end wants a real anonymous purchase on a device.

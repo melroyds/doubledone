@@ -18,7 +18,8 @@ import { useSession } from '@/lib/auth';
 import { setInbound } from '@/lib/inbound';
 import { t } from '@/lib/locale';
 import { PremiumProvider } from '@/lib/premium-provider';
-import { configurePurchases, forgetPurchaser, identifyPurchaser } from '@/lib/purchases';
+import { configurePurchases, forgetPurchaser, IAP_AVAILABLE, identifyPurchaser } from '@/lib/purchases';
+import { reconcileApple } from '@/lib/stripe';
 import { rescheduleAllNudges } from '@/lib/reminders';
 import { useShareInbound } from '@/lib/share-intent';
 import { loadReminderHour, loadReminderOn, loadRoutines } from '@/lib/storage';
@@ -83,8 +84,18 @@ function RootStack() {
   }, []);
   useEffect(() => {
     const id = session?.user?.id;
-    if (id) void identifyPurchaser(id);
-    else void forgetPurchaser();
+    if (!id) {
+      void forgetPurchaser();
+      return;
+    }
+    // ORDER MATTERS. identifyPurchaser calls Purchases.logIn, which is what puts this Supabase id in
+    // RevenueCat's alias group. Only after that can the server ask RevenueCat about the id and find
+    // an anonymous purchase to attach, so the reconcile has to await the identify rather than race
+    // it. iOS only: off iOS there is no logIn, so there is never an alias and the call could only
+    // ever answer "nothing", which is not worth a request on every sign-in.
+    void identifyPurchaser(id).then(() => {
+      if (IAP_AVAILABLE) void reconcileApple();
+    });
   }, [session?.user?.id]);
 
   // The nudge resilience sweep (native): once per app open, quietly re-schedule every

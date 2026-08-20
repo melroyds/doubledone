@@ -69,6 +69,35 @@ export async function startTrial(): Promise<TrialResult> {
   }
 }
 
+/**
+ * Attach an ANONYMOUS Apple purchase to this account, once signing in has aliased it.
+ *
+ * App Review 5.1.1(v) forbids requiring registration before purchase, so an iOS user can buy while
+ * signed out. RevenueCat gives them an `$RCAnonymousID:` and our webhook drops every event for it,
+ * so they pay and appear nowhere in our data: no renewal date, no tenure-scaled keepsakes on any
+ * other device, no working Premium on web or Android. One of our two real Apple subscribers was in
+ * exactly that state for ten days.
+ *
+ * Signing in calls `Purchases.logIn`, which puts the Supabase id in RevenueCat's alias group, but no
+ * NEW webhook fires. So this asks the server to look, once, at that moment. It sends NO body: the
+ * server uses the verified `sub` from the token, so this call cannot assert anything about anybody.
+ *
+ * Best effort and silent. `attached: false` is the ordinary answer for almost everyone, and a
+ * failure must never block or complicate a sign-in.
+ */
+export async function reconcileApple(): Promise<boolean> {
+  const auth = await authHeader();
+  if (!auth) return false;
+  try {
+    const res = await fetch(`${API_URL}/apple/reconcile`, { method: 'POST', headers: auth });
+    if (!res.ok) return false;
+    const { attached } = (await res.json()) as { attached?: unknown };
+    return attached === true;
+  } catch {
+    return false;
+  }
+}
+
 /** Read the current entitlement from the server (the source of truth). Defaults to free. */
 export async function loadEntitlement(): Promise<Entitlement> {
   const auth = await authHeader();

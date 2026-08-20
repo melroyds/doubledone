@@ -28,6 +28,7 @@ import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } fro
 import { handleAnalytics } from './analytics';
 import { logAppEvent, parseAppEvent } from './events';
 import { handleRcWebhook } from './revenuecat';
+import { handleAppleReconcile } from './revenuecat-api';
 import { handleReviewCode, handleReviewEmail } from './review-otp';
 import { handleCheckout, handleEntitlement, handlePortal, handleWebhook } from './stripe';
 import { type D1LikeDatabase, extractUsage, logAiCall, logOutcome } from './telemetry';
@@ -275,6 +276,11 @@ const router = {
     }
     if (pathname === '/trial/start' && request.method === 'POST') {
       return handleTrial(request, env, cors);
+    }
+    // Attach an anonymous Apple purchase to the signed-in account. No request body: the server uses
+    // the verified `sub` from the caller's own token, so a caller can only ever reconcile themselves.
+    if (pathname === '/apple/reconcile' && request.method === 'POST') {
+      return handleAppleReconcile(request, env, cors, new Date().toISOString(), Date.now());
     }
 
     // Web Push (Phase 2 reminders): store / remove a browser subscription for the daily
