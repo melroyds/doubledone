@@ -7613,3 +7613,47 @@ an id it has not been told about yet, and getting a confident, wrong "nothing".
 **Not verifiable here.** `IAP_AVAILABLE` is a compile-time false off iOS, so the client half has no
 reachable path in the web preview. The server half is fully unit-tested with a stubbed fetch, but
 the end-to-end wants a real anonymous purchase on a device.
+
+---
+
+## 2026-08-22 "Hold me to it": force without shame
+
+User feedback, the first feature request to arrive since going properly live: some ADHD / AuDHD
+people need FORCEFUL reminders, "more constant reminders as a contract to the coddling energy."
+The typo is the design. A contract is consensual firmness: agreed in a calm moment, executed in
+the weak one. The app never nags uninvited; it enforces agreements the user explicitly made.
+
+**Why this does not break "never shame the backlog."** That rule governs judgment about the past.
+This feature is delivery intensity about the future, chosen per task by the user. Shame is a broken
+streak; force is a loud alarm clock. The app can be relentless about the thing and silent-kind
+about the person, and the two axes never touch.
+
+**Decided: one contract at a time.** If everything is loud, nothing is, and notification fatigue
+ends with the user disabling notifications entirely, which is worse than where they started. Also
+the same instinct as "Just this one": scarcity is the feature.
+
+**Decided: a fixed, readable ladder (30m, 90m, 3h, 6h, then daily 09:30), never randomised.** The
+autistic side of the audience needs escalation to be predictable: you chose it, you know exactly
+what it will do and when. The OCD caveat (a relentless reminder can feed checking loops) is why it
+is per-task opt-in, visibly bounded, and never system-wide.
+
+**Decided: quiet hours 21:30-08:30, and an evening hold COLLAPSES to one morning knock.** Steps
+shifted out of the night that land within twenty minutes of each other drop rather than queue.
+Four notifications in a row at breakfast is a metronome, not a hand on the shoulder. A reminder at
+3am is not accountability, and this audience already sleeps badly.
+
+**Decided: pre-schedule the whole ladder, never chain.** A reschedule-on-fire needs the app running
+at fire time, and the whole point is reaching someone who has not opened the app. Four ids plus one
+daily repeat sits far under iOS's 64 pending-notification cap, and ending the contract cancels
+every id.
+
+**Decided: the daily follow-up fires 09:30, not 09:00.** The daily reminder defaults to 9, and two
+notifications in the same minute reads as the app malfunctioning.
+
+**Decided against** alarm-class delivery in v1 (full-screen intents, time-sensitive entitlements:
+doubles the build, adds permissions and review risk; parked with a trigger), and against streaks,
+money stakes, or social accountability ever (that is the shame end of the market, off-spine).
+
+Ships as 1.5.0, its own release with its own story, deliberately NOT bundled into 1.4.0: those
+were finished money fixes for paying customers and this was unbuilt, so coupling them would have
+held the done hostage to the undone.
