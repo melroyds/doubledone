@@ -35,9 +35,16 @@ describe('parseAppEvent (the closed allowlist)', () => {
   });
 
   it('the allowlist holds ONLY fixed dotted names, nothing free-text-shaped', () => {
-    // settle.* and hold.* are the two residents (2026-08-22). The pattern stays strict lowercase
-    // dotted words: no digits, no ids, nothing a task title could leak through.
-    for (const e of APP_EVENTS) expect(e).toMatch(/^(settle|hold)\.[a-z.]+$/);
+    // Strict lowercase dotted words: no digits, no ids, nothing a task title could leak through.
+    for (const e of APP_EVENTS) expect(e).toMatch(/^[a-z]+(\.[a-z]+)+$/);
+  });
+
+  it('passes a card-usage name through bare and drops its props on the floor', () => {
+    expect(parseAppEvent({ name: 'card.more' })).toBe('card.more');
+    expect(parseAppEvent({ name: 'nudge.set', props: { preset: 'in1h' } })).toBe('nudge.set');
+    expect(parseAppEvent({ name: 'task.reordered', props: { dir: 'up' } })).toBe('task.reordered');
+    // Still a closed list: a name nobody declared is accepted and dropped.
+    expect(parseAppEvent({ name: 'card.everything' })).toBeNull();
   });
 });
 

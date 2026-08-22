@@ -9,6 +9,7 @@ import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provide
 
 import { CheckCircle } from './CheckCircle';
 import { MarqueeText } from './MarqueeText';
+import { track } from '@/lib/telemetry';
 
 type Props = {
   title: string;
@@ -515,7 +516,12 @@ export function TaskRow({
         {hasMore && (
           <>
             <Pressable
-              onPress={() => setMoreOpen(!moreOpen)}
+              onPress={() => {
+                // Counted on OPEN only: "how often does the fold hide something people need" is
+                // the number every future held-card redesign argues from.
+                if (!moreOpen) track('card.more');
+                setMoreOpen(!moreOpen);
+              }}
               style={styles.actionRow}
               accessibilityRole="button"
               accessibilityState={{ expanded: moreOpen }}
@@ -700,6 +706,10 @@ export function TaskRow({
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
           {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
           {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
+          {/* The contract dot, HERE on the everyday row. The first device pass proved it missing:
+              it had been added only to the select-mode branch, which an ordinary row never shows.
+              A live contract invisible to sighted users was an oversight, not a decision. */}
+          {held && <View style={styles.heldDot} accessible={false} importantForAccessibility="no" />}
           {pinned ? <Text style={styles.pinStar} accessible={false} importantForAccessibility="no">★</Text> : null}
         </Pressable>
         {onBreakdown && (
@@ -766,6 +776,10 @@ export function TaskRow({
         {origin ? <Text style={styles.originMark} accessible={false} importantForAccessibility="no">{origin}</Text> : null}
         {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
         {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
+          {/* The contract dot, HERE on the everyday row. The first device pass proved it missing:
+              it had been added only to the select-mode branch, which an ordinary row never shows.
+              A live contract invisible to sighted users was an oversight, not a decision. */}
+          {held && <View style={styles.heldDot} accessible={false} importantForAccessibility="no" />}
         {/* the pin star sits last, at the extreme right, so it stays the clear cue beside any other mark */}
         {pinned ? <Text style={styles.pinStar} accessible={false} importantForAccessibility="no">★</Text> : null}
       </View>

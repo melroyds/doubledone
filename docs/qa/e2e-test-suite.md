@@ -108,6 +108,12 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | HLD-04 | P2 | Both | Quiet hours: an evening hold becomes one morning knock | At ~22:00, hold a task. Check the phone's scheduled notifications (or wait until morning). | Nothing fires between 21:30 and 08:30, ever: a reminder at 3am is not accountability and this audience already sleeps badly. All four ladder steps would land in the night, so they COLLAPSE into a single 08:30 knock rather than queuing four notifications in a row at breakfast, then the daily 09:30 follow-up takes over. The ladder is deterministic: the same hold time always yields the same schedule (the predictability the autistic side of the audience needs). |
 | HLD-05 | P2 | Both | Web never offers it, and the contract survives the phone | On the web app, hold a task and inspect the fold. On the phone, force-stop the app (or reboot the device), reopen, and check the pending notifications. | The web fold has NO 'Hold me to it' (web cannot schedule native knocks, and we never render a control whose only outcome is an error). On the phone, the resilience sweep re-asserts the stored contract on every app open, healing OEM alarm wipes exactly as it does for Rhythms; a contract released on-screen also cleans up any orphaned knocks. Telemetry: started/completed/released leave the device as bare counts with a coarse step bucket, no task text ever (see the privacy policy's feature-usage section). |
 
+## Telemetry
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| TEL-01 | P3 | Desktop | Held-card usage reaches the events table as names only | On a production (non-dev) build, use a few held-card tools: break a task down, pin one, set a reminder, open the More fold. Then query D1: SELECT event, COUNT(*) FROM app_events GROUP BY 1. | Rows appear for breakdown.started, task.pinned, nudge.set, card.more and friends: bare names, no task text, no ids, no free values (any props on the wire are dropped server-side). card.more counts fold OPENS only, the denominator for 'how often does the fold hide something people need'. This set exists because the held card was about to be redesigned a third time on gut alone; every placement argument now has a number. Dev sessions never send (the __DEV__ gate), and the privacy policy's feature-usage section names this collection. |
+
 ## Repeating
 
 | ID | Pri | Platform | Test | Steps | Expected |

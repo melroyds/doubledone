@@ -32,6 +32,17 @@ export const APP_EVENTS = new Set([
   'hold.released.first',
   'hold.released.ladder',
   'hold.released.days',
+  // The held-card usage set (2026-08-22): stored as bare names, any props on the wire are
+  // dropped here exactly like everywhere else. card.more is the fold-open denominator.
+  'breakdown.started',
+  'tiny.made',
+  'slices.defined',
+  'task.pinned',
+  'task.renamed',
+  'task.reordered',
+  'nudge.set',
+  'bulk.big',
+  'card.more',
 ]);
 
 /** Normalise a raw client body to a storable event name, or null to drop it.

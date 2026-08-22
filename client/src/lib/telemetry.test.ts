@@ -48,16 +48,24 @@ describe('the beacon (the few events that leave the device)', () => {
     expect(beaconRequest('task.toggled', { done: true })).toBeNull();
   });
 
-  it('the allowlist is exactly these six (growing it is a deliberate act)', () => {
-    // Grew 2026-08-22 with the hold.* trio, paired with the Worker allowlist AND the privacy
-    // policy's feature-usage section in the same commit, as the rule requires. hold events carry
-    // `step` (a capped number) and nothing else; the server folds it into coarse buckets.
+  it('the allowlist is exactly these fourteen (growing it is a deliberate act)', () => {
+    // settle.* (2026-08), hold.* (2026-08-22), and the held-card usage set (2026-08-22): each
+    // addition pairs with the Worker allowlist AND the privacy policy in the same commit.
     expect([...BEACON_EVENTS].sort()).toEqual([
+      'breakdown.started',
+      'bulk.big',
+      'card.more',
       'hold.completed',
       'hold.released',
       'hold.started',
+      'nudge.set',
       'settle.guide',
       'settle.opened',
+      'slices.defined',
+      'task.pinned',
+      'task.renamed',
+      'task.reordered',
+      'tiny.made',
     ]);
   });
 

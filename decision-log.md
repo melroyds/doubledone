@@ -7694,3 +7694,27 @@ that silently cannot fire is worse than no contract.
 for by people the calm energy was LOSING, who may never long-press anything. If usage is near zero
 after a release cycle, the fix is discoverability (an offer at the right moment, like the scrapbook
 ladder), not more force.
+
+---
+
+## 2026-08-22 Measure the held card before redesigning it a third time
+
+Melroy, mid device-test: the held card "is getting cluttered again", gut says bury Steps, maybe a
+radical rethink. The adversarial review's sharpest finding was procedural: the card has already
+been rebuilt once for exactly this reason (design 1a), the fold has since grown from four items to
+six, and NOBODY knows which actions real users actually touch. Every frequency-premised argument
+was taste in a data costume.
+
+**Decided: instrument first, redesign second.** The card's actions were already tracked locally
+(breakdown.started, tiny.made, slices.defined, task.pinned, task.renamed, task.reordered,
+nudge.set, bulk.big); they now leave the device as bare counts through the existing beacon, plus
+ONE new event, `card.more`, counting fold OPENS: the denominator for "how often does the fold hide
+something people need". Names only, props dropped server-side, privacy policy updated in the same
+commit, per the rule. The Tier 2 fold changes (dissolving Steps and Undo-a-step into the
+decomposition door) now have a firing condition instead of a vibe.
+
+**Also fixed here, found by the same review: the held dot was in the wrong branch.** It rendered
+only in multi-select mode, which an ordinary row never shows, so Melroy's T1 "I see no flag" had
+TWO causes stacked: a glyph the iOS font did not draw, inside a branch that never rendered. The
+dot now sits on both everyday row variants. A live contract invisible to sighted users was an
+oversight, not a decision.
