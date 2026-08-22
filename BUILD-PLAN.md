@@ -109,12 +109,17 @@ is one tap and never questioned** (tick it or "Let it go", no confirm, no commen
 is recorded in `lib/hold.ts` where the cadence lives; the autistic need for predictability is why
 the ladder is fixed and readable, never randomised.
 
-- **Wave 1 (engine, DONE on this branch):** pure `lib/hold.ts` (ladder 30m / 90m / 3h / 6h,
-  quiet-hours 21:30-08:30 with morning-collapse, daily 09:30 follow-up, one-at-a-time), storage.
-- **Wave 2 (glue + UI):** schedule/cancel through the existing nudge infra, resilience-sweep
-  re-registration, the held-card chip, the swap moment, catalogs ×5, E2E cases.
-- **Wave 3 (instrumentation):** hold started / completed / released (+ at which ladder step) into
-  the moat, Worker allowlist + privacy-policy feature-usage line in the same commit.
+- **Wave 1 (engine): DONE** (ebe6d62). Pure `lib/hold.ts` (ladder 30m / 90m / 3h / 6h, quiet-hours
+  21:30-08:30 with morning-collapse, daily 09:30 follow-up, one-at-a-time), storage, 14 tests.
+- **Wave 2 (glue + UI): DONE** (b6d98e2). Own Android channel (`hold-v1`), pre-scheduled knocks with
+  cancel-by-prefix, resilience-sweep healing, the held-card chip (one control, two states), the swap
+  dialog, row flag + a11y suffix, catalogs ×5, E2E HLD-01..05.
+- **Wave 3 (instrumentation): DONE** (b6d98e2). hold started / completed / released with a capped
+  step, folded server-side into `.first`/`.ladder`/`.days`; privacy policy updated in the same
+  commit; surfaces automatically in the Analytics Centre's per-event table.
+- **REMAINING before 1.5.0: the device pass** (HLD-01..05 on a real phone). The ladder firing with
+  the app closed is exactly what no preview can see, and the feature is not done-done until a
+  phone has proven it. PR #9 stays draft until then.
 - **Parked, Tier 3, trigger = real usage proving the soft version insufficient:** alarm-class
   delivery (Android full-screen intent, iOS time-sensitive). Doubles the size; permissions and
   review risk.
