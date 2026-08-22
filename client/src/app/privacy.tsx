@@ -80,7 +80,7 @@ export default function PrivacyScreen() {
         </View>
 
         <Section styles={styles} heading="Feature-usage counts">
-          When you open certain features, currently the Settle breathing room, the app tells our server the
+          When you open certain features, currently the Settle breathing room and the Hold-me-to-it reminder contract (started, finished, or let go, and roughly how far along it was), the app tells our server the
           feature&apos;s name (and, for the breathing guide, whether you switched it on or off) so we can count how often
           it helps. That is the whole message: no account, no name, nothing you typed, and never how long you stayed.
           Like any internet request it arrives from your network address, but the address is never stored with the

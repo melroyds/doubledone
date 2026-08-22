@@ -64,12 +64,13 @@ import { type SupabaseClient } from '@supabase/supabase-js';
 import { buildOutcome } from '@/lib/outcome';
 import { scheduleFields, type CaptureSchedule, type Recurrence } from '@/lib/recurrence';
 import { availableNudgePresets, isWindDownTime, type NudgePreset, nudgeTargetFor } from '@/lib/nudge';
-import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge } from '@/lib/reminders';
+import { cancelHold, cancelNudge, disableDailyReminder, enableDailyReminder, scheduleHold, scheduleNudge } from '@/lib/reminders';
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
 import { decideRenewalNotice } from '@/lib/renewal';
-import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursMine, loadOursSeen, loadOursTasks, loadReminderHour, loadRenewalMemory, loadUpdateMentioned, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveRenewalMemory, saveUpdateMentioned, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
+import { type HoldContract, holdRequiresSwap, holdStepAt } from '@/lib/hold';
+import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHold, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursMine, loadOursSeen, loadOursTasks, loadReminderHour, loadRenewalMemory, loadUpdateMentioned, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHold, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveRenewalMemory, saveUpdateMentioned, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
 import { restedOffer } from '@/lib/offers';
 import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/plan-day';
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
@@ -324,6 +325,11 @@ export default function TodayScreen() {
   const [manualBdId, setManualBdId] = useState<string | null>(null); // the task being broken down by hand (becomes the silent parent)
   const [manualBdTitle, setManualBdTitle] = useState(''); // its title, for the modal heading
   const [manualBdText, setManualBdText] = useState(''); // the typed steps, one per line
+  // "Hold me to it": the ONE live contract, plus the task waiting on the swap question. Loaded
+  // once on mount; every mutation writes storage in the same breath so the resilience sweep and a
+  // restart always agree with the screen.
+  const [hold, setHold] = useState<HoldContract | null>(null);
+  const [holdSwapFor, setHoldSwapFor] = useState<Task | null>(null);
   const [nudgeOpen, setNudgeOpen] = useState(false);
   const [nudgeId, setNudgeId] = useState<string | null>(null); // the task the reminder is for, captured at open time (pickNudge awaits, so a derived read could shift under it)
   const [nudgePresets, setNudgePresets] = useState<NudgePreset[]>([]);
@@ -646,6 +652,34 @@ export default function TodayScreen() {
       active = false;
     };
   }, []);
+
+  // Load the live contract once. Separate from the task loader on purpose: a broken contract read
+  // must never delay Today rendering.
+  useEffect(() => {
+    void loadHold().then(setHold);
+  }, []);
+
+  // The contract's ONE ending choke point. Every path that finishes or removes the held task
+  // (tick, bulk-complete, remove, defer, sync pulling a change from another device) flows through
+  // the tasks array, so watching it here ends the contract on ALL of them without each call site
+  // having to remember. Done = completed; gone = released. Both cancel every scheduled knock.
+  useEffect(() => {
+    if (!hold) return;
+    const held = tasks.find((x) => x.id === hold.taskId);
+    const doneNow = held ? isDoneOn(held, today) : false;
+    if (held && !doneNow) return;
+    const step = holdStepAt(new Date(hold.heldAt), new Date());
+    // Persist and cancel FIRST, then reflect in state from the async callback: the ordering is
+    // honest (the world changes before the screen says so), and the React Compiler's
+    // no-sync-setState-in-effect rule holds without a suppression.
+    void (async () => {
+      await saveHold(null);
+      await cancelHold();
+      track(doneNow ? 'hold.completed' : 'hold.released', { step });
+      setHold(null);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, hold]);
 
   // Sweep elapsed "remind me" nudges whenever the app returns to the foreground, so a bell
   // whose time passed while the app was backgrounded clears on return. The load sweep covers
@@ -1320,6 +1354,51 @@ export default function TodayScreen() {
   // "Remind me": a calm preset chooser (the late-night guard hides anything that would fire
   // past 9pm), then a local nudge for the held task, stamped so the row shows it and so done /
   // remove / defer can cancel it. Native only; the web build no-ops.
+  // "Hold me to it": make (or swap, or release) the one contract. The exit is one tap and never
+  // questioned; only a SWAP asks anything, because it is a choice between two contracts, not a
+  // confirmation of one.
+  async function engageHold(task: Task) {
+    const heldAt = new Date();
+    const ids = await scheduleHold(task.id, task.title, heldAt);
+    if (!ids) {
+      // Notifications are off: the contract cannot knock, so it does not pretend to exist.
+      affirm(t('today.holdNoPermission'));
+      dismissActions();
+      return;
+    }
+    const contract: HoldContract = { taskId: task.id, title: task.title, heldAt: heldAt.getTime(), notifIds: ids };
+    setHold(contract);
+    void saveHold(contract);
+    track('hold.started');
+    affirm(t('today.holdSetAffirm'));
+    dismissActions();
+  }
+  function tapHold(task: Task) {
+    if (hold?.taskId === task.id) {
+      // Release: one tap, no dialog, no comment. "Let it go" is a state change, not a failure.
+      const step = holdStepAt(new Date(hold.heldAt), new Date());
+      track('hold.released', { step });
+      setHold(null);
+      void saveHold(null);
+      void cancelHold();
+      affirm(t('today.holdLetGoAffirm'));
+      dismissActions();
+      return;
+    }
+    if (holdRequiresSwap(hold, task.id)) {
+      setHoldSwapFor(task);
+      return;
+    }
+    void engageHold(task);
+  }
+  function confirmHoldSwap() {
+    const task = holdSwapFor;
+    setHoldSwapFor(null);
+    if (!task || !hold) return;
+    track('hold.released', { step: holdStepAt(new Date(hold.heldAt), new Date()), swapped: 1 });
+    void engageHold(task); // scheduleHold cancels the old ids itself (idempotent by prefix)
+  }
+
   function openNudge(id: string) {
     setNudgeId(id);
     setNudgePresets(availableNudgePresets(new Date()));
@@ -2579,6 +2658,8 @@ export default function TodayScreen() {
               onSelectMore={() => selectFromRow(task.id)}
               onRename={(title) => renameRow(task.id, title)}
               onNudge={Platform.OS !== 'web' && !isDoneOn(task, today) ? () => openNudge(task.id) : undefined}
+              onHold={Platform.OS !== 'web' && (!isDoneOn(task, today) || hold?.taskId === task.id) ? () => tapHold(task) : undefined}
+              held={hold?.taskId === task.id}
               onSteps={!isRecurring(task) && !isDoneOn(task, today) ? () => openSliceEdit(task.id) : undefined}
               onMoveTo={!isRecurring(task) ? () => setMoveIds([task.id]) : undefined}
               onDoneOn={isDoneOn(task, today) && !isRecurring(task) ? () => openDoneOn(task.id) : undefined}
@@ -3308,6 +3389,19 @@ export default function TodayScreen() {
             >
               <Text style={styles.didCancel}>{t('common.cancel')}</Text>
             </Pressable>
+      </ModalCard>
+
+      {/* The swap question. The ONLY dialog in the whole feature, because a swap is a choice
+          between two contracts, not a confirmation. Both answers are honourable. */}
+      <ModalCard visible={holdSwapFor != null} onClose={() => setHoldSwapFor(null)}>
+            <Text style={styles.didTitle}>{t('today.holdSwapTitle')}</Text>
+            <Text style={styles.didHint}>{t('today.holdSwapBody', { title: hold?.title ?? '' })}</Text>
+            <View style={styles.didActions}>
+              <Pressable onPress={() => setHoldSwapFor(null)} accessibilityRole="button" accessibilityLabel={t('common.cancel')} hitSlop={8}>
+                <Text style={styles.didCancel}>{t('common.cancel')}</Text>
+              </Pressable>
+              <PrimaryButton label={t('today.holdSwapConfirm')} onPress={confirmHoldSwap} accessibilityLabel={t('today.holdSwapConfirm')} />
+            </View>
       </ModalCard>
 
       {/* "Done on…": pick the earlier day a rolled-over task was actually finished (yesterday back to

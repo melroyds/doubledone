@@ -14,7 +14,9 @@ export const TELEMETRY_PREFIX = 'doubledone';
 
 // The events that also leave the device. Adding one here is a deliberate pair with
 // the Worker's allowlist AND the privacy policy's feature-usage section.
-export const BEACON_EVENTS = new Set(['settle.opened', 'settle.guide']);
+// hold.* carries `step` (which knock, capped at 30) and nothing else: no task text, no ids.
+// The completion-vs-release curve by step is the moat's first genuinely novel measurement.
+export const BEACON_EVENTS = new Set(['settle.opened', 'settle.guide', 'hold.started', 'hold.completed', 'hold.released']);
 
 export type TelemetryEvent = {
   name: string;

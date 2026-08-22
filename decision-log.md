@@ -7657,3 +7657,40 @@ money stakes, or social accountability ever (that is the shame end of the market
 Ships as 1.5.0, its own release with its own story, deliberately NOT bundled into 1.4.0: those
 were finished money fixes for paying customers and this was unbuilt, so coupling them would have
 held the done hostage to the undone.
+
+---
+
+## 2026-08-22 "Hold me to it" wired end to end (waves 2 and 3)
+
+The engine landed this morning; this entry records the decisions made while wiring it into the app,
+because the wording and the choke points are where a feature like this is actually won or lost.
+
+**The control lives in the held card's fold, beside Remind me, and it is ONE control with two
+states.** "Hold me to it" when free, "Let it go" when held. The place you made the contract is the
+place you end it, and the release needs no hunting. Its sub-line ("Keeps knocking, kindly, until
+it's done") is the entire feature description, shown before the choice is made.
+
+**The ending is a single effect watching the tasks array, not calls sprinkled through every path.**
+Tick, bulk-complete, remove, defer, a sync pulling a change from another device: every one of them
+flows through `tasks`, so one choke point in `today.tsx` ends the contract on all of them, cancels
+every knock, and no future call site can forget. Done counts as completed; gone counts as released.
+
+**Android gets its own notification channel** (`hold-v1`), so the contract's loudness is tunable
+separately from ordinary nudges. Someone can make the hold ring while nudges stay silent, or the
+reverse, without losing either.
+
+**Telemetry: the step number is BUCKETED server-side, never stored raw.** The events table's
+posture is a closed list of dotted names with no free values, and it stays that way: the client
+sends `step` (capped at 30), the Worker folds it into `.first` / `.ladder` / `.days`. The
+completed-versus-released split per bucket is the feature's report card, and it is the first
+genuinely novel measurement in the moat: does firm-but-kind actually finish tasks, and at which
+knock. Privacy policy's feature-usage section updated in the same commit, per the rule.
+
+**The permission-denied case refuses to pretend.** If notifications are off, the hold does not
+take, and the affirm says so plainly ("I can't knock. The hold didn't take."), because a contract
+that silently cannot fire is worse than no contract.
+
+**Assumption to challenge:** the fold is where power users already live, but this feature was asked
+for by people the calm energy was LOSING, who may never long-press anything. If usage is near zero
+after a release cycle, the fix is discoverability (an offer at the right moment, like the scrapbook
+ladder), not more force.

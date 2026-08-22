@@ -103,3 +103,27 @@ export function escalationTimes(heldAt: Date): Date[] {
 export function holdRequiresSwap(current: HoldContract | null, taskId: string): boolean {
   return current !== null && current.taskId !== taskId;
 }
+
+/**
+ * Which knock the contract is up to at `now`: 0 before the first, 1..N through the same-day
+ * ladder, then one more per elapsed day of the 09:30 follow-up. Capped at 30 so telemetry can
+ * never carry an unbounded number. This is the moat's resolution: "held tasks finish at step 2"
+ * versus "holds get released at step 7" is the difference between a feature that works and one
+ * that nags, and nobody else in the space has that curve.
+ */
+export function holdStepAt(heldAt: Date, now: Date): number {
+  const steps = escalationTimes(heldAt);
+  const sameDay = steps.filter((d) => d.getTime() <= now.getTime()).length;
+  const lastStep = steps[steps.length - 1];
+  let daily = 0;
+  if (now.getTime() > lastStep.getTime()) {
+    const probe = new Date(lastStep);
+    probe.setDate(probe.getDate() + 1);
+    probe.setHours(DAILY_FOLLOW_UP.hour, DAILY_FOLLOW_UP.minute, 0, 0);
+    while (probe.getTime() <= now.getTime() && daily < 30) {
+      daily += 1;
+      probe.setDate(probe.getDate() + 1);
+    }
+  }
+  return Math.min(sameDay + daily, 30);
+}

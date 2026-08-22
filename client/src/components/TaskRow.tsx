@@ -46,6 +46,8 @@ type Props = {
   onMoveDown?: () => void; // held-state: one place DOWN (absent = already last, renders dimmed)
   onSelectMore?: () => void; // held-state: the door into multi-select (Combine, bulk-move, bulk-complete)
   onNudge?: () => void; // held-state: set a reminder on this task (native only; the caller gates it)
+  onHold?: () => void; // held-state: "Hold me to it" — start/release the ONE persistent-reminder contract (native only; the caller gates it)
+  held?: boolean; // this row carries the live contract: a quiet flag on the row, and the fold's label flips to "Let it go"
   onRename?: (title: string) => void; // held-state: tap the card's title to edit it in place (trim/no-op rules live in lib/today renameTask)
   onSteps?: () => void; // held-state: open the "track in steps" editor (split or re-size)
   onMoveTo?: () => void; // held-state: move this one task to a day of its own
@@ -104,6 +106,8 @@ export function TaskRow({
   onMoveDown,
   onSelectMore,
   onNudge,
+  onHold,
+  held,
   onRename,
   onSteps,
   onMoveTo,
@@ -211,6 +215,7 @@ export function TaskRow({
     (big ? t('today.rowLabelBigSuffix') : '') +
     (recurring ? t('today.rowLabelRepeatingSuffix') : '') +
     (nudgeAt ? t('today.rowLabelReminderSuffix', { time: formatNudgeTime(nudgeAt) }) : '') +
+    (held ? t('today.rowLabelHeldSuffix') : '') +
     (origin ? t('ours.rowLabelOriginSuffix') : '') +
     (note ? `, ${note}` : '') +
     (inert ? `. ${inert}` : '');
@@ -231,6 +236,9 @@ export function TaskRow({
         <Animated.View style={[styles.selectDot, selected && styles.selectDotOn, { opacity: selFade }]}>{selected && <Text style={styles.tick}>✓</Text>}</Animated.View>
         <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
         {recurring && <Text style={styles.repeatMark}>↻</Text>}
+        {/* The contract flag: quiet, accent, never a badge count. Its loudness lives in the
+            notifications the user asked for, not on the screen they came to for calm. */}
+        {held && <Text style={styles.heldMark}>⚑</Text>}
       </Pressable>
     );
   }
@@ -580,6 +588,22 @@ export function TaskRow({
                     hitSlop={{ top: 6, bottom: 6 }}
                   >
                     <Text style={styles.actionLabel}>{t('reminders.remindMe')}</Text>
+                  </Pressable>
+                )}
+                {onHold && (
+                  <Pressable
+                    onPress={onHold}
+                    style={[styles.actionRow, styles.moreItem]}
+                    accessibilityRole="button"
+                    accessibilityLabel={held ? t('today.holdLetGoA11y', { title }) : t('today.holdMeToItA11y', { title })}
+                    hitSlop={{ top: 6, bottom: 6 }}
+                  >
+                    {/* One control, two states: the same place you made the contract is where you end
+                        it, and ending it is one tap, never questioned (the never-shame exit). */}
+                    <Text style={[styles.actionLabel, held && styles.heldLabel]}>
+                      {held ? t('today.holdLetGo') : t('today.holdMeToIt')}
+                    </Text>
+                    {!held && <Text style={styles.actionSub}>{t('today.holdMeToItSub')}</Text>}
                   </Pressable>
                 )}
                 {canPin && (
@@ -960,6 +984,8 @@ const makeStyles = (t: Theme) => {
     text: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale, userSelect: 'none' },
     textDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
     repeatMark: { color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    heldMark: { color: t.colors.accent, fontSize: 12 * t.scale, marginLeft: 6 },
+    heldLabel: { color: t.colors.accent },
     nudgeMark: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     suggestColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
     suggestMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },

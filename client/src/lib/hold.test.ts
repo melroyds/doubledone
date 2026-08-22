@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DAILY_FOLLOW_UP, escalationTimes, holdRequiresSwap, LADDER_OFFSETS_MIN, shiftOutOfQuiet } from './hold';
+import { DAILY_FOLLOW_UP, escalationTimes, holdRequiresSwap, holdStepAt, LADDER_OFFSETS_MIN, shiftOutOfQuiet } from './hold';
 
 // Local-time constructor, matching how the engine reads the clock.
 const at = (h: number, m = 0, day = 16) => new Date(2026, 7, day, h, m); // Aug 2026
@@ -87,5 +87,26 @@ describe('holdRequiresSwap (one contract at a time)', () => {
   it('never asks when nothing is held, or when re-holding the same task', () => {
     expect(holdRequiresSwap(null, 't1')).toBe(false);
     expect(holdRequiresSwap(contract, 't1')).toBe(false);
+  });
+});
+
+describe('holdStepAt (the moat resolution)', () => {
+  const held = at(13, 0); // steps 13:30, 14:30, 16:00, 19:00
+
+  it('counts the knocks that have actually fired', () => {
+    expect(holdStepAt(held, at(13, 10))).toBe(0); // before the first
+    expect(holdStepAt(held, at(13, 30))).toBe(1);
+    expect(holdStepAt(held, at(15, 0))).toBe(2);
+    expect(holdStepAt(held, at(19, 0))).toBe(4);
+  });
+
+  it('keeps counting through the daily follow-up, one per morning', () => {
+    expect(holdStepAt(held, at(9, 31, 17))).toBe(5); // next day, after 09:30
+    expect(holdStepAt(held, at(9, 29, 17))).toBe(4); // next day, before it
+    expect(holdStepAt(held, at(9, 31, 19))).toBe(7);
+  });
+
+  it('caps, so telemetry can never carry an unbounded number', () => {
+    expect(holdStepAt(held, new Date(2027, 7, 16))).toBe(30);
   });
 });
