@@ -236,9 +236,11 @@ export function TaskRow({
         <Animated.View style={[styles.selectDot, selected && styles.selectDotOn, { opacity: selFade }]}>{selected && <Text style={styles.tick}>✓</Text>}</Animated.View>
         <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
         {recurring && <Text style={styles.repeatMark}>↻</Text>}
-        {/* The contract flag: quiet, accent, never a badge count. Its loudness lives in the
+        {/* The contract mark: a plain accent DOT, not a glyph. The first device pass shipped a
+            flag character the iOS font quietly did not draw, which is the one failure mode a
+            View cannot have. Quiet, never a badge count: the loudness lives in the
             notifications the user asked for, not on the screen they came to for calm. */}
-        {held && <Text style={styles.heldMark}>⚑</Text>}
+        {held && <View style={styles.heldDot} accessible={false} importantForAccessibility="no" />}
       </Pressable>
     );
   }
@@ -603,7 +605,7 @@ export function TaskRow({
                     <Text style={[styles.actionLabel, held && styles.heldLabel]}>
                       {held ? t('today.holdLetGo') : t('today.holdMeToIt')}
                     </Text>
-                    {!held && <Text style={styles.actionSub}>{t('today.holdMeToItSub')}</Text>}
+                    {!held && <Text style={[styles.actionSub, styles.holdSub]}>{t('today.holdMeToItSub')}</Text>}
                   </Pressable>
                 )}
                 {canPin && (
@@ -879,6 +881,9 @@ const makeStyles = (t: Theme) => {
     },
     actionLabel: { ...t.type.label, color: t.colors.ink },
     actionSub: { fontSize: 13 * t.scale, fontFamily: fonts.body, color: t.colors.inkSoft, textAlign: 'right' },
+    // The hold sub shrinks and wraps rather than pushing past the row: the device pass caught the
+    // English sentence sailing off the card edge, and German runs longer still.
+    holdSub: { flexShrink: 1 },
     // The hero: Break it down. Filled accent in light-standard (white label), a soft tint in dark-standard
     // (accent label), and no fill at all in Quiet (accent label, held by whitespace like every other quiet action).
     heroRow:
@@ -984,7 +989,7 @@ const makeStyles = (t: Theme) => {
     text: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale, userSelect: 'none' },
     textDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
     repeatMark: { color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    heldMark: { color: t.colors.accent, fontSize: 12 * t.scale, marginLeft: 6 },
+    heldDot: { width: 8, height: 8, borderRadius: 999, backgroundColor: t.colors.accent, marginLeft: 6, alignSelf: 'center' },
     heldLabel: { color: t.colors.accent },
     nudgeMark: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     suggestColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },

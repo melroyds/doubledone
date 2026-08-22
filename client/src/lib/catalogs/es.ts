@@ -1000,7 +1000,7 @@ export const es: Catalog = {
     holdLetGoAffirm: 'Soltado. Y ya está.',
     holdMeToIt: 'Mantenme en esto',
     holdMeToItA11y: 'Mantenme en {title}: recordatorios repetidos hasta terminarlo',
-    holdMeToItSub: 'Sigue llamando, con amabilidad, hasta que esté hecho',
+    holdMeToItSub: 'insiste con cariño',
     holdNoPermission: 'Las notificaciones están apagadas, no puedo llamar. El compromiso no se activó.',
     holdSetAffirm: 'Sostenido. Seguiré insistiendo, con cariño.',
     holdSwapBody: 'Ya estás comprometido con “{title}”. ¿Cambiar a esta?',

@@ -1000,7 +1000,7 @@ export const it: Catalog = {
     holdLetGoAffirm: 'Lasciato. E basta così.',
     holdMeToIt: 'Tienimi impegnato',
     holdMeToItA11y: 'Tienimi su {title}: promemoria ripetuti finché non è fatto',
-    holdMeToItSub: 'Continua a bussare, con gentilezza, finché non è fatto',
+    holdMeToItSub: 'insiste con gentilezza',
     holdNoPermission: 'Le notifiche sono spente, non posso bussare. L\'impegno non è partito.',
     holdSetAffirm: 'Preso. Continuerò, con gentilezza.',
     holdSwapBody: 'Sei già impegnato con “{title}”. Passare a questa?',

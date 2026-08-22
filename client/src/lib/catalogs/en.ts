@@ -1005,7 +1005,7 @@ export const en = {
     holdLetGoAffirm: 'Let go. That\'s that.',
     holdMeToIt: 'Hold me to it',
     holdMeToItA11y: 'Hold me to {title}: repeat reminders until it is done',
-    holdMeToItSub: 'Keeps knocking, kindly, until it\'s done',
+    holdMeToItSub: 'keeps at it, kindly',
     holdNoPermission: 'Notifications are off, so I can\'t knock. The hold didn\'t take.',
     holdSetAffirm: 'Held. I\'ll keep at it, kindly.',
     holdSwapBody: 'You\'re already held to “{title}”. Switch to this one instead?',

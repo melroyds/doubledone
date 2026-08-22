@@ -1000,7 +1000,7 @@ export const fr: Catalog = {
     holdLetGoAffirm: 'Lâché. Et voilà.',
     holdMeToIt: 'Tiens-moi à ça',
     holdMeToItA11y: 'Tiens-moi à {title} : rappels répétés jusqu\'à la fin',
-    holdMeToItSub: 'Continue de frapper, gentiment, jusqu\'à ce que ce soit fait',
+    holdMeToItSub: 'insiste, gentiment',
     holdNoPermission: 'Les notifications sont coupées, je ne peux pas frapper. L\'engagement n\'a pas pris.',
     holdSetAffirm: 'Tenu. Je reviendrai, gentiment.',
     holdSwapBody: 'Tu es déjà tenu à « {title} ». Passer à celle-ci ?',

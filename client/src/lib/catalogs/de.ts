@@ -1000,7 +1000,7 @@ export const de: Catalog = {
     holdLetGoAffirm: 'Losgelassen. Damit ist es gut.',
     holdMeToIt: 'Halte mich dran',
     holdMeToItA11y: 'Halte mich an {title}: wiederholte Erinnerungen, bis es erledigt ist',
-    holdMeToItSub: 'Klopft freundlich weiter, bis es erledigt ist',
+    holdMeToItSub: 'bleibt freundlich dran',
     holdNoPermission: 'Benachrichtigungen sind aus, ich kann nicht anklopfen. Das Halten hat nicht gegriffen.',
     holdSetAffirm: 'Gehalten. Ich bleibe freundlich dran.',
     holdSwapBody: 'Du wirst schon an „{title}“ gehalten. Stattdessen zu dieser wechseln?',
