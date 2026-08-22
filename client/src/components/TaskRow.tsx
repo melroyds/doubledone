@@ -39,7 +39,6 @@ type Props = {
   bringLabel?: string; // override for the bring hero's words. In the ROOM it is "Bring to my Today"; on Today itself that sentence is nonsense, and the same action there means "take this on"
   onShareToOurs?: () => void; // held-state, PERSONAL rows only: put a copy of this on the shared list (in the fold; only when a live list exists)
   origin?: string; // a faint suffix after the title, marking YOUR copy of a shared row ("· Ours"). Render-only: never part of the title, so renaming never eats it
-  onDefer?: () => void; // push-to-tomorrow; the held card no longer shows a standalone Tomorrow (folded into the Move-to picker's chip), but the prop stays for that wiring
   onMakeTiny?: () => void;
   onBig?: () => void; // held-state: mark / unmark this task "a lot"
   onPin?: () => void; // held-state: pin / unpin as the day's one priority (Today one-offs only)
@@ -250,8 +249,9 @@ export function TaskRow({
     // from one hold. Nothing else on the screen moves, so there is no mode to leave. Design 1a
     // (2026-07-25): the stuck-helpers LEAD (Break it down as the tinted hero, then Make it tiny,
     // Move to, Mark as a lot), the rarer actions RECEDE behind a "More" disclosure, and the way out
-    // sits under a hairline with Close in the easy thumb reach and Remove far from it. Fewer visible
-    // labels (11 -> 4), same feature set. Each action is its own full-width row (label left, a quiet
+    // sits under a hairline with Close in the easy thumb reach and Remove far from it. The leads are
+    // FROZEN at four; every action added since enters through the More fold (the accretion rule,
+    // decision-log 2026-08-22), so this comment can stop lying about the count. Each action is its own full-width row (label left, a quiet
     // sub-label or state right), never a tight equal-width column, so a long label or a large system
     // font can never clip (the old grid's bug).
     const canMoveTo = Boolean(onMoveTo && !recurring);
@@ -352,7 +352,12 @@ export function TaskRow({
     // An open task: the v2 card ("Four species, four grammars"). The More preview names its
     // everyday contents; Pin deliberately stays out of it (premium recedes, never advertises).
     const hasMore = canSteps || canPin || Boolean(onNudge) || Boolean(onShareToOurs);
-    const morePreview = [canSteps && t('today.steps'), onNudge && t('reminders.remindMe'), onShareToOurs && t('ours.shareTo')].filter(Boolean).join(' · ');
+    // AT MOST TWO names. The full roll-call ("Steps · Remind me · Share to Ours") made the CLOSED
+    // card read as a control panel: a third of its perceived clutter was this one advertising line.
+    const morePreview = [canSteps && t('today.steps'), onNudge && t('reminders.remindMe'), onShareToOurs && t('ours.shareTo')]
+      .filter(Boolean)
+      .slice(0, 2)
+      .join(' · ');
     const undoOff = !slices || slices.done <= 0;
     return (
       <Animated.View ref={cardRef} style={[styles.row, styles.confirmRow, styles.confirmColumn, riseStyle]}>

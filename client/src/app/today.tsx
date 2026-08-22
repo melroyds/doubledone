@@ -1025,12 +1025,6 @@ export default function TodayScreen() {
   // Push a one-off to tomorrow: a calm "not today" that moves a single task
   // forward a day (it returns tomorrow), the single-task sibling of close-the-day's
   // roll forward. Never-shame: no counter, no penalty, just a date move.
-  function deferTask(id: string) {
-    const now = nowMs();
-    commit(tasks.map((t) => (t.id === id ? clearNudgeIfAny({ ...deferToTomorrow(t, today), updatedAt: now }) : t)));
-    setConfirmingId(null);
-    track('task.deferred');
-  }
 
   // "Done on…": mark a rolled-over task done as of the EARLIER day it was actually
   // finished, so the Lookback attributes it honestly. This is bookkeeping, not a fresh
@@ -1066,10 +1060,18 @@ export default function TodayScreen() {
   }
 
   function openFocus() {
-    // Focus opens straight to the pinned task when there is one, so pin and Focus compose: the pin
-    // is the persistent anchor, Focus is the session that works it. Otherwise it asks "Which one?".
+    // Focus opens on the task the user has already singled out, in ONE predictable order: the
+    // pinned task first (the explicitly chosen day's-one-priority, and the paid anchor), else the
+    // HELD task (the Hold-me-to-it contract: you told the app what you're committed to, so a focus
+    // session assumes that's the thing), else it asks "Which one?". The held fallback never traps:
+    // the session's own "Choose another" is the one-tap way to work something else first, so the
+    // app suggests the dread, it never insists on it. Pin outranks Hold on purpose: when both
+    // exist the user has made two statements, and "this is my priority" beats "knock me about
+    // this one".
     const pinned = spreadable.find((t) => t.pinnedAt != null);
-    setFocusPick(pinned ? pinned.id : null);
+    const heldTask = hold ? spreadable.find((t) => t.id === hold.taskId) : undefined;
+    const target = pinned ?? heldTask;
+    setFocusPick(target ? target.id : null);
     setFocusOpen(true);
     track('focus.opened');
   }
@@ -2652,7 +2654,6 @@ export default function TodayScreen() {
               onRetreat={() => step(task.id, -1)}
               onBreakdown={aiEnabled ? () => breakdownExisting(task.title, task.id) : () => openManualBreakdown(task.id, task.title)}
               onMakeTiny={aiEnabled ? () => makeTiny(task.id, task.title) : undefined}
-              onDefer={() => deferTask(task.id)}
               onBig={() => bigRow(task)}
               onPin={() => pinRow(task)}
               onSelectMore={() => selectFromRow(task.id)}

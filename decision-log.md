@@ -7718,3 +7718,31 @@ only in multi-select mode, which an ordinary row never shows, so Melroy's T1 "I 
 TWO causes stacked: a glyph the iOS font did not draw, inside a branch that never rendered. The
 dot now sits on both everyday row variants. A live contract invisible to sighted users was an
 oversight, not a decision.
+
+---
+
+## 2026-08-22 Two standing rules from the held-card review, and Focus learns about Hold
+
+**The orthogonality rule (Pin / Focus / Hold): layer, never merge.** The app now carries three
+"one special thing" mechanisms, and the review's verdict is recorded here so the question stops
+being re-asked: they are facets, not duplicates. Pin is WHERE the priority sits (persistent,
+floats to the top, wears the accent border, premium). Focus is WHAT you are working right now (a
+session). Hold is HOW the app knocks (a delivery contract, free, native). A Pin-Hold merge is dead
+on the paywall alone: it either charges for the feature built for exactly the users the calm was
+losing, or gives Pin's paid float away free. The held row therefore NEVER floats and never wears
+the pinned border; float and border are Pin's paid signals.
+
+**The accretion rule.** The open card's always-visible surface is FROZEN: title, the Break-it-down
+hero, Make it tiny, Move to…, Mark as a lot, the reorder rail, More, the shelf. Every future
+action enters through the fold, no exceptions, and the fold itself has a soft ceiling of four
+rows. This is the rule that stops the card re-accreting into the 2026-08-22 review's findings six
+months from now. (Also done under it: the vestigial `onDefer` wiring is gone, the stale "11 -> 4"
+comment now tells the truth, and the closed card's More preview shows at most two names, because
+the full roll-call made the closed card read as a control panel.)
+
+**Focus now falls back to the held task.** Order: pinned, else held, else ask. You told the app
+what you are committed to; a focus session assumes that is the thing, which removes one decision
+at exactly the moment deciding is hardest. The session's own "Choose another" stays the one-tap
+escape, so the app suggests the dread and never insists on it. Pin outranks Hold deliberately:
+when both exist the user has made two statements, and "this is my priority" beats "knock me about
+this one".
