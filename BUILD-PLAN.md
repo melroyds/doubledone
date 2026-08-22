@@ -93,6 +93,38 @@ and the AI features answer in German the moment the resolver says 'de'.*
   localized screenshots, and What's New translations; both stores already serve worldwide, so
   this is discoverability polish, not availability.
 
+## ACTIVE: "Hold me to it" (target: 1.5.0)
+
+Born from user feedback (2026-08-22): some ADHD / AuDHD users said the calm energy reads as
+IGNORABLE at the exact moment they need the opposite, and asked for forceful, persistent reminders.
+Their word was "contract", and that word is the design: consensual firmness, agreed in a calm
+moment, executed in the weak one. This stays inside the never-shame spine because shame is
+judgment and force is delivery: the rule governs how the app treats the PAST; a held task is about
+the FUTURE, at an intensity the user chose per task.
+
+Three invariants that cannot break: **one contract at a time** (scarcity keeps the force
+meaningful; fatigue ends with notifications off entirely), **escalation of delivery, never of
+judgment** (the fifth reminder uses the same calm words as the first; no counters), and **the exit
+is one tap and never questioned** (tick it or "Let it go", no confirm, no comment). The OCD caveat
+is recorded in `lib/hold.ts` where the cadence lives; the autistic need for predictability is why
+the ladder is fixed and readable, never randomised.
+
+- **Wave 1 (engine): DONE** (ebe6d62). Pure `lib/hold.ts` (ladder 30m / 90m / 3h / 6h, quiet-hours
+  21:30-08:30 with morning-collapse, daily 09:30 follow-up, one-at-a-time), storage, 14 tests.
+- **Wave 2 (glue + UI): DONE** (b6d98e2). Own Android channel (`hold-v1`), pre-scheduled knocks with
+  cancel-by-prefix, resilience-sweep healing, the held-card chip (one control, two states), the swap
+  dialog, row flag + a11y suffix, catalogs ×5, E2E HLD-01..05.
+- **Wave 3 (instrumentation): DONE** (b6d98e2). hold started / completed / released with a capped
+  step, folded server-side into `.first`/`.ladder`/`.days`; privacy policy updated in the same
+  commit; surfaces automatically in the Analytics Centre's per-event table.
+- **REMAINING before 1.5.0: the device pass** (HLD-01..05 on a real phone). The ladder firing with
+  the app closed is exactly what no preview can see, and the feature is not done-done until a
+  phone has proven it. PR #9 stays draft until then.
+- **Parked, Tier 3, trigger = real usage proving the soft version insufficient:** alarm-class
+  delivery (Android full-screen intent, iOS time-sensitive). Doubles the size; permissions and
+  review risk.
+- **Never (Tier 4):** streaks, money stakes, social accountability. Off-spine.
+
 ## Backlog (deferred, with triggers)
 
 The single home for consciously parked work. Nothing here is dropped; each item has a trigger for when it earns a place in the sequence. Premium-gated ideas live in [`docs/premium.md`](docs/premium.md).

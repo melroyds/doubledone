@@ -48,8 +48,25 @@ describe('the beacon (the few events that leave the device)', () => {
     expect(beaconRequest('task.toggled', { done: true })).toBeNull();
   });
 
-  it('the allowlist is exactly the settle pair (growing it is a deliberate act)', () => {
-    expect([...BEACON_EVENTS].sort()).toEqual(['settle.guide', 'settle.opened']);
+  it('the allowlist is exactly these fourteen (growing it is a deliberate act)', () => {
+    // settle.* (2026-08), hold.* (2026-08-22), and the held-card usage set (2026-08-22): each
+    // addition pairs with the Worker allowlist AND the privacy policy in the same commit.
+    expect([...BEACON_EVENTS].sort()).toEqual([
+      'breakdown.started',
+      'bulk.big',
+      'card.more',
+      'hold.completed',
+      'hold.released',
+      'hold.started',
+      'nudge.set',
+      'settle.guide',
+      'settle.opened',
+      'slices.defined',
+      'task.pinned',
+      'task.renamed',
+      'task.reordered',
+      'tiny.made',
+    ]);
   });
 
   it('track fires the beacon once for an allowlisted event and never for others', () => {

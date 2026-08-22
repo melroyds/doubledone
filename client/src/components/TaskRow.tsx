@@ -9,6 +9,7 @@ import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provide
 
 import { CheckCircle } from './CheckCircle';
 import { MarqueeText } from './MarqueeText';
+import { track } from '@/lib/telemetry';
 
 type Props = {
   title: string;
@@ -38,7 +39,6 @@ type Props = {
   bringLabel?: string; // override for the bring hero's words. In the ROOM it is "Bring to my Today"; on Today itself that sentence is nonsense, and the same action there means "take this on"
   onShareToOurs?: () => void; // held-state, PERSONAL rows only: put a copy of this on the shared list (in the fold; only when a live list exists)
   origin?: string; // a faint suffix after the title, marking YOUR copy of a shared row ("· Ours"). Render-only: never part of the title, so renaming never eats it
-  onDefer?: () => void; // push-to-tomorrow; the held card no longer shows a standalone Tomorrow (folded into the Move-to picker's chip), but the prop stays for that wiring
   onMakeTiny?: () => void;
   onBig?: () => void; // held-state: mark / unmark this task "a lot"
   onPin?: () => void; // held-state: pin / unpin as the day's one priority (Today one-offs only)
@@ -46,6 +46,8 @@ type Props = {
   onMoveDown?: () => void; // held-state: one place DOWN (absent = already last, renders dimmed)
   onSelectMore?: () => void; // held-state: the door into multi-select (Combine, bulk-move, bulk-complete)
   onNudge?: () => void; // held-state: set a reminder on this task (native only; the caller gates it)
+  onHold?: () => void; // held-state: "Hold me to it" — start/release the ONE persistent-reminder contract (native only; the caller gates it)
+  held?: boolean; // this row carries the live contract: a quiet flag on the row, and the fold's label flips to "Let it go"
   onRename?: (title: string) => void; // held-state: tap the card's title to edit it in place (trim/no-op rules live in lib/today renameTask)
   onSteps?: () => void; // held-state: open the "track in steps" editor (split or re-size)
   onMoveTo?: () => void; // held-state: move this one task to a day of its own
@@ -104,6 +106,8 @@ export function TaskRow({
   onMoveDown,
   onSelectMore,
   onNudge,
+  onHold,
+  held,
   onRename,
   onSteps,
   onMoveTo,
@@ -211,6 +215,7 @@ export function TaskRow({
     (big ? t('today.rowLabelBigSuffix') : '') +
     (recurring ? t('today.rowLabelRepeatingSuffix') : '') +
     (nudgeAt ? t('today.rowLabelReminderSuffix', { time: formatNudgeTime(nudgeAt) }) : '') +
+    (held ? t('today.rowLabelHeldSuffix') : '') +
     (origin ? t('ours.rowLabelOriginSuffix') : '') +
     (note ? `, ${note}` : '') +
     (inert ? `. ${inert}` : '');
@@ -231,6 +236,11 @@ export function TaskRow({
         <Animated.View style={[styles.selectDot, selected && styles.selectDotOn, { opacity: selFade }]}>{selected && <Text style={styles.tick}>✓</Text>}</Animated.View>
         <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
         {recurring && <Text style={styles.repeatMark}>↻</Text>}
+        {/* The contract mark: a plain accent DOT, not a glyph. The first device pass shipped a
+            flag character the iOS font quietly did not draw, which is the one failure mode a
+            View cannot have. Quiet, never a badge count: the loudness lives in the
+            notifications the user asked for, not on the screen they came to for calm. */}
+        {held && <View style={styles.heldDot} accessible={false} importantForAccessibility="no" />}
       </Pressable>
     );
   }
@@ -239,8 +249,9 @@ export function TaskRow({
     // from one hold. Nothing else on the screen moves, so there is no mode to leave. Design 1a
     // (2026-07-25): the stuck-helpers LEAD (Break it down as the tinted hero, then Make it tiny,
     // Move to, Mark as a lot), the rarer actions RECEDE behind a "More" disclosure, and the way out
-    // sits under a hairline with Close in the easy thumb reach and Remove far from it. Fewer visible
-    // labels (11 -> 4), same feature set. Each action is its own full-width row (label left, a quiet
+    // sits under a hairline with Close in the easy thumb reach and Remove far from it. The leads are
+    // FROZEN at four; every action added since enters through the More fold (the accretion rule,
+    // decision-log 2026-08-22), so this comment can stop lying about the count. Each action is its own full-width row (label left, a quiet
     // sub-label or state right), never a tight equal-width column, so a long label or a large system
     // font can never clip (the old grid's bug).
     const canMoveTo = Boolean(onMoveTo && !recurring);
@@ -341,7 +352,12 @@ export function TaskRow({
     // An open task: the v2 card ("Four species, four grammars"). The More preview names its
     // everyday contents; Pin deliberately stays out of it (premium recedes, never advertises).
     const hasMore = canSteps || canPin || Boolean(onNudge) || Boolean(onShareToOurs);
-    const morePreview = [canSteps && t('today.steps'), onNudge && t('reminders.remindMe'), onShareToOurs && t('ours.shareTo')].filter(Boolean).join(' · ');
+    // AT MOST TWO names. The full roll-call ("Steps · Remind me · Share to Ours") made the CLOSED
+    // card read as a control panel: a third of its perceived clutter was this one advertising line.
+    const morePreview = [canSteps && t('today.steps'), onNudge && t('reminders.remindMe'), onShareToOurs && t('ours.shareTo')]
+      .filter(Boolean)
+      .slice(0, 2)
+      .join(' · ');
     const undoOff = !slices || slices.done <= 0;
     return (
       <Animated.View ref={cardRef} style={[styles.row, styles.confirmRow, styles.confirmColumn, riseStyle]}>
@@ -505,7 +521,12 @@ export function TaskRow({
         {hasMore && (
           <>
             <Pressable
-              onPress={() => setMoreOpen(!moreOpen)}
+              onPress={() => {
+                // Counted on OPEN only: "how often does the fold hide something people need" is
+                // the number every future held-card redesign argues from.
+                if (!moreOpen) track('card.more');
+                setMoreOpen(!moreOpen);
+              }}
               style={styles.actionRow}
               accessibilityRole="button"
               accessibilityState={{ expanded: moreOpen }}
@@ -580,6 +601,22 @@ export function TaskRow({
                     hitSlop={{ top: 6, bottom: 6 }}
                   >
                     <Text style={styles.actionLabel}>{t('reminders.remindMe')}</Text>
+                  </Pressable>
+                )}
+                {onHold && (
+                  <Pressable
+                    onPress={onHold}
+                    style={[styles.actionRow, styles.moreItem]}
+                    accessibilityRole="button"
+                    accessibilityLabel={held ? t('today.holdLetGoA11y', { title }) : t('today.holdMeToItA11y', { title })}
+                    hitSlop={{ top: 6, bottom: 6 }}
+                  >
+                    {/* One control, two states: the same place you made the contract is where you end
+                        it, and ending it is one tap, never questioned (the never-shame exit). */}
+                    <Text style={[styles.actionLabel, held && styles.heldLabel]}>
+                      {held ? t('today.holdLetGo') : t('today.holdMeToIt')}
+                    </Text>
+                    {!held && <Text style={[styles.actionSub, styles.holdSub]}>{t('today.holdMeToItSub')}</Text>}
                   </Pressable>
                 )}
                 {canPin && (
@@ -674,6 +711,10 @@ export function TaskRow({
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
           {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
           {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
+          {/* The contract dot, HERE on the everyday row. The first device pass proved it missing:
+              it had been added only to the select-mode branch, which an ordinary row never shows.
+              A live contract invisible to sighted users was an oversight, not a decision. */}
+          {held && <View style={styles.heldDot} accessible={false} importantForAccessibility="no" />}
           {pinned ? <Text style={styles.pinStar} accessible={false} importantForAccessibility="no">★</Text> : null}
         </Pressable>
         {onBreakdown && (
@@ -740,6 +781,10 @@ export function TaskRow({
         {origin ? <Text style={styles.originMark} accessible={false} importantForAccessibility="no">{origin}</Text> : null}
         {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
         {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
+          {/* The contract dot, HERE on the everyday row. The first device pass proved it missing:
+              it had been added only to the select-mode branch, which an ordinary row never shows.
+              A live contract invisible to sighted users was an oversight, not a decision. */}
+          {held && <View style={styles.heldDot} accessible={false} importantForAccessibility="no" />}
         {/* the pin star sits last, at the extreme right, so it stays the clear cue beside any other mark */}
         {pinned ? <Text style={styles.pinStar} accessible={false} importantForAccessibility="no">★</Text> : null}
       </View>
@@ -855,6 +900,9 @@ const makeStyles = (t: Theme) => {
     },
     actionLabel: { ...t.type.label, color: t.colors.ink },
     actionSub: { fontSize: 13 * t.scale, fontFamily: fonts.body, color: t.colors.inkSoft, textAlign: 'right' },
+    // The hold sub shrinks and wraps rather than pushing past the row: the device pass caught the
+    // English sentence sailing off the card edge, and German runs longer still.
+    holdSub: { flexShrink: 1 },
     // The hero: Break it down. Filled accent in light-standard (white label), a soft tint in dark-standard
     // (accent label), and no fill at all in Quiet (accent label, held by whitespace like every other quiet action).
     heroRow:
@@ -960,6 +1008,8 @@ const makeStyles = (t: Theme) => {
     text: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale, userSelect: 'none' },
     textDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
     repeatMark: { color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    heldDot: { width: 8, height: 8, borderRadius: 999, backgroundColor: t.colors.accent, marginLeft: 6, alignSelf: 'center' },
+    heldLabel: { color: t.colors.accent },
     nudgeMark: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     suggestColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
     suggestMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },

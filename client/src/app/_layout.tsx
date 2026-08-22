@@ -20,9 +20,9 @@ import { t } from '@/lib/locale';
 import { PremiumProvider } from '@/lib/premium-provider';
 import { configurePurchases, forgetPurchaser, IAP_AVAILABLE, identifyPurchaser } from '@/lib/purchases';
 import { reconcileApple } from '@/lib/stripe';
-import { rescheduleAllNudges } from '@/lib/reminders';
+import { rescheduleAllNudges, resyncHold } from '@/lib/reminders';
 import { useShareInbound } from '@/lib/share-intent';
-import { loadReminderHour, loadReminderOn, loadRoutines } from '@/lib/storage';
+import { loadHold, loadReminderHour, loadReminderOn, loadRoutines } from '@/lib/storage';
 import { ThemeProvider, useTheme } from '@/lib/theme-provider';
 
 // Hold the native splash until the Dusk fonts load. On web the families come from
@@ -107,6 +107,9 @@ function RootStack() {
     void (async () => {
       const [routines, reminderOn, reminderHour] = await Promise.all([loadRoutines(), loadReminderOn(), loadReminderHour()]);
       await rescheduleAllNudges(routines, reminderOn ? reminderHour : null);
+      // The Hold-me-to-it contract heals here too: re-asserted from storage, or its orphaned
+      // knocks cancelled if the contract is gone.
+      await resyncHold(await loadHold());
     })();
   }, []);
 

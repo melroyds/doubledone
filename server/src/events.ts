@@ -17,7 +17,33 @@ export type EventsEnv = { DB?: D1LikeDatabase };
 
 // The closed set of storable events. Adding one is a deliberate change HERE plus the
 // client-side BEACON_EVENTS allowlist; nothing else can ever enter the table.
-export const APP_EVENTS = new Set(['settle.opened', 'settle.guide.on', 'settle.guide.off']);
+export const APP_EVENTS = new Set([
+  'settle.opened',
+  'settle.guide.on',
+  'settle.guide.off',
+  // "Hold me to it" (2026-08-22). The step number is folded into three coarse buckets rather than
+  // stored raw, keeping the names-only posture: .first = it worked before or at the first knock,
+  // .ladder = somewhere in the same-day escalation, .days = the daily follow-up era. The
+  // completed-vs-released split per bucket IS the feature's report card.
+  'hold.started',
+  'hold.completed.first',
+  'hold.completed.ladder',
+  'hold.completed.days',
+  'hold.released.first',
+  'hold.released.ladder',
+  'hold.released.days',
+  // The held-card usage set (2026-08-22): stored as bare names, any props on the wire are
+  // dropped here exactly like everywhere else. card.more is the fold-open denominator.
+  'breakdown.started',
+  'tiny.made',
+  'slices.defined',
+  'task.pinned',
+  'task.renamed',
+  'task.reordered',
+  'nudge.set',
+  'bulk.big',
+  'card.more',
+]);
 
 /** Normalise a raw client body to a storable event name, or null to drop it.
  *  `settle.guide` folds its one boolean prop into the name; everything else must
@@ -31,6 +57,11 @@ export function parseAppEvent(raw: unknown): string | null {
     const on = (body.props as { on?: unknown } | undefined)?.on;
     if (typeof on !== 'boolean') return null;
     name = on ? 'settle.guide.on' : 'settle.guide.off';
+  }
+  if (name === 'hold.completed' || name === 'hold.released') {
+    const step = (body.props as { step?: unknown } | undefined)?.step;
+    if (typeof step !== 'number' || !Number.isFinite(step)) return null;
+    name = `${name}.${step <= 1 ? 'first' : step <= 4 ? 'ladder' : 'days'}`;
   }
   return APP_EVENTS.has(name) ? name : null;
 }
