@@ -7746,3 +7746,41 @@ at exactly the moment deciding is hardest. The session's own "Choose another" st
 escape, so the app suggests the dread and never insists on it. Pin outranks Hold deliberately:
 when both exist the user has made two statements, and "this is my priority" beats "knock me about
 this one".
+
+---
+
+## 2026-08-23 Built to the design handoff: the fold at four, the door owns Steps, and the strip
+
+Melroy ran the Claude Design ritual overnight on the held-card brief and came back with decisions
+settled: Voice 1 ships for the strip ("I'm holding this one"; the other voices died on the
+day-nine ledger reading), the More row goes bare (no preview, no hint), and B1 + B2 ship
+together. Built to the handoff in two commits.
+
+**The fold is four rows, fixed order:** Share to Ours, Remind me, Hold me to it, Pin last. Steps
+and Undo-a-step left the card for the decomposition door, which owns the whole job now: both
+breakdown surfaces carry one quiet "Count it in parts instead" (existing tasks only), the steps
+editor holds the live count with Undo beside it appearing only when it can act, and the title's
+"2 / 5" taps straight into the editor (the handoff's accepted pushback: with Steps out of the
+fold, the count keeps a direct route).
+
+**One deliberate deviation, recorded:** the handoff's More a11y string was the fixed "Four quieter
+actions". The fold genuinely varies (web has no Remind me or Hold), and a screen reader hearing a
+wrong number is a defect, not fidelity, so the count is computed and interpolated. The visual
+stays exactly as designed: the word More, a caret, nothing else.
+
+**The strip is list content, below a pinned row, never the frame.** The app is the subject ("I'm
+holding this one"), the title is bold and opens Focus, "Let it go" is always one visible
+uninterrogated tap sharing the exact release path with the card's chip. No border, visibly
+lighter than the pinned row, never floats, never grows, and the words are identical on day one
+and day nine hundred: the day-nine reading was the gate this copy had to survive, and the two
+voices that failed it are on file in the handoff.
+
+**The ending is the feature's payoff.** On ticking the held task the strip turns sage for one
+frame: a tick and the italic "You closed the one I was holding.", no button, ~1.8s rest, a 400ms
+fade (leaving between frames under reduce-motion), announced once politely. A contract that ends
+in silence would waste the whole emotional arc; a contract that ends in fanfare would be a
+streak. One quiet sentence is the calibration.
+
+**Still open from the handoff:** the recommendation to suppress a held row's nudge-time text
+while its contract is live (the dot carries the reminding story). Waiting on Melroy's word; one
+render rule either way.

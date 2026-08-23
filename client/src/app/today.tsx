@@ -1,5 +1,5 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, AccessibilityInfo, Animated, AppState, Easing, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -330,6 +330,10 @@ export default function TodayScreen() {
   // restart always agree with the screen.
   const [hold, setHold] = useState<HoldContract | null>(null);
   const [holdSwapFor, setHoldSwapFor] = useState<Task | null>(null);
+  // The strip's ENDING: the completed contract's title, alive for one last frame ("You closed the
+  // one I was holding."), the emotional payoff of the whole feature. Null = no beat playing.
+  const [holdClosing, setHoldClosing] = useState<string | null>(null);
+  const [holdCloseFade] = useState(() => new Animated.Value(1)); // the repo's compiler-safe Animated pattern
   const [nudgeOpen, setNudgeOpen] = useState(false);
   const [nudgeId, setNudgeId] = useState<string | null>(null); // the task the reminder is for, captured at open time (pickNudge awaits, so a derived read could shift under it)
   const [nudgePresets, setNudgePresets] = useState<NudgePreset[]>([]);
@@ -672,11 +676,26 @@ export default function TodayScreen() {
     // Persist and cancel FIRST, then reflect in state from the async callback: the ordering is
     // honest (the world changes before the screen says so), and the React Compiler's
     // no-sync-setState-in-effect rule holds without a suppression.
+    const closedTitle = hold.title;
     void (async () => {
       await saveHold(null);
       await cancelHold();
       track(doneNow ? 'hold.completed' : 'hold.released', { step });
       setHold(null);
+      if (doneNow) {
+        // The strip's last frame: sage, one italic line, no button. Rests ~1.8s, then leaves
+        // (fades 400ms; under reduce-motion it leaves between frames). Announced once, politely.
+        setHoldClosing(closedTitle);
+        holdCloseFade.setValue(1);
+        AccessibilityInfo.announceForAccessibility(t('today.holdClosed'));
+        setTimeout(() => {
+          if (reduced) {
+            setHoldClosing(null);
+          } else {
+            Animated.timing(holdCloseFade, { toValue: 0, duration: 400, useNativeDriver: true }).start(() => setHoldClosing(null));
+          }
+        }, 1800);
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, hold]);
@@ -1181,6 +1200,45 @@ export default function TodayScreen() {
   // letting a task move into slot 0 would be a tap that visibly does nothing.
   const reorderTopIdx = visible.length > 0 && visible[0].pinnedAt != null && !isDoneOn(visible[0], today) ? 1 : 0;
 
+  // The held strip (design handoff 2026-08-23, Voice 1): LIST CONTENT at the head of the list,
+  // below a pinned row (reorderTopIdx is already "the first seat under the pin"), never in the
+  // constant frame. The app is the subject: it is doing the holding, the user is not failing.
+  // Identical on day one and day nine hundred; escalation lives only in the consented knocks.
+  // No border and visibly lighter than the pinned row: float and border stay Pin's paid signals.
+  const holdStripEl =
+    holdClosing != null ? (
+      <Animated.View style={[styles.holdStrip, styles.holdStripClosed, { opacity: holdCloseFade }]}>
+        <Text style={styles.holdClosedText}>{'\u2713'}  {t('today.holdClosed')}</Text>
+      </Animated.View>
+    ) : hold != null ? (
+      <View style={styles.holdStrip}>
+        <View style={styles.holdStripDot} accessible={false} importantForAccessibility="no" />
+        <Pressable
+          style={styles.holdStripMain}
+          onPress={() => {
+            setFocusPick(hold.taskId);
+            setFocusOpen(true);
+            track('focus.opened');
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={t('today.holdStripA11y', { title: hold.title })}
+        >
+          <Text style={styles.holdStripText} numberOfLines={1}>
+            {t('today.holdStrip')} {'\u00b7'} <Text style={styles.holdStripTitle}>{hold.title}</Text>
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={releaseHold}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('today.holdLetGoStripA11y')}
+          style={styles.holdStripLetGo}
+        >
+          <Text style={styles.holdStripLetGoText}>{t('today.holdLetGo')}</Text>
+        </Pressable>
+      </View>
+    ) : null;
+
   // Free manual reorder (born of the second "how do I re-order?" field report, 2026-08-04):
   // nudge a task one place in today's VISIBLE order by stamping the whole order via
   // setSequence (the same machinery Plan-my-order accepts into). Free on purpose: Pin is
@@ -1375,15 +1433,20 @@ export default function TodayScreen() {
     affirm(t('today.holdSetAffirm'));
     dismissActions();
   }
+  // ONE exit, shared by the card's chip and the strip's "Let it go": one tap, no dialog, no
+  // comment. Releasing is a state change, not a failure.
+  function releaseHold() {
+    if (!hold) return;
+    const step = holdStepAt(new Date(hold.heldAt), new Date());
+    track('hold.released', { step });
+    setHold(null);
+    void saveHold(null);
+    void cancelHold();
+    affirm(t('today.holdLetGoAffirm'));
+  }
   function tapHold(task: Task) {
     if (hold?.taskId === task.id) {
-      // Release: one tap, no dialog, no comment. "Let it go" is a state change, not a failure.
-      const step = holdStepAt(new Date(hold.heldAt), new Date());
-      track('hold.released', { step });
-      setHold(null);
-      void saveHold(null);
-      void cancelHold();
-      affirm(t('today.holdLetGoAffirm'));
+      releaseHold();
       dismissActions();
       return;
     }
@@ -2635,8 +2698,9 @@ export default function TodayScreen() {
         )}
         <View style={styles.list}>
           {visible.map((task, i) => (
+            <Fragment key={task.id}>
+              {i === reorderTopIdx && holdStripEl}
             <TaskRow
-              key={task.id}
               title={task.title}
               done={isDoneOn(task, today)}
               onToggle={() => toggle(task.id)}
@@ -2678,7 +2742,9 @@ export default function TodayScreen() {
               pinned={task.pinnedAt != null && !isDoneOn(task, today)}
               big={task.big}
             />
+            </Fragment>
           ))}
+          {visible.length > 0 && visible.length === reorderTopIdx && holdStripEl}
         </View>
 
         {loaded && visible.length === 0 && (
@@ -4401,6 +4467,24 @@ const makeStyles = (t: Theme) =>
     moveCancelWrap: { marginTop: spacing.three, alignItems: 'center' },
     combineList: { gap: spacing.one, marginTop: spacing.one, marginBottom: spacing.one },
     combineItem: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    holdStrip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.three,
+      backgroundColor: t.colors.accentSoft,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.four,
+      marginBottom: spacing.three,
+      minHeight: 44,
+    },
+    holdStripDot: { width: 8, height: 8, borderRadius: 999, backgroundColor: t.colors.accent },
+    holdStripMain: { flex: 1, minHeight: 44, justifyContent: 'center' },
+    holdStripText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+    holdStripTitle: { color: t.colors.ink, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    holdStripLetGo: { minHeight: 44, justifyContent: 'center' },
+    holdStripLetGoText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    holdStripClosed: { backgroundColor: `${t.colors.done}26`, justifyContent: 'center' },
+    holdClosedText: { color: t.colors.doneText, fontFamily: fonts.sans, fontStyle: 'italic', fontSize: 15 * t.scale, textAlign: 'center', flex: 1, paddingVertical: spacing.two },
     focusPickList: { marginTop: spacing.five, gap: spacing.four, alignItems: 'center' },
     focusPickItem: { paddingVertical: spacing.two, paddingHorizontal: spacing.three },
     focusPickItemText: { color: t.colors.accent, fontFamily: fonts.sans, fontSize: 22 * t.scale, textAlign: 'center' },

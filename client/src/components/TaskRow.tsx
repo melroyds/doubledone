@@ -355,7 +355,6 @@ export function TaskRow({
     // "More" (the handoff's verdict: bare, no preview, no hint). The old roll-call line printed
     // action names on the closed card, which made it read as a control panel.
     const foldCount = [onShareToOurs, onNudge, onHold, canPin].filter(Boolean).length;
-    const undoOff = !slices || slices.done <= 0;
     return (
       <Animated.View ref={cardRef} style={[styles.row, styles.confirmRow, styles.confirmColumn, riseStyle]}>
         {editingTitle != null && onRename ? (
