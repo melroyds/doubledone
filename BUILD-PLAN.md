@@ -117,9 +117,15 @@ the ladder is fixed and readable, never randomised.
 - **Wave 3 (instrumentation): DONE** (b6d98e2). hold started / completed / released with a capped
   step, folded server-side into `.first`/`.ladder`/`.days`; privacy policy updated in the same
   commit; surfaces automatically in the Analytics Centre's per-event table.
-- **REMAINING before 1.5.0: the device pass** (HLD-01..05 on a real phone). The ladder firing with
-  the app closed is exactly what no preview can see, and the feature is not done-done until a
-  phone has proven it. PR #9 stays draft until then.
+- **DEVICE PASS: 9 of 10, 2026-08-23** (Melroy's iPhone, TestFlight). Quiet-night collapse, the
+  08:30 + 09:30 morning knocks, the full four-knock daytime ladder (10:20 hold, all word-identical,
+  app closed), both exits including release-with-a-knock-pending, REBOOT survival, and the
+  permission-denied honesty case: all passed. The one fail was T1, cosmetic (an invisible row mark:
+  a glyph the iOS font did not draw, in a branch ordinary rows never render; plus the fold sub-line
+  overflowing). Both root-caused and fixed on the branch the same night.
+- **REMAINING before 1.5.0: the round-two pass** on a fresh TestFlight build carrying everything
+  (the T1 fixes, the dot, the Focus fallback, the fold at four, the strip and its ending): re-run
+  T1 plus spot-check the new surfaces (HLD-06/07). PR #9 leaves draft when that passes.
 - **Parked, Tier 3, trigger = real usage proving the soft version insufficient:** alarm-class
   delivery (Android full-screen intent, iOS time-sensitive). Doubles the size; permissions and
   review risk.
