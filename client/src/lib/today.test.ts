@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { type Recurrence } from './recurrence';
-import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, skipOn, tinyParentTitle, type Scheduled, tasksForToday, toggleDoneOn, upcomingTasks } from './today';
+import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, holdSecond, isDoneOn, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, type Scheduled, upcomingTasks } from './today';
 
 const today = new Date(2026, 5, 17);
 const iso = '2026-06-17';
@@ -439,5 +439,40 @@ describe('tinyParentTitle', () => {
   it('returns null for a task with no parent', () => {
     const tasks: TT[] = [{ id: 'a' }];
     expect(tinyParentTitle(tasks, tasks[0])).toBeNull();
+  });
+});
+
+// The held task floats (Melroy's device verdict, 2026-08-23), always BELOW the pin: the paid
+// signal keeps its seat by construction, not by convention.
+describe('holdSecond', () => {
+  const t = (id: string, over: Record<string, unknown> = {}) =>
+    ({ id, title: id, done: false, createdAt: 1, updatedAt: 1, ...over }) as never;
+
+  it('floats the held task to the top when nothing is pinned', () => {
+    const out = holdSecond([t('a'), t('b'), t('held')], 'held');
+    expect(out.map((x: { id: string }) => x.id)).toEqual(['held', 'a', 'b']);
+  });
+
+  it('slots BELOW a pinned task, never above it', () => {
+    const out = holdSecond([t('pin', { pinnedAt: 5 }), t('a'), t('held')], 'held');
+    expect(out.map((x: { id: string }) => x.id)).toEqual(['pin', 'held', 'a']);
+  });
+
+  it('returns the same reference when the held task is already seated, or absent, or null', () => {
+    const seated = [t('held'), t('a')];
+    expect(holdSecond(seated, 'held')).toBe(seated);
+    const list = [t('a'), t('b')];
+    expect(holdSecond(list, 'missing')).toBe(list);
+    expect(holdSecond(list, null)).toBe(list);
+  });
+
+  it('never floats a done task: its contract is ending anyway', () => {
+    const list = [t('a'), t('held', { done: true })];
+    expect(holdSecond(list, 'held')).toBe(list);
+  });
+
+  it('a task that is both pinned and held keeps the pin seat, once', () => {
+    const both = [t('x', { pinnedAt: 5 }), t('a')];
+    expect(holdSecond(both, 'x')).toBe(both);
   });
 });

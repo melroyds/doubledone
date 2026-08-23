@@ -7784,3 +7784,25 @@ streak. One quiet sentence is the calibration.
 **Still open from the handoff:** the recommendation to suppress a held row's nudge-time text
 while its contract is live (the dot carries the reminding story). Waiting on Melroy's word; one
 render rule either way.
+
+---
+
+## 2026-08-23 The held row floats and wears a border: a rule superseded by the founder's thumb
+
+Round two on the device, Melroy: the dot alone is ineffective; he wants the held row bordered and
+floated to the top. This SUPERSEDES the 2026-08-22 clause "the held row never floats and never
+wears a border", which the adversarial panel wrote to protect Pin's paid signals, and which he
+approved. The founder's device verdict outranks the panel's theory, and the paywall consideration
+was re-weighed, not forgotten: **Pin stays senior by construction.** The pin floats first and the
+held row slots UNDER it, never above (`holdSecond` in lib/today, seat below the pin, tested); the
+pin keeps its thick accent border, tint and star while the held row wears a HAIRLINE accent border
+and no tint. Related, never equal. The strip now sits directly above the bordered row, so the two
+read as one demarcated zone, which is where this whole thread started ("a part of the Today screen
+demarcated for hold me to it").
+
+Also from the same look: with the fold's preview line gone, the fold's bare "More" and the shelf's
+"Select more" sat nearly adjacent and read as the same family. The shelf door is now "Select
+several" in all five locales; the collision existed in four of them.
+
+The held row is excluded from the reorder rail exactly as the pin is: its float would swallow the
+move, and an action that does nothing is worse than an absent one.

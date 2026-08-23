@@ -1019,7 +1019,7 @@ export const de: Catalog = {
     selectAll: 'Alle auswählen',
     selectAllA11y: 'Alle Aufgaben auswählen',
     selectHint: 'Tipp Aufgaben an, um sie auszuwählen',
-    selectMore: 'Mehr auswählen',
+    selectMore: 'Mehrere auswählen',
     selectMoreA11y: 'Weitere Aufgaben auswählen, um sie gemeinsam zu bearbeiten',
     selectRowLabel: '{title} auswählen',
     selectedCount: '{count} ausgewählt',

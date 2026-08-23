@@ -86,7 +86,7 @@ import { track } from '@/lib/telemetry';
 import { updateWidget } from '@/widget/update';
 import { useReducedMotion, useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { usePremium } from '@/lib/premium-provider';
-import { applyManualOrder, completeAncestors, deferTo, hasActiveTinyChild, isDoneOn, isRecurring, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, upcomingTasks } from '@/lib/today';
+import { applyManualOrder, completeAncestors, deferTo, hasActiveTinyChild, holdSecond, isDoneOn, isRecurring, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, upcomingTasks } from '@/lib/today';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
@@ -902,7 +902,9 @@ export default function TodayScreen() {
     }
   }
 
-  const visible = pinFirst(applyManualOrder(tasksForToday(tasks, today))); // the pin floats to the very top, then any accepted manual order
+  // The pin floats to the very top, the HELD task slots directly under it (Melroy's device
+  // verdict 2026-08-23; Pin stays senior by construction), then any accepted manual order.
+  const visible = holdSecond(pinFirst(applyManualOrder(tasksForToday(tasks, today))), hold && holdClosing == null ? hold.taskId : null);
   // The current week's deduped finishes: the scrapbook's raw material, read by the earned-moment mention.
   const weekFinishes = weekTitles(completionsByDay(tasks), weekStartISO(today)).length;
   const upcoming = upcomingTasks(tasks, today);
@@ -1198,7 +1200,9 @@ export default function TodayScreen() {
   }
   // "Up" stops BELOW a pinned top task: pinFirst floats the pin above any stamped order, so
   // letting a task move into slot 0 would be a tap that visibly does nothing.
-  const reorderTopIdx = visible.length > 0 && visible[0].pinnedAt != null && !isDoneOn(visible[0], today) ? 1 : 0;
+  const pinnedLead = visible.length > 0 && visible[0].pinnedAt != null && !isDoneOn(visible[0], today) ? 1 : 0;
+  // The floated block the reorder rail must not disturb: the pin, then the held row under it.
+  const reorderTopIdx = pinnedLead + (hold != null && visible[pinnedLead]?.id === hold.taskId ? 1 : 0);
 
   // The held strip (design handoff 2026-08-23, Voice 1): LIST CONTENT at the head of the list,
   // below a pinned row (reorderTopIdx is already "the first seat under the pin"), never in the
@@ -2699,7 +2703,7 @@ export default function TodayScreen() {
         <View style={styles.list}>
           {visible.map((task, i) => (
             <Fragment key={task.id}>
-              {i === reorderTopIdx && holdStripEl}
+              {i === pinnedLead && holdStripEl}
             <TaskRow
               title={task.title}
               done={isDoneOn(task, today)}
@@ -2711,8 +2715,8 @@ export default function TodayScreen() {
               recurring={isRecurring(task)}
               /* Reorder eligibility: never on a done task, never on the pinned task (pinFirst
                  refloats it, the tap would look dead), and "up" stops below a pinned top. */
-              onMoveUp={canReorder(task, today) && i > reorderTopIdx ? () => moveRow(task.id, -1) : undefined}
-              onMoveDown={canReorder(task, today) && i < visible.length - 1 ? () => moveRow(task.id, 1) : undefined}
+              onMoveUp={canReorder(task, today) && task.id !== hold?.taskId && i > reorderTopIdx ? () => moveRow(task.id, -1) : undefined}
+              onMoveDown={canReorder(task, today) && task.id !== hold?.taskId && i >= reorderTopIdx && i < visible.length - 1 ? () => moveRow(task.id, 1) : undefined}
               slices={task.slices ?? undefined}
               onAdvance={() => step(task.id, 1)}
               onBreakdown={aiEnabled ? () => breakdownExisting(task.title, task.id) : () => openManualBreakdown(task.id, task.title)}
@@ -2744,7 +2748,7 @@ export default function TodayScreen() {
             />
             </Fragment>
           ))}
-          {visible.length > 0 && visible.length === reorderTopIdx && holdStripEl}
+          {visible.length > 0 && visible.length === pinnedLead && holdStripEl}
         </View>
 
         {loaded && visible.length === 0 && (

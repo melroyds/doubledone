@@ -1020,7 +1020,7 @@ export const it: Catalog = {
     selectAllA11y: 'Seleziona tutte le attività',
     selectAllUnavailA11y: 'Seleziona tutto non disponibile, è già tutto selezionato',
     selectHint: 'Tocca le attività per selezionarle',
-    selectMore: 'Seleziona altre',
+    selectMore: 'Seleziona più attività',
     selectMoreA11y: 'Seleziona altre attività da gestire insieme',
     selectRowLabel: 'Seleziona {title}',
     selectedCount: '{count} selezionate',

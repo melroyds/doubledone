@@ -1020,7 +1020,7 @@ export const fr: Catalog = {
     selectAllA11y: 'Sélectionner toutes les tâches',
     selectAllUnavailA11y: 'Tout sélectionner indisponible, tout est déjà sélectionné',
     selectHint: 'Touche les tâches pour les sélectionner',
-    selectMore: "Sélectionner d'autres",
+    selectMore: 'Sélectionner plusieurs',
     selectMoreA11y: "Sélectionner d'autres tâches à gérer ensemble",
     selectRowLabel: 'Sélectionner {title}',
     selectedCount: '{count} sélectionnées',

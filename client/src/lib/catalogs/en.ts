@@ -1025,7 +1025,7 @@ export const en = {
     selectAllA11y: 'Select all tasks',
     selectAllUnavailA11y: 'Select all unavailable, everything is selected',
     selectHint: 'Tap tasks to select',
-    selectMore: 'Select more',
+    selectMore: 'Select several',
     selectMoreA11y: 'Select more tasks to act on together',
     selectRowLabel: 'Select {title}',
     selectedCount: '{count} selected',

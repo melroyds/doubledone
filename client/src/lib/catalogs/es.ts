@@ -1020,7 +1020,7 @@ export const es: Catalog = {
     selectAllA11y: 'Seleccionar todas las tareas',
     selectAllUnavailA11y: 'Seleccionar todo no disponible, ya está todo seleccionado',
     selectHint: 'Toca las tareas para seleccionarlas',
-    selectMore: 'Seleccionar más',
+    selectMore: 'Seleccionar varias',
     selectMoreA11y: 'Selecciona más tareas para gestionarlas juntas',
     selectRowLabel: 'Seleccionar {title}',
     selectedCount: '{count} seleccionadas',

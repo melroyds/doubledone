@@ -679,7 +679,7 @@ export function TaskRow({
   // toggle and the prompt are siblings, never a Pressable nested in a Pressable.
   if (suggestBreakdown && !done) {
     return (
-      <View style={[styles.row, !recurring && styles.rowUnique, pinned && styles.rowPinned, styles.suggestColumn]}>
+      <View style={[styles.row, !recurring && styles.rowUnique, pinned && styles.rowPinned, held && !pinned && styles.rowHeld, styles.suggestColumn]}>
         <Pressable
           onPress={onToggle}
           onLongPress={onLongPress}
@@ -748,6 +748,7 @@ export function TaskRow({
         styles.row,
         !recurring && !plain && styles.rowUnique,
         pinned && styles.rowPinned,
+        held && !pinned && styles.rowHeld,
         pressed && !inert && styles.pressed,
       ]}
       accessibilityRole="checkbox"
@@ -838,6 +839,10 @@ const makeStyles = (t: Theme) => {
       t.appearance === 'quiet'
         ? { backgroundColor: t.colors.accentSoft }
         : { borderColor: t.colors.accent, borderWidth: border.thick, backgroundColor: t.colors.accentSoft },
+    // The held row's own signal (Melroy, 2026-08-23: the dot alone was ineffective). A HAIRLINE
+    // accent border, deliberately lighter than the pin's thick border + tint, so the two read as
+    // related but never equal: Pin stays the senior, paid mark.
+    rowHeld: { borderColor: t.colors.accent, borderWidth: border.hair },
     pinStar: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     // A quiet accent tag (never danger red): the app agreeing this task is a lot, sized small so it never scolds.
     // "a lot" tag: a soft accent pill in standard; plain accent text (no pill chrome) in quiet.
