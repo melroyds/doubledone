@@ -257,7 +257,6 @@ export function TaskRow({
     const canMoveTo = Boolean(onMoveTo && !recurring);
     // A task already split into steps does not need decomposing or shrinking again.
     const canBreakdown = Boolean(onBreakdown && !recurring && !slices);
-    const canSteps = Boolean(onSteps && !recurring);
     const canTiny = Boolean(onMakeTiny && !recurring && !slices);
     const canPin = Boolean(onPin && !recurring);
 
@@ -351,13 +350,11 @@ export function TaskRow({
 
     // An open task: the v2 card ("Four species, four grammars"). The More preview names its
     // everyday contents; Pin deliberately stays out of it (premium recedes, never advertises).
-    const hasMore = canSteps || canPin || Boolean(onNudge) || Boolean(onShareToOurs);
-    // AT MOST TWO names. The full roll-call ("Steps · Remind me · Share to Ours") made the CLOSED
-    // card read as a control panel: a third of its perceived clutter was this one advertising line.
-    const morePreview = [canSteps && t('today.steps'), onNudge && t('reminders.remindMe'), onShareToOurs && t('ours.shareTo')]
-      .filter(Boolean)
-      .slice(0, 2)
-      .join(' · ');
+    const hasMore = canPin || Boolean(onNudge) || Boolean(onShareToOurs) || Boolean(onHold);
+    // The fold's row count, SPOKEN to screen readers and never shown: the sighted card says just
+    // "More" (the handoff's verdict: bare, no preview, no hint). The old roll-call line printed
+    // action names on the closed card, which made it read as a control panel.
+    const foldCount = [onShareToOurs, onNudge, onHold, canPin].filter(Boolean).length;
     const undoOff = !slices || slices.done <= 0;
     return (
       <Animated.View ref={cardRef} style={[styles.row, styles.confirmRow, styles.confirmColumn, riseStyle]}>
@@ -375,17 +372,36 @@ export function TaskRow({
         ) : (
           // The title is the edit control: tap the thing to change the thing, no extra button on an
           // already-full card. The faint underline is the whole affordance; onRename absent leaves it plain.
-          <Pressable
-            onPress={onRename ? () => setEditingTitle(title) : undefined}
-            disabled={!onRename}
-            accessibilityRole={onRename ? 'button' : undefined}
-            accessibilityLabel={onRename ? t('today.editTitleA11y', { title }) : undefined}
-            hitSlop={{ top: 8, bottom: 8 }}
-          >
-            <Text style={[styles.confirmTitle, onRename && styles.confirmTitleEditable]} numberOfLines={2}>
-              {slices ? `${title}  ·  ${slices.done} / ${slices.total}` : title}
-            </Text>
-          </Pressable>
+          <View style={styles.titleLine}>
+            <Pressable
+              onPress={onRename ? () => setEditingTitle(title) : undefined}
+              disabled={!onRename}
+              accessibilityRole={onRename ? 'button' : undefined}
+              accessibilityLabel={onRename ? t('today.editTitleA11y', { title }) : undefined}
+              hitSlop={{ top: 8, bottom: 8 }}
+              style={styles.titleGrow}
+            >
+              <Text style={[styles.confirmTitle, onRename && styles.confirmTitleEditable]} numberOfLines={2}>
+                {title}
+              </Text>
+            </Pressable>
+            {/* The count is its own door now. Steps left the fold for the decomposition surface,
+                so "2 / 5" taps straight into the steps editor rather than being title decoration:
+                one affordance, no new row (the handoff's accepted pushback). */}
+            {slices && (
+              <Pressable
+                onPress={onSteps}
+                disabled={!onSteps}
+                accessibilityRole={onSteps ? 'button' : undefined}
+                accessibilityLabel={onSteps ? t('today.changeStepsA11y') : undefined}
+                hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+              >
+                <Text style={[styles.titleCount, onSteps && styles.titleCountLive]}>
+                  {slices.done} / {slices.total}
+                </Text>
+              </Pressable>
+            )}
+          </View>
         )}
 
         {/* The shared card's hero, in the seat Break it down holds on a personal one: the only action
@@ -530,16 +546,11 @@ export function TaskRow({
               style={styles.actionRow}
               accessibilityRole="button"
               accessibilityState={{ expanded: moreOpen }}
-              accessibilityLabel={moreOpen ? t('today.moreCollapseA11y') : t('today.moreExpandA11y')}
+              accessibilityLabel={moreOpen ? t('today.moreCollapseA11y') : t('today.moreExpandA11y', { count: foldCount })}
               hitSlop={{ top: 6, bottom: 6 }}
             >
               <View style={styles.moreLead}>
                 <Text style={styles.moreLabel}>{t('today.more')}</Text>
-                {!moreOpen && (
-                  <Text style={styles.actionSub} numberOfLines={1}>
-                    {morePreview}
-                  </Text>
-                )}
               </View>
               <Text style={styles.moreCaret} accessible={false} importantForAccessibility="no">
                 {moreOpen ? '▴' : '▾'}
@@ -547,9 +558,10 @@ export function TaskRow({
             </Pressable>
             {moreOpen && (
               <Animated.View style={{ opacity: foldFade }}>
-                {/* The purified fold (v2): Steps, Undo a step, Remind me, and Pin LAST, so
-                    premium recedes rather than advertises. Unavailable dims in place with an
-                    honest reason, never disappears. */}
+                {/* The fold at FOUR, fixed order (design handoff 2026-08-23): Share to Ours,
+                    Remind me, Hold me to it, Pin LAST so premium recedes rather than advertises.
+                    Steps and Undo-a-step moved into the decomposition door, which owns that whole
+                    job now. Unavailable dims in place with an honest reason, never disappears. */}
                 {/* Sharing your own task onto the list. In the FOLD, never a lead action: it is
                     rare, it is deliberate, and it puts your words in front of another person. Only
                     rendered when a live list exists, which the caller decides. */}
@@ -562,34 +574,6 @@ export function TaskRow({
                     hitSlop={{ top: 6, bottom: 6 }}
                   >
                     <Text style={styles.actionLabel}>{t('ours.shareTo')}</Text>
-                  </Pressable>
-                )}
-                {canSteps && (
-                  <Pressable
-                    onPress={onSteps}
-                    style={[styles.actionRow, styles.moreItem]}
-                    accessibilityRole="button"
-                    accessibilityLabel={slices ? t('today.changeStepsA11y') : t('today.splitStepsA11y')}
-                    hitSlop={{ top: 6, bottom: 6 }}
-                  >
-                    <Text style={styles.actionLabel}>{t('today.steps')}</Text>
-                    <Text style={styles.actionSub}>
-                      {slices ? t('today.stepsOf', { done: slices.done, total: slices.total }) : t('today.stepsCountHint')}
-                    </Text>
-                  </Pressable>
-                )}
-                {canSteps && onRetreat && (
-                  <Pressable
-                    onPress={onRetreat}
-                    disabled={undoOff}
-                    style={[styles.actionRow, styles.moreItem]}
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: undoOff }}
-                    accessibilityLabel={t('today.stepBackLabel', { title })}
-                    hitSlop={{ top: 6, bottom: 6 }}
-                  >
-                    <Text style={[styles.actionLabel, undoOff && styles.controlOff]}>{t('today.undoAStep')}</Text>
-                    {undoOff && <Text style={[styles.actionSub, styles.controlOff]}>{t('today.noStepsYet')}</Text>}
                   </Pressable>
                 )}
                 {onNudge && (
@@ -884,6 +868,10 @@ const makeStyles = (t: Theme) => {
     confirmTitleInput: { paddingVertical: 0, borderBottomWidth: border.hair, borderColor: t.colors.accent },
     doneTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, paddingHorizontal: spacing.two, paddingBottom: spacing.one },
     doneCheck: { color: t.colors.done, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    titleLine: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.two },
+    titleGrow: { flexShrink: 1 },
+    titleCount: { ...t.type.label, color: t.colors.inkSoft, paddingTop: 2 },
+    titleCountLive: { color: t.colors.accent },
     confirmTitleDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through', paddingHorizontal: 0, paddingBottom: 0, flexShrink: 1 },
     // The done card's inscription: the serif voice (like Today's rotating line), above the shelf.
     doneIsDone: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', textAlign: 'center', paddingTop: spacing.two, paddingBottom: spacing.one },

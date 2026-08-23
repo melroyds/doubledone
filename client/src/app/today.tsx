@@ -2651,7 +2651,6 @@ export default function TodayScreen() {
               onMoveDown={canReorder(task, today) && i < visible.length - 1 ? () => moveRow(task.id, 1) : undefined}
               slices={task.slices ?? undefined}
               onAdvance={() => step(task.id, 1)}
-              onRetreat={() => step(task.id, -1)}
               onBreakdown={aiEnabled ? () => breakdownExisting(task.title, task.id) : () => openManualBreakdown(task.id, task.title)}
               onMakeTiny={aiEnabled ? () => makeTiny(task.id, task.title) : undefined}
               onBig={() => bigRow(task)}
@@ -3337,6 +3336,22 @@ export default function TodayScreen() {
                 accessibilityLabel={t('breakdown.manualSubmitA11y')}
               />
             </View>
+            {manualBdId != null && (
+              <Pressable
+                onPress={() => {
+                  const id = manualBdId;
+                  closeManualBreakdown();
+                  if (id) openSliceEdit(id);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={t('today.countInParts')}
+                hitSlop={8}
+                style={styles.doorAltRow}
+              >
+                <Text style={styles.doorAltLabel}>{t('today.countInParts')}</Text>
+                <Text style={styles.doorAltSub}>{t('today.stepsCountHint')}</Text>
+              </Pressable>
+            )}
       </ModalCard>
 
       <ModalCard visible={moveIds != null} onClose={() => setMoveIds(null)}>
@@ -3461,6 +3476,30 @@ export default function TodayScreen() {
       <ModalCard visible={sliceEditOpen} onClose={() => setSliceEditOpen(false)}>
             <Text style={styles.didTitle}>{t('today.sliceTitle')}</Text>
             <Text style={styles.didHint}>{t('today.sliceHint')}</Text>
+            {/* The editor owns Undo-a-step now (out of the card's fold): it sits beside the live
+                count and appears only when a step CAN be undone. Editor context, so
+                appear-when-actable; the dim-in-place rule is for stable card surfaces. */}
+            {(() => {
+              const held = sliceEditId != null ? tasks.find((x) => x.id === sliceEditId) : undefined;
+              if (!held?.slices) return null;
+              return (
+                <View style={styles.sliceNowRow}>
+                  <Text style={styles.sliceNow}>
+                    {held.slices.done} / {held.slices.total}
+                  </Text>
+                  {held.slices.done > 0 && (
+                    <Pressable
+                      onPress={() => step(held.id, -1)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('today.stepBackLabel', { title: held.title })}
+                      hitSlop={8}
+                    >
+                      <Text style={styles.sliceUndo}>{t('today.undoAStep')}</Text>
+                    </Pressable>
+                  )}
+                </View>
+              );
+            })()}
             <View style={styles.sliceEditStepper}>
               <Pressable
                 onPress={() => setSliceEditCount((n) => Math.max(MIN_SLICES, n - 1))}
@@ -3879,6 +3918,15 @@ export default function TodayScreen() {
           busy={bdBusy}
           onAdd={bdAccept}
           onCancel={resetBreakdown}
+          onCountInParts={
+            bdParentId
+              ? () => {
+                  const id = bdParentId;
+                  resetBreakdown();
+                  openSliceEdit(id);
+                }
+              : undefined
+          }
           today={today}
         />
       )}
@@ -4080,6 +4128,12 @@ const makeStyles = (t: Theme) =>
     sliceStepBtn: { width: 44, height: 44, borderRadius: radius.pill, borderWidth: border.hair, borderColor: t.colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: t.colors.surface },
     sliceStepBtnOff: { opacity: 0.4 },
     sliceStepGlyph: { fontSize: 26 * t.scale, lineHeight: 30 * t.scale, color: t.colors.accent, fontFamily: fonts.body },
+    sliceNowRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.two },
+    sliceNow: { color: t.colors.ink, fontFamily: fonts.bodyBold, fontWeight: '700', fontSize: 15 * t.scale },
+    sliceUndo: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '600', fontSize: 14 * t.scale },
+    doorAltRow: { borderTopWidth: border.hair, borderTopColor: t.colors.line, marginTop: spacing.four, paddingTop: spacing.three, alignItems: 'center', gap: 2 },
+    doorAltLabel: { color: t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    doorAltSub: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body },
     sliceStepValue: { ...t.type.heading, color: t.colors.ink, minWidth: 110, textAlign: 'center' },
     selectDone: { color: t.colors.doneText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     selectRemove: { color: t.colors.danger, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', textAlign: 'right' },
