@@ -7806,3 +7806,47 @@ several" in all five locales; the collision existed in four of them.
 
 The held row is excluded from the reorder rail exactly as the pin is: its float would swallow the
 move, and an action that does nothing is worse than an absent one.
+
+
+---
+
+## 2026-08-30 The contract line moves INSIDE the held cell, the star becomes a pin, and a boot race is fixed
+
+Melroy, mid round-two on device, on the strip-above-the-row execution: "It's working but I don't
+like the execution. Can we somehow extend the borders to put the 'I'm holding this one... let it
+go' text inside the cell border?" He is right, and the reason is one we created ourselves: once
+his 2026-08-23 verdict floated the held ROW to the top, the separate strip sat directly on top of
+a row saying the same title, two elements for one fact. The strip design's own rationale (words
+about the task, apart from the task, which never moves) died the day the row started moving.
+
+**Decided:** the held row is ONE bordered cell. First line the task, second line the contract:
+accent dot, "I'm holding this one", "Let it go" at the right edge, indented to the title column
+(the rowNote precedent). The title is said once; the strip's bold title repeat is deleted, not
+relocated. Tap the contract words for Focus, tap the title line to tick, "Let it go" stays one
+uninterrogated tap sharing releaseHold with the card's chip. The sage ending ("You closed the one
+I was holding.") plays in the same seat inside the cell, and the row now KEEPS ITS FLOAT through
+the closing beat (holdSecond no longer refuses a done task) so the celebration happens where the
+tick just happened, settling only after the fade. The everyday held row is its own render branch
+(outer View, toggle and contract-line pressables as SIBLINGS, the suggest branch's no-nesting
+rule). The standalone right-edge dot leaves the everyday rows: the border plus the in-cell line
+carry the state now, and Melroy had already called the lone dot ineffective. It stays in select
+mode, where the contract line does not render. A held SLICED task shows border-only (its card is
+tap-to-advance; restructuring it was not worth the blast radius today).
+
+**Decided:** the pin mark is a DRAWN pushpin (react-native-svg Path, accent colour), replacing the
+★. Melroy: "Star works... but it's ambiguous as a symbol." A star reads as favourite. A drawn
+path also cannot repeat the round-one iOS missing-glyph failure (the flag character a system font
+quietly did not draw); that is why it is an SVG and not another unicode character. The spoken
+labels never said "star", so no catalog changed.
+
+**Fixed, found by the web verification of this change:** the contract's ending choke point in
+today.tsx judged "held task gone" against the tasks array BEFORE the task list had loaded. On any
+boot where the stored contract loaded first, it silently released a live contract against the
+still-empty list. The web preview hit it on the first seeded boot; devices had only ever WON the
+race, not been immune (a big list or slow storage loses it). The guard is one line: the effect
+now waits for `loaded`. This was latent in the shipped 1.5.0 TestFlight builds.
+
+**Decided against:** giving the pinned row its own in-cell text line for symmetry ("for both
+pinned and held, extend the borders" read most sensibly as both list arrangements, with-pin and
+without). Pin has no ongoing words; a line saying "pinned" under a pin mark would be chrome. If
+Melroy meant something else, one render slot is waiting.

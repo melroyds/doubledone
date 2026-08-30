@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 
 import { border, cardShadow, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { t } from '@/lib/locale';
@@ -59,9 +60,25 @@ type Props = {
   onSelect?: () => void;
   nudgeAt?: number | null;
   tinyParent?: string | null; // set when this row is a make-it-tiny pebble: the dreaded parent's title
-  pinned?: boolean; // the day's one pinned priority (premium): a quiet accent star + tint; it floats to the top
+  pinned?: boolean; // the day's one pinned priority (premium): a quiet accent pin + tint; it floats to the top
   big?: boolean; // user-marked "a lot": a quiet accent tag beside the title (never a warning), honouring the weight
+  onHoldFocus?: () => void; // held rows: tap the in-cell contract line to open Focus on this task
+  onHoldRelease?: () => void; // held rows: the contract line's one-tap, uninterrogated "Let it go"
+  holdClosed?: boolean; // the contract just COMPLETED on this row: the sage closing line plays inside the cell
+  holdCloseFade?: Animated.Value; // the screen owns the closing beat's clock; the row just wears its opacity
 };
+
+// The pin mark, DRAWN, not typed: a plain thumbtack in the accent colour. It replaces the ★
+// (Melroy, 2026-08-30: a star reads as favourite, not pin), and it is an SVG on purpose. The
+// round-one flag glyph taught us an iOS font can silently not draw a character; a drawn path
+// cannot fail that way on any platform.
+function PinMark({ color, size }: { color: string; size: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" fill={color} />
+    </Svg>
+  );
+}
 
 // A single row. Tap to complete (a soft sage check, gentle fade, never a shaming
 // strike). Long-press to reveal this task's own actions in place (the held card
@@ -121,6 +138,10 @@ export function TaskRow({
   tinyParent,
   pinned,
   big,
+  onHoldFocus,
+  onHoldRelease,
+  holdClosed,
+  holdCloseFade,
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
@@ -219,6 +240,41 @@ export function TaskRow({
     (origin ? t('ours.rowLabelOriginSuffix') : '') +
     (note ? `, ${note}` : '') +
     (inert ? `. ${inert}` : '');
+
+  // The contract's line, INSIDE the cell border (Melroy's device verdict, 2026-08-30, superseding
+  // the separate strip above the row): the held task and the words about it are ONE bordered
+  // thing, so the title never appears twice. Tap the line for Focus; "Let it go" stays one
+  // visible, uninterrogated tap. The closed variant is the payoff: one sage italic line, no
+  // button, wearing the opacity of the screen-owned closing clock.
+  const holdLineEl = holdClosed ? (
+    <Animated.View style={[styles.holdLine, styles.holdLineClosed, holdCloseFade ? { opacity: holdCloseFade } : null]}>
+      <Text style={styles.holdClosedText}>{'✓'}  {t('today.holdClosed')}</Text>
+    </Animated.View>
+  ) : held ? (
+    <View style={styles.holdLine}>
+      <View style={styles.heldDot} accessible={false} importantForAccessibility="no" />
+      <Pressable
+        style={styles.holdLineMain}
+        onPress={onHoldFocus}
+        disabled={!onHoldFocus}
+        accessibilityRole="button"
+        accessibilityLabel={t('today.holdStripA11y', { title })}
+      >
+        <Text style={styles.holdLineText} numberOfLines={1}>{t('today.holdStrip')}</Text>
+      </Pressable>
+      {onHoldRelease && (
+        <Pressable
+          onPress={onHoldRelease}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('today.holdLetGoStripA11y')}
+          style={styles.holdLineLetGo}
+        >
+          <Text style={styles.holdLineLetGoText}>{t('today.holdLetGo')}</Text>
+        </Pressable>
+      )}
+    </View>
+  ) : null;
 
   // Multi-select mode: every row becomes a checkbox (tap to pick), and the calm
   // tap-to-complete / long-press menu are suspended until the user leaves select mode.
@@ -645,7 +701,7 @@ export function TaskRow({
         onPress={onAdvance}
         onLongPress={onLongPress}
         delayLongPress={400}
-        style={({ pressed }) => [styles.row, styles.rowUnique, styles.sliceColumn, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.row, styles.rowUnique, styles.sliceColumn, held && styles.rowHeld, pressed && styles.pressed]}
         accessibilityRole="button"
         accessibilityState={{ checked: complete }}
         accessibilityLabel={
@@ -694,11 +750,7 @@ export function TaskRow({
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
           {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
           {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
-          {/* The contract dot, HERE on the everyday row. The first device pass proved it missing:
-              it had been added only to the select-mode branch, which an ordinary row never shows.
-              A live contract invisible to sighted users was an oversight, not a decision. */}
-          {held && <View style={styles.heldDot} accessible={false} importantForAccessibility="no" />}
-          {pinned ? <Text style={styles.pinStar} accessible={false} importantForAccessibility="no">★</Text> : null}
+          {pinned ? <View accessible={false} importantForAccessibility="no"><PinMark color={theme.colors.accent} size={16 * theme.scale} /></View> : null}
         </Pressable>
         {onBreakdown && (
           <Pressable
@@ -711,6 +763,7 @@ export function TaskRow({
             <Text style={styles.suggestHint}>{t('welcome.revealBreakdownHint')}</Text>
           </Pressable>
         )}
+        {holdLineEl}
       </View>
     );
   }
@@ -739,6 +792,39 @@ export function TaskRow({
     );
   }
 
+  // A HELD row (or the beat right after its contract completed): the same everyday content, but
+  // the outer element is a View so the contract line's own pressables can be SIBLINGS of the
+  // toggle, never nested inside it (the suggest branch's rule). The border extends around both
+  // lines: one cell, one bordered thing (Melroy's device verdict, 2026-08-30).
+  if (held || holdClosed) {
+    return (
+      <View style={[styles.row, !recurring && !plain && styles.rowUnique, pinned && styles.rowPinned, !pinned && styles.rowHeld]}>
+        <Pressable
+          onPress={inert ? undefined : onToggle}
+          onLongPress={onLongPress}
+          delayLongPress={400}
+          hitSlop={{ top: 8, bottom: 4 }}
+          style={({ pressed }) => [styles.rowMain, pressed && !inert && styles.pressed]}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: done, disabled: Boolean(inert) }}
+          accessibilityLabel={rowLabel}
+        >
+          <CheckCircle done={done} dim={Boolean(inert)} />
+          {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
+          <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
+          {origin ? <Text style={styles.originMark} accessible={false} importantForAccessibility="no">{origin}</Text> : null}
+          {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
+          {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
+          {pinned ? <View accessible={false} importantForAccessibility="no"><PinMark color={theme.colors.accent} size={16 * theme.scale} /></View> : null}
+        </Pressable>
+        {note ?? inert ? (
+          <Text style={styles.rowNote} accessible={false} importantForAccessibility="no">{note ?? inert}</Text>
+        ) : null}
+        {holdLineEl}
+      </View>
+    );
+  }
+
   return (
     <Pressable
       onPress={inert ? undefined : onToggle}
@@ -748,7 +834,6 @@ export function TaskRow({
         styles.row,
         !recurring && !plain && styles.rowUnique,
         pinned && styles.rowPinned,
-        held && !pinned && styles.rowHeld,
         pressed && !inert && styles.pressed,
       ]}
       accessibilityRole="checkbox"
@@ -765,12 +850,8 @@ export function TaskRow({
         {origin ? <Text style={styles.originMark} accessible={false} importantForAccessibility="no">{origin}</Text> : null}
         {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
         {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
-          {/* The contract dot, HERE on the everyday row. The first device pass proved it missing:
-              it had been added only to the select-mode branch, which an ordinary row never shows.
-              A live contract invisible to sighted users was an oversight, not a decision. */}
-          {held && <View style={styles.heldDot} accessible={false} importantForAccessibility="no" />}
-        {/* the pin star sits last, at the extreme right, so it stays the clear cue beside any other mark */}
-        {pinned ? <Text style={styles.pinStar} accessible={false} importantForAccessibility="no">★</Text> : null}
+        {/* the pin mark sits last, at the extreme right, so it stays the clear cue beside any other mark */}
+        {pinned ? <View accessible={false} importantForAccessibility="no"><PinMark color={theme.colors.accent} size={16 * theme.scale} /></View> : null}
       </View>
       {/* THE NOTE, and until now it has never been visible to anybody.
           The prop existed, two screens passed it, and the only thing that ever consumed it was the
@@ -843,7 +924,16 @@ const makeStyles = (t: Theme) => {
     // accent border, deliberately lighter than the pin's thick border + tint, so the two read as
     // related but never equal: Pin stays the senior, paid mark.
     rowHeld: { borderColor: t.colors.accent, borderWidth: border.hair },
-    pinStar: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    // The contract's in-cell line: indented to the title column (the rowNote precedent), the dot
+    // as its bullet, "Let it go" ending at the card's right edge. Its closed (sage) variant runs
+    // the full width instead, one centred italic sentence.
+    holdLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.three, alignSelf: 'stretch', marginTop: spacing.two, marginLeft: 24 + spacing.four, minHeight: 36 },
+    holdLineMain: { flex: 1, minHeight: 36, justifyContent: 'center' },
+    holdLineText: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
+    holdLineLetGo: { minHeight: 36, justifyContent: 'center' },
+    holdLineLetGoText: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    holdLineClosed: { marginLeft: 0, backgroundColor: `${t.colors.done}26`, justifyContent: 'center', borderRadius: radius.md, paddingHorizontal: spacing.three },
+    holdClosedText: { color: t.colors.doneText, fontFamily: fonts.sans, fontStyle: 'italic', fontSize: 14 * t.scale, textAlign: 'center', flex: 1, paddingVertical: spacing.one },
     // A quiet accent tag (never danger red): the app agreeing this task is a lot, sized small so it never scolds.
     // "a lot" tag: a soft accent pill in standard; plain accent text (no pill chrome) in quiet.
     bigMark: {

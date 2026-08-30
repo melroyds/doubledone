@@ -466,9 +466,10 @@ describe('holdSecond', () => {
     expect(holdSecond(list, null)).toBe(list);
   });
 
-  it('never floats a done task: its contract is ending anyway', () => {
+  it('keeps a just-done task floated: the closing line plays at the top, where the tick happened', () => {
     const list = [t('a'), t('held', { done: true })];
-    expect(holdSecond(list, 'held')).toBe(list);
+    const out = holdSecond(list, 'held');
+    expect(out.map((x: { id: string }) => x.id)).toEqual(['held', 'a']);
   });
 
   it('a task that is both pinned and held keeps the pin seat, once', () => {

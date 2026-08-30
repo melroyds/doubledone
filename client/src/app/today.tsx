@@ -1,5 +1,5 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, AccessibilityInfo, Animated, AppState, Easing, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -330,8 +330,9 @@ export default function TodayScreen() {
   // restart always agree with the screen.
   const [hold, setHold] = useState<HoldContract | null>(null);
   const [holdSwapFor, setHoldSwapFor] = useState<Task | null>(null);
-  // The strip's ENDING: the completed contract's title, alive for one last frame ("You closed the
-  // one I was holding."), the emotional payoff of the whole feature. Null = no beat playing.
+  // The contract's ENDING: the completed contract's TASK ID, alive for one last frame ("You
+  // closed the one I was holding." plays inside that row's cell, still floated at the top), the
+  // emotional payoff of the whole feature. Null = no beat playing.
   const [holdClosing, setHoldClosing] = useState<string | null>(null);
   const [holdCloseFade] = useState(() => new Animated.Value(1)); // the repo's compiler-safe Animated pattern
   const [nudgeOpen, setNudgeOpen] = useState(false);
@@ -667,8 +668,11 @@ export default function TodayScreen() {
   // (tick, bulk-complete, remove, defer, sync pulling a change from another device) flows through
   // the tasks array, so watching it here ends the contract on ALL of them without each call site
   // having to remember. Done = completed; gone = released. Both cancel every scheduled knock.
+  // The `loaded` guard is load-bearing: on boot the stored contract can arrive BEFORE the stored
+  // tasks, and judging "gone" against the not-yet-loaded empty list silently released a live
+  // contract (caught on web 2026-08-30; devices had only been winning the race, not immune).
   useEffect(() => {
-    if (!hold) return;
+    if (!loaded || !hold) return;
     const held = tasks.find((x) => x.id === hold.taskId);
     const doneNow = held ? isDoneOn(held, today) : false;
     if (held && !doneNow) return;
@@ -676,16 +680,17 @@ export default function TodayScreen() {
     // Persist and cancel FIRST, then reflect in state from the async callback: the ordering is
     // honest (the world changes before the screen says so), and the React Compiler's
     // no-sync-setState-in-effect rule holds without a suppression.
-    const closedTitle = hold.title;
+    const closedId = hold.taskId;
     void (async () => {
       await saveHold(null);
       await cancelHold();
       track(doneNow ? 'hold.completed' : 'hold.released', { step });
       setHold(null);
       if (doneNow) {
-        // The strip's last frame: sage, one italic line, no button. Rests ~1.8s, then leaves
-        // (fades 400ms; under reduce-motion it leaves between frames). Announced once, politely.
-        setHoldClosing(closedTitle);
+        // The contract's last frame, INSIDE the ticked row's cell (by task id): sage, one italic
+        // line, no button. Rests ~1.8s, then leaves (fades 400ms; under reduce-motion it leaves
+        // between frames). Announced once, politely.
+        setHoldClosing(closedId);
         holdCloseFade.setValue(1);
         AccessibilityInfo.announceForAccessibility(t('today.holdClosed'));
         setTimeout(() => {
@@ -698,7 +703,7 @@ export default function TodayScreen() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, hold]);
+  }, [tasks, hold, loaded]);
 
   // Sweep elapsed "remind me" nudges whenever the app returns to the foreground, so a bell
   // whose time passed while the app was backgrounded clears on return. The load sweep covers
@@ -903,8 +908,10 @@ export default function TodayScreen() {
   }
 
   // The pin floats to the very top, the HELD task slots directly under it (Melroy's device
-  // verdict 2026-08-23; Pin stays senior by construction), then any accepted manual order.
-  const visible = holdSecond(pinFirst(applyManualOrder(tasksForToday(tasks, today))), hold && holdClosing == null ? hold.taskId : null);
+  // verdict 2026-08-23; Pin stays senior by construction), then any accepted manual order. The
+  // float persists through the closing beat (holdClosing) so the sage line plays where the tick
+  // just happened, then the row settles once the beat ends.
+  const visible = holdSecond(pinFirst(applyManualOrder(tasksForToday(tasks, today))), holdClosing ?? (hold ? hold.taskId : null));
   // The current week's deduped finishes: the scrapbook's raw material, read by the earned-moment mention.
   const weekFinishes = weekTitles(completionsByDay(tasks), weekStartISO(today)).length;
   const upcoming = upcomingTasks(tasks, today);
@@ -1201,47 +1208,12 @@ export default function TodayScreen() {
   // "Up" stops BELOW a pinned top task: pinFirst floats the pin above any stamped order, so
   // letting a task move into slot 0 would be a tap that visibly does nothing.
   const pinnedLead = visible.length > 0 && visible[0].pinnedAt != null && !isDoneOn(visible[0], today) ? 1 : 0;
-  // The floated block the reorder rail must not disturb: the pin, then the held row under it.
-  const reorderTopIdx = pinnedLead + (hold != null && visible[pinnedLead]?.id === hold.taskId ? 1 : 0);
-
-  // The held strip (design handoff 2026-08-23, Voice 1): LIST CONTENT at the head of the list,
-  // below a pinned row (reorderTopIdx is already "the first seat under the pin"), never in the
-  // constant frame. The app is the subject: it is doing the holding, the user is not failing.
-  // Identical on day one and day nine hundred; escalation lives only in the consented knocks.
-  // No border and visibly lighter than the pinned row: float and border stay Pin's paid signals.
-  const holdStripEl =
-    holdClosing != null ? (
-      <Animated.View style={[styles.holdStrip, styles.holdStripClosed, { opacity: holdCloseFade }]}>
-        <Text style={styles.holdClosedText}>{'\u2713'}  {t('today.holdClosed')}</Text>
-      </Animated.View>
-    ) : hold != null ? (
-      <View style={styles.holdStrip}>
-        <View style={styles.holdStripDot} accessible={false} importantForAccessibility="no" />
-        <Pressable
-          style={styles.holdStripMain}
-          onPress={() => {
-            setFocusPick(hold.taskId);
-            setFocusOpen(true);
-            track('focus.opened');
-          }}
-          accessibilityRole="button"
-          accessibilityLabel={t('today.holdStripA11y', { title: hold.title })}
-        >
-          <Text style={styles.holdStripText} numberOfLines={1}>
-            {t('today.holdStrip')} {'\u00b7'} <Text style={styles.holdStripTitle}>{hold.title}</Text>
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={releaseHold}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={t('today.holdLetGoStripA11y')}
-          style={styles.holdStripLetGo}
-        >
-          <Text style={styles.holdStripLetGoText}>{t('today.holdLetGo')}</Text>
-        </Pressable>
-      </View>
-    ) : null;
+  // The floated block the reorder rail must not disturb: the pin, then the held (or just-closed)
+  // row under it. The contract's words live INSIDE that row's cell now (TaskRow's holdLine,
+  // Melroy's device verdict 2026-08-30, superseding the separate strip): one bordered thing, so
+  // the title never appears twice and "Let it go" travels with the task it releases.
+  const floatedHeldId = holdClosing ?? hold?.taskId;
+  const reorderTopIdx = pinnedLead + (floatedHeldId != null && visible[pinnedLead]?.id === floatedHeldId ? 1 : 0);
 
   // Free manual reorder (born of the second "how do I re-order?" field report, 2026-08-04):
   // nudge a task one place in today's VISIBLE order by stamping the whole order via
@@ -2702,9 +2674,8 @@ export default function TodayScreen() {
         )}
         <View style={styles.list}>
           {visible.map((task, i) => (
-            <Fragment key={task.id}>
-              {i === pinnedLead && holdStripEl}
             <TaskRow
+              key={task.id}
               title={task.title}
               done={isDoneOn(task, today)}
               onToggle={() => toggle(task.id)}
@@ -2728,6 +2699,18 @@ export default function TodayScreen() {
               onNudge={Platform.OS !== 'web' && !isDoneOn(task, today) ? () => openNudge(task.id) : undefined}
               onHold={Platform.OS !== 'web' && (!isDoneOn(task, today) || hold?.taskId === task.id) ? () => tapHold(task) : undefined}
               held={hold?.taskId === task.id}
+              onHoldFocus={
+                hold?.taskId === task.id
+                  ? () => {
+                      setFocusPick(task.id);
+                      setFocusOpen(true);
+                      track('focus.opened');
+                    }
+                  : undefined
+              }
+              onHoldRelease={hold?.taskId === task.id ? releaseHold : undefined}
+              holdClosed={holdClosing === task.id}
+              holdCloseFade={holdCloseFade}
               onSteps={!isRecurring(task) && !isDoneOn(task, today) ? () => openSliceEdit(task.id) : undefined}
               onMoveTo={!isRecurring(task) ? () => setMoveIds([task.id]) : undefined}
               onDoneOn={isDoneOn(task, today) && !isRecurring(task) ? () => openDoneOn(task.id) : undefined}
@@ -2746,9 +2729,7 @@ export default function TodayScreen() {
               pinned={task.pinnedAt != null && !isDoneOn(task, today)}
               big={task.big}
             />
-            </Fragment>
           ))}
-          {visible.length > 0 && visible.length === pinnedLead && holdStripEl}
         </View>
 
         {loaded && visible.length === 0 && (
@@ -4471,24 +4452,6 @@ const makeStyles = (t: Theme) =>
     moveCancelWrap: { marginTop: spacing.three, alignItems: 'center' },
     combineList: { gap: spacing.one, marginTop: spacing.one, marginBottom: spacing.one },
     combineItem: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    holdStrip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.three,
-      backgroundColor: t.colors.accentSoft,
-      borderRadius: radius.md,
-      paddingHorizontal: spacing.four,
-      marginBottom: spacing.three,
-      minHeight: 44,
-    },
-    holdStripDot: { width: 8, height: 8, borderRadius: 999, backgroundColor: t.colors.accent },
-    holdStripMain: { flex: 1, minHeight: 44, justifyContent: 'center' },
-    holdStripText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
-    holdStripTitle: { color: t.colors.ink, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    holdStripLetGo: { minHeight: 44, justifyContent: 'center' },
-    holdStripLetGoText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    holdStripClosed: { backgroundColor: `${t.colors.done}26`, justifyContent: 'center' },
-    holdClosedText: { color: t.colors.doneText, fontFamily: fonts.sans, fontStyle: 'italic', fontSize: 15 * t.scale, textAlign: 'center', flex: 1, paddingVertical: spacing.two },
     focusPickList: { marginTop: spacing.five, gap: spacing.four, alignItems: 'center' },
     focusPickItem: { paddingVertical: spacing.two, paddingHorizontal: spacing.three },
     focusPickItemText: { color: t.colors.accent, fontFamily: fonts.sans, fontSize: 22 * t.scale, textAlign: 'center' },

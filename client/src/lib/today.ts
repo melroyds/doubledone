@@ -102,13 +102,15 @@ export function pinFirst<T extends Pinnable>(tasks: T[]): T[] {
  * SUPERSEDES the 2026-08-22 "the held row never floats" clause, by Melroy's device verdict
  * (2026-08-23): the dot alone was ineffective at row level. Pin stays visually senior by
  * construction here: the pin floats first and the held task slots under it, never above, so the
- * paid signal keeps its seat. A done task never floats (its contract is ending anyway), and the
- * same array reference comes back when nothing moves, matching pinFirst's contract.
+ * paid signal keeps its seat. A DONE task keeps floating on purpose: the ticked contract's
+ * closing line plays inside the cell (2026-08-30), and it must play at the top, where the tick
+ * just happened, not wherever the done row would otherwise land. The caller stops passing the id
+ * when the beat ends. Same array reference back when nothing moves, matching pinFirst's contract.
  */
 export function holdSecond<T extends Pinnable & { id: string }>(tasks: T[], heldId: string | null): T[] {
   if (!heldId) return tasks;
   const idx = tasks.findIndex((t) => t.id === heldId);
-  if (idx < 0 || tasks[idx].done) return tasks;
+  if (idx < 0) return tasks;
   const seat = tasks.length > 0 && tasks[0].pinnedAt != null && !tasks[0].done && tasks[0].id !== heldId ? 1 : 0;
   if (idx === seat) return tasks;
   const held = tasks[idx];
