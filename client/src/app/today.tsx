@@ -3957,6 +3957,15 @@ export default function TodayScreen() {
           error={bdError}
           onSubmit={bdSubmitQuestions}
           onCancel={resetBreakdown}
+          onCountInParts={
+            bdParentId
+              ? () => {
+                  const id = bdParentId;
+                  resetBreakdown();
+                  openSliceEdit(id);
+                }
+              : undefined
+          }
           today={today}
         />
       )}

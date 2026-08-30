@@ -7850,3 +7850,24 @@ now waits for `loaded`. This was latent in the shipped 1.5.0 TestFlight builds.
 pinned and held, extend the borders" read most sensibly as both list arrangements, with-pin and
 without). Pin has no ongoing words; a line saying "pinned" under a pin mark would be chrome. If
 Melroy meant something else, one render slot is waiting.
+
+
+---
+
+## 2026-08-30 The steps door moves to page ONE of Break it down
+
+Melroy, running R5 on build 28: the "Count it in parts instead" door only existed on the AI
+PROPOSAL page and the manual editor. On a task where the AI asks its clarifying questions first,
+the only route to the steps editor was to answer questions you never wanted and SPEND a Sonnet
+proposal call just to walk past the result. His words: "We are wasting a call to Claude. I'd
+rather have it on Page 1 with the questions."
+
+**Decided:** the questions page carries the same quiet one-row door at its bottom, above the AI
+disclosure, hidden while the proposal call is in flight (a door mid-spend would orphan the
+response). Same shape as the review page's: a proposal under a hairline, never a menu. Taking it
+closes the flow with no proposal call made. Verified live end to end on web: one clarify call,
+door tapped, questions closed, Track in steps open, no decomposition spend.
+
+**Decided against:** removing the door from page two now that page one has it. A person who reads
+the proposal and still prefers counting to named steps is exactly who page two's door serves;
+the two doors are one decision offered at both moments it gets made.
