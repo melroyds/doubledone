@@ -42,6 +42,19 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**THE IMMEDIATE NEXT ACTION (2026-08-30): ship 1.5.0.** "Hold me to it" is device-proven six of
+six across two rounds (the knock ladder, quiet hours, both exits, reboot survival, the in-cell
+contract line, the pushpin, the page-one steps door). PR #9 is out of draft, CI green,
+MERGEABLE. The train, in order, each step on Melroy's word: (1) merge PR #9 and push `main`
+(that push IS the web deploy); (2) `npx wrangler deploy` from `server/` (the telemetry allowlist
+grew hold.* + card-usage names; without this the Worker drops them); (3) iOS: build 29 is
+already in App Store Connect, attach it to a 1.5.0 version, paste What's New, submit for
+review; (4) Android: production AAB on explicit ask, closed track first, then promote, Play
+notes in the six-tag block; (5) hand-bump `client/public/version.json` per store only when
+1.5.0 is genuinely live there (and settle the stale 1.3.1 entries: 1.4.0's bumps were never
+done). Release notes for both stores are in the 2026-08-30 chat and can be regenerated from the
+decision log.
+
 **v1.0.0 (2026-06-25).** Combine shipped; the Android home-screen widget disabled (thought at the time to be a react-native-android-widget 0.20.3 / new-architecture incompatibility, an UNCONFIRMED diagnosis; **re-enabled 2026-07-25** with a self-diagnosing headless task after a code review found the library has supported new arch since 0.16.0, see decision-log); the daily reminder verified firing on a real device; the test-reminder debug scaffold removed; the version cut from 0.1.0.
 
 **versionCode 11 (2026-07-12).** The production AAB, cut from commit d983bbf and code-frozen under the `android-v11` git tag, device-verified on the matching APK before the cut, web deployed from the same commit. It carries the 2026-07-07 to 07-12 wave: the Quiet interface and custom colour themes (premium), Rhythms grown to a fixed-time meds mode and minutes-granular intervals (the curated 30-minute-to-12-hour ladder), the exact-alarm reliability arc (`SCHEDULE_EXACT_ALARM` declared, the "Allow alarms & reminders" door on Android 12+, the app-open resilience sweep, the one-sentence nudge health line), energy matching inside Focus mode (freemium, 15 free picks a calendar month), share-to-capture on both platforms, cross-device sync for the big flag and for scrapbooks, and the keepsake sharing as a page with its caption baked into the pixels.
