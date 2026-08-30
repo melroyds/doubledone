@@ -148,6 +148,15 @@ the ladder is fixed and readable, never randomised.
 
 The single home for consciously parked work. Nothing here is dropped; each item has a trigger for when it earns a place in the sequence. Premium-gated ideas live in [`docs/premium.md`](docs/premium.md).
 
+- **Register the EAS upload key in Android developer verification** (Play Console → Android
+  developer verification → the app.doubledone row → add the upload-key certificate's SHA-256,
+  copied from Setup → App signing). The package name and Melroy's identity were both verified
+  DONE on 2026-08-30; the one leftover is that sideloaded EAS test APKs are signed with the
+  upload key, which is not the registered Play App Signing key, and Google's unregistered-key
+  install block rolls out country by country (Australia not in the first wave). **Trigger:** a
+  sideloaded APK refuses to install on a certified device, or Google announces enforcement
+  reaching Australia.
+
 ### Parked from the 2026-08-19 billing investigation
 
 Five things the adversarial panel deliberately did NOT build, each with the trigger that would earn
