@@ -42,6 +42,19 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**THE IMMEDIATE NEXT ACTION (2026-08-30): ship 1.5.0.** "Hold me to it" is device-proven six of
+six across two rounds (the knock ladder, quiet hours, both exits, reboot survival, the in-cell
+contract line, the pushpin, the page-one steps door). PR #9 is out of draft, CI green,
+MERGEABLE. The train, in order, each step on Melroy's word: (1) merge PR #9 and push `main`
+(that push IS the web deploy); (2) `npx wrangler deploy` from `server/` (the telemetry allowlist
+grew hold.* + card-usage names; without this the Worker drops them); (3) iOS: build 29 is
+already in App Store Connect, attach it to a 1.5.0 version, paste What's New, submit for
+review; (4) Android: production AAB on explicit ask, closed track first, then promote, Play
+notes in the six-tag block; (5) hand-bump `client/public/version.json` per store only when
+1.5.0 is genuinely live there (and settle the stale 1.3.1 entries: 1.4.0's bumps were never
+done). Release notes for both stores are in the 2026-08-30 chat and can be regenerated from the
+decision log.
+
 **v1.0.0 (2026-06-25).** Combine shipped; the Android home-screen widget disabled (thought at the time to be a react-native-android-widget 0.20.3 / new-architecture incompatibility, an UNCONFIRMED diagnosis; **re-enabled 2026-07-25** with a self-diagnosing headless task after a code review found the library has supported new arch since 0.16.0, see decision-log); the daily reminder verified firing on a real device; the test-reminder debug scaffold removed; the version cut from 0.1.0.
 
 **versionCode 11 (2026-07-12).** The production AAB, cut from commit d983bbf and code-frozen under the `android-v11` git tag, device-verified on the matching APK before the cut, web deployed from the same commit. It carries the 2026-07-07 to 07-12 wave: the Quiet interface and custom colour themes (premium), Rhythms grown to a fixed-time meds mode and minutes-granular intervals (the curated 30-minute-to-12-hour ladder), the exact-alarm reliability arc (`SCHEDULE_EXACT_ALARM` declared, the "Allow alarms & reminders" door on Android 12+, the app-open resilience sweep, the one-sentence nudge health line), energy matching inside Focus mode (freemium, 15 free picks a calendar month), share-to-capture on both platforms, cross-device sync for the big flag and for scrapbooks, and the keepsake sharing as a page with its caption baked into the pixels.
@@ -92,6 +105,44 @@ and the AI features answer in German the moment the resolver says 'de'.*
 - **Phase 5, the storefronts (Melroy's dashboards).** Play + App Store German metadata,
   localized screenshots, and What's New translations; both stores already serve worldwide, so
   this is discoverability polish, not availability.
+
+## ACTIVE: "Hold me to it" (target: 1.5.0)
+
+Born from user feedback (2026-08-22): some ADHD / AuDHD users said the calm energy reads as
+IGNORABLE at the exact moment they need the opposite, and asked for forceful, persistent reminders.
+Their word was "contract", and that word is the design: consensual firmness, agreed in a calm
+moment, executed in the weak one. This stays inside the never-shame spine because shame is
+judgment and force is delivery: the rule governs how the app treats the PAST; a held task is about
+the FUTURE, at an intensity the user chose per task.
+
+Three invariants that cannot break: **one contract at a time** (scarcity keeps the force
+meaningful; fatigue ends with notifications off entirely), **escalation of delivery, never of
+judgment** (the fifth reminder uses the same calm words as the first; no counters), and **the exit
+is one tap and never questioned** (tick it or "Let it go", no confirm, no comment). The OCD caveat
+is recorded in `lib/hold.ts` where the cadence lives; the autistic need for predictability is why
+the ladder is fixed and readable, never randomised.
+
+- **Wave 1 (engine): DONE** (ebe6d62). Pure `lib/hold.ts` (ladder 30m / 90m / 3h / 6h, quiet-hours
+  21:30-08:30 with morning-collapse, daily 09:30 follow-up, one-at-a-time), storage, 14 tests.
+- **Wave 2 (glue + UI): DONE** (b6d98e2). Own Android channel (`hold-v1`), pre-scheduled knocks with
+  cancel-by-prefix, resilience-sweep healing, the held-card chip (one control, two states), the swap
+  dialog, row flag + a11y suffix, catalogs ×5, E2E HLD-01..05.
+- **Wave 3 (instrumentation): DONE** (b6d98e2). hold started / completed / released with a capped
+  step, folded server-side into `.first`/`.ladder`/`.days`; privacy policy updated in the same
+  commit; surfaces automatically in the Analytics Centre's per-event table.
+- **DEVICE PASS: 9 of 10, 2026-08-23** (Melroy's iPhone, TestFlight). Quiet-night collapse, the
+  08:30 + 09:30 morning knocks, the full four-knock daytime ladder (10:20 hold, all word-identical,
+  app closed), both exits including release-with-a-knock-pending, REBOOT survival, and the
+  permission-denied honesty case: all passed. The one fail was T1, cosmetic (an invisible row mark:
+  a glyph the iOS font did not draw, in a branch ordinary rows never render; plus the fold sub-line
+  overflowing). Both root-caused and fixed on the branch the same night.
+- **REMAINING before 1.5.0: the round-two pass** on a fresh TestFlight build carrying everything
+  (the T1 fixes, the dot, the Focus fallback, the fold at four, the strip and its ending): re-run
+  T1 plus spot-check the new surfaces (HLD-06/07). PR #9 leaves draft when that passes.
+- **Parked, Tier 3, trigger = real usage proving the soft version insufficient:** alarm-class
+  delivery (Android full-screen intent, iOS time-sensitive). Doubles the size; permissions and
+  review risk.
+- **Never (Tier 4):** streaks, money stakes, social accountability. Off-spine.
 
 ## Backlog (deferred, with triggers)
 

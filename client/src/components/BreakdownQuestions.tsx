@@ -26,6 +26,7 @@ type Props = {
   error?: string | null;
   onSubmit: (answers: BreakdownAnswers) => void;
   onCancel: () => void;
+  onCountInParts?: () => void; // existing tasks only: the steps-editor door, HERE so it never costs an AI call
   today: Date;
 };
 
@@ -33,7 +34,7 @@ type Props = {
 // control for each. The due date offers quick chips plus a full date picker (so a
 // far deadline like "by July 15" works), pre-filled with any date the AI spotted
 // in the task. Everything is pre-set, so the fast path is just "Break it down".
-export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onCancel, today }: Props) {
+export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onCancel, onCountInParts, today }: Props) {
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
   const presets: { label: string; iso: string | null }[] = [
@@ -136,6 +137,22 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
             <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel={t('common.notNow')}>
               <Text style={styles.dismiss}>{t('common.notNow')}</Text>
             </Pressable>
+            {/* The steps-editor door, on PAGE ONE (Melroy, 2026-08-30, device round two): a person
+                who wants parts counted rather than steps named must not have to answer the AI's
+                questions and SPEND A CLAUDE CALL to walk past the proposal. Same quiet one-row
+                shape as the review page's door: a proposal, never a menu. */}
+            {onCountInParts && !busy && (
+              <Pressable
+                onPress={onCountInParts}
+                accessibilityRole="button"
+                accessibilityLabel={t('today.countInParts')}
+                hitSlop={8}
+                style={styles.altRow}
+              >
+                <Text style={styles.altLabel}>{t('today.countInParts')}</Text>
+                <Text style={styles.altSub}>{t('today.stepsCountHint')}</Text>
+              </Pressable>
+            )}
 
             <Text style={styles.disclosure} accessibilityRole="text">
               {t('breakdown.aiDisclosure')}
@@ -167,6 +184,16 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   btn: { marginTop: spacing.three },
   dismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.two },
+  altRow: {
+    borderTopWidth: border.hair,
+    borderTopColor: t.colors.line,
+    marginTop: spacing.four,
+    paddingTop: spacing.three,
+    alignItems: 'center',
+    gap: 2,
+  },
+  altLabel: { color: t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+  altSub: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body },
   waitNote: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', lineHeight: 20 * t.scale, marginTop: spacing.two },
   errorNote: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', lineHeight: 20 * t.scale, marginTop: spacing.two },
   disclosure: {

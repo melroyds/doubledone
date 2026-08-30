@@ -130,3 +130,11 @@ export function exactAlarmDoorRelevant(): boolean {
 export async function openExactAlarmSettings(): Promise<void> {
   // nothing to open on web
 }
+
+// "Hold me to it" is native-only, like every nudge here: the web build no-ops and the caller
+// hides the affordance.
+export async function scheduleHold(_taskId: string, _title: string, _heldAt: Date, _opts: { quiet?: boolean } = {}): Promise<string[] | null> {
+  return null;
+}
+export async function cancelHold(): Promise<void> {}
+export async function resyncHold(_contract: import('./hold').HoldContract | null): Promise<void> {}

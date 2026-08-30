@@ -97,6 +97,28 @@ export function pinFirst<T extends Pinnable>(tasks: T[]): T[] {
 }
 
 /**
+ * Float the HELD task to the top of the list, always BELOW a pinned task.
+ *
+ * SUPERSEDES the 2026-08-22 "the held row never floats" clause, by Melroy's device verdict
+ * (2026-08-23): the dot alone was ineffective at row level. Pin stays visually senior by
+ * construction here: the pin floats first and the held task slots under it, never above, so the
+ * paid signal keeps its seat. A DONE task keeps floating on purpose: the ticked contract's
+ * closing line plays inside the cell (2026-08-30), and it must play at the top, where the tick
+ * just happened, not wherever the done row would otherwise land. The caller stops passing the id
+ * when the beat ends. Same array reference back when nothing moves, matching pinFirst's contract.
+ */
+export function holdSecond<T extends Pinnable & { id: string }>(tasks: T[], heldId: string | null): T[] {
+  if (!heldId) return tasks;
+  const idx = tasks.findIndex((t) => t.id === heldId);
+  if (idx < 0) return tasks;
+  const seat = tasks.length > 0 && tasks[0].pinnedAt != null && !tasks[0].done && tasks[0].id !== heldId ? 1 : 0;
+  if (idx === seat) return tasks;
+  const held = tasks[idx];
+  const rest = tasks.filter((t) => t !== held);
+  return [...rest.slice(0, seat), held, ...rest.slice(seat)];
+}
+
+/**
  * Pin a task as the day's ONE priority, or unpin it (acting on the current pin clears it). Stamps
  * pinnedAt on the target, clears the pin off every OTHER task, and bumps updatedAt on each change so a
  * displaced pin syncs and wins last-write-wins. The at-most-one invariant lives here, kept pure so it is

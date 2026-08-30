@@ -64,12 +64,13 @@ import { type SupabaseClient } from '@supabase/supabase-js';
 import { buildOutcome } from '@/lib/outcome';
 import { scheduleFields, type CaptureSchedule, type Recurrence } from '@/lib/recurrence';
 import { availableNudgePresets, isWindDownTime, type NudgePreset, nudgeTargetFor } from '@/lib/nudge';
-import { cancelNudge, disableDailyReminder, enableDailyReminder, scheduleNudge } from '@/lib/reminders';
+import { cancelHold, cancelNudge, disableDailyReminder, enableDailyReminder, scheduleHold, scheduleNudge } from '@/lib/reminders';
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
 import { decideRenewalNotice } from '@/lib/renewal';
-import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursMine, loadOursSeen, loadOursTasks, loadReminderHour, loadRenewalMemory, loadUpdateMentioned, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveRenewalMemory, saveUpdateMentioned, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
+import { type HoldContract, holdRequiresSwap, holdStepAt } from '@/lib/hold';
+import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHold, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursMine, loadOursSeen, loadOursTasks, loadReminderHour, loadRenewalMemory, loadUpdateMentioned, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHold, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveRenewalMemory, saveUpdateMentioned, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
 import { restedOffer } from '@/lib/offers';
 import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/plan-day';
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
@@ -85,7 +86,7 @@ import { track } from '@/lib/telemetry';
 import { updateWidget } from '@/widget/update';
 import { useReducedMotion, useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { usePremium } from '@/lib/premium-provider';
-import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, isDoneOn, isRecurring, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, upcomingTasks } from '@/lib/today';
+import { applyManualOrder, completeAncestors, deferTo, hasActiveTinyChild, holdSecond, isDoneOn, isRecurring, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, upcomingTasks } from '@/lib/today';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
@@ -324,6 +325,16 @@ export default function TodayScreen() {
   const [manualBdId, setManualBdId] = useState<string | null>(null); // the task being broken down by hand (becomes the silent parent)
   const [manualBdTitle, setManualBdTitle] = useState(''); // its title, for the modal heading
   const [manualBdText, setManualBdText] = useState(''); // the typed steps, one per line
+  // "Hold me to it": the ONE live contract, plus the task waiting on the swap question. Loaded
+  // once on mount; every mutation writes storage in the same breath so the resilience sweep and a
+  // restart always agree with the screen.
+  const [hold, setHold] = useState<HoldContract | null>(null);
+  const [holdSwapFor, setHoldSwapFor] = useState<Task | null>(null);
+  // The contract's ENDING: the completed contract's TASK ID, alive for one last frame ("You
+  // closed the one I was holding." plays inside that row's cell, still floated at the top), the
+  // emotional payoff of the whole feature. Null = no beat playing.
+  const [holdClosing, setHoldClosing] = useState<string | null>(null);
+  const [holdCloseFade] = useState(() => new Animated.Value(1)); // the repo's compiler-safe Animated pattern
   const [nudgeOpen, setNudgeOpen] = useState(false);
   const [nudgeId, setNudgeId] = useState<string | null>(null); // the task the reminder is for, captured at open time (pickNudge awaits, so a derived read could shift under it)
   const [nudgePresets, setNudgePresets] = useState<NudgePreset[]>([]);
@@ -647,6 +658,53 @@ export default function TodayScreen() {
     };
   }, []);
 
+  // Load the live contract once. Separate from the task loader on purpose: a broken contract read
+  // must never delay Today rendering.
+  useEffect(() => {
+    void loadHold().then(setHold);
+  }, []);
+
+  // The contract's ONE ending choke point. Every path that finishes or removes the held task
+  // (tick, bulk-complete, remove, defer, sync pulling a change from another device) flows through
+  // the tasks array, so watching it here ends the contract on ALL of them without each call site
+  // having to remember. Done = completed; gone = released. Both cancel every scheduled knock.
+  // The `loaded` guard is load-bearing: on boot the stored contract can arrive BEFORE the stored
+  // tasks, and judging "gone" against the not-yet-loaded empty list silently released a live
+  // contract (caught on web 2026-08-30; devices had only been winning the race, not immune).
+  useEffect(() => {
+    if (!loaded || !hold) return;
+    const held = tasks.find((x) => x.id === hold.taskId);
+    const doneNow = held ? isDoneOn(held, today) : false;
+    if (held && !doneNow) return;
+    const step = holdStepAt(new Date(hold.heldAt), new Date());
+    // Persist and cancel FIRST, then reflect in state from the async callback: the ordering is
+    // honest (the world changes before the screen says so), and the React Compiler's
+    // no-sync-setState-in-effect rule holds without a suppression.
+    const closedId = hold.taskId;
+    void (async () => {
+      await saveHold(null);
+      await cancelHold();
+      track(doneNow ? 'hold.completed' : 'hold.released', { step });
+      setHold(null);
+      if (doneNow) {
+        // The contract's last frame, INSIDE the ticked row's cell (by task id): sage, one italic
+        // line, no button. Rests ~1.8s, then leaves (fades 400ms; under reduce-motion it leaves
+        // between frames). Announced once, politely.
+        setHoldClosing(closedId);
+        holdCloseFade.setValue(1);
+        AccessibilityInfo.announceForAccessibility(t('today.holdClosed'));
+        setTimeout(() => {
+          if (reduced) {
+            setHoldClosing(null);
+          } else {
+            Animated.timing(holdCloseFade, { toValue: 0, duration: 400, useNativeDriver: true }).start(() => setHoldClosing(null));
+          }
+        }, 1800);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, hold, loaded]);
+
   // Sweep elapsed "remind me" nudges whenever the app returns to the foreground, so a bell
   // whose time passed while the app was backgrounded clears on return. The load sweep covers
   // a cold open, this covers a warm resume (which does not re-fire useFocusEffect). Reads the
@@ -849,7 +907,11 @@ export default function TodayScreen() {
     }
   }
 
-  const visible = pinFirst(applyManualOrder(tasksForToday(tasks, today))); // the pin floats to the very top, then any accepted manual order
+  // The pin floats to the very top, the HELD task slots directly under it (Melroy's device
+  // verdict 2026-08-23; Pin stays senior by construction), then any accepted manual order. The
+  // float persists through the closing beat (holdClosing) so the sage line plays where the tick
+  // just happened, then the row settles once the beat ends.
+  const visible = holdSecond(pinFirst(applyManualOrder(tasksForToday(tasks, today))), holdClosing ?? (hold ? hold.taskId : null));
   // The current week's deduped finishes: the scrapbook's raw material, read by the earned-moment mention.
   const weekFinishes = weekTitles(completionsByDay(tasks), weekStartISO(today)).length;
   const upcoming = upcomingTasks(tasks, today);
@@ -991,12 +1053,6 @@ export default function TodayScreen() {
   // Push a one-off to tomorrow: a calm "not today" that moves a single task
   // forward a day (it returns tomorrow), the single-task sibling of close-the-day's
   // roll forward. Never-shame: no counter, no penalty, just a date move.
-  function deferTask(id: string) {
-    const now = nowMs();
-    commit(tasks.map((t) => (t.id === id ? clearNudgeIfAny({ ...deferToTomorrow(t, today), updatedAt: now }) : t)));
-    setConfirmingId(null);
-    track('task.deferred');
-  }
 
   // "Done on…": mark a rolled-over task done as of the EARLIER day it was actually
   // finished, so the Lookback attributes it honestly. This is bookkeeping, not a fresh
@@ -1032,10 +1088,18 @@ export default function TodayScreen() {
   }
 
   function openFocus() {
-    // Focus opens straight to the pinned task when there is one, so pin and Focus compose: the pin
-    // is the persistent anchor, Focus is the session that works it. Otherwise it asks "Which one?".
+    // Focus opens on the task the user has already singled out, in ONE predictable order: the
+    // pinned task first (the explicitly chosen day's-one-priority, and the paid anchor), else the
+    // HELD task (the Hold-me-to-it contract: you told the app what you're committed to, so a focus
+    // session assumes that's the thing), else it asks "Which one?". The held fallback never traps:
+    // the session's own "Choose another" is the one-tap way to work something else first, so the
+    // app suggests the dread, it never insists on it. Pin outranks Hold on purpose: when both
+    // exist the user has made two statements, and "this is my priority" beats "knock me about
+    // this one".
     const pinned = spreadable.find((t) => t.pinnedAt != null);
-    setFocusPick(pinned ? pinned.id : null);
+    const heldTask = hold ? spreadable.find((t) => t.id === hold.taskId) : undefined;
+    const target = pinned ?? heldTask;
+    setFocusPick(target ? target.id : null);
     setFocusOpen(true);
     track('focus.opened');
   }
@@ -1143,7 +1207,13 @@ export default function TodayScreen() {
   }
   // "Up" stops BELOW a pinned top task: pinFirst floats the pin above any stamped order, so
   // letting a task move into slot 0 would be a tap that visibly does nothing.
-  const reorderTopIdx = visible.length > 0 && visible[0].pinnedAt != null && !isDoneOn(visible[0], today) ? 1 : 0;
+  const pinnedLead = visible.length > 0 && visible[0].pinnedAt != null && !isDoneOn(visible[0], today) ? 1 : 0;
+  // The floated block the reorder rail must not disturb: the pin, then the held (or just-closed)
+  // row under it. The contract's words live INSIDE that row's cell now (TaskRow's holdLine,
+  // Melroy's device verdict 2026-08-30, superseding the separate strip): one bordered thing, so
+  // the title never appears twice and "Let it go" travels with the task it releases.
+  const floatedHeldId = holdClosing ?? hold?.taskId;
+  const reorderTopIdx = pinnedLead + (floatedHeldId != null && visible[pinnedLead]?.id === floatedHeldId ? 1 : 0);
 
   // Free manual reorder (born of the second "how do I re-order?" field report, 2026-08-04):
   // nudge a task one place in today's VISIBLE order by stamping the whole order via
@@ -1320,6 +1390,56 @@ export default function TodayScreen() {
   // "Remind me": a calm preset chooser (the late-night guard hides anything that would fire
   // past 9pm), then a local nudge for the held task, stamped so the row shows it and so done /
   // remove / defer can cancel it. Native only; the web build no-ops.
+  // "Hold me to it": make (or swap, or release) the one contract. The exit is one tap and never
+  // questioned; only a SWAP asks anything, because it is a choice between two contracts, not a
+  // confirmation of one.
+  async function engageHold(task: Task) {
+    const heldAt = new Date();
+    const ids = await scheduleHold(task.id, task.title, heldAt);
+    if (!ids) {
+      // Notifications are off: the contract cannot knock, so it does not pretend to exist.
+      affirm(t('today.holdNoPermission'));
+      dismissActions();
+      return;
+    }
+    const contract: HoldContract = { taskId: task.id, title: task.title, heldAt: heldAt.getTime(), notifIds: ids };
+    setHold(contract);
+    void saveHold(contract);
+    track('hold.started');
+    affirm(t('today.holdSetAffirm'));
+    dismissActions();
+  }
+  // ONE exit, shared by the card's chip and the strip's "Let it go": one tap, no dialog, no
+  // comment. Releasing is a state change, not a failure.
+  function releaseHold() {
+    if (!hold) return;
+    const step = holdStepAt(new Date(hold.heldAt), new Date());
+    track('hold.released', { step });
+    setHold(null);
+    void saveHold(null);
+    void cancelHold();
+    affirm(t('today.holdLetGoAffirm'));
+  }
+  function tapHold(task: Task) {
+    if (hold?.taskId === task.id) {
+      releaseHold();
+      dismissActions();
+      return;
+    }
+    if (holdRequiresSwap(hold, task.id)) {
+      setHoldSwapFor(task);
+      return;
+    }
+    void engageHold(task);
+  }
+  function confirmHoldSwap() {
+    const task = holdSwapFor;
+    setHoldSwapFor(null);
+    if (!task || !hold) return;
+    track('hold.released', { step: holdStepAt(new Date(hold.heldAt), new Date()), swapped: 1 });
+    void engageHold(task); // scheduleHold cancels the old ids itself (idempotent by prefix)
+  }
+
   function openNudge(id: string) {
     setNudgeId(id);
     setNudgePresets(availableNudgePresets(new Date()));
@@ -2566,19 +2686,31 @@ export default function TodayScreen() {
               recurring={isRecurring(task)}
               /* Reorder eligibility: never on a done task, never on the pinned task (pinFirst
                  refloats it, the tap would look dead), and "up" stops below a pinned top. */
-              onMoveUp={canReorder(task, today) && i > reorderTopIdx ? () => moveRow(task.id, -1) : undefined}
-              onMoveDown={canReorder(task, today) && i < visible.length - 1 ? () => moveRow(task.id, 1) : undefined}
+              onMoveUp={canReorder(task, today) && task.id !== hold?.taskId && i > reorderTopIdx ? () => moveRow(task.id, -1) : undefined}
+              onMoveDown={canReorder(task, today) && task.id !== hold?.taskId && i >= reorderTopIdx && i < visible.length - 1 ? () => moveRow(task.id, 1) : undefined}
               slices={task.slices ?? undefined}
               onAdvance={() => step(task.id, 1)}
-              onRetreat={() => step(task.id, -1)}
               onBreakdown={aiEnabled ? () => breakdownExisting(task.title, task.id) : () => openManualBreakdown(task.id, task.title)}
               onMakeTiny={aiEnabled ? () => makeTiny(task.id, task.title) : undefined}
-              onDefer={() => deferTask(task.id)}
               onBig={() => bigRow(task)}
               onPin={() => pinRow(task)}
               onSelectMore={() => selectFromRow(task.id)}
               onRename={(title) => renameRow(task.id, title)}
               onNudge={Platform.OS !== 'web' && !isDoneOn(task, today) ? () => openNudge(task.id) : undefined}
+              onHold={Platform.OS !== 'web' && (!isDoneOn(task, today) || hold?.taskId === task.id) ? () => tapHold(task) : undefined}
+              held={hold?.taskId === task.id}
+              onHoldFocus={
+                hold?.taskId === task.id
+                  ? () => {
+                      setFocusPick(task.id);
+                      setFocusOpen(true);
+                      track('focus.opened');
+                    }
+                  : undefined
+              }
+              onHoldRelease={hold?.taskId === task.id ? releaseHold : undefined}
+              holdClosed={holdClosing === task.id}
+              holdCloseFade={holdCloseFade}
               onSteps={!isRecurring(task) && !isDoneOn(task, today) ? () => openSliceEdit(task.id) : undefined}
               onMoveTo={!isRecurring(task) ? () => setMoveIds([task.id]) : undefined}
               onDoneOn={isDoneOn(task, today) && !isRecurring(task) ? () => openDoneOn(task.id) : undefined}
@@ -3255,6 +3387,22 @@ export default function TodayScreen() {
                 accessibilityLabel={t('breakdown.manualSubmitA11y')}
               />
             </View>
+            {manualBdId != null && (
+              <Pressable
+                onPress={() => {
+                  const id = manualBdId;
+                  closeManualBreakdown();
+                  if (id) openSliceEdit(id);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={t('today.countInParts')}
+                hitSlop={8}
+                style={styles.doorAltRow}
+              >
+                <Text style={styles.doorAltLabel}>{t('today.countInParts')}</Text>
+                <Text style={styles.doorAltSub}>{t('today.stepsCountHint')}</Text>
+              </Pressable>
+            )}
       </ModalCard>
 
       <ModalCard visible={moveIds != null} onClose={() => setMoveIds(null)}>
@@ -3308,6 +3456,19 @@ export default function TodayScreen() {
             >
               <Text style={styles.didCancel}>{t('common.cancel')}</Text>
             </Pressable>
+      </ModalCard>
+
+      {/* The swap question. The ONLY dialog in the whole feature, because a swap is a choice
+          between two contracts, not a confirmation. Both answers are honourable. */}
+      <ModalCard visible={holdSwapFor != null} onClose={() => setHoldSwapFor(null)}>
+            <Text style={styles.didTitle}>{t('today.holdSwapTitle')}</Text>
+            <Text style={styles.didHint}>{t('today.holdSwapBody', { title: hold?.title ?? '' })}</Text>
+            <View style={styles.didActions}>
+              <Pressable onPress={() => setHoldSwapFor(null)} accessibilityRole="button" accessibilityLabel={t('common.cancel')} hitSlop={8}>
+                <Text style={styles.didCancel}>{t('common.cancel')}</Text>
+              </Pressable>
+              <PrimaryButton label={t('today.holdSwapConfirm')} onPress={confirmHoldSwap} accessibilityLabel={t('today.holdSwapConfirm')} />
+            </View>
       </ModalCard>
 
       {/* "Done on…": pick the earlier day a rolled-over task was actually finished (yesterday back to
@@ -3366,6 +3527,30 @@ export default function TodayScreen() {
       <ModalCard visible={sliceEditOpen} onClose={() => setSliceEditOpen(false)}>
             <Text style={styles.didTitle}>{t('today.sliceTitle')}</Text>
             <Text style={styles.didHint}>{t('today.sliceHint')}</Text>
+            {/* The editor owns Undo-a-step now (out of the card's fold): it sits beside the live
+                count and appears only when a step CAN be undone. Editor context, so
+                appear-when-actable; the dim-in-place rule is for stable card surfaces. */}
+            {(() => {
+              const held = sliceEditId != null ? tasks.find((x) => x.id === sliceEditId) : undefined;
+              if (!held?.slices) return null;
+              return (
+                <View style={styles.sliceNowRow}>
+                  <Text style={styles.sliceNow}>
+                    {held.slices.done} / {held.slices.total}
+                  </Text>
+                  {held.slices.done > 0 && (
+                    <Pressable
+                      onPress={() => step(held.id, -1)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('today.stepBackLabel', { title: held.title })}
+                      hitSlop={8}
+                    >
+                      <Text style={styles.sliceUndo}>{t('today.undoAStep')}</Text>
+                    </Pressable>
+                  )}
+                </View>
+              );
+            })()}
             <View style={styles.sliceEditStepper}>
               <Pressable
                 onPress={() => setSliceEditCount((n) => Math.max(MIN_SLICES, n - 1))}
@@ -3772,6 +3957,15 @@ export default function TodayScreen() {
           error={bdError}
           onSubmit={bdSubmitQuestions}
           onCancel={resetBreakdown}
+          onCountInParts={
+            bdParentId
+              ? () => {
+                  const id = bdParentId;
+                  resetBreakdown();
+                  openSliceEdit(id);
+                }
+              : undefined
+          }
           today={today}
         />
       )}
@@ -3784,6 +3978,15 @@ export default function TodayScreen() {
           busy={bdBusy}
           onAdd={bdAccept}
           onCancel={resetBreakdown}
+          onCountInParts={
+            bdParentId
+              ? () => {
+                  const id = bdParentId;
+                  resetBreakdown();
+                  openSliceEdit(id);
+                }
+              : undefined
+          }
           today={today}
         />
       )}
@@ -3985,6 +4188,12 @@ const makeStyles = (t: Theme) =>
     sliceStepBtn: { width: 44, height: 44, borderRadius: radius.pill, borderWidth: border.hair, borderColor: t.colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: t.colors.surface },
     sliceStepBtnOff: { opacity: 0.4 },
     sliceStepGlyph: { fontSize: 26 * t.scale, lineHeight: 30 * t.scale, color: t.colors.accent, fontFamily: fonts.body },
+    sliceNowRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.two },
+    sliceNow: { color: t.colors.ink, fontFamily: fonts.bodyBold, fontWeight: '700', fontSize: 15 * t.scale },
+    sliceUndo: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '600', fontSize: 14 * t.scale },
+    doorAltRow: { borderTopWidth: border.hair, borderTopColor: t.colors.line, marginTop: spacing.four, paddingTop: spacing.three, alignItems: 'center', gap: 2 },
+    doorAltLabel: { color: t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    doorAltSub: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body },
     sliceStepValue: { ...t.type.heading, color: t.colors.ink, minWidth: 110, textAlign: 'center' },
     selectDone: { color: t.colors.doneText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     selectRemove: { color: t.colors.danger, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', textAlign: 'right' },

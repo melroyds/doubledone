@@ -3,6 +3,7 @@ import * as IntentLauncher from 'expo-intent-launcher';
 import * as Notifications from 'expo-notifications';
 import { Linking, Platform } from 'react-native';
 
+import { DAILY_FOLLOW_UP, escalationTimes, type HoldContract } from './hold';
 import { t } from './i18n-active';
 import { DAILY_CHANNEL, nextDailySlot, type ReminderResult, RHYTHM_CHANNEL, staleNudgeIdentifiers, TASK_NUDGE_CHANNEL, slotTimeoutsMs } from './reminders-types';
 import { rhythmFireTimes, rhythmSlotId, rhythmSlotIdPrefix, type Routine } from './routines';
@@ -240,6 +241,87 @@ export async function scheduleNudge(taskId: string, title: string, at: Date): Pr
     });
   } catch {
     return null;
+  }
+}
+
+/** "Hold me to it" gets its OWN Android channel, so a user can tune the contract's loudness
+ *  separately from ordinary nudges without losing either. */
+const HOLD_CHANNEL_ID = 'hold-v1';
+const HOLD_ID_PREFIX = 'hold-';
+
+/**
+ * Schedule the whole contract up front: every same-day step plus the daily 09:30 follow-up.
+ * Pre-scheduled rather than chained, because a chain needs the app running at fire time and the
+ * point is reaching someone who has not opened it. Idempotent: any previous hold ids are cancelled
+ * first, so re-holding (or the resilience sweep) can call this blind. Returns the scheduled ids,
+ * or null when permission is denied ({quiet:true} never prompts, for the sweep).
+ */
+export async function scheduleHold(taskId: string, title: string, heldAt: Date, opts: { quiet?: boolean } = {}): Promise<string[] | null> {
+  try {
+    await ensureChannel(HOLD_CHANNEL_ID, t('reminders.holdChannelName'), Notifications.AndroidImportance.HIGH);
+    let { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted' && !opts.quiet) ({ status } = await Notifications.requestPermissionsAsync());
+    if (status !== 'granted') return null;
+    await cancelHold();
+    const ids: string[] = [];
+    const steps = escalationTimes(heldAt).filter((d) => d.getTime() > Date.now());
+    for (let i = 0; i < steps.length; i++) {
+      // The same calm words on every knock (escalation of delivery, never of judgment): the
+      // content is IDENTICAL across the ladder, only the arrival repeats.
+      ids.push(
+        await Notifications.scheduleNotificationAsync({
+          identifier: `${HOLD_ID_PREFIX}step-${i}`,
+          content: { title, body: t('reminders.holdBody'), data: { taskId } },
+          trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: steps[i], channelId: HOLD_CHANNEL_ID },
+        }),
+      );
+    }
+    ids.push(
+      await Notifications.scheduleNotificationAsync({
+        identifier: `${HOLD_ID_PREFIX}daily`,
+        content: { title, body: t('reminders.holdBody'), data: { taskId } },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          hour: DAILY_FOLLOW_UP.hour,
+          minute: DAILY_FOLLOW_UP.minute,
+          channelId: HOLD_CHANNEL_ID,
+        },
+      }),
+    );
+    return ids;
+  } catch {
+    return null;
+  }
+}
+
+/** End the contract's notifications, every one of them, by prefix rather than by stored id, so an
+ *  id list lost to a storage hiccup can never leave an orphaned daily knock running forever. */
+export async function cancelHold(): Promise<void> {
+  try {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    await Promise.all(
+      scheduled.filter((n) => n.identifier.startsWith(HOLD_ID_PREFIX)).map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)),
+    );
+  } catch {
+    // best effort
+  }
+}
+
+/**
+ * The resilience half: re-assert the stored contract against the OS, quietly, once per app open
+ * (called beside rescheduleAllNudges). Heals OEM alarm wipes exactly as the sweep does for
+ * Rhythms. A null contract still cancels, so a cleared contract can never leave stale knocks.
+ */
+export async function resyncHold(contract: HoldContract | null): Promise<void> {
+  try {
+    if (Platform.OS === 'web') return;
+    if (contract === null) {
+      await cancelHold();
+      return;
+    }
+    await scheduleHold(contract.taskId, contract.title, new Date(contract.heldAt), { quiet: true });
+  } catch {
+    // best effort
   }
 }
 

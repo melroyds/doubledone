@@ -7613,3 +7613,261 @@ an id it has not been told about yet, and getting a confident, wrong "nothing".
 **Not verifiable here.** `IAP_AVAILABLE` is a compile-time false off iOS, so the client half has no
 reachable path in the web preview. The server half is fully unit-tested with a stubbed fetch, but
 the end-to-end wants a real anonymous purchase on a device.
+
+---
+
+## 2026-08-22 "Hold me to it": force without shame
+
+User feedback, the first feature request to arrive since going properly live: some ADHD / AuDHD
+people need FORCEFUL reminders, "more constant reminders as a contract to the coddling energy."
+The typo is the design. A contract is consensual firmness: agreed in a calm moment, executed in
+the weak one. The app never nags uninvited; it enforces agreements the user explicitly made.
+
+**Why this does not break "never shame the backlog."** That rule governs judgment about the past.
+This feature is delivery intensity about the future, chosen per task by the user. Shame is a broken
+streak; force is a loud alarm clock. The app can be relentless about the thing and silent-kind
+about the person, and the two axes never touch.
+
+**Decided: one contract at a time.** If everything is loud, nothing is, and notification fatigue
+ends with the user disabling notifications entirely, which is worse than where they started. Also
+the same instinct as "Just this one": scarcity is the feature.
+
+**Decided: a fixed, readable ladder (30m, 90m, 3h, 6h, then daily 09:30), never randomised.** The
+autistic side of the audience needs escalation to be predictable: you chose it, you know exactly
+what it will do and when. The OCD caveat (a relentless reminder can feed checking loops) is why it
+is per-task opt-in, visibly bounded, and never system-wide.
+
+**Decided: quiet hours 21:30-08:30, and an evening hold COLLAPSES to one morning knock.** Steps
+shifted out of the night that land within twenty minutes of each other drop rather than queue.
+Four notifications in a row at breakfast is a metronome, not a hand on the shoulder. A reminder at
+3am is not accountability, and this audience already sleeps badly.
+
+**Decided: pre-schedule the whole ladder, never chain.** A reschedule-on-fire needs the app running
+at fire time, and the whole point is reaching someone who has not opened the app. Four ids plus one
+daily repeat sits far under iOS's 64 pending-notification cap, and ending the contract cancels
+every id.
+
+**Decided: the daily follow-up fires 09:30, not 09:00.** The daily reminder defaults to 9, and two
+notifications in the same minute reads as the app malfunctioning.
+
+**Decided against** alarm-class delivery in v1 (full-screen intents, time-sensitive entitlements:
+doubles the build, adds permissions and review risk; parked with a trigger), and against streaks,
+money stakes, or social accountability ever (that is the shame end of the market, off-spine).
+
+Ships as 1.5.0, its own release with its own story, deliberately NOT bundled into 1.4.0: those
+were finished money fixes for paying customers and this was unbuilt, so coupling them would have
+held the done hostage to the undone.
+
+---
+
+## 2026-08-22 "Hold me to it" wired end to end (waves 2 and 3)
+
+The engine landed this morning; this entry records the decisions made while wiring it into the app,
+because the wording and the choke points are where a feature like this is actually won or lost.
+
+**The control lives in the held card's fold, beside Remind me, and it is ONE control with two
+states.** "Hold me to it" when free, "Let it go" when held. The place you made the contract is the
+place you end it, and the release needs no hunting. Its sub-line ("Keeps knocking, kindly, until
+it's done") is the entire feature description, shown before the choice is made.
+
+**The ending is a single effect watching the tasks array, not calls sprinkled through every path.**
+Tick, bulk-complete, remove, defer, a sync pulling a change from another device: every one of them
+flows through `tasks`, so one choke point in `today.tsx` ends the contract on all of them, cancels
+every knock, and no future call site can forget. Done counts as completed; gone counts as released.
+
+**Android gets its own notification channel** (`hold-v1`), so the contract's loudness is tunable
+separately from ordinary nudges. Someone can make the hold ring while nudges stay silent, or the
+reverse, without losing either.
+
+**Telemetry: the step number is BUCKETED server-side, never stored raw.** The events table's
+posture is a closed list of dotted names with no free values, and it stays that way: the client
+sends `step` (capped at 30), the Worker folds it into `.first` / `.ladder` / `.days`. The
+completed-versus-released split per bucket is the feature's report card, and it is the first
+genuinely novel measurement in the moat: does firm-but-kind actually finish tasks, and at which
+knock. Privacy policy's feature-usage section updated in the same commit, per the rule.
+
+**The permission-denied case refuses to pretend.** If notifications are off, the hold does not
+take, and the affirm says so plainly ("I can't knock. The hold didn't take."), because a contract
+that silently cannot fire is worse than no contract.
+
+**Assumption to challenge:** the fold is where power users already live, but this feature was asked
+for by people the calm energy was LOSING, who may never long-press anything. If usage is near zero
+after a release cycle, the fix is discoverability (an offer at the right moment, like the scrapbook
+ladder), not more force.
+
+---
+
+## 2026-08-22 Measure the held card before redesigning it a third time
+
+Melroy, mid device-test: the held card "is getting cluttered again", gut says bury Steps, maybe a
+radical rethink. The adversarial review's sharpest finding was procedural: the card has already
+been rebuilt once for exactly this reason (design 1a), the fold has since grown from four items to
+six, and NOBODY knows which actions real users actually touch. Every frequency-premised argument
+was taste in a data costume.
+
+**Decided: instrument first, redesign second.** The card's actions were already tracked locally
+(breakdown.started, tiny.made, slices.defined, task.pinned, task.renamed, task.reordered,
+nudge.set, bulk.big); they now leave the device as bare counts through the existing beacon, plus
+ONE new event, `card.more`, counting fold OPENS: the denominator for "how often does the fold hide
+something people need". Names only, props dropped server-side, privacy policy updated in the same
+commit, per the rule. The Tier 2 fold changes (dissolving Steps and Undo-a-step into the
+decomposition door) now have a firing condition instead of a vibe.
+
+**Also fixed here, found by the same review: the held dot was in the wrong branch.** It rendered
+only in multi-select mode, which an ordinary row never shows, so Melroy's T1 "I see no flag" had
+TWO causes stacked: a glyph the iOS font did not draw, inside a branch that never rendered. The
+dot now sits on both everyday row variants. A live contract invisible to sighted users was an
+oversight, not a decision.
+
+---
+
+## 2026-08-22 Two standing rules from the held-card review, and Focus learns about Hold
+
+**The orthogonality rule (Pin / Focus / Hold): layer, never merge.** The app now carries three
+"one special thing" mechanisms, and the review's verdict is recorded here so the question stops
+being re-asked: they are facets, not duplicates. Pin is WHERE the priority sits (persistent,
+floats to the top, wears the accent border, premium). Focus is WHAT you are working right now (a
+session). Hold is HOW the app knocks (a delivery contract, free, native). A Pin-Hold merge is dead
+on the paywall alone: it either charges for the feature built for exactly the users the calm was
+losing, or gives Pin's paid float away free. The held row therefore NEVER floats and never wears
+the pinned border; float and border are Pin's paid signals.
+
+**The accretion rule.** The open card's always-visible surface is FROZEN: title, the Break-it-down
+hero, Make it tiny, Move to…, Mark as a lot, the reorder rail, More, the shelf. Every future
+action enters through the fold, no exceptions, and the fold itself has a soft ceiling of four
+rows. This is the rule that stops the card re-accreting into the 2026-08-22 review's findings six
+months from now. (Also done under it: the vestigial `onDefer` wiring is gone, the stale "11 -> 4"
+comment now tells the truth, and the closed card's More preview shows at most two names, because
+the full roll-call made the closed card read as a control panel.)
+
+**Focus now falls back to the held task.** Order: pinned, else held, else ask. You told the app
+what you are committed to; a focus session assumes that is the thing, which removes one decision
+at exactly the moment deciding is hardest. The session's own "Choose another" stays the one-tap
+escape, so the app suggests the dread and never insists on it. Pin outranks Hold deliberately:
+when both exist the user has made two statements, and "this is my priority" beats "knock me about
+this one".
+
+---
+
+## 2026-08-23 Built to the design handoff: the fold at four, the door owns Steps, and the strip
+
+Melroy ran the Claude Design ritual overnight on the held-card brief and came back with decisions
+settled: Voice 1 ships for the strip ("I'm holding this one"; the other voices died on the
+day-nine ledger reading), the More row goes bare (no preview, no hint), and B1 + B2 ship
+together. Built to the handoff in two commits.
+
+**The fold is four rows, fixed order:** Share to Ours, Remind me, Hold me to it, Pin last. Steps
+and Undo-a-step left the card for the decomposition door, which owns the whole job now: both
+breakdown surfaces carry one quiet "Count it in parts instead" (existing tasks only), the steps
+editor holds the live count with Undo beside it appearing only when it can act, and the title's
+"2 / 5" taps straight into the editor (the handoff's accepted pushback: with Steps out of the
+fold, the count keeps a direct route).
+
+**One deliberate deviation, recorded:** the handoff's More a11y string was the fixed "Four quieter
+actions". The fold genuinely varies (web has no Remind me or Hold), and a screen reader hearing a
+wrong number is a defect, not fidelity, so the count is computed and interpolated. The visual
+stays exactly as designed: the word More, a caret, nothing else.
+
+**The strip is list content, below a pinned row, never the frame.** The app is the subject ("I'm
+holding this one"), the title is bold and opens Focus, "Let it go" is always one visible
+uninterrogated tap sharing the exact release path with the card's chip. No border, visibly
+lighter than the pinned row, never floats, never grows, and the words are identical on day one
+and day nine hundred: the day-nine reading was the gate this copy had to survive, and the two
+voices that failed it are on file in the handoff.
+
+**The ending is the feature's payoff.** On ticking the held task the strip turns sage for one
+frame: a tick and the italic "You closed the one I was holding.", no button, ~1.8s rest, a 400ms
+fade (leaving between frames under reduce-motion), announced once politely. A contract that ends
+in silence would waste the whole emotional arc; a contract that ends in fanfare would be a
+streak. One quiet sentence is the calibration.
+
+**Still open from the handoff:** the recommendation to suppress a held row's nudge-time text
+while its contract is live (the dot carries the reminding story). Waiting on Melroy's word; one
+render rule either way.
+
+---
+
+## 2026-08-23 The held row floats and wears a border: a rule superseded by the founder's thumb
+
+Round two on the device, Melroy: the dot alone is ineffective; he wants the held row bordered and
+floated to the top. This SUPERSEDES the 2026-08-22 clause "the held row never floats and never
+wears a border", which the adversarial panel wrote to protect Pin's paid signals, and which he
+approved. The founder's device verdict outranks the panel's theory, and the paywall consideration
+was re-weighed, not forgotten: **Pin stays senior by construction.** The pin floats first and the
+held row slots UNDER it, never above (`holdSecond` in lib/today, seat below the pin, tested); the
+pin keeps its thick accent border, tint and star while the held row wears a HAIRLINE accent border
+and no tint. Related, never equal. The strip now sits directly above the bordered row, so the two
+read as one demarcated zone, which is where this whole thread started ("a part of the Today screen
+demarcated for hold me to it").
+
+Also from the same look: with the fold's preview line gone, the fold's bare "More" and the shelf's
+"Select more" sat nearly adjacent and read as the same family. The shelf door is now "Select
+several" in all five locales; the collision existed in four of them.
+
+The held row is excluded from the reorder rail exactly as the pin is: its float would swallow the
+move, and an action that does nothing is worse than an absent one.
+
+
+---
+
+## 2026-08-30 The contract line moves INSIDE the held cell, the star becomes a pin, and a boot race is fixed
+
+Melroy, mid round-two on device, on the strip-above-the-row execution: "It's working but I don't
+like the execution. Can we somehow extend the borders to put the 'I'm holding this one... let it
+go' text inside the cell border?" He is right, and the reason is one we created ourselves: once
+his 2026-08-23 verdict floated the held ROW to the top, the separate strip sat directly on top of
+a row saying the same title, two elements for one fact. The strip design's own rationale (words
+about the task, apart from the task, which never moves) died the day the row started moving.
+
+**Decided:** the held row is ONE bordered cell. First line the task, second line the contract:
+accent dot, "I'm holding this one", "Let it go" at the right edge, indented to the title column
+(the rowNote precedent). The title is said once; the strip's bold title repeat is deleted, not
+relocated. Tap the contract words for Focus, tap the title line to tick, "Let it go" stays one
+uninterrogated tap sharing releaseHold with the card's chip. The sage ending ("You closed the one
+I was holding.") plays in the same seat inside the cell, and the row now KEEPS ITS FLOAT through
+the closing beat (holdSecond no longer refuses a done task) so the celebration happens where the
+tick just happened, settling only after the fade. The everyday held row is its own render branch
+(outer View, toggle and contract-line pressables as SIBLINGS, the suggest branch's no-nesting
+rule). The standalone right-edge dot leaves the everyday rows: the border plus the in-cell line
+carry the state now, and Melroy had already called the lone dot ineffective. It stays in select
+mode, where the contract line does not render. A held SLICED task shows border-only (its card is
+tap-to-advance; restructuring it was not worth the blast radius today).
+
+**Decided:** the pin mark is a DRAWN pushpin (react-native-svg Path, accent colour), replacing the
+★. Melroy: "Star works... but it's ambiguous as a symbol." A star reads as favourite. A drawn
+path also cannot repeat the round-one iOS missing-glyph failure (the flag character a system font
+quietly did not draw); that is why it is an SVG and not another unicode character. The spoken
+labels never said "star", so no catalog changed.
+
+**Fixed, found by the web verification of this change:** the contract's ending choke point in
+today.tsx judged "held task gone" against the tasks array BEFORE the task list had loaded. On any
+boot where the stored contract loaded first, it silently released a live contract against the
+still-empty list. The web preview hit it on the first seeded boot; devices had only ever WON the
+race, not been immune (a big list or slow storage loses it). The guard is one line: the effect
+now waits for `loaded`. This was latent in the shipped 1.5.0 TestFlight builds.
+
+**Decided against:** giving the pinned row its own in-cell text line for symmetry ("for both
+pinned and held, extend the borders" read most sensibly as both list arrangements, with-pin and
+without). Pin has no ongoing words; a line saying "pinned" under a pin mark would be chrome. If
+Melroy meant something else, one render slot is waiting.
+
+
+---
+
+## 2026-08-30 The steps door moves to page ONE of Break it down
+
+Melroy, running R5 on build 28: the "Count it in parts instead" door only existed on the AI
+PROPOSAL page and the manual editor. On a task where the AI asks its clarifying questions first,
+the only route to the steps editor was to answer questions you never wanted and SPEND a Sonnet
+proposal call just to walk past the result. His words: "We are wasting a call to Claude. I'd
+rather have it on Page 1 with the questions."
+
+**Decided:** the questions page carries the same quiet one-row door at its bottom, above the AI
+disclosure, hidden while the proposal call is in flight (a door mid-spend would orphan the
+response). Same shape as the review page's: a proposal under a hairline, never a menu. Taking it
+closes the flow with no proposal call made. Verified live end to end on web: one clarify call,
+door tapped, questions closed, Track in steps open, no decomposition spend.
+
+**Decided against:** removing the door from page two now that page one has it. A person who reads
+the proposal and still prefers counting to named steps is exactly who page two's door serves;
+the two doors are one decision offered at both moments it gets made.

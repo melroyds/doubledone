@@ -14,7 +14,28 @@ export const TELEMETRY_PREFIX = 'doubledone';
 
 // The events that also leave the device. Adding one here is a deliberate pair with
 // the Worker's allowlist AND the privacy policy's feature-usage section.
-export const BEACON_EVENTS = new Set(['settle.opened', 'settle.guide']);
+// hold.* carries `step` (which knock, capped at 30) and nothing else: no task text, no ids.
+// The completion-vs-release curve by step is the moat's first genuinely novel measurement.
+// The held-card usage set (2026-08-22): the card was about to be redesigned a THIRD time on
+// gut alone, so its existing local-only events now leave the device as bare counts. Which
+// actions earn always-visible placement stops being taste in a data costume. card.more is the
+// fold-open denominator: how often the fold hides something people actually need.
+export const BEACON_EVENTS = new Set([
+  'settle.opened',
+  'settle.guide',
+  'hold.started',
+  'hold.completed',
+  'hold.released',
+  'breakdown.started',
+  'tiny.made',
+  'slices.defined',
+  'task.pinned',
+  'task.renamed',
+  'task.reordered',
+  'nudge.set',
+  'bulk.big',
+  'card.more',
+]);
 
 export type TelemetryEvent = {
   name: string;

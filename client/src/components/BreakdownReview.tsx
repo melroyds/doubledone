@@ -21,6 +21,9 @@ type Props = {
   busy: boolean;
   onAdd: (selected: ReviewStep[], phases: ReviewPhase[]) => void;
   onCancel: () => void;
+  /** The quiet alternative at the door's foot: track it in counted parts instead of named steps.
+   *  Absent at capture time (there is no existing task to slice yet), so the row hides. */
+  onCountInParts?: () => void;
   today: Date;
 };
 
@@ -28,7 +31,7 @@ type Props = {
 // checklist (untick any, then add the rest). For a big task it also shows the
 // later phases that will wait in Later, each broken down when you reach it.
 // Nothing lands on your day until you accept; the dates came from your answers.
-export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCancel, today }: Props) {
+export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCancel, onCountInParts, today }: Props) {
   const styles = useThemedStyles(makeStyles);
   const phases = laterPhases ?? [];
   const [selected, setSelected] = useState<boolean[]>(() => steps.map(() => true));
@@ -263,6 +266,20 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
             <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel={t('common.notNow')}>
               <Text style={styles.dismiss}>{t('common.notNow')}</Text>
             </Pressable>
+            {/* The door stays a PROPOSAL, never a menu: one quiet alternative under a hairline,
+                for the person who wants parts counted rather than steps named. */}
+            {onCountInParts && (
+              <Pressable
+                onPress={onCountInParts}
+                accessibilityRole="button"
+                accessibilityLabel={t('today.countInParts')}
+                hitSlop={8}
+                style={styles.altRow}
+              >
+                <Text style={styles.altLabel}>{t('today.countInParts')}</Text>
+                <Text style={styles.altSub}>{t('today.stepsCountHint')}</Text>
+              </Pressable>
+            )}
         </Pressable>
       </ScrollView>
     </ModalCard>
@@ -341,5 +358,15 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   },
   btn: { marginTop: spacing.three },
   pressed: { opacity: PRESSED_OPACITY },
+  altRow: {
+    borderTopWidth: border.hair,
+    borderTopColor: t.colors.line,
+    marginTop: spacing.four,
+    paddingTop: spacing.three,
+    alignItems: 'center',
+    gap: 2,
+  },
+  altLabel: { color: t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+  altSub: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body },
   dismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two, fontFamily: fonts.body },
 });

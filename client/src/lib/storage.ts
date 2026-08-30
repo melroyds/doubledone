@@ -7,6 +7,7 @@ import { DEFAULT_SETTINGS, parseSettings, serializeSettings, type Settings } fro
 import { deserialize, SEED, serialize, type Task } from './tasks';
 import { track } from './telemetry';
 import { NO_RENEWAL_MEMORY, type RenewalMemory } from './renewal';
+import { type HoldContract } from './hold';
 
 // Versioned so a future shape change can migrate rather than silently drop data.
 const STORAGE_KEY = 'doubledone.tasks.v1';
@@ -29,6 +30,7 @@ const RENEWAL_KEY = 'doubledone.renewal.v1'; // what this device knows about an 
 const WHATSNEW_KEY = 'doubledone.whatsnew.v1'; // the last What's New content id this device has seen
 const REMINDERHOUR_KEY = 'doubledone.reminderhour.v1'; // the hour (0-23) the daily reminder fires; default 9am
 const DEV_PREMIUM_KEY = 'doubledone.devPremium.v1'; // DEV/preview only: the premium-flag override (see premium-flag.ts)
+const HOLD_KEY = 'doubledone.hold.v1'; // the ONE live "Hold me to it" contract, or absent (see lib/hold)
 const ENERGY_USES_KEY = 'doubledone.energyUses.v1'; // energy-match use timestamps (the freemium meter, see lib/energy.ts)
 const OURS_KEY = 'doubledone.ours.v1'; // shared lists, keyed BY PAIR (see loadOursCache); holds another person's words
 const OURS_TUCKED_KEY = 'doubledone.oursTucked.v1'; // closed lists you have put away, by pair id
@@ -775,5 +777,30 @@ export async function wipeLocalData(): Promise<void> {
     await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, DAYENERGY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY, SYNCOK_KEY, OURS_KEY, OURS_TUCKED_KEY, OURS_SEEN_KEY, OURS_MINE_KEY]);
   } catch {
     // best effort, like the per-key savers above
+  }
+}
+
+/** The one live "Hold me to it" contract, or null. A malformed stored value reads as null:
+ *  losing a contract to corruption is recoverable (the user holds again), a crash is not. */
+export async function loadHold(): Promise<HoldContract | null> {
+  try {
+    const raw = await AsyncStorage.getItem(HOLD_KEY);
+    if (raw === null) return null;
+    const v = JSON.parse(raw) as Partial<HoldContract>;
+    if (typeof v?.taskId !== 'string' || typeof v?.title !== 'string' || typeof v?.heldAt !== 'number') return null;
+    return { taskId: v.taskId, title: v.title, heldAt: v.heldAt, notifIds: Array.isArray(v.notifIds) ? v.notifIds.filter((x): x is string => typeof x === 'string') : [] };
+  } catch {
+    return null;
+  }
+}
+
+/** Persist the contract; null clears it. Failures are silent, matching every save here: the
+ *  in-memory state stays correct for this session either way. */
+export async function saveHold(contract: HoldContract | null): Promise<void> {
+  try {
+    if (contract === null) await AsyncStorage.removeItem(HOLD_KEY);
+    else await AsyncStorage.setItem(HOLD_KEY, JSON.stringify(contract));
+  } catch {
+    track('store.save_failed', { what: 'hold' });
   }
 }

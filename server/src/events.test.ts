@@ -34,8 +34,17 @@ describe('parseAppEvent (the closed allowlist)', () => {
     expect(parseAppEvent({})).toBeNull();
   });
 
-  it('the allowlist holds ONLY name+boolean events, nothing free-text-shaped', () => {
-    for (const e of APP_EVENTS) expect(e).toMatch(/^settle\.[a-z.]+$/);
+  it('the allowlist holds ONLY fixed dotted names, nothing free-text-shaped', () => {
+    // Strict lowercase dotted words: no digits, no ids, nothing a task title could leak through.
+    for (const e of APP_EVENTS) expect(e).toMatch(/^[a-z]+(\.[a-z]+)+$/);
+  });
+
+  it('passes a card-usage name through bare and drops its props on the floor', () => {
+    expect(parseAppEvent({ name: 'card.more' })).toBe('card.more');
+    expect(parseAppEvent({ name: 'nudge.set', props: { preset: 'in1h' } })).toBe('nudge.set');
+    expect(parseAppEvent({ name: 'task.reordered', props: { dir: 'up' } })).toBe('task.reordered');
+    // Still a closed list: a name nobody declared is accepted and dropped.
+    expect(parseAppEvent({ name: 'card.everything' })).toBeNull();
   });
 });
 
@@ -82,5 +91,27 @@ describe('logAppEvent', () => {
       },
     };
     await expect(logAppEvent({ DB: db as never }, 'settle.opened')).resolves.toBeUndefined();
+  });
+});
+
+// "Hold me to it" (2026-08-22): the step number is bucketed, never stored raw, so the table keeps
+// its names-only posture while still yielding the completed-vs-released curve.
+describe('hold.* folding', () => {
+  it('buckets the step into first / ladder / days', () => {
+    expect(parseAppEvent({ name: 'hold.completed', props: { step: 0 } })).toBe('hold.completed.first');
+    expect(parseAppEvent({ name: 'hold.completed', props: { step: 1 } })).toBe('hold.completed.first');
+    expect(parseAppEvent({ name: 'hold.completed', props: { step: 3 } })).toBe('hold.completed.ladder');
+    expect(parseAppEvent({ name: 'hold.released', props: { step: 4 } })).toBe('hold.released.ladder');
+    expect(parseAppEvent({ name: 'hold.released', props: { step: 5 } })).toBe('hold.released.days');
+    expect(parseAppEvent({ name: 'hold.released', props: { step: 30 } })).toBe('hold.released.days');
+  });
+
+  it('passes hold.started through bare, and drops a fold without a numeric step', () => {
+    expect(parseAppEvent({ name: 'hold.started' })).toBe('hold.started');
+    expect(parseAppEvent({ name: 'hold.completed' })).toBeNull();
+    expect(parseAppEvent({ name: 'hold.completed', props: { step: 'many' } })).toBeNull();
+    // A pre-folded name from the wire is NOT accepted: the fold happens here or not at all,
+    // so a client can never smuggle an unbucketed shape into the table.
+    expect(parseAppEvent({ name: 'hold.completed.first' })).toBe('hold.completed.first');
   });
 });
