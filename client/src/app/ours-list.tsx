@@ -763,13 +763,19 @@ export default function OursListScreen() {
           // on this LIST (usable solo while waiting), and without this line it was a dead end
           // with the waiting screen and its re-mint unreachable. Same seat and shape as the
           // kept-with line above, existing strings only.
+          // The hairline pill, the repo's proven "reads as tappable without shouting" treatment
+          // (Melroy's device verdict on Focus's fit entry; he made the same call here 2026-09-20:
+          // plain text hid the tap). The action half carries the accent.
           <Pressable
             onPress={() => router.push('/ours')}
             accessibilityRole="button"
             accessibilityLabel={t('ours.newCode')}
             hitSlop={6}
+            style={styles.waitBridge}
           >
-            <Text style={styles.keptWith}>{t('ours.waitingTitle')} · {t('ours.newCode')} ›</Text>
+            <Text style={styles.keptWith}>
+              {t('ours.waitingTitle')} · <Text style={styles.waitBridgeAction}>{t('ours.newCode')} ›</Text>
+            </Text>
           </Pressable>
         ) : null}
 
@@ -1071,6 +1077,16 @@ const makeStyles = (t: Theme) =>
     },
     title: { ...t.type.title, color: t.colors.ink, marginTop: spacing.three },
     keptWith: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
+    waitBridge: {
+      alignSelf: 'flex-start',
+      marginTop: spacing.two,
+      paddingVertical: spacing.two,
+      paddingHorizontal: spacing.four,
+      borderWidth: border.hair,
+      borderColor: t.colors.line,
+      borderRadius: radius.pill,
+    },
+    waitBridgeAction: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '600' },
     offline: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.three },
     empty: {
       color: t.colors.inkSoft,
