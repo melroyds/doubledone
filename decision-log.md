@@ -7871,3 +7871,46 @@ door tapped, questions closed, Track in steps open, no decomposition spend.
 **Decided against:** removing the door from page two now that page one has it. A person who reads
 the proposal and still prefers counting to named steps is exactly who page two's door serves;
 the two doors are one decision offered at both moments it gets made.
+
+
+---
+
+## 2026-09-20 Ours clarity: whose email, which code, and a waiting screen that says so
+
+A field report (a couple, voice note + chat, 2026-09-13, distilled here without their words
+because this repo is public): walking toward "share the list with my wife", the user met the
+sign-in screen's bare email field and typed an address BELIEVING IT WAS THE SHARE ACTION; it
+silently became an account. The same ambiguity repeated on the partner's phone. Later the invite
+code was entered in the wrong code field, the creator navigated away from the one-time code
+display, and neither could find the way to a fresh code: "no easy way to regenerate". Once
+paired, sync itself delighted them. The engine was never the problem; the doorway was.
+
+**Decided, four fixes in one pass (all copy and one state restructure, all five locales):**
+
+- **The Menu stops inviting the misread.** "Ours: Needs your email, no password" was practically
+  an instruction to type an email at Ours, and the natural reading of "your email" in a sharing
+  context is "the person you are sharing with". Now: "A list kept with one person. Sign in first."
+- **The sign-in screen names whose email it wants.** A field label ("Your own email"), and a
+  subtitle that says the missing sentence: this signs YOU in, and sharing happens later, inside
+  Ours, with a code, never by typing the partner's email here. The Ours signed-out screen now
+  opens with the plain fact the user asked for in as many words: "You're not signed in on this
+  phone."
+- **The two codes stop wearing the same clothes.** The emailed sign-in code is always six bare
+  digits; the invite alphabet mixes letters. Letters in the sign-in code field draw a calm hint
+  naming the Ours invite code; six bare digits failing in the Ours join field add one line naming
+  the emailed code. Hints beside honest failures, never auto-corrections or redirects: a six-digit
+  invite code is possible (digits 2-9 are in the alphabet), so the app must not insist.
+- **Waiting-with-no-code tells the truth and offers the one useful act.** The code renders exactly
+  once by DESIGN (the server keeps only a sha256; re-showing is impossible, and that stays). But
+  the state after the code left the screen still said "Read this to your person" over nothing,
+  with the re-mint as a quiet text link the field report walked straight past. That state is now
+  titled "Waiting for your person" and "Get a new code" is a primary button there.
+
+**Decided against:** re-showing a minted code (impossible without storing plaintext, and storing
+plaintext trades a UX paper cut for a security hole); emailing invite links (a whole delivery
+surface for one confusion the words can fix); auto-moving a wrong-box code to the right field
+(silently rewriting what someone typed teaches them not to trust their eyes, the app's own rule).
+
+**Deliberately kept:** the code alphabet already excludes I, L, O, 0 and 1 (built to be read
+aloud); the "last alphabet" confusion in the report was the reading-aloud moment itself, which
+the K7M-P4Q grouping and the persistent re-mint button now absorb.

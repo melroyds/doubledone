@@ -118,6 +118,12 @@ export default function SignInScreen() {
 
       {phase === 'email' && (
         <View style={styles.form}>
+          {/* The field says WHOSE email, in its own words. A real couple hit this on 2026-09-13:
+              walking toward "share with my wife", they met a bare email field and typed an address
+              believing it was the share action; it silently became an account instead. The label
+              is the cheapest honest fix: the field itself now answers the question the subtitle
+              was answering three lines too early. */}
+          <Text style={styles.fieldLabel}>{t('signIn.emailLabel')}</Text>
           <TextInput
             value={email}
             onChangeText={setEmail}
@@ -155,6 +161,12 @@ export default function SignInScreen() {
             maxLength={6}
             accessibilityLabel={t('signIn.codeA11y')}
           />
+          {/* The OTHER code, caught in the wrong box: the Ours invite code mixes letters, the
+              emailed sign-in code never does. The number-pad blocks typed letters but not a paste,
+              and on web nothing blocks them. Same field report: the wife entered one code in the
+              other code's place, and neither surface said a word about it. A hint, never an
+              auto-correction. */}
+          {/[a-z]/i.test(code) && <Text style={styles.crossHint}>{t('signIn.codeLooksLikeOurs')}</Text>}
           <PrimaryButton label={t('signIn.signIn')} onPress={verify} loading={busy} accessibilityLabel={t('signIn.signIn')} />
           <Pressable
             onPress={sendCode}
@@ -224,6 +236,8 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   sub: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale, marginTop: spacing.three },
   form: { gap: spacing.three, marginTop: spacing.six },
   sentTo: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
+  fieldLabel: { color: t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+  crossHint: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },
   success: { color: t.colors.doneText, fontSize: 26 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.3 },
   input: {
     backgroundColor: t.colors.surface,

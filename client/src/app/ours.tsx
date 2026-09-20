@@ -21,7 +21,7 @@ import {
   renameSelf,
   resumePair,
 } from '@/lib/ours-api';
-import { formatCode, isCodeComplete, looksLikeEmail, type PairFailure } from '@/lib/pairing';
+import { formatCode, isCodeComplete, looksLikeEmail, normaliseCode, type PairFailure } from '@/lib/pairing';
 import { loadTuckedPairs, tuckPair, untuckPair } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
@@ -550,6 +550,11 @@ export default function OursScreen() {
 
   const listName = pair?.name?.trim() || t('ours.defaultName');
   const errorLine = failure ? t(FAILURE_LINE[failure as Exclude<PairFailure, 'signed-out'>]) : null;
+  // The wrong-box code, named. The emailed sign-in code is always six bare digits; the invite
+  // alphabet mixes letters in. A real couple put one in the other's field (2026-09-13) and neither
+  // surface said a word. Only ever a hint under the honest failure, never an auto-redirect: a
+  // six-digit invite code is possible (2-9 are in the alphabet), so the app must not insist.
+  const otpShaped = failure === 'invalid-code' && /^\d{6}$/.test(normaliseCode(typedCode));
 
   /** The reopen offer, and the code it mints. Same shape wherever a closed list is shown. */
   function renderReopen(target: MyPair) {
@@ -854,9 +859,23 @@ export default function OursScreen() {
     // press it. The server's deliberate re-mint path, which exists so a mistyped invitee address is
     // recoverable without the hard delete, was unreachable from the app.
     if (pair && !frozen && flow !== 'create') {
+      // Re-minting seeds the label first, or the re-mint's `update pair_members set label`
+      // silently rewrites the creator's chosen name to the server's fallback, "me".
+      const remint = () => {
+        setMyLabel((prev) => prev || pair.myLabel || '');
+        setName((prev) => prev || pair.name || '');
+        setFlow('create');
+        setCode(null);
+      };
+      const codeInHand = flow === 'code' && !!code;
       return (
         <View style={styles.block}>
-          <Text style={styles.title}>{t('ours.codeTitle')}</Text>
+          {/* With the code gone (it renders exactly once; the server keeps only a hash), the old
+              title still said "Read this to your person" over nothing, and the only way to a fresh
+              code was a quiet text link. The 2026-09-13 field report walked right past it: "no easy
+              way to... regenerate the code". Waiting now says it is waiting, and the re-mint is a
+              real button when it is the screen's one useful act. */}
+          <Text style={styles.title}>{codeInHand ? t('ours.codeTitle') : t('ours.waitingTitle')}</Text>
           {flow === 'code' && code ? (
             <>
               <Text style={styles.code} selectable accessibilityLabel={formatCode(code).split('').join(' ')}>
@@ -874,21 +893,15 @@ export default function OursScreen() {
             </>
           ) : null}
           <Text style={styles.waiting}>{t('ours.waiting')}</Text>
-          <Pressable
-            onPress={() => {
-              // Seed the label, or the re-mint's `update pair_members set label` silently rewrites
-              // the creator's chosen name to the server's fallback, "me".
-              setMyLabel((prev) => prev || pair.myLabel || '');
-              setName((prev) => prev || pair.name || '');
-              setFlow('create');
-              setCode(null);
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={t('ours.newCode')}
-            hitSlop={6}
-          >
-            <Text style={styles.quietAction}>{t('ours.newCode')}</Text>
-          </Pressable>
+          {codeInHand ? (
+            <Pressable onPress={remint} accessibilityRole="button" accessibilityLabel={t('ours.newCode')} hitSlop={6}>
+              <Text style={styles.quietAction}>{t('ours.newCode')}</Text>
+            </Pressable>
+          ) : (
+            <View style={styles.actions}>
+              <PrimaryButton label={t('ours.newCode')} onPress={remint} accessibilityLabel={t('ours.newCode')} />
+            </View>
+          )}
 
           {/* #14: someone who made a list to see what it was, and changed their mind, was met with
               "waiting" forever. The server has always had an exit; the screen never called it. Its
@@ -1054,6 +1067,7 @@ export default function OursScreen() {
             than only from the one that happened to have room for it. */}
         {session && loaded ? renderArchive() : null}
         {errorLine ? <Text style={styles.error}>{errorLine}</Text> : null}
+        {otpShaped ? <Text style={styles.error}>{t('ours.errCodeLooksLikeOtp')}</Text> : null}
       </ScrollView>
     </View>
   );
