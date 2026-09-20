@@ -757,6 +757,20 @@ export default function OursListScreen() {
           >
             <Text style={styles.keptWith}>{t('ours.keptWith', { name: pair.partnerLabel })} ›</Text>
           </Pressable>
+        ) : pair && !pair.hasPartner && !isPairFrozen(pair) ? (
+          // The pair exists but nobody has joined yet. This line is the bridge Melroy's C6 check
+          // (2026-09-20) and the 2026-09-13 field report both hit the absence of: the Menu lands
+          // on this LIST (usable solo while waiting), and without this line it was a dead end
+          // with the waiting screen and its re-mint unreachable. Same seat and shape as the
+          // kept-with line above, existing strings only.
+          <Pressable
+            onPress={() => router.push('/ours')}
+            accessibilityRole="button"
+            accessibilityLabel={t('ours.newCode')}
+            hitSlop={6}
+          >
+            <Text style={styles.keptWith}>{t('ours.waitingTitle')} · {t('ours.newCode')} ›</Text>
+          </Pressable>
         ) : null}
 
         {offline ? <Text style={styles.offline}>{t('ours.errOffline')}</Text> : null}

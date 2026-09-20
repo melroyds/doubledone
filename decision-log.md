@@ -7921,3 +7921,11 @@ needs"). That shortcut is what made Ours' own signed-out explanation unreachable
 path, which is where the whole email-field misread begins. Superseded: the row now lands on
 /ours, which explains, then offers sign-in. The 2026-08-17 half that survives: the row itself
 never disappears while signed out.
+
+**Second addendum, same C6 round:** once a pair exists, the Menu lands on the shared LIST (right:
+it is usable solo while waiting), but a waiting pair rendered nothing in the header seat where
+"Kept with {name}" later sits, so the list was a dead end and the waiting screen with its re-mint
+was unreachable: the third appearance of the field report's "no easy way to regenerate". The seat
+now carries "Waiting for your person · Get a new code ›" linking to the pairing screen. Existing
+strings only, no new translations. This also delivers the Tier 3 "pending-invite row in the list"
+deferral early, on field evidence.
