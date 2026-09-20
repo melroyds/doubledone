@@ -7914,3 +7914,10 @@ surface for one confusion the words can fix); auto-moving a wrong-box code to th
 **Deliberately kept:** the code alphabet already excludes I, L, O, 0 and 1 (built to be read
 aloud); the "last alphabet" confusion in the report was the reading-aloud moment itself, which
 the K7M-P4Q grouping and the persistent re-mint button now absorb.
+
+**Addendum, same day, from Melroy's C2 device check:** the Menu's signed-out Ours row was
+routing STRAIGHT to the sign-in screen (a 2026-08-17 decision, "pointing at the one thing it
+needs"). That shortcut is what made Ours' own signed-out explanation unreachable on the main
+path, which is where the whole email-field misread begins. Superseded: the row now lands on
+/ours, which explains, then offers sign-in. The 2026-08-17 half that survives: the row itself
+never disappears while signed out.

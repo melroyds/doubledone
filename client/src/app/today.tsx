@@ -4002,15 +4002,18 @@ export default function TodayScreen() {
           router.push('/premium');
         }}
         onSettings={() => router.push('/settings')}
-        // Three states, not two. Signed in with Ours open: the real door. SIGNED OUT: still a row,
-        // pointing at the one thing it needs, because a shared list cannot work without an account
-        // and a silently absent row reads as "this app does not have that feature" (it did, to a
-        // real user, on 2026-08-17). Sync not configured at all: no row, since Ours can never work.
+        // Three states, not two. Signed in with Ours open: the real door. SIGNED OUT: still a row
+        // (a silently absent row reads as "this app does not have that feature", a real user,
+        // 2026-08-17), but it lands on OURS' OWN signed-out explanation now, not straight on the
+        // sign-in email field. The shortcut stripped the context: an email field met on the way to
+        // "share with my wife" reads as the share form (the 2026-09-13 field report), and Melroy's
+        // own C2 device check hit the same bypass on 2026-09-20. Ours explains, THEN signs in.
+        // Sync not configured at all: no row, since Ours can never work.
         onOurs={
           oursOpen
             ? () => router.push(oursPairId ? '/ours-list' : '/ours')
             : isSyncConfigured && !session
-              ? () => router.push('/sign-in')
+              ? () => router.push('/ours')
               : undefined
         }
         oursNeedsSync={!session}
