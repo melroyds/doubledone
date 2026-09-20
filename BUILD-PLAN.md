@@ -42,7 +42,9 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
-**THE IMMEDIATE NEXT ACTION (2026-08-30): ship 1.5.0.** "Hold me to it" is device-proven six of
+**1.5.0 SHIPPED EVERYWHERE (confirmed 2026-09-20 from the public store listings): Apple live 31 Aug, Play live 30 Aug, web + Worker live 30 Aug. version.json bumped to 1.5.0/1.5.0 the day of confirmation.** The next action is post-release: read the first three weeks of hold.* and card-usage telemetry from D1 (the instrumentation shipped exactly so the held card's next redesign argument has numbers), and watch the field for Hold me to it reports.
+
+*(The shipped train, for the record:)* **(2026-08-30): ship 1.5.0.** "Hold me to it" is device-proven six of
 six across two rounds (the knock ladder, quiet hours, both exits, reboot survival, the in-cell
 contract line, the pushpin, the page-one steps door). PR #9 is out of draft, CI green,
 MERGEABLE. The train, in order, each step on Melroy's word: (1) merge PR #9 and push `main`
