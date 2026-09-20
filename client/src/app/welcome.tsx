@@ -457,6 +457,13 @@ export default function WelcomeScreen() {
               <Text style={styles.lifelineDone}>{t('welcome.reminderOn')}</Text>
             ) : null}
             {reminderNote != null && <Text style={styles.lifelineDone}>{reminderNote}</Text>}
+            {/* The note says "then try again", so there has to be something to try again WITH
+                (the 2026-09-21 flow audit found the buttons gone and the offer spent). */}
+            {reminderNote != null && (
+              <Pressable onPress={() => void acceptReminder()} accessibilityRole="button" accessibilityLabel={t('reminders.tryAgain')} hitSlop={8}>
+                <Text style={styles.tryAgain}>{t('reminders.tryAgain')}</Text>
+              </Pressable>
+            )}
 
             {/* Android only, and deliberately a MENTION rather than an offer: the widget offer is
                 NOT spent here. An empty widget on day one sells nothing, so the real ask waits for
@@ -549,7 +556,10 @@ const makeStyles = (t: Theme) =>
       paddingHorizontal: spacing.four,
       backgroundColor: t.colors.surface,
     },
-    revealCheck: { width: 22, height: 22, borderRadius: radius.pill, borderWidth: border.thick, borderColor: t.colors.inkFaint, marginTop: 1 },
+    // A list marker, not a tick box: the ring was a near-replica of Today's checkbox on rows that
+    // ignore taps (the 2026-09-21 flow audit). A dot says "here is what you wrote", nothing more.
+    revealCheck: { width: 8, height: 8, borderRadius: radius.pill, backgroundColor: t.colors.inkFaint, marginTop: 9, marginLeft: 7, marginRight: 7 },
+    tryAgain: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.two },
     revealText: { flexShrink: 1 },
     revealTitle: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 24 * t.scale },
     revealHint: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.half },

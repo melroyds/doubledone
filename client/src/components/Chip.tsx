@@ -25,7 +25,7 @@ export function Chip({ label, selected, onPress, variant = 'soft', accessibility
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityState={{ selected }}
+      aria-selected={selected}
       accessibilityLabel={accessibilityLabel ?? label}
       hitSlop={{ top: 8, bottom: 8 }}
       style={[styles.chip, selected && fillOn]}

@@ -76,7 +76,7 @@ export function DatePicker({ value, onChange, today, minIso, maxIso }: Props) {
                 disabled={off}
                 style={[styles.cell, selected && styles.cellOn]}
                 accessibilityRole="button"
-                accessibilityState={{ selected, disabled: off }}
+                aria-selected={selected} aria-disabled={off}
                 accessibilityLabel={fromISODate(iso).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
               >
                 <Text style={[styles.day, off && styles.dayPast, selected && styles.dayOn]}>

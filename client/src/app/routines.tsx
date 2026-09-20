@@ -535,14 +535,16 @@ export default function RoutinesScreen() {
 
         {undo && (
           <View style={styles.undoBar}>
-            <Text style={styles.undoText}>{t('routines.removed')}</Text>
+            <Text style={styles.undoText}>{undo.kind === 'rhythm' ? t('routines.rhythmRemoved') : t('routines.removed')}</Text>
             <Pressable onPress={undoRemove} accessibilityRole="button" accessibilityLabel={t('routines.undoRemoveA11y')} hitSlop={8}>
               <Text style={styles.undoAction}>{t('common.undo')}</Text>
             </Pressable>
           </View>
         )}
 
-        {routines.length === 0 && !adding && (
+        {/* Zero ROUTINES, whatever rhythms exist: a rhythm is a different thing, and adding one
+            used to hide this explanation and the Morning starter (the 2026-09-21 flow audit). */}
+        {routines.every((r) => r.kind === 'rhythm') && !adding && (
           <View>
             <Text style={styles.empty}>{t('routines.empty')}</Text>
             <Pressable
@@ -584,7 +586,7 @@ export default function RoutinesScreen() {
                         key={s.id}
                         onPress={() => tick(r.id, s.id)}
                         accessibilityRole="checkbox"
-                        accessibilityState={{ checked: done }}
+                        aria-checked={done}
                         accessibilityLabel={s.title}
                         style={styles.step}
                         hitSlop={4}
@@ -672,7 +674,7 @@ export default function RoutinesScreen() {
                   setRhythmName(v);
                   if (rhythmHint === 'name') setRhythmHint(null);
                 }}
-                accessibilityLabel={t('routines.nameA11y')}
+                accessibilityLabel={t('routines.rhythmNameA11y')}
               />
               {rhythmHint === 'name' && <Text style={styles.formHint}>{t('routines.nameFirstHint')}</Text>}
 
@@ -944,7 +946,7 @@ export default function RoutinesScreen() {
                     key={w.value}
                     onPress={() => setWhen(w.value)}
                     accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
+                    aria-selected={active}
                     accessibilityLabel={t(w.labelKey)}
                     hitSlop={8}
                   >
@@ -976,7 +978,7 @@ export default function RoutinesScreen() {
                 <Pressable
                   onPress={() => setNudgeOn(false)}
                   accessibilityRole="button"
-                  accessibilityState={{ selected: !nudgeOn }}
+                  aria-selected={!nudgeOn}
                   accessibilityLabel={t('common.off')}
                   hitSlop={8}
                 >
@@ -1003,7 +1005,7 @@ export default function RoutinesScreen() {
                     <Pressable
                       onPress={toggleTimeEntry}
                       accessibilityRole="button"
-                      accessibilityState={{ expanded: timeEntryOpen }}
+                      aria-expanded={timeEntryOpen}
                       accessibilityLabel={t('routines.timeEntryA11y')}
                       hitSlop={8}
                     >
@@ -1032,7 +1034,7 @@ export default function RoutinesScreen() {
                       setNudgeOn(true);
                     }}
                     accessibilityRole="button"
-                    accessibilityState={{ selected: false }}
+                    aria-selected={false}
                     accessibilityLabel={t('routines.nudgeAtA11y', { name: name.trim(), time: formatReminderTime(defaultNudgeHour(when), 0) })}
                     hitSlop={8}
                   >

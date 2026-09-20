@@ -668,7 +668,7 @@ export default function OursScreen() {
       return (
         <View style={styles.block}>
           <Text style={styles.title}>{t('ours.signedOutTitle')}</Text>
-          <Text style={styles.lead}>{t('ours.signedOutBody')}</Text>
+          <Text style={styles.lead}>{Platform.OS === 'web' ? t('ours.signedOutBodyWeb') : t('ours.signedOutBody')}</Text>
           <View style={styles.actions}>
             <PrimaryButton
               label={t('ours.signIn')}

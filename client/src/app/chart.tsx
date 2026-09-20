@@ -76,7 +76,7 @@ export default function ChartScreen() {
     // The paywall sits HERE, at the moment of asking for a plan (abundance), never on opening the screen.
     if (!premium) {
       track('premium.gate_hit', { reason: 'chart' });
-      router.push('/premium');
+      router.push({ pathname: '/premium', params: { from: 'chart' } });
       return;
     }
     setBusy(true);
@@ -222,7 +222,7 @@ export default function ChartScreen() {
                   onPress={() => toggle(i)}
                   style={styles.stepRow}
                   accessibilityRole="checkbox"
-                  accessibilityState={{ checked: s.checked }}
+                  aria-checked={s.checked}
                   accessibilityLabel={s.title}
                 >
                   <View style={[styles.check, s.checked && styles.checkOn]}>{s.checked && <Text style={styles.checkMark}>✓</Text>}</View>

@@ -204,7 +204,9 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
   const answer = whenFields(schedule(), today);
   const summary = allowNone ? whenSummary(answer, today, { recurrence }) : undefined;
   const legacy = scheduleFields(schedule(), today).recurrence;
-  const commitLabel = summary ? summary.commit : legacy ? describeRecurrence(legacy) : t('routines.saveChanges');
+  // The legacy (drawer) commit carried only the cadence, reading as a summary chip rather than
+  // the action; the composer says "Add · Weekly on Mo", so this says "Save · Every Mon".
+  const commitLabel = summary ? summary.commit : legacy ? t('repeat.saveCadence', { cadence: describeRecurrence(legacy) }) : t('routines.saveChanges');
 
   // An idle Set must not write. Every mutator on the shared list commits with a fresh stamp, and a
   // fresh stamp is what the OTHER person's screen reads as "changed since you looked", so a Set that
@@ -325,7 +327,7 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
               style={[styles.day, weekdays.includes(d) && styles.dayOn]}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityState={{ selected: weekdays.includes(d) }}
+              aria-selected={weekdays.includes(d)}
               accessibilityLabel={t('capture.repeatOnDayA11y', { day: t(key) })}
             >
               <Text style={[styles.dayText, weekdays.includes(d) && styles.dayTextOn]}>{t(key)}</Text>
@@ -366,7 +368,7 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
                 style={[styles.monthDay, monthDay === d && styles.dayOn]}
                 hitSlop={4}
                 accessibilityRole="button"
-                accessibilityState={{ selected: monthDay === d }}
+                aria-selected={monthDay === d}
                 accessibilityLabel={t('capture.repeatOnDayA11y', { day: ordinalDay(d) })}
               >
                 <Text style={[styles.monthDayText, monthDay === d && styles.dayTextOn]}>{d}</Text>

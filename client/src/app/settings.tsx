@@ -412,24 +412,26 @@ export default function SettingsScreen() {
                 const presetLabel = t(`themes.${name}`);
                 // The full "name, selected, Premium" reading lives in the catalog; the partial
                 // combinations compose from the name + the localised suffix keys.
+                // Dusk is always free, so it never carries the Premium suffix and never gates.
+                const locked = !premium && name !== 'dusk';
                 const swatchA11y =
-                  selected && !premium
+                  selected && locked
                     ? t('settings.swatchA11y', { presetName: presetLabel })
-                    : `${presetLabel}${selected ? t('settings.swatchSelectedSuffix') : ''}${premium ? '' : t('settings.swatchPremiumSuffix')}`;
+                    : `${presetLabel}${selected ? t('settings.swatchSelectedSuffix') : ''}${locked ? t('settings.swatchPremiumSuffix') : ''}`;
                 return (
                   <Pressable
                     key={name}
                     onPress={() => {
-                      if (premium) {
+                      if (!locked) {
                         setSettings({ themePreset: name });
                         track('theme.set', { theme: name });
                       } else {
                         track('theme.locked');
-                        router.push('/premium');
+                        router.push({ pathname: '/premium', params: { from: 'theme' } });
                       }
                     }}
                     accessibilityRole="button"
-                    accessibilityState={{ selected }}
+                    aria-selected={selected}
                     accessibilityLabel={swatchA11y}
                     style={styles.swatchHit}
                     hitSlop={6}
@@ -464,7 +466,7 @@ export default function SettingsScreen() {
                     track('appearance.set', { appearance: ap });
                   } else {
                     track('appearance.locked');
-                    router.push('/premium');
+                    router.push({ pathname: '/premium', params: { from: 'quiet' } });
                   }
                 }}
                 accessibilityLabel={t('settings.appearanceLabel')}

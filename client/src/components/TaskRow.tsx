@@ -286,10 +286,13 @@ export function TaskRow({
         onPress={onSelect}
         style={({ pressed }) => [styles.row, !recurring && styles.rowUnique, selected && styles.rowSelected, pressed && styles.pressed]}
         accessibilityRole="checkbox"
-        accessibilityState={{ checked: Boolean(selected) }}
+        aria-checked={Boolean(selected)}
         accessibilityLabel={t('today.selectRowLabel', { title })}
       >
         <Animated.View style={[styles.selectDot, selected && styles.selectDotOn, { opacity: selFade }]}>{selected && <Text style={styles.tick}>✓</Text>}</Animated.View>
+        {/* The "big" chip stays in select mode: the bulk bar offers "Mark as a lot", so the rows
+            must keep showing which ones already are (the 2026-09-21 flow audit). */}
+        {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
         <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
         {recurring && <Text style={styles.repeatMark}>↻</Text>}
         {/* The contract mark: a plain accent DOT, not a glyph. The first device pass shipped a
@@ -569,7 +572,7 @@ export function TaskRow({
             disabled={!onMoveUp}
             style={styles.railCell}
             accessibilityRole="button"
-            accessibilityState={{ disabled: !onMoveUp }}
+            aria-disabled={!onMoveUp}
             accessibilityLabel={onMoveUp ? t('today.moveUpA11y', { title }) : t('today.moveUpUnavailA11y')}
           >
             <Text style={[styles.railLabel, !onMoveUp && styles.railOff]}>{t('today.moveUp')}</Text>
@@ -580,7 +583,7 @@ export function TaskRow({
             disabled={!onMoveDown}
             style={styles.railCell}
             accessibilityRole="button"
-            accessibilityState={{ disabled: !onMoveDown }}
+            aria-disabled={!onMoveDown}
             accessibilityLabel={onMoveDown ? t('today.moveDownA11y', { title }) : t('today.moveDownUnavailA11y')}
           >
             <Text style={[styles.railLabel, !onMoveDown && styles.railOff]}>{t('today.moveDown')}</Text>
@@ -600,8 +603,8 @@ export function TaskRow({
               }}
               style={styles.actionRow}
               accessibilityRole="button"
-              accessibilityState={{ expanded: moreOpen }}
-              accessibilityLabel={moreOpen ? t('today.moreCollapseA11y') : t('today.moreExpandA11y', { count: foldCount })}
+              aria-expanded={moreOpen}
+              accessibilityLabel={moreOpen ? t('today.moreCollapseA11y') : t(foldCount === 1 ? 'today.moreExpandA11yOne' : 'today.moreExpandA11yOther', { count: foldCount })}
               hitSlop={{ top: 6, bottom: 6 }}
             >
               <View style={styles.moreLead}>
@@ -703,7 +706,7 @@ export function TaskRow({
         delayLongPress={400}
         style={({ pressed }) => [styles.row, styles.rowUnique, styles.sliceColumn, held && styles.rowHeld, pressed && styles.pressed]}
         accessibilityRole="button"
-        accessibilityState={{ checked: complete }}
+        aria-checked={complete}
         accessibilityLabel={
           complete
             ? t('today.sliceRowLabelComplete', { title, done: slices.done, total: slices.total })
@@ -742,7 +745,7 @@ export function TaskRow({
           delayLongPress={400}
           style={({ pressed }) => [styles.suggestMain, pressed && styles.pressed]}
           accessibilityRole="checkbox"
-          accessibilityState={{ checked: done }}
+          aria-checked={done}
           accessibilityLabel={rowLabel}
         >
           <CheckCircle done={done} />
@@ -782,7 +785,7 @@ export function TaskRow({
           delayLongPress={400}
           style={({ pressed }) => [styles.tinyMain, pressed && styles.pressed]}
           accessibilityRole="checkbox"
-          accessibilityState={{ checked: done }}
+          aria-checked={done}
           accessibilityLabel={t('today.tinyStepRowLabel', { title, parent: tinyParent })}
         >
           <CheckCircle done={done} />
@@ -806,7 +809,7 @@ export function TaskRow({
           hitSlop={{ top: 8, bottom: 4 }}
           style={({ pressed }) => [styles.rowMain, pressed && !inert && styles.pressed]}
           accessibilityRole="checkbox"
-          accessibilityState={{ checked: done, disabled: Boolean(inert) }}
+          aria-checked={done} aria-disabled={Boolean(inert)}
           accessibilityLabel={rowLabel}
         >
           <CheckCircle done={done} dim={Boolean(inert)} />
@@ -837,7 +840,7 @@ export function TaskRow({
         pressed && !inert && styles.pressed,
       ]}
       accessibilityRole="checkbox"
-      accessibilityState={{ checked: done, disabled: Boolean(inert) }}
+      aria-checked={done} aria-disabled={Boolean(inert)}
       accessibilityLabel={rowLabel}
     >
       <Animated.View pointerEvents="none" style={[styles.washLayer, { opacity: washFade }]} />

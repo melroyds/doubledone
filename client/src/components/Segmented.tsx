@@ -27,7 +27,7 @@ export function Segmented<T extends string>({ value, options, onChange, accessib
             key={o.value}
             onPress={() => onChange(o.value)}
             accessibilityRole="button"
-            accessibilityState={{ selected: active }}
+            aria-selected={active}
             accessibilityLabel={o.label}
             style={({ pressed }) => [styles.seg, active && styles.segOn, pressed && styles.pressed]}
           >

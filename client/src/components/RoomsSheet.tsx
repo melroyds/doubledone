@@ -104,7 +104,9 @@ export function RoomsSheet({
                 <Text style={styles.roomLabel}>{r.label}</Text>
                 <Text style={styles.roomHint}>{r.hint}</Text>
               </View>
-              {r.premium && (
+              {/* A subscriber has already bought it: no pill (the row two below already says
+                  "Manage your subscription"). */}
+              {r.premium && !premium && (
                 <View style={styles.premiumTag}>
                   <LinearGradient colors={PREMIUM_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premiumTagGrad}>
                     <Text style={styles.premiumTagText}>{t('common.premium')}</Text>

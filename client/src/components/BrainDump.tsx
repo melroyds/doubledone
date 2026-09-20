@@ -5,7 +5,7 @@ import { border, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } f
 import { split } from '@/lib/ai';
 import { addButtonLabel, type CaptureRepeat, type CaptureWhen, doorSummary, whenLabel } from '@/lib/capture-door';
 import { aiErrorLine } from '@/lib/connection';
-import { addDaysISO, toISODate } from '@/lib/day';
+import { addDaysISO, fromISODate, toISODate } from '@/lib/day';
 import { ordinalDay } from '@/lib/i18n-active';
 import { appendPhrase } from '@/lib/dictation';
 import { t } from '@/lib/locale';
@@ -95,7 +95,13 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   const [repeat, setRepeat] = useState<CaptureRepeat>(null);
   const [weekdays, setWeekdays] = useState<number[]>([today.getDay()]);
   const [everyNDays, setEveryNDays] = useState(2);
-  const [monthDay, setMonthDay] = useState(today.getDate()); // day of the month for a Monthly repeat; today's, which is nearly always what is meant
+  const [monthDay, setMonthDay] = useState(today.getDate());
+  // Until the user touches the weekday chips or the day-of-month grid, the repeat follows the
+  // START DATE: pick Fri 25 then Weekly, and it is weekly on Fridays. These seeds used to be
+  // today's weekday and today's date, fixed at mount, which made "Fri 25 Sept · Weekly on Mo"
+  // (the flow audit, 2026-09-21: a task quietly scheduled on a day the user never chose).
+  const [weekdaysTouched, setWeekdaysTouched] = useState(false);
+  const [monthDayTouched, setMonthDayTouched] = useState(false);
   const [dueDate, setDueDate] = useState(() => toISODate(today)); // ISO for a picked day (due date, or a repeat's start)
   const [pickerOpen, setPickerOpen] = useState(false);
   const [sliceCount, setSliceCount] = useState(0); // 0 = whole task; >=MIN_SLICES = tracked in steps
@@ -140,15 +146,23 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   const stepsAllowed = allowSteps && lineCount <= 1 && repeat === null;
   const todayIso = toISODate(today);
 
-  // The one door state the summary, the Add label, and buildSchedule all read. The weekday
-  // fallback mirrors buildSchedule, so an all-untoggled Weekly still names today's day.
+  // ONE rule composes WHEN with REPEATS: the when IS a repeat's start date ("Tomorrow · Daily"
+  // starts tomorrow). "Starting from" in the Repeats row reads the same value; never two truths.
+  const startIso = when === 'today' || when === 'anytime' ? todayIso : when === 'tomorrow' ? addDaysISO(today, 1) : dueDate;
+  const startDate = fromISODate(startIso);
+  // The effective repeat targets: the user's own chips once touched, else derived from the start
+  // date so the summary, the Add label and the stored schedule all say one thing.
+  const weekdaysEff = weekdaysTouched && weekdays.length > 0 ? weekdays : [startDate.getDay()];
+  const monthDayEff = monthDayTouched ? monthDay : startDate.getDate();
+
+  // The one door state the summary, the Add label, and buildSchedule all read.
   const doorState = {
     when,
     dueDate,
     repeat,
-    weekdays: weekdays.length > 0 ? weekdays : [today.getDay()],
+    weekdays: weekdaysEff,
     everyNDays,
-    monthDay,
+    monthDay: monthDayEff,
     steps: stepsAllowed && sliceCount >= MIN_SLICES ? sliceCount : 0,
     whenDefault,
   };
@@ -156,22 +170,18 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   const addLabel = addButtonLabel(doorState, today, lineCount);
   const whenLbl = whenLabel(doorState, today);
 
-  // ONE rule composes WHEN with REPEATS: the when IS a repeat's start date ("Tomorrow · Daily"
-  // starts tomorrow). "Starting from" in the Repeats row reads the same value; never two truths.
-  const startIso = when === 'today' || when === 'anytime' ? todayIso : when === 'tomorrow' ? addDaysISO(today, 1) : dueDate;
-
   function buildSchedule(): CaptureSchedule {
     if (repeat === 'daily') {
       return { mode: 'daily', start: startIso };
     }
     if (repeat === 'weekly') {
-      return { mode: 'weekly', weekdays: weekdays.length > 0 ? weekdays : [today.getDay()], start: startIso };
+      return { mode: 'weekly', weekdays: weekdaysEff, start: startIso };
     }
     if (repeat === 'everyN') {
       return { mode: 'everyN', days: everyNDays, start: startIso };
     }
     if (repeat === 'monthly') {
-      return { mode: 'monthly', day: monthDay, start: startIso };
+      return { mode: 'monthly', day: monthDayEff, start: startIso };
     }
     if (when === 'date') {
       return { mode: 'date', date: dueDate };
@@ -193,6 +203,8 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
     setWhen(whenDefault);
     setRepeat(null);
     setWeekdays([today.getDay()]);
+    setWeekdaysTouched(false);
+    setMonthDayTouched(false);
     setEveryNDays(2);
     setDueDate(todayIso);
     setPickerOpen(false);
@@ -333,7 +345,11 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   }
 
   function toggleWeekday(d: number) {
-    setWeekdays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
+    // The first touch starts from the derived set (the start date's weekday), never from the
+    // mount-time seed, so toggling Fr off a Friday start leaves nothing selected rather than Mo.
+    const base = weekdaysTouched ? weekdays : weekdaysEff;
+    setWeekdays(base.includes(d) ? base.filter((x) => x !== d) : [...base, d]);
+    setWeekdaysTouched(true);
   }
 
   // The one fixed hint line under the actions: content swaps in place, position never moves.
@@ -408,7 +424,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                 disabled={busy}
                 style={({ pressed }) => [styles.speak, listening && styles.speakOn, pressed && styles.pressed, busy && styles.disabled]}
                 accessibilityRole="button"
-                accessibilityState={{ selected: listening }}
+                aria-selected={listening}
                 accessibilityLabel={listening ? t('capture.speakListeningA11y') : t('capture.speakA11y')}
               >
                 {listening ? <View style={styles.liveDot} /> : <Mark name="mic" size={16} color={theme.colors.inkSoft} />}
@@ -440,7 +456,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
         <Pressable
           onPress={toggleDoor}
           accessibilityRole="button"
-          accessibilityState={{ expanded: doorOpen }}
+          aria-expanded={doorOpen}
           accessibilityLabel={t('capture.doorA11yComposed', { rows: doorRows.join(', '), summary })}
           style={({ pressed }) => [styles.doorRow, pressed && styles.pressed]}
         >
@@ -500,13 +516,13 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                     <Pressable
                       key={d}
                       onPress={() => toggleWeekday(d)}
-                      style={[styles.day, weekdays.includes(d) && styles.dayOn]}
+                      style={[styles.day, weekdaysEff.includes(d) && styles.dayOn]}
                       hitSlop={8}
                       accessibilityRole="button"
-                      accessibilityState={{ selected: weekdays.includes(d) }}
+                      aria-selected={weekdaysEff.includes(d)}
                       accessibilityLabel={t('capture.repeatOnDayA11y', { day: t(key) })}
                     >
-                      <Text style={[styles.dayText, weekdays.includes(d) && styles.dayTextOn]}>{t(key)}</Text>
+                      <Text style={[styles.dayText, weekdaysEff.includes(d) && styles.dayTextOn]}>{t(key)}</Text>
                     </Pressable>
                   ))}
                 </View>
@@ -540,14 +556,17 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                     {MONTH_DAYS.map((d) => (
                       <Pressable
                         key={d}
-                        onPress={() => setMonthDay(d)}
-                        style={[styles.day, monthDay === d && styles.dayOn]}
+                        onPress={() => {
+                          setMonthDay(d);
+                          setMonthDayTouched(true);
+                        }}
+                        style={[styles.day, monthDayEff === d && styles.dayOn]}
                         hitSlop={4}
                         accessibilityRole="button"
-                        accessibilityState={{ selected: monthDay === d }}
+                        aria-selected={monthDayEff === d}
                         accessibilityLabel={t('capture.repeatOnDayA11y', { day: ordinalDay(d) })}
                       >
-                        <Text style={[styles.dayText, monthDay === d && styles.dayTextOn]}>{d}</Text>
+                        <Text style={[styles.dayText, monthDayEff === d && styles.dayTextOn]}>{d}</Text>
                       </Pressable>
                     ))}
                   </View>
@@ -583,7 +602,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                   style={styles.stepBtn}
                   hitSlop={8}
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: !stepsAllowed }}
+                  aria-disabled={!stepsAllowed}
                   accessibilityLabel={t('today.fewerStepsA11y')}
                 >
                   <Text style={styles.stepBtnText}>−</Text>
@@ -595,7 +614,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                   style={styles.stepBtn}
                   hitSlop={8}
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: !stepsAllowed }}
+                  aria-disabled={!stepsAllowed}
                   accessibilityLabel={t('today.moreStepsA11y')}
                 >
                   <Text style={styles.stepBtnText}>+</Text>

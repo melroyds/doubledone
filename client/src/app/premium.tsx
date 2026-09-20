@@ -36,7 +36,21 @@ export default function PremiumScreen() {
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
   const session = useSession();
-  const { status } = useLocalSearchParams<{ status?: string }>();
+  const { status, from } = useLocalSearchParams<{ status?: string; from?: string }>();
+  // Which gate sent the reader here, said in one line under the title. Every gate passes its
+  // reason (the flow audit, 2026-09-21: four different gates landed on an identical page that
+  // never said why). Unknown or absent: no line, the page stands on its own.
+  const fromFeature: string | null =
+    from === 'sequence' ? t('actions.planMyDay')
+    : from === 'chart' ? t('actions.chartACourse')
+    : from === 'pin' ? t('today.pin')
+    : from === 'insights' ? t('welcome.premiumPatternsName')
+    : from === 'theme' ? t('premium.reasonTheme')
+    : from === 'quiet' ? t('premium.reasonQuiet')
+    : from === 'energy' ? t('premium.reasonEnergy')
+    : from === 'ocr' || from === 'ocr_ours' ? t('premium.reasonScan')
+    : from === 'free_monthly' ? t('premium.reasonScrapbook')
+    : null;
   const { premium, effectiveEntitlement, loading, refresh } = usePremium();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -266,6 +280,7 @@ export default function PremiumScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         <BackLink />
         <Text style={styles.title}>{t('common.premium')}</Text>
+        {fromFeature ? <Text style={styles.fromLine}>{t('premium.fromLine', { feature: fromFeature })}</Text> : null}
 
         {loading ? (
           <ActivityIndicator color={styles.spinner.color} style={styles.loadingPad} />
@@ -304,7 +319,7 @@ export default function PremiumScreen() {
                   <Pressable
                     onPress={() => setPlan('monthly')}
                     accessibilityRole="button"
-                    accessibilityState={{ selected: plan === 'monthly' }}
+                    aria-selected={plan === 'monthly'}
                     accessibilityLabel={t('premium.planMonthlyA11y')}
                     style={[styles.planPill, plan === 'monthly' && styles.planPillOn]}
                   >
@@ -313,7 +328,7 @@ export default function PremiumScreen() {
                   <Pressable
                     onPress={() => setPlan('annual')}
                     accessibilityRole="button"
-                    accessibilityState={{ selected: plan === 'annual' }}
+                    aria-selected={plan === 'annual'}
                     accessibilityLabel={t('premium.planAnnualA11y')}
                     style={[styles.planPill, plan === 'annual' && styles.planPillOn]}
                   >
@@ -411,12 +426,14 @@ export default function PremiumScreen() {
               <Text style={styles.tier}>{t('premium.tierFourAfterSixMonths')}</Text>
             </View>
 
-            {session && (
-              <View style={styles.planToggle}>
+            {/* The plans are information, so a signed-out visitor sees them too (the flow audit:
+                the page ended at "A$5 / month" and never mentioned annual existed). Only the
+                checkout itself needs a session. */}
+            <View style={styles.planToggle}>
                 <Pressable
                   onPress={() => setPlan('monthly')}
                   accessibilityRole="button"
-                  accessibilityState={{ selected: plan === 'monthly' }}
+                  aria-selected={plan === 'monthly'}
                   accessibilityLabel={t('premium.planMonthlyA11y')}
                   style={[styles.planPill, plan === 'monthly' && styles.planPillOn]}
                 >
@@ -425,14 +442,13 @@ export default function PremiumScreen() {
                 <Pressable
                   onPress={() => setPlan('annual')}
                   accessibilityRole="button"
-                  accessibilityState={{ selected: plan === 'annual' }}
+                  aria-selected={plan === 'annual'}
                   accessibilityLabel={t('premium.planAnnualA11y')}
                   style={[styles.planPill, plan === 'annual' && styles.planPillOn]}
                 >
                   <Text style={[styles.planPillText, plan === 'annual' && styles.planPillTextOn]}>{t('premium.planAnnual')}</Text>
                 </Pressable>
-              </View>
-            )}
+            </View>
             {/* On iOS the price MUST come from StoreKit, so it is currency-correct for the viewer's
                 storefront (A$5.00 on the Australian one, converted elsewhere). Off iOS, the catalog price. */}
             <Text style={styles.price}>
@@ -571,6 +587,7 @@ const makeStyles = (t: Theme) =>
     scroll: { flex: 1 },
     content: { paddingHorizontal: spacing.five, paddingBottom: spacing.six, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
     title: { ...t.type.title, color: t.colors.ink, marginTop: spacing.three },
+    fromLine: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.two },
     spinner: { color: t.colors.accent },
     loadingPad: { marginTop: spacing.six },
     panel: { marginTop: spacing.five, gap: spacing.three },
