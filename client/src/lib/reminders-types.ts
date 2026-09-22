@@ -5,6 +5,9 @@
 
 import { fmt, t } from './i18n-active';
 
+// Web is the one platform with a DOM. No react-native import here: this file is node-tested.
+const isWeb = typeof document !== 'undefined';
+
 export type ReminderReason = 'denied' | 'unsupported' | 'error';
 export type ReminderResult = { ok: true } | { ok: false; reason: ReminderReason };
 
@@ -12,7 +15,8 @@ export type ReminderResult = { ok: true } | { ok: false; reason: ReminderReason 
 export function reminderReasonLine(reason: ReminderReason): string {
   switch (reason) {
     case 'denied':
-      return t('reminders.reason.denied');
+      // On web the permission lives in the browser's site settings, not the app's own Settings.
+      return isWeb ? t('reminders.reason.deniedWeb') : t('reminders.reason.denied');
     case 'unsupported':
       return t('reminders.reason.unsupported');
     case 'error':

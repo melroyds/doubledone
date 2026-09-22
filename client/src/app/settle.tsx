@@ -217,7 +217,10 @@ export default function Settle() {
     const go = () => {
       if (gone) return;
       gone = true;
-      router.replace('/today');
+      // Back to the Today already beneath this screen. A replace here stacked a SECOND Today on
+      // top of the first, so browser Back looked dead (the 2026-09-21 flow audit).
+      if (router.canGoBack()) router.back();
+      else router.replace('/today');
     };
     Animated.timing(roomOpacity, { toValue: 0, duration: fade, useNativeDriver: false }).start(go);
     setTimeout(go, fade + 250);
@@ -320,7 +323,7 @@ export default function Settle() {
       <Pressable
         onPress={toggleGuide}
         accessibilityRole="button"
-        accessibilityState={{ selected: guideOn }}
+        aria-selected={guideOn}
         accessibilityLabel={guideOn ? t('settle.guidePillOnA11y') : t('settle.guidePillOffA11y')}
         hitSlop={10}
         style={({ pressed }) => [styles.guidePill, pressed && styles.pressed]}

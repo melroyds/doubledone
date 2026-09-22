@@ -7929,3 +7929,75 @@ was unreachable: the third appearance of the field report's "no easy way to rege
 now carries "Waiting for your person · Get a new code ›" linking to the pairing screen. Existing
 strings only, no new translations. This also delivers the Tier 3 "pending-invite row in the list"
 deferral early, on field evidence.
+
+
+---
+
+## 2026-09-21 The flow audit's fixes: 22 defects, one pass, and the method that found them
+
+Melroy, after two device-caught bugs in one afternoon: "Bugs like this are so hard to find. But
+how do we do it?" The answer was a path-by-state audit: four agents drove the running web app
+click by click (never a typed URL) across seeded states (fresh install, returning free, returning
+premium, a held contract), and every candidate went to an independent refuter who had to reproduce
+it via its click path before it counted. 136 cells walked, 30 candidates, 22 confirmed, none P1,
+four P2. A second, sequential pass settled five candidates the first pass could not walk (a
+browser tab cap): four confirmed as P3, one refuted (the start date shown twice IS one state,
+edits from either row move both). The report is the artifact "DoubleDone Flow Audit"; this entry
+records what was decided about the fixes.
+
+**Decided, the four P2s:**
+
+- **On web, state never reached assistive tech.** Every tick box, radio and chip set React
+  Native's `accessibilityState` correctly, and react-native-web 0.21 drops that object entirely
+  (it reads only the aria-* props). All 40 sites now use the aria-* spelling (`aria-checked`,
+  `aria-selected`, `aria-expanded`, `aria-disabled`, `aria-busy`), which React Native itself maps
+  back onto accessibilityState natively, so one spelling serves both platforms. Decided against a
+  wrapper helper: a second layer between the app and the platform for something the platform
+  already spells is a layer to forget. The migration was a script with a hard count.
+- **Remove gets an undo.** Today's Remove, single and bulk, tombstoned in one tap with no line and
+  no way back, against the app's own destructive-action law (Routines has had undo since day one).
+  Now: Routines' bar, "Removed. Undo", six seconds, a one-field revert of the soft delete.
+  Skipped repeats stay out of the undo on purpose: a skip is not a removal, it is back tomorrow.
+- **A repeat follows its start date.** The capture door seeded weekdays with today's weekday and
+  the month-day with today's date, at mount, and never updated them when the start date changed:
+  "Fri 25 Sept · Weekly on Mo", stored and scheduled on the wrong day, in an app whose own comment
+  forbids "two truths". The targets are now DERIVED from the start date until the user touches the
+  chips, then they are the user's. Derived, not synced by an effect: no effect means nothing can
+  lag and the React Compiler stays quiet.
+- **Premium is named before the bounce, and the paywall says why.** Plan my day wears the same
+  honey mark Pin wears in the fold, and all eleven gates pass their reason so the Premium page
+  opens with one line naming the feature that sent you. Reusing the app's existing feature names
+  where they exist (Plan my day, Chart a course, Pin, Your patterns) and five new short names where
+  they do not.
+
+**Decided, Tier 2 and 3 (copy true in every state, and polish):** platform variants for three
+strings that were false on web (the Repeating note's "choose Remind me", "on this phone", the
+denied-notifications instruction); Calendar's empty-month line in three tenses; Routines' empty
+state keyed on routines rather than on the whole array; Settle leaving by back rather than
+replace; a Try again link after a denied reminder permission; no Premium pill on a subscriber's
+Chart row; Dusk never announced or gated as Premium; the plan toggle visible signed out (the plans
+are information, only checkout needs a session); "Save · Every Mon" on the edit sheet; a spacer
+so an empty day's note clears the dock; correct plurals in two spoken labels; rhythm wording on
+the Rhythms surface; the onboarding reveal rows' tick-box replica replaced by a list dot; the
+"big" chip kept in select mode; Focus opening straight on a single open task.
+
+**Decided against:** re-showing the emailed sign-in code anywhere (unchanged); collapsing the two
+start-date rows in the capture door (refuted as one state; the redundancy is mild and the second
+row is where "Starting from" reads naturally once a repeat is on); a confirm dialog on Remove (the
+law says undo).
+
+**The method, kept:** the audit script and its recipe live in the session's workflow files; the
+two things that broke the first verification pass (a shared-origin localStorage between agents,
+and a browser tab cap) are solved by unique loopback origins per agent and strictly sequential
+refuters. Next audit: seed the premium flag with 'on', not 'yes'.
+
+**Addendum, 2026-09-22, from Melroy's D2 device check ("handshake purgatory"):** reopening a closed
+list is mint-and-redeem by design (never unilateral), but the frozen screen offered only the mint
+("Reopen together…") to BOTH people, and the redeem lived unnamed under the generic "Join with a
+code" at the bottom. Worse, the join's fall-through to `resume_pair` was gated on
+`archive.length > 0`, and the list being shown is deliberately excluded from `archive`, so when the
+only closed list was the one on screen the resume never ran and every code read as invalid. Two
+people minted for each other and neither could redeem. Fixed: the gate now also fires when the
+shown list is frozen, and the frozen screen carries the redeem door in words ("Got a code from
+them? Enter it to reopen."). Also from the same look: "Reopen together…" used the centred `link`
+style on an otherwise left-aligned screen; it is left-aligned now, still the mauve one.

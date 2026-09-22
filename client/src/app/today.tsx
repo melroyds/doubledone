@@ -1048,6 +1048,35 @@ export default function TodayScreen() {
     commit(tasks.map((x) => (x.id === id ? clearNudgeIfAny({ ...x, deletedAt: now, updatedAt: now }) : x)));
     setConfirmingId(null);
     track('task.removed');
+    offerUndoRemove([id]);
+  }
+
+  // Remove gets an UNDO, never a confirm dialog (the app's own law for destructive actions, kept
+  // by Routines since day one and, until the 2026-09-21 flow audit, not by Today: one tap, gone,
+  // silence). The delete is already a soft tombstone, so undo is a one-field revert. Recurring
+  // tasks are not in here: their Remove is a skip-today that comes back tomorrow by itself.
+  const [undoRemoved, setUndoRemoved] = useState<string[] | null>(null);
+  const undoRemoveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function offerUndoRemove(ids: string[]) {
+    if (ids.length === 0) return;
+    setUndoRemoved(ids);
+    if (undoRemoveTimer.current) clearTimeout(undoRemoveTimer.current);
+    undoRemoveTimer.current = setTimeout(() => setUndoRemoved(null), 6000);
+  }
+  function undoRemove() {
+    if (!undoRemoved) return;
+    if (undoRemoveTimer.current) clearTimeout(undoRemoveTimer.current);
+    const ids = new Set(undoRemoved);
+    const now = nowMs();
+    commit(
+      tasks.map((x) => {
+        if (!ids.has(x.id)) return x;
+        const { deletedAt: _gone, ...rest } = x;
+        return { ...rest, updatedAt: now };
+      }),
+    );
+    track('task.remove.undone', { count: undoRemoved.length });
+    setUndoRemoved(null);
   }
 
   // Push a one-off to tomorrow: a calm "not today" that moves a single task
@@ -1098,7 +1127,10 @@ export default function TodayScreen() {
     // this one".
     const pinned = spreadable.find((t) => t.pinnedAt != null);
     const heldTask = hold ? spreadable.find((t) => t.id === hold.taskId) : undefined;
-    const target = pinned ?? heldTask;
+    // Exactly one open task is not a question ("Which one?" with a single answer was a redundant
+    // tap on a tool whose whole point is removing a decision; the 2026-09-21 flow audit).
+    const only = spreadable.length === 1 ? spreadable[0] : undefined;
+    const target = pinned ?? heldTask ?? only;
     setFocusPick(target ? target.id : null);
     setFocusOpen(true);
     track('focus.opened');
@@ -1114,7 +1146,7 @@ export default function TodayScreen() {
     const gate = canMatchEnergy(premium, energyUses, nowMs());
     if (!gate.allowed) {
       track('premium.gate_hit', { reason: 'energy' });
-      router.push('/premium');
+      router.push({ pathname: '/premium', params: { from: 'energy' } });
       return;
     }
     setEnergyPick(null);
@@ -1253,7 +1285,7 @@ export default function TodayScreen() {
     if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
     if (task.pinnedAt == null && !premium) {
       track('premium.gate_hit', { reason: 'pin' });
-      router.push('/premium');
+      router.push({ pathname: '/premium', params: { from: 'pin' } });
       dismissActions();
       return;
     }
@@ -1321,6 +1353,13 @@ export default function TodayScreen() {
     if (selected.length - skippedCount > 0) track('bulk.removed', { count: selected.length - skippedCount });
     // Only-recurring removals get the honest reassurance: nothing died, today was skipped.
     if (skippedCount === selected.length) affirm(t('repeat.skippedToday'));
+    // The one-offs get the undo; a skipped repeat needs none, it is back tomorrow.
+    offerUndoRemove(
+      selected.filter((id) => {
+        const x = tasks.find((y) => y.id === id);
+        return x != null && !isRecurring(x);
+      }),
+    );
     exitSelect();
   }
   function bulkMoveTo(iso: string) {
@@ -1714,7 +1753,7 @@ export default function TodayScreen() {
     if (sequencing || premiumLoading) return;
     if (!premium) {
       track('premium.gate_hit', { reason: 'sequence' });
-      router.push('/premium');
+      router.push({ pathname: '/premium', params: { from: 'sequence' } });
       return;
     }
     setDayContext({});
@@ -2504,7 +2543,7 @@ export default function TodayScreen() {
                   key={lvl}
                   onPress={() => setEnergy(lvl)}
                   accessibilityRole="radio"
-                  accessibilityState={{ checked: on }}
+                  aria-checked={on}
                   accessibilityLabel={label}
                   hitSlop={6}
                   style={({ pressed }) => [styles.energyPill, on && styles.energyPillOn, pressed && styles.pressed]}
@@ -2672,6 +2711,16 @@ export default function TodayScreen() {
             <Text style={styles.holdHintDismiss}>{t('common.gotIt')}</Text>
           </Pressable>
         )}
+        {undoRemoved && (
+          <View style={styles.undoBar}>
+            <Text style={styles.undoText}>
+              {undoRemoved.length === 1 ? t('today.removedOne') : t('today.removedMany', { count: String(undoRemoved.length) })}
+            </Text>
+            <Pressable onPress={undoRemove} accessibilityRole="button" accessibilityLabel={t('today.undoRemoveA11y')} hitSlop={8}>
+              <Text style={styles.undoAction}>{t('common.undo')}</Text>
+            </Pressable>
+          </View>
+        )}
         <View style={styles.list}>
           {visible.map((task, i) => (
             <TaskRow
@@ -2748,6 +2797,10 @@ export default function TodayScreen() {
           </View>
         )}
         {allDone && <Text style={styles.calmNote}>{t('today.allDoneNote')}</Text>}
+        {/* Room under the last line for the fixed frame at the thumb, so an empty day's note and
+            "+ I also did that" never sit under the dock on first paint (the 2026-09-21 audit at
+            desktop widths). */}
+        {!isClosed && <View style={styles.dockSpacer} />}
 
         {loaded && !selectMode && (
           <Pressable
@@ -2874,7 +2927,7 @@ export default function TodayScreen() {
                   if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
                   if (!premium) {
                     track('premium.gate_hit', { reason: 'pin' });
-                    router.push('/premium');
+                    router.push({ pathname: '/premium', params: { from: 'pin' } });
                     return;
                   }
                   void takeOnShared(row, (next, copy) => setPin(next, copy.id, nowMs())).then((copy) => {
@@ -2978,13 +3031,22 @@ export default function TodayScreen() {
                         onPress={() => runTool(tool)}
                         disabled={busy}
                         accessibilityRole="button"
-                        accessibilityState={{ disabled: busy }}
-                        accessibilityLabel={gate.available || gate.hintKey == null ? toolLabel(tool) : `${toolLabel(tool)}. ${t(gate.hintKey)}`}
+                        aria-disabled={busy}
+                        accessibilityLabel={
+                          (gate.available || gate.hintKey == null ? toolLabel(tool) : `${toolLabel(tool)}. ${t(gate.hintKey)}`) +
+                          (tool === 'plan' && !premium ? `. ${t('common.premium')}` : '')
+                        }
                         style={({ pressed }) => [styles.toolRow, pressed && styles.pressed]}
                       >
                         <Text style={[styles.toolName, !gate.available && styles.toolNameQuiet]}>
                           {busy ? (tool === 'plan' ? t('today.planning') : t('today.lightening')) : toolLabel(tool)}
                         </Text>
+                        {/* The honey mark Pin already wears in the fold: free users see the premium
+                            tool named as premium HERE, not after a bounce to a page that never said
+                            why (the 2026-09-21 flow audit). */}
+                        {tool === 'plan' && !premium && (
+                          <Text style={styles.toolPremiumMark} accessible={false} importantForAccessibility="no">✦</Text>
+                        )}
                         {tool === occupant && <Text style={styles.toolNowTag}>{t('today.toolNow')}</Text>}
                       </Pressable>
                       {toolHint === tool && gate.hintKey != null && (
@@ -3010,12 +3072,17 @@ export default function TodayScreen() {
                     : occupant === 'lighten' && strategising
                       ? t('today.lightening')
                       : toolLabel(occupant)}
+                  {occupant === 'plan' && !premium ? (
+                    <Text style={styles.toolPremiumMark} accessible={false} importantForAccessibility="no">
+                      {' '}✦
+                    </Text>
+                  ) : null}
                 </Text>
               </Pressable>
               <Pressable
                 onPress={toggleToolsPanel}
                 accessibilityRole="button"
-                accessibilityState={{ expanded: toolsOpen }}
+                aria-expanded={toolsOpen}
                 accessibilityLabel={t('today.allDayToolsA11y')}
                 style={({ pressed }) => [styles.caretBtn, pressed && styles.pressed]}
               >
@@ -3044,7 +3111,7 @@ export default function TodayScreen() {
               if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
               if (!premium) {
                 track('premium.gate_hit', { reason: 'ocr' });
-                router.push('/premium');
+                router.push({ pathname: '/premium', params: { from: 'ocr' } });
                 return;
               }
               setCameraOpen(true);
@@ -3072,7 +3139,7 @@ export default function TodayScreen() {
                 onPress={() => setSelected(spreadable.map((x) => x.id))}
                 disabled={allSelected}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: allSelected }}
+                aria-disabled={allSelected}
                 accessibilityLabel={allSelected ? t('today.selectAllUnavailA11y') : t('today.selectAllA11y')}
                 style={[styles.selectAllPill, allSelected && styles.selectRowOff]}
                 hitSlop={6}
@@ -3116,7 +3183,7 @@ export default function TodayScreen() {
                 accessibilityLabel={
                   onlyTask && isRecurring(onlyTask)
                     ? t('repeat.skipTodayA11y', { title: onlyTask.title })
-                    : t('today.removeCountA11y', { count: String(selected.length) })
+                    : t(selected.length === 1 ? 'today.removeCountA11yOne' : 'today.removeCountA11yOther', { count: String(selected.length) })
                 }
                 hitSlop={6}
                 style={selected.length === 0 ? styles.selectRowOff : undefined}
@@ -3805,7 +3872,7 @@ export default function TodayScreen() {
                     // way it was made and nobody is stuck with a fact they did not mean to state.
                     onPress={() => setDayContext((c) => ({ ...c, [field]: on ? undefined : value }))}
                     accessibilityRole="button"
-                    accessibilityState={{ selected: on }}
+                    aria-selected={on}
                     accessibilityLabel={t(labelKey)}
                     style={({ pressed }) => [styles.planChip, on && styles.planChipOn, pressed && styles.pressed]}
                   >
@@ -4202,6 +4269,23 @@ const makeStyles = (t: Theme) =>
     selectRemove: { color: t.colors.danger, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', textAlign: 'right' },
     sortSummary: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginBottom: spacing.two },
     affirmation: { color: t.colors.doneText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', marginBottom: spacing.two },
+    // The Remove undo bar: Routines' shape, the app's one destructive-action pattern.
+    undoBar: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: t.colors.surface,
+      borderRadius: radius.md,
+      borderWidth: border.hair,
+      borderColor: t.colors.line,
+      paddingHorizontal: spacing.four,
+      paddingVertical: spacing.three,
+      marginBottom: spacing.three,
+    },
+    undoText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+    undoAction: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
+    toolPremiumMark: { color: t.colors.accents[2], fontSize: 12 * t.scale, marginLeft: spacing.one },
+    dockSpacer: { height: 120 },
     holdHint: {
       flexDirection: 'row',
       alignItems: 'center',

@@ -117,7 +117,8 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle, onEditS
             fix, not theirs to work out. Said once here, where the expectation is actually formed,
             rather than renaming anything: "Repeating" is the right word, it just needed its limit
             stated, and it points at the two real ways to be notified. */}
-        <Text style={styles.notNotify}>{t('repeat.notANotification')}</Text>
+        {/* Web has no Remind me on the held card, so the sentence must not point at it. */}
+        <Text style={styles.notNotify}>{Platform.OS === 'web' ? t('repeat.notANotificationWeb') : t('repeat.notANotification')}</Text>
         {undoId != null && (
           <View style={styles.undoBar}>
             <Text style={styles.undoText}>{t('repeat.removed')}</Text>
@@ -140,7 +141,7 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle, onEditS
                     onPress={() => onToggle(task.id)}
                     style={styles.row}
                     accessibilityRole="checkbox"
-                    accessibilityState={{ checked: done }}
+                    aria-checked={done}
                     accessibilityLabel={task.title}
                   >
                     <View style={[styles.box, done && styles.boxDone]}>

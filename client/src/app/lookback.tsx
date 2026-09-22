@@ -99,6 +99,14 @@ export default function LookbackScreen() {
     for (const iso of byDay.keys()) if (iso.startsWith(prefix)) return true;
     return false;
   }, [byDay, view]);
+  // "A quiet month so far" was one string for three states; a finished month is not "so far",
+  // and a month that has not started is not quiet (the 2026-09-21 flow audit).
+  const monthRelation =
+    view.year < today.getFullYear() || (view.year === today.getFullYear() && view.month < today.getMonth())
+      ? 'past'
+      : view.year === today.getFullYear() && view.month === today.getMonth()
+        ? 'current'
+        : 'future';
 
   // The scrapbook is per-week: the week of the selected day. Its image is made
   // from that week's finished titles, distilled into a calm, abstract scene.
@@ -146,7 +154,7 @@ export default function LookbackScreen() {
       bookBusyRef.current = false; // gate blocked, no billable call: free the guard so the user can retry
       if (gate.reason === 'free_monthly') {
         track('premium.gate_hit', { reason: 'free_monthly' });
-        router.push('/premium');
+        router.push({ pathname: '/premium', params: { from: 'free_monthly' } });
         return;
       }
       const days = Math.max(1, Math.ceil((gate.resetAt - Date.now()) / 86_400_000));
@@ -327,7 +335,11 @@ export default function LookbackScreen() {
         // never greets a brand-new user with "you have done nothing".
         <Text style={styles.monthEmpty}>{t('lookback.firstRunEmpty')}</Text>
       ) : (
-        !monthHasCompletions && <Text style={styles.monthEmpty}>{t('lookback.monthEmpty')}</Text>
+        !monthHasCompletions && (
+          <Text style={styles.monthEmpty}>
+            {t(monthRelation === 'past' ? 'lookback.monthEmptyPast' : monthRelation === 'future' ? 'lookback.monthEmptyFuture' : 'lookback.monthEmpty')}
+          </Text>
+        )
       )}
 
       <View style={styles.detail}>
@@ -555,7 +567,7 @@ export default function LookbackScreen() {
             style={styles.insightsCard}
             onPress={() => {
               track('premium.gate_hit', { reason: 'insights' });
-              router.push('/premium');
+              router.push({ pathname: '/premium', params: { from: 'insights' } });
             }}
             accessibilityRole="button"
             accessibilityLabel={t('lookback.patternsUpsellA11y')}

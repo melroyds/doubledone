@@ -950,7 +950,7 @@ export default function OursListScreen() {
               onPress={() => setSelected(visible.map((task) => task.id))}
               disabled={selected.length === visible.length}
               accessibilityRole="button"
-              accessibilityState={{ disabled: selected.length === visible.length }}
+              aria-disabled={selected.length === visible.length}
               accessibilityLabel={t('today.selectAllA11y')}
               hitSlop={6}
               style={selected.length === visible.length ? styles.selectOff : undefined}
@@ -1051,7 +1051,7 @@ export default function OursListScreen() {
                   // second person can see is a genuinely different moment from one met alone, and
                   // whether the shared list converts is a thing worth being able to answer.
                   track('premium.gate_hit', { reason: 'ocr_ours' });
-                  router.push('/premium');
+                  router.push({ pathname: '/premium', params: { from: 'ocr_ours' } });
                   return;
                 }
                 setCameraOpen(true);

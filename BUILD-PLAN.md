@@ -42,7 +42,9 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
-**1.5.0 SHIPPED EVERYWHERE (confirmed 2026-09-20 from the public store listings): Apple live 31 Aug, Play live 30 Aug, web + Worker live 30 Aug. version.json bumped to 1.5.0/1.5.0 the day of confirmation.** The next action is post-release: read the first three weeks of hold.* and card-usage telemetry from D1 (the instrumentation shipped exactly so the held card's next redesign argument has numbers), and watch the field for Hold me to it reports.
+**THE IMMEDIATE NEXT ACTION (2026-09-21): Melroy reviews and merges [PR #11](https://github.com/melroyds/doubledone/pull/11), the flow audit's 22 fixes** (web accessibility state first; Remove with Undo; repeats following their start date; Premium named before the bounce; then the copy-true-in-every-state and polish batches). Merge is the web deploy; the stores ride the next release train as 1.5.1. Manual cases AUD-01 to AUD-06 are the device pass. Behind it, 2026-09-20 shipped the Ours clarity fixes from a couple's field report (PR #10 plus two follow-ups, live on web), and the three-week hold telemetry read showed Hold me to it tried once in three weeks: the growth problem is reach, not design, and the outreach kit (artifact "DoubleDone Outreach Kit") is the answer to that.
+
+**1.5.0 SHIPPED EVERYWHERE (confirmed 2026-09-20 from the public store listings): Apple live 31 Aug, Play live 30 Aug, web + Worker live 30 Aug. version.json bumped to 1.5.0/1.5.0 the day of confirmation.**
 
 *(The shipped train, for the record:)* **(2026-08-30): ship 1.5.0.** "Hold me to it" is device-proven six of
 six across two rounds (the knock ladder, quiet hours, both exits, reboot survival, the in-cell

@@ -149,7 +149,7 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
                     onPress={() => toggle(i)}
                     style={({ pressed }) => [styles.row, pressed && styles.pressed]}
                     accessibilityRole="checkbox"
-                    accessibilityState={{ checked: on }}
+                    aria-checked={on}
                     accessibilityLabel={fmt.plural(
                       s.minutes,
                       { one: t('breakdown.stepRowA11yOne'), other: t('breakdown.stepRowA11yOther') },
