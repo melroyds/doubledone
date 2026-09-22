@@ -160,6 +160,16 @@ The single home for consciously parked work. Nothing here is dropped; each item 
   install block rolls out country by country (Australia not in the first wave). **Trigger:** a
   sideloaded APK refuses to install on a certified device, or Google announces enforcement
   reaching Australia.
+- **An open web tab never learns about a same-version deploy.** The HTML is served
+  `max-age=0` and `sw.js` caches nothing, so a reload always gets the new bundle, but a tab left
+  open across a push keeps running the old one, and `version.json` cannot nudge because the
+  version number did not move (found 2026-09-22: Melroy's D5 and D6 "fails" on the flow audit
+  matched the pre-merge behaviour exactly, and D6 was real, D5 was the old bundle). Cheapest
+  fix: `scripts/stamp-version.mjs` also stamps a build id (the git SHA) into `version.json`
+  and into the bundle, and `update-check.ts` treats a differing build id on web as "a newer
+  DoubleDone is ready" with the existing calm reload nudge. **Trigger:** a second field report
+  or device pass that turns out to be a stale tab, or the first time a web hotfix has to land
+  in people's open tabs the same day.
 
 ### Parked from the 2026-08-19 billing investigation
 

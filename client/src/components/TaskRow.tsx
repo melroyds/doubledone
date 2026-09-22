@@ -289,17 +289,23 @@ export function TaskRow({
         aria-checked={Boolean(selected)}
         accessibilityLabel={t('today.selectRowLabel', { title })}
       >
-        <Animated.View style={[styles.selectDot, selected && styles.selectDotOn, { opacity: selFade }]}>{selected && <Text style={styles.tick}>✓</Text>}</Animated.View>
-        {/* The "big" chip stays in select mode: the bulk bar offers "Mark as a lot", so the rows
-            must keep showing which ones already are (the 2026-09-21 flow audit). */}
-        {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
-        <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
-        {recurring && <Text style={styles.repeatMark}>↻</Text>}
-        {/* The contract mark: a plain accent DOT, not a glyph. The first device pass shipped a
-            flag character the iOS font quietly did not draw, which is the one failure mode a
-            View cannot have. Quiet, never a badge count: the loudness lives in the
-            notifications the user asked for, not on the screen they came to for calm. */}
-        {held && <View style={styles.heldDot} accessible={false} importantForAccessibility="no" />}
+        {/* `rowMain`, like every other branch: `row` itself is a COLUMN since the note line landed
+            (100b613), and this branch alone kept its children directly on it, so in select mode the
+            tick, the chip and the title stacked top to bottom. On a phone the chip read as gone
+            (Melroy's D6, 2026-09-22). */}
+        <View style={styles.rowMain}>
+          <Animated.View style={[styles.selectDot, selected && styles.selectDotOn, { opacity: selFade }]}>{selected && <Text style={styles.tick}>✓</Text>}</Animated.View>
+          {/* The "big" chip stays in select mode: the bulk bar offers "Mark as a lot", so the rows
+              must keep showing which ones already are (the 2026-09-21 flow audit). */}
+          {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
+          <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
+          {recurring && <Text style={styles.repeatMark}>↻</Text>}
+          {/* The contract mark: a plain accent DOT, not a glyph. The first device pass shipped a
+              flag character the iOS font quietly did not draw, which is the one failure mode a
+              View cannot have. Quiet, never a badge count: the loudness lives in the
+              notifications the user asked for, not on the screen they came to for calm. */}
+          {held && <View style={styles.heldDot} accessible={false} importantForAccessibility="no" />}
+        </View>
       </Pressable>
     );
   }
