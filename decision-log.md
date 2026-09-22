@@ -8001,3 +8001,30 @@ people minted for each other and neither could redeem. Fixed: the gate now also 
 shown list is frozen, and the frozen screen carries the redeem door in words ("Got a code from
 them? Enter it to reopen."). Also from the same look: "Reopen together…" used the centred `link`
 style on an otherwise left-aligned screen; it is left-aligned now, still the mauve one.
+
+**Addendum, 2026-09-22, same day, from Melroy's D2b read ("so they're not just stuck waiting"):**
+the pairing screen already looked for the other person every ten seconds while a NEW list was
+waiting for its first join, but the poll was keyed on `waiting`, which a frozen list can never be.
+So after a reopen code was minted, the screen that promised "the list comes back the moment they
+use it" never looked: A read the code out, B used it, and A sat on "This list is closed" until they
+left and came back. Decided: (1) the same poll now also runs while a reopen code is out and unused,
+with the same ceiling and foreground gate, plus a focus gate it never had (Open the list is a push,
+so this screen stayed mounted under the list and its poll ran alongside the list's own sync);
+(2) when the list comes back, the spent code clears itself and a one-line beat says "They used the
+code. The list is open again, exactly as you both left it." rather than the screen silently swapping
+states under somebody reading a code aloud (no "not who I meant" escape on that beat: only a person
+already on the list can use a reopen code); (3) a quiet "Check now" under a minted reopen code and
+on the waiting screen, for the person who cannot stand still for ten seconds and as the honest way
+past the poll's 30-minute ceiling. Decided against a refresh-only button with no poll: the audience
+should not have to work the screen. Decided against pull-to-refresh: invisible, and on web it is
+nothing. The shared list needs none of this, its 15-second sync already re-reads the pair.
+A four-lens adversarial review of the change before it shipped caught two things worth recording:
+the "They used the code" beat would have fired FALSELY on the D2 path itself (both people minted,
+then one redeemed the other's code: the redeemer's own code was still out, so the next read found
+the list live and credited the wrong person), and the beat was a bare boolean that could outlive its
+list and greet a later, unrelated one. Fixed: redeeming clears your own outstanding code, the beat
+is keyed to the list it describes and cleared on leave, "Check now" dims while it looks (a read that
+finds nothing changed was otherwise a tap that did nothing), and the two stacked quiet links on the
+waiting screen got breathing room. Known edge, left: a minter who leaves the pairing screen and comes
+back before the other redeems has no code in hand (memory-only by design), so that visit does not
+poll; tapping "Reopen together…" then answers already-live and refreshes, so it converges.

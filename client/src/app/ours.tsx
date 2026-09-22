@@ -97,11 +97,12 @@ const FAILURE_LINE: Record<Exclude<PairFailure, 'signed-out'>, string> = {
 // language its household speaks, rather than a key that renders differently on each phone.
 const PRESETS = ['ours.presetShop', 'ours.presetHouse', 'ours.presetCare', 'ours.presetJustUs'] as const;
 
-// How often the waiting screen looks again for the other person. Ten seconds is a person watching a
-// kettle, not a poll: it only runs while this screen is focused AND nobody has joined yet.
+// How often a waiting screen looks again for the other person. Ten seconds is a person watching a
+// kettle, not a poll: it only runs while this screen is focused AND the answer can still change
+// (nobody has joined yet, or a reopen code is out and nobody has used it yet).
 const WAIT_POLL_MS = 10_000;
 
-/** A ceiling on the whole waiting poll. The invite lives 24 hours, so past that the answer cannot
+/** A ceiling on the whole waiting poll. Both invites live 24 hours, so past that the answer cannot
  *  change, and long before that a screen left open is a battery and somebody's row count. */
 const WAIT_POLL_CEILING_MS = 30 * 60_000;
 
@@ -156,6 +157,9 @@ export default function OursScreen() {
   // someone who had already left. The beat that flickered carries `leave`, which is permanent for
   // both people, and the likeliest response to a screen that looks broken is to tap the escape.
   const pass = useRef(0);
+  // Whether this screen is the one on top. "Open the list" is a push, so this stays mounted under
+  // the list, and without the gate its poll and the list's own sync ran side by side.
+  const focused = useRef(false);
   // Closed lists. Readable forever, ranked behind the live one, and never in the way: `tucked` is
   // the local set you have put away, and it only hides them from the default view.
   const [archive, setArchive] = useState<MyPair[]>([]);
@@ -166,6 +170,17 @@ export default function OursScreen() {
   // asking them to prove a relationship the database already knows about.
   const [resumeFor, setResumeFor] = useState<string | null>(null);
   const [resumeCode, setResumeCode] = useState<string | null>(null);
+  // `resumeFor`, readable from inside `refresh` without rebuilding it (its only dep is the session,
+  // and the focus effect re-fires on every rebuild). Kept in step at the one place `resumeFor` is set.
+  const resumeForRef = useRef<string | null>(null);
+  // The list a reopen code was minted for came back: they used it. The beat that says so, keyed to
+  // THAT list (a bare boolean outlived the reopen it described and could greet a later, unrelated
+  // list with "exactly as you both left it"), and cleared wherever the list it names stops being
+  // the one on screen.
+  const [reopenedFor, setReopenedFor] = useState<string | null>(null);
+  // "Check now" in flight. The read itself never touches `busy` (that is for writes), so without
+  // this a tap that found nothing changed was indistinguishable from a dead button.
+  const [checking, setChecking] = useState(false);
   // Your own name on this list. `pair_members` has no update policy by design, which is what stops
   // either person editing the other's row, so this goes through a definer RPC scoped to auth.uid().
   const [selfEditing, setSelfEditing] = useState(false);
@@ -197,6 +212,15 @@ export default function OursScreen() {
       const next = res.value.live ?? res.value.frozen[0] ?? null;
       // Whatever is being shown as the current list is not also listed underneath itself.
       setArchive(res.value.frozen.filter((p) => p.pairId !== next?.pairId));
+      // The list a reopen code was minted for is live again: they used it. The code works once, so
+      // it goes, and the screen SAYS what happened rather than silently swapping a closed list for
+      // an open one under somebody who was reading a code aloud.
+      if (next && !next.closedAt && !next.disabledAt && resumeForRef.current === next.pairId) {
+        resumeForRef.current = null;
+        setResumeFor(null);
+        setResumeCode(null);
+        setReopenedFor(next.pairId);
+      }
       setTucked(await loadTuckedPairs());
       if (mine !== pass.current) return;
       // hasPartner, not the label. Fixing `waiting` and the sharing branch and leaving THIS one is
@@ -219,7 +243,11 @@ export default function OursScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      focused.current = true;
       void refresh();
+      return () => {
+        focused.current = false;
+      };
     }, [refresh]),
   );
 
@@ -232,27 +260,33 @@ export default function OursScreen() {
   // no label is legal in the column, and keying on the label rendered "waiting for someone to join"
   // over a list two people were actively using.
   const waiting = !!pair && !pair.hasPartner && !frozen;
+  // A reopen code out and not yet used is the same waiting. resumeCodeBody promises "the list comes
+  // back the moment they use it", and until 2026-09-22 nothing on this screen ever looked: the poll
+  // was keyed on `waiting`, which a frozen list can never be, so A minted, read the code out, and sat
+  // on "This list is closed" until they left and came back (Melroy's D2b).
+  const awaitingReopen = frozen && !!pair && resumeFor === pair.pairId && !!resumeCode;
+  const watching = waiting || awaitingReopen;
 
   // #15: the poll had no focus gate, no app-state gate and no ceiling, so a tab left open made two
   // Supabase reads every ten seconds all night, long after the 24-hour invite TTL had made the
-  // answer impossible. A lifetime ceiling and a foreground check, and a refresh on returning so
-  // nobody is stranded on a stale screen.
+  // answer impossible. A lifetime ceiling, a foreground check and a focus check, and a refresh on
+  // returning so nobody is stranded on a stale screen.
   useEffect(() => {
-    if (!waiting) return;
+    if (!watching) return;
     const startedAt = Date.now();
     const timer = setInterval(() => {
       if (Date.now() - startedAt > WAIT_POLL_CEILING_MS) return;
-      if (AppState.currentState !== 'active') return;
+      if (!focused.current || AppState.currentState !== 'active') return;
       void refresh();
     }, WAIT_POLL_MS);
     const sub = AppState.addEventListener('change', (next) => {
-      if (next === 'active') void refresh();
+      if (next === 'active' && focused.current) void refresh();
     });
     return () => {
       clearInterval(timer);
       sub.remove();
     };
-  }, [waiting, refresh]);
+  }, [watching, refresh]);
 
   // A failed session is a state, not a scolding: fall through to the sign-in explanation. And
   // 'already-live' is not a failure the user needs told about: they asked to wake a list, and it
@@ -362,8 +396,25 @@ export default function OursScreen() {
     });
     setLoaded(true);
     hadPartner.current = true; // joining is not an arrival: I am the one who arrived
+    // Any reopen code I minted for this list is moot now: I used THEIRS. Left set, the refresh
+    // below would find the list live with my code still out and announce "They used the code" on
+    // top of "You're now sharing with", which is false on the one path where both people minted
+    // for each other, the D2 case itself.
+    resumeForRef.current = null;
+    setResumeFor(null);
+    setResumeCode(null);
+    setReopenedFor(null);
     track('ours.joined');
     void refresh();
+  }
+
+  /** The same read the poll makes, on request. Acknowledged while it runs, because a read that
+   *  finds nothing changed is otherwise a tap that did nothing. */
+  async function checkNow() {
+    if (checking) return;
+    setChecking(true);
+    await refresh();
+    setChecking(false);
   }
 
   async function share() {
@@ -410,6 +461,7 @@ export default function OursScreen() {
     setJoinedWith(null);
     setArrived(null);
     setCode(null);
+    setReopenedFor(null);
     hadPartner.current = null;
     track('ours.left');
     void refresh();
@@ -437,8 +489,10 @@ export default function OursScreen() {
     const res = await inviteToResume(supabase, pairId);
     setBusy(false);
     if (!res.ok) return report(res.failure);
+    resumeForRef.current = pairId;
     setResumeFor(pairId);
     setResumeCode(res.value.code);
+    setReopenedFor(null);
     track('ours.resumeOffered');
   }
 
@@ -570,6 +624,11 @@ export default function OursScreen() {
             {formatCode(resumeCode)}
           </Text>
           <Text style={styles.hint}>{t('ours.resumeCodeBody')}</Text>
+          {/* The screen looks on its own every ten seconds while this code is out. This is for the
+              person who cannot stand still for ten of them, and the way past the poll's ceiling. */}
+          <Pressable onPress={() => void checkNow()} disabled={busy || checking} accessibilityRole="button" accessibilityLabel={t('ours.checkNow')} aria-busy={checking} hitSlop={6}>
+            <Text style={[styles.quietAction, styles.checkNow, checking && styles.checking]}>{t('ours.checkNow')}</Text>
+          </Pressable>
         </View>
       );
     }
@@ -831,6 +890,14 @@ export default function OursScreen() {
             </View>
           ) : null}
 
+          {/* No "wasn't who I meant" escape here: the only person who can use a reopen code is the
+              one already on the list, so there is nobody else it could have been. */}
+          {reopenedFor === pair.pairId ? (
+            <View style={styles.beat}>
+              <Text style={styles.beatText}>{t('ours.reopened')}</Text>
+            </View>
+          ) : null}
+
           <View style={styles.leaveBlock}>
             <Pressable onPress={leave} disabled={busy} accessibilityRole="button" accessibilityLabel={t('ours.leave')} hitSlop={6}>
               <Text style={styles.quietAction}>{t('ours.leave')}</Text>
@@ -906,6 +973,11 @@ export default function OursScreen() {
             </>
           ) : null}
           <Text style={styles.waiting}>{t('ours.waiting')}</Text>
+          {/* Same as under a reopen code: the screen looks every ten seconds on its own, and this is
+              for the person who wants to look now. */}
+          <Pressable onPress={() => void checkNow()} disabled={busy || checking} accessibilityRole="button" accessibilityLabel={t('ours.checkNow')} aria-busy={checking} hitSlop={6}>
+            <Text style={[styles.quietAction, styles.checkNow, checking && styles.checking]}>{t('ours.checkNow')}</Text>
+          </Pressable>
           {codeInHand ? (
             <Pressable onPress={remint} accessibilityRole="button" accessibilityLabel={t('ours.newCode')} hitSlop={6}>
               <Text style={styles.quietAction}>{t('ours.newCode')}</Text>
@@ -1131,6 +1203,10 @@ const makeStyles = (t: Theme) =>
     waiting: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale, marginTop: spacing.four },
     quietAction: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body },
     reopenHaveCode: { marginTop: spacing.three },
+    // Two margins of two: on the waiting screen this sits directly over the quiet "Get a new code",
+    // and with less the two hit areas touched.
+    checkNow: { marginTop: spacing.two, marginBottom: spacing.two },
+    checking: { opacity: 0.5 },
     beat: {
       backgroundColor: t.colors.accentSoft,
       borderRadius: radius.md,
