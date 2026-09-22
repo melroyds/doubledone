@@ -7990,3 +7990,14 @@ law says undo).
 two things that broke the first verification pass (a shared-origin localStorage between agents,
 and a browser tab cap) are solved by unique loopback origins per agent and strictly sequential
 refuters. Next audit: seed the premium flag with 'on', not 'yes'.
+
+**Addendum, 2026-09-22, from Melroy's D2 device check ("handshake purgatory"):** reopening a closed
+list is mint-and-redeem by design (never unilateral), but the frozen screen offered only the mint
+("Reopen together…") to BOTH people, and the redeem lived unnamed under the generic "Join with a
+code" at the bottom. Worse, the join's fall-through to `resume_pair` was gated on
+`archive.length > 0`, and the list being shown is deliberately excluded from `archive`, so when the
+only closed list was the one on screen the resume never ran and every code read as invalid. Two
+people minted for each other and neither could redeem. Fixed: the gate now also fires when the
+shown list is frozen, and the frozen screen carries the redeem door in words ("Got a code from
+them? Enter it to reopen."). Also from the same look: "Reopen together…" used the centred `link`
+style on an otherwise left-aligned screen; it is left-aligned now, still the mauve one.

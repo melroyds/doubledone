@@ -334,7 +334,12 @@ export default function OursScreen() {
     // used to spend two of ten and lock somebody out after five wrong guesses instead of ten. It is
     // now skipped entirely when the server has already said the account is being throttled, and
     // when there is no closed list of ours for a resume code to belong to.
-    if (!res.ok && res.failure === 'invalid-code' && archive.length > 0) {
+    // `frozen` as well as the archive: the list being SHOWN is deliberately not in `archive`
+    // (nothing lists itself underneath itself), so when the only closed list was the one on
+    // screen this gate was false, the resume never ran, and every reopen code read as invalid.
+    // Two people each minting for the other and neither able to redeem (Melroy's D2, 2026-09-22:
+    // "handshake purgatory").
+    if (!res.ok && res.failure === 'invalid-code' && (archive.length > 0 || frozen)) {
       res = await resumePair(supabase, typedCode);
     }
     setBusy(false);
@@ -573,6 +578,8 @@ export default function OursScreen() {
     if (!target.hasPartner) return null;
     return (
       <View style={styles.leaveBlock}>
+        {/* Left-aligned like everything else on this screen (the centred `link` style put it
+            alone in the middle of the page, Melroy 2026-09-22). Still the mauve one. */}
         <Pressable
           onPress={() => void offerResume(target.pairId)}
           disabled={busy}
@@ -580,9 +587,15 @@ export default function OursScreen() {
           accessibilityLabel={t('ours.reopen')}
           hitSlop={6}
         >
-          <Text style={styles.link}>{t('ours.reopen')}</Text>
+          <Text style={styles.quietAction}>{t('ours.reopen')}</Text>
         </Pressable>
         <Text style={styles.hint}>{t('ours.reopenHint')}</Text>
+        {/* The OTHER half of the handshake, named on the screen. Reopening is mint-and-redeem,
+            and with only "Reopen together…" visible both people minted for each other and neither
+            knew the redeem lived under the generic "Join with a code" at the bottom. */}
+        <Pressable onPress={() => setFlow('join')} disabled={busy} accessibilityRole="button" accessibilityLabel={t('ours.reopenHaveCode')} hitSlop={6}>
+          <Text style={[styles.quietAction, styles.reopenHaveCode]}>{t('ours.reopenHaveCode')}</Text>
+        </Pressable>
       </View>
     );
   }
@@ -1117,6 +1130,7 @@ const makeStyles = (t: Theme) =>
     link: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     waiting: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale, marginTop: spacing.four },
     quietAction: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    reopenHaveCode: { marginTop: spacing.three },
     beat: {
       backgroundColor: t.colors.accentSoft,
       borderRadius: radius.md,

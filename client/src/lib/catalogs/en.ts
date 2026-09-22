@@ -388,6 +388,7 @@ export const en = {
     recentlyRemovedHint: 'Anything taken off the list waits here for seven days.',
     reopen: 'Reopen together…',
     reopenHint: 'This gives you a code for them. Nothing reopens until they use it.',
+    reopenHaveCode: 'Got a code from them? Enter it to reopen.',
     when: 'When…',
     whenDayZone: 'A day',
     whenRhythmZone: 'Or a rhythm',

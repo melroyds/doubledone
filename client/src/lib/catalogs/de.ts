@@ -388,6 +388,7 @@ export const de: Catalog = {
     recentlyRemovedHint: 'Was von der Liste genommen wird, wartet hier sieben Tage.',
     reopen: 'Gemeinsam wieder öffnen…',
     reopenHint: 'Das gibt dir einen Code für deine Person. Nichts öffnet sich, bis sie ihn benutzt.',
+    reopenHaveCode: 'Hast du einen Code von deinem Menschen? Gib ihn ein, um die Liste wieder zu öffnen.',
     when: 'Wann…',
     whenDayZone: 'Ein Tag',
     whenRhythmZone: 'Oder ein Rhythmus',
