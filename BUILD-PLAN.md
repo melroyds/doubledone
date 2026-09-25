@@ -168,6 +168,17 @@ The single home for consciously parked work. Nothing here is dropped; each item 
   Share → DoubleDone appears and the capture is prefilled. Until then, sharing a PAGE from
   Safari's share button should already list DoubleDone on 1.5.0, which proves the extension
   itself is present. **Trigger:** the 1.5.1 iOS build lands on TestFlight.
+- **R8 shrinking, optimisation and obfuscation on the Android release build.** Play Console
+  flagged it 2026-09-25 ("DEX code optimization: Low", 1% obfuscation, 54.2 MB uncompressed DEX)
+  with a Google deadline in February 2027. Expo ships release builds un-minified by default. The
+  switch is one line in `expo-build-properties` (`android.enableMinifyInReleaseBuilds`, plus
+  `enableShrinkResourcesInReleaseBuilds`), and that is the danger: R8 strips code it cannot see
+  being used, and on React Native the casualties are the reflective parts (the home-screen widget,
+  the share extension, RevenueCat, native modules), which never show in the web preview. Needs its
+  own build, a closed-track device pass of widget, share, IAP, reminders and Ours, and the mapping
+  file uploaded so crash reports stay readable. The console's "upgrade to AGP 9.0" half arrives with
+  the SDK upgrade, not by hand. **Trigger:** the SDK 57 upgrade (which also brings expo-share-intent
+  8.x), or 2026-12-01, whichever comes first, so it is done and device-proven well before February.
 - **A tri-state bearer verifier (rejected vs unavailable).** `server/src/verify.ts` returns null for a
   forged or expired token AND for a JWKS fetch failure, so a Supabase auth blip on a cold isolate
   reads as "re-copy your token" on the pasted-token path and as a 401 (folded to FREE by the client
