@@ -42,7 +42,7 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
-**THE IMMEDIATE NEXT ACTION (2026-09-25): the 1.5.1 native train, on Melroy's word.** The device pass is COMPLETE (2026-09-22 to 09-25): 11 of 13 cells passed first time; D2 failed and was fixed (`eba6fce`, its re-test D2b passed); D5 and D6 were re-run after a hard refresh (D5 was a tab still on the pre-merge bundle, D6 was a real bug, fixed in `0a35d65`); and **D11 (share into DoubleDone) FAILS on iPhone, passes on Android**, parked in the Backlog with a trigger and NOT holding the train. Web is live with everything ([PR #11](https://github.com/melroyds/doubledone/pull/11) as `6e06229`, plus the three same-day fixes `eba6fce`, `40cbb32`, `0a35d65`, each read back from the served bundle). `app.json` is still 1.5.0, so `version.json`'s `web` reads 1.5.0 until the train bumps it. The train, each step on Melroy's word: bump `app.json` to 1.5.1; iOS `eas build -p ios --profile production` + `eas submit -p ios --latest`; Android production AAB to the closed track, then promote; paste the notes from [`docs/release-notes/1.5.1.md`](docs/release-notes/1.5.1.md) (Apple What's New + promotional text, and the six-tag Play block, all written and ready); hand-bump `version.json` per store only when each is genuinely live. Every build only on Melroy's explicit ask. Behind it, 2026-09-20 shipped the Ours clarity fixes from a couple's field report (PR #10 plus two follow-ups, live on web), and the three-week hold telemetry read showed Hold me to it tried once in three weeks: the growth problem is reach, not design, and the outreach kit (artifact "DoubleDone Outreach Kit") is the answer to that.
+**THE IMMEDIATE NEXT ACTION (2026-09-25): the 1.5.1 native train, on Melroy's word.** The device pass is COMPLETE (2026-09-22 to 09-25): 11 of 13 cells passed first time; D2 failed and was fixed (`eba6fce`, its re-test D2b passed); D5 and D6 were re-run after a hard refresh (D5 was a tab still on the pre-merge bundle, D6 was a real bug, fixed in `0a35d65`); and **D11 (share into DoubleDone) FAILED on iPhone, passed on Android**: never a regression, iOS share had never been tested and the extension's default rule was URL-only, fixed in `app.json` on 2026-09-25 (see the Backlog entry and the CLAUDE.md gotcha), and it rides the 1.5.1 iOS build, which is the re-test. Web is live with everything ([PR #11](https://github.com/melroyds/doubledone/pull/11) as `6e06229`, plus the three same-day fixes `eba6fce`, `40cbb32`, `0a35d65`, each read back from the served bundle). `app.json` is still 1.5.0, so `version.json`'s `web` reads 1.5.0 until the train bumps it. The train, each step on Melroy's word: bump `app.json` to 1.5.1; iOS `eas build -p ios --profile production` + `eas submit -p ios --latest`; Android production AAB to the closed track, then promote; paste the notes from [`docs/release-notes/1.5.1.md`](docs/release-notes/1.5.1.md) (Apple What's New + promotional text, and the six-tag Play block, all written and ready); hand-bump `version.json` per store only when each is genuinely live. Every build only on Melroy's explicit ask. Behind it, 2026-09-20 shipped the Ours clarity fixes from a couple's field report (PR #10 plus two follow-ups, live on web), and the three-week hold telemetry read showed Hold me to it tried once in three weeks: the growth problem is reach, not design, and the outreach kit (artifact "DoubleDone Outreach Kit") is the answer to that.
 
 **1.5.0 SHIPPED EVERYWHERE (confirmed 2026-09-20 from the public store listings): Apple live 31 Aug, Play live 30 Aug, web + Worker live 30 Aug. version.json bumped to 1.5.0/1.5.0 the day of confirmation.**
 
@@ -160,21 +160,14 @@ The single home for consciously parked work. Nothing here is dropped; each item 
   install block rolls out country by country (Australia not in the first wave). **Trigger:** a
   sideloaded APK refuses to install on a certified device, or Google announces enforcement
   reaching Australia.
-- **Share into DoubleDone fails on iPhone (D11, 2026-09-25), passes on Android.** The
-  JavaScript side (the inbound queue, Today's capture seeding) is shared by both platforms and
-  proven by Android. What is iOS-only is the share extension's hop into the host app:
-  `expo-share-intent` writes the share into the App Group, then walks the responder chain to
-  `UIApplication.open`, which Apple does not sanction from an extension and has broken on OS
-  updates before. Our config is standard (the plugin registers the extension with EAS and puts
-  the App Group on both targets itself; builds 27 to 29 all finished). Two candidate causes, in
-  order: the share sheet dropping the extension after an App Store update (fix: a real restart,
-  and check More → Edit), and the reported iOS 26 cold-start failure where the open does nothing
-  unless the app is already running. Not yet known: the rung (not in the sheet / opens nothing /
-  opens empty), the iOS version, cold vs warm, and whether iOS share EVER passed on a device (the
-  12 July proof was Android). **Next:** those four answers from Melroy. If it is the cold-start
-  case the fix is upstream: 7.0.0 is the SDK 56 line, 8.x is SDK 57, and no release note yet
-  names iOS 26. **Trigger:** a user report of iOS share failing, an expo-share-intent release
-  naming iOS 26 or the host-app hop, or the SDK 57 upgrade (which brings 8.x anyway).
+- **iOS share (D11): FOUND and fixed in code, ships with the 1.5.1 iOS build.** Not a
+  regression: iOS share was never tested before 2026-09-25, and the extension's default
+  activation rule was URL-only (the CLAUDE.md gotcha has the full story). `app.json` now passes
+  `iosActivationRules` with text plus the two URL rules. Nothing on a phone changes until the
+  next iOS build, so the device re-test is: on the 1.5.1 TestFlight build, Notes → select text →
+  Share → DoubleDone appears and the capture is prefilled. Until then, sharing a PAGE from
+  Safari's share button should already list DoubleDone on 1.5.0, which proves the extension
+  itself is present. **Trigger:** the 1.5.1 iOS build lands on TestFlight.
 - **An open web tab never learns about a same-version deploy.** The HTML is served
   `max-age=0` and `sw.js` caches nothing, so a reload always gets the new bundle, but a tab left
   open across a push keeps running the old one, and `version.json` cannot nudge because the

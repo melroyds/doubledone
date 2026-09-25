@@ -8028,3 +8028,17 @@ finds nothing changed was otherwise a tap that did nothing), and the two stacked
 waiting screen got breathing room. Known edge, left: a minter who leaves the pairing screen and comes
 back before the other redeems has no code in hand (memory-only by design), so that visit does not
 poll; tapping "Reopen together…" then answers already-live and refreshes, so it converges.
+
+## 2026-09-25: iOS share never worked, and it was one missing rule
+
+**Decided:** `expo-share-intent` gets explicit `iosActivationRules` in `app.json`: text, plus
+the two web-URL rules the default already had. **Why:** the 2026-09-25 device pass was the
+first time anyone shared TEXT into DoubleDone on an iPhone, and DoubleDone was not in the sheet,
+not under More → Edit, and unmoved by a restart or a reinstall. That is iOS correctly hiding an
+ineligible extension: the plugin's default activation rule is URL-only, and Android's default
+`text/*` covers text and links, so Android "always worked" and masked it since launch. The
+fix is native config and reaches phones only with a new iOS build (1.5.1), so the device
+re-test is on that TestFlight build. **Decided against** an IPA teardown to prove the extension
+exists: sharing a page from Safari's share button on 1.5.0 proves the same thing for free.
+**Decided against** adding image or file rules while here: a photo is OCR's door, not the share
+sheet's, and every extra rule widens what iOS offers us for.

@@ -60,7 +60,16 @@
         }
       ],
       "expo-quick-actions",
-      "expo-share-intent",
+      [
+        "expo-share-intent",
+        {
+          "iosActivationRules": {
+            "NSExtensionActivationSupportsText": true,
+            "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
+            "NSExtensionActivationSupportsWebPageWithMaxCount": 1
+          }
+        }
+      ],
       [
         "expo-camera",
         {
