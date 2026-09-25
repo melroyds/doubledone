@@ -19,8 +19,8 @@ import {
   type Recurrence,
   type RepeatSpec,
 } from './cadence';
-import { decodeJwtSub } from './mcp';
 import { OPENAPI_SPEC, SWAGGER_HTML } from './openapi';
+import { defaultVerifySub, type SubVerifier } from './verify';
 
 export type ApiEnv = { SUPABASE_URL?: string; SUPABASE_ANON_KEY?: string };
 
@@ -379,6 +379,17 @@ function json(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), { status, headers: { 'content-type': 'application/json', ...API_CORS } });
 }
 
+/** What an integrator needs to hear when the token is refused: the fix, not "upstream error". */
+const TOKEN_EXPIRED = 'unauthorized: token expired or invalid. Re-copy it from DoubleDone Settings → AI agent access (MCP) → Copy my token';
+
+/** A data call that came back not-ok. PostgREST's 401/403 means the token expired or was refused in the
+ *  narrow window after verification, and that is the 401 the contract promises, never a 502 that reads as
+ *  an outage. Everything else is the upstream 502. */
+function upstream(res: Response): Response {
+  if (res.status === 401 || res.status === 403) return json({ error: TOKEN_EXPIRED }, 401);
+  return json({ error: 'upstream error' }, 502);
+}
+
 function bearer(request: Request): string {
   const auth = request.headers.get('Authorization') ?? '';
   return auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
@@ -396,7 +407,7 @@ async function handleListTasks(request: Request, env: ApiEnv, token: string): Pr
   if (q !== null) {
     const { url, init } = searchRequest(env, token);
     const res = await fetch(url, init);
-    if (!res.ok) return json({ error: 'upstream error' }, 502);
+    if (!res.ok) return upstream(res);
     const rows = (await res.json()) as unknown;
     return json({ tasks: searchTasks(rows, q) });
   }
@@ -405,20 +416,20 @@ async function handleListTasks(request: Request, env: ApiEnv, token: string): Pr
     const { count, endIso } = upcomingWindow(upcoming, todayIso);
     const { url, init } = upcomingRequest(env, token, todayIso, endIso);
     const res = await fetch(url, init);
-    if (!res.ok) return json({ error: 'upstream error' }, 502);
+    if (!res.ok) return upstream(res);
     const rows = (await res.json()) as unknown;
     return json({ tasks: upcomingTasks(rows, todayIso, count) });
   }
 
   const { url, init } = listRequest(env, token, { today, todayIso });
   const res = await fetch(url, init);
-  if (!res.ok) return json({ error: 'upstream error' }, 502);
+  if (!res.ok) return upstream(res);
   const rows = (await res.json()) as unknown;
   return json({ tasks: Array.isArray(rows) ? rows.map((r) => toApiTask(r as Row)) : [] });
 }
 
 /** Route + serve the `/api/v1/*` task surface. index.ts forwards every `/api/` request here. */
-export async function handleApi(request: Request, env: ApiEnv): Promise<Response> {
+export async function handleApi(request: Request, env: ApiEnv, verifySub: SubVerifier = defaultVerifySub): Promise<Response> {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: API_CORS });
 
   const { pathname } = new URL(request.url);
@@ -434,14 +445,17 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
   if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) return json({ error: 'server not configured' }, 500);
 
   const token = bearer(request);
-  if (!token) return json({ error: 'unauthorized: send a Bearer token (DoubleDone Settings, API access)' }, 401);
+  if (!token) return json({ error: 'unauthorized: send a Bearer token (DoubleDone Settings → AI agent access (MCP) → Copy my token)' }, 401);
+  // VERIFIED before any call. RLS already keeps the data honest, but a decode-only path answered an expired
+  // or forged token with a 502 "upstream error" and let a hand-made sub reach the create path (2026-09-25
+  // audit). Now an expired token is the 401 the contract promises, before Supabase is even asked.
+  const sub = await verifySub(token, env.SUPABASE_URL);
+  if (!sub) return json({ error: TOKEN_EXPIRED }, 401);
 
   // Collection: /tasks
   if (path === '/tasks') {
     if (request.method === 'GET') return handleListTasks(request, env, token);
     if (request.method === 'POST') {
-      const sub = decodeJwtSub(token);
-      if (!sub) return json({ error: 'unauthorized: could not read the token' }, 401);
       let raw: unknown;
       try {
         raw = await request.json();
@@ -463,7 +477,7 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
       const id = newTaskId(Date.now(), Math.random().toString(36).slice(2, 8));
       const { url, init } = createRequest(env, token, { id, userId: sub, title: parsed.body.title, due: parsed.body.due, recurrence, now });
       const res = await fetch(url, init);
-      if (!res.ok) return json({ error: 'upstream error' }, 502);
+      if (!res.ok) return upstream(res);
       const rows = (await res.json()) as unknown;
       const created = Array.isArray(rows) && rows[0] ? toApiTask(rows[0] as Row) : null;
       return created ? json({ task: created }, 201) : json({ error: 'create failed' }, 502);
@@ -478,7 +492,7 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
     if (request.method === 'GET') {
       const { url, init } = getRequest(env, token, id);
       const res = await fetch(url, init);
-      if (!res.ok) return json({ error: 'upstream error' }, 502);
+      if (!res.ok) return upstream(res);
       const rows = (await res.json()) as unknown;
       const task = Array.isArray(rows) && rows[0] ? toApiTask(rows[0] as Row) : null;
       return task ? json({ task }) : json({ error: 'not found' }, 404);
@@ -512,7 +526,7 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
       }
       const { url, init } = updateRequest(env, token, id, patch, now);
       const res = await fetch(url, init);
-      if (!res.ok) return json({ error: 'upstream error' }, 502);
+      if (!res.ok) return upstream(res);
       const rows = (await res.json()) as unknown;
       const task = Array.isArray(rows) && rows[0] ? toApiTask(rows[0] as Row) : null;
       return task ? json({ task }) : json({ error: 'not found' }, 404);
@@ -520,7 +534,7 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
     if (request.method === 'DELETE') {
       const { url, init } = deleteRequest(env, token, id, new Date().toISOString());
       const res = await fetch(url, init);
-      if (!res.ok) return json({ error: 'upstream error' }, 502);
+      if (!res.ok) return upstream(res);
       return new Response(null, { status: 204, headers: API_CORS });
     }
     return json({ error: 'method not allowed' }, 405);

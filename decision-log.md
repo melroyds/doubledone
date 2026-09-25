@@ -8042,3 +8042,32 @@ re-test is on that TestFlight build. **Decided against** an IPA teardown to prov
 exists: sharing a page from Safari's share button on 1.5.0 proves the same thing for free.
 **Decided against** adding image or file rules while here: a photo is OCR's door, not the share
 sheet's, and every extra rule widens what iOS offers us for.
+
+## 2026-09-25: the bearer is verified before money, AI spend, and both public surfaces (API audit PR A)
+
+**Decided:** every route that spends money, spends AI, or answers over a user's data now verifies the
+bearer's signature, issuer and expiry (`server/src/verify.ts`, the verifier that `/trial/start`, the
+OAuth flow and the disconnect kill switch already used) before doing anything else: `/checkout`,
+`/portal`, `/entitlement`, the MCP `tools/call` path on BOTH the pasted-token and the OAuth custody
+side, and the public REST API. **Why:** the 25 Sep audit (37 agents, six lenses, every finding
+adversarially verified) found the pasted-token path decoded the JWT and trusted it. A hand-made
+three-segment string carrying somebody else's uuid reached their Stripe billing portal (live-confirmed
+with an `alg:none` token: 404 `no_subscription`, not 401), and anyone could drive the `break_down`
+spender with a made-up bearer, keyed to a self-chosen hourly cap that failed open on a KV error. RLS
+kept the DATA honest throughout; the holes were in front of money and spend, and in what an expired
+token was told (a 502 "upstream error", never the 401 the contract promised).
+
+**Also decided, in the same PR:** the money routes are origin-gated for browser calls like
+`/push/subscribe` (native apps send no Origin and pass); an upstream 401/403 after verification is a
+401 on REST and a "your token has expired, re-copy it" sentence on MCP, never "try again"; every
+`break_down` refusal is `isError` so an agent loop stops; the cap fails CLOSED when its store throws;
+`task` and `context` are capped at 2000 characters; the pasted-token path also runs the app's per-IP
+AI limiter (the OAuth path does not: its callers are shared connector hosts, and identity there is
+verified per user); and the three places that pointed users at a Settings section called "API
+access" or "MCP access" now name the real one, "AI agent access (MCP)". OpenAPI is 1.2.1.
+
+**Decided against:** a per-tool scope check or a read-only scope (Tier 4 of the audit, no second
+client type exists); revocable API keys (Tier 3, trigger is the first outside integrator); and
+failing closed when the cap's KV is UNBOUND rather than erroring (local dev has no KV, and a missing
+binding is visible in the monitor, while an error is not). **Cost:** one cached JWKS verify per call.
+**Cannot be rolled back by data:** nothing; the Worker deploy is reversible.

@@ -36,6 +36,7 @@ import {
   type Step,
 } from './decompose';
 import { logAiCall, type TelemetryEnv } from './telemetry';
+import { defaultVerifySub, type SubVerifier } from './verify';
 
 // Widened past SUPABASE_* so break_down can reach Anthropic (ANTHROPIC_API_KEY), rate-limit
 // per user (OAUTH_KV), and log to the moat (DB). All optional and additive: the two handleMcp
@@ -49,6 +50,10 @@ export type McpEnv = TelemetryEnv & {
   // hourly cap (namespaced keys, see BREAKDOWN_KEY_PREFIX). Typed to just the two methods this
   // needs so we don't depend on a @cloudflare/workers-types version.
   OAUTH_KV?: { get(key: string, options?: unknown): Promise<unknown>; put(key: string, value: string, options?: unknown): Promise<unknown> };
+  // The same per-IP limiter the app's AI routes use, applied to break_down on the pasted-token path (one
+  // device per IP there; the OAuth path's callers are shared connector hosts, so it stays on the verified
+  // per-user cap alone). Optional so tests inject a stub.
+  AI_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
 };
 
 export const MCP_PROTOCOL_VERSION = '2025-06-18';
@@ -227,9 +232,9 @@ export function toolText(text: string, isError = false): ToolResult {
 
 // --- Auth: read the user id out of the bearer JWT --------------------------
 
-/** The `sub` (user uuid) from a Supabase access-token JWT, or null. No signature
- *  check needed: Supabase verifies the token on the REST call; this only needs the
- *  user id to satisfy the RLS insert check (user_id = auth.uid()). */
+/** The `sub` (user uuid) from a Supabase access-token JWT, or null, WITHOUT checking the signature.
+ *  Never use this to decide who is asking: handleMcp verifies the token (verify.ts) before any tool
+ *  runs and hands the trusted sub down. This stays for the email helper below and for tests. */
 export function decodeJwtSub(token: string): string | null {
   const parts = token.split('.');
   if (parts.length < 2) return null;
@@ -552,6 +557,9 @@ function describeStatus(row: { done?: unknown; recurrence?: unknown; due?: unkno
 // key per user per UTC hour) is enough here: it's a budget guardrail, not a precise limiter.
 const BREAKDOWN_KEY_PREFIX = 'mcp:bd:';
 export const BREAKDOWN_HOURLY_CAP = 20;
+/** The longest task or context break_down will send to the model. A title is a sentence; a few thousand
+ *  characters is already a brief, and past that it is somebody feeding the spender. */
+export const BREAKDOWN_MAX_CHARS = 2000;
 
 /** The KV key for a user's break_down count in the current UTC hour. Exported for the test. */
 export function breakdownRateKey(sub: string, nowMs: number): string {
@@ -560,8 +568,9 @@ export function breakdownRateKey(sub: string, nowMs: number): string {
 }
 
 /** Increment the user's hourly break_down counter and report whether they are now OVER the cap.
- *  Fails OPEN (allowed) if KV is unbound or errors: the per-IP AI_LIMITER + the Anthropic monthly
- *  cap are the harder walls; this is the friendly per-user guardrail. Best-effort, never throws. */
+ *  Unbound KV (local dev) allows; a KV ERROR now refuses (fails closed): this is the only per-user wall in
+ *  front of the token spender on the OAuth path, and a guardrail that opens when its store hiccups is not
+ *  one. Never throws. */
 async function overBreakdownCap(env: McpEnv, sub: string, nowMs: number): Promise<boolean> {
   if (!env.OAUTH_KV) return false;
   const key = breakdownRateKey(sub, nowMs);
@@ -572,7 +581,7 @@ async function overBreakdownCap(env: McpEnv, sub: string, nowMs: number): Promis
     await env.OAUTH_KV.put(key, String((Number.isFinite(current) ? current : 0) + 1), { expirationTtl: 3900 });
     return false;
   } catch {
-    return false; // fail open on a KV hiccup
+    return true; // fail CLOSED on a KV hiccup: no spend without a working cap
   }
 }
 
@@ -585,11 +594,23 @@ export function formatBreakdown(steps: Step[]): string {
   return `${lines.join('\n')}\n\nNothing's been added yet. Say the word and I'll add these.`;
 }
 
+/** What the person needs to hear when their token is refused: not "try again", which sends them to retry
+ *  what only a fresh token can fix. Shared by the verify step and the upstream 401/403 path. */
+export const TOKEN_EXPIRED =
+  'Your DoubleDone token has expired or is not valid. Re-copy it from Settings → AI agent access (MCP) and paste it again.';
+
+/** A data call that came back not-ok. PostgREST's 401/403 means the token expired or was refused in the
+ *  narrow window after verification: say so. Anything else is the calm transient line the caller passes. */
+function upstreamFailure(res: Response, fallback: string): ToolResult {
+  if (res.status === 401 || res.status === 403) return toolText(TOKEN_EXPIRED, true);
+  return toolText(fallback, true);
+}
+
 // --- Tool execution (I/O) --------------------------------------------------
 
-async function runTool(env: McpEnv, token: string, name: string, args: Record<string, unknown>): Promise<ToolResult> {
-  const sub = decodeJwtSub(token);
-  if (!sub) return toolText('Could not read your token. Re-copy it from DoubleDone Settings.', true);
+// The token has been VERIFIED by handleMcp before this runs; `sub` is the trusted user id from that check.
+// `ip` is set only on the pasted-token path (see McpEnv.AI_LIMITER).
+async function runTool(env: McpEnv, token: string, sub: string, name: string, args: Record<string, unknown>, ip?: string): Promise<ToolResult> {
   const now = new Date().toISOString();
   const todayIso = now.slice(0, 10);
 
@@ -620,7 +641,7 @@ async function runTool(env: McpEnv, token: string, name: string, args: Record<st
     const { url, init } = addTaskRequest(env, token, { id: taskId, userId: sub, title, now, due, recurrence });
     const res = await fetch(url, init);
     // Don't echo the raw upstream HTTP status (minor backend-topology leak); give a plain line, like api.ts.
-    if (!res.ok) return toolText('Could not add it just now. Try again.', true);
+    if (!res.ok) return upstreamFailure(res, 'Could not add it just now. Try again.');
     const when = due ? ` for ${due}` : recurrence ? ', repeating' : ' to today';
     return toolText(`Added "${title}"${when}.`);
   }
@@ -628,7 +649,7 @@ async function runTool(env: McpEnv, token: string, name: string, args: Record<st
   if (name === 'list_today') {
     const { url, init } = listTodayRequest(env, token, todayIso);
     const res = await fetch(url, init);
-    if (!res.ok) return toolText('Could not list tasks just now. Try again.', true);
+    if (!res.ok) return upstreamFailure(res, 'Could not list tasks just now. Try again.');
     const rows = (await res.json()) as unknown;
     const tasks = listTodayFromRows(rows, todayIso);
     if (tasks.length === 0) return toolText('Nothing on today. Enjoy the quiet.');
@@ -639,7 +660,7 @@ async function runTool(env: McpEnv, token: string, name: string, args: Record<st
     const { count, endIso } = upcomingWindow(args.days, todayIso);
     const { url, init } = listUpcomingRequest(env, token, todayIso, endIso);
     const res = await fetch(url, init);
-    if (!res.ok) return toolText('Could not look ahead just now. Try again.', true);
+    if (!res.ok) return upstreamFailure(res, 'Could not look ahead just now. Try again.');
     const rows = (await res.json()) as unknown;
     const items = listUpcomingFromRows(rows, todayIso, count);
     if (items.length === 0) return toolText(`Nothing scheduled in the next ${count} day${count === 1 ? '' : 's'}.`);
@@ -655,7 +676,7 @@ async function runTool(env: McpEnv, token: string, name: string, args: Record<st
     if (!taskId) return toolText('A task id is required (use list_today first).', true);
     const { url, init } = completeTaskRequest(env, token, taskId, now);
     const res = await fetch(url, init);
-    if (!res.ok) return toolText('Could not complete it just now. Try again.', true);
+    if (!res.ok) return upstreamFailure(res, 'Could not complete it just now. Try again.');
     const rows = (await res.json()) as unknown;
     return Array.isArray(rows) && rows.length > 0 ? toolText('Marked it done. Nice.') : toolText('No matching task found.', true);
   }
@@ -688,7 +709,7 @@ async function runTool(env: McpEnv, token: string, name: string, args: Record<st
     }
     const { url, init } = updateTaskRequest(env, token, taskId, fields, now);
     const res = await fetch(url, init);
-    if (!res.ok) return toolText('Could not update it just now. Try again.', true);
+    if (!res.ok) return upstreamFailure(res, 'Could not update it just now. Try again.');
     const rows = (await res.json()) as unknown;
     return Array.isArray(rows) && rows.length > 0 ? toolText('Updated.') : toolText('No matching task found.', true);
   }
@@ -698,7 +719,7 @@ async function runTool(env: McpEnv, token: string, name: string, args: Record<st
     if (!taskId) return toolText('A task id is required.', true);
     const { url, init } = deleteTaskRequest(env, token, taskId, now);
     const res = await fetch(url, init);
-    if (!res.ok) return toolText('Could not remove it just now. Try again.', true);
+    if (!res.ok) return upstreamFailure(res, 'Could not remove it just now. Try again.');
     const rows = (await res.json()) as unknown;
     return Array.isArray(rows) && rows.length > 0 ? toolText('Removed.') : toolText('No matching task found.', true);
   }
@@ -707,9 +728,21 @@ async function runTool(env: McpEnv, token: string, name: string, args: Record<st
     const task = typeof args.task === 'string' ? args.task.trim() : '';
     if (!task) return toolText('Tell me the task to break down.', true);
     if (!env.ANTHROPIC_API_KEY) return toolText('Breaking down is unavailable right now.', true);
-    // COST GUARD: the only token spender. Enforce the per-user hourly cap BEFORE any spend.
+    // COST GUARDS, all BEFORE any spend. Size first (a prompt is paid by the token), then the per-IP wall
+    // on the pasted-token path, then the per-user hourly cap. Every refusal is isError so an agent loop
+    // stops rather than reading a calm sentence as success and calling again.
+    if (task.length > BREAKDOWN_MAX_CHARS) {
+      return toolText(`That's more than I can take in one go. Keep the task under ${BREAKDOWN_MAX_CHARS} characters.`, true);
+    }
+    if (typeof args.context === 'string' && args.context.length > BREAKDOWN_MAX_CHARS) {
+      return toolText(`That's a lot of context. Keep it under ${BREAKDOWN_MAX_CHARS} characters.`, true);
+    }
+    if (ip && env.AI_LIMITER) {
+      const { success } = await env.AI_LIMITER.limit({ key: ip });
+      if (!success) return toolText("Let's pause breaking things down for a bit. Try again shortly.", true);
+    }
     if (await overBreakdownCap(env, sub, Date.now())) {
-      return toolText("Let's pause breaking things down for a bit. Try again shortly.");
+      return toolText("Let's pause breaking things down for a bit. Try again shortly.", true);
     }
     // Fold the optional context / desired step count into the decompose context (reusing the
     // app's Break-it-down engine). `steps` becomes a hint in the answer field; the model still
@@ -841,7 +874,12 @@ function oauthGrantGone(request: Request): Response {
   });
 }
 
-export async function handleMcp(request: Request, env: McpEnv, source: McpTokenSource = { kind: 'header' }): Promise<Response> {
+export async function handleMcp(
+  request: Request,
+  env: McpEnv,
+  source: McpTokenSource = { kind: 'header' },
+  verifySub: SubVerifier = defaultVerifySub,
+): Promise<Response> {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: MCP_CORS });
   if (request.method !== 'POST') return new Response('doubledone-mcp', { status: 405, headers: MCP_CORS });
 
@@ -877,7 +915,7 @@ export async function handleMcp(request: Request, env: McpEnv, source: McpTokenS
       token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
       if (!token) {
         return mcpJson(
-          rpcResult(id, toolText('Not connected. Paste your DoubleDone token into this MCP server (Settings → MCP access in the app).', true)),
+          rpcResult(id, toolText('Not connected. Paste your DoubleDone token into this MCP server (Settings → AI agent access (MCP) in the app).', true)),
         );
       }
     } else {
@@ -888,11 +926,26 @@ export async function handleMcp(request: Request, env: McpEnv, source: McpTokenS
     if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
       return mcpJson(rpcError(id, -32603, 'server not configured'));
     }
+    // VERIFY before dispatch, on BOTH paths. The pasted-token path used to decode the sub and trust it, so any
+    // three-segment string reached the tools and the AI spender (2026-09-25 audit). A refused token on the
+    // header path is a plain sentence the person can act on. On the OAuth path the token came from OUR custody
+    // (minted by Supabase on a refresh we made moments ago), so a null here is far likelier a JWKS blip on a
+    // cold isolate than a bad token: answer the calm transient line, never the 401 challenge, because the
+    // challenge tells the connector to drop a live grant and march the person back through OTP sign-in. A
+    // genuinely dead grant still gets the challenge, from custody's own refresh-rejection path above.
+    const sub = await verifySub(token, env.SUPABASE_URL);
+    if (!sub) {
+      if (source.kind === 'header') return mcpJson(rpcResult(id, toolText(TOKEN_EXPIRED, true)));
+      return mcpJson(rpcResult(id, toolText('Something went wrong reaching DoubleDone. Try again.', true)));
+    }
+    // The limiter key gets its own prefix (the /event precedent): Claude Desktop and the app behind one
+    // address should not share a single window.
+    const ip = source.kind === 'header' ? `mcp:${request.headers.get('CF-Connecting-IP') ?? 'anon'}` : undefined;
     const p = (body.params ?? {}) as { name?: unknown; arguments?: unknown };
     const name = typeof p.name === 'string' ? p.name : '';
     const args = (p.arguments && typeof p.arguments === 'object' ? p.arguments : {}) as Record<string, unknown>;
     try {
-      return mcpJson(rpcResult(id, await runTool(env, token, name, args)));
+      return mcpJson(rpcResult(id, await runTool(env, token, sub, name, args, ip)));
     } catch {
       return mcpJson(rpcResult(id, toolText('Something went wrong reaching DoubleDone. Try again.', true)));
     }

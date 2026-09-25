@@ -265,6 +265,13 @@ const router = {
     // Stripe Premium: create a Checkout session, and read the current entitlement.
     // Both are authed with the user's Supabase token (the user id rides into Stripe so
     // the webhook can attribute the subscription). No Anthropic cost, so not gated.
+    // The money routes: a browser call must come from the app's own origin (cross-site abuse); native apps
+    // send no Origin and pass. Who is asking is settled INSIDE each handler by verifying the token's
+    // signature, the same check /trial/start has always made (2026-09-25 audit).
+    const moneyRoute = ((pathname === '/checkout' || pathname === '/portal') && request.method === 'POST') || (pathname === '/entitlement' && request.method === 'GET');
+    if (moneyRoute && origin !== null && !isAllowedOrigin(origin)) {
+      return Response.json({ error: 'forbidden origin' }, { status: 403, headers: cors });
+    }
     if (pathname === '/checkout' && request.method === 'POST') {
       return handleCheckout(request, env, cors);
     }

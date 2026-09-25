@@ -15,10 +15,10 @@ export const OPENAPI_SPEC = {
   openapi: '3.1.0',
   info: {
     title: 'DoubleDone API',
-    version: '1.2.0',
+    version: '1.2.1',
     description:
       'A small REST API over your DoubleDone tasks. Authenticate with your own DoubleDone token ' +
-      '(in the app: Settings, API access), which scopes every call to your own data through ' +
+      '(in the app: Settings → AI agent access (MCP) → Copy my token), which scopes every call to your own data through ' +
       'row-level security. The server holds no elevated key. Tokens refresh about hourly. ' +
       'Tasks can repeat (daily, on chosen weekdays, every N days, or monthly on a day of the month); a repeat and a due date ' +
       'are mutually exclusive. Listing supports search (q) and a look-ahead window (upcoming).',
@@ -126,7 +126,7 @@ export const OPENAPI_SPEC = {
       bearerAuth: {
         type: 'http',
         scheme: 'bearer',
-        description: 'Your DoubleDone token (Settings, API access). It is a Supabase access token and refreshes about hourly.',
+        description: 'Your DoubleDone token (Settings → AI agent access (MCP) → Copy my token). It is a Supabase access token, verified on every call, and it refreshes about hourly.',
       },
     },
     schemas: {
@@ -215,7 +215,7 @@ export const OPENAPI_SPEC = {
     },
     responses: {
       BadRequest: { description: 'Invalid request.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-      Unauthorized: { description: 'Missing or invalid token.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+      Unauthorized: { description: 'Missing, expired, forged or otherwise invalid token. The token is verified before any call, so re-copy it from the app.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
       NotFound: { description: 'No such task.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
     },
   },

@@ -12,9 +12,10 @@
 
 import { isCompEmail } from './comp';
 import { type D1LikeDatabase, type Entitlement, type EntitlementView, readEntitlement, writeEntitlement } from './entitlements';
-import { decodeJwtEmail, decodeJwtSub } from './mcp';
+import { decodeJwtEmail } from './mcp';
 import { buildOwnerEmail } from './monitor';
 import { activeTrial } from './trials';
+import { defaultVerifySub, type SubVerifier } from './verify';
 
 export type StripeEnv = {
   STRIPE_SECRET_KEY?: string;
@@ -222,6 +223,8 @@ export type { D1LikeDatabase, Entitlement, EntitlementView };
 // --- HTTP handlers ---------------------------------------------------------
 
 type FullEnv = StripeEnv & {
+  // The project URL the verifier reads the JWKS from (the same value the MCP and REST surfaces use).
+  SUPABASE_URL?: string;
   DB?: D1LikeDatabase;
   COMP_EMAILS?: string;
   // The control centre's email path (reused for money-trouble alerts), same binding the
@@ -247,8 +250,17 @@ export function bearer(request: Request): string {
 const JSON_HEADERS = { 'content-type': 'application/json' };
 
 /** POST /checkout — authed (the user's Supabase token). Returns { url } to redirect to. */
-export async function handleCheckout(request: Request, env: FullEnv, cors: Record<string, string>): Promise<Response> {
-  const sub = decodeJwtSub(bearer(request));
+export async function handleCheckout(
+  request: Request,
+  env: FullEnv,
+  cors: Record<string, string>,
+  verifySub: SubVerifier = defaultVerifySub,
+): Promise<Response> {
+  const token = bearer(request);
+  if (!token) return new Response(JSON.stringify({ error: 'sign_in_required' }), { status: 401, headers: { ...JSON_HEADERS, ...cors } });
+  // VERIFIED, not decoded: this route reaches money. A forged token carrying somebody else's uuid used to
+  // get here (2026-09-25 audit). An unset SUPABASE_URL fails closed inside the verifier (null -> 401).
+  const sub = await verifySub(token, env.SUPABASE_URL ?? '');
   if (!sub) return new Response(JSON.stringify({ error: 'sign_in_required' }), { status: 401, headers: { ...JSON_HEADERS, ...cors } });
   if (!env.STRIPE_SECRET_KEY || !env.STRIPE_PRICE_ID) {
     return new Response(JSON.stringify({ error: 'not_configured' }), { status: 503, headers: { ...JSON_HEADERS, ...cors } });
@@ -293,8 +305,17 @@ export async function handleCheckout(request: Request, env: FullEnv, cors: Recor
 
 /** POST /portal — authed. Returns { url } to the Stripe Billing Portal (manage / cancel).
  *  Needs the customer id the webhook stored; 404 if the user has no subscription yet. */
-export async function handlePortal(request: Request, env: FullEnv, cors: Record<string, string>): Promise<Response> {
-  const sub = decodeJwtSub(bearer(request));
+export async function handlePortal(
+  request: Request,
+  env: FullEnv,
+  cors: Record<string, string>,
+  verifySub: SubVerifier = defaultVerifySub,
+): Promise<Response> {
+  const token = bearer(request);
+  if (!token) return new Response(JSON.stringify({ error: 'sign_in_required' }), { status: 401, headers: { ...JSON_HEADERS, ...cors } });
+  // VERIFIED, not decoded: this route reaches money. A forged token carrying somebody else's uuid used to
+  // get here (2026-09-25 audit). An unset SUPABASE_URL fails closed inside the verifier (null -> 401).
+  const sub = await verifySub(token, env.SUPABASE_URL ?? '');
   if (!sub) return new Response(JSON.stringify({ error: 'sign_in_required' }), { status: 401, headers: { ...JSON_HEADERS, ...cors } });
   if (!env.STRIPE_SECRET_KEY || !env.DB) {
     return new Response(JSON.stringify({ error: 'not_configured' }), { status: 503, headers: { ...JSON_HEADERS, ...cors } });
@@ -385,13 +406,21 @@ export async function handleWebhook(request: Request, env: FullEnv, nowISO: stri
 }
 
 /** GET /entitlement — authed. The app asks "am I premium, and since when?". */
-export async function handleEntitlement(request: Request, env: FullEnv, cors: Record<string, string>): Promise<Response> {
+export async function handleEntitlement(
+  request: Request,
+  env: FullEnv,
+  cors: Record<string, string>,
+  verifySub: SubVerifier = defaultVerifySub,
+): Promise<Response> {
   const token = bearer(request);
-  const sub = decodeJwtSub(token);
+  if (!token) return new Response(JSON.stringify({ error: 'sign_in_required' }), { status: 401, headers: { ...JSON_HEADERS, ...cors } });
+  // VERIFIED, not decoded: this route reaches money. A forged token carrying somebody else's uuid used to
+  // get here (2026-09-25 audit). An unset SUPABASE_URL fails closed inside the verifier (null -> 401).
+  const sub = await verifySub(token, env.SUPABASE_URL ?? '');
   if (!sub) return new Response(JSON.stringify({ error: 'sign_in_required' }), { status: 401, headers: { ...JSON_HEADERS, ...cors } });
-  // Owner / comp: an allowlisted email is always premium, with no Stripe sub. This read is decode-only
-  // (like the sub above), so it grants only the CLIENT flag; the costed money gate (requirePremium) re-checks
-  // the same allowlist against a cryptographically verified token. The far-past `since` gives the comp the
+  // Owner / comp: an allowlisted email is always premium, with no Stripe sub. The email claim is read
+  // decode-only, which is safe here because the token's signature was verified just above; the costed money
+  // gate (requirePremium) re-checks the same allowlist the same way. The far-past `since` gives the comp the
   // full tenure-based scrapbook allowance.
   if (isCompEmail(decodeJwtEmail(token), env.COMP_EMAILS)) {
     return new Response(

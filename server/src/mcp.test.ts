@@ -22,6 +22,7 @@ import {
   type McpEnv,
   searchResultsFrom,
   searchTasksRequest,
+  TOKEN_EXPIRED,
   toolsListResult,
   updateTaskRequest,
   upcomingWindow,
@@ -29,8 +30,14 @@ import {
 
 const env: McpEnv = { SUPABASE_URL: 'https://proj.supabase.co', SUPABASE_ANON_KEY: 'anon-key' };
 const jwt = (claims: object) => `header.${btoa(JSON.stringify(claims))}.sig`;
-// A JWT with a real sub, so runTool gets past decodeJwtSub in the handleMcp integration tests.
+// A JWT with a real sub. The integration tests pass the `trust` stub (decode = verified); the PR A block at
+// the bottom runs the real verifier against a forged token and expects the wall.
 const USER_JWT = `Bearer ${jwt({ sub: 'user-9', role: 'authenticated' })}`;
+
+// The verifier stub for the existing behaviour tests: a decoded sub counts as verified, so these tests
+// keep testing what they always tested. The PR A block at the bottom uses the REAL verifier with forged
+// tokens to prove the wall, and never touches the network (a rejected alg needs no key fetch).
+const trust = async (token: string) => decodeJwtSub(token);
 
 /** A minimal fetch Response double: ok + a JSON body. */
 function jsonRes(body: unknown, ok = true): Response {
@@ -39,7 +46,7 @@ function jsonRes(body: unknown, ok = true): Response {
 
 /** Call a tools/call and return the parsed tool result. */
 async function callTool(name: string, args: object, auth = USER_JWT, e: McpEnv = env) {
-  const res = await handleMcp(mcpReq({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }, auth), e);
+  const res = await handleMcp(mcpReq({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }, auth), e, { kind: 'header' }, trust);
   return (await res.json()) as { result: { isError?: boolean; content: { text: string }[] } };
 }
 
@@ -576,5 +583,104 @@ describe('tool dispatch through handleMcp (fetch mocked)', () => {
     const r = await callTool('break_down', { task: 'x' }); // env has no ANTHROPIC_API_KEY
     expect(r.result.isError).toBe(true);
     expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe('PR A: the bearer is verified before any tool runs', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const b64 = (o: object) => btoa(JSON.stringify(o)).replace(/=/g, '');
+  // The hand-made three-segment string that passed the JWT-shape triage and reached the tools before.
+  const forged = `${b64({ alg: 'none', typ: 'JWT' })}.${b64({ sub: 'victim-1', role: 'authenticated' })}.`;
+  const rpc = (name: string, args: object) => ({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } });
+  type Out = { result: { isError?: boolean; content: { text: string }[] } };
+
+  it('a forged token never reaches a tool or the AI spender: real verifier, no network, a plain sentence back', async () => {
+    const spy = vi.fn();
+    vi.stubGlobal('fetch', spy);
+    const res = await handleMcp(mcpReq(rpc('break_down', { task: 'x' }), `Bearer ${forged}`), { ...env, ANTHROPIC_API_KEY: 'sk-test' });
+    const body = (await res.json()) as Out;
+    expect(body.result.isError).toBe(true);
+    expect(body.result.content[0].text).toBe(TOKEN_EXPIRED);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('the OAuth custody path is verified too (real verifier): a refused token runs no tool, and answers the calm transient line, NOT the reconnect challenge', async () => {
+    const spy = vi.fn();
+    vi.stubGlobal('fetch', spy);
+    const res = await handleMcp(mcpReq(rpc('list_today', {})), env, { kind: 'oauth', getToken: async () => forged });
+    // A null here is likelier a JWKS blip than a bad custody token, and the 401 challenge would make the
+    // connector drop a live grant; the dead-grant 401 still comes from custody's own refresh-rejection path.
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Out;
+    expect(body.result.isError).toBe(true);
+    expect(body.result.content[0].text).toMatch(/Try again/);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('an upstream 401 on a data tool says the token expired, not "try again"', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 401, json: async () => ({}) }) as unknown as Response));
+    const r = await callTool('list_today', {});
+    expect(r.result.isError).toBe(true);
+    expect(r.result.content[0].text).toBe(TOKEN_EXPIRED);
+  });
+
+  it('an upstream 500 keeps the calm transient line', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) }) as unknown as Response));
+    const r = await callTool('list_today', {});
+    expect(r.result.isError).toBe(true);
+    expect(r.result.content[0].text).toMatch(/just now\. Try again/);
+  });
+
+  it('break_down refuses an oversized task before any spend, and says so as an error', async () => {
+    const spy = vi.fn();
+    vi.stubGlobal('fetch', spy);
+    const r = await callTool('break_down', { task: 'x'.repeat(2001) }, USER_JWT, { ...env, ANTHROPIC_API_KEY: 'sk-test' });
+    expect(r.result.isError).toBe(true);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('the hourly cap refusal is an error, so an agent loop stops instead of reading it as success', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+    const kv = { get: vi.fn(async () => String(BREAKDOWN_HOURLY_CAP)), put: vi.fn(async () => undefined) };
+    const r = await callTool('break_down', { task: 'x' }, USER_JWT, { ...env, ANTHROPIC_API_KEY: 'sk-test', OAUTH_KV: kv });
+    expect(r.result.isError).toBe(true);
+  });
+
+  it('break_down fails CLOSED when the cap store throws: no spend without a working cap', async () => {
+    const spy = vi.fn();
+    vi.stubGlobal('fetch', spy);
+    const kv = { get: vi.fn(async () => { throw new Error('kv down'); }), put: vi.fn(async () => undefined) };
+    const r = await callTool('break_down', { task: 'x' }, USER_JWT, { ...env, ANTHROPIC_API_KEY: 'sk-test', OAUTH_KV: kv });
+    expect(r.result.isError).toBe(true);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('break_down on the pasted-token path honours the per-IP limiter before any spend', async () => {
+    const spy = vi.fn();
+    vi.stubGlobal('fetch', spy);
+    const limiter = { limit: vi.fn(async () => ({ success: false })) };
+    const r = await callTool('break_down', { task: 'x' }, USER_JWT, { ...env, ANTHROPIC_API_KEY: 'sk-test', AI_LIMITER: limiter });
+    expect(r.result.isError).toBe(true);
+    expect(limiter.limit).toHaveBeenCalledTimes(1);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('break_down proceeds when the limiter allows', async () => {
+    const anthropic = {
+      content: [{ type: 'tool_use', name: 'record_steps', input: { steps: [{ title: 'Step one', minutes: 3 }] } }],
+      usage: { input_tokens: 5, output_tokens: 5 },
+    };
+    const spy = vi.fn(async () => jsonRes(anthropic));
+    vi.stubGlobal('fetch', spy as unknown as typeof fetch);
+    const limiter = { limit: vi.fn(async () => ({ success: true })) };
+    const r = await callTool('break_down', { task: 'Tidy desk' }, USER_JWT, { ...env, ANTHROPIC_API_KEY: 'sk-test', AI_LIMITER: limiter });
+    expect(r.result.content[0].text).toContain('• Step one (3 min)');
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('the no-token line names the real Settings label', async () => {
+    const res = await handleMcp(mcpReq(rpc('list_today', {})), env);
+    const body = (await res.json()) as Out;
+    expect(body.result.content[0].text).toContain('AI agent access (MCP)');
   });
 });

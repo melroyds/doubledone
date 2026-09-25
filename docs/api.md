@@ -20,14 +20,16 @@ https://api.doubledone.app/api/v1
 ## Browse it
 
 - **Interactive docs (Swagger UI):** [`/api/v1/docs`](https://api.doubledone.app/api/v1/docs)
-- **OpenAPI 3.1 spec (version 1.2.0):** [`/api/v1/openapi.json`](https://api.doubledone.app/api/v1/openapi.json)
+- **OpenAPI 3.1 spec (version 1.2.1):** [`/api/v1/openapi.json`](https://api.doubledone.app/api/v1/openapi.json)
 
 ## Auth: your token
 
 Send your DoubleDone token as a bearer token: `Authorization: Bearer <token>`. It is your
 Supabase access token, the same one the MCP server uses. Get it in the app:
 **Settings → AI agent access (MCP) → Copy my token** (you must be signed in). It refreshes
-about hourly; re-copy it if calls start returning `401`.
+about hourly; re-copy it if calls start returning `401`. The Worker verifies the token's
+signature, issuer and expiry before every call, so an expired or forged token is always a `401`
+with a plain message (never a `502`), and a `502` only ever means Supabase itself failed.
 
 The docs surfaces (`/docs`, `/openapi.json`) need no token. The task endpoints do.
 

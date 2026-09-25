@@ -15,11 +15,17 @@ import {
   upcomingTasks,
   upcomingWindow,
 } from './api';
+import { decodeJwtSub } from './mcp';
 
 const env = { SUPABASE_URL: 'https://sb.example.co', SUPABASE_ANON_KEY: 'anon-key' };
 
-// A minimal unsigned JWT carrying just a `sub` (decodeJwtSub reads the payload only;
-// Supabase verifies the signature on the real REST call, the API never does).
+// The verifier stub for the existing behaviour tests: a decoded sub counts as verified, so these tests
+// keep testing what they always tested. The PR A block at the bottom uses the REAL verifier with forged
+// tokens to prove the wall, and never touches the network (a rejected alg needs no key fetch).
+const trust = async (token: string) => decodeJwtSub(token);
+
+// A minimal unsigned JWT carrying just a `sub`. The behaviour tests pass the `trust` stub so it counts as
+// verified; the PR A block at the bottom feeds the same shape to the REAL verifier and expects a 401.
 function fakeJwt(sub: string): string {
   const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
   return `${b64({ alg: 'none' })}.${b64({ sub })}.sig`;
@@ -268,7 +274,7 @@ describe('handleApi', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('serves the OpenAPI spec without a token', async () => {
-    const res = await handleApi(req('GET', '/api/v1/openapi.json'), env);
+    const res = await handleApi(req('GET', '/api/v1/openapi.json'), env, trust);
     expect(res.status).toBe(200);
     const spec = (await res.json()) as { openapi: string; paths: Record<string, unknown> };
     expect(spec.openapi).toBe('3.1.0');
@@ -276,13 +282,13 @@ describe('handleApi', () => {
   });
 
   it('serves the Swagger UI page without a token', async () => {
-    const res = await handleApi(req('GET', '/api/v1/docs'), env);
+    const res = await handleApi(req('GET', '/api/v1/docs'), env, trust);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/html');
   });
 
   it('401s a task call with no token', async () => {
-    expect((await handleApi(req('GET', '/api/v1/tasks'), env)).status).toBe(401);
+    expect((await handleApi(req('GET', '/api/v1/tasks'), env, trust)).status).toBe(401);
   });
 
   it('lists tasks for a valid token (mocked Supabase)', async () => {
@@ -293,7 +299,7 @@ describe('handleApi', () => {
         json: async () => [{ id: 't1', title: 'A', done: false, due: null, created_at: 'c', completed_at: null }],
       }) as unknown as Response),
     );
-    const res = await handleApi(req('GET', '/api/v1/tasks', { token: fakeJwt('u1') }), env);
+    const res = await handleApi(req('GET', '/api/v1/tasks', { token: fakeJwt('u1') }), env, trust);
     expect(res.status).toBe(200);
     expect(((await res.json()) as { tasks: { id: string }[] }).tasks[0].id).toBe('t1');
   });
@@ -306,13 +312,13 @@ describe('handleApi', () => {
         json: async () => [{ id: 'api-1', title: 'Buy milk', done: false, due: null, created_at: 'c', completed_at: null }],
       }) as unknown as Response),
     );
-    const res = await handleApi(req('POST', '/api/v1/tasks', { token: fakeJwt('u1'), body: { title: 'Buy milk' } }), env);
+    const res = await handleApi(req('POST', '/api/v1/tasks', { token: fakeJwt('u1'), body: { title: 'Buy milk' } }), env, trust);
     expect(res.status).toBe(201);
     expect(((await res.json()) as { task: { title: string } }).task.title).toBe('Buy milk');
   });
 
   it('400s a create with no title', async () => {
-    expect((await handleApi(req('POST', '/api/v1/tasks', { token: fakeJwt('u1'), body: {} }), env)).status).toBe(400);
+    expect((await handleApi(req('POST', '/api/v1/tasks', { token: fakeJwt('u1'), body: {} }), env, trust)).status).toBe(400);
   });
 
   it('creates a repeating task and returns its recurrence + repeats summary', async () => {
@@ -327,7 +333,7 @@ describe('handleApi', () => {
         } as unknown as Response;
       }),
     );
-    const res = await handleApi(req('POST', '/api/v1/tasks', { token: fakeJwt('u1'), body: { title: 'Stretch', repeat: { kind: 'weekly', weekdays: [1, 3, 5] } } }), env);
+    const res = await handleApi(req('POST', '/api/v1/tasks', { token: fakeJwt('u1'), body: { title: 'Stretch', repeat: { kind: 'weekly', weekdays: [1, 3, 5] } } }), env, trust);
     expect(res.status).toBe(201);
     const { task } = (await res.json()) as { task: { recurrence: unknown; repeats: string } };
     expect(task.recurrence).toMatchObject({ kind: 'weekly', weekdays: [1, 3, 5] });
@@ -338,13 +344,13 @@ describe('handleApi', () => {
   });
 
   it('400s a create with both due and repeat', async () => {
-    const res = await handleApi(req('POST', '/api/v1/tasks', { token: fakeJwt('u1'), body: { title: 'x', due: '2026-07-10', repeat: { kind: 'daily' } } }), env);
+    const res = await handleApi(req('POST', '/api/v1/tasks', { token: fakeJwt('u1'), body: { title: 'x', due: '2026-07-10', repeat: { kind: 'daily' } } }), env, trust);
     expect(res.status).toBe(400);
   });
 
   it('400s a create with a malformed repeat (never a 500)', async () => {
     // weekly with no weekdays: buildRecurrence returns null -> calm 400.
-    const res = await handleApi(req('POST', '/api/v1/tasks', { token: fakeJwt('u1'), body: { title: 'x', repeat: { kind: 'weekly' } } }), env);
+    const res = await handleApi(req('POST', '/api/v1/tasks', { token: fakeJwt('u1'), body: { title: 'x', repeat: { kind: 'weekly' } } }), env, trust);
     expect(res.status).toBe(400);
   });
 
@@ -359,7 +365,7 @@ describe('handleApi', () => {
         ],
       }) as unknown as Response),
     );
-    const res = await handleApi(req('GET', '/api/v1/tasks?q=dentist', { token: fakeJwt('u1') }), env);
+    const res = await handleApi(req('GET', '/api/v1/tasks?q=dentist', { token: fakeJwt('u1') }), env, trust);
     expect(res.status).toBe(200);
     const { tasks } = (await res.json()) as { tasks: { id: string }[] };
     expect(tasks.map((t) => t.id)).toEqual(['a']);
@@ -373,7 +379,7 @@ describe('handleApi', () => {
         json: async () => [{ id: 'd', title: 'Stretch', done: false, recurrence: { kind: 'daily' } }],
       }) as unknown as Response),
     );
-    const res = await handleApi(req('GET', '/api/v1/tasks?upcoming=5', { token: fakeJwt('u1') }), env);
+    const res = await handleApi(req('GET', '/api/v1/tasks?upcoming=5', { token: fakeJwt('u1') }), env, trust);
     expect(res.status).toBe(200);
     const { tasks } = (await res.json()) as { tasks: { id: string; due: string; repeats: string }[] };
     expect(tasks[0].id).toBe('d');
@@ -394,7 +400,7 @@ describe('handleApi', () => {
         } as unknown as Response;
       }),
     );
-    const res = await handleApi(req('PATCH', '/api/v1/tasks/t1', { token: fakeJwt('u1'), body: { repeat: { kind: 'daily' } } }), env);
+    const res = await handleApi(req('PATCH', '/api/v1/tasks/t1', { token: fakeJwt('u1'), body: { repeat: { kind: 'daily' } } }), env, trust);
     expect(res.status).toBe(200);
     const { task } = (await res.json()) as { task: { repeats: string } };
     expect(task.repeats).toBe('every day');
@@ -402,16 +408,55 @@ describe('handleApi', () => {
   });
 
   it('400s a patch with both due and repeat', async () => {
-    const res = await handleApi(req('PATCH', '/api/v1/tasks/t1', { token: fakeJwt('u1'), body: { due: '2026-07-10', repeat: { kind: 'daily' } } }), env);
+    const res = await handleApi(req('PATCH', '/api/v1/tasks/t1', { token: fakeJwt('u1'), body: { due: '2026-07-10', repeat: { kind: 'daily' } } }), env, trust);
     expect(res.status).toBe(400);
   });
 
   it('204s a delete', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => [{}] }) as unknown as Response));
-    expect((await handleApi(req('DELETE', '/api/v1/tasks/t1', { token: fakeJwt('u1') }), env)).status).toBe(204);
+    expect((await handleApi(req('DELETE', '/api/v1/tasks/t1', { token: fakeJwt('u1') }), env, trust)).status).toBe(204);
   });
 
   it('404s an unknown path under /api/v1', async () => {
-    expect((await handleApi(req('GET', '/api/v1/nope', { token: fakeJwt('u1') }), env)).status).toBe(404);
+    expect((await handleApi(req('GET', '/api/v1/nope', { token: fakeJwt('u1') }), env, trust)).status).toBe(404);
+  });
+});
+
+describe('PR A: the bearer is verified before any call', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('a forged alg:none token is a 401 with the re-copy hint, and Supabase is never asked (real verifier)', async () => {
+    const spy = vi.fn();
+    vi.stubGlobal('fetch', spy);
+    const res = await handleApi(req('GET', '/api/v1/tasks', { token: fakeJwt('victim-1') }), env); // no stub: the real verifier
+    expect(res.status).toBe(401);
+    expect(((await res.json()) as { error: string }).error).toMatch(/expired or invalid/);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('a forged token cannot reach the create path either', async () => {
+    const spy = vi.fn();
+    vi.stubGlobal('fetch', spy);
+    const res = await handleApi(req('POST', '/api/v1/tasks', { token: fakeJwt('victim-1'), body: { title: 'x' } }), env);
+    expect(res.status).toBe(401);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('an upstream 401 (a token refused after verification) is a 401, never a 502 "upstream error"', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 401, json: async () => ({}) }) as unknown as Response));
+    const res = await handleApi(req('GET', '/api/v1/tasks', { token: fakeJwt('u1') }), env, trust);
+    expect(res.status).toBe(401);
+    expect(((await res.json()) as { error: string }).error).toMatch(/expired or invalid/);
+  });
+
+  it('an upstream 500 stays the 502', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) }) as unknown as Response));
+    const res = await handleApi(req('GET', '/api/v1/tasks', { token: fakeJwt('u1') }), env, trust);
+    expect(res.status).toBe(502);
+  });
+
+  it('the no-token 401 points at the real Settings label', async () => {
+    const res = await handleApi(req('GET', '/api/v1/tasks'), env, trust);
+    expect(((await res.json()) as { error: string }).error).toContain('AI agent access (MCP)');
   });
 });

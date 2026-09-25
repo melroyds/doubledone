@@ -17,6 +17,12 @@ import {
   verifyWebhook,
   writeEntitlement,
 } from './stripe';
+import { decodeJwtSub } from './mcp';
+
+// The verifier stub for the existing behaviour tests: a decoded sub counts as verified, so these tests
+// keep testing what they always tested. The PR A block at the bottom uses the REAL verifier with forged
+// tokens to prove the wall, and never touches the network (a rejected alg needs no key fetch).
+const trust = async (token: string) => decodeJwtSub(token);
 
 const env = { STRIPE_PRICE_ID: 'price_123', APP_URL: 'https://doubledone.app' };
 
@@ -250,22 +256,23 @@ describe('Stripe HTTP handlers', () => {
     });
 
   it('handleCheckout 401s without a token, 503s when not configured', async () => {
-    expect((await handleCheckout(req('checkout'), {}, cors)).status).toBe(401);
-    expect((await handleCheckout(req('checkout', tokenFor('u1'), {}), {}, cors)).status).toBe(503);
+    expect((await handleCheckout(req('checkout'), {}, cors, trust)).status).toBe(401);
+    expect((await handleCheckout(req('checkout', tokenFor('u1'), {}), {}, cors, trust)).status).toBe(503);
   });
 
   it('handlePortal 401s without a token, 404s with no stored subscription', async () => {
-    expect((await handlePortal(req('portal'), {}, cors)).status).toBe(401);
+    expect((await handlePortal(req('portal'), {}, cors, trust)).status).toBe(401);
     const env = { STRIPE_SECRET_KEY: SK, DB: fakeDb() };
-    expect((await handlePortal(req('portal', tokenFor('u1')), env, cors)).status).toBe(404);
+    expect((await handlePortal(req('portal', tokenFor('u1')), env, cors, trust)).status).toBe(404);
   });
 
   it('handleEntitlement 401s without a token and returns a view when authed', async () => {
-    expect((await handleEntitlement(new Request('https://w/entitlement'), {}, cors)).status).toBe(401);
+    expect((await handleEntitlement(new Request('https://w/entitlement'), {}, cors, trust)).status).toBe(401);
     const res = await handleEntitlement(
       new Request('https://w/entitlement', { headers: { Authorization: `Bearer ${tokenFor('u1')}` } }),
       { DB: fakeDb() },
       cors,
+      trust,
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ premium: false });
@@ -277,6 +284,7 @@ describe('Stripe HTTP handlers', () => {
       new Request('https://w/entitlement', { headers: { Authorization: `Bearer ${compToken}` } }),
       { COMP_EMAILS: 'owner@example.test' },
       cors,
+      trust,
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ premium: true, status: 'comp' });
@@ -299,12 +307,12 @@ describe('Stripe handler flows (mocked fetch / signed webhook)', () => {
     const checkoutReq = (body: unknown) =>
       new Request('https://w/checkout', { method: 'POST', headers: { Authorization: `Bearer ${tokenFor('u1')}` }, body: JSON.stringify(body) });
     vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ url: 'https://checkout.stripe.com/c/x' }), { status: 200 }));
-    const ok = await handleCheckout(checkoutReq({ email: 'a@b.co' }), env, cors);
+    const ok = await handleCheckout(checkoutReq({ email: 'a@b.co' }), env, cors, trust);
     expect(ok.status).toBe(200);
     expect(await ok.json()).toEqual({ url: 'https://checkout.stripe.com/c/x' });
 
     vi.stubGlobal('fetch', async () => new Response('no', { status: 400 }));
-    expect((await handleCheckout(checkoutReq({}), env, cors)).status).toBe(502);
+    expect((await handleCheckout(checkoutReq({}), env, cors, trust)).status).toBe(502);
   });
 
   it('handleCheckout refuses an already-subscribed user (409) but lets a trial user convert', async () => {
@@ -312,14 +320,14 @@ describe('Stripe handler flows (mocked fetch / signed webhook)', () => {
     const paidEnv = { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_123', DB: fakeDb() };
     await writeEntitlement(paidEnv.DB, { userId: 'u1', premium: true, status: 'active', currentPeriodEnd: 123, cancelAtPeriodEnd: false, customerId: 'cus_1', source: 'stripe' }, '2026-06-20T00:00:00Z');
     const req = () => new Request('https://w/checkout', { method: 'POST', headers: { Authorization: `Bearer ${tokenFor('u1')}` }, body: '{}' });
-    expect((await handleCheckout(req(), paidEnv, cors)).status).toBe(409);
+    expect((await handleCheckout(req(), paidEnv, cors, trust)).status).toBe(409);
 
     // A trial user (premium, but NO Stripe customer yet) is intentionally allowed to convert: the guard falls
     // through to Stripe, so "Go Premium to keep it" still works.
     const trialEnv = { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_123', DB: fakeDb() };
     await writeEntitlement(trialEnv.DB, { userId: 'u1', premium: true, status: 'trial', currentPeriodEnd: null, cancelAtPeriodEnd: true, customerId: null, source: 'stripe' }, '2026-06-20T00:00:00Z');
     vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ url: 'https://checkout.stripe.com/c/y' }), { status: 200 }));
-    expect((await handleCheckout(req(), trialEnv, cors)).status).toBe(200);
+    expect((await handleCheckout(req(), trialEnv, cors, trust)).status).toBe(200);
   });
 
   it('handleCheckout refuses a DUNNING subscriber (the past_due double-subscription bug)', async () => {
@@ -332,7 +340,7 @@ describe('Stripe handler flows (mocked fetch / signed webhook)', () => {
     for (const status of ['past_due', 'unpaid']) {
       const env = { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_123', DB: fakeDb() };
       await writeEntitlement(env.DB, { userId: 'u1', premium: false, status, currentPeriodEnd: 123, cancelAtPeriodEnd: false, customerId: 'cus_1', source: 'stripe' }, '2026-06-20T00:00:00Z');
-      const res = await handleCheckout(req(), env, cors);
+      const res = await handleCheckout(req(), env, cors, trust);
       expect(res.status, status).toBe(409);
       expect(await res.json(), status).toEqual({ error: 'billing_issue' });
     }
@@ -349,7 +357,7 @@ describe('Stripe handler flows (mocked fetch / signed webhook)', () => {
     for (const status of ['canceled', 'incomplete', 'incomplete_expired']) {
       const env = { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_123', DB: fakeDb() };
       await writeEntitlement(env.DB, { userId: 'u1', premium: false, status, currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: 'cus_old', source: 'stripe' }, '2026-06-20T00:00:00Z');
-      expect((await handleCheckout(req(), env, cors)).status, status).toBe(200);
+      expect((await handleCheckout(req(), env, cors, trust)).status, status).toBe(200);
     }
   });
 
@@ -358,6 +366,7 @@ describe('Stripe handler flows (mocked fetch / signed webhook)', () => {
       new Request('https://w/entitlement', { headers: { Authorization: `Bearer ${tokenFor('u1')}` } }),
       {},
       cors,
+      trust,
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ premium: false });
@@ -448,12 +457,12 @@ describe('Stripe handler flows (mocked fetch / signed webhook)', () => {
 
   it('handlePortal 503s without config and returns the billing url when subscribed', async () => {
     const portalReq = () => new Request('https://w/portal', { method: 'POST', headers: { Authorization: `Bearer ${tokenFor('u1')}` } });
-    expect((await handlePortal(portalReq(), {}, cors)).status).toBe(503);
+    expect((await handlePortal(portalReq(), {}, cors, trust)).status).toBe(503);
 
     const db = fakeDb();
     await writeEntitlement(db, { userId: 'u1', premium: true, status: 'active', currentPeriodEnd: 1, cancelAtPeriodEnd: false, customerId: 'cus_1', source: 'stripe' }, '2026-06-20T00:00:00Z');
     vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ url: 'https://billing.stripe.com/p/2' }), { status: 200 }));
-    const res = await handlePortal(portalReq(), { STRIPE_SECRET_KEY: SK, DB: db }, cors);
+    const res = await handlePortal(portalReq(), { STRIPE_SECRET_KEY: SK, DB: db }, cors, trust);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ url: 'https://billing.stripe.com/p/2' });
   });
@@ -487,5 +496,35 @@ describe('moneyAlertFromEvent', () => {
     });
     expect(a?.detail).not.toContain('jo@example.com');
     expect(a?.detail).not.toContain('Jo Bloggs');
+  });
+});
+
+describe('PR A: the money routes verify the bearer', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const cors = { 'Access-Control-Allow-Origin': 'https://doubledone.app' };
+  const b64 = (o: object) => btoa(JSON.stringify(o)).replace(/=/g, '');
+  // A hand-made token carrying somebody else's uuid: the exact shape the 2026-09-25 audit walked in with.
+  const forged = `${b64({ alg: 'none', typ: 'JWT' })}.${b64({ sub: 'victim-1' })}.`;
+  const post = (path: string) =>
+    new Request(`https://w/${path}`, { method: 'POST', headers: { Authorization: `Bearer ${forged}` }, body: '{}' });
+
+  it('a forged alg:none token never reaches Stripe or D1 on /portal, /checkout or /entitlement (real verifier)', async () => {
+    const spy = vi.fn();
+    vi.stubGlobal('fetch', spy);
+    const db = { prepare: vi.fn() } as never;
+    const env = { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_1', DB: db, SUPABASE_URL: 'https://proj.supabase.co' };
+    expect((await handlePortal(post('portal'), env, cors)).status).toBe(401);
+    expect((await handleCheckout(post('checkout'), env, cors)).status).toBe(401);
+    const ent = await handleEntitlement(new Request('https://w/entitlement', { headers: { Authorization: `Bearer ${forged}` } }), env, cors);
+    expect(ent.status).toBe(401);
+    expect(spy).not.toHaveBeenCalled();
+    expect((db as { prepare: ReturnType<typeof vi.fn> }).prepare).not.toHaveBeenCalled();
+  });
+
+  it('a verified token still reaches the portal (the wall is the signature, not the route)', async () => {
+    const env = { STRIPE_SECRET_KEY: SK, DB: fakeDb(), SUPABASE_URL: 'https://proj.supabase.co' };
+    // The stub verifier answers for the genuine user; no customer on file -> the calm 404, past the wall.
+    const res = await handlePortal(post('portal'), env, cors, async () => 'u1');
+    expect(res.status).toBe(404);
   });
 });

@@ -230,7 +230,7 @@ describe('handleMcp with an injected (custody) token source', () => {
       }),
     );
     const req = mcpPost({ jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'list_today', arguments: {} } });
-    const res = await handleMcp(req, env, { kind: 'oauth', getToken: async () => CUSTODY_JWT });
+    const res = await handleMcp(req, env, { kind: 'oauth', getToken: async () => CUSTODY_JWT }, async () => 'user-1'); // the custody token is verified too; stubbed here
     expect(res.status).toBe(200);
     const body = (await res.json()) as { result: { content: { text: string }[] } };
     expect(body.result.content[0].text).toMatch(/Nothing on today/);

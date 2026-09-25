@@ -346,3 +346,28 @@ describe('scrapbook purge (R2 delete on account deletion)', () => {
     expect(await res.json()).toEqual({ ok: true, deleted: 0 });
   });
 });
+
+// PR A (2026-09-25): the money routes are origin-gated for BROWSER callers like the AI routes. A foreign
+// Origin is refused before the handler; a missing Origin (native apps) reaches the handler, whose own
+// verified-bearer check then answers. Handlers are tested in stripe.test.ts; this proves the gate.
+describe('the money routes: origin gate before the verified bearer', () => {
+  const routes: [string, string][] = [
+    ['POST', '/checkout'],
+    ['POST', '/portal'],
+    ['GET', '/entitlement'],
+  ];
+  for (const [method, path] of routes) {
+    it(`${method} ${path} refuses a foreign browser origin (403) before anything else`, async () => {
+      const res = await worker.fetch(req(method, path, { origin: 'https://evil.example', body: method === 'POST' ? {} : undefined }), makeEnv(), ctx);
+      expect(res.status).toBe(403);
+    });
+    it(`${method} ${path} lets a native caller (no Origin) reach the handler, which asks for sign-in`, async () => {
+      const res = await worker.fetch(req(method, path, { body: method === 'POST' ? {} : undefined }), makeEnv(), ctx);
+      expect(res.status).toBe(401); // sign_in_required: no bearer, past the gate
+    });
+    it(`${method} ${path} lets the app's own origin through the gate`, async () => {
+      const res = await worker.fetch(req(method, path, { origin: 'https://doubledone.app', body: method === 'POST' ? {} : undefined }), makeEnv(), ctx);
+      expect(res.status).toBe(401);
+    });
+  }
+});
