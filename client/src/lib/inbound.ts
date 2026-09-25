@@ -7,7 +7,8 @@
 export type Inbound =
   | { kind: 'dump' } // open the capture box, ready to type
   | { kind: 'focus' } // open Focus mode
-  | { kind: 'capture'; text: string }; // prefill the capture box with shared text
+  | { kind: 'capture'; text: string } // prefill the capture box with shared text
+  | { kind: 'repeating' }; // open the Repeating drawer, handed over by the Menu's contents page (the drawer lives on Today, on Today's own task state and write path)
 
 let pending: Inbound | null = null;
 const listeners = new Set<() => void>();

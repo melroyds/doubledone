@@ -144,7 +144,13 @@ function RootStack() {
           headerShown: false,
           contentStyle: { backgroundColor: 'transparent' },
         }}
-      />
+      >
+        {/* The Menu's contents page does its own fade-and-rise (a 90ms fade under reduced motion), and
+            Ours is the other half of Today's heading, so both skip the platform's sideways slide: switching
+            between Today and Ours reads as a tab changing, not a page arriving. */}
+        <Stack.Screen name="rooms" options={{ animation: 'fade' }} />
+        <Stack.Screen name="ours-list" options={{ animation: 'fade' }} />
+      </Stack>
     </View>
   );
 }

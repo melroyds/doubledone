@@ -357,7 +357,7 @@ export default function PremiumScreen() {
                 style={styles.ctaSpace}
               />
             ) : null}
-            <Pressable onPress={() => router.replace('/today')} accessibilityRole="button" accessibilityLabel={t('common.backToToday')} hitSlop={8} style={styles.backLink}>
+            <Pressable onPress={() => router.dismissTo('/today')} accessibilityRole="button" accessibilityLabel={t('common.backToToday')} hitSlop={8} style={styles.backLink}>
               <Text style={styles.backLinkText}>{t('common.backToToday')}</Text>
             </Pressable>
             {error ? <Text style={styles.error}>{error}</Text> : null}

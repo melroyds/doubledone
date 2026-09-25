@@ -26,10 +26,13 @@ type Props = {
   // Called with the task titles the AI read, for the parent to seed into the brain-dump box. Never
   // called with an empty list (an empty read shows a calm in-modal line and keeps the camera open).
   onTasks: (tasks: string[]) => void;
+  // After the Modal has fully closed (web and iOS). Where focus must land in the page behind, it lands here:
+  // on web the Modal's focus trap holds focus until this point.
+  onDismiss?: () => void;
   language?: string;
 };
 
-export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
+export function CameraCapture({ visible, onClose, onTasks, onDismiss, language }: Props) {
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
   const isWeb = Platform.OS === 'web';
@@ -165,7 +168,7 @@ export function CameraCapture({ visible, onClose, onTasks, language }: Props) {
   }
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose} onDismiss={onDismiss}>
       <View style={styles.screen}>
         <View style={styles.header}>
           <Pressable onPress={onClose} disabled={busy} accessibilityRole="button" accessibilityLabel={t('common.close')} hitSlop={8}>

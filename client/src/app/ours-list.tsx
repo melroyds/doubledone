@@ -1,19 +1,22 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
 import { BrainDump, type BrainDumpHandle } from '@/components/BrainDump';
 import { CameraCapture } from '@/components/CameraCapture';
+import { DayHeading } from '@/components/DayHeading';
+import { MenuPill } from '@/components/MenuPill';
 import { DebugPanel } from '@/components/DebugPanel';
 import { CadenceSheet } from '@/components/CadenceSheet';
 import { TaskRow } from '@/components/TaskRow';
-import { border, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { useSessionState } from '@/lib/auth';
 import { clockSkewMs } from '@/lib/clock';
 import { debugLog } from '@/lib/debug-log';
-import { friendlyDate, toISODate } from '@/lib/day';
+import { formatTodayLabel, friendlyDate, toISODate } from '@/lib/day';
+import { type CaptureWhen } from '@/lib/capture-door';
 import { type CaptureSchedule, scheduleFields } from '@/lib/recurrence';
 import { t } from '@/lib/locale';
 import { makeSharedRef, pulledFrom } from '@/lib/ours-bridge';
@@ -26,7 +29,7 @@ import { usePremium } from '@/lib/premium-provider';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
 import { makeId, nowMs, parseDump, type Task, withMonotonicStamps } from '@/lib/tasks';
-import { useThemedStyles } from '@/lib/theme-provider';
+import { useReducedMotion, useThemedStyles } from '@/lib/theme-provider';
 
 // Ours: THE ROOM. The shared list itself, where the door on Today and the Menu both lead.
 //
@@ -246,8 +249,15 @@ export default function OursListScreen() {
   // in, and slicing is a personal shaping tool. How you break a thing down is yours, not a
   // household's. WHEN and REPEATING both belong here, and WHEN rests on Anytime, because most of a
   // household list has no day and choosing one means the row appears on BOTH your Todays.
-  const [captureOpen, setCaptureOpen] = useState(false);
+  // The composer is OPEN (its box has focus, or When is open): the heading shrinks and the keyboard lift
+  // applies, exactly as on Today. The composer itself is always there, one line at the bottom.
+  const [composing, setComposing] = useState(false);
   const brainDumpRef = useRef<BrainDumpHandle>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const { width: winW } = useWindowDimensions();
+  const reduced = useReducedMotion();
+  // Web: see Today's twin. The closing camera Modal's focus trap takes the seed's focus back.
+  const scanFocusPending = useRef(false);
   // SCAN (premium), on the shared list because this is where it most belongs. The single most
   // photographed list in anybody's life is the one on the fridge, and that list is shared by
   // definition: a handwritten shopping list, a recipe's ingredients, the school's bring-these-things
@@ -460,14 +470,6 @@ export default function OursListScreen() {
   // rule is pure and tested in ours-sync: focused AND foregrounded AND not idle ten minutes.
   // Keyed on the pair's ID, a STRING, never the pair object. The object is rebuilt by every read,
   // so depending on it restarted the timer forever and the interval was never allowed to tick.
-  // Focus the capture input once the panel is actually VISIBLE. Not in the launcher's press
-  // handler: the panel is display:none until the state lands, and focusing a display:none input
-  // does nothing, silently, leaving a launcher that opens a panel you then have to tap again.
-  // `seed(null)` focuses without touching the text, which is what keeps a collapsed mid-sentence
-  // draft alive. Today carries the identical effect for the identical reason.
-  useEffect(() => {
-    if (captureOpen) brainDumpRef.current?.seed(null);
-  }, [captureOpen]);
 
   const pairId = pair?.pairId ?? null;
   useEffect(() => {
@@ -732,20 +734,72 @@ export default function OursListScreen() {
     .filter((task) => task.deletedAt != null && nowMs() - task.deletedAt < RECENTLY_REMOVED_MS)
     .sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0));
   const listName = pair?.name?.trim() || t('ours.defaultName');
+  // The Today · Ours heading is for the LIVE list, the one Today's heading switches to. A closed list
+  // opened from the archive (?pair=) keeps its own title and back link: the Ours word means the live list.
+  const tabbed = !frozen && !wantedId;
+  const compactHeader = composing && tabbed && !selectMode && (Platform.OS !== 'web' || winW < 700);
+
+  // Today, by the heading's word: all the way back to Today, past the Menu's contents page if that is
+  // how you got here (the room's own back still returns to wherever you came from).
+  function goToday() {
+    if (router.canGoBack()) router.dismissTo('/today');
+    else router.replace('/today');
+  }
+
+  function onComposerActive(active: boolean) {
+    setComposing(active);
+    if (active) lastTouch.current = nowMs(); // composing is a person being here: the poll must not idle out
+  }
+
+  function onComposerFocus() {
+    lastTouch.current = nowMs();
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: !reduced }), 80);
+  }
+
+  // The line beside When, before you add: what a day on the shared list means (the When v2 wording).
+  function whenNote({ when, repeating }: { when: CaptureWhen; repeating: boolean }): string {
+    if (repeating) return t('ours.whenRhythm');
+    if (when === 'anytime') return t('ours.whenPlain');
+    if (when === 'today') return t('ours.whenToday');
+    return t('ours.whenDay');
+  }
 
   return (
     <View style={styles.screen}>
+      {compactHeader && (
+        <View style={[styles.compactHead, { paddingTop: insets.top + spacing.two }]}>
+          <DayHeading compact current="ours" oursLabel={listName} onToday={goToday} onOurs={() => undefined} />
+        </View>
+      )}
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.four }]}
+        contentContainerStyle={[styles.content, { paddingTop: compactHeader ? spacing.three : insets.top + spacing.four }]}
         keyboardShouldPersistTaps="handled"
         onScrollBeginDrag={() => {
           lastTouch.current = nowMs();
         }}
       >
-        <BackLink label={t('common.today')} />
-
-        <Text style={styles.title}>{listName}</Text>
+        {tabbed ? (
+          !compactHeader && (
+            <>
+              {/* The same status row as Today: the date, and the Menu pill in its place. */}
+              <View style={styles.topBar}>
+                <Text style={styles.date}>{formatTodayLabel(now)}</Text>
+                <MenuPill onPress={() => router.push({ pathname: '/rooms', params: { ours: 'list', from: 'ours' } })} />
+              </View>
+              <DayHeading current="ours" oursLabel={listName} onToday={goToday} onOurs={() => undefined} />
+              {/* The weight, Energy and the tools belong to Today, so they step aside here. What is here
+                  instead is the one rule of the room, said once. */}
+              <Text style={styles.sharedLine}>{t('ours.sharedLine')}</Text>
+            </>
+          )
+        ) : (
+          <>
+            <BackLink label={t('common.today')} />
+            <Text style={styles.title}>{listName}</Text>
+          </>
+        )}
         {/* The header line is the door to the relationship: rename yourself, the archive, leaving.
             One line, and it names your person rather than counting anything. */}
         {pair?.partnerLabel ? (
@@ -891,8 +945,13 @@ export default function OursListScreen() {
         onClose={() => setCameraOpen(false)}
         onTasks={(scanned) => {
           setCameraOpen(false);
-          setCaptureOpen(true);
           brainDumpRef.current?.seed(scanned.join('\n'));
+          if (Platform.OS === 'web') scanFocusPending.current = true;
+        }}
+        onDismiss={() => {
+          if (!scanFocusPending.current) return;
+          scanFocusPending.current = false;
+          brainDumpRef.current?.seed(null);
         }}
       />
 
@@ -993,34 +1052,25 @@ export default function OursListScreen() {
         </View>
       )}
 
-      {!frozen && !selectMode && (
+      {!frozen && (
         <View
           style={[
             styles.capture,
-            { paddingBottom: insets.bottom + spacing.three + (captureOpen ? Math.max(0, kbHeight - (Platform.OS === 'ios' ? insets.bottom : 0)) : 0) },
+            selectMode && styles.captureHidden,
+            { paddingBottom: insets.bottom + (composing ? spacing.two : spacing.three) + (composing ? Math.max(0, kbHeight - (Platform.OS === 'ios' ? insets.bottom : 0)) : 0) },
           ]}
         >
-          {!captureOpen && (
-            <Pressable
-              onPress={() => {
-                lastTouch.current = nowMs(); // reaching for the input is a person being here
-                setCaptureOpen(true);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={t('ours.addTo', { name: listName })}
-              style={({ pressed }) => [styles.addBar, pressed && styles.pressed]}
-            >
-              <Text style={styles.addBarText}>{t('ours.addTo', { name: listName })}</Text>
-            </Pressable>
-          )}
-          {/* MOUNTED while hidden (display none, never unmounted), which is the capture iron rule
-              that typed text is never lost. Collapse the panel mid-sentence, tick something, come
-              back: the words are still there. */}
-          <View style={[styles.capturePanel, !captureOpen && styles.capturePanelHidden]}>
+          {/* The composer, one line under your thumb (the Today v3 handoff). MOUNTED always, which is the
+              capture iron rule that typed text is never lost: tick something mid-sentence, come back, the
+              words are still there. */}
+          <View style={styles.capturePanel}>
             <BrainDump
               ref={brainDumpRef}
               onCapture={capture}
-              onClose={() => setCaptureOpen(false)}
+              onActiveChange={onComposerActive}
+              onFocusBox={onComposerFocus}
+              placeholder={t('ours.addTo', { name: listName })}
+              whenNote={whenNote}
               today={now}
               /* STEPS stay off: a shared row has no `slices` field to hold them, and breaking a
                  thing down is a personal shaping tool. How you approach a task is yours; that it
@@ -1077,6 +1127,10 @@ const makeStyles = (t: Theme) =>
     },
     title: { ...t.type.title, color: t.colors.ink, marginTop: spacing.three },
     keptWith: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
+    topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.one },
+    date: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    sharedLine: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 21 * t.scale, fontFamily: fonts.body, marginTop: 9 },
+    compactHead: { paddingHorizontal: spacing.five, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
     waitBridge: {
       alignSelf: 'flex-start',
       marginTop: spacing.two,
@@ -1118,37 +1172,10 @@ const makeStyles = (t: Theme) =>
       borderTopColor: t.colors.line,
       backgroundColor: t.colors.bg,
     },
-    // The launcher, styled from Today's `addBar` so both rooms open capture the same way: a
-    // bordered button in the full appearance, a bare underlined capture line in Quiet.
-    addBar:
-      t.appearance === 'quiet'
-        ? {
-            borderBottomWidth: border.hair,
-            borderColor: t.quiet.captureUnderline,
-            paddingVertical: spacing.four,
-            paddingHorizontal: 2,
-            alignItems: 'flex-start',
-            maxWidth: layout.maxContentWidth,
-            width: '100%',
-            alignSelf: 'center',
-          }
-        : {
-            borderWidth: border.hair,
-            borderColor: t.colors.accent,
-            borderRadius: radius.md,
-            paddingVertical: spacing.four,
-            alignItems: 'center',
-            maxWidth: layout.maxContentWidth,
-            width: '100%',
-            alignSelf: 'center',
-          },
-    addBarText: {
-      color: t.appearance === 'quiet' ? t.colors.inkFaint : t.colors.accent,
-      fontSize: 16 * t.scale,
-      fontFamily: t.appearance === 'quiet' ? fonts.body : fonts.bodyBold,
-      fontWeight: t.appearance === 'quiet' ? '400' : '700',
-    },
     capturePanel: { gap: spacing.two, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
+    // Select mode takes the bar's seat; the composer steps out of the layout but stays mounted, so a
+    // half-typed line is still there when selecting ends (the capture iron rule).
+    captureHidden: { display: 'none' },
     // The select shelf, sharing the capture bar's container so the two occupy one seat.
     selectTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.three },
     selectHint: { color: t.colors.inkFaint, fontSize: 14 * t.scale, fontFamily: fonts.body },
@@ -1162,7 +1189,4 @@ const makeStyles = (t: Theme) =>
     // Quiet-unavailable rather than absent: the control keeps its place at lowered contrast, which
     // is the same treatment every other unavailable action in this app gets.
     selectOff: { opacity: 0.45 },
-    // display none (not unmount): BrainDump keeps its typed text while the panel is away.
-    capturePanelHidden: { display: 'none' },
-    pressed: { opacity: PRESSED_OPACITY },
   });

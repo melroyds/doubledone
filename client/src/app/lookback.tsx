@@ -250,7 +250,7 @@ export default function LookbackScreen() {
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.six, paddingBottom: insets.bottom + spacing.six }]}
     >
-      <BackLink label={t('common.today')} />
+      <BackLink />
 
       <Text style={styles.title}>{t('lookback.title')}</Text>
       <Text style={styles.sub}>{t('lookback.subtitle')}</Text>

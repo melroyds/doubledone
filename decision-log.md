@@ -8102,3 +8102,95 @@ Inspector discovery needs the bearer (the 401 is how OAuth starts); a pasted tok
 hour); and Today on both surfaces is the UTC day for now, said plainly in OpenAPI, api.md and mcp.md
 until the timezone option lands. OpenAPI is 1.2.2. **Decided against:** a read-only OAuth scope
 (Tier 4: one scope is right while the only clients are claude.ai, ChatGPT and Cowork).
+
+## 2026-09-26: Today v3, the kitchen and the rest of the house (its own PR, not shipped)
+
+**Decided:** build the Claude Design "Today v3" handoff on web, on its own branch (`today-v3`) and PR,
+previewed on a Pages branch URL and never pushed to `main`, because a merge to main IS the web deploy.
+The handoff's four moves, as built:
+- **The heading is a tab pair.** "Today" and the live shared list's name (its own name when it has
+  one, else "Ours") sit side by side in the serif, the current one underlined. A small tinted "!"
+  sits beside the Ours word when your person changed something since you looked. It is counted by
+  `changedSinceLooked`, which is the room's own `washedSince` minus tombstones, so a deletion never
+  raises it and your own edits never do. No number is drawn: the mark is bounded by attention, not
+  by the list's length.
+- **Right now moves up** under Energy, and its caret opens the same tools DOWNWARD inside the card.
+  The list moves down to make room, nothing covers it, so the scrim is gone.
+- **Capture is one line at the bottom**, always mounted (the capture iron rule). Focus opens it
+  where it is: the heading shrinks to a compact bar, a chip row appears (When, plus Break it down or
+  Sort for me), and the list scrolls to its end. Add keeps focus, tints the rows it added until the
+  composer closes, and says "Added." or "Added. Tomorrow."
+- **The Rooms sheet becomes a page**, "The rest of the house", with five pictures (bundled WebP),
+  for-when hints in place of what-it-is hints, Settings at the top right and Premium as a quiet row.
+- **Ours gets the same heading**, the same Menu pill and the same composer ("Add to {name}…"), plus
+  one line that says what sharing means.
+
+**Decided (calls the handoff left open):**
+- **Routes stay.** Ours is still its own route, faded rather than slid so it reads as a tab. Not a
+  real tab navigator: the room's sync, poll and wash all live in that screen, and moving them is a
+  rewrite for the sake of a transition.
+- **Repeating stays a drawer on Today** (it lives on Today's task state and write path). The contents
+  page hands it over through the inbound bridge and dismisses to Today, and closing the drawer returns
+  to the contents page, where the person started.
+- **Only the Today ON SCREEN takes an inbound intent** (`useFocusEffect`, not a mount effect). A second
+  Today can sit under the stack, and a broadcast went to whichever had subscribed first, so the Menu's
+  Repeating card opened a drawer nobody could see. An intent now waits and is drained on focus. Chart
+  and Premium dismiss to the Today underneath instead of replacing themselves with a second one.
+- **The compact heading only when the footer is docked** (phones and narrow web). A wide window keeps
+  the full heading, because there is room and the page should stay still.
+- **The Lookback card is labelled "Calendar"**, the room's live name, not the handoff's "Lookback".
+  Two names for one room is a bug.
+- **The keyboard lift stays** (`kbHeight`), not a KeyboardAvoidingView, per the CLAUDE.md gotcha.
+- **Tidy is off on Ours**, for the same reason Break it down is: a model rewriting words on a list
+  another person reads.
+- **Break it down keeps the words** in the box until the steps are accepted, so a dismissed proposal
+  loses nothing.
+- **Chart a course is a card only with AI on** (the AI-off rule), wearing the honey mark and saying
+  "Premium" to a screen reader when you are not Premium.
+- **One column** when the app's text size times the phone's font scale reaches "Large", or under 330
+  wide. An odd card takes the full row.
+- **The Menu's spoken label** lists the rooms in page order, Ours included, in all five locales.
+- **The Ours destination comes from the pair and the session**, not the `ours_is_open` gate: before
+  that RPC answered, the page was pushed with no Ours card and a route param cannot change its mind.
+- **Rooms reached from the contents page say "Back"**, because "‹ Today" named a page the tap no
+  longer reaches. (Superseded later the same day by the room-entry handoff's `‹ Menu` / `‹ Today`.)
+
+**Fixed on the way, from the preview and from a ten-agent adversarial review (33 confirmed):**
+- The composer reported "closed" on every render, and Today's clear on close looped the page to
+  death ("Maximum update depth exceeded"). It reports a CHANGE only now.
+- Web only: react-native-web treats every scroll as a drag, so `keyboardDismissMode="on-drag"` dropped
+  focus a second after an Add (the app's own scroll to the new row). It is native-only now.
+- Web only: `announceForAccessibility` is a no-op in react-native-web, so the composer carries its
+  own hidden polite live region for "Added."
+- Chrome draws an `auto` focus ring whatever its width, so the box's outline is `solid` at zero.
+- A Sort, Tidy or dictation failure on web landed with the composer already folded and said nothing,
+  and nothing ever cleared an error. An error now shows at rest and clears on typing or on Add.
+- A keyboard user who tabbed onto When lost it 220ms later, and a slow click was dropped mid-press:
+  focus on the composer's own controls holds it open. Opening When moves focus to its header, and
+  closing hands focus back to the box.
+- Adding from an open When door on native dropped the composer for a frame and wiped the tint it had
+  just recorded. The composer is held open through the Add, and the tint is keyed on the composer
+  having added the row, not on whether it looked open.
+- A Scan or a share now joins a half-typed draft rather than replacing it. Dictation stops before an
+  AI call reads the box. Sort commits against the list as it is after the call, not before.
+- Ours: select mode unmounted the composer (typed text lost, the compact heading stuck on). It is
+  hidden, not unmounted, now.
+- The Menu's "‹ Today" and its Repeating card went back to Ours when the Menu was opened from Ours.
+  Both dismiss to Today now, and Ours → Menu → Ours goes back rather than stacking another room.
+- The stepped row never showed the just-added tint, the mark never reached a screen reader, and the
+  mark's accent was 4.0:1 in light Dusk (ink there now). The Right now card in select mode is disabled
+  for real (keyboard and screen reader), not just dimmed. Android back closes the Menu's Repeating
+  drawer rather than leaving the app.
+- Translations: German "Für wenn" was a calque ("Für Tage, an denen…"). German and French "Added" used
+  a colon, because their dates and ordinals end in a full stop and the sentence form doubled it. The
+  welcome's quotes match each catalog's own convention (« », «», “ ”).
+- Eight strings the old layout used are gone from all five catalogs, as are the styles it orphaned.
+
+**Decided against:** a real tab navigator for Today and Ours; a KeyboardAvoidingView; keeping the steps
+teaching lines ("Has parts? Track it in steps.") that the handoff's Steps row drops (the row still says
+why it is off); an image morph or any transition beyond a fade; and shipping. **Rolls back by:**
+not merging. No schema, no migration, no Worker change; native is untouched until a build is asked for.
+
+**Assumptions to challenge (Melroy):** the Calendar label on the Lookback card; the compact heading
+only on docked layouts; one column at the "Large" text size; the steps teaching lines dropped; and
+"Added: {what}" in German and French while English, Spanish and Italian keep the sentence form.

@@ -1,9 +1,25 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { ActivityIndicator, InputAccessoryView, Keyboard, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  ActivityIndicator,
+  Animated,
+  Easing,
+  InputAccessoryView,
+  Keyboard,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
-import { border, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, layout, PRESSED_OPACITY, radius, rgba, spacing, type Theme } from '@/constants/theme';
 import { split } from '@/lib/ai';
-import { addButtonLabel, type CaptureRepeat, type CaptureWhen, doorSummary, whenLabel } from '@/lib/capture-door';
+import { addButtonLabel, type CaptureRepeat, type CaptureWhen, doorSummary, repeatLabel, whenLabel } from '@/lib/capture-door';
 import { aiErrorLine } from '@/lib/connection';
 import { addDaysISO, fromISODate, toISODate } from '@/lib/day';
 import { ordinalDay } from '@/lib/i18n-active';
@@ -17,51 +33,69 @@ import { useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 import { Chip } from './Chip';
 import { DatePicker } from './DatePicker';
-import { Mark } from './Mark';
-import { PrimaryButton } from './PrimaryButton';
 
-// The iOS keyboard toolbar's id. The capture is multiline, so iOS's Return key inserts a
-// newline and there is NO native way to put the keyboard away, leaving it stuck over the page
-// (Melroy, iOS, 2026-07-15). InputAccessoryView is the standard iOS answer: a small bar riding
-// above the keyboard with an explicit Done. iOS-only by design (the component does not exist on
-// Android/web, and neither platform has the problem: Android has its back gesture, web a click out).
+// The iOS keyboard toolbar's id. The box is multiline, so iOS's Return key inserts a newline and
+// there is NO native way to put the keyboard away, leaving it stuck over the page (Melroy, iOS,
+// 2026-07-15). InputAccessoryView is the standard iOS answer: a small bar riding above the keyboard
+// with an explicit Done. iOS-only by design (neither Android nor web has the problem).
 const CAPTURE_ACCESSORY_ID = 'ddCaptureAccessory';
+
+// A blur that is really the start of a tap on one of the composer's own controls (on web, pressing
+// a button blurs the box a beat BEFORE the click lands) must not collapse the composer under the
+// finger. The box counts as focused for this long after it loses focus.
+const BLUR_GRACE_MS = 220;
+
+// The box grows to four lines, then scrolls (the handoff's rule), measured in the body line height.
+const MAX_LINES = 4;
 
 type Props = {
   onCapture: (text: string, schedule: CaptureSchedule, slices?: number) => void;
   // The AI shapers. OPTIONAL, because the shared list does not offer them: the steps they produce
   // land on a list another person reads, and pointing a model at a shared surface is a decision
-  // about somebody else's screen, not a UI tidy-up. Absent = the buttons are not rendered.
+  // about somebody else's screen, not a UI tidy-up. Absent = the button is not rendered.
   onBiteElephant?: (text: string) => Promise<void>;
   onSort?: (text: string) => Promise<void>;
   /** Steps (slices). Off on the shared list, whose rows have no `slices` field to store them in. */
   allowSteps?: boolean;
   /**
    * This surface's RESTING answer to "when". 'today' everywhere except the shared list, which
-   * passes 'anytime' and gains a fourth chip for it.
-   *
-   * Anytime is the shared list's calm default because most of what goes on it has no day: milk,
-   * batteries, ask about the gutter. Those live in the room and are read when you are going to the
-   * shop. Choosing a day there is the deliberate exception, and it means something specific and
-   * worth being deliberate about: the row will appear on BOTH your Todays.
-   *
-   * This REPLACED an `allowWhen` flag that hid the WHEN row on the shared list entirely. That was
-   * right while a shared row could not hold a date. It stopped being right the moment dated shared
-   * rows started surfacing on both Todays.
+   * passes 'anytime' and gains a fourth chip for it: most of what goes on a household list has no
+   * day, and choosing one there means the row will appear on BOTH your Todays.
    */
   whenDefault?: CaptureWhen;
-  // Close the panel (the parent owns visibility). The panel's own Close resets the door
-  // (back to Today · no repeat · no steps) but NEVER the typed text: text is never lost.
-  onClose: () => void;
+  /** Called when the composer closes (the box lets go and When is shut). Optional. */
+  onClose?: () => void;
+  /**
+   * The composer is OPEN (the box has focus, or When or the date picker is open, or an AI shaper
+   * or dictation is running). The parent shrinks its heading while it is, so the weight line and
+   * the last few tasks stay in view above the keyboard, and keeps a just-added row tinted until it
+   * closes (the Today v3 handoff).
+   */
+  onActiveChange?: (active: boolean) => void;
+  /** The box took focus: the parent scrolls its list to the end so the newest rows sit just above. */
+  onFocusBox?: () => void;
   today: Date;
-  // OCR (premium): open the photo-capture modal. The parent premium-gates the tap; this just shows the
-  // button as the upsell surface. Absent (undefined) hides the button entirely.
+  // OCR (premium): open the photo-capture modal. The parent premium-gates the tap; this just shows
+  // the button as the upsell surface. Absent hides it.
   onCamera?: () => void;
+  /** The box's resting words. Today: "Empty your head…". The shared list: "Add to {name}". */
+  placeholder?: string;
+  /**
+   * The line beside When, where the surface needs When explained BEFORE the add (the shared list:
+   * "It stays on the list. It reaches nobody's day."). Only shown on surfaces with no AI shaper,
+   * which is the seat it would otherwise take.
+   */
+  whenNote?: (s: { when: CaptureWhen; repeating: boolean }) => string | null;
 };
 
-// What a parent can do to the capture box via ref: drop in text (or null to just focus)
-// and focus the input. Used by the launcher "Brain dump" shortcut and by shared text.
-export type BrainDumpHandle = { seed: (text: string | null) => void };
+// What a parent can do to the box via ref: drop in text (or null to just focus) and focus the input.
+// Used by the launcher "Brain dump" shortcut, shared text, and a scanned list.
+export type BrainDumpHandle = {
+  seed: (text: string | null) => void;
+  /** Empty the box and put When back to rest. For the parent to call once words it took (Break it
+   *  down's accepted steps) have really landed, so nothing is cleared on the way to a sheet you might cancel. */
+  clear: () => void;
+};
 
 // index 0=Sun .. 6=Sat
 const WEEKDAY_KEYS = [
@@ -79,27 +113,46 @@ const WEEKDAY_KEYS = [
 // workaround. What a short month does with it is answered by the line under the grid.
 const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 
-// Capture, rebuilt to "Reflex first, one door" (Claude Design capture handoff, Melroy's pick
-// 2026-07-26). The reflex path is input + Add and nothing else demanding attention. Every
-// shaping power (when, repeating, steps) lives behind ONE constant, labelled door whose value
-// line always says what is currently set, and the Add button repeats the consequential part
-// ("Add · Weekly on Mo") so nothing surprising ever lands. The composer inside the door is a
-// FIXED set of rows (When / Repeats / Steps, always in that order): content changes in place,
-// controls never appear from nowhere. Iron rules: the first keystroke never waits, typed text
-// survives every tap and collapse, and the door resets to Today · no repeat · no steps after
-// every Add and every Close.
-export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({ onCapture, onBiteElephant, onSort, onClose, today, onCamera, allowSteps = true, whenDefault = 'today' }, ref) {
+/**
+ * The composer (the Today v3 handoff, 1a, Melroy's pick 2026-09-26): ONE message-style line at the
+ * bottom of the screen replaces the half-screen capture panel, so the list you are adding to stays
+ * in view while you add to it.
+ *
+ * At rest it is Scan, the box, and one end button that says Speak while the box is empty and Add once
+ * you type. Open (the box has focus), a row above it carries the When chip and Break it down, which
+ * becomes Sort for me in the same seat once there are two or more lines. When opens in the keyboard's
+ * place with the same rows the shipped door had (a day, a rhythm, steps), and the Add button names the
+ * consequence before the tap ("Add · Tomorrow", "Add 3").
+ *
+ * Everything the old panel promised still holds, because the logic below is the old panel's: the text
+ * is never lost (the composer stays mounted; nothing clears it but an Add or an accepted sort), the
+ * first keystroke never waits, every part stays in its place while you type, and When resets to the
+ * calm default after every Add. Nothing reaches the day until you tap Add or accept the sort.
+ */
+export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
+  { onCapture, onBiteElephant, onSort, onClose, onActiveChange, onFocusBox, today, onCamera, allowSteps = true, whenDefault = 'today', placeholder, whenNote },
+  ref,
+) {
   const [value, setValue] = useState('');
-  const [doorOpen, setDoorOpen] = useState(false);
+  const [doorOpen, setDoorOpenState] = useState(false);
+  const doorOpenRef = useRef(false);
+  const [focused, setFocused] = useState(false);
+  // When opens in place of the chip that opened it, so the chip (and the focus on it) is gone. Focus
+  // moves to the door's header instead, for a keyboard or a screen reader; set on open, spent in an effect.
+  const doorHeadRef = useRef<View>(null);
+  const doorFocusPending = useRef(false);
+  // What the last Add said, for web screen readers. react-native-web's announceForAccessibility is a
+  // no-op, so on web the words go through a hidden polite live region instead. The count flips a
+  // trailing no-break space so a second "Added." is still a change the reader hears.
+  const [said, setSaid] = useState({ text: '', n: 0 });
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [when, setWhen] = useState<CaptureWhen>(whenDefault);
   const [repeat, setRepeat] = useState<CaptureRepeat>(null);
   const [weekdays, setWeekdays] = useState<number[]>([today.getDay()]);
   const [everyNDays, setEveryNDays] = useState(2);
   const [monthDay, setMonthDay] = useState(today.getDate());
-  // Until the user touches the weekday chips or the day-of-month grid, the repeat follows the
-  // START DATE: pick Fri 25 then Weekly, and it is weekly on Fridays. These seeds used to be
-  // today's weekday and today's date, fixed at mount, which made "Fri 25 Sept · Weekly on Mo"
-  // (the flow audit, 2026-09-21: a task quietly scheduled on a day the user never chose).
+  // Until the user touches the weekday chips or the day-of-month grid, the repeat follows the START
+  // DATE: pick Fri 25 then Weekly, and it is weekly on Fridays (the 2026-09-21 flow audit).
   const [weekdaysTouched, setWeekdaysTouched] = useState(false);
   const [monthDayTouched, setMonthDayTouched] = useState(false);
   const [dueDate, setDueDate] = useState(() => toISODate(today)); // ISO for a picked day (due date, or a repeat's start)
@@ -112,50 +165,73 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   const { settings } = useSettings();
   const aiEnabled = settings.aiEnabled; // false hides every gen-AI affordance here (Sort for me, Break it down, Tidy, Scan). Speak stays: it is on-device dictation, not a server AI call.
   const inputRef = useRef<TextInput>(null);
+  const { height: winH } = useWindowDimensions();
+  const [doorFade] = useState(() => new Animated.Value(0));
 
-  // Talk-to-capture (web only; the mic stays hidden where unsupported). Each spoken
-  // phrase lands as its own line, then the existing Sort / Add flow takes over.
+  // Talk-to-capture (the mic stays hidden where unsupported). Each spoken phrase lands as its own
+  // line, then the existing Sort / Add flow takes over.
   const [canDictate] = useState(() => isDictationSupported());
   const [listening, setListening] = useState(false);
   const dictationRef = useRef<Dictation | null>(null);
   const phraseCountRef = useRef(0);
 
-  // Expose seed() to parents: drop in text (null = just focus, so a "Brain dump" shortcut
-  // never clears in-progress text) and focus the input. Imperative, so the setState runs
-  // like an event handler, never during render or as a cascading effect.
+  function setDoorOpen(open: boolean) {
+    doorOpenRef.current = open;
+    setDoorOpenState(open);
+  }
+
+  // Expose seed() to parents: drop in text (null = just focus, so a "Brain dump" shortcut never
+  // clears in-progress text) and focus the input. Imperative, so the setState runs like an event
+  // handler, never during render or as a cascading effect.
   useImperativeHandle(ref, () => ({
     seed: (text: string | null) => {
-      if (text !== null) setValue(text);
+      // Joined under a draft, never over it: with the composer always on screen, an unsent line in the
+      // box is the normal resting state, and a Scan or a share used to replace it without a word.
+      if (text !== null) setValue((v) => (v.trim() ? `${v.replace(/\s+$/, '')}\n${text}` : text));
       inputRef.current?.focus();
     },
-  }), []);
+    clear: () => reset(),
+  }));
 
-  // Stop dictation if we unmount mid-listen. Only a cleanup runs here (no setState
-  // in the effect body), so the React Compiler stays happy.
-  useEffect(() => () => { dictationRef.current?.stop(); }, []);
+  // Stop dictation and drop a pending blur if we unmount. Only cleanups run here (no setState in the
+  // effect body), so the React Compiler stays happy.
+  useEffect(() => () => {
+    dictationRef.current?.stop();
+    if (blurTimer.current) clearTimeout(blurTimer.current);
+  }, []);
+
+  // Android's back gesture (and iOS's swipe-down) can put the keyboard away WITHOUT blurring the box,
+  // which would leave the composer open, and Today's heading shrunk, over a keyboard that is gone.
+  // When the keyboard goes and When is not what took its place, let go of the box too.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const sub = Keyboard.addListener('keyboardDidHide', () => {
+      if (!doorOpenRef.current) inputRef.current?.blur();
+    });
+    return () => sub.remove();
+  }, []);
 
   const busy = busyKind !== null;
   const lineCount = value.split('\n').filter((l) => l.trim().length > 0).length;
+  const hasText = value.trim().length > 0;
   // A single long line is probably several things said in one breath; offer an AI split.
-  const wordCount = value.trim() ? value.trim().split(/\s+/).length : 0;
+  const wordCount = hasText ? value.trim().split(/\s+/).length : 0;
   const canSplit = lineCount === 1 && wordCount >= 6;
-  // Steps only make sense for a single, one-off task (a thing with parts). The row stays in
-  // place regardless (fixed regions, not appearing controls); it goes quiet and says why.
-  // `allowSteps` is the caller saying the surface cannot hold them at all; the rest is the existing
-  // per-capture rule (a multi-line dump, or a repeat, cannot also be sliced).
+  // Steps only make sense for a single, one-off task. The row stays in place regardless (fixed
+  // regions, not appearing controls); it goes quiet and says why.
   const stepsAllowed = allowSteps && lineCount <= 1 && repeat === null;
   const todayIso = toISODate(today);
 
-  // ONE rule composes WHEN with REPEATS: the when IS a repeat's start date ("Tomorrow · Daily"
-  // starts tomorrow). "Starting from" in the Repeats row reads the same value; never two truths.
+  // ONE rule composes WHEN with REPEATS: the when IS a repeat's start date ("Tomorrow · Daily" starts
+  // tomorrow). "Starting from" reads the same value; never two truths.
   const startIso = when === 'today' || when === 'anytime' ? todayIso : when === 'tomorrow' ? addDaysISO(today, 1) : dueDate;
   const startDate = fromISODate(startIso);
-  // The effective repeat targets: the user's own chips once touched, else derived from the start
-  // date so the summary, the Add label and the stored schedule all say one thing.
+  // The effective repeat targets: the user's own chips once touched, else derived from the start date
+  // so the summary, the Add label and the stored schedule all say one thing.
   const weekdaysEff = weekdaysTouched && weekdays.length > 0 ? weekdays : [startDate.getDay()];
   const monthDayEff = monthDayTouched ? monthDay : startDate.getDate();
 
-  // The one door state the summary, the Add label, and buildSchedule all read.
+  // The one door state the chip, the Add label, and buildSchedule all read.
   const doorState = {
     when,
     dueDate,
@@ -170,34 +246,63 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   const addLabel = addButtonLabel(doorState, today, lineCount);
   const whenLbl = whenLabel(doorState, today);
 
+  // OPEN = the person is here. The parent shrinks its heading and holds a just-added tint for exactly
+  // this long. Text alone does not hold it open: words left in the box wait there, calmly, while the
+  // full page (Right now, the tools) comes back.
+  const active = focused || doorOpen || pickerOpen || busy || listening;
+  // Reported on a CHANGE only. A parent's handler is usually a fresh function every render, and hearing
+  // "closed" on every render let a parent that clears state on close loop itself to death (the first
+  // preview of this build: "Maximum update depth exceeded").
+  const lastReported = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (lastReported.current === active) return;
+    const was = lastReported.current;
+    lastReported.current = active;
+    onActiveChange?.(active);
+    if (was && !active) onClose?.();
+  }, [active, onActiveChange, onClose]);
+
+  // When opens with a 180ms fade and a 4px settle, like the held card; reduced motion is a 90ms fade.
+  useEffect(() => {
+    if (!doorOpen || !doorFocusPending.current) return;
+    doorFocusPending.current = false;
+    const head = doorHeadRef.current;
+    if (!head) return;
+    if (Platform.OS === 'web') (head as unknown as { focus?: () => void }).focus?.();
+    else AccessibilityInfo.sendAccessibilityEvent(head, 'focus');
+  }, [doorOpen]);
+
+  useEffect(() => {
+    if (!doorOpen) {
+      doorFade.setValue(0);
+      return;
+    }
+    const a = Animated.timing(doorFade, {
+      toValue: 1,
+      duration: theme.reduceMotion ? 90 : 180,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: Platform.OS !== 'web',
+    });
+    a.start();
+    return () => a.stop();
+  }, [doorOpen, doorFade, theme.reduceMotion]);
+
   function buildSchedule(): CaptureSchedule {
-    if (repeat === 'daily') {
-      return { mode: 'daily', start: startIso };
-    }
-    if (repeat === 'weekly') {
-      return { mode: 'weekly', weekdays: weekdaysEff, start: startIso };
-    }
-    if (repeat === 'everyN') {
-      return { mode: 'everyN', days: everyNDays, start: startIso };
-    }
-    if (repeat === 'monthly') {
-      return { mode: 'monthly', day: monthDayEff, start: startIso };
-    }
-    if (when === 'date') {
-      return { mode: 'date', date: dueDate };
-    }
+    if (repeat === 'daily') return { mode: 'daily', start: startIso };
+    if (repeat === 'weekly') return { mode: 'weekly', weekdays: weekdaysEff, start: startIso };
+    if (repeat === 'everyN') return { mode: 'everyN', days: everyNDays, start: startIso };
+    if (repeat === 'monthly') return { mode: 'monthly', day: monthDayEff, start: startIso };
+    if (when === 'date') return { mode: 'date', date: dueDate };
     // On a surface whose default is Anytime, choosing TODAY has to produce a real date, because
     // `scheduleFields` maps both 'today' and 'anytime' to "no scheduling fields" and on that surface
-    // no-date means "lives in the room". Without this line the chip would look chosen, the button
-    // would read "Add · Today", and the row would quietly never appear on anybody's day.
-    if (when === 'today' && whenDefault === 'anytime') {
-      return { mode: 'date', date: todayIso };
-    }
+    // no-date means "lives in the room". Without this the chip would look chosen, the button would
+    // read "Add · Today", and the row would quietly never appear on anybody's day.
+    if (when === 'today' && whenDefault === 'anytime') return { mode: 'date', date: todayIso };
     return { mode: when };
   }
 
-  // Back to the calm default: Today, no repeat, no steps, door shut. Runs after every Add
-  // and every Close. Never touches the typed text; reset() below clears that too (post-Add).
+  // Back to the calm default: the surface's resting day, no repeat, no steps, When shut. Runs after
+  // every Add. Never touches the typed text; reset() below clears that too (post-Add).
   function resetDoor() {
     setDoorOpen(false);
     setWhen(whenDefault);
@@ -214,46 +319,74 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   function reset() {
     stopDictation();
     setValue('');
+    setError(null);
     resetDoor();
   }
 
-  function close() {
-    stopDictation();
-    resetDoor();
-    setError(null);
-    onClose();
+  function handleFocus() {
+    if (blurTimer.current) {
+      clearTimeout(blurTimer.current);
+      blurTimer.current = null;
+    }
+    setFocused(true);
+    // Tap the box and the keyboard comes back: When goes back to its chip.
+    if (doorOpenRef.current) setDoorOpen(false);
+    onFocusBox?.();
+  }
+
+  // Focus on one of the composer's OWN controls (the When chip, Break it down / Sort for me, Tidy, the
+  // door's header) keeps it open, exactly like focus in the box, without the box's side effects (closing
+  // When, the scroll). Web in practice, where a click or a Tab moves focus: without it a keyboard user who
+  // tabbed onto When lost it 220ms later, and a slow, deliberate click was dropped mid-press.
+  function holdFocus() {
+    if (blurTimer.current) {
+      clearTimeout(blurTimer.current);
+      blurTimer.current = null;
+    }
+    setFocused(true);
+  }
+
+  function handleBlur() {
+    if (blurTimer.current) clearTimeout(blurTimer.current);
+    blurTimer.current = setTimeout(() => {
+      blurTimer.current = null;
+      setFocused(false);
+    }, BLUR_GRACE_MS);
   }
 
   function toggleDoor() {
     if (!doorOpen) {
-      Keyboard.dismiss(); // the composer needs the room; the text is untouched
+      Keyboard.dismiss(); // the choices need the room; the text is untouched
       track('capture.door.opened');
+      doorFocusPending.current = true;
+    } else {
+      // Closing goes back to the box (the handoff: tap the box and the keyboard comes back). Held open
+      // through the hand-over, or with focus already gone the whole composer folded away under you.
+      holdFocus();
+      inputRef.current?.focus();
     }
-    setDoorOpen((o) => !o);
+    setDoorOpen(!doorOpen);
   }
 
-  // The picker answers one question ("which day"), so picking today or tomorrow lands on
-  // those chips, keeping them truthful; anything else becomes the picked date.
+  // The picker answers one question ("which day"), so picking today or tomorrow lands on those
+  // chips, keeping them truthful; anything else becomes the picked date.
   function pickDate(iso: string) {
-    if (iso === todayIso) {
-      setWhen('today');
-    } else if (iso === addDaysISO(today, 1)) {
-      setWhen('tomorrow');
-    } else {
+    if (iso === todayIso) setWhen('today');
+    else if (iso === addDaysISO(today, 1)) setWhen('tomorrow');
+    else {
       setWhen('date');
       setDueDate(iso);
     }
     setPickerOpen(false);
   }
 
-  // Talk-to-capture: tap to start, tap to stop. Each final phrase becomes a line;
-  // a result arriving after a stop is ignored, so a sorted or cleared box never
-  // re-fills. Web only (the mic is gated on isDictationSupported).
+  // Talk-to-capture: tap to start, tap to stop. Each final phrase becomes a line; a result arriving
+  // after a stop is ignored, so a sorted or cleared box never re-fills.
   function stopDictation() {
-    const active = dictationRef.current;
-    if (active === null) return;
+    const live = dictationRef.current;
+    if (live === null) return;
     dictationRef.current = null;
-    active.stop(); // fires onEnd -> listening off + telemetry
+    live.stop(); // fires onEnd -> listening off + telemetry
   }
 
   function toggleDictation() {
@@ -285,19 +418,34 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   }
 
   function add() {
-    if (!value.trim() || busy) return;
+    if (!hasText || busy) return;
+    // Named BEFORE the reset clears it: "Added." on the ordinary day, "Added. Tomorrow." when the
+    // capture went somewhere the person has to be able to trust it went.
+    const resting = whenDefault;
+    const consequence = repeatLabel(doorState) ?? (when !== resting ? whenLbl : null);
     onCapture(value, buildSchedule(), stepsAllowed && sliceCount >= MIN_SLICES ? sliceCount : undefined);
     reset();
+    const words = consequence ? t('capture.addedFor', { what: consequence }) : t('capture.added');
+    AccessibilityInfo.announceForAccessibility(words);
+    if (Platform.OS === 'web') setSaid((prev) => ({ text: words, n: prev.n + 1 }));
+    // Focus stays in the box, so the next thing goes in without another tap. Held open THROUGH the add:
+    // on native the focus lands a frame later, and in between nothing held the composer open (When had
+    // just closed), so it reported closed and Today wiped the tint it had only just recorded.
+    holdFocus();
+    inputRef.current?.focus();
   }
 
   async function biteElephant() {
     const task = value.trim();
     if (!task || busy) return;
+    stopDictation(); // a phrase spoken during the call would land in a box the result then replaces
     setError(null);
     setBusyKind('bite');
     try {
+      // The words STAY in the box while the questions and the review are open: cancelling either used to
+      // lose them, because this reset the moment the questions sheet opened. Today clears the box when
+      // the steps are accepted (the capture iron rule: text is never lost on the way somewhere).
       await onBiteElephant?.(task);
-      reset();
     } catch {
       setError(aiErrorLine(t('capture.breakDownError')));
     } finally {
@@ -308,6 +456,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   async function sortDump() {
     const text = value;
     if (!text.trim() || busy) return;
+    stopDictation();
     setError(null);
     setBusyKind('sort');
     try {
@@ -320,13 +469,12 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
     }
   }
 
-  // Hand a run-on line (often a no-pause dictation) to the AI, which separates it
-  // into the distinct tasks; they replace the single line so "Sort for me" then
-  // appears. Only splits, never sorts (the user stays in control). Works on web
-  // and native (it is an AI call, not voice).
+  // Hand a run-on line (often a no-pause dictation) to the AI, which separates it into the distinct
+  // tasks; they replace the single line so Sort for me then appears. Only splits, never sorts.
   async function splitDump() {
     const text = value.trim();
     if (!text || busy) return;
+    stopDictation();
     setError(null);
     setBusyKind('split');
     try {
@@ -352,129 +500,103 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
     setWeekdaysTouched(true);
   }
 
-  // The one fixed hint line under the actions: content swaps in place, position never moves.
-  // Priority: an error > the Tidy offer (a run-on line) > the AI egress disclosure (any text).
-  const showTidy = aiEnabled && canSplit && (busyKind === 'split' || !busy);
+  const hasShapers = aiEnabled && Boolean(onBiteElephant && onSort);
+  // Tidy is an AI call too, so it lives only where the AI shapers do. It used to show on the shared list,
+  // whose promise is no AI but Scan, and whose disclosure never named it (found mapping Today v3).
+  const showTidy = hasShapers && canSplit && (busyKind === 'split' || !busy);
 
   /**
-   * The egress disclosure, naming the affordances THIS surface actually has.
-   *
-   * It used to be one fixed sentence about "Sort for me and Break it down", rendered wherever AI was
-   * enabled. On the shared list neither of those buttons exists, so the line was telling you that
-   * two things you could not see were sending your words to a third party. A false statement about
-   * where your data goes is a worse bug than a missing one: it teaches you the disclosure is
-   * decorative, and then you stop reading it on the screen where it is true.
-   *
-   * The same sentence also never mentioned SCAN, which sends an actual photograph. So the surface
-   * with the strongest claim to a disclosure had none.
+   * The egress disclosure, naming the affordances THIS surface actually has (Sort / Break it down,
+   * Scan, both, or none). A false statement about where your data goes is a worse bug than a missing
+   * one: it teaches you the disclosure is decorative.
    */
-  const textAI = aiEnabled && Boolean(onBiteElephant && onSort);
   const scanAI = aiEnabled && Boolean(onCamera);
-  const aiNoteKey = textAI && scanAI ? 'capture.aiNoteBoth' : textAI ? 'capture.aiNote' : scanAI ? 'capture.aiNoteScan' : null;
+  const aiNoteKey = hasShapers && scanAI ? 'capture.aiNoteBoth' : hasShapers ? 'capture.aiNote' : scanAI ? 'capture.aiNoteScan' : null;
 
-  // The door's overline names the rows BEHIND it, composed from the rows this surface actually has
-  // rather than picked from a set of pre-written strings. One fewer thing to keep in step: adding or
-  // removing a row can no longer leave the label describing a control that is not there.
+  // When's overline names the rows BEHIND it, composed from the rows this surface actually has.
   const doorRows = [t('capture.rowWhen'), t('capture.rowRepeats'), ...(allowSteps ? [t('capture.rowSteps')] : [])];
   const doorOverline = doorRows.join(' · ');
+  const note = !hasShapers && whenNote ? whenNote({ when, repeating: repeat !== null }) : null;
+
+  // The one end button, in one seat: Speak on an empty box (where dictation exists), Listening while
+  // it does, Add (naming the consequence) once there is something to add.
+  const endMode: 'speak' | 'listening' | 'add' = listening ? 'listening' : !hasText && canDictate ? 'speak' : 'add';
+  const multiline = lineCount >= 2;
+  const lineH = 22 * theme.scale;
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.headerRow}>
-        <Text style={styles.headerOverline}>{t('capture.add')}</Text>
-        <Pressable
-          onPress={close}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel={t('capture.collapseA11y')}
-          style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
+      {Platform.OS === 'web' && (
+        <Text accessibilityLiveRegion="polite" style={styles.srOnly}>
+          {said.text ? said.text + (said.n % 2 ? ' ' : '') : ''}
+        </Text>
+      )}
+      {active && !doorOpen && (
+        <View style={styles.chipRow}>
+          <Pressable
+            onPress={toggleDoor}
+            onFocus={holdFocus}
+            onBlur={handleBlur}
+            accessibilityRole="button"
+            aria-expanded={false}
+            accessibilityLabel={t('capture.doorA11yComposed', { rows: doorRows.join(', '), summary })}
+            hitSlop={4}
+            style={({ pressed }) => [styles.whenChip, pressed && styles.pressed]}
+          >
+            <Text style={styles.whenOverline}>{t('capture.rowWhen')}</Text>
+            <Text style={styles.whenValue}>{summary}</Text>
+            <Text style={styles.whenCaret}>˅</Text>
+          </Pressable>
+          {hasShapers ? (
+            <Pressable
+              onPress={multiline ? sortDump : biteElephant}
+              onFocus={holdFocus}
+              onBlur={handleBlur}
+              disabled={busy || !hasText}
+              accessibilityRole="button"
+              aria-disabled={busy || !hasText}
+              accessibilityLabel={multiline ? t('capture.sortA11y') : t('capture.breakDownA11y')}
+              hitSlop={4}
+              style={({ pressed }) => [styles.shaper, pressed && styles.pressed, (busy || !hasText) && styles.dim]}
+            >
+              {busyKind === 'sort' || busyKind === 'bite' ? (
+                <View style={styles.busyRow}>
+                  <ActivityIndicator size="small" color={theme.colors.accent} />
+                  <Text style={styles.shaperText}>{busyKind === 'sort' ? t('capture.sorting') : t('capture.breakingDown')}</Text>
+                </View>
+              ) : (
+                <Text style={styles.shaperText}>{multiline ? t('actions.sortForMe') : t('actions.breakItDown')}</Text>
+              )}
+            </Pressable>
+          ) : note ? (
+            <Text style={styles.note}>{note}</Text>
+          ) : null}
+        </View>
+      )}
+
+      {doorOpen && (
+        <Animated.View
+          style={[
+            styles.door,
+            { opacity: doorFade, transform: [{ translateY: doorFade.interpolate({ inputRange: [0, 1], outputRange: [theme.reduceMotion ? 0 : 4, 0] }) }] },
+          ]}
         >
-          <Text style={styles.closeText}>{t('common.close')}</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.captureRow}>
-        <TextInput
-          ref={inputRef}
-          value={value}
-          onChangeText={setValue}
-          editable={!busy}
-          placeholder={t('capture.placeholder')}
-          placeholderTextColor={theme.colors.inkFaint}
-          style={[styles.input, styles.inputFlex]}
-          multiline
-          textAlignVertical="top"
-          accessibilityLabel={t('capture.inputA11y')}
-          inputAccessoryViewID={Platform.OS === 'ios' ? CAPTURE_ACCESSORY_ID : undefined}
-        />
-        {Platform.OS === 'ios' && (
-          <InputAccessoryView nativeID={CAPTURE_ACCESSORY_ID}>
-            <View style={styles.kbBar}>
-              <Pressable onPress={() => Keyboard.dismiss()} accessibilityRole="button" accessibilityLabel={t('common.done')} hitSlop={10}>
-                <Text style={styles.kbDone}>{t('common.done')}</Text>
-              </Pressable>
-            </View>
-          </InputAccessoryView>
-        )}
-        {(canDictate || (onCamera && aiEnabled)) && (
-          <View style={styles.sideCol}>
-            {canDictate && (
-              <Pressable
-                onPress={toggleDictation}
-                disabled={busy}
-                style={({ pressed }) => [styles.speak, listening && styles.speakOn, pressed && styles.pressed, busy && styles.disabled]}
-                accessibilityRole="button"
-                aria-selected={listening}
-                accessibilityLabel={listening ? t('capture.speakListeningA11y') : t('capture.speakA11y')}
-              >
-                {listening ? <View style={styles.liveDot} /> : <Mark name="mic" size={16} color={theme.colors.inkSoft} />}
-                <Text style={[styles.speakText, listening && styles.speakTextOn]}>
-                  {listening ? t('capture.listening') : t('capture.speak')}
-                </Text>
-              </Pressable>
-            )}
-            {onCamera && aiEnabled && (
-              <Pressable
-                onPress={onCamera}
-                disabled={busy}
-                style={({ pressed }) => [styles.speak, pressed && styles.pressed, busy && styles.disabled]}
-                accessibilityRole="button"
-                accessibilityLabel={t('capture.scanA11y')}
-              >
-                <Mark name="camera" size={16} color={theme.colors.inkSoft} />
-                <Text style={styles.speakText}>{t('capture.scan')}</Text>
-              </Pressable>
-            )}
-          </View>
-        )}
-      </View>
-
-      {/* THE DOOR. One constant, bordered row: the overline names the three powers, the value
-          line says what is currently set (wraps, never truncates), the caret opens the composer
-          below it. User-initiated disclosure in a fixed place; the door itself never moves. */}
-      <View style={styles.doorWrap}>
-        <Pressable
-          onPress={toggleDoor}
-          accessibilityRole="button"
-          aria-expanded={doorOpen}
-          accessibilityLabel={t('capture.doorA11yComposed', { rows: doorRows.join(', '), summary })}
-          style={({ pressed }) => [styles.doorRow, pressed && styles.pressed]}
-        >
-          <View style={styles.doorTextCol}>
-            <Text style={styles.doorOverline}>{doorOverline}</Text>
-            <Text style={styles.doorValue}>{summary}</Text>
-          </View>
-          <Text style={styles.doorCaret}>{doorOpen ? '⌄' : '›'}</Text>
-        </Pressable>
-
-        {doorOpen && (
-          <View style={styles.composer}>
-            {/* WHEN. Chips plus a fixed detail line: the resolved day and one Change link into the
-                date picker. The shared list gets a fourth chip in FRONT, Anytime, which is its
-                resting state: most of what goes on a household list has no day, and picking one
-                there means the specific, deliberate thing that it appears on both your Todays. */}
-            <View style={styles.compRow}>
-              <Text style={styles.compOverline}>{t('capture.rowWhen')}</Text>
+          <Pressable
+            ref={doorHeadRef}
+            onPress={toggleDoor}
+            accessibilityRole="button"
+            aria-expanded
+            accessibilityLabel={t('capture.doorA11yComposed', { rows: doorRows.join(', '), summary })}
+            style={({ pressed }) => [styles.doorHead, pressed && styles.pressed]}
+          >
+            <Text style={styles.zoneOverline}>{doorOverline}</Text>
+            <Text style={styles.doorHeadValue}>{summary} ˄</Text>
+          </Pressable>
+          <ScrollView style={{ maxHeight: Math.max(220, winH * 0.5) }} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.doorBody}>
+            {/* A DAY. The shared list gets Anytime in FRONT, which is its resting state. A picked date
+                lands IN the Pick a date chip, so the chip always says what is set. */}
+            <View style={styles.zone}>
+              <Text style={styles.zoneOverline}>{t('ours.whenDayZone')}</Text>
               <View style={styles.chips}>
                 {whenDefault === 'anytime' && (
                   <Chip label={t('capture.anytime')} selected={when === 'anytime'} onPress={() => setWhen('anytime')} />
@@ -482,28 +604,18 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                 <Chip label={t('common.today')} selected={when === 'today'} onPress={() => setWhen('today')} />
                 <Chip label={t('common.tomorrow')} selected={when === 'tomorrow'} onPress={() => setWhen('tomorrow')} />
                 <Chip
-                  label={t('capture.pickDate')}
+                  label={when === 'date' ? whenLbl : t('capture.pickDate')}
                   selected={when === 'date'}
                   onPress={() => setPickerOpen(true)}
+                  accessibilityLabel={when === 'date' ? `${t('capture.pickDate')}: ${whenLbl}` : t('capture.pickDate')}
                 />
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailValue}>{whenLbl}</Text>
-                <Pressable
-                  onPress={() => setPickerOpen(true)}
-                  hitSlop={10}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('capture.pickDate')}
-                >
-                  <Text style={styles.changeLink}>{t('capture.change')} ›</Text>
-                </Pressable>
               </View>
             </View>
 
-            {/* REPEATS. Four toggles (tap again to clear); the detail region holds each
-                cadence's one control plus the Starting-from read-through of the WHEN. */}
-            <View style={styles.compRow}>
-              <Text style={styles.compOverline}>{t('capture.rowRepeats')}</Text>
+            {/* OR A RHYTHM. Four toggles (tap again to clear); each cadence's one control sits under
+                them, then the Starting-from read-through of the day above. */}
+            <View style={styles.zone}>
+              <Text style={styles.zoneOverline}>{t('ours.whenRhythmZone')}</Text>
               <View style={styles.chips}>
                 <Chip label={t('capture.modeDaily')} selected={repeat === 'daily'} onPress={() => setRepeat((r) => (r === 'daily' ? null : 'daily'))} />
                 <Chip label={t('capture.modeWeekly')} selected={repeat === 'weekly'} onPress={() => setRepeat((r) => (r === 'weekly' ? null : 'weekly'))} />
@@ -532,7 +644,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                   <Pressable
                     onPress={() => setEveryNDays((n) => Math.max(2, n - 1))}
                     style={styles.stepBtn}
-                    hitSlop={8}
+                    hitSlop={4}
                     accessibilityRole="button"
                     accessibilityLabel={t('capture.fewerDaysA11y')}
                   >
@@ -542,7 +654,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                   <Pressable
                     onPress={() => setEveryNDays((n) => Math.min(30, n + 1))}
                     style={styles.stepBtn}
-                    hitSlop={8}
+                    hitSlop={4}
                     accessibilityRole="button"
                     accessibilityLabel={t('capture.moreDaysA11y')}
                   >
@@ -570,10 +682,9 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
                       </Pressable>
                     ))}
                   </View>
-                  {/* Only once a day some months lack is actually chosen. Under every choice it
-                      would be noise on the 3rd; nowhere at all, the 31st looks like a month the
-                      app silently skips. */}
-                  {monthDay > 28 && <Text style={styles.shortMonths}>{t('capture.monthlyShortMonths')}</Text>}
+                  {/* Only once a day some months lack is actually chosen: nowhere at all, the 31st
+                      looks like a month the app silently skips. */}
+                  {monthDayEff > 28 && <Text style={styles.stepsHint}>{t('capture.monthlyShortMonths')}</Text>}
                 </>
               )}
               {repeat !== null && (
@@ -590,119 +701,150 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
               )}
             </View>
 
-            {allowSteps && (<>
-            {/* STEPS. The stepper holds its place always; when steps cannot apply (a multi-line
-                dump, or a repeat) it goes quiet and the hint line says why, in plain words. */}
-            <View style={styles.compRow}>
-              <Text style={styles.compOverline}>{t('capture.rowSteps')}</Text>
-              <View style={[styles.stepperRow, !stepsAllowed && styles.quiet]}>
-                <Pressable
-                  onPress={() => setSliceCount((n) => (n <= MIN_SLICES ? 0 : n - 1))}
-                  disabled={!stepsAllowed}
-                  style={styles.stepBtn}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  aria-disabled={!stepsAllowed}
-                  accessibilityLabel={t('today.fewerStepsA11y')}
-                >
-                  <Text style={styles.stepBtnText}>−</Text>
-                </Pressable>
-                <Text style={styles.stepLabel}>{sliceCount === 0 ? t('capture.noSteps') : t('today.stepsCount', { count: sliceCount })}</Text>
-                <Pressable
-                  onPress={() => setSliceCount((n) => (n === 0 ? MIN_SLICES : Math.min(MAX_SLICES, n + 1)))}
-                  disabled={!stepsAllowed}
-                  style={styles.stepBtn}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  aria-disabled={!stepsAllowed}
-                  accessibilityLabel={t('today.moreStepsA11y')}
-                >
-                  <Text style={styles.stepBtnText}>+</Text>
-                </Pressable>
+            {/* STEPS. The stepper holds its place always; when steps cannot apply (a multi-line dump,
+                or a repeat) it goes quiet and the line under it says why, in plain words. */}
+            {allowSteps && (
+              <View style={styles.zone}>
+                <View style={styles.stepsRow}>
+                  <Text style={styles.zoneOverline}>{t('capture.rowSteps')}</Text>
+                  <View style={[styles.stepperRow, !stepsAllowed && styles.quiet]}>
+                    <Pressable
+                      onPress={() => setSliceCount((n) => (n <= MIN_SLICES ? 0 : n - 1))}
+                      disabled={!stepsAllowed}
+                      style={styles.stepBtn}
+                      hitSlop={4}
+                      accessibilityRole="button"
+                      aria-disabled={!stepsAllowed}
+                      accessibilityLabel={t('today.fewerStepsA11y')}
+                    >
+                      <Text style={styles.stepBtnText}>−</Text>
+                    </Pressable>
+                    <Text style={styles.stepLabel}>{sliceCount === 0 ? t('capture.noSteps') : t('today.stepsCount', { count: sliceCount })}</Text>
+                    <Pressable
+                      onPress={() => setSliceCount((n) => (n === 0 ? MIN_SLICES : Math.min(MAX_SLICES, n + 1)))}
+                      disabled={!stepsAllowed}
+                      style={styles.stepBtn}
+                      hitSlop={4}
+                      accessibilityRole="button"
+                      aria-disabled={!stepsAllowed}
+                      accessibilityLabel={t('today.moreStepsA11y')}
+                    >
+                      <Text style={styles.stepBtnText}>+</Text>
+                    </Pressable>
+                  </View>
+                </View>
+                {!stepsAllowed && (
+                  <Text style={styles.stepsHint}>{lineCount > 1 ? t('capture.stepsOneThing') : t('capture.stepsOneOff')}</Text>
+                )}
               </View>
-              <Text style={styles.stepsHint}>
-                {!stepsAllowed
-                  ? lineCount > 1
-                    ? t('capture.stepsOneThing')
-                    : t('capture.stepsOneOff')
-                  : sliceCount === 0
-                    ? t('capture.stepsHintOff')
-                    : t('capture.stepsHintOn')}
-              </Text>
-            </View></>)}
-          </View>
-        )}
-      </View>
+            )}
+          </ScrollView>
+        </Animated.View>
+      )}
 
-      {/* The action row. The AI slot swaps its label by line count (one thing -> Break it
-          down, a dump -> Sort for me) but keeps its position, size and role; Add carries the
-          consequence. With AI off the slot is absent and Add takes the full row. */}
-      <View style={styles.actions}>
-        {aiEnabled &&
-          onBiteElephant &&
-          onSort &&
-          (lineCount >= 2 ? (
+      {/* One fixed hint line while the composer is open: an error, the Tidy offer, or the AI egress
+          note, in that priority. Its seat exists whenever it has anything to say, so the first
+          keystroke never shifts the box. An ERROR also shows at rest: on web the click that started
+          Sort or Tidy had already let go of the box, so a failure used to land with the composer
+          folded and say nothing. It clears on the next keystroke, or with the next Add. */}
+      {(error || (active && (showTidy || aiNoteKey))) && (
+        <View style={styles.hintRegion}>
+          {error ? (
+            <Text style={styles.error}>{error}</Text>
+          ) : showTidy ? (
             <Pressable
-              onPress={sortDump}
+              onPress={splitDump}
+              onFocus={holdFocus}
+              onBlur={handleBlur}
               disabled={busy}
-              style={({ pressed }) => [styles.bite, pressed && styles.pressed, busy && styles.disabled]}
+              hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel={t('capture.sortA11y')}
+              accessibilityLabel={t('capture.tidyA11y')}
+              style={({ pressed }) => [pressed && styles.pressed, busy && styles.dim]}
             >
-              {busyKind === 'sort' ? (
-                <View style={styles.biteBusy}>
+              {busyKind === 'split' ? (
+                <View style={styles.busyRow}>
                   <ActivityIndicator size="small" color={theme.colors.accent} />
-                  <Text style={styles.biteText}>{t('capture.sorting')}</Text>
+                  <Text style={styles.tidyText}>{t('capture.tidying')}</Text>
                 </View>
               ) : (
-                <Text style={styles.biteText}>{t('actions.sortForMe')}</Text>
+                <Text style={styles.tidyText}>{t('capture.tidy')}</Text>
               )}
+            </Pressable>
+          ) : aiNoteKey ? (
+            <Text style={styles.aiNote}>{t(aiNoteKey)}</Text>
+          ) : null}
+        </View>
+      )}
+
+      <View style={styles.inputRow}>
+        {onCamera && aiEnabled && (
+          <Pressable
+            onPress={onCamera}
+            disabled={busy}
+            hitSlop={4}
+            style={({ pressed }) => [styles.scan, pressed && styles.pressed, busy && styles.dim]}
+            accessibilityRole="button"
+            accessibilityLabel={t('capture.scanA11y')}
+          >
+            <Text style={styles.scanText}>{t('capture.scan')}</Text>
+          </Pressable>
+        )}
+        <View style={[styles.box, multiline && styles.boxMulti, active && styles.boxFocused]}>
+          <TextInput
+            ref={inputRef}
+            value={value}
+            onChangeText={(v) => {
+              setValue(v);
+              if (error) setError(null);
+            }}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            editable={!busy}
+            placeholder={placeholder ?? t('capture.placeholderShort')}
+            placeholderTextColor={theme.colors.inkFaint}
+            style={[styles.input, { maxHeight: lineH * MAX_LINES + spacing.five }]}
+            multiline
+            textAlignVertical="top"
+            accessibilityLabel={t('capture.inputA11y')}
+            inputAccessoryViewID={Platform.OS === 'ios' ? CAPTURE_ACCESSORY_ID : undefined}
+          />
+          {endMode === 'add' ? (
+            <Pressable
+              onPress={add}
+              disabled={busy || !hasText}
+              accessibilityRole="button"
+              aria-disabled={busy || !hasText}
+              accessibilityLabel={addLabel}
+              hitSlop={4}
+              style={({ pressed }) => [styles.addBtn, pressed && styles.pressed, (busy || !hasText) && styles.dim]}
+            >
+              <Text style={styles.addText}>{addLabel}</Text>
             </Pressable>
           ) : (
             <Pressable
-              onPress={biteElephant}
+              onPress={toggleDictation}
               disabled={busy}
-              style={({ pressed }) => [styles.bite, pressed && styles.pressed, busy && styles.disabled]}
               accessibilityRole="button"
-              accessibilityLabel={t('capture.breakDownA11y')}
+              aria-selected={listening}
+              accessibilityLabel={listening ? t('capture.speakListeningA11y') : t('capture.speakA11y')}
+              hitSlop={4}
+              style={({ pressed }) => [styles.speak, pressed && styles.pressed, busy && styles.dim]}
             >
-              {busyKind === 'bite' ? (
-                <View style={styles.biteBusy}>
-                  <ActivityIndicator size="small" color={theme.colors.accent} />
-                  <Text style={styles.biteText}>{t('capture.breakingDown')}</Text>
-                </View>
-              ) : (
-                <Text style={styles.biteText}>{t('actions.breakItDown')}</Text>
-              )}
+              {listening && <View style={styles.liveDot} />}
+              <Text style={styles.speakText}>{listening ? t('capture.listening') : t('capture.speak')}</Text>
             </Pressable>
-          ))}
-
-        <PrimaryButton label={addLabel} onPress={add} disabled={busy} accessibilityLabel={addLabel} style={styles.addFlex} />
-      </View>
-
-      <View style={styles.hintRegion}>
-        {error ? (
-          <Text style={styles.error}>{error}</Text>
-        ) : showTidy ? (
-          <Pressable
-            onPress={splitDump}
-            disabled={busy}
-            style={({ pressed }) => [styles.split, pressed && styles.pressed, busy && styles.disabled]}
-            accessibilityRole="button"
-            accessibilityLabel={t('capture.tidyA11y')}
-          >
-            {busyKind === 'split' ? (
-              <View style={styles.biteBusy}>
-                <ActivityIndicator size="small" color={theme.colors.accent} />
-                <Text style={styles.splitText}>{t('capture.tidying')}</Text>
-              </View>
-            ) : (
-              <Text style={styles.splitText}>{t('capture.tidy')}</Text>
-            )}
-          </Pressable>
-        ) : aiNoteKey && value.trim().length > 0 ? (
-          <Text style={styles.aiNote}>{t(aiNoteKey)}</Text>
-        ) : null}
+          )}
+        </View>
+        {Platform.OS === 'ios' && (
+          <InputAccessoryView nativeID={CAPTURE_ACCESSORY_ID}>
+            <View style={styles.kbBar}>
+              <Pressable onPress={() => Keyboard.dismiss()} accessibilityRole="button" accessibilityLabel={t('common.done')} hitSlop={10}>
+                <Text style={styles.kbDone}>{t('common.done')}</Text>
+              </Pressable>
+            </View>
+          </InputAccessoryView>
+        )}
       </View>
 
       <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
@@ -720,190 +862,189 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump({
   );
 });
 
-const makeStyles = (t: Theme) => StyleSheet.create({
-  wrap: { gap: spacing.three },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerOverline: {
-    color: t.colors.inkFaint,
-    fontSize: 11 * t.scale,
-    fontFamily: fonts.body,
-    fontWeight: '600',
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-  },
-  // A generous close target (44px rule) that still reads as a quiet link.
-  closeBtn: { minHeight: 32, justifyContent: 'center', paddingHorizontal: spacing.two },
-  closeText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  // Quiet turns the bordered box into a capture line: a 1px underline, no fill/border/radius,
-  // content near the margin. The faint placeholder (set via placeholderTextColor) is unchanged.
-  input: {
-    minHeight: 64,
-    maxHeight: 160,
-    fontSize: 16 * t.scale,
-    fontFamily: fonts.body,
-    lineHeight: 22 * t.scale,
-    color: t.colors.ink,
-    ...(t.appearance === 'quiet'
-      ? { borderBottomWidth: border.hair, borderColor: t.quiet.captureUnderline, paddingHorizontal: 2, paddingVertical: spacing.three }
+const makeStyles = (t: Theme) => {
+  const quiet = t.appearance === 'quiet';
+  const overline = {
+    color: t.colors.inkSoft,
+    fontSize: 10 * t.scale,
+    fontFamily: fonts.bodyBold,
+    fontWeight: '700' as const,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase' as const,
+  };
+  return StyleSheet.create({
+    wrap: { gap: spacing.two },
+    // Present to a screen reader, invisible and zero-footprint for everyone else.
+    srOnly: { position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0 },
+    // The row above the box while it is open: the When chip on the left, the one AI shaper (or, on
+    // the shared list, the line that explains When) on the right. Wraps rather than truncates at the
+    // largest text sizes.
+    chipRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.two },
+    whenChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.two,
+      minHeight: 44,
+      paddingHorizontal: 15,
+      borderRadius: radius.pill,
+      borderWidth: border.hair,
+      borderColor: t.colors.line,
+      backgroundColor: quiet ? 'transparent' : t.colors.surface,
+      flexShrink: 1,
+    },
+    whenOverline: overline,
+    whenValue: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', flexShrink: 1 },
+    whenCaret: { color: t.colors.inkSoft, fontSize: 11 * t.scale, fontFamily: fonts.body },
+    shaper: {
+      minHeight: 44,
+      justifyContent: 'center',
+      paddingHorizontal: 15,
+      borderRadius: radius.pill,
+      borderWidth: border.hair,
+      borderColor: t.colors.accent,
+    },
+    shaperText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    busyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
+    note: { flex: 1, minWidth: 140, color: t.colors.inkSoft, fontSize: 12.5 * t.scale, lineHeight: 17.5 * t.scale, fontFamily: fonts.body },
+    // When, opened: the same rows the shipped door had, in the keyboard's place.
+    door: { gap: spacing.one },
+    doorHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three, minHeight: 44 },
+    doorHeadValue: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', flexShrink: 1, textAlign: 'right' },
+    doorBody: { gap: spacing.three, paddingBottom: spacing.two },
+    zone: { gap: 6 },
+    zoneOverline: overline,
+    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+    detailRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
+    detailValue: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+    changeLink: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    weekdays: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two, marginTop: spacing.one },
+    // Thirty-one cells never fit on one line; the row wraps rather than squashing every cell.
+    monthDays: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two, marginTop: spacing.one },
+    day: {
+      width: 34,
+      height: 34,
+      borderRadius: radius.pill,
+      borderWidth: border.hair,
+      borderColor: t.colors.line,
+      backgroundColor: t.colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dayOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
+    dayText: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
+    dayTextOn: { color: t.colors.accent, fontWeight: '700' },
+    stepsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.two },
+    stepperRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
+    stepBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: radius.pill,
+      borderWidth: border.hair,
+      borderColor: t.colors.line,
+      backgroundColor: t.colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    stepBtnText: { color: t.colors.inkSoft, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    stepLabel: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, minWidth: 72, textAlign: 'center' },
+    // Quiet-unavailable (the constant-frame treatment): the control keeps its place at lowered
+    // contrast; the line below says why. Never absent, never locked.
+    quiet: { opacity: 0.45 },
+    stepsHint: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body },
+    hintRegion: { minHeight: 20, justifyContent: 'center', paddingHorizontal: spacing.one },
+    aiNote: { color: t.colors.inkFaint, fontSize: 12.5 * t.scale, fontFamily: fonts.body },
+    tidyText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    error: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body },
+    // The line itself: Scan, the box, and the box's one end button.
+    inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.one },
+    scan: { minHeight: 50, justifyContent: 'center', paddingHorizontal: spacing.two },
+    scanText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    // Quiet turns the rounded box into a capture line: a 1px underline, no fill, no radius.
+    box: quiet
+      ? {
+          flex: 1,
+          minHeight: 50,
+          flexDirection: 'row',
+          alignItems: 'flex-end',
+          gap: spacing.two,
+          borderBottomWidth: border.hair,
+          borderColor: t.quiet.captureUnderline,
+          paddingLeft: 2,
+          paddingVertical: spacing.one,
+        }
       : {
+          flex: 1,
+          minHeight: 50,
+          flexDirection: 'row',
+          alignItems: 'flex-end',
+          gap: spacing.two,
           backgroundColor: t.colors.surface,
+          // A resting edge a shade firmer than the hairline, so the box reads as the place to type
+          // on a paper-coloured footer. An alpha of ink, no new colour.
           borderWidth: border.hair,
-          borderColor: t.colors.line,
-          borderRadius: radius.md,
-          paddingHorizontal: spacing.four,
-          paddingVertical: spacing.three,
-        }),
-  },
-  // 'stretch' (not flex-start): at rest the input stretches to the Speak+Scan column's
-  // height, so the box's bottom edge sits flush with Scan's (Melroy, 2026-07-26, the
-  // misaligned edges read as visual noise). A growing multiline still wins the height.
-  captureRow: { flexDirection: 'row', gap: spacing.two, alignItems: 'stretch' },
-  inputFlex: { flex: 1 },
-  sideCol: { gap: spacing.two, alignItems: 'stretch' },
-  // The door: one bordered group holding the summary row and, when open, the composer.
-  // The touch of extra top margin keeps it visually clear of the taller input block.
-  doorWrap: {
-    marginTop: spacing.one,
-    borderWidth: border.hair,
-    borderColor: t.colors.line,
-    borderRadius: radius.md,
-    backgroundColor: t.colors.surface,
-  },
-  doorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.three,
-    paddingHorizontal: spacing.four,
-    paddingVertical: spacing.three,
-    minHeight: 44,
-  },
-  doorTextCol: { flex: 1, gap: 2 },
-  doorOverline: {
-    color: t.colors.inkFaint,
-    fontSize: 10 * t.scale,
-    fontFamily: fonts.body,
-    fontWeight: '600',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  doorValue: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body, fontWeight: '500' },
-  doorCaret: { color: t.colors.inkSoft, fontSize: 18 * t.scale, fontFamily: fonts.body },
-  composer: {
-    borderTopWidth: border.hair,
-    borderTopColor: t.colors.line,
-    paddingHorizontal: spacing.four,
-    paddingVertical: spacing.four,
-    gap: spacing.five,
-  },
-  compRow: { gap: spacing.two },
-  compOverline: {
-    color: t.colors.inkFaint,
-    fontSize: 10 * t.scale,
-    fontFamily: fonts.body,
-    fontWeight: '600',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },
-  detailRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.one },
-  detailValue: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
-  changeLink: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  weekdays: { flexDirection: 'row', gap: spacing.two, marginTop: spacing.one },
-  // Same cells as the weekday row, but WRAPPING: thirty-one of them never fit on one line, and a
-  // non-wrapping row would squash every cell rather than starting a second one.
-  monthDays: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two, marginTop: spacing.one },
-  shortMonths: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.two },
-  day: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.pill,
-    borderWidth: border.hair,
-    borderColor: t.colors.line,
-    backgroundColor: t.colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dayOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
-  dayText: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
-  dayTextOn: { color: t.colors.accent, fontWeight: '700' },
-  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
-  stepBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.pill,
-    borderWidth: border.hair,
-    borderColor: t.colors.line,
-    backgroundColor: t.colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepBtnText: { color: t.colors.accent, fontSize: 20 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  stepLabel: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body, fontWeight: '500', minWidth: 110, textAlign: 'center' },
-  // Quiet-unavailable (the constant-frame treatment): the control keeps its place at lowered
-  // contrast; the line below says why. Never absent, never locked.
-  quiet: { opacity: 0.45 },
-  stepsHint: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
-  addFlex: { flex: 1 },
-  bite: {
-    borderRadius: radius.md,
-    borderWidth: border.hair,
-    borderColor: t.colors.accent,
-    paddingHorizontal: spacing.four,
-    paddingVertical: spacing.three,
-  },
-  biteBusy: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-  biteText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  // One fixed hint region: an error, the Tidy offer, or the AI egress note, in that priority.
-  hintRegion: { minHeight: 20, justifyContent: 'center' },
-  aiNote: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
-  split: { alignSelf: 'center', alignItems: 'center', paddingVertical: spacing.one, paddingHorizontal: spacing.three },
-  splitText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center' },
-  error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body },
-  pressed: { opacity: PRESSED_OPACITY },
-  disabled: { opacity: 0.5 },
-  pickerRoot: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.five,
-  },
-  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: t.colors.scrim },
-  pickerCard: {
-    backgroundColor: t.colors.bg,
-    borderRadius: radius.lg,
-    padding: spacing.five,
-    width: '100%',
-    maxWidth: layout.cardMediaWidth,
-    gap: spacing.three,
-  },
-  pickerTitle: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
-  // The iOS keyboard toolbar (see CAPTURE_ACCESSORY_ID): a calm surface strip, Done right-aligned
-  // where an iOS thumb expects it. Never a "cancel", it only lowers the keyboard, it keeps the text.
-  kbBar: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    backgroundColor: t.colors.surface,
-    borderTopWidth: border.hair,
-    borderTopColor: t.colors.line,
-    paddingHorizontal: spacing.four,
-    paddingVertical: spacing.two,
-  },
-  kbDone: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-  speak: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.two,
-    paddingHorizontal: spacing.three,
-    paddingVertical: spacing.two,
-    borderRadius: radius.pill,
-    borderWidth: border.hair,
-    borderColor: t.colors.line,
-    backgroundColor: t.colors.surface,
-  },
-  speakOn: { borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
-  speakText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, fontWeight: '500' },
-  speakTextOn: { color: t.colors.accent },
-  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.colors.accent },
-});
+          borderColor: rgba(t.colors.ink, t.scheme === 'dark' ? 0.22 : 0.14),
+          borderRadius: 25,
+          paddingLeft: 18,
+          paddingRight: spacing.one,
+          paddingVertical: spacing.one,
+        },
+    boxMulti: quiet ? {} : { borderRadius: 22 },
+    // Open: the edge firms to the accent, which is also the box's visible focus state.
+    boxFocused: quiet ? { borderColor: t.colors.accent } : { borderWidth: border.thin, borderColor: t.colors.accent },
+    input: {
+      flex: 1,
+      // A floor, so a long consequence on the button ("Add · Weekly on Mo, We") can never squeeze the box
+      // to a few characters; the button's label wraps instead.
+      minWidth: 120 * t.scale,
+      minHeight: 40,
+      fontSize: 16 * t.scale,
+      lineHeight: 22 * t.scale,
+      fontFamily: fonts.body,
+      color: t.colors.ink,
+      paddingTop: 10,
+      paddingBottom: 10,
+      paddingHorizontal: 0,
+      // The box's accent edge is the focus indicator; the browser's own rectangle inside a pill is noise.
+      // SOLID at zero width, not a bare zero width: Chrome's default focus style is `auto`, which ignores
+      // the width and drew a yellow rectangle inside the pill in the first preview.
+      ...(Platform.OS === 'web' ? { outlineStyle: 'solid' as const, outlineWidth: 0 } : null),
+    },
+    speak: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.two, paddingHorizontal: 14 },
+    speakText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.colors.accent },
+    addBtn: {
+      minHeight: 42,
+      maxWidth: '62%',
+      justifyContent: 'center',
+      paddingHorizontal: 18,
+      borderRadius: radius.pill,
+      backgroundColor: t.colors.accent,
+    },
+    addText: { color: t.colors.onAccent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', textAlign: 'center' },
+    pressed: { opacity: PRESSED_OPACITY },
+    dim: { opacity: 0.45 },
+    pickerRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.five },
+    backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: t.colors.scrim },
+    pickerCard: {
+      backgroundColor: t.colors.bg,
+      borderRadius: radius.lg,
+      padding: spacing.five,
+      width: '100%',
+      maxWidth: layout.cardMediaWidth,
+      gap: spacing.three,
+    },
+    pickerTitle: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
+    // The iOS keyboard toolbar (see CAPTURE_ACCESSORY_ID): Done right-aligned where an iOS thumb
+    // expects it. Never a "cancel": it only lowers the keyboard, it keeps the text.
+    kbBar: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      backgroundColor: t.colors.surface,
+      borderTopWidth: border.hair,
+      borderTopColor: t.colors.line,
+      paddingHorizontal: spacing.four,
+      paddingVertical: spacing.two,
+    },
+    kbDone: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+  });
+};

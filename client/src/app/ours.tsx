@@ -1146,7 +1146,7 @@ export default function OursScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.four }]}>
-        <BackLink label={t('common.today')} />
+        <BackLink />
         {body()}
         {/* Under whatever state is showing, so a closed list is reachable from all of them rather
             than only from the one that happened to have room for it. */}

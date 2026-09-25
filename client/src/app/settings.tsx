@@ -315,7 +315,7 @@ export default function SettingsScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.six }]}>
-        <BackLink label={t('common.today')} />
+        <BackLink />
 
         <Text style={styles.title}>{t('settings.title')}</Text>
         <Text style={styles.subtitle}>{t('settings.subtitle')}</Text>

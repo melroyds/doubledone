@@ -1,12 +1,14 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, AccessibilityInfo, Animated, AppState, Easing, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Linking, AccessibilityInfo, Animated, AppState, BackHandler, Easing, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Bloom, type BloomData } from '@/components/Bloom';
 import { BedtimeCapture } from '@/components/BedtimeCapture';
 import { BrainDump, type BrainDumpHandle } from '@/components/BrainDump';
+import { DayHeading } from '@/components/DayHeading';
+import { MenuPill } from '@/components/MenuPill';
 import { CameraCapture } from '@/components/CameraCapture';
 import { type BreakdownAnswers, BreakdownQuestions } from '@/components/BreakdownQuestions';
 import { BreakdownReview, type ReviewPhase, type ReviewStep } from '@/components/BreakdownReview';
@@ -15,7 +17,6 @@ import { LivingBackground } from '@/components/LivingBackground';
 import { ModalCard } from '@/components/ModalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { RepeatingDrawer } from '@/components/RepeatingDrawer';
-import { RoomsSheet } from '@/components/RoomsSheet';
 import { RotatingPhrase } from '@/components/RotatingPhrase';
 import { TaskRow } from '@/components/TaskRow';
 import { border, cardShadow, fonts, layout, motion, PRESSED_OPACITY, radius, rgba, spacing, type Theme } from '@/constants/theme';
@@ -58,7 +59,7 @@ import { isOursOpen, loadMyPairs, syncClock } from '@/lib/ours-api';
 import { checkForUpdate, currentPlatform } from '@/lib/update-check';
 import { FALLBACK_VERSION, shouldMention, type UpdateStatus, updateUrl } from '@/lib/updates';
 import { makeSharedRef, parseSharedRef, removedOrigins, sharedRestNotes } from '@/lib/ours-bridge';
-import { isSharedDoneOn, setSharedDone, type SharedTask, washedSince } from '@/lib/ours-merge';
+import { changedSinceLooked, isSharedDoneOn, setSharedDone, type SharedTask } from '@/lib/ours-merge';
 import { isUnreadableRepeat, cadenceLine, sharedDueOn, syncPairOnce, willTrim } from '@/lib/ours-sync';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { buildOutcome } from '@/lib/outcome';
@@ -304,7 +305,6 @@ export default function TodayScreen() {
   const [sortSummary, setSortSummary] = useState<string | null>(null);
   const [affirmation, setAffirmation] = useState<string | null>(null); // a brief "done is done" / "good enough" reassurance; auto-clears
   const [bloom, setBloom] = useState<BloomData | null>(null); // the held whole-task-finish celebration
-  const [roomsOpen, setRoomsOpen] = useState(false); // the Rooms navigation sheet (collapses the 4 header links)
   const affirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const affirmCount = useRef(0); // rotates the completion affirmation through the pool (lib/celebrate)
   const tinyBusy = useRef(false); // guards the make-it-tiny AI call from a double-fire
@@ -355,7 +355,19 @@ export default function TodayScreen() {
   // renewal notice about money that is not moving.
   const { premium, loading: premiumLoading, entitlement } = usePremium(); // gates Pin; a dev override drives it locally
   const brainDumpRef = useRef<BrainDumpHandle>(null);
-  const [captureOpen, setCaptureOpen] = useState(false);
+  // The composer is OPEN (its box has focus, or When is open). While it is, Today's heading shrinks so
+  // the weight line and the last few tasks stay in view above the keyboard, the keyboard lift applies,
+  // and every task it adds keeps a soft tint until it closes (the Today v3 handoff).
+  const [composing, setComposing] = useState(false);
+  const [justAdded, setJustAdded] = useState<string[]>([]);
+  // The Repeating drawer was opened FROM the Menu's contents page, so closing it goes back there.
+  const drawerFromRooms = useRef(false);
+  // Web: a Scan's words are seeded while the camera is still closing, and its Modal's focus trap takes the
+  // focus back, so the box is focused once more after the Modal has truly gone (its onDismiss).
+  const scanFocusPending = useRef(false);
+  // A double tap on Ours must not push the room twice.
+  const oursNavAt = useRef(0);
+  const scrollRef = useRef<ScrollView>(null);
   const [cameraOpen, setCameraOpen] = useState(false); // the OCR photo-capture modal (premium)
   const { width: winW, height: winH } = useWindowDimensions();
   const dockFooter = Platform.OS !== 'web' || winW < 700; // native + narrow web dock, wide web blends into the page
@@ -411,11 +423,9 @@ export default function TodayScreen() {
   const [today, setToday] = useState(() => new Date());
   const router = useRouter();
   const session = useSession();
-  // Ours. `oursOpen` gates the Menu row (the build-time allowlist), and `oursName` decides whether
-  // Today gets a door at all: NO LIST MEANS NO ROW. There is deliberately no funnel here, so nothing
-  // on the working surface ever advertises a feature to somebody who will never use it. The Menu is
-  // where it is discovered.
-  const [oursOpen, setOursOpen] = useState(false);
+  // Ours. `oursName` (and the pair id) decide whether Today's heading gets an Ours word at all: NO
+  // LIST MEANS NO WORD. There is deliberately no funnel here, so nothing on the working surface ever
+  // advertises a feature to somebody who will never use it. The Menu is where it is discovered.
   const [oursName, setOursName] = useState<string | null>(null);
   // The bridges need the list's id, not just its name: which shared row a copy of mine belongs to,
   // and where a tick has to travel. Null whenever there is no live list, which switches every
@@ -455,7 +465,8 @@ export default function TodayScreen() {
    * attention rather than by the list's size, and LOOKING is what clears it. It cannot climb at you,
    * because the act of reading it is the act of resolving it.
    *
-   * It reuses the wash's own arithmetic (`washedSince`), so the door and the room agree by
+   * It reuses the wash's own arithmetic (`changedSinceLooked`, the room's `washedSince` minus the rows
+   * it no longer draws), so the heading's "!" and the room agree by
    * construction about what counts as changed and about which changes were your own. Your own edits
    * never count, and a first-ever visit counts nothing.
    *
@@ -530,7 +541,8 @@ export default function TodayScreen() {
       const seen = (await loadOursSeen())[oursPairId] ?? 0;
       const mine = new Set(await loadOursMine(oursPairId));
       if (!active) return;
-      setSharedChanged(washedSince(res.shared, seen, mine).size);
+      // Tombstones out: the room never draws a removed row, so the "!" must not count one.
+      setSharedChanged(changedSinceLooked(res.shared, seen, mine).size);
     });
     return () => {
       active = false;
@@ -562,7 +574,6 @@ export default function TodayScreen() {
         void syncClock(client);
         void isOursOpen(client).then((open) => {
           if (!active) return;
-          setOursOpen(open);
           if (!open) return setOursName(null);
           // Only the LIVE list gets a door. A frozen one is reached through the Menu and its
           // archive, because a closed relationship does not belong on the screen whose promise is
@@ -580,7 +591,6 @@ export default function TodayScreen() {
           });
         });
       } else {
-        setOursOpen(false);
         setOursName(null);
         setOursPairId(null);
       }
@@ -851,9 +861,14 @@ export default function TodayScreen() {
   // callback-ref flush cured the launch-week "share only works when the box is already
   // open" bug; do not go back to flushing from an effect.
   const pendingSeed = useRef<string | null | undefined>(undefined); // undefined = nothing parked
-  useEffect(
-    () =>
-      subscribeInbound(() => {
+  // Only the Today ON SCREEN listens. A second Today can sit under the stack (Chart and Premium used to
+  // replace themselves with one), and a broadcast went to whichever had subscribed first: the Menu's
+  // Repeating card opened a drawer nobody could see. Unfocused, an intent simply waits, and the Today you
+  // come back to drains it on focus (subscribeInbound fires at once for anything pending).
+  useFocusEffect(
+    useCallback(
+      () =>
+        subscribeInbound(() => {
         const i = takeInbound();
         if (!i) return;
         if (i.kind === 'focus') {
@@ -862,8 +877,15 @@ export default function TodayScreen() {
           track('focus.opened', { via: 'shortcut' });
           return;
         }
+        // The Menu's contents page handing over the one room that lives here, not in a route.
+        if (i.kind === 'repeating') {
+          drawerFromRooms.current = true;
+          setDrawerOpen(true);
+          track('repeating.opened', { via: 'rooms' });
+          return;
+        }
+        // The composer is always there (it stays mounted), so a seed goes straight in and focuses it.
         const text = i.kind === 'capture' ? i.text : null;
-        setCaptureOpen(true);
         if (brainDumpRef.current) {
           brainDumpRef.current.seed(text);
         } else {
@@ -871,15 +893,10 @@ export default function TodayScreen() {
         }
         track(i.kind === 'capture' ? 'capture.shared' : 'capture.shortcut');
       }),
-    [],
+      [],
+    ),
   );
 
-  // The panel opens focused: the first keystroke never waits (capture iron rule). Focus can
-  // only land after the reveal renders (a hidden input ignores focus on web), so it runs as
-  // an effect on the flip, not inside the tap handler.
-  useEffect(() => {
-    if (captureOpen) brainDumpRef.current?.seed(null);
-  }, [captureOpen]);
 
   // Track the keyboard so the footer can lift the capture panel above it (see kbHeight).
   // iOS uses the will-events (the did-events land after the animation and read as lag).
@@ -1565,6 +1582,7 @@ export default function TodayScreen() {
    * then-accept (Plan gates premium then asks; Lighten proposes a re-spread; Close opens the wrap).
    */
   function runTool(tool: DayTool) {
+    if (selectMode) return; // the card rests in select mode; a keyboard could still reach it on web
     const gate = gateFor(tool);
     if (!gate.available) {
       setToolHint(tool);
@@ -1581,19 +1599,10 @@ export default function TodayScreen() {
   }
 
   function toggleToolsPanel() {
+    if (selectMode) return;
     setToolHint(null);
     if (!toolsOpen) track('daytools.opened');
     setToolsOpen(!toolsOpen);
-  }
-
-  function closeToolsPanel() {
-    setToolsOpen(false);
-    setToolHint(null);
-  }
-
-  function openDrawer() {
-    setDrawerOpen(true);
-    track('repeating.opened');
   }
 
   // The Repeating drawer manages the series (Today manages days): rename or
@@ -1974,7 +1983,7 @@ export default function TodayScreen() {
   }
 
 
-  function capture(text: string, schedule: CaptureSchedule, sliceCount?: number) {
+  function capture(text: string, schedule: CaptureSchedule, sliceCount?: number, fromComposer = false) {
     const titles = parseDump(text);
     if (titles.length === 0) return;
     setSortSummary(null);
@@ -1993,6 +2002,10 @@ export default function TodayScreen() {
       ...(useSlices && i === 0 ? { slices: { total: sliceCount, done: 0 } } : {}),
     }));
     commit([...tasks, ...added]);
+    // A task the composer just added keeps a soft tint until the composer closes, so what you added is
+    // findable at a glance while you are still adding (the Today v3 handoff). Keyed on WHO added, not on
+    // whether the composer looked open: an Add always leaves it open, and the bedtime capture is not it.
+    if (fromComposer) setJustAdded((prev) => [...prev, ...added.map((task) => task.id)]);
     // One line is a quick add; several is a genuine brain-dump. Log the shape and
     // the chosen schedule so the moat can learn how this audience really captures.
     track(titles.length > 1 ? 'brain_dump.captured' : 'task.added', {
@@ -2285,6 +2298,8 @@ export default function TodayScreen() {
     // Keep the real task as a silent parent and chain the steps to it (Cluster B): an
     // existing task becomes the parent; an at-capture breakdown mints one.
     const parentId = bdParentId ?? makeId();
+    // An at-capture breakdown: the words have now landed as steps, so now (and only now) the box empties.
+    if (bdParentId == null) brainDumpRef.current?.clear();
     const link = { parentId, parentTitle: bdTask };
     const totalMinutes = selected.reduce((sum, s) => sum + s.minutes, 0);
     const stepTasks: Task[] = selected.map((s, i) => ({
@@ -2426,6 +2441,10 @@ export default function TodayScreen() {
     setBdCorrId(null);
   }
 
+  function captureFromComposer(text: string, schedule: CaptureSchedule, sliceCount?: number) {
+    capture(text, schedule, sliceCount, true);
+  }
+
   // AI triage: sort a brain-dump into buckets, then apply (later -> tomorrow; today
   // and decompose stay on Today). Opt-in via "Sort for me", so a direct apply is calm.
   // Lines the AI drops fall back to Today.
@@ -2434,7 +2453,8 @@ export default function TodayScreen() {
     if (lines.length === 0) return;
     const items = await triage(lines);
     const added = triageToTasks(lines, items, today, nowMs(), makeId);
-    commit([...tasks, ...added]);
+    // The list as it is NOW: a tick made while triage ran would otherwise be written back as undone.
+    commit([...tasksRef.current, ...added]);
     const summary = summarizeAdded(added);
     setSortSummary(summaryLine(summary));
     track('triage.applied', {
@@ -2445,6 +2465,67 @@ export default function TodayScreen() {
     });
   }
 
+  // The composer opened or closed. Closing lets the just-added tints go (their 320ms fade lives in TaskRow).
+  function onComposerActive(active: boolean) {
+    setComposing(active);
+    if (!active) setJustAdded((prev) => (prev.length === 0 ? prev : []));
+  }
+
+  // The box took focus: the day tools close, and the list scrolls to its end so the newest rows sit just
+  // above the composer (after the heading has shrunk, hence the beat).
+  function onComposerFocus() {
+    setToolsOpen(false);
+    setToolHint(null);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: !reduced }), 80);
+  }
+
+  // Where the Menu's Ours card leads, as a plain word (never a pair id in a URL): a live list, Ours' own
+  // pairing screen, or signed out (a card that names its one need). Read from the pair and the session,
+  // not from the ours_is_open gate: before that RPC answered (or when it blipped) the page was pushed with
+  // no Ours card at all, and a route param cannot change its mind afterwards.
+  const oursDest = oursPairId ? 'list' : session ? 'room' : isSyncConfigured ? 'signin' : 'none';
+  function openMenu() {
+    router.push({ pathname: '/rooms', params: { ours: oursDest } });
+  }
+
+  function goOurs() {
+    const now = Date.now();
+    if (now - oursNavAt.current < 800) return;
+    oursNavAt.current = now;
+    router.push('/ours-list');
+  }
+
+  function closeDrawer() {
+    setDrawerOpen(false);
+    if (drawerFromRooms.current) {
+      drawerFromRooms.current = false;
+      openMenu();
+    }
+  }
+
+  // Android's back closes the drawer rather than leaving the app from under it. Registered only while
+  // this Today is on screen and the drawer is open, so a Today buried under the stack never swallows it.
+  useFocusEffect(
+    useCallback(() => {
+      if (!drawerOpen || Platform.OS !== 'android') return;
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        // closeDrawer's own steps, inline, so this effect depends on values rather than a fresh function.
+        setDrawerOpen(false);
+        if (drawerFromRooms.current) {
+          drawerFromRooms.current = false;
+          router.push({ pathname: '/rooms', params: { ours: oursDest } });
+        }
+        return true;
+      });
+      return () => sub.remove();
+    }, [drawerOpen, router, oursDest]),
+  );
+
+  // A household's own name for its list wins over "Ours"; absent a LIVE list there is no Ours word at all.
+  const oursHeadingLabel = oursPairId ? (oursName && oursName.trim() ? oursName.trim() : t('ours.defaultName')) : null;
+  // The shrunk heading is for the phone's keyboard: on wide web there is room, and the page stays still.
+  const compactHeader = composing && dockFooter && !isClosed && !selectMode;
+
   return (
     // Keyed by appearance: switching Standard <-> Quiet remounts Today's subtree so native
     // lays it out fresh. Without this, a toggle made on the Settings screen re-styles Today
@@ -2454,41 +2535,48 @@ export default function TodayScreen() {
     // reproduce. A remount on an appearance change is rare and invisible (same values).
     <View key={theme.appearance} style={styles.screen}>
       <LivingBackground />
+      {/* The shrunk heading while the composer is open: Today · Ours at 21pt, the weight line and a thin
+          gauge. Outside the scroll so it stays put above the keyboard while the list scrolls under it. */}
+      {compactHeader && (
+        <View style={[styles.compactHead, { paddingTop: insets.top + spacing.two }]}>
+          <DayHeading
+            compact
+            current="today"
+            oursLabel={oursHeadingLabel}
+            changed={sharedChanged}
+            weightLabel={loaded ? weightOfDay.label : undefined}
+            weightFill={loaded ? weightOfDay.fill : undefined}
+            onToday={() => undefined}
+            onOurs={goOurs}
+          />
+        </View>
+      )}
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.seven }]}
+        contentContainerStyle={[styles.content, { paddingTop: compactHeader ? spacing.three : insets.top + spacing.seven }]}
         keyboardShouldPersistTaps="handled"
         // Swipe anywhere on the page to put the keyboard away. The capture box is multiline, so
         // iOS's Return key inserts a newline instead of dismissing, which left the keyboard stuck
         // unless you found bare background to tap (Melroy, iOS, 2026-07-15). This is the gesture
         // iOS users already expect, and it works from anywhere, not just the strip above the box.
-        keyboardDismissMode="on-drag"
+        // NATIVE ONLY. react-native-web treats every scroll event as a drag, including the app's own
+        // scroll to a just-added row, so on web the keyboard dropped a second after Add whenever the
+        // footer had changed height (found in the Today v3 preview: add from an open When door).
+        keyboardDismissMode={Platform.OS === 'web' ? 'none' : 'on-drag'}
       >
         {/* FIRST thing in the scroll, deliberately. It was below the fold inside a `!isClosed` block,
             so closing the day hid the diagnostic, and a diagnostic a state gate can suppress is not
             one. Nothing above it can gate it now. */}
         {debugOn ? <DebugPanel /> : null}
 
+        {!compactHeader && (
         <View style={styles.topBar}>
           <Text style={styles.date}>{formatTodayLabel(today)}</Text>
-          <Pressable
-            onPress={() => setRoomsOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel={aiEnabled ? t('today.menuA11y') : t('today.menuNoAiA11y')}
-            hitSlop={8}
-            style={({ pressed }) => [styles.roomsPill, pressed && styles.pressed]}
-          >
-            {theme.appearance !== 'quiet' && (
-              <View style={styles.roomsDots}>
-                <View style={styles.roomsDot} />
-                <View style={styles.roomsDot} />
-                <View style={styles.roomsDot} />
-              </View>
-            )}
-            <Text style={styles.roomsLabel}>{t('today.menu')}</Text>
-          </Pressable>
+          <MenuPill onPress={openMenu} />
         </View>
-        {reentry && !isClosed && (
+        )}
+        {reentry && !isClosed && !compactHeader && (
           <View style={styles.reentry}>
             <Text style={styles.reentryTitle}>{t('today.reentryTitle')}</Text>
             <Text style={styles.reentryBody}>
@@ -2502,15 +2590,19 @@ export default function TodayScreen() {
             />
           </View>
         )}
-        <Text style={styles.title}>{t('common.today')}</Text>
-        <Text style={styles.spine}>{phaseGreeting(today)}</Text>
+        {/* The heading: Today · Ours, two serif words with the underline under the page you are on. It
+            replaces the Ours door row, and its "!" is that row's "since you looked", as a tinted mark. */}
+        {!compactHeader && (
+          <DayHeading current="today" oursLabel={oursHeadingLabel} changed={sharedChanged} onToday={() => undefined} onOurs={goOurs} />
+        )}
+        {!compactHeader && <Text style={styles.spine}>{phaseGreeting(today)}</Text>}
         {/* The day panel, ALWAYS rendered on an open day (real-user report, 2026-07-26: with the
             gauge gated on having tasks, an empty day left the pills floating with no anchor and no
             header, "not so good"). dayWeight(0) already answers the empty day calmly ("A clear
             day."), so the gate predated the redesign and no longer earned its keep: the constant
             frame's own rule, nothing appears or vanishes with the task count, now covers the top
             of the screen too. */}
-        {loaded && !isClosed && (
+        {loaded && !isClosed && !compactHeader && (
           <View style={styles.weight}>
             {/* The energy gauge stays in Quiet, just whisper-thin: a 3px hairline track (see styles). */}
             <View style={styles.weightTrack}>
@@ -2526,7 +2618,7 @@ export default function TodayScreen() {
             "full" means, so the gauge and the Lighten offer move with the person, not against them.
             Resets to Normal each morning, so it can never become configuration debt. The visible
             overline is the same feedback: three bare words with no header read as lost text. */}
-        {loaded && !isClosed && (
+        {loaded && !isClosed && !compactHeader && (
           <View>
           <Text style={styles.energyOverline}>{t('today.energyOverline')}</Text>
           <View
@@ -2554,6 +2646,103 @@ export default function TodayScreen() {
             })}
           </View>
           </View>
+        )}
+
+        {/* THE DAY TOOLS, under the weight line that tells you when you need one (the Today v3 handoff:
+            you use them once or twice a day and capture all day, so capture takes the bottom and the tools
+            move up). The Right now slot still holds the tool that suits the HOUR, resolved at open and
+            never mid-session, and the caret opens the same tools in the same day order, DOWNWARD in place:
+            the list moves down to make room and nothing covers it, so there is no scrim. An unavailable
+            tool keeps its place at lowered contrast and explains itself in one plain line when tapped. In
+            select mode the card rests (dimmed, untouchable) rather than vanishing, so the list does not jump. */}
+        {loaded && !isClosed && !compactHeader && (
+          <View
+            style={[styles.rightNowCard, selectMode && styles.frameResting]}
+            pointerEvents={selectMode ? 'none' : 'auto'}
+            importantForAccessibility={selectMode ? 'no-hide-descendants' : 'auto'}
+            accessibilityElementsHidden={selectMode}
+          >
+              <View style={styles.rightNowRow}>
+                <Pressable
+                  onPress={() => runTool(occupant)}
+                  disabled={selectMode || (occupant === 'plan' && sequencing) || (occupant === 'lighten' && strategising)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('today.rightNow')}: ${toolLabel(occupant)}`}
+                  style={({ pressed }) => [styles.rightNowSlot, pressed && styles.pressed]}
+                >
+                  <Text style={styles.rightNowOverline}>{t('today.rightNow')}</Text>
+                  <Text style={[styles.rightNowName, !gateFor(occupant).available && styles.toolNameQuiet]}>
+                    {occupant === 'plan' && sequencing
+                      ? t('today.planning')
+                      : occupant === 'lighten' && strategising
+                        ? t('today.lightening')
+                        : toolLabel(occupant)}
+                    {occupant === 'plan' && !premium ? (
+                      <Text style={styles.toolPremiumMark} accessible={false} importantForAccessibility="no">
+                        {' '}✦
+                      </Text>
+                    ) : null}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={toggleToolsPanel}
+                  disabled={selectMode}
+                  accessibilityRole="button"
+                  aria-expanded={toolsOpen}
+                  accessibilityLabel={t('today.allDayToolsA11y')}
+                  style={({ pressed }) => [styles.caretBtn, pressed && styles.pressed]}
+                >
+                  <Text style={styles.caretText}>{toolsOpen ? '⌃' : '⌄'}</Text>
+                </Pressable>
+              </View>
+            {toolsOpen && (
+              <View style={styles.toolsPanel}>
+                <View style={styles.toolsDivider} />
+                {frameTools.map((tool) => {
+                  const gate = gateFor(tool);
+                  const busy = (tool === 'lighten' && strategising) || (tool === 'plan' && sequencing);
+                  return (
+                    <View key={tool}>
+                      <Pressable
+                        onPress={() => runTool(tool)}
+                        disabled={busy}
+                        accessibilityRole="button"
+                        aria-disabled={busy}
+                        accessibilityLabel={
+                          (gate.available || gate.hintKey == null ? toolLabel(tool) : `${toolLabel(tool)}. ${t(gate.hintKey)}`) +
+                          (tool === 'plan' && !premium ? `. ${t('common.premium')}` : '')
+                        }
+                        style={({ pressed }) => [styles.toolRow, pressed && styles.pressed]}
+                      >
+                        <Text style={[styles.toolName, !gate.available && styles.toolNameQuiet]}>
+                          {busy ? (tool === 'plan' ? t('today.planning') : t('today.lightening')) : toolLabel(tool)}
+                        </Text>
+                        {/* The honey mark Pin already wears in the fold: free users see the premium
+                            tool named as premium HERE, not after a bounce to a page that never said
+                            why (the 2026-09-21 flow audit). */}
+                        {tool === 'plan' && !premium && (
+                          <Text style={styles.toolPremiumMark} accessible={false} importantForAccessibility="no">✦</Text>
+                        )}
+                        {tool === occupant && <Text style={styles.toolNowTag}>{t('today.toolNow')}</Text>}
+                      </Pressable>
+                      {toolHint === tool && gate.hintKey != null && (
+                        <Text style={styles.toolHintLine}>{t(gate.hintKey)}</Text>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        )}
+        {loaded && !isClosed && !compactHeader && (
+          <>
+            {toolHint != null && !toolsOpen && gateFor(toolHint).hintKey != null && (
+              <Text style={styles.toolHintLine}>{t(gateFor(toolHint).hintKey!)}</Text>
+            )}
+            {strategiseError != null && <Text style={styles.strategiseErr}>{strategiseError}</Text>}
+            {orderError != null && <Text style={styles.strategiseErr}>{orderError}</Text>}
+          </>
         )}
 
         {isClosed && (
@@ -2777,6 +2966,7 @@ export default function TodayScreen() {
               tinyParent={tinyParentTitle(tasks, task)}
               pinned={task.pinnedAt != null && !isDoneOn(task, today)}
               big={task.big}
+              justAdded={justAdded.includes(task.id)}
             />
           ))}
         </View>
@@ -2950,162 +3140,78 @@ export default function TodayScreen() {
           </View>
         )}
 
-        {/* Ours. One hairline row. Absent entirely when there is no live shared list, so this can
-            never read as an advert. The name wraps rather than truncating, because a household's
-            word for its own list is not ours to cut.
-
-            It carries ONE number, and only this one. The old rule here was "never a count", against
-            a standing tally of open rows, and that rule was right: such a number is permanently
-            non-zero on a real household list and moves whenever the other person types, which is
-            pressure on the one screen whose whole promise is that today is finite.
-
-            "Since you looked" is a different quantity and survives that objection. It is bounded by
-            your own attention rather than by the list's length, your own edits never count toward
-            it, and LOOKING is what clears it: the act of reading it is the act of resolving it. It
-            cannot climb at you. Its arithmetic is the room's own wash, so the two always agree. */}
-        {oursPairId && !selectMode && (
-          <Pressable
-            onPress={() => router.push('/ours-list')}
-            accessibilityRole="button"
-            accessibilityLabel={[
-              oursName ? `${t('ours.defaultName')}: ${oursName}` : t('ours.defaultName'),
-              sharedChanged > 0 ? t('ours.sinceYouLooked', { count: sharedChanged }) : null,
-            ]
-              .filter(Boolean)
-              .join('. ')}
-            style={({ pressed }) => [styles.oursDoor, pressed && styles.pressed]}
-          >
-            <Text style={styles.oursDoorText}>
-              {oursName ? `${t('ours.defaultName')} · ${oursName}` : t('ours.defaultName')}
-            </Text>
-            {sharedChanged > 0 && (
-              <Text style={styles.oursDoorSince}>{t('ours.sinceYouLooked', { count: sharedChanged })}</Text>
-            )}
-            <Text style={styles.oursDoorChevron}>›</Text>
-          </Pressable>
-        )}
-
-        {/* The stacked action pile ("Today's looking full" + Lighten + Plan + wind-down + Close) is
-            GONE (the constant frame, 2026-07-25). All four day tools now live in ONE fixed layer at
-            the thumb, outside this ScrollView, so nothing appears, vanishes, or slides with the
-            task count and the emotional payoff (Close the day) is never buried under a long list. */}
           </>
         )}
+        {/* The footer line: the inscription (or, in the evening, the wind-down and Settle's second door),
+            then the quiet links. Under the list now, since the bottom of the screen is the composer's. */}
+        <View style={styles.ethos}>
+          {/* In the evening the rotating inscription yields to the wind-down line: the same single
+              italic breath under capture, saying the one thing the hour actually calls for. It is
+              no longer a separate element in the pile (the constant frame took the pile away). */}
+          {windDown && !isClosed ? (
+            <>
+              <Text style={styles.windDown}>{t('closeDay.windDown')}</Text>
+              {/* The Settle handoff's second door: one soft line on the evening surface. A
+                  pressable sentence, not a button; the room is offered, never prescribed. */}
+              <Pressable onPress={() => router.push('/settle')} accessibilityRole="button" accessibilityLabel={t('today.toolSettle')} hitSlop={8}>
+                <Text style={styles.windDownSettle}>{t('today.windDownSettle')}</Text>
+              </Pressable>
+            </>
+          ) : (
+            <RotatingPhrase />
+          )}
+        </View>
+        {/* The optional, low-priority links live below the marquee, calm and out of the way:
+            who you're synced as (or the sync invite) and the daily-reminder toggle. */}
+        <View style={styles.optionalLinks}>
+          {isSyncConfigured &&
+            (session ? (
+              <>
+                {syncOk === false ? (
+                  <Text style={styles.optLink} numberOfLines={2}>
+                    {t('today.syncPending')}
+                  </Text>
+                ) : (
+                  <Text style={styles.optLink} numberOfLines={1}>
+                    {t('today.syncedTo', { account: session.user.email ?? t('today.syncedFallbackAccount') })}
+                  </Text>
+                )}
+                <Pressable onPress={signOut} accessibilityRole="button" accessibilityLabel={t('signIn.signOut')} hitSlop={6}>
+                  <Text style={styles.optFaint}>{t('signIn.signOut')}</Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable onPress={() => router.push('/sign-in')} accessibilityRole="button" accessibilityLabel={t('signIn.syncAcrossDevices')} hitSlop={6}>
+                <Text style={styles.optLink}>{t('signIn.syncAcrossDevices')}</Text>
+              </Pressable>
+            ))}
+          <Pressable onPress={toggleReminder} accessibilityRole="button" accessibilityLabel={t('reminders.toggleA11y')} hitSlop={6}>
+            <Text style={styles.optLink}>{reminderOn ? t('reminders.dailyOn') : t('reminders.turnOn')}</Text>
+          </Pressable>
+        </View>
       </ScrollView>
 
-      {/* The caret panel's scrim: the list dims at 40% and never moves; tapping it closes. Rendered
-          BEFORE the footer so the footer (and the panel inside it) stays on top by sibling order. */}
-      {toolsOpen && (
-        <Pressable
-          style={styles.toolsScrim}
-          onPress={closeToolsPanel}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.close')}
-        />
-      )}
-
-      {/* While capture is open the footer lifts by the keyboard's height, so the panel rides
-          ABOVE the keyboard instead of vanishing under it (edge-to-edge Android never resizes
-          the window for us). iOS reports a height that includes the home-indicator strip the
-          padding already covers, so that part is subtracted there. Scoped to captureOpen: the
-          held card's inline edit and the modals manage their own keyboards. */}
-      <View style={[styles.footer, dockFooter && styles.footerDock, { paddingBottom: insets.bottom + (captureOpen ? spacing.one : spacing.four) + (captureOpen ? Math.max(0, kbHeight - (Platform.OS === 'ios' ? insets.bottom : 0)) : 0) }]}>
-        {/* THE CONSTANT FRAME (Claude Design 1b-developed, Melroy's pick 2026-07-25). One fixed
-            action layer at the thumb: a "Right now" slot holding the tool that suits the HOUR
-            (clock only, resolved at open, never mid-session), and a caret opening the same tools in
-            the same day order, always. An unavailable tool keeps its place at lowered contrast and
-            explains itself in one plain line when tapped: never absent, never locked. This is what
-            lets muscle memory form on a screen that used to reshape itself with the task count.
-            While the capture panel is open the slot YIELDS (the capture redesign's one frame
-            exception): the person is mid-thought, and the frame returns the moment capture closes. */}
-        {loaded && !selectMode && !isClosed && !captureOpen && (
-          <>
-            {toolsOpen && (
-              <View style={styles.toolsPanel}>
-                {frameTools.map((tool) => {
-                  const gate = gateFor(tool);
-                  const busy = (tool === 'lighten' && strategising) || (tool === 'plan' && sequencing);
-                  return (
-                    <View key={tool}>
-                      <Pressable
-                        onPress={() => runTool(tool)}
-                        disabled={busy}
-                        accessibilityRole="button"
-                        aria-disabled={busy}
-                        accessibilityLabel={
-                          (gate.available || gate.hintKey == null ? toolLabel(tool) : `${toolLabel(tool)}. ${t(gate.hintKey)}`) +
-                          (tool === 'plan' && !premium ? `. ${t('common.premium')}` : '')
-                        }
-                        style={({ pressed }) => [styles.toolRow, pressed && styles.pressed]}
-                      >
-                        <Text style={[styles.toolName, !gate.available && styles.toolNameQuiet]}>
-                          {busy ? (tool === 'plan' ? t('today.planning') : t('today.lightening')) : toolLabel(tool)}
-                        </Text>
-                        {/* The honey mark Pin already wears in the fold: free users see the premium
-                            tool named as premium HERE, not after a bounce to a page that never said
-                            why (the 2026-09-21 flow audit). */}
-                        {tool === 'plan' && !premium && (
-                          <Text style={styles.toolPremiumMark} accessible={false} importantForAccessibility="no">✦</Text>
-                        )}
-                        {tool === occupant && <Text style={styles.toolNowTag}>{t('today.toolNow')}</Text>}
-                      </Pressable>
-                      {toolHint === tool && gate.hintKey != null && (
-                        <Text style={styles.toolHintLine}>{t(gate.hintKey)}</Text>
-                      )}
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-            <View style={styles.rightNowRow}>
-              <Pressable
-                onPress={() => runTool(occupant)}
-                disabled={(occupant === 'plan' && sequencing) || (occupant === 'lighten' && strategising)}
-                accessibilityRole="button"
-                accessibilityLabel={`${t('today.rightNow')}: ${toolLabel(occupant)}`}
-                style={({ pressed }) => [styles.rightNowSlot, pressed && styles.pressed]}
-              >
-                <Text style={styles.rightNowOverline}>{t('today.rightNow')}</Text>
-                <Text style={[styles.rightNowName, !gateFor(occupant).available && styles.toolNameQuiet]}>
-                  {occupant === 'plan' && sequencing
-                    ? t('today.planning')
-                    : occupant === 'lighten' && strategising
-                      ? t('today.lightening')
-                      : toolLabel(occupant)}
-                  {occupant === 'plan' && !premium ? (
-                    <Text style={styles.toolPremiumMark} accessible={false} importantForAccessibility="no">
-                      {' '}✦
-                    </Text>
-                  ) : null}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={toggleToolsPanel}
-                accessibilityRole="button"
-                aria-expanded={toolsOpen}
-                accessibilityLabel={t('today.allDayToolsA11y')}
-                style={({ pressed }) => [styles.caretBtn, pressed && styles.pressed]}
-              >
-                <Text style={styles.caretText}>{toolsOpen ? '⌄' : '⌃'}</Text>
-              </Pressable>
-            </View>
-            {toolHint != null && !toolsOpen && gateFor(toolHint).hintKey != null && (
-              <Text style={styles.toolHintLine}>{t(gateFor(toolHint).hintKey!)}</Text>
-            )}
-            {strategiseError != null && <Text style={styles.strategiseErr}>{strategiseError}</Text>}
-            {orderError != null && <Text style={styles.strategiseErr}>{orderError}</Text>}
-          </>
-        )}
-        {/* The capture panel stays MOUNTED while hidden (display none, not unmount) so typed
-            text survives a collapse: the capture iron rule that text is never lost. The panel's
-            own Close resets the door to Today · no repeat · no steps but keeps the words. */}
-        <View style={[styles.capturePanel, (!captureOpen || selectMode || isClosed) && styles.capturePanelHidden]}>
+      {/* The footer is the composer now, and only the composer (or, in select mode, the select shelf). While
+          it is open it lifts by the keyboard's height, so it rides ABOVE the keyboard instead of vanishing
+          under it (edge-to-edge Android never resizes the window for us; web uses interactive-widget). iOS
+          reports a height that includes the home-indicator strip the padding already covers. Scoped to the
+          composer being open: the held card's inline rename and the modals manage their own keyboards. */}
+      <View style={[styles.footer, dockFooter && !isClosed && styles.footerDock, { paddingBottom: insets.bottom + (composing ? spacing.two : spacing.three) + (composing ? Math.max(0, kbHeight - (Platform.OS === 'ios' ? insets.bottom : 0)) : 0) }]}>
+        {/* The two transient lines (the sort summary and the affirmation: pin, done, a low day) sit just
+            above the composer, where the eye already is. */}
+        {!isClosed && !selectMode && sortSummary && <Text style={styles.sortSummary}>{sortSummary}</Text>}
+        {!isClosed && !selectMode && affirmation && <Text style={styles.affirmation}>{affirmation}</Text>}
+        {/* THE COMPOSER (the Today v3 handoff, 1a): one line under your thumb. It stays MOUNTED in every
+            state (display none in select mode and on a closed day, never unmounted) so typed text
+            survives: the capture iron rule that text is never lost. */}
+        <View style={[styles.capturePanel, (selectMode || isClosed) && styles.capturePanelHidden]}>
           <BrainDump
             ref={attachBrainDump}
-            onCapture={capture}
+            onCapture={captureFromComposer}
             onBiteElephant={biteElephant}
             onSort={sortDump}
-            onClose={() => setCaptureOpen(false)}
+            onActiveChange={onComposerActive}
+            onFocusBox={onComposerFocus}
             today={today}
             onCamera={() => {
               if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
@@ -3118,7 +3224,7 @@ export default function TodayScreen() {
             }}
           />
         </View>
-        {selectMode ? (
+        {selectMode && (
           /* The select shelf (design congruency pass): a card in the held-card-v2 family.
              GENUINELY BULK, and nothing else: every single-task action lives on the held card.
              Fixed anatomy in every state (count+Select all, the verb row, Combine's PERMANENTLY
@@ -3199,72 +3305,6 @@ export default function TodayScreen() {
               </Pressable>
             </View>
           </Animated.View>
-        ) : (
-          <>
-        {!isClosed && sortSummary && <Text style={styles.sortSummary}>{sortSummary}</Text>}
-        {!isClosed && affirmation && <Text style={styles.affirmation}>{affirmation}</Text>}
-        {!isClosed && !captureOpen && (
-          <Pressable
-            onPress={() => setCaptureOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel={t('capture.addA11y')}
-            style={({ pressed }) => [styles.addBar, pressed && styles.pressed]}
-          >
-            <Text style={styles.focusEntryText}>{t('today.addToToday')}</Text>
-          </Pressable>
-        )}
-        {/* With the keyboard up over an open capture, the space above it belongs to the panel:
-            the inscription and the footer links tuck away until the keyboard goes. */}
-        {!(captureOpen && kbHeight > 0) && (
-        <>
-        <View style={styles.ethos}>
-          {/* In the evening the rotating inscription yields to the wind-down line: the same single
-              italic breath under capture, saying the one thing the hour actually calls for. It is
-              no longer a separate element in the pile (the constant frame took the pile away). */}
-          {windDown && !isClosed ? (
-            <>
-              <Text style={styles.windDown}>{t('closeDay.windDown')}</Text>
-              {/* The Settle handoff's second door: one soft line on the evening surface. A
-                  pressable sentence, not a button; the room is offered, never prescribed. */}
-              <Pressable onPress={() => router.push('/settle')} accessibilityRole="button" accessibilityLabel={t('today.toolSettle')} hitSlop={8}>
-                <Text style={styles.windDownSettle}>{t('today.windDownSettle')}</Text>
-              </Pressable>
-            </>
-          ) : (
-            <RotatingPhrase />
-          )}
-        </View>
-        {/* The optional, low-priority links live below the marquee, calm and out of the way:
-            who you're synced as (or the sync invite) and the daily-reminder toggle. */}
-        <View style={styles.optionalLinks}>
-          {isSyncConfigured &&
-            (session ? (
-              <>
-                {syncOk === false ? (
-                  <Text style={styles.optLink} numberOfLines={2}>
-                    {t('today.syncPending')}
-                  </Text>
-                ) : (
-                  <Text style={styles.optLink} numberOfLines={1}>
-                    {t('today.syncedTo', { account: session.user.email ?? t('today.syncedFallbackAccount') })}
-                  </Text>
-                )}
-                <Pressable onPress={signOut} accessibilityRole="button" accessibilityLabel={t('signIn.signOut')} hitSlop={6}>
-                  <Text style={styles.optFaint}>{t('signIn.signOut')}</Text>
-                </Pressable>
-              </>
-            ) : (
-              <Pressable onPress={() => router.push('/sign-in')} accessibilityRole="button" accessibilityLabel={t('signIn.syncAcrossDevices')} hitSlop={6}>
-                <Text style={styles.optLink}>{t('signIn.syncAcrossDevices')}</Text>
-              </Pressable>
-            ))}
-          <Pressable onPress={toggleReminder} accessibilityRole="button" accessibilityLabel={t('reminders.toggleA11y')} hitSlop={6}>
-            <Text style={styles.optLink}>{reminderOn ? t('reminders.dailyOn') : t('reminders.turnOn')}</Text>
-          </Pressable>
-        </View>
-        </>
-        )}
-          </>
         )}
       </View>
 
@@ -3999,14 +4039,19 @@ export default function TodayScreen() {
         onClose={() => setCameraOpen(false)}
         onTasks={(scanned) => {
           setCameraOpen(false);
-          setCaptureOpen(true);
           brainDumpRef.current?.seed(scanned.join('\n'));
+          if (Platform.OS === 'web') scanFocusPending.current = true;
+        }}
+        onDismiss={() => {
+          if (!scanFocusPending.current) return;
+          scanFocusPending.current = false;
+          brainDumpRef.current?.seed(null);
         }}
       />
 
       <RepeatingDrawer
         open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+        onClose={closeDrawer}
         tasks={tasks}
         today={today}
         onToggle={toggle}
@@ -4057,35 +4102,6 @@ export default function TodayScreen() {
           today={today}
         />
       )}
-      <RoomsSheet
-        visible={roomsOpen}
-        onClose={() => setRoomsOpen(false)}
-        onRepeating={openDrawer}
-        onRoutines={() => router.push('/routines')}
-        onLookback={() => router.push('/lookback')}
-        onChart={() => router.push('/chart')}
-        onPremium={() => {
-          track('premium.menu_open');
-          router.push('/premium');
-        }}
-        onSettings={() => router.push('/settings')}
-        // Three states, not two. Signed in with Ours open: the real door. SIGNED OUT: still a row
-        // (a silently absent row reads as "this app does not have that feature", a real user,
-        // 2026-08-17), but it lands on OURS' OWN signed-out explanation now, not straight on the
-        // sign-in email field. The shortcut stripped the context: an email field met on the way to
-        // "share with my wife" reads as the share form (the 2026-09-13 field report), and Melroy's
-        // own C2 device check hit the same bypass on 2026-09-20. Ours explains, THEN signs in.
-        // Sync not configured at all: no row, since Ours can never work.
-        onOurs={
-          oursOpen
-            ? () => router.push(oursPairId ? '/ours-list' : '/ours')
-            : isSyncConfigured && !session
-              ? () => router.push('/ours')
-              : undefined
-        }
-        oursNeedsSync={!session}
-        premium={premium}
-      />
       <Bloom data={bloom} onDone={dismissBloom} />
     </View>
   );
@@ -4093,24 +4109,6 @@ export default function TodayScreen() {
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
-    // A DOOR, not a footnote. It was a hairline row in inkSoft, deliberately faint so that nothing
-    // on the working surface advertised the feature. That reasoning was muddled: the row only exists
-    // once a live list does, so the no-funnel rule is already served by the gating, and what is left
-    // is navigation to something used every day. Melroy, having used it: "way too faint. It has to
-    // be prominent." He is right. A tinted card with a real label, not a whisper under the fold.
-    oursDoor: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: spacing.three,
-      marginTop: spacing.five,
-      paddingHorizontal: spacing.four,
-      paddingVertical: spacing.four,
-      borderRadius: radius.md,
-      borderWidth: border.thin,
-      borderColor: t.colors.accent,
-      backgroundColor: t.colors.accentSoft,
-    },
     // The rest-note: dashed so it reads as a placeholder rather than a row, sage because the work
     // is genuinely finished, and never tappable. It is a fact left where a task was.
     restNote: {
@@ -4124,8 +4122,6 @@ const makeStyles = (t: Theme) =>
     },
     restNoteTitle: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
     restNoteBody: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
-    oursDoorText: { flex: 1, color: t.colors.accent, fontSize: 19 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    oursDoorChevron: { color: t.colors.accent, fontSize: 22 * t.scale, fontFamily: fonts.body },
     screen: { flex: 1, backgroundColor: 'transparent' }, // the LivingBackground shows through
     scroll: { flex: 1 },
     content: {
@@ -4137,32 +4133,6 @@ const makeStyles = (t: Theme) =>
     },
     topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.one },
     date: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    // Quiet drops the pill chrome to a plain accent text button (the dots hide in the JSX); the 44px
-    // touch target stays via the existing hitSlop, and the height matches so the topBar never shifts.
-    roomsPill:
-      t.appearance === 'quiet'
-        ? { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.two, paddingHorizontal: 6 }
-        : {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.two,
-            borderWidth: border.hair,
-            borderColor: rgba(t.colors.ink, t.scheme === 'dark' ? 0.14 : 0.1), // derived so the Menu pill follows the active theme, not a baked-in Dusk tint
-            backgroundColor: rgba(t.colors.surface, 0.6),
-            borderRadius: radius.pill,
-            paddingVertical: spacing.two,
-            paddingHorizontal: 13,
-          },
-    roomsDots: { flexDirection: 'row', gap: 3 },
-    roomsDot: { width: 4, height: 4, borderRadius: radius.pill, backgroundColor: t.colors.accent },
-    roomsLabel: { color: t.colors.accent, fontSize: 13 * t.scale, fontWeight: '700', fontFamily: fonts.bodyBold },
-    title: {
-      color: t.colors.ink,
-      fontSize: 34 * t.scale,
-      fontWeight: '600',
-      fontFamily: fonts.sans,
-      letterSpacing: -0.5,
-    },
     spine: { color: t.colors.inkSoft, fontSize: 16 * t.scale, marginTop: spacing.two, marginBottom: spacing.six, fontFamily: fonts.body },
     list: { gap: spacing.two },
     calmNote: { color: t.colors.inkSoft, fontSize: 16 * t.scale, marginTop: spacing.five, lineHeight: 24 * t.scale, fontFamily: fonts.body },
@@ -4285,7 +4255,7 @@ const makeStyles = (t: Theme) =>
     undoText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     undoAction: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
     toolPremiumMark: { color: t.colors.accents[2], fontSize: 12 * t.scale, marginLeft: spacing.one },
-    dockSpacer: { height: 120 },
+    dockSpacer: { height: spacing.four }, // the composer is one line now; a breath under the last row is enough
     holdHint: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -4349,10 +4319,24 @@ const makeStyles = (t: Theme) =>
     energyPillOn: { backgroundColor: t.colors.accentSoft, borderColor: rgba(t.colors.accent, 0.4) },
     energyPillText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     energyPillTextOn: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    // The constant frame's fixed layer: the Right-now slot + caret, docked above capture, and the
-    // caret panel that grows UPWARD from it. The panel is a calm card, hairline-bordered; the slot
-    // occupant is the one accent-weight thing at the thumb.
-    rightNowRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, marginBottom: spacing.two },
+    // The day tools' card under Energy (the Today v3 handoff): the Right-now slot + caret on one row, and
+    // the tools opening DOWNWARD inside the same card behind a hairline. The slot occupant is the one
+    // accent-weight thing in it. Quiet keeps the structure and drops the card chrome.
+    rightNowCard:
+      t.appearance === 'quiet'
+        ? { marginBottom: spacing.four, borderBottomWidth: border.hair, borderBottomColor: t.quiet.hairline, paddingBottom: spacing.one }
+        : {
+            marginBottom: spacing.four,
+            paddingLeft: spacing.four,
+            paddingRight: 6,
+            paddingVertical: 7,
+            backgroundColor: t.colors.surfaceCard,
+            borderWidth: border.hair,
+            borderColor: t.colors.line,
+            borderRadius: 16,
+          },
+    frameResting: { opacity: 0.45 },
+    rightNowRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
     rightNowSlot: { flex: 1, paddingVertical: spacing.one },
     rightNowOverline: {
       color: t.colors.inkFaint,
@@ -4365,22 +4349,16 @@ const makeStyles = (t: Theme) =>
     rightNowName: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', marginTop: 2 },
     caretBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
     caretText: { color: t.colors.inkSoft, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    toolsPanel: {
-      backgroundColor: t.colors.surface,
-      borderWidth: border.hair,
-      borderColor: t.colors.line,
-      borderRadius: radius.lg,
-      paddingVertical: spacing.two,
-      paddingHorizontal: spacing.four,
-      marginBottom: spacing.three,
-    },
+    toolsPanel: { paddingRight: spacing.three, paddingBottom: spacing.one },
+    toolsDivider: { height: border.hair, backgroundColor: t.colors.line, marginTop: 6, marginBottom: 2, marginRight: spacing.one },
+    // The shrunk heading's bar, outside the scroll while the composer is open.
+    compactHead: { paddingHorizontal: spacing.five, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
     toolRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
     toolName: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', flexShrink: 1 },
     // Quiet-unavailable: lowered contrast, no lock, no border, no strikethrough. Present, resting.
     toolNameQuiet: { color: t.colors.inkFaint, fontFamily: fonts.body, fontWeight: '400' },
     toolNowTag: { color: t.colors.accent, fontSize: 12 * t.scale, fontFamily: fonts.body },
     toolHintLine: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two },
-    toolsScrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(0, 0, 0, 0.4)' },
     windDown: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     // The evening door to Settle: a soft pressable sentence under the wind-down line.
     windDownSettle: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, fontStyle: 'italic', textAlign: 'center', marginTop: spacing.one },
@@ -4450,11 +4428,6 @@ const makeStyles = (t: Theme) =>
     seqReason: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale },
     planDismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two, fontFamily: fonts.body },
     pressed: { opacity: PRESSED_OPACITY },
-    // Quiet: the bordered box becomes a capture line (a 1px underline, left-aligned faint text).
-    addBar:
-      t.appearance === 'quiet'
-        ? { borderBottomWidth: border.hair, borderColor: t.quiet.captureUnderline, paddingVertical: spacing.four, paddingHorizontal: 2, alignItems: 'flex-start' }
-        : { borderWidth: border.hair, borderColor: t.colors.accent, borderRadius: radius.md, paddingVertical: spacing.four, alignItems: 'center' },
     // FROM OURS: its own region, set apart by a hairline above it rather than by a card, so it
     // reads as a window onto the other room and never as a second, competing list of your own.
     sharedStrip: {
@@ -4473,9 +4446,6 @@ const makeStyles = (t: Theme) =>
       textTransform: 'uppercase',
       marginBottom: spacing.one,
     },
-    // Quiet, in the body colour rather than the accent: this is information about another room,
-    // not an alarm about your own. The door is the action; this only says whether it is worth taking.
-    oursDoorSince: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginLeft: spacing.two },
     capturePanel: { gap: spacing.two },
     // display none (not unmount): BrainDump keeps its typed text while the panel is away.
     capturePanelHidden: { display: 'none' },
@@ -4521,12 +4491,6 @@ const makeStyles = (t: Theme) =>
       paddingHorizontal: spacing.four,
       marginBottom: spacing.four,
       alignItems: 'center',
-    },
-    focusEntryText: {
-      color: t.appearance === 'quiet' ? t.colors.inkFaint : t.colors.accent,
-      fontSize: 16 * t.scale,
-      fontFamily: t.appearance === 'quiet' ? fonts.body : fonts.bodyBold,
-      fontWeight: t.appearance === 'quiet' ? '400' : '700',
     },
     // Energy matching: a quiet text door under Focus (no chrome in either appearance),
     // and the three plain choice rows inside its modal.

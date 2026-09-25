@@ -157,7 +157,8 @@ export default function ChartScreen() {
       if (edited + removedCount > 0) {
         track('chart.steps.edited', { edited, removed: removedCount, total: steps.length });
       }
-      router.replace('/today');
+      // Back to the Today underneath (a replace stacked a SECOND Today over the Menu's contents page).
+      router.dismissTo('/today');
     } finally {
       setAdding(false);
     }

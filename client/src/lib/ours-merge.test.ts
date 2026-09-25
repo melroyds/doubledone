@@ -14,6 +14,7 @@ import {
   stillOnList,
   tickOn,
   washedSince,
+  changedSinceLooked,
 } from './ours-merge';
 import { withMonotonicStamps } from './tasks';
 
@@ -485,6 +486,20 @@ describe('the quiet wash', () => {
 
   it('ignores a corrupt stamp rather than washing on it', () => {
     expect(washedSince([task({ id: 'a', updatedAt: Number.NaN })], SEEN, none).size).toBe(0);
+  });
+
+  // Today's "!" must agree with the room: a row your person REMOVED is a change the room never
+  // draws, so it must never light the mark either.
+  it('changedSinceLooked leaves out rows that are no longer on the list', () => {
+    const tasks = [task({ id: 'edited', updatedAt: 9000 }), task({ id: 'removed', updatedAt: 9000, deletedAt: 9000 })];
+    expect([...changedSinceLooked(tasks, SEEN, none)]).toEqual(['edited']);
+    expect(changedSinceLooked([task({ id: 'removed', updatedAt: 9000, deletedAt: 9000 })], SEEN, none).size).toBe(0);
+  });
+
+  it('changedSinceLooked keeps the wash laws: your own rows and a first visit count nothing', () => {
+    const tasks = [task({ id: 'mine', updatedAt: 9000 }), task({ id: 'theirs', updatedAt: 9000 })];
+    expect([...changedSinceLooked(tasks, SEEN, new Set(['mine']))]).toEqual(['theirs']);
+    expect(changedSinceLooked(tasks, 0, none).size).toBe(0);
   });
 
   it('names nobody and counts nothing: it returns ids and only ids', () => {
