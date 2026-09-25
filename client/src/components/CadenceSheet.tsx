@@ -464,7 +464,7 @@ const makeStyles = (t: Theme) =>
     },
     dayOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
     dayText: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
-    dayTextOn: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    dayTextOn: { color: t.scheme === 'dark' ? t.colors.accent : t.colors.ink, fontFamily: fonts.bodyBold, fontWeight: '700' }, // the Chip rule
     // A calendar-shaped grid rather than a stepper: reaching the 28th by tapping + twenty-six times
     // is not a picker, it is a punishment. Seven across on a phone, so it reads as a month.
     monthDays: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two, marginTop: spacing.three },

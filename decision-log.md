@@ -8194,3 +8194,87 @@ not merging. No schema, no migration, no Worker change; native is untouched unti
 **Assumptions to challenge (Melroy):** the Calendar label on the Lookback card; the compact heading
 only on docked layouts; one column at the "Large" text size; the steps teaching lines dropped; and
 "Added: {what}" in German and French while English, Spanish and Italian keep the sentence form.
+
+## 2026-09-26: walking into a room, Chart a course, and Settings in five cards (same PR as Today v3)
+
+**Decided:** build the Claude Design "room entry" handoff, the follow-on to Today v3, on the same branch
+and PR. What happens after a tap on the Menu's contents page:
+- **Every room gets the same top** (`components/RoomTop.tsx`): a back row that names where it goes,
+  the room's picture as a 104pt band, the title in the serif, and the card's for-when line as the
+  subtitle, word for word, so the card and the room say the same thing. The back row stays put;
+  the band and title scroll away. The title is a heading and takes the screen reader's focus on
+  arrival. The band is decorative, the same height at every text size and the same image in dark.
+  Routines, Calendar and Chart a course get the whole top. The Ours invite screen gets the back row
+  and the band, but not a second title, because each of its states carries its own. The old
+  subtitles ("Gentle rituals…", "Everything you've actually finished.", and the Repeating drawer's)
+  are retired in all five locales.
+- **The bands are hand-picked 3:1 crops** (1200 × 400, `band-*.webp`), never a runtime crop of the
+  4:3 card art, so no subject is ever cut off.
+- **A back label names the place it returns to.** The contents page opens every room with
+  `from=menu`, which reads "‹ Menu" and goes back there. Anything else reads "‹ Today" and lands on
+  Today. The Ours list's "Kept with" opens the pairing screen with `from=ours`, which reads "‹ Back",
+  because the Ours list is neither word.
+- **The Ours card goes home**, not into a room. With a live list it replaces the contents page with
+  Today's Ours tab in a 200ms fade. From the Ours tab's own Menu it goes back there. With no list yet
+  it opens the invite screen as a room.
+- **Chart a course**, for Premium and free users alike, is the shipped screen under the room top,
+  with the handoff's four recommendations: the timeframe named once the chips step aside ("By when ·
+  In 2 months"); the added steps shown on Today with the just-added tint for a couple of seconds,
+  handed over through the inbound bridge; one static "✦ Suggesting steps is part of Premium." for a
+  free user, before the tap; and the faint marks (the empty box, the minutes, the ✕, both notes) moved
+  from inkFaint and line to inkSoft. The intro is in ink.
+- **Settings in five cards** under serif headings (Comfort, Look, AI, Access & data, Help), the
+  Premium card between the last two. Every control and every string is kept. Links became whole-row
+  taps with a chevron in inkSoft, so the accent is only for active choices and the back link. AI
+  agent access folds behind one row and opens downward in place. Delete is the last row of its card,
+  in the danger colour, with the confirmation in place. The feedback form opens inside Help. The Ours
+  row is gone (phase 2's way in; Ours lives on Today's heading and the Menu). Quiet drops the cards'
+  fill and border. The four link strings lose their "›" in all five locales, because the row draws it.
+- **Two shared contrast fixes the handoff asked for:** the premium gradient's middle stop deepens
+  from #B5798F to #9E6479 (with the stop positions below, a white label reads at 4.6:1 or better on
+  Plan my day, Suggest steps and the Settings Premium card alike); and a selected soft chip's label is
+  ink on light (the accent on its tint was 4.0:1), the accent on dark.
+
+**Decided against, or changed from the handoff:**
+- **Chart dismisses to Today rather than replacing itself** (`router.dismissTo`). The handoff asks
+  for `replace` so that back never returns to a spent proposal. Dismissing gives that too, while
+  replace stacked a second Today over the contents page, which is the bug the Today v3 review found.
+- **Repeating stays a drawer.** It lives on Today's own task state and write path, so a route would be
+  a second writer. Opened from the Menu, the drawer carries the room top instead: "‹ Menu", the band,
+  the serif title and the for-when line. (The Menu is its only way in; a Close remains for any future one.)
+- **Premium keeps its plain back** except from the Menu, where it reads "‹ Menu". It is opened from a
+  dozen places, and "‹ Today" would lie from most of them.
+- **Settings and Premium get no band and no entrance motion**, as the handoff says: they are not rooms.
+- **No image morph from the card into the band, and no parallax**, as the handoff decided.
+- **The band follows the page gutter (24pt)**, not the handoff's 20pt, so it lines up with the title
+  and the room below it.
+
+**Fixed on the way, from a ten-agent adversarial review (18 confirmed, none in the translations):**
+- The welcome's "Change in Settings" opened Settings with no origin, so its back said "‹ Today" and
+  threw the welcome away mid-flow. It now opens with `from=welcome`, which, like `from=ours`, is a
+  plain "‹ Back" to whoever opened it.
+- The row hints never reached a screen reader (the row's label replaced them); the delete
+  confirmation lost its spacing, which put Delete's reach over the words above it.
+- The gradient fix was only true at the centre of a label: with even stops the right half of
+  "Suggest steps" fell to 3.4:1 and the honey end to 2.2:1. The stops now sit at 0, 0.88 and 1, so
+  white holds at 4.6:1 or better wherever a label or the card's line sits, and the card's line is
+  solid white. The honey is kept, in the last corner.
+- Dusk dark rendered an inkSoft (#8A7F73) that its own preset had already corrected (#A89E93); on the
+  new cards' surface it measured 4.09:1. The canonical palette and the widget's copy now match.
+- Chart's tint hand-off could overwrite a waiting shared line of text (the bridge holds one intent),
+  so it only hands over when nothing is waiting. A goal typed before the Premium ask now survives a
+  web checkout (one sessionStorage draft, read once), and on the phone the Premium panel's way out
+  after a purchase from Chart goes back to Chart. The ✦ in the free-user line is a silent sibling,
+  not a nested span a screen reader reads.
+- The drawer: its top clears the status bar, the band and title scroll away with the list, it is out
+  of the accessibility tree while closed, the screen reader lands on its title when it opens, and it
+  no longer swaps "‹ Menu" for "Close" while sliding out (the Menu is its only way in).
+- When a shared list ends under the pairing screen, the room goes back to that screen rather than
+  stacking a second one under a label the system back no longer matched.
+- The composer's selected day pills follow the new chip rule (ink on light).
+
+**Assumptions to challenge (Melroy):** the honey held to the last 12% of the gradient; Dusk dark's
+lighter inkSoft everywhere (it was the preset's own value); the band on the page gutter; "‹ Back"
+for the Ours list and the welcome; and Repeating's room top living inside the drawer.
+
+**Rolls back by:** not merging, or reverting this commit. No schema, no Worker change.

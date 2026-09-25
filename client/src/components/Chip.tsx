@@ -50,6 +50,8 @@ const makeStyles = (t: Theme) =>
     softOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
     solidOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
     text: { ...t.type.label, color: t.colors.ink },
-    softTextOn: { color: t.colors.accent },
+    // Ink on light: the accent on its own tint is 4.0:1 at 15px, so the fill and border carry the selection.
+    // Dark keeps the accent, which clears 4.5:1 on the dark tint.
+    softTextOn: { color: t.scheme === 'dark' ? t.colors.accent : t.colors.ink },
     solidTextOn: { color: t.colors.onAccent },
   });

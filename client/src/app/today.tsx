@@ -361,7 +361,9 @@ export default function TodayScreen() {
   const [composing, setComposing] = useState(false);
   const [justAdded, setJustAdded] = useState<string[]>([]);
   // The Repeating drawer was opened FROM the Menu's contents page, so closing it goes back there.
-  const drawerFromRooms = useRef(false);
+  // Whether the Repeating drawer was handed over by the Menu's contents page: its top then says "‹ Menu"
+  // and closing it goes back there. State, not a ref, because the drawer draws it.
+  const [drawerFromMenu, setDrawerFromMenu] = useState(false);
   // Web: a Scan's words are seeded while the camera is still closing, and its Modal's focus trap takes the
   // focus back, so the box is focused once more after the Modal has truly gone (its onDismiss).
   const scanFocusPending = useRef(false);
@@ -879,9 +881,17 @@ export default function TodayScreen() {
         }
         // The Menu's contents page handing over the one room that lives here, not in a route.
         if (i.kind === 'repeating') {
-          drawerFromRooms.current = true;
+          setDrawerFromMenu(true);
           setDrawerOpen(true);
           track('repeating.opened', { via: 'rooms' });
+          return;
+        }
+        // Another room (Chart a course) just added tasks: show where they landed with the composer's tint,
+        // briefly, then let it fade (320ms, in TaskRow). Only rows actually on Today can show it.
+        if (i.kind === 'landed') {
+          const ids = i.ids;
+          setJustAdded(ids);
+          setTimeout(() => setJustAdded((prev) => (prev.some((id) => ids.includes(id)) ? prev.filter((id) => !ids.includes(id)) : prev)), 2400);
           return;
         }
         // The composer is always there (it stays mounted), so a seed goes straight in and focuses it.
@@ -2497,10 +2507,9 @@ export default function TodayScreen() {
 
   function closeDrawer() {
     setDrawerOpen(false);
-    if (drawerFromRooms.current) {
-      drawerFromRooms.current = false;
-      openMenu();
-    }
+    // The flag stays set: the Menu is the drawer's only way in, and clearing it here swapped "‹ Menu" for
+    // "Close" while the panel was still sliding out.
+    if (drawerFromMenu) openMenu();
   }
 
   // Android's back closes the drawer rather than leaving the app from under it. Registered only while
@@ -2511,14 +2520,11 @@ export default function TodayScreen() {
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
         // closeDrawer's own steps, inline, so this effect depends on values rather than a fresh function.
         setDrawerOpen(false);
-        if (drawerFromRooms.current) {
-          drawerFromRooms.current = false;
-          router.push({ pathname: '/rooms', params: { ours: oursDest } });
-        }
+        if (drawerFromMenu) router.push({ pathname: '/rooms', params: { ours: oursDest } });
         return true;
       });
       return () => sub.remove();
-    }, [drawerOpen, router, oursDest]),
+    }, [drawerOpen, drawerFromMenu, router, oursDest]),
   );
 
   // A household's own name for its list wins over "Ours"; absent a LIVE list there is no Ours word at all.
@@ -4052,6 +4058,7 @@ export default function TodayScreen() {
       <RepeatingDrawer
         open={drawerOpen}
         onClose={closeDrawer}
+        fromMenu={drawerFromMenu}
         tasks={tasks}
         today={today}
         onToggle={toggle}

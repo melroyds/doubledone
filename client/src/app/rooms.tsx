@@ -4,9 +4,11 @@
 // they are in. So each room now gets a picture and a for-when hint that names the moment, the Lookback
 // (the payoff) gets the wide card, and Settings and Premium step down to the edges.
 //
-// A real route, not a sheet, so every room's own back returns HERE, as the handoff asks. The one room
-// that is not a route, Repeating (a drawer living on Today's own task state and write path), is handed
-// back to Today through the inbound bridge, and Today brings you back here when the drawer closes.
+// A real route, not a sheet, so every room's own back returns HERE, as the handoff asks: each room is
+// opened with `from: 'menu'`, which is what makes its back row say "‹ Menu" (the room-entry handoff). The
+// one room that is not a route, Repeating (a drawer living on Today's own task state and write path), is
+// handed back to Today through the inbound bridge, and Today brings you back here when the drawer closes.
+// Ours is not a room at all any more: it lives behind Today's heading, so its card lands on that tab.
 //
 // What it must never become: no "new" dots or badges on rooms, no ordering by use, no coach marks, and
 // the pictures never change by time or by use. The same rooms in the same place, always.
@@ -91,11 +93,19 @@ export default function RoomsScreen() {
     backToToday();
   }
 
-  function go(room: string, path: '/lookback' | '/routines' | '/chart' | '/ours-list' | '/ours') {
+  function go(room: string, path: '/lookback' | '/routines' | '/chart' | '/ours') {
     return () => {
       track('rooms.opened', { room });
-      router.push(path);
+      router.push({ pathname: path, params: { from: 'menu' } });
     };
+  }
+
+  // The Ours card goes home rather than into a room: this page closes and Today's Ours tab takes its place
+  // (the fade is the route's own). Opened FROM that tab, it simply goes back to it.
+  function openOursTab() {
+    track('rooms.opened', { room: 'ours' });
+    if (params.from === 'ours') router.back();
+    else router.replace('/ours-list');
   }
 
   const lookback: Room = { key: 'lookback', label: t('lookback.title'), hint: t('rooms.lookbackHint'), art: lookbackArt, onPress: go('lookback', '/lookback') };
@@ -112,13 +122,8 @@ export default function RoomsScreen() {
             // reads as "this app does not have that" (a real user, 2026-08-17).
             hint: ours === 'signin' ? t('rooms.oursNeedsSync') : t('rooms.oursHint'),
             art: oursArt,
-            onPress:
-              ours === 'list' && params.from === 'ours'
-                ? () => {
-                    track('rooms.opened', { room: 'ours' });
-                    router.back();
-                  }
-                : go('ours', ours === 'list' ? '/ours-list' : '/ours'),
+            // A live list: its tab on Today. No list yet: the invite screen, as a room, band and ‹ Menu.
+            onPress: ours === 'list' ? openOursTab : go('ours', '/ours'),
           },
         ]),
     // Chart a course is an AI room, so it is simply not here with AI off. Its honey ✦ says Premium to a
@@ -137,7 +142,8 @@ export default function RoomsScreen() {
       onPress={room.onPress}
       accessibilityRole="button"
       accessibilityLabel={`${room.label}${room.premiumMark ? `. ${t('common.premium')}` : ''}. ${room.hint}`}
-      style={({ pressed }) => [wide ? styles.cardWide : styles.card, pressed && styles.pressed]}
+      // While a finger is on it the whole card dims to 60%; no ripple, no scale, no haptic. It opens on lift.
+      style={({ pressed }) => [wide ? styles.cardWide : styles.card, pressed && styles.pressedCard]}
     >
       <View style={[styles.art, wide ? styles.artWide : styles.artGrid]}>
         <Image source={room.art} style={styles.artFill} resizeMode="cover" accessible={false} accessibilityIgnoresInvertColors />
@@ -169,7 +175,7 @@ export default function RoomsScreen() {
             <Pressable onPress={backToToday} accessibilityRole="button" accessibilityLabel={t('rooms.backA11y')} hitSlop={8} style={({ pressed }) => [styles.topLink, pressed && styles.pressed]}>
               <Text style={styles.back}>‹ {t('common.today')}</Text>
             </Pressable>
-            <Pressable onPress={() => router.push('/settings')} accessibilityRole="button" accessibilityLabel={t('settings.title')} hitSlop={8} style={({ pressed }) => [styles.topLink, pressed && styles.pressed]}>
+            <Pressable onPress={() => router.push({ pathname: '/settings', params: { from: 'menu' } })} accessibilityRole="button" accessibilityLabel={t('settings.title')} hitSlop={8} style={({ pressed }) => [styles.topLink, pressed && styles.pressed]}>
               <Text style={styles.settings}>{t('settings.title')}</Text>
             </Pressable>
           </View>
@@ -194,7 +200,7 @@ export default function RoomsScreen() {
           <Pressable
             onPress={() => {
               track('premium.menu_open');
-              router.push('/premium');
+              router.push({ pathname: '/premium', params: { from: 'menu' } });
             }}
             accessibilityRole="button"
             accessibilityLabel={`${t('common.premium')}. ${premium ? t('rooms.premiumHintSubscribed') : aiEnabled ? t('rooms.premiumHintFreeAi') : t('rooms.premiumHintFreeNoAi')}`}
@@ -202,6 +208,9 @@ export default function RoomsScreen() {
             style={({ pressed }) => [styles.premiumRow, pressed && styles.pressed]}
           >
             <Text style={styles.premium}>{t('common.premium')}</Text>
+            <Text style={styles.premium} accessible={false} importantForAccessibility="no">
+              ›
+            </Text>
           </Pressable>
         </Animated.View>
       </ScrollView>
@@ -254,7 +263,18 @@ const makeStyles = (t: Theme) =>
     // Two per row: each cell is half the row less half the gap, so the pair fills it exactly.
     cell: { width: '47.5%', flexGrow: 1 },
     cellWide: { width: '100%' },
-    premiumRow: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: spacing.five },
-    premium: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    // Premium, quiet at the foot: a hairline, the word and a chevron, never the gradient on the calmest page.
+    premiumRow: {
+      minHeight: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: spacing.three,
+      paddingHorizontal: 2,
+      borderTopWidth: border.hair,
+      borderTopColor: t.colors.line,
+    },
+    premium: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     pressed: { opacity: PRESSED_OPACITY },
+    pressedCard: { opacity: 0.6 },
   });

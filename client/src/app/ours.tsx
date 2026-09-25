@@ -1,11 +1,13 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, AppState, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import bandArt from '../../assets/images/rooms/band-ours.webp';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BackLink } from '@/components/BackLink';
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { RoomBackRow, RoomBand, useRoomEntrance, useRoomOrigin } from '@/components/RoomTop';
 import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { useSession } from '@/lib/auth';
 import { t } from '@/lib/locale';
@@ -108,6 +110,8 @@ const WAIT_POLL_CEILING_MS = 30 * 60_000;
 
 export default function OursScreen() {
   const insets = useSafeAreaInsets();
+  const origin = useRoomOrigin();
+  const entrance = useRoomEntrance();
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
   const session = useSession();
@@ -867,7 +871,7 @@ export default function OursScreen() {
           <View style={styles.actions}>
             <PrimaryButton
               label={t('ours.openList')}
-              onPress={() => router.push('/ours-list')}
+              onPress={() => router.push({ pathname: '/ours-list', params: { from: 'room' } })}
               accessibilityLabel={t('ours.openList')}
             />
           </View>
@@ -1144,9 +1148,14 @@ export default function OursScreen() {
   }
 
   return (
-    <View style={styles.screen}>
-      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.four }]}>
-        <BackLink />
+    <Animated.View style={[styles.screen, entrance]}>
+      {/* A room like the others (the room-entry handoff): the back row and the band. Each state below keeps
+          its own title and lead, so there is no second title here. */}
+      <View style={{ paddingTop: insets.top + spacing.two }}>
+        <RoomBackRow origin={origin} />
+      </View>
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: spacing.one }]}>
+        <RoomBand art={bandArt} />
         {body()}
         {/* Under whatever state is showing, so a closed list is reachable from all of them rather
             than only from the one that happened to have room for it. */}
@@ -1154,7 +1163,7 @@ export default function OursScreen() {
         {errorLine ? <Text style={styles.error}>{errorLine}</Text> : null}
         {otpShaped ? <Text style={styles.error}>{t('ours.errCodeLooksLikeOtp')}</Text> : null}
       </ScrollView>
-    </View>
+    </Animated.View>
   );
 }
 

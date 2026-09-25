@@ -89,7 +89,7 @@ export default function OursListScreen() {
   const today = toISODate(now);
   // The archive opens a CLOSED list here by id. Without it the room only ever shows the live one,
   // and "you can still read everything" would have been a promise with nowhere to keep it.
-  const { pair: wantedId, debug } = useLocalSearchParams<{ pair?: string; debug?: string }>();
+  const { pair: wantedId, debug, from } = useLocalSearchParams<{ pair?: string; debug?: string; from?: string }>();
   const debugOn = debug === '1';
 
   const [pair, setPair] = useState<MyPair | null>(null);
@@ -462,8 +462,12 @@ export default function OursListScreen() {
   // second empty state here, because two screens explaining the same absence is how they drift apart
   // and start contradicting each other. `replace`, so Back still leaves rather than bouncing.
   useEffect(() => {
-    if (loaded && readOk.current && !pair) router.replace('/ours');
-  }, [loaded, pair]);
+    if (!(loaded && readOk.current && !pair)) return;
+    // Opened from the pairing screen: go back to it, rather than stacking a second one under a back label
+    // that no longer matches the system back.
+    if (from === 'room' && router.canGoBack()) router.back();
+    else router.replace('/ours');
+  }, [loaded, pair, from]);
 
   // Two people write this list, so the gap between their change and your screen is the window in
   // which you are looking at something untrue. Fifteen seconds while you are actually here, and the
@@ -804,7 +808,7 @@ export default function OursListScreen() {
             One line, and it names your person rather than counting anything. */}
         {pair?.partnerLabel ? (
           <Pressable
-            onPress={() => router.push('/ours')}
+            onPress={() => router.push({ pathname: '/ours', params: { from: 'ours' } })}
             accessibilityRole="button"
             accessibilityLabel={t('ours.keptWith', { name: pair.partnerLabel })}
             hitSlop={6}
@@ -821,7 +825,7 @@ export default function OursListScreen() {
           // (Melroy's device verdict on Focus's fit entry; he made the same call here 2026-09-20:
           // plain text hid the tap). The action half carries the accent.
           <Pressable
-            onPress={() => router.push('/ours')}
+            onPress={() => router.push({ pathname: '/ours', params: { from: 'ours' } })}
             accessibilityRole="button"
             accessibilityLabel={t('ours.newCode')}
             hitSlop={6}

@@ -932,7 +932,7 @@ const makeStyles = (t: Theme) => {
     },
     dayOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
     dayText: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
-    dayTextOn: { color: t.colors.accent, fontWeight: '700' },
+    dayTextOn: { color: t.scheme === 'dark' ? t.colors.accent : t.colors.ink, fontWeight: '700' }, // the Chip rule: the accent on its tint is under AA on light
     stepsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.two },
     stepperRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
     stepBtn: {

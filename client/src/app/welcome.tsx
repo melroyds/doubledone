@@ -502,7 +502,7 @@ export default function WelcomeScreen() {
                 <Text style={styles.optOut}>{t('welcome.sortMyself')}</Text>
               </Pressable>
             ) : (
-              <Pressable onPress={() => router.push('/settings')} accessibilityRole="button" accessibilityLabel={t('welcome.changeInSettingsA11y')} hitSlop={8}>
+              <Pressable onPress={() => router.push({ pathname: '/settings', params: { from: 'welcome' } })} accessibilityRole="button" accessibilityLabel={t('welcome.changeInSettingsA11y')} hitSlop={8}>
                 <Text style={styles.optOut}>{t('welcome.changeInSettings')}</Text>
               </Pressable>
             )

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { AccessibilityInfo, Animated, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { border, fonts, motion, radius, spacing, type Theme } from '@/constants/theme';
 import { t } from '@/lib/locale';
@@ -8,7 +9,10 @@ import { type Task } from '@/lib/tasks';
 import { useReducedMotion, useThemedStyles } from '@/lib/theme-provider';
 import { isDoneOn, isRecurring } from '@/lib/today';
 
+import bandArt from '../../assets/images/rooms/band-repeating.webp';
+
 import { CadenceSheet } from './CadenceSheet';
+import { RoomBand } from './RoomTop';
 
 type Props = {
   open: boolean;
@@ -20,6 +24,9 @@ type Props = {
   onEditSeries: (id: string, title: string, recurrence: Recurrence) => void;
   onRemoveSeries: (id: string) => void; // tombstones the whole series
   onRestoreSeries: (id: string) => void; // the undo: clears the tombstone
+  // Opened from the Menu's contents page: the top is a back row that says "‹ Menu" (closing returns there),
+  // the same as every room. From anywhere else the panel keeps its Close.
+  fromMenu?: boolean;
 };
 
 // The repeating-tasks home: a panel that slides in from the right. Daily and
@@ -29,12 +36,30 @@ type Props = {
 // whole, with an undo); removing from Today only skips a day. Always mounted
 // (off-screen when closed) so the slide animates both ways without a ref or a
 // mount-time setState, both of which the render rules forbid.
-export function RepeatingDrawer({ open, onClose, tasks, today, onToggle, onEditSeries, onRemoveSeries, onRestoreSeries }: Props) {
+export function RepeatingDrawer({ open, onClose, tasks, today, onToggle, onEditSeries, onRemoveSeries, onRestoreSeries, fromMenu = false }: Props) {
   const styles = useThemedStyles(makeStyles);
   const reduced = useReducedMotion();
   const [anim] = useState(() => new Animated.Value(open ? 1 : 0));
   const { width } = useWindowDimensions();
   const panelWidth = Math.min(360, width * 0.86);
+  const insets = useSafeAreaInsets();
+  // On open, the screen reader's focus goes to the title, as every room's does (the room-entry handoff).
+  const titleRef = useRef<Text>(null);
+  useEffect(() => {
+    if (!open) return;
+    const id = setTimeout(() => {
+      const node = titleRef.current;
+      if (!node) return;
+      if (Platform.OS === 'web') {
+        const el = node as unknown as HTMLElement;
+        el.setAttribute?.('tabindex', '-1');
+        el.focus?.({ preventScroll: true });
+      } else {
+        AccessibilityInfo.sendAccessibilityEvent(node, 'focus');
+      }
+    }, 250);
+    return () => clearTimeout(id);
+  }, [open]);
 
   // Removing a series is recoverable, not a confirmation gauntlet: a brief undo bar
   // (matching routines.tsx) instead of a heavy "are you sure?".
@@ -99,26 +124,40 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle, onEditS
   const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [panelWidth, 0] });
 
   return (
-    <View style={[StyleSheet.absoluteFill, { overflow: 'hidden', pointerEvents: open ? 'auto' : 'none' }]}>
+    // Closed, it is off-screen and must be out of the accessibility tree too, or its heading and buttons
+    // turn up in Today's rotor.
+    <View
+      style={[StyleSheet.absoluteFill, { overflow: 'hidden', pointerEvents: open ? 'auto' : 'none' }]}
+      accessibilityElementsHidden={!open}
+      importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
+      aria-hidden={!open}
+    >
       <Animated.View style={[styles.backdrop, { opacity: anim }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('repeat.closeDrawerA11y')} />
       </Animated.View>
-      <Animated.View style={[styles.panel, { width: panelWidth, transform: [{ translateX }] }]}>
-        <View style={styles.header}>
-          <Text style={styles.title}>{t('repeat.title')}</Text>
-          <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('common.close')}>
-            <Text style={styles.done}>{t('common.close')}</Text>
+      <Animated.View
+        style={[styles.panel, { width: panelWidth, paddingTop: Math.max(insets.top + spacing.two, spacing.six), transform: [{ translateX }] }]}
+        accessibilityViewIsModal={open}
+      >
+        {/* The room top, as every room has it (the room-entry handoff): back or Close, the band, the title,
+            and the card's for-when line in place of the old subtitle. */}
+        {fromMenu ? (
+          <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('rooms.backToMenuA11y')} style={styles.backRow}>
+            <Text style={styles.back}>‹ {t('today.menu')}</Text>
           </Pressable>
-        </View>
-        <Text style={styles.sub}>{t('repeat.subtitle')}</Text>
+        ) : (
+          <View style={styles.header}>
+            <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('common.close')} style={styles.backRow}>
+              <Text style={styles.done}>{t('common.close')}</Text>
+            </Pressable>
+          </View>
+        )}
         {/* The naming fix. A repeating TASK and a NOTIFICATION are two different things, and the app
             calls both of them a kind of "reminder", so a person who sets a task to repeat can
             reasonably expect to be told when it is due, and then is not. That confusion is ours to
             fix, not theirs to work out. Said once here, where the expectation is actually formed,
             rather than renaming anything: "Repeating" is the right word, it just needed its limit
             stated, and it points at the two real ways to be notified. */}
-        {/* Web has no Remind me on the held card, so the sentence must not point at it. */}
-        <Text style={styles.notNotify}>{Platform.OS === 'web' ? t('repeat.notANotificationWeb') : t('repeat.notANotification')}</Text>
         {undoId != null && (
           <View style={styles.undoBar}>
             <Text style={styles.undoText}>{t('repeat.removed')}</Text>
@@ -128,6 +167,18 @@ export function RepeatingDrawer({ open, onClose, tasks, today, onToggle, onEditS
           </View>
         )}
         <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+          {/* The band, title and hint scroll away with the list, as in every room; only the back row stays. */}
+          <View style={styles.head}>
+            <RoomBand art={bandArt} />
+            <View>
+              <Text ref={titleRef} style={styles.title} accessibilityRole="header">
+                {t('repeat.title')}
+              </Text>
+              <Text style={styles.sub}>{t('rooms.repeatingHint')}</Text>
+            </View>
+            {/* Web has no Remind me on the held card, so the sentence must not point at it. */}
+            <Text style={styles.notNotify}>{Platform.OS === 'web' ? t('repeat.notANotificationWeb') : t('repeat.notANotification')}</Text>
+          </View>
           {recurring.length === 0 ? (
             <Text style={styles.empty}>
               {t('repeat.empty')}
@@ -211,13 +262,16 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     right: 0,
     backgroundColor: t.colors.bg,
     paddingHorizontal: spacing.five,
-    paddingTop: spacing.seven,
+    paddingTop: spacing.six,
     borderTopLeftRadius: radius.lg,
     borderBottomLeftRadius: radius.lg,
     gap: spacing.three,
   },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { ...t.type.heading, color: t.colors.ink, letterSpacing: -0.3 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+  backRow: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
+  head: { gap: spacing.three, marginBottom: spacing.four },
+  back: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+  title: { color: t.colors.ink, fontSize: 34 * t.scale, lineHeight: 37 * t.scale, fontFamily: fonts.sans, fontWeight: '400' },
   done: { color: t.colors.accent, fontSize: 16 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
   sub: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body },
   // Fainter than the subtitle: it is a clarification, not a warning, and nothing here is wrong.

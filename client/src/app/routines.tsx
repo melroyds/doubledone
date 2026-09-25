@@ -1,10 +1,12 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import bandArt from '../../assets/images/rooms/band-routines.webp';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BackLink } from '@/components/BackLink';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { RoomBackRow, RoomHead, useRoomEntrance, useRoomOrigin } from '@/components/RoomTop';
 import { Segmented } from '@/components/Segmented';
 import { border, cardShadow, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { toISODate } from '@/lib/day';
@@ -72,6 +74,8 @@ const WHENS: { value: RoutineWhen; labelKey: string }[] = [
 // "you missed it", the never-shame spine holds. The pure model lives in lib/routines.
 export default function RoutinesScreen() {
   const insets = useSafeAreaInsets();
+  const origin = useRoomOrigin();
+  const entrance = useRoomEntrance();
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
   const today = useMemo(() => toISODate(new Date()), []);
@@ -526,12 +530,13 @@ export default function RoutinesScreen() {
   const rhythms = routines.filter((r) => r.kind === 'rhythm');
 
   return (
-    <View style={styles.screen}>
-      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.six }]}>
-        <BackLink />
-
-        <Text style={styles.title}>{t('routines.title')}</Text>
-        <Text style={styles.subtitle}>{t('routines.subtitle')}</Text>
+    <Animated.View style={[styles.screen, entrance]}>
+      {/* The room top (the room-entry handoff): the back row stays put, the band and title scroll away. */}
+      <View style={{ paddingTop: insets.top + spacing.two }}>
+        <RoomBackRow origin={origin} />
+      </View>
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: spacing.one }]}>
+        <RoomHead art={bandArt} title={t('routines.title')} hint={t('rooms.routinesHint')} />
 
         {undo && (
           <View style={styles.undoBar}>
@@ -1096,7 +1101,7 @@ export default function RoutinesScreen() {
         )}
         {nudgeNote && <Text style={styles.nudgeNote}>{nudgeNote}</Text>}
       </ScrollView>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -1105,8 +1110,6 @@ const makeStyles = (t: Theme) =>
     screen: { flex: 1, backgroundColor: t.colors.bg },
     scroll: { flex: 1 },
     content: { paddingHorizontal: spacing.five, paddingBottom: spacing.seven, gap: spacing.three, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
-    title: { ...t.type.title, color: t.colors.ink, marginTop: spacing.two },
-    subtitle: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, marginBottom: spacing.three },
     undoBar: {
       flexDirection: 'row',
       justifyContent: 'space-between',

@@ -1,21 +1,20 @@
 import * as Application from 'expo-application';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
-import { Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BackLink } from '@/components/BackLink';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { RoomBackRow, useRoomOrigin } from '@/components/RoomTop';
 import { Segmented } from '@/components/Segmented';
-import { border, fonts, layout, PREMIUM_GRADIENT, PRESSED_OPACITY, radius, spacing, THEME_PRESETS, type Theme } from '@/constants/theme';
+import { border, fonts, layout, PREMIUM_GRADIENT, PREMIUM_GRADIENT_LOCATIONS, PRESSED_OPACITY, radius, spacing, THEME_PRESETS, type Theme } from '@/constants/theme';
 import { deleteAccount } from '@/lib/account';
 import { purgeScrapbookImages } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
 import { toISODate } from '@/lib/day';
 import { buildExport } from '@/lib/export';
 import { t } from '@/lib/locale';
-import { isOursOpen } from '@/lib/ours-api';
 import { usePremium } from '@/lib/premium-provider';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { clampHour, formatReminderHour, reminderReasonLine } from '@/lib/reminders-types';
@@ -74,11 +73,21 @@ export default function SettingsScreen() {
   const [feedbackState, setFeedbackState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [confirmingAi, setConfirmingAi] = useState(false); // showing the "turn AI on" informed-consent card
   const [aiNote, setAiNote] = useState<string | null>(null); // the calm line after turning AI off
-  // Whether Ours is open to THIS account. Starts false and is only ever raised by the server, so a
-  // door that would open onto "shared lists aren't open yet" is simply not drawn. When the
-  // build-time allowlist is dropped at launch, the RPC answers true for everyone and this row
-  // becomes permanent with no code change here.
-  const [oursOpen, setOursOpen] = useState(false);
+  // (The Ours row is gone: it was phase 2's way in, and Ours now lives on Today's heading and on the
+  // Menu's contents page.)
+  const origin = useRoomOrigin();
+  // AI agent access, folded behind one row; it opens downward in its card with a 160ms fade (90ms reduced).
+  const [mcpOpen, setMcpOpen] = useState(false);
+  const [mcpFade] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    if (!mcpOpen) {
+      mcpFade.setValue(0);
+      return;
+    }
+    const a = Animated.timing(mcpFade, { toValue: 1, duration: theme.reduceMotion ? 90 : 160, useNativeDriver: Platform.OS !== 'web' });
+    a.start();
+    return () => a.stop();
+  }, [mcpOpen, mcpFade, theme.reduceMotion]);
 
   // Re-check the entitlement on focus (e.g. after returning from checkout) so the Premium card's
   // "Active" marker is current, and reflect the persisted daily-reminder toggle. The premium flag
@@ -118,17 +127,10 @@ export default function SettingsScreen() {
       void checkForUpdate(Application.nativeApplicationVersion ?? FALLBACK_VERSION).then((status) => {
         if (active) setUpdate(status);
       });
-      if (supabase && session) {
-        void isOursOpen(supabase).then((open) => {
-          if (active) setOursOpen(open);
-        });
-      } else {
-        setOursOpen(false);
-      }
       return () => {
         active = false;
       };
-    }, [refresh, session]),
+    }, [refresh]),
   );
 
   // Toggle the opt-in daily reminder from Settings. Mirrors the Today footer and shares the
@@ -314,93 +316,120 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.six }]}>
-        <BackLink />
-
-        <Text style={styles.title}>{t('settings.title')}</Text>
+      {/* The back row stays put; everything else scrolls. "‹ Menu" from the contents page (the room-entry
+          handoff's back-label rule), "‹ Today" from anywhere else. */}
+      <View style={{ paddingTop: insets.top + spacing.two }}>
+        <RoomBackRow origin={origin} />
+      </View>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <Text style={styles.title} accessibilityRole="header">
+          {t('settings.title')}
+        </Text>
         <Text style={styles.subtitle}>{t('settings.subtitle')}</Text>
 
-        <Text style={styles.band}>{t('settings.bandComfort')}</Text>
-        <View style={styles.rows}>
-          <Choice<ThemePref>
-            label={t('settings.themeLabel')}
-            hint={t('settings.themeHint')}
-            value={settings.theme}
-            options={[
-              { value: 'system', label: t('settings.themeSystem') },
-              { value: 'light', label: t('settings.themeLight') },
-              { value: 'dark', label: t('settings.themeDark') },
-            ]}
-            onChange={(theme) => setSettings({ theme })}
-          />
-          <Choice<TextSize>
-            label={t('settings.textSizeLabel')}
-            value={settings.textSize}
-            options={[
-              { value: 'small', label: t('settings.textSizeSmall') },
-              { value: 'default', label: t('settings.textSizeDefault') },
-              { value: 'large', label: t('settings.textSizeLarge') },
-            ]}
-            onChange={(textSize) => setSettings({ textSize })}
-          />
-          <Choice<MotionPref>
-            label={t('settings.motionLabel')}
-            hint={t('settings.motionHint')}
-            value={settings.motion}
-            options={[
-              { value: 'system', label: t('settings.motionFollowSystem') },
-              { value: 'reduce', label: t('settings.motionReduce') },
-            ]}
-            onChange={(motion) => setSettings({ motion })}
-          />
-          <Choice<'off' | 'on'>
-            label={t('settings.reminderLabel')}
-            hint={t('settings.reminderHint')}
-            value={reminderOn ? 'on' : 'off'}
-            options={[
-              { value: 'off', label: t('common.off') },
-              { value: 'on', label: t('common.on') },
-            ]}
-            onChange={(v) => setReminder(v === 'on')}
-          />
-          {reminderNote && <Text style={styles.rowHint}>{reminderNote}</Text>}
-          {reminderOn && (
-            <View style={styles.reminderTimeRow}>
-              <Text style={styles.reminderTimeLabel}>{t('settings.remindMeAt')}</Text>
-              <View style={styles.stepper}>
-                <Pressable
-                  onPress={() => changeReminderHour(reminderHour - 1)}
-                  disabled={reminderHour <= 0}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('settings.reminderEarlier')}
-                  hitSlop={8}
-                  style={({ pressed }) => [styles.stepBtn, reminderHour <= 0 && styles.stepBtnOff, pressed && styles.pressed]}
-                >
-                  <Text style={styles.stepGlyph}>−</Text>
-                </Pressable>
-                <Text
-                  style={styles.stepValue}
-                  accessibilityLabel={t('settings.reminderAtA11y', { time: formatReminderHour(reminderHour) })}
-                >
-                  {formatReminderHour(reminderHour)}
-                </Text>
-                <Pressable
-                  onPress={() => changeReminderHour(reminderHour + 1)}
-                  disabled={reminderHour >= 23}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('today.laterHeading')}
-                  hitSlop={8}
-                  style={({ pressed }) => [styles.stepBtn, reminderHour >= 23 && styles.stepBtnOff, pressed && styles.pressed]}
-                >
-                  <Text style={styles.stepGlyph}>+</Text>
-                </Pressable>
+        {/* FIVE CARDS under serif headings (the room-entry handoff, section 8). Every control and every string
+            from the long single column is still here; they are only grouped. Rows split by hairlines, links
+            become whole-row taps with a chevron, and the accent is kept for active choices. */}
+        <Text style={styles.sectionHead} accessibilityRole="header">
+          {t('settings.bandComfort')}
+        </Text>
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <Choice<ThemePref>
+              label={t('settings.themeLabel')}
+              hint={t('settings.themeHint')}
+              value={settings.theme}
+              options={[
+                { value: 'system', label: t('settings.themeSystem') },
+                { value: 'light', label: t('settings.themeLight') },
+                { value: 'dark', label: t('settings.themeDark') },
+              ]}
+              onChange={(theme) => setSettings({ theme })}
+            />
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <Choice<TextSize>
+              label={t('settings.textSizeLabel')}
+              value={settings.textSize}
+              options={[
+                { value: 'small', label: t('settings.textSizeSmall') },
+                { value: 'default', label: t('settings.textSizeDefault') },
+                { value: 'large', label: t('settings.textSizeLarge') },
+              ]}
+              onChange={(textSize) => setSettings({ textSize })}
+            />
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <Choice<MotionPref>
+              label={t('settings.motionLabel')}
+              hint={t('settings.motionHint')}
+              value={settings.motion}
+              options={[
+                { value: 'system', label: t('settings.motionFollowSystem') },
+                { value: 'reduce', label: t('settings.motionReduce') },
+              ]}
+              onChange={(motion) => setSettings({ motion })}
+            />
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <Choice<'off' | 'on'>
+              label={t('settings.reminderLabel')}
+              hint={t('settings.reminderHint')}
+              value={reminderOn ? 'on' : 'off'}
+              options={[
+                { value: 'off', label: t('common.off') },
+                { value: 'on', label: t('common.on') },
+              ]}
+              onChange={(v) => setReminder(v === 'on')}
+            />
+            {reminderNote && <Text style={styles.rowHint}>{reminderNote}</Text>}
+            {reminderOn && (
+              <View style={styles.reminderTimeRow}>
+                <Text style={styles.reminderTimeLabel}>{t('settings.remindMeAt')}</Text>
+                <View style={styles.stepper}>
+                  <Pressable
+                    onPress={() => changeReminderHour(reminderHour - 1)}
+                    disabled={reminderHour <= 0}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('settings.reminderEarlier')}
+                    hitSlop={8}
+                    style={({ pressed }) => [styles.stepBtn, reminderHour <= 0 && styles.stepBtnOff, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.stepGlyph}>−</Text>
+                  </Pressable>
+                  <Text
+                    style={styles.stepValue}
+                    accessibilityLabel={t('settings.reminderAtA11y', { time: formatReminderHour(reminderHour) })}
+                  >
+                    {formatReminderHour(reminderHour)}
+                  </Text>
+                  <Pressable
+                    onPress={() => changeReminderHour(reminderHour + 1)}
+                    disabled={reminderHour >= 23}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('today.laterHeading')}
+                    hitSlop={8}
+                    style={({ pressed }) => [styles.stepBtn, reminderHour >= 23 && styles.stepBtnOff, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.stepGlyph}>+</Text>
+                  </Pressable>
+                </View>
               </View>
-            </View>
-          )}
-          <View style={styles.accentBlock}>
+            )}
+          </View>
+        </View>
+
+        <Text style={styles.sectionHead} accessibilityRole="header">
+          {t('settings.bandLook')}
+        </Text>
+        <View style={styles.card}>
+          <View style={styles.row}>
             <View style={styles.accentHead}>
-              <Text style={styles.accentLabel}>{t('settings.colourThemeLabel')}</Text>
-              {!premium && <Text style={styles.accentTag}>{t('common.premium')}</Text>}
+              <Text style={styles.rowLabel}>{t('settings.colourThemeLabel')}</Text>
+              {!premium && <PremiumTag />}
             </View>
             <Text style={styles.rowHint}>
               {premium ? t('settings.colourThemeHintPremium') : t('settings.colourThemeHintFree')}
@@ -445,12 +474,13 @@ export default function SettingsScreen() {
               })}
             </View>
           </View>
+          <View style={styles.divider} />
           {/* The Quiet interface appearance, beside the colour themes: same Premium gate, the shared
               Segmented toggle. Switching re-paints the whole app live and layout-stable. */}
-          <View style={styles.accentBlock}>
+          <View style={styles.row}>
             <View style={styles.accentHead}>
-              <Text style={styles.accentLabel}>{t('settings.appearanceLabel')}</Text>
-              {!premium && <Text style={styles.accentTag}>{t('common.premium')}</Text>}
+              <Text style={styles.rowLabel}>{t('settings.appearanceLabel')}</Text>
+              {!premium && <PremiumTag />}
             </View>
             <Text style={styles.rowHint}>{premium ? t('settings.appearanceHintPremium') : t('settings.appearanceHintFree')}</Text>
             <View style={styles.segment}>
@@ -475,180 +505,170 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <Text style={styles.band}>{t('settings.bandAi')}</Text>
-        <View style={styles.account}>
-          <Text style={styles.rowHint}>
-            {settings.aiEnabled ? t('settings.aiStatusOn') : t('settings.aiStatusOff')}
-          </Text>
+        <Text style={styles.sectionHead} accessibilityRole="header">
+          {t('settings.bandAi')}
+        </Text>
+        <View style={styles.card}>
+          <View style={styles.rowTight}>
+            <Text style={styles.rowHint}>{settings.aiEnabled ? t('settings.aiStatusOn') : t('settings.aiStatusOff')}</Text>
+          </View>
+          <View style={styles.divider} />
           {settings.aiEnabled ? (
-            <Pressable onPress={turnAiOff} accessibilityRole="button" accessibilityLabel={t('settings.turnAiOffA11y')} hitSlop={6}>
-              <Text style={styles.exportLink}>{t('settings.turnAiOffLink')}</Text>
-            </Pressable>
+            <LinkRow label={t('settings.turnAiOffLink')} a11y={t('settings.turnAiOffA11y')} onPress={turnAiOff} />
           ) : confirmingAi ? (
-            <View style={styles.confirmBox}>
-              <Text style={styles.confirmText}>{t('settings.aiConsentBody')}</Text>
-              <View style={styles.confirmRow}>
-                <Pressable onPress={() => setConfirmingAi(false)} accessibilityRole="button" accessibilityLabel={t('common.notNow')} hitSlop={6}>
-                  <Text style={styles.keep}>{t('common.notNow')}</Text>
-                </Pressable>
-                <Pressable onPress={confirmAiOn} accessibilityRole="button" accessibilityLabel={t('settings.aiConsentTurnOn')} hitSlop={6}>
-                  <Text style={styles.exportLink}>{t('settings.aiConsentTurnOn')}</Text>
-                </Pressable>
+            <View style={styles.row}>
+              <View style={styles.confirmBox}>
+                <Text style={styles.confirmText}>{t('settings.aiConsentBody')}</Text>
+                <View style={styles.confirmRow}>
+                  <Pressable onPress={() => setConfirmingAi(false)} accessibilityRole="button" accessibilityLabel={t('common.notNow')} hitSlop={6}>
+                    <Text style={styles.keep}>{t('common.notNow')}</Text>
+                  </Pressable>
+                  <Pressable onPress={confirmAiOn} accessibilityRole="button" accessibilityLabel={t('settings.aiConsentTurnOn')} hitSlop={6}>
+                    <Text style={styles.confirmYes}>{t('settings.aiConsentTurnOn')}</Text>
+                  </Pressable>
+                </View>
               </View>
             </View>
           ) : (
-            <Pressable onPress={() => setConfirmingAi(true)} accessibilityRole="button" accessibilityLabel={t('settings.turnAiOnA11y')} hitSlop={6}>
-              <Text style={styles.exportLink}>{t('settings.turnAiOnLink')}</Text>
-            </Pressable>
+            <LinkRow label={t('settings.turnAiOnLink')} a11y={t('settings.turnAiOnA11y')} onPress={() => setConfirmingAi(true)} />
           )}
-          {aiNote ? <Text style={styles.exportNote}>{aiNote}</Text> : null}
+          {aiNote ? <Text style={styles.cardNote}>{aiNote}</Text> : null}
+          {/* AI agent access: one collapsed row, opening downward in its card. Only when signed in, as before,
+              and nothing that was in it is removed. */}
+          {session ? (
+            <>
+              <View style={styles.divider} />
+              <LinkRow
+                label={t('settings.mcpLabel')}
+                hint={t('settings.mcpRowHint')}
+                a11y={t('settings.mcpLabel')}
+                chevron={mcpOpen ? '˄' : '˅'}
+                expanded={mcpOpen}
+                onPress={() => setMcpOpen((v) => !v)}
+              />
+              {mcpOpen ? (
+                <Animated.View style={[styles.mcpBody, { opacity: mcpFade }]}>
+                  <Text style={styles.mcpHint}>{t('settings.mcpHint')}</Text>
+                  <Text style={styles.mcpUrl} selectable>
+                    {MCP_URL}
+                  </Text>
+                  <Pressable
+                    onPress={revealMcpToken}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('settings.copyMcpTokenA11y')}
+                    hitSlop={6}
+                    style={({ pressed }) => [pressed && styles.pressed]}
+                  >
+                    <Text style={styles.mcpAction}>{mcpCopied ? t('settings.tokenCopied') : t('settings.copyMyToken')}</Text>
+                  </Pressable>
+                  {mcpToken ? (
+                    <Text style={styles.mcpToken} selectable numberOfLines={3}>
+                      {mcpToken}
+                    </Text>
+                  ) : null}
+                  {mcpExpired && (
+                    <Pressable
+                      onPress={() => router.push('/sign-in')}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('settings.mcpExpiredA11y')}
+                      hitSlop={6}
+                    >
+                      <Text style={styles.mcpExpired}>{t('settings.mcpExpired')}</Text>
+                    </Pressable>
+                  )}
+                  <Text style={styles.mcpFoot}>{t('settings.mcpFootnote')}</Text>
+                  {/* inkSoft, not the accent: it is a switch, not the next step. */}
+                  <Pressable
+                    onPress={disconnectMcp}
+                    disabled={mcpDisconnecting}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('settings.mcpDisconnectA11y')}
+                    hitSlop={6}
+                    style={({ pressed }) => [pressed && styles.pressed]}
+                  >
+                    <Text style={styles.mcpDisconnect}>{t('settings.mcpDisconnect')}</Text>
+                  </Pressable>
+                  {mcpDisconnectNote ? <Text style={styles.mcpFoot}>{mcpDisconnectNote}</Text> : null}
+                </Animated.View>
+              ) : null}
+            </>
+          ) : null}
         </View>
 
-        <Text style={styles.band}>{t('settings.bandAccessData')}</Text>
-        <Pressable
-          onPress={() => router.push('/privacy')}
-          accessibilityRole="button"
-          accessibilityLabel={t('settings.privacyLinkA11y')}
-          style={styles.privacyLink}
-        >
-          <Text style={styles.privacyLinkText}>{t('settings.privacyLink')}</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => router.push('/terms')}
-          accessibilityRole="button"
-          accessibilityLabel={t('settings.termsLinkA11y')}
-          style={styles.privacyLink}
-        >
-          <Text style={styles.privacyLinkText}>{t('settings.termsLink')}</Text>
-        </Pressable>
-
-        <View style={styles.account}>
-          <Text style={styles.accountLabel}>{t('settings.yourDataLabel')}</Text>
-          <Text style={styles.exportHint}>{t('settings.exportHint')}</Text>
-          <Pressable
+        <Text style={styles.sectionHead} accessibilityRole="header">
+          {t('settings.bandAccessData')}
+        </Text>
+        <View style={styles.card}>
+          {session ? (
+            <>
+              <View style={styles.valueRow} accessible accessibilityLabel={`${t('settings.accountLabel')}. ${session.user.email ?? t('today.syncedFallbackAccount')}`}>
+                <Text style={styles.linkLabel}>{t('settings.accountLabel')}</Text>
+                <Text style={styles.value} numberOfLines={1}>
+                  {session.user.email ?? t('today.syncedFallbackAccount')}
+                </Text>
+              </View>
+              {syncOk === false ? <Text style={styles.cardNote}>{t('today.syncPending')}</Text> : null}
+              <View style={styles.divider} />
+            </>
+          ) : null}
+          <LinkRow
+            label={exporting ? t('settings.exporting') : t('settings.exportAction')}
+            hint={t('settings.exportHint')}
+            a11y={t('settings.exportAction')}
             onPress={runExport}
             disabled={exporting}
-            accessibilityRole="button"
-            accessibilityLabel={t('settings.exportAction')}
-            hitSlop={6}
-          >
-            <Text style={styles.exportLink}>{exporting ? t('settings.exporting') : t('settings.exportAction')}</Text>
-          </Pressable>
-          {exportNote ? <Text style={styles.exportNote}>{exportNote}</Text> : null}
+          />
+          {exportNote ? <Text style={styles.cardNote}>{exportNote}</Text> : null}
+          <View style={styles.divider} />
+          <LinkRow label={t('settings.privacyLink')} a11y={t('settings.privacyLinkA11y')} onPress={() => router.push('/privacy')} />
+          <View style={styles.divider} />
+          <LinkRow label={t('settings.termsLink')} a11y={t('settings.termsLinkA11y')} onPress={() => router.push('/terms')} />
+          {/* Delete is LAST in its card, in the danger colour, and opens the existing confirmation in place:
+              Keep my account on the left, where the thumb rests. */}
+          {session ? (
+            <>
+              <View style={styles.divider} />
+              {confirming ? (
+                // Spaced like the old confirmation box, so Delete's reach never overlaps the words above it.
+                <View style={[styles.row, styles.confirmStack]}>
+                  <Text style={[styles.linkLabel, styles.dangerText]}>{t('settings.deleteAccountLink')}</Text>
+                  <Text style={styles.confirmText}>{t('settings.deleteConfirmBody')}</Text>
+                  <View style={styles.confirmRow}>
+                    <Pressable
+                      onPress={() => setConfirming(false)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('settings.keepMyAccount')}
+                      hitSlop={6}
+                    >
+                      <Text style={styles.keep}>{t('settings.keepMyAccount')}</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={runDelete}
+                      disabled={deleting}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('settings.confirmDeleteA11y')}
+                      hitSlop={6}
+                    >
+                      <Text style={styles.deleteConfirm}>{deleting ? t('settings.deleting') : t('settings.deleteAction')}</Text>
+                    </Pressable>
+                  </View>
+                  {deleteError ? <Text style={styles.deleteErr}>{deleteError}</Text> : null}
+                </View>
+              ) : (
+                <LinkRow label={t('settings.deleteAccountLink')} a11y={t('settings.deleteAccountLink')} onPress={() => setConfirming(true)} tone="danger" chevron={null} />
+              )}
+            </>
+          ) : null}
         </View>
 
-        {session ? (
-          <View style={styles.account}>
-            <Text style={styles.accountLabel}>{t('settings.accountLabel')}</Text>
-            <Text style={styles.accountEmail} numberOfLines={syncOk === false ? 2 : 1}>
-              {syncOk === false
-                ? t('today.syncPending')
-                : t('settings.syncedTo', { email: session.user.email ?? t('today.syncedFallbackAccount') })}
-            </Text>
-            {confirming ? (
-              <View style={styles.confirmBox}>
-                <Text style={styles.confirmText}>{t('settings.deleteConfirmBody')}</Text>
-                <View style={styles.confirmRow}>
-                  <Pressable
-                    onPress={() => setConfirming(false)}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('settings.keepMyAccount')}
-                    hitSlop={6}
-                  >
-                    <Text style={styles.keep}>{t('settings.keepMyAccount')}</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={runDelete}
-                    disabled={deleting}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('settings.confirmDeleteA11y')}
-                    hitSlop={6}
-                  >
-                    <Text style={styles.deleteConfirm}>{deleting ? t('settings.deleting') : t('settings.deleteAction')}</Text>
-                  </Pressable>
-                </View>
-                {deleteError ? <Text style={styles.deleteErr}>{deleteError}</Text> : null}
-              </View>
-            ) : (
-              <Pressable
-                onPress={() => setConfirming(true)}
-                accessibilityRole="button"
-                accessibilityLabel={t('settings.deleteAccountLink')}
-                hitSlop={6}
-              >
-                <Text style={styles.deleteLink}>{t('settings.deleteAccountLink')}</Text>
-              </Pressable>
-            )}
-          </View>
-        ) : null}
-
-        {/* Ours. Drawn only for an account the server has already said yes to, so this door can
-            never open onto a refusal. Phase 2's way in; Today gets the real quiet door in phase 3. */}
-        {session && oursOpen ? (
-          <Pressable
-            onPress={() => router.push('/ours')}
-            accessibilityRole="button"
-            accessibilityLabel={t('ours.defaultName')}
-            style={({ pressed }) => [styles.account, pressed && styles.pressed]}
-          >
-            <Text style={styles.accountLabel}>{t('ours.defaultName')}</Text>
-            <Text style={styles.mcpHint}>{t('ours.lead')}</Text>
-          </Pressable>
-        ) : null}
-
-        {session ? (
-          <View style={styles.account}>
-            <Text style={styles.accountLabel}>{t('settings.mcpLabel')}</Text>
-            <Text style={styles.mcpHint}>{t('settings.mcpHint')}</Text>
-            <Text style={styles.mcpUrl} selectable>
-              {MCP_URL}
-            </Text>
-            <Pressable
-              onPress={revealMcpToken}
-              accessibilityRole="button"
-              accessibilityLabel={t('settings.copyMcpTokenA11y')}
-              hitSlop={6}
-              style={({ pressed }) => [pressed && styles.pressed]}
-            >
-              <Text style={styles.mcpAction}>{mcpCopied ? t('settings.tokenCopied') : t('settings.copyMyToken')}</Text>
-            </Pressable>
-            {mcpToken ? (
-              <Text style={styles.mcpToken} selectable numberOfLines={3}>
-                {mcpToken}
-              </Text>
-            ) : null}
-            {mcpExpired && (
-              <Pressable
-                onPress={() => router.push('/sign-in')}
-                accessibilityRole="button"
-                accessibilityLabel={t('settings.mcpExpiredA11y')}
-                hitSlop={6}
-              >
-                <Text style={styles.mcpExpired}>{t('settings.mcpExpired')}</Text>
-              </Pressable>
-            )}
-            <Text style={styles.mcpFoot}>{t('settings.mcpFootnote')}</Text>
-            <Pressable
-              onPress={disconnectMcp}
-              disabled={mcpDisconnecting}
-              accessibilityRole="button"
-              accessibilityLabel={t('settings.mcpDisconnectA11y')}
-              hitSlop={6}
-              style={({ pressed }) => [pressed && styles.pressed]}
-            >
-              <Text style={styles.mcpDisconnect}>{t('settings.mcpDisconnect')}</Text>
-            </Pressable>
-            {mcpDisconnectNote ? <Text style={styles.mcpFoot}>{mcpDisconnectNote}</Text> : null}
-          </View>
-        ) : null}
-
+        {/* The Premium card, unchanged, between Access & data and Help. */}
         <Pressable
           onPress={() => router.push('/premium')}
           accessibilityRole="button"
           accessibilityLabel={premium ? t('settings.premiumCardActiveA11y') : t('settings.premiumCardSeePlansA11y')}
           style={({ pressed }) => [styles.premiumCardWrap, pressed && styles.pressed]}
         >
-          <LinearGradient colors={PREMIUM_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premiumCard}>
+          <LinearGradient colors={PREMIUM_GRADIENT} locations={PREMIUM_GRADIENT_LOCATIONS} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premiumCard}>
             <View style={styles.premiumCardText}>
               <Text style={styles.premiumCardTitle}>{t('premium.brandName')}</Text>
               <Text style={styles.premiumCardSub}>
@@ -663,65 +683,63 @@ export default function SettingsScreen() {
           </LinearGradient>
         </Pressable>
 
-        {feedbackState === 'sent' ? (
-          <Text style={styles.feedbackThanks}>{t('settings.feedbackThanks')}</Text>
-        ) : feedbackOpen ? (
-          <View style={styles.feedbackForm}>
-            <TextInput
-              style={styles.feedbackInput}
-              value={feedbackText}
-              onChangeText={(t) => {
-                setFeedbackText(t);
-                if (feedbackState === 'error') setFeedbackState('idle');
-              }}
-              placeholder={t('settings.feedbackPlaceholder')}
-              placeholderTextColor={theme.colors.inkFaint}
-              multiline
-              editable={feedbackState !== 'sending'}
-              accessibilityLabel={t('settings.feedbackInputA11y')}
-            />
-            {feedbackState === 'error' && <Text style={styles.feedbackError}>{t('settings.feedbackError')}</Text>}
-            <View style={styles.feedbackActions}>
-              <Pressable
-                onPress={() => {
-                  setFeedbackOpen(false);
-                  setFeedbackText('');
-                  setFeedbackState('idle');
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={t('settings.feedbackCancelA11y')}
-                hitSlop={8}
-              >
-                <Text style={styles.feedbackCancel}>{t('common.cancel')}</Text>
-              </Pressable>
-              <PrimaryButton
-                label={feedbackState === 'sending' ? t('settings.feedbackSending') : t('common.send')}
-                onPress={sendFeedback}
-                disabled={!feedbackText.trim() || feedbackState === 'sending'}
-                accessibilityLabel={t('settings.sendFeedback')}
-              />
+        <Text style={styles.sectionHead} accessibilityRole="header">
+          {t('settings.bandHelp')}
+        </Text>
+        <View style={styles.card}>
+          {feedbackState === 'sent' ? (
+            <View style={styles.row}>
+              <Text style={styles.feedbackThanks}>{t('settings.feedbackThanks')}</Text>
             </View>
-          </View>
-        ) : (
-          <Pressable
-            onPress={() => setFeedbackOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel={t('settings.sendFeedback')}
-            hitSlop={8}
-            style={styles.welcomeAgain}
-          >
-            <Text style={styles.welcomeAgainText}>{t('settings.sendFeedback')}</Text>
-          </Pressable>
-        )}
-        <Pressable
-          onPress={() => router.push({ pathname: '/welcome', params: { replay: '1' } })}
-          accessibilityRole="button"
-          accessibilityLabel={t('settings.seeWelcomeAgain')}
-          hitSlop={8}
-          style={styles.welcomeAgain}
-        >
-          <Text style={styles.welcomeAgainText}>{t('settings.seeWelcomeAgain')}</Text>
-        </Pressable>
+          ) : feedbackOpen ? (
+            // The feedback form opens in place, inside the Help card.
+            <View style={[styles.row, styles.feedbackForm]}>
+              <TextInput
+                style={styles.feedbackInput}
+                value={feedbackText}
+                onChangeText={(t) => {
+                  setFeedbackText(t);
+                  if (feedbackState === 'error') setFeedbackState('idle');
+                }}
+                placeholder={t('settings.feedbackPlaceholder')}
+                placeholderTextColor={theme.colors.inkFaint}
+                multiline
+                editable={feedbackState !== 'sending'}
+                accessibilityLabel={t('settings.feedbackInputA11y')}
+              />
+              {feedbackState === 'error' && <Text style={styles.feedbackError}>{t('settings.feedbackError')}</Text>}
+              <View style={styles.feedbackActions}>
+                <Pressable
+                  onPress={() => {
+                    setFeedbackOpen(false);
+                    setFeedbackText('');
+                    setFeedbackState('idle');
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('settings.feedbackCancelA11y')}
+                  hitSlop={8}
+                >
+                  <Text style={styles.feedbackCancel}>{t('common.cancel')}</Text>
+                </Pressable>
+                <PrimaryButton
+                  label={feedbackState === 'sending' ? t('settings.feedbackSending') : t('common.send')}
+                  onPress={sendFeedback}
+                  disabled={!feedbackText.trim() || feedbackState === 'sending'}
+                  accessibilityLabel={t('settings.sendFeedback')}
+                />
+              </View>
+            </View>
+          ) : (
+            <LinkRow label={t('settings.sendFeedback')} a11y={t('settings.sendFeedback')} onPress={() => setFeedbackOpen(true)} />
+          )}
+          <View style={styles.divider} />
+          <LinkRow
+            label={t('settings.seeWelcomeAgain')}
+            a11y={t('settings.seeWelcomeAgain')}
+            onPress={() => router.push({ pathname: '/welcome', params: { replay: '1' } })}
+          />
+        </View>
+
         {devAllowed ? (
           <View>
             <Text style={styles.band}>{t('settings.bandDeveloper')}</Text>
@@ -800,6 +818,60 @@ function Choice<T extends string>({ label, hint, value, options, onChange }: Cho
   );
 }
 
+type LinkRowProps = {
+  label: string;
+  hint?: string;
+  a11y: string;
+  onPress: () => void;
+  disabled?: boolean;
+  chevron?: string | null; // the default ›; ˅ / ˄ for a row that opens in place; null for none (Delete)
+  tone?: 'danger';
+  expanded?: boolean;
+};
+
+// A link, as a row: at least 52pt tall, an ink label (and an optional hint), a chevron in inkSoft, and the
+// whole row tappable. The accent stays for active choices and the back link, so it stops being the colour of
+// every link on the page.
+function LinkRow({ label, hint, a11y, onPress, disabled, chevron = '›', tone, expanded }: LinkRowProps) {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      // The label replaces the row's text for a screen reader, so the hint rides in it (accessibilityHint
+      // is not surfaced on web).
+      accessibilityLabel={hint ? `${a11y}. ${hint}` : a11y}
+      aria-expanded={expanded}
+      aria-disabled={disabled}
+      style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
+    >
+      <View style={styles.linkText}>
+        <Text style={[styles.linkLabel, tone === 'danger' && styles.dangerText]}>{label}</Text>
+        {hint ? <Text style={styles.linkHint}>{hint}</Text> : null}
+      </View>
+      {chevron ? (
+        <Text style={styles.chevron} accessible={false} importantForAccessibility="no">
+          {chevron}
+        </Text>
+      ) : null}
+    </Pressable>
+  );
+}
+
+// The house mark for a Premium option: a honey ✦ with "Premium" in inkSoft, in place of the mauve caps tag.
+function PremiumTag() {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={styles.premiumTag}>
+      <Text style={styles.premiumTagMark} accessible={false} importantForAccessibility="no">
+        ✦
+      </Text>
+      <Text style={styles.premiumTagText}>{t('common.premium')}</Text>
+    </View>
+  );
+}
+
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: t.colors.bg },
@@ -810,7 +882,7 @@ const makeStyles = (t: Theme) =>
       maxWidth: layout.maxContentWidth,
       width: '100%',
       alignSelf: 'center',
-      flexGrow: 1, // fills the height so the footnote can sit at the bottom
+      paddingTop: spacing.one,
     },
     // Editorial serif header at weight 400, the calm counterpoint to bold "Today".
     title: { ...t.type.title, color: t.colors.ink, marginTop: spacing.three },
@@ -823,19 +895,34 @@ const makeStyles = (t: Theme) =>
       marginBottom: spacing.two,
     },
     rows: { marginTop: spacing.two, gap: spacing.six },
+    // A section: a 22pt serif heading in ink (the old 12pt caps bands were inkFaint, 2.5:1), then one card.
+    sectionHead: { color: t.colors.ink, fontSize: 22 * t.scale, lineHeight: 28 * t.scale, fontFamily: fonts.sans, fontWeight: '500', marginTop: 34, marginBottom: 10, marginHorizontal: 4 },
+    // Quiet drops the card's fill and border; the serif headings, hairlines and whitespace do the separating.
+    card:
+      t.appearance === 'quiet'
+        ? { paddingHorizontal: 4 }
+        : { backgroundColor: t.colors.surface, borderWidth: border.hair, borderColor: t.colors.line, borderRadius: radius.lg, paddingHorizontal: 18, paddingVertical: 2 },
+    row: { paddingVertical: spacing.four },
+    rowTight: { paddingTop: spacing.four, paddingBottom: spacing.three },
+    divider: { height: border.hair, backgroundColor: t.colors.line },
+    linkRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingVertical: spacing.three },
+    linkText: { flex: 1 },
+    linkLabel: { color: t.colors.ink, fontSize: 16 * t.scale, lineHeight: 22 * t.scale, fontFamily: fonts.body },
+    linkHint: { color: t.colors.inkSoft, fontSize: 13.5 * t.scale, lineHeight: 19 * t.scale, fontFamily: fonts.body, marginTop: 2 },
+    chevron: { color: t.colors.inkSoft, fontSize: 18 * t.scale, fontFamily: fonts.body },
+    dangerText: { color: t.colors.danger },
+    valueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three, minHeight: 52, paddingVertical: spacing.three },
+    value: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, flexShrink: 1, textAlign: 'right' },
+    cardNote: { color: t.colors.inkSoft, fontSize: 13 * t.scale, lineHeight: 19 * t.scale, fontFamily: fonts.body, paddingBottom: spacing.three },
+    mcpBody: { gap: spacing.two, paddingBottom: spacing.four },
+    confirmStack: { gap: spacing.three },
+    confirmYes: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    premiumTag: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    premiumTagMark: { color: t.colors.accents[2], fontSize: 13 * t.scale, fontFamily: fonts.body },
+    premiumTagText: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
     rowLabel: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     rowHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale, marginTop: spacing.one },
-    accentBlock: {},
     accentHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-    accentLabel: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
-    accentTag: {
-      color: t.colors.accent,
-      fontSize: 11 * t.scale,
-      fontFamily: fonts.sans,
-      fontWeight: '700',
-      letterSpacing: 0.4,
-      textTransform: 'uppercase',
-    },
     swatchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.four, marginTop: spacing.three },
     swatchHit: { alignItems: 'center', gap: spacing.one },
     swatchRing: { padding: 3, borderRadius: radius.pill, borderWidth: 2, borderColor: 'transparent' },
@@ -851,9 +938,7 @@ const makeStyles = (t: Theme) =>
     stepValue: { ...t.type.bodyStrong, color: t.colors.ink, minWidth: 88, textAlign: 'center' },
     segment: { marginTop: spacing.three },
     pressed: { opacity: PRESSED_OPACITY },
-    privacyLink: { marginTop: spacing.two },
-    privacyLinkText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    premiumCardWrap: { marginTop: 'auto', paddingTop: spacing.six }, // pin to the bottom of the page
+    premiumCardWrap: { marginTop: spacing.six }, // between Access & data and Help (it used to pin to the page's foot)
     premiumCard: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -869,15 +954,8 @@ const makeStyles = (t: Theme) =>
     },
     premiumCardText: { flex: 1, gap: spacing.one },
     premiumCardTitle: { ...t.type.heading, color: '#FFFFFF' },
-    premiumCardSub: { color: 'rgba(255,255,255,0.9)', fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },
+    premiumCardSub: { color: '#FFFFFF', fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale }, // solid: 90% white failed AA across the gradient
     premiumCardCue: { color: '#FFFFFF', fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    account: { marginTop: spacing.six, gap: spacing.two },
-    accountLabel: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    accountEmail: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
-    exportHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body },
-    exportLink: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.one },
-    exportNote: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
-    deleteLink: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.one },
     confirmBox: {
       marginTop: spacing.two,
       gap: spacing.three,
@@ -890,7 +968,7 @@ const makeStyles = (t: Theme) =>
     confirmText: { color: t.colors.ink, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body },
     confirmRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     keep: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    deleteConfirm: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    deleteConfirm: { color: t.colors.danger, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     deleteErr: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body },
     mcpHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },
     mcpUrl: {
@@ -916,11 +994,9 @@ const makeStyles = (t: Theme) =>
       padding: spacing.three,
       marginTop: spacing.one,
     },
-    mcpFoot: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale, marginTop: spacing.one },
-    mcpDisconnect: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.three },
-    welcomeAgain: { alignItems: 'center', paddingTop: spacing.six },
-    welcomeAgainText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    feedbackForm: { paddingTop: spacing.six, gap: spacing.three },
+    mcpFoot: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale, marginTop: spacing.one },
+    mcpDisconnect: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.three },
+    feedbackForm: { gap: spacing.three },
     feedbackInput: {
       minHeight: 96,
       borderWidth: border.hair,
@@ -936,7 +1012,7 @@ const makeStyles = (t: Theme) =>
     feedbackError: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body },
     feedbackActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.five },
     feedbackCancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    feedbackThanks: { color: t.colors.doneText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', paddingTop: spacing.six },
+    feedbackThanks: { color: t.colors.doneText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     // The update block: a fact and one control, never a badge. Sage, because nothing is wrong.
   updateBlock: { marginTop: spacing.four, gap: spacing.two },
   updateLine: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },

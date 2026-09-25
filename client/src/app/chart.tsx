@@ -1,16 +1,19 @@
 import { Redirect, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Animated, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import bandArt from '../../assets/images/rooms/band-chart.webp';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BackLink } from '@/components/BackLink';
 import { Chip } from '@/components/Chip';
 import { PremiumButton } from '@/components/PremiumButton';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { RoomBackRow, RoomHead, useRoomEntrance, useRoomOrigin } from '@/components/RoomTop';
 import { border, control, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { chart, type CourseStep } from '@/lib/ai';
 import { aiErrorLine } from '@/lib/connection';
 import { toISODate } from '@/lib/day';
+import { hasPendingInbound, setInbound } from '@/lib/inbound';
 import { fmt, t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
 import { spreadDueDates } from '@/lib/spread';
@@ -30,6 +33,37 @@ function nowMs(): number {
   return Date.now();
 }
 
+// The web-only draft, kept for one Stripe round-trip in this tab's sessionStorage. Every access is guarded:
+// storage can be missing or throw (a private window), and then there is simply no draft.
+const CHART_DRAFT_KEY = 'doubledone.chart.draft';
+function readChartDraft(): { goal: string; dueDate: string | null } | null {
+  if (Platform.OS !== 'web') return null;
+  try {
+    const raw = globalThis.sessionStorage?.getItem(CHART_DRAFT_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw) as { goal?: unknown; dueDate?: unknown };
+    return typeof v.goal === 'string' ? { goal: v.goal, dueDate: typeof v.dueDate === 'string' ? v.dueDate : null } : null;
+  } catch {
+    return null;
+  }
+}
+function saveChartDraft(goal: string, dueDate: string | null) {
+  if (Platform.OS !== 'web') return;
+  try {
+    globalThis.sessionStorage?.setItem(CHART_DRAFT_KEY, JSON.stringify({ goal, dueDate }));
+  } catch {
+    // no storage, no draft
+  }
+}
+function clearChartDraft() {
+  if (Platform.OS !== 'web') return;
+  try {
+    globalThis.sessionStorage?.removeItem(CHART_DRAFT_KEY);
+  } catch {
+    // nothing to clear
+  }
+}
+
 // `original` keeps the AI's title so accept-time telemetry can count edits; `removed` hides a
 // step without splicing it out, so `total`/`offered` still mean what the AI proposed.
 type Proposed = CourseStep & { checked: boolean; removed: boolean; original: string };
@@ -45,8 +79,13 @@ export default function ChartScreen() {
   const theme = useTheme();
   const aiEnabled = useSettings().settings.aiEnabled;
   const { premium, loading: premiumLoading } = usePremium();
+  const origin = useRoomOrigin();
+  const entrance = useRoomEntrance();
   const today = useMemo(() => new Date(), []);
-  const [goal, setGoal] = useState('');
+  // A goal typed before the Premium ask survives a web checkout, which leaves the app for Stripe and comes
+  // back as a fresh page with no stack (native keeps this screen mounted, so it needs nothing).
+  const [draft0] = useState(readChartDraft);
+  const [goal, setGoal] = useState(draft0?.goal ?? '');
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +95,10 @@ export default function ChartScreen() {
   // Per-render-session state only, nothing persists.
   const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState('');
-  const [dueDate, setDueDate] = useState<string | null>(null);
+  const [dueDate, setDueDate] = useState<string | null>(draft0?.dueDate ?? null);
+  useEffect(() => {
+    clearChartDraft(); // read once, at mount; the key never outlives the visit it was for
+  }, []);
   // "By when?" relative chips. A goal is a timeframe ("within 2 months"), so chips beat a calendar here: the
   // chosen date paces the AI's steps AND spreads the accepted tasks from today to it (see addTasks).
   const dateChips = useMemo(
@@ -76,6 +118,7 @@ export default function ChartScreen() {
     // The paywall sits HERE, at the moment of asking for a plan (abundance), never on opening the screen.
     if (!premium) {
       track('premium.gate_hit', { reason: 'chart' });
+      saveChartDraft(g, dueDate);
       router.push({ pathname: '/premium', params: { from: 'chart' } });
       return;
     }
@@ -157,7 +200,13 @@ export default function ChartScreen() {
       if (edited + removedCount > 0) {
         track('chart.steps.edited', { edited, removed: removedCount, total: steps.length });
       }
-      // Back to the Today underneath (a replace stacked a SECOND Today over the Menu's contents page).
+      // Today shows where they landed: the composer's just-added tint, on the rows this room just made. Only
+      // when nothing else is waiting: the bridge holds one intent, and a shared line of text must never be
+      // lost to a tint.
+      if (!hasPendingInbound()) setInbound({ kind: 'landed', ids: minted.map((task) => task.id) });
+      // Back to the Today underneath, never to this spent proposal. (The handoff says replace; a replace
+      // stacked a SECOND Today over the Menu's contents page, which is the bug the review found, and
+      // dismissing still means back can never return here.)
       router.dismissTo('/today');
     } finally {
       setAdding(false);
@@ -170,11 +219,14 @@ export default function ChartScreen() {
   // (the menu entry is already hidden, this guards a direct visit to /chart).
   if (!aiEnabled) return <Redirect href="/today" />;
 
+  // The chosen timeframe, named once the chips have stepped aside (R1): "By when · In 2 months".
+  const chosenWhen = dateChips.find((c) => c.iso === dueDate)?.label ?? dateChips[0].label;
+
   return (
-    <View style={[styles.screen, { paddingTop: insets.top + spacing.three }]}>
+    <Animated.View style={[styles.screen, { paddingTop: insets.top + spacing.two }, entrance]}>
+      <RoomBackRow origin={origin} />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <BackLink />
-        <Text style={styles.title}>{t('actions.chartACourse')}</Text>
+        <RoomHead art={bandArt} title={t('actions.chartACourse')} hint={t('rooms.chartHint')} />
         <Text style={styles.intro}>{t('chart.intro')}</Text>
 
         <TextInput
@@ -208,12 +260,25 @@ export default function ChartScreen() {
             style={styles.suggestBtn}
           />
         )}
+        {/* R3: for a free user, said before the tap, so the tap does what the screen says. Static, never
+            counted, and nothing is locked, blurred or priced. */}
+        {steps.length === 0 && !premium && !premiumLoading && (
+          // Two siblings, not a nested span: a nested Text cannot be hidden from a screen reader, and the star
+          // is decoration.
+          <View style={styles.premiumNoteRow}>
+            <Text style={styles.premiumMark} accessible={false} importantForAccessibility="no" aria-hidden>
+              ✦
+            </Text>
+            <Text style={styles.premiumNote}>{t('chart.premiumNote')}</Text>
+          </View>
+        )}
 
         {busy && steps.length === 0 && <ActivityIndicator color={theme.colors.accent} style={styles.spinner} />}
         {error && <Text style={styles.error}>{error}</Text>}
 
         {steps.length > 0 && (
           <View style={styles.result}>
+            <Text style={styles.chosenWhen}>{`${t('chart.byWhenNamed')} · ${chosenWhen}`}</Text>
             {heading.length > 0 && <Text style={styles.heading}>{heading}</Text>}
             {steps.map((s, i) => {
               if (s.removed) return null;
@@ -300,7 +365,7 @@ export default function ChartScreen() {
 
         <Text style={styles.egress}>{t('chart.egressNote')}</Text>
       </ScrollView>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -309,8 +374,12 @@ const makeStyles = (t: Theme) =>
     screen: { flex: 1, backgroundColor: t.colors.bg },
     scroll: { flex: 1 },
     content: { paddingHorizontal: spacing.five, paddingBottom: spacing.seven, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
-    title: { color: t.colors.ink, fontSize: 34 * t.scale, fontWeight: '400', fontFamily: fonts.sans, marginTop: spacing.three },
-    intro: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 24 * t.scale, marginTop: spacing.two },
+    // Ink, not inkSoft: it is the instruction, and it sits right under the soft-ink hint.
+    intro: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 24 * t.scale, marginTop: spacing.four },
+    premiumNoteRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'baseline', gap: 6, marginTop: spacing.three, flexWrap: 'wrap' },
+    premiumNote: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body, textAlign: 'center', flexShrink: 1 },
+    premiumMark: { color: t.colors.accents[2], fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body },
+    chosenWhen: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', letterSpacing: 0.2 },
     input: {
       marginTop: spacing.four,
       minHeight: 88,
@@ -338,7 +407,7 @@ const makeStyles = (t: Theme) =>
       height: control.check,
       borderRadius: radius.sm,
       borderWidth: border.thin,
-      borderColor: t.colors.line,
+      borderColor: t.colors.inkSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -358,10 +427,10 @@ const makeStyles = (t: Theme) =>
       borderBottomColor: t.colors.accent,
     },
     removeBtn: { paddingHorizontal: spacing.one, paddingVertical: spacing.half },
-    removeMark: { color: t.colors.inkFaint, fontSize: 14 * t.scale, fontFamily: fonts.body },
-    stepMin: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body },
+    removeMark: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+    stepMin: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
     startOver: { alignSelf: 'center', marginTop: spacing.two },
     startOverText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    note: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 19 * t.scale, marginTop: spacing.two },
-    egress: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale, marginTop: spacing.six, textAlign: 'center' },
+    note: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 19 * t.scale, marginTop: spacing.two },
+    egress: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale, marginTop: spacing.six, textAlign: 'center' },
   });
