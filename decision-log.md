@@ -8057,9 +8057,12 @@ spender with a made-up bearer, keyed to a self-chosen hourly cap that failed ope
 kept the DATA honest throughout; the holes were in front of money and spend, and in what an expired
 token was told (a 502 "upstream error", never the 401 the contract promised).
 
-**Also decided, in the same PR:** the money routes are origin-gated for browser calls like
-`/push/subscribe` (native apps send no Origin and pass); an upstream 401/403 after verification is a
-401 on REST and a "your token has expired, re-copy it" sentence on MCP, never "try again"; every
+**Also decided, in the same PR:** the money routes are origin-gated for browser calls like the
+AI routes (a missing Origin passes, so native apps do; `/push/subscribe` is stricter and refuses one); an upstream 401/403 after verification is a
+401 on REST and a "your token has expired, re-copy it" sentence on the MCP pasted-token path, never
+"try again" (on the OAuth custody path a refused verify answers the calm transient line instead: the token
+came from our own custody, a null there is far likelier a JWKS blip than a bad token, and the 401 challenge
+would make the connector drop a live grant); every
 `break_down` refusal is `isError` so an agent loop stops; the cap fails CLOSED when its store throws;
 `task` and `context` are capped at 2000 characters; the pasted-token path also runs the app's per-IP
 AI limiter (the OAuth path does not: its callers are shared connector hosts, and identity there is
