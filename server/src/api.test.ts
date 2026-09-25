@@ -460,3 +460,121 @@ describe('PR A: the bearer is verified before any call', () => {
     expect(((await res.json()) as { error: string }).error).toContain('AI agent access (MCP)');
   });
 });
+
+describe('PR B + C: a repeat is ticked, not closed; a bad id is a 400; a throw is a calm 500', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const todayIso = new Date().toISOString().slice(0, 10);
+  type Call = { url: string; init: RequestInit };
+  function sequence(...answers: unknown[]) {
+    const calls: Call[] = [];
+    let i = 0;
+    const fn = vi.fn(async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      const body = answers[Math.min(i++, answers.length - 1)];
+      return { ok: true, status: 200, json: async () => body } as unknown as Response;
+    });
+    vi.stubGlobal('fetch', fn as unknown as typeof fetch);
+    return calls;
+  }
+  const bodyOf = (c: Call) => JSON.parse(c.init.body as string) as Record<string, unknown>;
+  const row = { id: 'r1', title: 'Meds', done: false, due: null, recurrence: { kind: 'daily' }, completed_dates: ['2026-09-01'], created_at: 'c', completed_at: null };
+
+  it('PATCH done:true on a REPEATING task writes completed_dates with today and leaves done alone', async () => {
+    const calls = sequence([row], [row]);
+    const res = await handleApi(req('PATCH', '/api/v1/tasks/r1', { token: fakeJwt('u1'), body: { done: true } }), env, trust);
+    expect(res.status).toBe(200);
+    expect(calls).toHaveLength(2);
+    expect(calls[0].init.method).toBe('GET');
+    const w = bodyOf(calls[1]);
+    expect(w.completed_dates).toEqual(['2026-09-01', todayIso]);
+    expect(w.done).toBeUndefined();
+    const task = ((await res.json()) as { task: { done: boolean; repeats: string | null } }).task;
+    expect(task.done).toBe(false);
+    expect(task.repeats).toBeTruthy();
+  });
+
+  it('PATCH done:true on a ONE-OFF still closes it', async () => {
+    const one = { ...row, recurrence: null, completed_dates: null };
+    const calls = sequence([one], [{ ...one, done: true, completed_at: 'now' }]);
+    const res = await handleApi(req('PATCH', '/api/v1/tasks/r1', { token: fakeJwt('u1'), body: { done: true } }), env, trust);
+    expect(res.status).toBe(200);
+    expect(bodyOf(calls[1]).done).toBe(true);
+    expect(bodyOf(calls[1]).completed_dates).toBeUndefined(); // a one-off never carries the tick array
+  });
+
+  it('PATCH done on an unknown id is a 404 after the read, with no write', async () => {
+    const calls = sequence([]);
+    const res = await handleApi(req('PATCH', '/api/v1/tasks/nope', { token: fakeJwt('u1'), body: { done: true } }), env, trust);
+    expect(res.status).toBe(404);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('updateRequest sends completedDates as completed_dates', () => {
+    const body = JSON.parse(updateRequest(env, 'tok', 't1', { completedDates: ['2026-09-25'] }, 'NOW').init.body as string);
+    expect(body.completed_dates).toEqual(['2026-09-25']);
+    expect(body.done).toBeUndefined();
+  });
+
+  for (const method of ['GET', 'PATCH', 'DELETE']) {
+    it(`${method} /tasks/%E0 (an id that does not decode) is a calm 400 with CORS, never a raw 500`, async () => {
+      const spy = vi.fn();
+      vi.stubGlobal('fetch', spy);
+      const res = await handleApi(req(method, '/api/v1/tasks/%E0', { token: fakeJwt('u1'), body: method === 'PATCH' ? { title: 'x' } : undefined }), env, trust);
+      expect(res.status).toBe(400);
+      expect(res.headers.get('access-control-allow-origin')).toBe('*');
+      expect(spy).not.toHaveBeenCalled();
+    });
+  }
+
+  it('GET /tasks/{id} returns the task (the item route finally has a handler test)', async () => {
+    sequence([row]);
+    const res = await handleApi(req('GET', '/api/v1/tasks/r1', { token: fakeJwt('u1') }), env, trust);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { task: { id: string } }).task.id).toBe('r1');
+  });
+
+  it('a fetch that rejects is a JSON 500 with CORS, never a raw Cloudflare page', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('boom'); }));
+    const res = await handleApi(req('GET', '/api/v1/tasks', { token: fakeJwt('u1') }), env, trust);
+    expect(res.status).toBe(500);
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
+    expect(((await res.json()) as { error: string }).error).toMatch(/Try again/);
+  });
+});
+
+describe('PR B review: REST resolves done against the shape after the patch, and takes a day', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  function sequence(...answers: unknown[]) {
+    const calls: { url: string; init: RequestInit }[] = [];
+    let i = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      return { ok: true, status: 200, json: async () => answers[Math.min(i++, answers.length - 1)] } as unknown as Response;
+    }) as unknown as typeof fetch);
+    return calls;
+  }
+  const bodyOf = (c: { init: RequestInit }) => JSON.parse(c.init.body as string) as Record<string, unknown>;
+  const repeat = { id: 'r1', title: 'Meds', done: false, due: null, recurrence: { kind: 'daily' }, completed_dates: ['2026-09-01'], created_at: 'c', completed_at: null };
+
+  it('PATCH {done:true, repeat:null} on a repeat closes the one-off it makes, with no tick write (parity with MCP)', async () => {
+    const calls = sequence([repeat], [{ ...repeat, recurrence: null, done: true }]);
+    const res = await handleApi(req('PATCH', '/api/v1/tasks/r1', { token: fakeJwt('u1'), body: { done: true, repeat: null } }), env, trust);
+    expect(res.status).toBe(200);
+    const w = bodyOf(calls[1]);
+    expect(w.done).toBe(true);
+    expect(w.recurrence).toBeNull();
+    expect(w.completed_dates).toBeUndefined();
+  });
+
+  it('PATCH {done:true, day} ticks the named day on a repeat', async () => {
+    const calls = sequence([repeat], [repeat]);
+    const res = await handleApi(req('PATCH', '/api/v1/tasks/r1', { token: fakeJwt('u1'), body: { done: true, day: '2026-09-24' } }), env, trust);
+    expect(res.status).toBe(200);
+    expect(bodyOf(calls[1]).completed_dates).toEqual(['2026-09-01', '2026-09-24']);
+  });
+
+  it('an impossible day, or a day without done, is a calm 400', () => {
+    expect(parseUpdate({ done: true, day: '2026-02-30' })).toEqual({ error: 'day must be a real calendar day (YYYY-MM-DD)' });
+    expect(parseUpdate({ day: '2026-09-24' })).toEqual({ error: 'day only makes sense with done' });
+  });
+});

@@ -41,8 +41,9 @@ and sign in with your email first, a connector is not a place to make a new acco
 2. Name it `DoubleDone`, URL `https://api.doubledone.app/mcp`.
 3. Claude discovers it needs sign-in and opens a small DoubleDone page. Enter your account
    email, then the 6-digit code it sends you.
-4. A consent screen tells you exactly what the connector may do (add, list, complete your
-   tasks, nothing else) and **where access is sent**. Click **Allow**.
+4. A consent screen tells you exactly what the connector may do (add, see, change, complete,
+   remove, break down and search your tasks, acting as you) and **where access is sent**. Click
+   **Allow**.
 5. Ask Claude to *"add 'book the dentist' to my DoubleDone"* or *"what's on my DoubleDone
    today."*
 
@@ -91,8 +92,9 @@ claude mcp add --transport http doubledone https://api.doubledone.app/mcp \
 ```
 
 **MCP Inspector** (`npx @modelcontextprotocol/inspector`): Transport = **Streamable
-HTTP**, URL = the endpoint above. For the token tools add a header
-`Authorization: Bearer <your token>`. Discovery works with no header.
+HTTP**, URL = the endpoint above. Add the header `Authorization: Bearer <your token>` **before
+connecting**: the server answers `401` to any request with no bearer at all (that `401` is how the
+OAuth flow starts), so discovery does not work without it.
 
 ---
 
@@ -101,10 +103,10 @@ HTTP**, URL = the endpoint above. For the token tools add a header
 | Tool | Arguments | Does |
 |---|---|---|
 | `add_task` | `title` (string); optional `due` (`YYYY-MM-DD`) **or** `repeat` (object), not both | Adds a task. By default it lands on today. `due` schedules a one-off for a future day; `repeat` makes it recur (`daily`, `weekly` with `weekdays` 0–6, `every_n_days` with `days`, or `monthly` with an optional `day` 1–31, plus an optional `start`). A monthly repeat on a day a month does not have uses that month's last day rather than skipping it. |
-| `list_today` | none | Lists what's open on your Today, each with its id: one-off tasks (undated or due today or earlier) plus any repeating task due today that you haven't done or skipped yet. |
+| `list_today` | none | Lists what's open on your Today, each with its id: one-off tasks (undated or due today or earlier) plus any repeating task due today that you haven't done or skipped yet, marked `(repeats)`. Today is the **UTC** calendar day for now (a timezone option is planned), so early in an Australian morning it can still be yesterday's. |
 | `list_upcoming` | optional `days` (1–30, default 7) | Looks ahead: your future-dated tasks and the next occurrence of each repeat within the window, in date order, each with its id. Read-only. |
-| `complete_task` | `id` (string, from `list_today`) | Marks that task done. |
-| `update_task` | `id` (string); any of `title`, `due` (or `null`), `repeat` (or `null`) | Changes a task. Setting `due` clears any repeat and vice versa; `null` clears a field. At least one change is required. |
+| `complete_task` | `id` (string, from `list_today`); optional `day` (`YYYY-MM-DD`) | Marks that task done. A one-off closes. A **repeating** task is ticked for one day and comes back on its next day; completing never closes a repeat (to stop one, `update_task` with `repeat: null`). The day defaults to the **UTC** calendar day and the answer names it; an agent that knows your local date can pass `day`. |
+| `update_task` | `id` (string); any of `title`, `due` (or `null`), `repeat` (or `null`), `done` (with optional `day`) | Changes a task. Setting `due` clears any repeat and vice versa; `null` clears a field. `done: true` ticks it (a repeat: one day, default the UTC day, or `day`); `done: false` reopens a one-off, or un-ticks that day on a repeat **on the server only**: a device that already synced the tick brings it back on its next open, because ticks are kept on purpose. At least one change is required. |
 | `delete_task` | `id` (string) | Removes a task. It is tombstoned (recoverable and syncs), never hard-deleted. |
 | `break_down` | `task` (string); optional `context` (string), `steps` (2–10) | **Proposes** small, ordered, time-boxed steps for a dreaded task. It adds nothing: the agent shows the steps, and only once you agree does it call `add_task` per step. This is the one tool that spends a little AI time, so it is rate-limited per user. |
 | `search` | `query` (string) | Searches your open tasks by keyword (for ChatGPT Deep Research). Read-only. |
@@ -141,8 +143,9 @@ touch anyone else's tasks, and cannot act as an admin.
 
 ### Disconnecting
 
-- **Token path:** your token expires hourly on its own; to cut it sooner, sign out in the
-  app (which rotates the session).
+- **Token path:** your token is valid until it expires, about an hour. There is no early
+  revoke: signing out rotates the refresh family, not an access token already copied, so treat a
+  copied token like a password for that hour.
 - **OAuth path:** **Settings → AI agent access (MCP) → Disconnect AI connectors** deletes
   the server's custody of your session immediately, the next tool call fails and the
   connector must sign in again. (Removing the connector in Claude/ChatGPT also stops it
@@ -155,8 +158,8 @@ touch anyone else's tasks, and cannot act as an admin.
 - **Existing accounts only for the URL path.** The sign-in page will not create an
   account; sign in once in the app first.
 - **Recurring tasks are included.** `list_today` shows a repeating task on the day it is
-  due, once, and hides it after you tick or skip it that day, so the agent sees the same
-  Today you do. The cadence (daily / chosen weekdays / every-N-days) is evaluated in the
+  due, once, and hides it after you tick or skip it that day (on the UTC day, see the
+  `list_today` note above). The cadence (daily / chosen weekdays / every-N-days) is evaluated in the
   Worker, the same math the app uses, so an agent-created repeat behaves identically to one
   you make in the app.
 - **Propose, then accept.** `break_down` never writes. It returns the steps and reminds you
@@ -165,7 +168,7 @@ touch anyone else's tasks, and cannot act as an admin.
   tombstone), in keeping with the app's spine.
 - **Mirrors what you see.** A task you have broken down hides behind its steps in the app
   (its umbrella goes quiet until the steps are done). `list_today` hides that umbrella too,
-  so an agent sees the same Today you do, the steps to act on, not the parent.
+  so an agent sees the steps to act on, not the parent.
 - **No elevated key.** The server holds the public anon key only; your token (or your
   OAuth-custodied session) does the authorising. Nothing here can read or write another
   account's data.

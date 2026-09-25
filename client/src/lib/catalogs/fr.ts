@@ -759,7 +759,7 @@ export const fr: Catalog = {
     mcpExpired: 'Ta session a expiré. Reconnecte-toi pour obtenir un nouveau jeton.',
     mcpExpiredA11y: 'Se reconnecter pour obtenir un nouveau jeton',
     mcpFootnote: 'Le jeton se renouvelle environ toutes les heures. Recopie-le si ton agent ne se connecte plus.',
-    mcpHint: 'Laisse un agent IA ajouter et terminer tes tâches. Ajoute ce serveur à ton client MCP, puis colle ton jeton.',
+    mcpHint: 'Laisse un agent IA ajouter, modifier, terminer et retirer tes tâches, en ton nom. Ajoute ce serveur à ton client MCP, puis colle ton jeton.',
     mcpLabel: 'Accès agent IA (MCP)',
     motionFollowSystem: 'Suivre le système',
     motionHint: 'Réduire arrête les fondus doux, les titres qui défilent et les petites vibrations.',

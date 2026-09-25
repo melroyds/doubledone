@@ -270,7 +270,7 @@ function consentPage(view: View, s: { email: string; redirectHost: string; carry
   return page(
     200,
     `<h1>Allow ${esc(view.clientName)}?</h1>
-<p><strong>${esc(view.clientName)}</strong> will be able to add, list, and complete YOUR DoubleDone tasks. Nothing else. It acts as you, and only you.</p>
+<p><strong>${esc(view.clientName)}</strong> will be able to add, see, change, complete, remove, break down and search YOUR DoubleDone tasks. It acts as you, and only you.</p>
 <p class="fine">Access will be sent to <strong>${esc(s.redirectHost)}</strong>. Only continue if you recognise it.</p>
 <form method="post" action="/authorize${esc(view.search)}">
   <input type="hidden" name="step" value="consent">

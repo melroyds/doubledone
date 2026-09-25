@@ -2,10 +2,13 @@
 // Desktop, ChatGPT, the MCP Inspector, etc.) can capture, look ahead over, manage
 // and break down the user's tasks. It speaks the MCP Streamable-HTTP transport in
 // JSON mode (JSON-RPC 2.0 over a single POST). Auth is a bearer token the user
-// pastes into their MCP client: their Supabase access token. Every DATA tool call
-// proxies to the Supabase REST API WITH that token, so row-level security scopes it
-// to exactly their own rows; this server holds no elevated key. Discovery
-// (initialize / tools/list) needs no auth.
+// pastes into their MCP client: their Supabase access token, VERIFIED (verify.ts)
+// before any tool runs. Every DATA tool call proxies to the Supabase REST API WITH
+// that token, so row-level security scopes it to exactly their own rows; this
+// server holds no elevated key. Inside this handler discovery (initialize /
+// tools/list) needs no auth, but the ROUTE in index.ts answers 401 to any request
+// with no bearer at all (that 401 is what starts the OAuth flow), so a client must
+// send the header even to discover.
 //
 // Since the OAuth connector path landed (see oauth.ts), the Supabase token can also
 // arrive INJECTED: the OAuth layer validates its own opaque token, resolves the
@@ -27,7 +30,7 @@
 // row->list mappers, the OpenAI deep-research shapers) are exported and unit-tested;
 // handleMcp does the I/O.
 
-import { asRecurrence, buildRecurrence, isDueOn, recurringDueToday, type RepeatSpec, type Recurrence } from './cadence';
+import { asRecurrence, buildRecurrence, isDueOn, isValidIsoDay, recurringDueToday, tickForDay, type Recurrence, type RepeatSpec } from './cadence';
 import {
   buildDecomposeRequest,
   DECOMPOSE_MODEL,
@@ -107,7 +110,8 @@ export const TOOLS = [
   },
   {
     name: 'list_today',
-    description: "List the user's open tasks for today (not done, not future-dated). Returns each task's id for complete_task.",
+    description:
+      "List the user's open tasks for today: one-offs undated or due today or earlier, plus any repeating task due today not yet ticked or skipped, marked '(repeats)'. Today is the UTC calendar day for now, so early in an Australian morning it can still be yesterday's. Returns each task's id for complete_task.",
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
@@ -122,10 +126,14 @@ export const TOOLS = [
   },
   {
     name: 'complete_task',
-    description: "Mark one of the user's tasks done, by the id from list_today.",
+    description:
+      "Mark one of the user's tasks done, by the id from list_today. A one-off closes. A REPEATING task (marked '(repeats)' in list_today) is ticked for ONE day and comes back on its next day; completing never closes a repeat (to stop one, update_task with repeat: null). The day defaults to the UTC calendar day; pass `day` with the user's local date when you know it.",
     inputSchema: {
       type: 'object',
-      properties: { id: { type: 'string', description: 'The task id from list_today.' } },
+      properties: {
+        id: { type: 'string', description: 'The task id from list_today.' },
+        day: { type: 'string', description: "Optional 'YYYY-MM-DD': the day to tick a repeating task for (the user's local date). Defaults to the UTC day. Ignored for a one-off." },
+      },
       required: ['id'],
       additionalProperties: false,
     },
@@ -133,7 +141,7 @@ export const TOOLS = [
   {
     name: 'update_task',
     description:
-      "Change one of the user's tasks: its title, its `due` day, or its `repeat`. Setting `due` clears any repeat and vice versa. Pass null to clear a field. At least one change is required.",
+      "Change one of the user's tasks: its title, its `due` day, its `repeat`, or `done`. Setting `due` clears any repeat and vice versa. Pass null to clear a field. `done: true` ticks it (a repeating task is ticked for one day, never closed); `done: false` reopens a one-off, or un-ticks a day on a repeat on the server only (a device that already synced the tick brings it back). The day defaults to the UTC calendar day; pass `day` with the user's local date when you know it. At least one change is required.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -141,6 +149,8 @@ export const TOOLS = [
         title: { type: 'string', description: 'A new title.' },
         due: { type: ['string', 'null'], description: "'YYYY-MM-DD' to schedule it, or null to clear the date. Clears any repeat." },
         repeat: { anyOf: [REPEAT_SCHEMA, { type: 'null' }], description: 'A repeat object to make it recur, or null to stop it recurring. Clears any due date.' },
+        done: { type: 'boolean', description: 'true ticks it (a repeating task is ticked for one day, never closed); false reopens a one-off, or un-ticks a day on a repeat (server only: a device that already synced the tick brings it back).' },
+        day: { type: 'string', description: "Optional 'YYYY-MM-DD' for `done` on a repeating task: the day to tick or un-tick (the user's local date). Defaults to the UTC day." },
       },
       required: ['id'],
       additionalProperties: false,
@@ -325,9 +335,9 @@ export function listTodayRequest(env: McpEnv, token: string, todayIso: string): 
  *  null) is already scoped by the SQL (open, due today-or-earlier); a recurring row is kept
  *  only if it is due today and not yet done/skipped today (cadence.ts, the logic PostgREST
  *  can't express). Order is preserved (the query sorts by created_at). Pure + unit-tested. */
-export function listTodayFromRows(rows: unknown, todayIso: string): { id: string; title: string }[] {
+export function listTodayFromRows(rows: unknown, todayIso: string): { id: string; title: string; repeats?: true }[] {
   if (!Array.isArray(rows)) return [];
-  const out: { id: string; title: string }[] = [];
+  const out: { id: string; title: string; repeats?: true }[] = [];
   for (const r of rows) {
     if (r == null || typeof r !== 'object') continue;
     const row = r as { id?: unknown; title?: unknown; recurrence?: unknown; completed_dates?: unknown; skipped_dates?: unknown };
@@ -335,14 +345,15 @@ export function listTodayFromRows(rows: unknown, todayIso: string): { id: string
     if (row.recurrence == null) {
       out.push({ id: row.id, title: row.title }); // an open one-off, already scoped by the SQL
     } else if (recurringDueToday(row.recurrence, row.completed_dates, row.skipped_dates, todayIso)) {
-      out.push({ id: row.id, title: row.title });
+      out.push({ id: row.id, title: row.title, repeats: true }); // so the model knows a tick is for today only
     }
   }
   return out;
 }
 
+/** Close a ONE-OFF. Never sent for a repeat (see setDone); `deleted_at=is.null` so a tombstone is never revived. */
 export function completeTaskRequest(env: McpEnv, token: string, id: string, now: string): { url: string; init: RequestInit } {
-  const q = new URLSearchParams({ id: `eq.${id}` });
+  const q = new URLSearchParams({ id: `eq.${id}`, deleted_at: 'is.null' });
   return {
     url: `${env.SUPABASE_URL}/rest/v1/tasks?${q.toString()}`,
     init: {
@@ -350,6 +361,30 @@ export function completeTaskRequest(env: McpEnv, token: string, id: string, now:
       headers: supaHeaders(env, token, true),
       body: JSON.stringify({ done: true, completed_at: now, updated_at: now }),
     },
+  };
+}
+
+/** Reopen a ONE-OFF: done back to false, the completion stamp cleared. */
+export function reopenTaskRequest(env: McpEnv, token: string, id: string, now: string): { url: string; init: RequestInit } {
+  const q = new URLSearchParams({ id: `eq.${id}`, deleted_at: 'is.null' });
+  return {
+    url: `${env.SUPABASE_URL}/rest/v1/tasks?${q.toString()}`,
+    init: { method: 'PATCH', headers: supaHeaders(env, token, true), body: JSON.stringify({ done: false, completed_at: null, updated_at: now }) },
+  };
+}
+
+/** The one read a done-write needs first: is this row a repeat, and which days are ticked. */
+export function taskStateRequest(env: McpEnv, token: string, id: string): { url: string; init: RequestInit } {
+  const q = new URLSearchParams({ select: 'id,done,recurrence,completed_dates', id: `eq.${id}`, deleted_at: 'is.null', limit: '1' });
+  return { url: `${env.SUPABASE_URL}/rest/v1/tasks?${q.toString()}`, init: { method: 'GET', headers: supaHeaders(env, token, false) } };
+}
+
+/** Tick (or un-tick) ONE day on a repeating task: completed_dates only, `done` untouched. */
+export function tickRecurringRequest(env: McpEnv, token: string, id: string, dates: string[], now: string): { url: string; init: RequestInit } {
+  const q = new URLSearchParams({ id: `eq.${id}`, deleted_at: 'is.null' });
+  return {
+    url: `${env.SUPABASE_URL}/rest/v1/tasks?${q.toString()}`,
+    init: { method: 'PATCH', headers: supaHeaders(env, token, true), body: JSON.stringify({ completed_dates: dates, updated_at: now }) },
   };
 }
 
@@ -606,6 +641,50 @@ function upstreamFailure(res: Response, fallback: string): ToolResult {
   return toolText(fallback, true);
 }
 
+/** The done-write, READ-FIRST. A one-off closes (or reopens). A repeating task is ticked for today (or
+ *  un-ticked) in completed_dates and its `done` is never touched: setting done=true on the series row
+ *  is what made a repeat vanish from every agent read while the app kept showing it (audit PR B). */
+async function setDone(env: McpEnv, token: string, id: string, on: boolean, dayIso: string, now: string): Promise<ToolResult> {
+  const transient = on ? 'Could not complete it just now. Try again.' : 'Could not reopen it just now. Try again.';
+  const st = taskStateRequest(env, token, id);
+  const sr = await fetch(st.url, st.init);
+  if (!sr.ok) return upstreamFailure(sr, transient);
+  const srows = (await sr.json()) as unknown;
+  const row = Array.isArray(srows) && srows[0] && typeof srows[0] === 'object' ? (srows[0] as { recurrence?: unknown; completed_dates?: unknown }) : null;
+  if (!row) return toolText('No matching task found.', true);
+  // The shared classifier, so the tick and list_today agree by construction on what "repeats" means.
+  if (asRecurrence(row.recurrence) != null) {
+    const tick = tickForDay(row.completed_dates, dayIso, on);
+    // The day is NAMED in every answer: the default is the UTC day, which for an Australian morning is
+    // yesterday's date, and an agent that sees the date can pass `day` next time.
+    if (tick.already) return toolText(on ? `Already ticked for ${dayIso}. It repeats, so it will be back on its next day.` : `${dayIso} was not ticked, so nothing to undo.`);
+    const w = tickRecurringRequest(env, token, id, tick.dates, now);
+    const wr = await fetch(w.url, w.init);
+    if (!wr.ok) return upstreamFailure(wr, transient);
+    const wrows = (await wr.json()) as unknown;
+    if (!Array.isArray(wrows) || wrows.length === 0) return toolText('No matching task found.', true);
+    // An un-tick holds on the server only: the app keeps ticks on purpose (a device merge unions them and
+    // pushes the union back), so a phone that already synced the tick brings it back on its next open.
+    return toolText(
+      on
+        ? `Ticked for ${dayIso}. It repeats, so it will be back on its next day.`
+        : `Un-ticked ${dayIso} on the server. A device that already synced the tick will bring it back on its next open, because ticks are kept on purpose.`,
+    );
+  }
+  const w = on ? completeTaskRequest(env, token, id, now) : reopenTaskRequest(env, token, id, now);
+  const wr = await fetch(w.url, w.init);
+  if (!wr.ok) return upstreamFailure(wr, transient);
+  const wrows = (await wr.json()) as unknown;
+  return Array.isArray(wrows) && wrows.length > 0 ? toolText(on ? 'Marked it done. Nice.' : 'Reopened.') : toolText('No matching task found.', true);
+}
+
+/** The optional `day` an agent names for a tick: a real calendar day, else null (a refusal); absent means
+ *  the server's UTC day. */
+function readDay(args: Record<string, unknown>, fallback: string): string | null {
+  if (args.day === undefined) return fallback;
+  return typeof args.day === 'string' && isValidIsoDay(args.day) ? args.day : null;
+}
+
 // --- Tool execution (I/O) --------------------------------------------------
 
 // The token has been VERIFIED by handleMcp before this runs; `sub` is the trusted user id from that check.
@@ -653,7 +732,7 @@ async function runTool(env: McpEnv, token: string, sub: string, name: string, ar
     const rows = (await res.json()) as unknown;
     const tasks = listTodayFromRows(rows, todayIso);
     if (tasks.length === 0) return toolText('Nothing on today. Enjoy the quiet.');
-    return toolText(tasks.map((t) => `• ${t.title}  [${t.id}]`).join('\n'));
+    return toolText(tasks.map((t) => `• ${t.title}${t.repeats ? '  (repeats)' : ''}  [${t.id}]`).join('\n'));
   }
 
   if (name === 'list_upcoming') {
@@ -674,11 +753,9 @@ async function runTool(env: McpEnv, token: string, sub: string, name: string, ar
   if (name === 'complete_task') {
     const taskId = typeof args.id === 'string' ? args.id.trim() : '';
     if (!taskId) return toolText('A task id is required (use list_today first).', true);
-    const { url, init } = completeTaskRequest(env, token, taskId, now);
-    const res = await fetch(url, init);
-    if (!res.ok) return upstreamFailure(res, 'Could not complete it just now. Try again.');
-    const rows = (await res.json()) as unknown;
-    return Array.isArray(rows) && rows.length > 0 ? toolText('Marked it done. Nice.') : toolText('No matching task found.', true);
+    const day = readDay(args, todayIso);
+    if (day === null) return toolText("`day` needs to look like 'YYYY-MM-DD'.", true);
+    return setDone(env, token, taskId, true, day, now);
   }
 
   if (name === 'update_task') {
@@ -703,15 +780,25 @@ async function runTool(env: McpEnv, token: string, sub: string, name: string, ar
         fields.recurrence = recurrence;
       }
     }
+    let done: boolean | undefined;
+    if (args.done !== undefined) {
+      if (typeof args.done !== 'boolean') return toolText('`done` needs to be true or false.', true);
+      done = args.done;
+    }
+    const day = readDay(args, todayIso);
+    if (day === null) return toolText("`day` needs to look like 'YYYY-MM-DD'.", true);
     // At least one mutable field is required (updated_at alone is not a user-meaningful change).
     if (fields.title === undefined && fields.due === undefined && fields.recurrence === undefined) {
-      return toolText('Tell me what to change: a title, a due date, or a repeat.', true);
+      if (done === undefined) return toolText('Tell me what to change: a title, a due date, a repeat, or done.', true);
+      return setDone(env, token, taskId, done, day, now);
     }
     const { url, init } = updateTaskRequest(env, token, taskId, fields, now);
     const res = await fetch(url, init);
     if (!res.ok) return upstreamFailure(res, 'Could not update it just now. Try again.');
     const rows = (await res.json()) as unknown;
-    return Array.isArray(rows) && rows.length > 0 ? toolText('Updated.') : toolText('No matching task found.', true);
+    if (!Array.isArray(rows) || rows.length === 0) return toolText('No matching task found.', true);
+    // The field change has landed; a done flag rides after it, read-first like complete_task.
+    return done === undefined ? toolText('Updated.') : setDone(env, token, taskId, done, day, now);
   }
 
   if (name === 'delete_task') {
@@ -819,14 +906,6 @@ function buildBreakdownContext(args: Record<string, unknown>): DecomposeContext 
   return { question: 'Extra detail:', answer: parts.join(' ') };
 }
 
-/** True for a well-formed, real calendar day 'YYYY-MM-DD'. Rejects e.g. 2026-13-40. */
-function isValidIsoDay(s: string): boolean {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-  if (!m) return false;
-  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  const dt = new Date(Date.UTC(y, mo - 1, d));
-  return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
-}
 
 // --- The HTTP handler ------------------------------------------------------
 

@@ -20,7 +20,7 @@ https://api.doubledone.app/api/v1
 ## Browse it
 
 - **Interactive docs (Swagger UI):** [`/api/v1/docs`](https://api.doubledone.app/api/v1/docs)
-- **OpenAPI 3.1 spec (version 1.2.1):** [`/api/v1/openapi.json`](https://api.doubledone.app/api/v1/openapi.json)
+- **OpenAPI 3.1 spec (version 1.2.3):** [`/api/v1/openapi.json`](https://api.doubledone.app/api/v1/openapi.json)
 
 ## Auth: your token
 
@@ -73,7 +73,7 @@ precedence is `q`, then `upcoming`, then `today`, then a plain list:
 |---|---|
 | `?q=<text>` | Case-insensitive substring search over the titles of your **open** tasks. |
 | `?upcoming=<days>` | A look-ahead window of 1 to 30 days (default 7): your future one-off tasks plus the **next occurrence** of each repeating task, in date order. Each returned task carries the day it next lands in `due`. |
-| `?today=true` | The app's Today view: open, non-recurring tasks due today or undated (the decomposed-task umbrella the app hides is excluded, so it matches Today exactly). |
+| `?today=true` | Open, non-recurring tasks due today or undated (the decomposed-task umbrella the app hides is excluded). Today is the **UTC** calendar day for now (a timezone option is planned), so early in an Australian morning it can still be yesterday's, and repeating tasks are not included here (the MCP `list_today` includes them). |
 | *(none)* | Your full list of open and dated tasks. |
 
 ## Recurrence
@@ -140,9 +140,18 @@ curl -s -X PATCH "$BASE/tasks/<id>" -H "Authorization: Bearer $TOKEN" \
 - **No elevated key.** The Worker holds only the public anon key; your token does the
   authorising, and RLS scopes every call to your account. Nothing here can read or write
   anyone else's data.
-- **Token expiry.** The token is a Supabase access token and refreshes about hourly. A
-  long-lived, revocable API-key system is a planned enhancement, designed so the Worker
-  still never holds an elevated key.
+- **Token expiry.** The token is a Supabase access token and refreshes about hourly. There is
+  no early revoke: signing out rotates the refresh family, not an access token already copied,
+  so treat a copied token like a password for that hour. A long-lived, revocable API-key system
+  is a planned enhancement, designed so the Worker still never holds an elevated key.
+- **Repeats and `done`.** `PATCH` with `done: true` on a **repeating** task ticks it for one day
+  (in the same completed-dates the app writes) and leaves the series open, so the returned task
+  still shows `done: false` with its `repeats` summary. The day is the **UTC** calendar day unless
+  you send `day` (`YYYY-MM-DD`, the user's local date). `done: false` un-ticks that day **on the
+  server only**: a device that already synced the tick brings it back on its next open, because
+  the app keeps ticks on purpose. A one-off closes and reopens as you would expect, and
+  `{ done: true, repeat: null }` closes the one-off it makes. Completing never ends a repeat; to
+  stop one, send `repeat: null`.
 - **Soft delete.** `DELETE` tombstones the row (`deleted_at`), consistent with the app's
   sync model, so a deletion propagates instead of leaving a ghost on another device.
 - **CORS open.** The API allows any origin: the bearer token is the auth, not the origin.

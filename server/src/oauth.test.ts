@@ -446,7 +446,7 @@ describe('the /authorize flow (code + consent steps)', () => {
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain('Allow Claude?');
-    expect(html).toContain('will be able to add, list, and complete YOUR DoubleDone tasks. Nothing else. It acts as you, and only you.');
+    expect(html).toContain('will be able to add, see, change, complete, remove, break down and search YOUR DoubleDone tasks. It acts as you, and only you.');
     // The redirect host is disclosed so the user sees where the grant goes (anti-spoofing).
     expect(html).toContain('Access will be sent to <strong>ai.example</strong>');
     // With OAUTH_KV bound, the session is held by a single-use nonce; the rotating refresh

@@ -759,7 +759,7 @@ export const it: Catalog = {
     mcpExpired: 'La tua sessione è scaduta. Accedi di nuovo per avere un token nuovo.',
     mcpExpiredA11y: 'Accedi di nuovo per avere un token nuovo',
     mcpFootnote: 'Il token si rinnova circa ogni ora. Ricopialo se il tuo agente smette di connettersi.',
-    mcpHint: 'Lascia che un agente AI aggiunga e completi le tue attività. Aggiungi questo server al tuo client MCP, poi incolla il tuo token.',
+    mcpHint: 'Lascia che un agente AI aggiunga, modifichi, completi e rimuova le tue attività, a tuo nome. Aggiungi questo server al tuo client MCP, poi incolla il tuo token.',
     mcpLabel: 'Accesso per agenti AI (MCP)',
     motionFollowSystem: 'Come il sistema',
     motionHint: 'Riduci ferma le dissolvenze delicate, i titoli che scorrono e le vibrazioni.',

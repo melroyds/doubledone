@@ -684,3 +684,138 @@ describe('PR A: the bearer is verified before any tool runs', () => {
     expect(body.result.content[0].text).toContain('AI agent access (MCP)');
   });
 });
+
+describe('PR B: complete_task ticks a repeat for today and closes a one-off (read-first)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const todayIso = new Date().toISOString().slice(0, 10);
+  type Call = { url: string; init: RequestInit };
+  /** A fetch double that answers each call in order and records what was sent. */
+  function sequence(...answers: unknown[]) {
+    const calls: Call[] = [];
+    let i = 0;
+    const fn = vi.fn(async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      const body = answers[Math.min(i++, answers.length - 1)];
+      return { ok: true, status: 200, json: async () => body } as unknown as Response;
+    });
+    vi.stubGlobal('fetch', fn as unknown as typeof fetch);
+    return calls;
+  }
+  const bodyOf = (c: Call) => JSON.parse(c.init.body as string) as Record<string, unknown>;
+
+  it('a REPEATING task: reads the row, then writes completed_dates with today and never touches done', async () => {
+    const calls = sequence([{ id: 'r1', done: false, recurrence: { kind: 'daily' }, completed_dates: ['2026-09-01'] }], [{ id: 'r1' }]);
+    const r = await callTool('complete_task', { id: 'r1' });
+    expect(r.result.isError).toBeUndefined();
+    expect(r.result.content[0].text).toMatch(/^Ticked for \d{4}-\d{2}-\d{2}\./);
+    expect(calls).toHaveLength(2);
+    expect(calls[0].init.method).toBe('GET');
+    expect(decodeURIComponent(calls[0].url)).toContain('deleted_at=is.null');
+    const w = bodyOf(calls[1]);
+    expect(w.completed_dates).toEqual(['2026-09-01', todayIso]);
+    expect(w.done).toBeUndefined();
+    expect(w.completed_at).toBeUndefined();
+  });
+
+  it('a REPEATING task already ticked today: says so and writes nothing', async () => {
+    const calls = sequence([{ id: 'r1', done: false, recurrence: { kind: 'daily' }, completed_dates: [todayIso] }]);
+    const r = await callTool('complete_task', { id: 'r1' });
+    expect(r.result.content[0].text).toMatch(/^Already ticked for \d{4}-\d{2}-\d{2}\./);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('a ONE-OFF: reads the row, then closes it with done:true as before', async () => {
+    const calls = sequence([{ id: 't1', done: false, recurrence: null, completed_dates: null }], [{ id: 't1' }]);
+    const r = await callTool('complete_task', { id: 't1' });
+    expect(r.result.content[0].text).toBe('Marked it done. Nice.');
+    const w = bodyOf(calls[1]);
+    expect(w.done).toBe(true);
+    expect(typeof w.completed_at).toBe('string');
+    expect(w.completed_dates).toBeUndefined(); // a one-off never carries the tick array
+  });
+
+  it('an unknown or deleted id is a calm "No matching task found" with no write', async () => {
+    const calls = sequence([]);
+    const r = await callTool('complete_task', { id: 'nope' });
+    expect(r.result.isError).toBe(true);
+    expect(r.result.content[0].text).toBe('No matching task found.');
+    expect(calls).toHaveLength(1);
+  });
+
+  it('update_task done:false un-ticks today on a repeat, and reopens a one-off', async () => {
+    let calls = sequence([{ id: 'r1', recurrence: { kind: 'daily' }, completed_dates: ['2026-09-01', todayIso] }], [{ id: 'r1' }]);
+    let r = await callTool('update_task', { id: 'r1', done: false });
+    expect(r.result.content[0].text).toMatch(/Un-ticked .* on the server\. A device that already synced/);
+    expect(bodyOf(calls[1]).completed_dates).toEqual(['2026-09-01']);
+    vi.unstubAllGlobals();
+    calls = sequence([{ id: 't1', recurrence: null }], [{ id: 't1' }]);
+    r = await callTool('update_task', { id: 't1', done: false });
+    expect(r.result.content[0].text).toBe('Reopened.');
+    expect(bodyOf(calls[1])).toMatchObject({ done: false, completed_at: null });
+  });
+
+  it('update_task with a title AND done applies the field change first, then the tick', async () => {
+    const calls = sequence([{ id: 'r1' }], [{ id: 'r1', recurrence: { kind: 'daily' }, completed_dates: [] }], [{ id: 'r1' }]);
+    const r = await callTool('update_task', { id: 'r1', title: 'Meds', done: true });
+    expect(r.result.content[0].text).toMatch(/^Ticked for \d{4}-\d{2}-\d{2}\./);
+    expect(calls).toHaveLength(3);
+    expect(bodyOf(calls[0]).title).toBe('Meds');
+    expect(bodyOf(calls[2]).completed_dates).toEqual([todayIso]);
+  });
+
+  it('update_task rejects a non-boolean done', async () => {
+    const r = await callTool('update_task', { id: 'r1', done: 'yes' });
+    expect(r.result.isError).toBe(true);
+  });
+
+  it('list_today marks a repeating task so the model knows a tick is for today only', async () => {
+    sequence([
+      { id: 'o1', title: 'Call the vet', recurrence: null },
+      { id: 'r1', title: 'Meds', recurrence: { kind: 'daily' }, completed_dates: [], skipped_dates: [] },
+    ]);
+    const r = await callTool('list_today', {});
+    expect(r.result.content[0].text).toContain('• Call the vet  [o1]');
+    expect(r.result.content[0].text).toContain('• Meds  (repeats)  [r1]');
+  });
+});
+
+describe('PR B review: the ticked day is named, and an agent can choose it', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const todayIso = new Date().toISOString().slice(0, 10);
+  function sequence(...answers: unknown[]) {
+    const calls: { url: string; init: RequestInit }[] = [];
+    let i = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      return { ok: true, status: 200, json: async () => answers[Math.min(i++, answers.length - 1)] } as unknown as Response;
+    }) as unknown as typeof fetch);
+    return calls;
+  }
+
+  it('names the day it ticked (the UTC day by default)', async () => {
+    sequence([{ id: 'r1', recurrence: { kind: 'daily' }, completed_dates: [] }], [{ id: 'r1' }]);
+    const r = await callTool('complete_task', { id: 'r1' });
+    expect(r.result.content[0].text).toContain(`Ticked for ${todayIso}.`);
+  });
+
+  it('ticks the day the agent names (the user\'s local date) instead of the UTC day', async () => {
+    const calls = sequence([{ id: 'r1', recurrence: { kind: 'daily' }, completed_dates: [] }], [{ id: 'r1' }]);
+    const r = await callTool('complete_task', { id: 'r1', day: '2026-09-24' });
+    expect(r.result.content[0].text).toContain('Ticked for 2026-09-24.');
+    expect(JSON.parse(calls[1].init.body as string).completed_dates).toEqual(['2026-09-24']);
+  });
+
+  it('refuses a day that is not a real calendar day, before any read', async () => {
+    const calls = sequence([]);
+    const r = await callTool('complete_task', { id: 'r1', day: '2026-02-30' });
+    expect(r.result.isError).toBe(true);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('a {kind: none} recurrence is a one-off to the tick, exactly as it is to list_today', async () => {
+    const calls = sequence([{ id: 't1', recurrence: { kind: 'none' }, completed_dates: null }], [{ id: 't1' }]);
+    const r = await callTool('complete_task', { id: 't1' });
+    expect(r.result.content[0].text).toBe('Marked it done. Nice.');
+    expect(JSON.parse(calls[1].init.body as string).done).toBe(true);
+  });
+});

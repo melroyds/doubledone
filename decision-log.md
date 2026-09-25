@@ -8074,3 +8074,31 @@ client type exists); revocable API keys (Tier 3, trigger is the first outside in
 failing closed when the cap's KV is UNBOUND rather than erroring (local dev has no KV, and a missing
 binding is visible in the monitor, while an error is not). **Cost:** one cached JWKS verify per call.
 **Cannot be rolled back by data:** nothing; the Worker deploy is reversible.
+
+## 2026-09-25: a repeat is ticked for today, never closed, on both public surfaces (API audit PRs B and C)
+
+**Decided (PR B):** `complete_task`, `update_task done` and REST `PATCH done` are READ-FIRST. A
+one-off closes or reopens as before. A REPEATING task gets today (the UTC day) added to, or removed
+from, `completed_dates`, the same field the app has always written, and its `done` is never touched.
+**Why:** both surfaces set `done=true` on the series row. The app ignores `done` for a repeat, so the
+person kept seeing the task, while every agent read filters on `done=false`, so the repeat vanished
+from the agent forever, sync locked it in, and the Calendar's planned days dropped it. "Tick off the
+groceries" on a daily repeat is normal use, and the docs promised the opposite. Alongside: `list_today`
+marks repeating rows `(repeats)` so the model knows a tick is for today only; `update_task` accepts
+`done` (true ticks, false reopens or un-ticks) so an agent can undo its own mistaken complete (the
+audit's C15); the one-off close is tombstone-safe (`deleted_at is null`); and the one shared `tickForDay`
+lives in `cadence.ts` so REST and MCP tick identically. `already` (nothing to change) is said, not
+written. **Decided against:** a `doneToday` field on the REST task shape (additive, but a new contract
+for one case the docs can explain: after `done:true` a repeat still reads `done:false` with its
+`repeats` summary); and a per-day `on` argument (that is the timezone work, Tier 2 A17).
+
+**Decided (PR C):** the consent sentence now says what the grant does: add, see, change, complete,
+remove, break down and search, acting as you (the page, the pinned test, docs/mcp.md, the connect
+guide, and the app's Settings hint in five languages, which rides the next client build). A
+percent-encoded task id that does not decode is a calm 400, and anything that still throws inside the
+REST handler is a JSON 500 WITH CORS rather than Cloudflare's raw 1101 page. Three doc lies are gone:
+Inspector discovery needs the bearer (the 401 is how OAuth starts); a pasted token has no early revoke
+(sign-out rotates the refresh family, not a copied access token: treat it like a password for the
+hour); and Today on both surfaces is the UTC day for now, said plainly in OpenAPI, api.md and mcp.md
+until the timezone option lands. OpenAPI is 1.2.2. **Decided against:** a read-only OAuth scope
+(Tier 4: one scope is right while the only clients are claude.ai, ChatGPT and Cowork).

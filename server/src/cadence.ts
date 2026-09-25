@@ -163,3 +163,28 @@ export function buildRecurrence(repeat: RepeatSpec | null | undefined, todayIso:
       return null;
   }
 }
+
+/**
+ * The tick for a REPEATING task: today's ISO day added to (or, for an un-tick, removed from) the row's
+ * completed_dates. The app has always marked a repeat this way and never touches `done` on the series
+ * row; both public surfaces used to set done=true instead, which the app ignored but every agent read
+ * filtered on, so "tick off the groceries" on a daily repeat made it vanish from the agent for good
+ * (the 2026-09-25 audit, PR B). Pure and shared so REST and MCP tick identically. `already` says the
+ * write would change nothing, so the caller can skip it and say so.
+ */
+export function tickForDay(completed: unknown, dayIso: string, on: boolean): { dates: string[]; already: boolean } {
+  const dates = Array.isArray(completed) ? completed.filter((d): d is string => typeof d === 'string') : [];
+  const has = dates.includes(dayIso);
+  if (on) return has ? { dates, already: true } : { dates: [...dates, dayIso], already: false };
+  return has ? { dates: dates.filter((d) => d !== dayIso), already: false } : { dates, already: true };
+}
+
+/** True for a well-formed, REAL calendar day 'YYYY-MM-DD' (rejects 2026-02-30). Shared by both surfaces so
+ *  a day an agent or an integrator names is checked the same way everywhere. */
+export function isValidIsoDay(s: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
+}

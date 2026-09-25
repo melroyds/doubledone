@@ -763,7 +763,7 @@ export const en = {
     mcpExpired: 'Your session expired. Sign in again to get a fresh token.',
     mcpExpiredA11y: 'Sign in again to get a fresh token',
     mcpFootnote: 'The token refreshes about hourly. Re-copy it if your agent stops connecting.',
-    mcpHint: 'Let an AI agent add and finish your tasks. Add this server to your MCP client, then paste your token.',
+    mcpHint: 'Let an AI agent add, change, finish and remove your tasks, acting as you. Add this server to your MCP client, then paste your token.',
     mcpLabel: 'AI agent access (MCP)',
     motionFollowSystem: 'Follow system',
     motionHint: 'Reduce stops the gentle fades, the scrolling titles, and the buzz of haptics.',

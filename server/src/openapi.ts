@@ -15,7 +15,7 @@ export const OPENAPI_SPEC = {
   openapi: '3.1.0',
   info: {
     title: 'DoubleDone API',
-    version: '1.2.1',
+    version: '1.2.3',
     description:
       'A small REST API over your DoubleDone tasks. Authenticate with your own DoubleDone token ' +
       '(in the app: Settings → AI agent access (MCP) → Copy my token), which scopes every call to your own data through ' +
@@ -48,14 +48,14 @@ export const OPENAPI_SPEC = {
             in: 'query',
             required: false,
             description:
-              'Look ahead this many days (clamped 1-30, default 7): your future-dated one-off tasks plus the next occurrence of each repeating task within the window. Each returned task carries the day it next lands in `due`. Takes precedence over today.',
+              'Look ahead this many days (clamped 1-30, default 7): your future-dated one-off tasks plus the next occurrence of each repeating task within the window. Each returned task carries the day it next lands in `due`. Takes precedence over today. Days are counted from the UTC calendar day.',
             schema: { type: 'integer', minimum: 1, maximum: 30, default: 7 },
           },
           {
             name: 'today',
             in: 'query',
             required: false,
-            description: 'When true, only open, non-recurring tasks due today or undated (a decomposed-task umbrella the app hides is excluded, so it matches the app Today).',
+            description: 'When true, only open, non-recurring tasks due today or undated (a decomposed-task umbrella the app hides is excluded). Today is the UTC calendar day for now (a timezone option is planned), so early in an Australian morning it can still be the previous day, and repeating tasks are not included here (the MCP list_today includes them).',
             schema: { type: 'boolean' },
           },
         ],
@@ -92,6 +92,7 @@ export const OPENAPI_SPEC = {
         operationId: 'getTask',
         responses: {
           '200': taskResponse('The task.'),
+          '400': { $ref: '#/components/responses/BadRequest' },
           '401': { $ref: '#/components/responses/Unauthorized' },
           '404': { $ref: '#/components/responses/NotFound' },
         },
@@ -99,7 +100,7 @@ export const OPENAPI_SPEC = {
       patch: {
         tags: ['tasks'],
         summary: 'Update a task',
-        description: 'Updates a task. Send any of title, done, due, or repeat. Setting a `due` day clears any repeat, and setting a `repeat` clears the due day; pass either as null to clear it.',
+        description: 'Updates a task. Send any of title, done, due, or repeat. Setting a `due` day clears any repeat, and setting a `repeat` clears the due day; pass either as null to clear it. `done: true` on a REPEATING task ticks it for one day (the UTC day unless you pass `day`) and leaves the series open, so the returned task still shows done:false with its repeats summary; `done: false` un-ticks that day on the server only (a device that already synced the tick brings it back, ticks are kept on purpose). A one-off closes and reopens as you would expect.',
         operationId: 'updateTask',
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/TaskPatch' } } } },
         responses: {
@@ -115,6 +116,7 @@ export const OPENAPI_SPEC = {
         operationId: 'deleteTask',
         responses: {
           '204': { description: 'Deleted (a soft delete; the row is tombstoned).' },
+          '400': { $ref: '#/components/responses/BadRequest' },
           '401': { $ref: '#/components/responses/Unauthorized' },
           '404': { $ref: '#/components/responses/NotFound' },
         },
@@ -167,10 +169,11 @@ export const OPENAPI_SPEC = {
       TaskPatch: {
         type: 'object',
         description:
-          'Any of the fields. Setting done to true stamps completedAt. Setting a `due` day clears any repeat, and setting a `repeat` clears the due day; pass due:null or repeat:null to clear either.',
+          'Any of the fields. On a one-off, done:true stamps completedAt and done:false clears it. On a REPEATING task, done ticks or un-ticks ONE day (`day`, default the UTC day) and never closes the series. Setting a `due` day clears any repeat, and setting a `repeat` clears the due day; pass due:null or repeat:null to clear either.',
         properties: {
           title: { type: 'string' },
           done: { type: 'boolean' },
+          day: { type: 'string', description: "With done on a repeating task: the calendar day to tick or un-tick ('YYYY-MM-DD', the user's local date). Defaults to the UTC day." },
           due: { type: ['string', 'null'], format: 'date' },
           repeat: { oneOf: [{ $ref: '#/components/schemas/Repeat' }, { type: 'null' }], description: 'A repeat to make the task recur, or null to stop it recurring.' },
         },
@@ -217,6 +220,7 @@ export const OPENAPI_SPEC = {
       BadRequest: { description: 'Invalid request.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
       Unauthorized: { description: 'Missing, expired, forged or otherwise invalid token. The token is verified before any call, so re-copy it from the app.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
       NotFound: { description: 'No such task.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+      InternalError: { description: 'Something went wrong on our side (always JSON, always with CORS). Retry in a moment.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
     },
   },
 };

@@ -763,7 +763,7 @@ export const de: Catalog = {
     mcpExpired: 'Deine Sitzung ist abgelaufen. Melde dich neu an, dann bekommst du einen frischen Token.',
     mcpExpiredA11y: 'Neu anmelden, um einen frischen Token zu bekommen',
     mcpFootnote: 'Der Token erneuert sich etwa stündlich. Kopier ihn neu, wenn dein Agent sich nicht mehr verbinden kann.',
-    mcpHint: 'Lass einen KI-Agenten deine Aufgaben anlegen und abhaken. Trag diesen Server in deinem MCP-Client ein, dann füge deinen Token ein.',
+    mcpHint: 'Lass einen KI-Agenten deine Aufgaben anlegen, ändern, abhaken und entfernen, in deinem Namen. Trag diesen Server in deinem MCP-Client ein, dann füge deinen Token ein.',
     mcpLabel: 'Zugang für KI-Agenten (MCP)',
     motionFollowSystem: 'Wie das System',
     motionHint: 'Reduzieren stoppt die sanften Übergänge, die wandernden Titel und das leichte Vibrieren.',

@@ -16,8 +16,10 @@ import {
   asRecurrence,
   buildRecurrence,
   isDueOn,
+  isValidIsoDay,
   type Recurrence,
   type RepeatSpec,
+  tickForDay,
 } from './cadence';
 import { OPENAPI_SPEC, SWAGGER_HTML } from './openapi';
 import { defaultVerifySub, type SubVerifier } from './verify';
@@ -190,12 +192,15 @@ export function updateRequest(
   env: ApiEnv,
   token: string,
   id: string,
-  patch: { title?: string; done?: boolean; due?: string | null; recurrence?: Recurrence | null },
+  patch: { title?: string; done?: boolean; due?: string | null; recurrence?: Recurrence | null; completedDates?: string[] },
   now: string,
 ): { url: string; init: RequestInit } {
   const q = new URLSearchParams({ id: `eq.${id}`, deleted_at: 'is.null', select: SELECT });
   const body: Row = { updated_at: now };
   if (typeof patch.title === 'string') body.title = patch.title;
+  // A repeat's tick: the handler resolves `done` into completed_dates for a recurring row (read-first,
+  // see the PATCH route), so `done` itself is only ever sent for a one-off.
+  if (patch.completedDates !== undefined) body.completed_dates = patch.completedDates;
   if (typeof patch.done === 'boolean') {
     body.done = patch.done;
     body.completed_at = patch.done ? now : null;
@@ -305,7 +310,7 @@ function addDaysIso(iso: string, days: number): string {
 // --- Body parsing / validation (pure) --------------------------------------
 
 export type CreateBody = { title: string; due: string | null; repeat: RepeatSpec | null };
-export type UpdateBody = { title?: string; done?: boolean; due?: string | null; repeat?: RepeatSpec | null };
+export type UpdateBody = { title?: string; done?: boolean; due?: string | null; repeat?: RepeatSpec | null; day?: string };
 
 /** Validate a POST body. Returns the clean body, or an { error } message. A `repeat` object and a
  *  `due` are mutually exclusive (a task repeats or has one due day, never both, exactly as the app
@@ -344,6 +349,11 @@ export function parseUpdate(raw: unknown): { body: UpdateBody } | { error: strin
     body.title = t;
   }
   if (typeof o.done === 'boolean') body.done = o.done;
+  // The day a repeat is ticked for (with `done`); a real calendar day, defaulting to the UTC day.
+  if (typeof o.day !== 'undefined') {
+    if (typeof o.day === 'string' && isValidIsoDay(o.day)) body.day = o.day;
+    else return { error: 'day must be a real calendar day (YYYY-MM-DD)' };
+  }
   if (typeof o.due !== 'undefined') {
     if (o.due === null) body.due = null;
     else if (typeof o.due === 'string' && ISO_DATE.test(o.due)) body.due = o.due;
@@ -356,6 +366,7 @@ export function parseUpdate(raw: unknown): { body: UpdateBody } | { error: strin
   }
   // Setting a due day and a repeat in the same call is contradictory (they clear each other).
   if (body.due != null && body.repeat != null) return { error: 'a task can have a due date or a repeat, not both' };
+  if (body.day !== undefined && body.done === undefined) return { error: 'day only makes sense with done' };
   if (Object.keys(body).length === 0) return { error: 'nothing to update: send title, done, due, or repeat' };
   return { body };
 }
@@ -428,8 +439,22 @@ async function handleListTasks(request: Request, env: ApiEnv, token: string): Pr
   return json({ tasks: Array.isArray(rows) ? rows.map((r) => toApiTask(r as Row)) : [] });
 }
 
-/** Route + serve the `/api/v1/*` task surface. index.ts forwards every `/api/` request here. */
+/** Route + serve the `/api/v1/*` task surface. index.ts forwards every `/api/` request here. Everything
+ *  inside answers calmly; whatever still throws (a fetch that rejects, a body that lies about its type) is
+ *  a JSON 500 WITH CORS here, never a raw Cloudflare 1101 page, which also drops the CORS headers and reads
+ *  as a network failure to a browser integrator. */
 export async function handleApi(request: Request, env: ApiEnv, verifySub: SubVerifier = defaultVerifySub): Promise<Response> {
+  try {
+    return await handleApiInner(request, env, verifySub);
+  } catch (e) {
+    // Method, path and message only: never the body or the token. The calm 500 the integrator sees and the
+    // line the operator needs (wrangler tail) both exist; a bare catch would have hidden the fault entirely.
+    console.error('[api]', request.method, new URL(request.url).pathname, e instanceof Error ? e.message : String(e));
+    return json({ error: 'something went wrong on our side. Try again in a moment.' }, 500);
+  }
+}
+
+async function handleApiInner(request: Request, env: ApiEnv, verifySub: SubVerifier): Promise<Response> {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: API_CORS });
 
   const { pathname } = new URL(request.url);
@@ -488,7 +513,14 @@ export async function handleApi(request: Request, env: ApiEnv, verifySub: SubVer
   // Item: /tasks/{id}
   const match = path.match(/^\/tasks\/([^/]+)$/);
   if (match) {
-    const id = decodeURIComponent(match[1]);
+    // A percent-encoded id that does not decode used to throw here and surface as Cloudflare's raw
+    // text 1101 page with no CORS headers (audit PR C). A bad id is a calm 400 like every other bad input.
+    let id: string;
+    try {
+      id = decodeURIComponent(match[1]);
+    } catch {
+      return json({ error: 'invalid task id' }, 400);
+    }
     if (request.method === 'GET') {
       const { url, init } = getRequest(env, token, id);
       const res = await fetch(url, init);
@@ -509,11 +541,27 @@ export async function handleApi(request: Request, env: ApiEnv, verifySub: SubVer
       const now = new Date().toISOString();
       // Translate a set-repeat through the shared cadence builder; a malformed repeat is a calm
       // 400. `repeat: null` (clear) stays null and reaches updateRequest as recurrence: null.
-      const patch: { title?: string; done?: boolean; due?: string | null; recurrence?: Recurrence | null } = {
+      const patch: { title?: string; done?: boolean; due?: string | null; recurrence?: Recurrence | null; completedDates?: string[] } = {
         title: parsed.body.title,
-        done: parsed.body.done,
         due: parsed.body.due,
       };
+      // A done-write is READ-FIRST: a repeating task is ticked for today (in completed_dates, the same
+      // field the app writes) and its series stays open; only a one-off gets `done` itself. Setting
+      // done=true on a series row made the repeat vanish from every agent read (audit PR B).
+      if (typeof parsed.body.done === 'boolean') {
+        const st = getRequest(env, token, id);
+        const sr = await fetch(st.url, st.init);
+        if (!sr.ok) return upstream(sr);
+        const srows = (await sr.json()) as unknown;
+        const srow = Array.isArray(srows) && srows[0] && typeof srows[0] === 'object' ? (srows[0] as Row) : null;
+        if (!srow) return json({ error: 'not found' }, 404);
+        // Resolved against the shape AFTER this patch, so {done:true, repeat:null} closes the one-off it
+        // makes (as the MCP path does), and the shared classifier decides what "repeats" means.
+        const repeatsAfter =
+          parsed.body.repeat !== undefined ? parsed.body.repeat !== null : parsed.body.due != null ? false : asRecurrence(srow.recurrence) != null;
+        if (repeatsAfter) patch.completedDates = tickForDay(srow.completed_dates, parsed.body.day ?? todayIsoUtc(), parsed.body.done).dates;
+        else patch.done = parsed.body.done;
+      }
       if (typeof parsed.body.repeat !== 'undefined') {
         if (parsed.body.repeat === null) patch.recurrence = null;
         else {

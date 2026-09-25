@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { asRecurrence, buildRecurrence, dayOfWeek, daysBetween, isDueOn, recurringDueToday, type RepeatSpec } from './cadence';
+import { asRecurrence, buildRecurrence, dayOfWeek, daysBetween, isDueOn, recurringDueToday, tickForDay, type RepeatSpec } from './cadence';
 
 describe('date helpers (UTC calendar days)', () => {
   it('daysBetween counts whole days, signed, NaN on junk', () => {
@@ -176,5 +176,20 @@ describe('monthly (client parity)', () => {
     expect(buildRecurrence({ kind: 'monthly', day: 32 } as RepeatSpec, '2026-06-17')).toBeNull();
     expect(buildRecurrence({ kind: 'monthly', day: 'first' } as RepeatSpec, '2026-06-17')).toBeNull();
     expect(buildRecurrence({ kind: 'monthly', start: 'not-a-day' } as RepeatSpec, '2026-06-17')).toBeNull();
+  });
+});
+
+describe('tickForDay (PR B: a repeat is ticked for a day, never closed)', () => {
+  it('adds the day once, and reports an already-ticked day as a no-op', () => {
+    expect(tickForDay(['2026-09-01'], '2026-09-25', true)).toEqual({ dates: ['2026-09-01', '2026-09-25'], already: false });
+    expect(tickForDay(['2026-09-25'], '2026-09-25', true)).toEqual({ dates: ['2026-09-25'], already: true });
+  });
+  it('removes the day on an un-tick, and reports a day that was never ticked as a no-op', () => {
+    expect(tickForDay(['2026-09-01', '2026-09-25'], '2026-09-25', false)).toEqual({ dates: ['2026-09-01'], already: false });
+    expect(tickForDay(['2026-09-01'], '2026-09-25', false)).toEqual({ dates: ['2026-09-01'], already: true });
+  });
+  it('treats junk (null, non-array, non-string entries) as empty rather than throwing', () => {
+    expect(tickForDay(null, '2026-09-25', true)).toEqual({ dates: ['2026-09-25'], already: false });
+    expect(tickForDay([1, null, '2026-09-25'], '2026-09-25', true)).toEqual({ dates: ['2026-09-25'], already: true });
   });
 });
