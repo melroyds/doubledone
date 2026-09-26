@@ -5,7 +5,7 @@
 // file and a `.web.ts` stubs it out. Here the base file is the STUB, and the real code lives
 // in `purchases.ios.ts`. That is deliberate: `react-native-purchases` sells only through
 // Apple, so it must reach iOS and NOWHERE else. A `.web.ts` split would leave the base file
-// serving iOS AND Android, and Android (live on Google Play, selling via Stripe) is exactly
+// serving iOS AND Android, and Android (live on Google Play, which sells nothing since Path C) is exactly
 // what must never import this native module. Metro resolves `@/lib/purchases` to
 // `purchases.ios.ts` on iOS and falls back to THIS file on web and Android, so the native
 // import is not even in their module graph. `IAP_AVAILABLE` is therefore a compile-time

@@ -26,6 +26,7 @@ import routinesArt from '../../assets/images/rooms/routines.webp';
 import { border, fonts, layout, PRESSED_OPACITY, spacing, type Theme } from '@/constants/theme';
 import { useSession } from '@/lib/auth';
 import { t } from '@/lib/locale';
+import { SELLS_HERE } from '@/lib/storefront';
 import { usePremium } from '@/lib/premium-provider';
 import { scaleFor } from '@/lib/settings';
 import { isSyncConfigured } from '@/lib/supabase';
@@ -194,7 +195,7 @@ export default function RoomsScreen() {
               router.push({ pathname: '/premium', params: { from: 'menu' } });
             }}
             accessibilityRole="button"
-            accessibilityLabel={`${t('common.premium')}. ${premium ? t('rooms.premiumHintSubscribed') : aiEnabled ? t('rooms.premiumHintFreeAi') : t('rooms.premiumHintFreeNoAi')}`}
+            accessibilityLabel={`${t('common.premium')}. ${premium ? (SELLS_HERE ? t('rooms.premiumHintSubscribed') : t('settings.premiumCardActiveSub')) : aiEnabled ? t('rooms.premiumHintFreeAi') : t('rooms.premiumHintFreeNoAi')}`}
             hitSlop={6}
             style={({ pressed }) => [styles.premiumRow, pressed && styles.pressed]}
           >

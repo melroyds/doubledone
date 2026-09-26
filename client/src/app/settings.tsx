@@ -15,6 +15,7 @@ import { useSession } from '@/lib/auth';
 import { toISODate } from '@/lib/day';
 import { buildExport } from '@/lib/export';
 import { t } from '@/lib/locale';
+import { SELLS_HERE } from '@/lib/storefront';
 import { usePremium } from '@/lib/premium-provider';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { clampHour, formatReminderHour, reminderReasonLine } from '@/lib/reminders-types';
@@ -681,7 +682,7 @@ export default function SettingsScreen() {
         <Pressable
           onPress={() => router.push('/premium')}
           accessibilityRole="button"
-          accessibilityLabel={premium ? t('settings.premiumCardActiveA11y') : t('settings.premiumCardSeePlansA11y')}
+          accessibilityLabel={premium ? t('settings.premiumCardActiveA11y') : SELLS_HERE ? t('settings.premiumCardSeePlansA11y') : t('premium.brandName')}
           style={({ pressed }) => [styles.premiumCardWrap, pressed && styles.pressed]}
         >
           <LinearGradient colors={PREMIUM_GRADIENT} locations={PREMIUM_GRADIENT_LOCATIONS} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premiumCard}>

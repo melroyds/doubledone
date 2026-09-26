@@ -97,8 +97,13 @@ Escalate to a modal only if a reviewer ever flags it.*
   describes the app. The exclusion still holds, a user sharing their own week's record does not make image
   generation the app's purpose. The listing guidance stands: never market DoubleDone as an AI image
   generator.)
-- **External Stripe checkout is fine** for a productivity subscription. Never say "subscribe in-app" or "via
-  Google Play". The listing already frames it correctly.
+- **Correction (2026-09-27): the external Stripe checkout was never fine on Android.** This bullet used to
+  say it was. Play rejected 1.5.1 on 2026-09-26, and the Payments policy (sections 2 and 4) forbids leading
+  an Android user to any payment method but Play Billing, in the app **or in the store listing**. The
+  Android app is now consumption-only (Path C): no price, no purchase, no outside-purchase line anywhere,
+  in the app or the listing. Premium bought on the web or an iPhone still works after sign-in, and the
+  card-free month is still offered. Full reasoning in [play-store-release.md](play-store-release.md) 5d,
+  the resubmission steps in its section 10.
 - **The data footprint is small and clean** and matches the privacy policy on everything except the one IP
   line above.
 
@@ -123,7 +128,7 @@ data-deletion URL. No ads, no third-party analytics/trackers, no advertising ID.
 | Personal info > Email address | Yes | No | Optional | Account management | Only if the user turns on sync. OTP sign-in, no password. Supabase (Sydney). Deletable in-app. |
 | App activity > Other user content (task text) | Yes | **Yes** | Optional | App functionality, personalization | Two opt-in flows: sync (to Supabase) and AI (to Anthropic). "Shared" because text leaves to Anthropic when AI is on. AI off = nothing sent. Pseudonymous AI-call copy in D1, no user_id, no IP. Since 2026-07-12 the weekly scrapbook keepsake (a short caption derived from finished tasks, plus its image link) also syncs to Supabase under the same sync opt-in. |
 | Photos > Photos | Yes | **Yes** | Optional | App functionality (OCR scan) | Premium photo-to-tasks. Sent to Anthropic (vision), then discarded, not stored as an image. Only on explicit action, AI on. |
-| Financial info > Payment info | Yes | **Yes** | Optional | Manage subscription, purchases | Billed by **Stripe** (external web checkout), not Play Billing. Stripe holds card data; DoubleDone never sees it. Be honest: Stripe retains payment records after deletion (tax/legal). |
+| Financial info > Payment info | **No** | No | n/a | n/a | Not collected (Premium is not sold in the Android app; payments happen on the web or through Apple, outside this app). Changed 2026-09-27 with Path C: while the Android app linked out to Stripe this row was declared as collected and shared. |
 | Device or other IDs (push endpoint; rate-limit IP) | Yes | No | Optional | Deliver reminders; **security/anti-fraud** | Push subscription only if reminders enabled (no user_id, no task text). The scrapbook rate-limit IP is the item in to-do #1. Declare the security use, not silence. |
 | Location / Contacts / Health / Messages / Calendar / Audio / Files / Web history / Installed apps / Crash logs | **No** | No | n/a | n/a | Explicitly NOT collected. The audience is ADHD/autism/OCD, but the app collects no health data. |
 
@@ -144,7 +149,15 @@ matching). **Settle and repeating tasks** were missing from the free list. And t
 days" where the app says "a month" everywhere. Rule for next time: diff this against
 [premium.md](premium.md)'s wall and the live paywall catalog before shipping, not after.*
 
-3,983 characters of 4,000.
+*Cut 2026-09-27 for Path C (the Android app sells nothing, see
+[play-store-release.md](play-store-release.md) 5d). The whole PREMIUM section went: its heading, the
+nine feature bullets, the trial and A$ price line, and the "billed through Stripe web checkout, not
+Google Play" line. So did the one paid-only feature named elsewhere, photo scan in the AI paragraph.
+The listing now names no price, no paid-only feature and no outside way to pay, and
+`node scripts/check-listings.mjs` fails if any of that comes back. That retires the rule above about
+diffing against the Premium wall: diff the FREE list against the app instead.*
+
+3,171 characters of 4,000.
 
 ```
 Today is finite and achievable.
@@ -178,7 +191,7 @@ A shared thing with a day on it, bin night on Tuesday, arrives on both your Toda
 You start it by reading somebody a six-character code. There is no feed, no browsing, and nobody can reach you unless you handed them that code. Either of you can leave whenever you like, no reason needed. Like sync, Ours needs only the simple email sign-in.
 
 AI THAT HELPS, FULLY OPTIONAL
-AI is on by default and does real work: it sorts a brain-dump into your day, breaks a hard task into steps, and reads a photo of a list into tasks. But it is genuinely optional. One tap in Settings turns it off, and then nothing you type is sent anywhere. The whole app keeps working, entirely on your device. If you are wary of AI or just like things private, this is built for you.
+AI is on by default and does real work: it sorts a brain-dump into your day and breaks a hard task into steps. But it is genuinely optional. One tap in Settings turns it off, and then nothing you type is sent anywhere. The whole app keeps working, entirely on your device. If you are wary of AI or just like things private, this is built for you.
 
 PRIVATE BY DEFAULT
 - Your tasks live on your device. No account needed to use the app.
@@ -186,22 +199,6 @@ PRIVATE BY DEFAULT
 - When AI is on, only the text you choose goes to Anthropic's Claude, and it is never used to train models. When AI is off, nothing leaves your device.
 - No ads. No third-party trackers. Nothing sold.
 - Export your data or delete your account any time.
-
-PREMIUM, WHEN YOU WANT A LITTLE MORE
-Everything above is free, forever. Premium adds a few extras, never anything you need:
-- A weekly AI scrapbook of what you finished, growing the longer you stay
-- Scan a written list with your camera, straight into tasks
-- Pin the day's one thing
-- Plan my day: a gentle suggested order for today
-- Chart a course: turn a goal into calm, ordered steps
-- Your patterns: gentle stats and a warm weekly reflection
-- Energy matching without limits: ask what fits right now
-- Quiet: a borderless look where nothing shouts
-- Seven calm colour themes
-
-Try it free for a month, no card needed. A$5 a month or A$50 a year, cancel any time.
-
-Premium is billed through Stripe web checkout, not Google Play. We never see or store your card details.
 
 you're allowed to go slowly
 
@@ -223,6 +220,11 @@ Read the plain-English privacy policy at doubledone.app/privacy.
 ---
 
 ## Screenshots (8, regenerated 2026-08-16)
+
+> **Stale for the Path C resubmission (2026-09-27).** This set predates Today v3, and the
+> `settings-light` slide shows "Colour theme PREMIUM". The resubmission needs a regenerated set with no
+> Premium surface in any shot (no Premium badge, no Menu Premium row). See
+> [play-store-release.md](play-store-release.md) section 10, step 2.
 
 **Which folder: `docs/play-store/`, NOT `docs/screenshots/`.** This repo has two screenshot sets with
 overlapping filenames and they are easy to confuse (a ship checklist already sent Melroy to the wrong

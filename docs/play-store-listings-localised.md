@@ -3,6 +3,13 @@
 *Written 2026-08-16 for 1.3.1. Paste-ready. Every count below is measured in characters with
 `scripts/check-listings.mjs`, never estimated, and that script is the gate to re-run after any edit.*
 
+*Cut 2026-09-27 for Path C: the Android app sells nothing (see
+[play-store-release.md](play-store-release.md) 5d). Every Premium block, price and Stripe line is gone
+from all four listings, and so is the one paid-only feature the French and Italian named in their AI
+paragraph (the photo scan, "avec Premium" / "con Premium"). The counts below are re-measured. The trim
+notes under each listing record the 2026-08-16 trim and are kept as history. Where they call the Stripe
+line and the prices protected, that rule is now reversed: the gate fails on them.*
+
 ## Why these are not machine-translated
 
 Google Play Console offers "Import translations with AI". It was considered and rejected, for three
@@ -50,7 +57,7 @@ no engine would have caught any of them.
 
 ## English, for reference
 
-**Short description** (76 / 80)
+**Short description** (77 / 80)
 
 ```
 A calm to-do app for ADHD and overwhelm. Just today. Nothing is ever overdue.
@@ -69,7 +76,7 @@ The full English description is in
 Ruhige To-dos für ADHS und Überforderung. Nur heute. Nichts ist je überfällig.
 ```
 
-**Full description** (3909 / 4000)
+**Full description** (3063 / 4000)
 
 ```
 Heute ist überschaubar und machbar.
@@ -110,28 +117,14 @@ Privat von Haus aus
 - Keine Werbung, nie. Keine Tracker von Dritten. Nichts wird verkauft.
 - Deine Daten exportieren oder dein Konto löschen, wann du magst.
 
-Premium, wenn du mal mehr magst
-Alles oben ist kostenlos, für immer. Premium ergänzt ein paar Extras, nie etwas, das du brauchst:
-- Ein wöchentliches KI-Erinnerungsalbum, das wächst, je länger du bleibst
-- Scanne ein Foto deiner Liste direkt in Aufgaben
-- Pinn dir die eine Sache des Tages an
-- Plan meinen Tag: eine sanfte Reihenfolge für heute
-- Kurs setzen: ein Ziel wird zu ruhigen nächsten Schritten
-- Deine Muster: sanfte Statistiken und ein warmer Wochenrückblick
-- Energie-Abgleich ohne Limit: frag jederzeit, was gerade passt
-- Stille: ein randloser Look, in dem nichts schreit
-- Sieben ruhige Farbthemen, damit es ganz deins wird
-
-Teste Premium einen Monat gratis, ganz ohne Karte. A$5 im Monat oder A$50 im Jahr, jederzeit kündbar.
-
-Abgerechnet wird sicher über Stripe im Web, nicht über Google Play. Deine Kartendaten sehen wir nie.
-
 du darfst langsam machen
 
 Die Datenschutzerklärung, in klarem Englisch: doubledone.app/privacy
 ```
 
 <details><summary>What was trimmed, and why those lines were the safest to lose</summary>
+
+**2026-09-27, Path C:** the whole Premium block went (the heading, nine bullets, the trial and A$ price line, the Stripe line). Full description now 3063 characters. Everything below is the 2026-08-16 record.
 
 Full description: 4005 to 3909 characters (96 cut, 41 under the 3950 target). Short description: 78 characters.
 
@@ -161,7 +154,7 @@ Short description, 78 characters: "Ruhige To-dos für ADHS und Überforderung. N
 Tu lista para el TDAH y el agobio. Solo hoy. Aquí nada está nunca atrasado.
 ```
 
-**Full description** (3933 / 4000)
+**Full description** (3174 / 4000)
 
 ```
 Hoy es finito y alcanzable.
@@ -204,27 +197,14 @@ PRIVADO POR DEFECTO
 - Sin anuncios. Sin rastreadores de terceros. Nada se vende.
 - Exporta tus datos o borra tu cuenta cuando quieras.
 
-PREMIUM, PARA CUANDO QUIERAS UN POCO MÁS
-Todo lo de arriba es gratis, para siempre. Premium añade algunos extras, nunca nada que necesites:
-- Un álbum semanal hecho con IA, y crece cuanto más tiempo te quedes
-- Escanea la foto de una lista y conviértela en tareas
-- Fija la única cosa del día
-- Planea mi día, un orden tranquilo para hoy
-- Traza un plan, convierte una meta en pasos tranquilos
-- Tus patrones, estadísticas amables y una reflexión semanal cálida
-- Silenciosa, un aspecto sin bordes donde nada grita
-- Siete temas de color serenos
-
-Prueba Premium gratis un mes, sin tarjeta. A$5 al mes o A$50 al año, cancela cuando quieras.
-
-Premium se cobra en la web a través de Stripe, no por Google Play. Nunca vemos ni guardamos los datos de tu tarjeta.
-
 tienes permiso para ir despacio
 
 Lee la política de privacidad, en lenguaje claro, en doubledone.app/privacy.
 ```
 
 <details><summary>What was trimmed, and why those lines were the safest to lose</summary>
+
+**2026-09-27, Path C:** the whole Premium block went (the heading, eight bullets, the trial and A$ price line, the Stripe line). Full description now 3174 characters. Everything below is the 2026-08-16 record.
 
 4372 to 3933 characters (cap 4000, target 3950). Short description is 75 characters.
 
@@ -251,7 +231,7 @@ Short description: lifts the app's own Spanish. "Solo hoy" is the today subtitle
 Pour le TDAH et la surcharge. Juste aujourd'hui. Rien n'est jamais en retard.
 ```
 
-**Full description** (3853 / 4000)
+**Full description** (2913 / 4000)
 
 ```
 Aujourd'hui a une fin, et tu peux y arriver.
@@ -285,7 +265,7 @@ Ce qui a son propre jour, les poubelles le mardi, arrive dans vos deux Aujourd'h
 Ça commence par un code de six caractères, que tu lis à ta personne. Pas de fil d'actualité, personne ne peut te joindre ici sans ce code. Vous partez quand vous voulez, sans raison à donner. Notre liste demande seulement la connexion par e-mail.
 
 UNE IA QUI AIDE, ENTIÈREMENT OPTIONNELLE
-L'IA est active par défaut : elle trie ce que tu déposes, décompose une tâche difficile, et, avec Premium, lit la photo d'une liste et en fait des tâches. Un geste dans les Réglages la désactive, et plus rien de ce que tu écris ne part. Tout continue de fonctionner sur ton appareil.
+L'IA est active par défaut : elle trie ce que tu déposes et décompose une tâche difficile. Un geste dans les Réglages la désactive, et plus rien de ce que tu écris ne part. Tout continue de fonctionner sur ton appareil.
 
 PRIVÉ PAR DÉFAUT
 - Tes tâches restent sur ton appareil. Aucun compte n'est nécessaire.
@@ -294,28 +274,14 @@ PRIVÉ PAR DÉFAUT
 - Aucune pub, jamais. Aucun traqueur tiers. Rien n'est vendu.
 - Exporte tes données ou supprime ton compte quand tu veux.
 
-PREMIUM, QUAND TU VEUX UN PEU PLUS
-Tout ce qui précède est gratuit, pour toujours. Premium, ce sont les extras, jamais rien d'indispensable :
-- Un album souvenir IA chaque semaine, avec tout ce que tu as terminé
-- Scanner la photo d'une liste et en faire des tâches
-- Épingle ta chose du jour
-- Organiser ma journée, un ordre tranquille pour aujourd'hui
-- Trace ta route, transforme un objectif en étapes tranquilles
-- Tes tendances, des stats douces et un regard chaleureux sur ta semaine
-- Choix illimité selon ton énergie, demande ce qui colle quand tu veux
-- Silencieuse, un style sans bordures où rien ne crie
-- Sept thèmes de couleur apaisants
-
-Essaie Premium gratuitement un mois, sans carte bancaire. 5 $A / mois ou 50 $A / an, résiliable à tout moment.
-
-Le paiement passe par Stripe sur le web, pas par Google Play. On ne voit ni ne garde tes coordonnées bancaires.
-
 tu as le droit d'aller doucement
 
 La politique de confidentialité, en clair : doubledone.app/privacy.
 ```
 
 <details><summary>What was trimmed, and why those lines were the safest to lose</summary>
+
+**2026-09-27, Path C:** the whole Premium block went (the heading, nine bullets, the trial and $A price line, the Stripe line), and so did ", et, avec Premium, lit la photo d'une liste et en fait des tâches" from the AI paragraph, which now reads "elle trie ce que tu déposes et décompose une tâche difficile." Full description now 2913 characters. Everything below is the 2026-08-16 record.
 
 4029 to 3853 characters, verified in Python (UTF-8, trailing newline excluded), so 97 under the 3950 target and 147 under Google's cap. Every cut was a repeat, never a fact, and no bullet was lost: the adjective and clause layer alone freed enough room, so both bullets I first removed (Regrouper, Silencieuse) went back in.
 
@@ -345,7 +311,7 @@ Short description, 77 characters. It lifts the app's own French: "Juste aujourd'
 Cose da fare per ADHD e per il troppo. Solo oggi. Niente è mai in ritardo.
 ```
 
-**Full description** (3841 / 4000)
+**Full description** (3029 / 4000)
 
 ```
 Oggi ha una fine, ed è fattibile.
@@ -378,7 +344,7 @@ Ciò che ha un giorno suo, i rifiuti il martedì, arriva su entrambi i vostri Og
 Si comincia leggendo un codice di sei caratteri alla tua persona. Niente feed, e nessuno può raggiungerti senza quel codice. Potete uscirne quando volete, senza spiegare niente. Come la sincronizzazione, Nostro chiede solo il semplice accesso via email.
 
 L'AI CHE AIUTA, DEL TUTTO FACOLTATIVA
-L'AI è attiva di default e fa un lavoro vero: ordina in una giornata quello che hai buttato giù, divide in passaggi un'attività difficile, e, con Premium, legge la foto di una lista e ne fa attività. Un tocco nelle Impostazioni la spegne, e niente di quello che scrivi esce da qui. DoubleDone funziona benissimo anche senza.
+L'AI è attiva di default e fa un lavoro vero: ordina in una giornata quello che hai buttato giù e divide in passaggi un'attività difficile. Un tocco nelle Impostazioni la spegne, e niente di quello che scrivi esce da qui. DoubleDone funziona benissimo anche senza.
 
 PRIVATA DI DEFAULT
 - Le tue attività restano sul tuo dispositivo. Non serve un account.
@@ -387,27 +353,14 @@ PRIVATA DI DEFAULT
 - Niente pubblicità, mai. Nessun tracciamento di terze parti. Non vendiamo i tuoi dati.
 - Esporta i tuoi dati, o elimina account e dati, quando vuoi.
 
-PREMIUM, QUANDO VUOI QUALCOSA IN PIÙ
-Tutto questo è gratis, per sempre. Premium aggiunge qualche extra, mai qualcosa di necessario:
-- Un album settimanale, fatto con l'AI, di quello che hai portato a termine
-- Scansiona la foto di una lista e trasformala in attività
-- Fissa la cosa del giorno
-- Organizza la giornata, un ordine tranquillo per oggi
-- Traccia la rotta, un obiettivo in passaggi tranquilli
-- I tuoi ritmi, statistiche gentili e una riflessione settimanale
-- Silenziosa, un aspetto senza bordi dove niente urla
-- Sette temi di colore rilassanti
-
-Prova Premium gratis per un mese, senza carta. A$5 al mese o A$50 all'anno. Disdici quando vuoi.
-
-Premium si paga sul web tramite Stripe, non su Google Play. La tua carta non la vediamo mai.
-
 hai il permesso di andare piano
 
 La privacy, in parole semplici, su doubledone.app/privacy.
 ```
 
 <details><summary>What was trimmed, and why those lines were the safest to lose</summary>
+
+**2026-09-27, Path C:** the whole Premium block went (the heading, eight bullets, the trial and A$ price line, the Stripe line), and so did ", e, con Premium, legge la foto di una lista e ne fa attività" from the AI paragraph, which now reads "ordina in una giornata quello che hai buttato giù e divide in passaggi un'attività difficile." Full description now 3029 characters. Everything below is the 2026-08-16 record.
 
 4247 to 3841 characters, 406 removed, 109 of headroom left under the 3950 target. What went, in order of how little it cost:
 
@@ -432,7 +385,8 @@ Short description: 74 characters. "Cose da fare" names the category, "per ADHD e
 ## Before pasting any of these
 
 1. **Run the gate.** `node scripts/check-listings.mjs` measures every field, checks the diacritics
-   survived, and checks the protected claims are all still present. It exits non-zero on any failure.
+   survived, checks the protected claims are all still present, and fails on anything that sells (a
+   price, "Stripe", a Premium section, a buy-on-the-website line). It exits non-zero on any failure.
 2. **Confirm the locale exists on Play** before pasting. Play keeps a separate listing per language,
    and a language with no listing has nowhere to receive this.
 3. **Never edit these through a shell heredoc.** Every non-English release note in this repo was
@@ -446,6 +400,11 @@ Short description: 74 characters. "Cose da fare" names the category, "per ADHD e
 
 - **No other languages.** The app ships en, de, es, fr, it. A listing in a sixth language would be a
   promise the app cannot keep on first launch.
+- **No es-419 transcreation.** Play probably carries an es-419 (Latin American Spanish) listing, since
+  the release notes are pasted with an `es-419` tag, but this doc has no copy for it. Until one exists,
+  paste the es-ES copy there: the gate has checked it, and its vosotros forms read as Spain's Spanish,
+  which is a copy nicety, not a policy problem. Never leave an old es-419 text on Play that still names
+  a price or Stripe.
 - **Ours is not in any short description.** Three ideas in 80 characters means none of them lands.
   It gets the full description and the third screenshot.
 - **The AI-optional caveat is not in any short description** either, for the same reason. It has a

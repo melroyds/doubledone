@@ -14,6 +14,8 @@ import { t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
 import { premiumPrimaryAction, trialSlot } from '@/lib/premium-ui';
 import { buy, IAP_AVAILABLE, loadOffers, openAppleSubscriptions, restore, type StoreOffer } from '@/lib/purchases';
+import { loadTrialUsed, saveTrialUsed } from '@/lib/storage';
+import { SELLS_HERE } from '@/lib/storefront';
 import { loadEntitlement, startCheckout, startPortal, startTrial } from '@/lib/stripe';
 import { track } from '@/lib/telemetry';
 import { useThemedStyles } from '@/lib/theme-provider';
@@ -95,16 +97,39 @@ export default function PremiumScreen() {
   // fresh read every time the screen is seen.
   const offer = offers.find((o) => o.plan === plan);
   // Which primary control the entitled panel shows. Pure and tested (lib/premium-ui): trial
-  // converts where Stripe can (web/Android), comp gets a calm no-portal line, everyone else manages.
-  const primaryAction = premiumPrimaryAction(effectiveEntitlement.status, IAP_AVAILABLE);
+  // converts where Stripe can (the web), comp gets a calm no-portal line, everyone else manages.
+  // Android sells nothing (lib/storefront, Path C): no price, no toggle, no Go Premium, no Stripe link.
+  const primaryAction = premiumPrimaryAction(effectiveEntitlement.status, IAP_AVAILABLE, SELLS_HERE);
+  // The ?status= a Stripe checkout returns with. Android never starts one, so it never reads one either.
+  const payStatus = SELLS_HERE ? status : undefined;
   // What the primary CTA should do, given sign-in + entitlement state. On web/Android this is
   // always 'hidden' (IAP off), so the existing Stripe CTA renders instead.
   const gate = purchaseGate({ iapAvailable: IAP_AVAILABLE, signedIn: Boolean(session), loading, premium });
   // Where the free month goes. Pure and tested (lib/premium-ui): on iOS it moves out from under
   // the buy button rather than disappearing.
   const slot = trialSlot({ signedIn: Boolean(session), iapAvailable: IAP_AVAILABLE });
+  // Android sells nothing, so the free month is the one thing this page offers there, and once this account
+  // has used it the link could only ever answer "already had it". Remembered per account (lib/storage), it
+  // stops being offered: our own rule is never a control whose only outcome is a no. Web and iOS unchanged.
+  const uid = session?.user?.id ?? null;
+  const [trialUsed, setTrialUsed] = useState(false);
   useEffect(() => {
-    if (status !== 'success' || premium) return;
+    if (SELLS_HERE || !uid) return;
+    let live = true;
+    void loadTrialUsed(uid).then((used) => {
+      if (live) setTrialUsed(used);
+    });
+    return () => {
+      live = false;
+    };
+  }, [uid]);
+  // Seen mid-trial on this device: it has been used, whatever happens next.
+  useEffect(() => {
+    if (!SELLS_HERE && uid && effectiveEntitlement.status === 'trial') void saveTrialUsed(uid);
+  }, [uid, effectiveEntitlement.status]);
+  const offerTrial = slot === 'inline' && (SELLS_HERE || !trialUsed);
+  useEffect(() => {
+    if (payStatus !== 'success' || premium) return;
     let tries = 0;
     const timer = setInterval(() => {
       tries += 1;
@@ -115,7 +140,7 @@ export default function PremiumScreen() {
       }
     }, 2000);
     return () => clearInterval(timer);
-  }, [status, premium, refresh]);
+  }, [payStatus, premium, refresh]);
 
   // iOS purchase via StoreKit (RevenueCat). The RevenueCat webhook flips D1, then the existing
   // success-poll below picks it up. The DOUBLE-CHARGE GUARD is the fresh entitlement read right
@@ -162,7 +187,7 @@ export default function PremiumScreen() {
   }
 
   async function subscribe() {
-    if (busy) return;
+    if (busy || !SELLS_HERE) return;
     setBusy(true);
     setError(null);
     if (IAP_AVAILABLE) {
@@ -231,15 +256,20 @@ export default function PremiumScreen() {
       return;
     }
     if (res.result === 'already') {
-      setTrialNote(t('premium.trialAlreadyUsed'));
+      setTrialNote(SELLS_HERE ? t('premium.trialAlreadyUsed') : t('premium.trialAlreadyUsedPlain'));
+      if (!SELLS_HERE && uid) {
+        void saveTrialUsed(uid);
+        setTrialUsed(true); // the link goes; its answer stays on screen for this visit
+      }
       return;
     }
+    if (!SELLS_HERE && uid) void saveTrialUsed(uid);
     track('premium.trial_started');
     refresh();
   }
 
   async function manage() {
-    if (busy) return;
+    if (busy || !SELLS_HERE) return;
     track('premium.manage_opened');
     // An Apple subscription is managed in Apple's settings, never Stripe's portal.
     if (effectiveEntitlement.source === 'apple') {
@@ -300,7 +330,7 @@ export default function PremiumScreen() {
                   : t('premium.unlockedBodyFull', { allowance })}
             </Text>
             {effectiveEntitlement.status === 'trial' && periodLabel ? (
-              <Text style={styles.subStatus}>{t('premium.trialUntil', { periodLabel })}</Text>
+              <Text style={styles.subStatus}>{SELLS_HERE ? t('premium.trialUntil', { periodLabel }) : t('premium.trialUntilPlain', { periodLabel })}</Text>
             ) : effectiveEntitlement.cancelAtPeriodEnd && periodLabel ? (
               <Text style={styles.subStatus}>{t('premium.premiumUntil', { periodLabel })}</Text>
             ) : periodLabel ? (
@@ -349,6 +379,11 @@ export default function PremiumScreen() {
               // A comp / allowlisted account is premium with no Stripe customer, so no portal
               // exists. Never render a Manage button whose only outcome is a 404: say so calmly.
               <Text style={styles.subStatus}>{t('premium.nothingToManage')}</Text>
+            ) : primaryAction === 'elsewhere' ? (
+              // Android sells nothing, so it links to no billing either: a plain line saying where it lives.
+              <Text style={styles.subStatus}>
+                {effectiveEntitlement.source === 'apple' ? t('premium.appleManageElsewhere') : t('premium.manageWhereBought')}
+              </Text>
             ) : primaryAction === 'manage' ? (
               <PrimaryButton
                 label={busy ? t('premium.opening') : t('premium.manageSubscription')}
@@ -371,7 +406,7 @@ export default function PremiumScreen() {
           </View>
         ) : (
           <View style={styles.panel}>
-            {status === 'success' ? (
+            {payStatus === 'success' ? (
               stuck ? (
                 <>
                   <Text style={styles.note}>{t('premium.stuckNote')}</Text>
@@ -381,7 +416,7 @@ export default function PremiumScreen() {
               ) : (
                 <Text style={styles.note}>{t('premium.settingUp')}</Text>
               )
-            ) : status === 'cancelled' ? (
+            ) : payStatus === 'cancelled' ? (
               <Text style={styles.note}>{t('premium.checkoutCancelled')}</Text>
             ) : null}
 
@@ -392,10 +427,17 @@ export default function PremiumScreen() {
                 for a Stripe source, and the customer id exists in this state so it opens. */}
             {effectiveEntitlement.status === 'past_due' || effectiveEntitlement.status === 'unpaid' ? (
               <View style={styles.attentionBox}>
-                <Text style={styles.attentionText}>{t('premium.paymentAttention')}</Text>
-                <Pressable onPress={manage} disabled={busy} accessibilityRole="button" accessibilityLabel={t('premium.paymentAttentionLinkA11y')} hitSlop={6}>
-                  <Text style={styles.attentionLink}>{t('premium.paymentAttentionLink')}</Text>
-                </Pressable>
+                {SELLS_HERE ? (
+                  <>
+                    <Text style={styles.attentionText}>{t('premium.paymentAttention')}</Text>
+                    <Pressable onPress={manage} disabled={busy} accessibilityRole="button" accessibilityLabel={t('premium.paymentAttentionLinkA11y')} hitSlop={6}>
+                      <Text style={styles.attentionLink}>{t('premium.paymentAttentionLink')}</Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  // Android: the same news, and a person to write to, but no link to a card form.
+                  <Text style={styles.attentionText}>{t('premium.paymentAttentionPlain')}</Text>
+                )}
               </View>
             ) : null}
 
@@ -435,7 +477,10 @@ export default function PremiumScreen() {
 
             {/* The plans are information, so a signed-out visitor sees them too (the flow audit:
                 the page ended at "A$5 / month" and never mentioned annual existed). Only the
-                checkout itself needs a session. */}
+                checkout itself needs a session. None of it on Android, which sells nothing: a
+                price, a discount or a spoken dollar amount is exactly what Play rejected. */}
+            {SELLS_HERE ? (
+            <>
             <View style={styles.planToggle}>
                 <Pressable
                   onPress={() => setPlan('monthly')}
@@ -469,6 +514,8 @@ export default function PremiumScreen() {
                   ? t('premium.priceAnnual')
                   : t('premium.priceMonthly')}
             </Text>
+            </>
+            ) : null}
 
             {/* The buy button never requires an account on iOS (App Review 5.1.1(v), 2026-07-28:
                 forced registration before a non-account IAP was rejected). 'buy' and 'wait' both
@@ -483,6 +530,17 @@ export default function PremiumScreen() {
                 accessibilityLabel={plan === 'annual' ? t('premium.subscribeAnnualA11y') : t('premium.subscribeMonthlyA11y')}
                 style={styles.ctaSpace}
               />
+            ) : !SELLS_HERE ? (
+              // Android sells nothing: no buy button. A signed-out member gets the way back to what they
+              // already have; a signed-in free user gets the free month below and nothing to buy.
+              session ? null : (
+                <PrimaryButton
+                  label={t('premium.signInIfPremium')}
+                  onPress={() => router.push('/sign-in')}
+                  accessibilityLabel={t('premium.signInIfPremium')}
+                  style={styles.ctaSpace}
+                />
+              )
             ) : session ? (
               <PrimaryButton
                 label={busy ? t('premium.openingCheckout') : t('premium.goPremium')}
@@ -499,7 +557,7 @@ export default function PremiumScreen() {
                 style={styles.ctaSpace}
               />
             )}
-            {slot === 'inline' && (
+            {offerTrial && (
               <Pressable
                 onPress={startFreeTrial}
                 disabled={busy}
@@ -511,6 +569,9 @@ export default function PremiumScreen() {
                 <Text style={styles.trialLinkText}>{t('premium.trialLink')}</Text>
               </Pressable>
             )}
+            {/* Android: the free month is the one thing on this page you can take, so it says what it is
+                (no card, never a subscription), which is also the reviewer's first question. */}
+            {offerTrial && !SELLS_HERE ? <Text style={styles.foot}>{t('premium.trialNoCard')}</Text> : null}
             {slot === 'inline' && trialNote ? <Text style={styles.trialNoteText}>{trialNote}</Text> : null}
             {/* Signed-out on iOS gets Apple's suggested explanation instead of the account
                 pitch: no account is needed, signing in extends Premium to other devices, and
@@ -518,7 +579,9 @@ export default function PremiumScreen() {
                 guard as information, now that 5.1.1 forbids it as a wall). */}
             <Text style={styles.foot}>
               {session
-                ? t('premium.footSignedIn')
+                ? SELLS_HERE
+                  ? t('premium.footSignedIn')
+                  : t('premium.footPlain')
                 : IAP_AVAILABLE
                   ? t('premium.footAnonymousIap')
                   : t('premium.footSignedOut')}
@@ -570,7 +633,7 @@ export default function PremiumScreen() {
                   </View>
                 )}
               </>
-            ) : (
+            ) : SELLS_HERE ? (
               <Pressable
                 onPress={() => router.push('/terms')}
                 accessibilityRole="button"
@@ -579,7 +642,7 @@ export default function PremiumScreen() {
               >
                 <Text style={styles.foot}>{t('premium.billedViaStripe')}</Text>
               </Pressable>
-            )}
+            ) : null}
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </View>
         )}

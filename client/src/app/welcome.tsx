@@ -7,6 +7,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { triage } from '@/lib/ai';
 import { t } from '@/lib/locale';
+import { SELLS_HERE } from '@/lib/storefront';
 import { enableDailyReminder } from '@/lib/reminders';
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { loadReminderHour, loadReminderOfferMade, loadTasks, saveOnboarded, saveReminderOfferMade, saveReminderOn, saveTasks, saveWhatsNewSeen } from '@/lib/storage';
@@ -465,7 +466,8 @@ export default function WelcomeScreen() {
                 </View>
               ))}
             </View>
-            <Text style={styles.fine}>{t('welcome.premiumFine')}</Text>
+            {/* Android sells nothing (lib/storefront), so its fine print carries no price. */}
+            <Text style={styles.fine}>{SELLS_HERE ? t('welcome.premiumFine') : t('welcome.premiumFinePlain')}</Text>
           </View>
         )}
 

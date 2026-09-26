@@ -3,6 +3,7 @@
 // lib/entitlement; this is the thin network edge (a seam, like lib/ai).
 
 import { type Entitlement, FREE_ENTITLEMENT } from './entitlement';
+import { SELLS_HERE } from './storefront';
 import { authHeader } from './supabase';
 
 const API_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
@@ -15,6 +16,9 @@ export type CheckoutResult = { ok: true; url: string } | { ok: false; error: 'si
 
 /** Ask the Worker to create a Checkout Session for the chosen plan; returns its hosted URL to open. */
 export async function startCheckout(plan: 'monthly' | 'annual' = 'monthly'): Promise<CheckoutResult> {
+  // Android sells nothing (lib/storefront): no screen offers this there, and this seam refuses too, so a
+  // future call site can never reopen Stripe checkout from the Android app.
+  if (!SELLS_HERE) return { ok: false, error: 'failed' };
   const auth = await authHeader();
   if (!auth) return { ok: false, error: 'sign_in' };
   try {
@@ -40,6 +44,7 @@ export async function startCheckout(plan: 'monthly' | 'annual' = 'monthly'): Pro
 
 /** Open the Stripe Billing Portal (manage / cancel the subscription). */
 export async function startPortal(): Promise<CheckoutResult> {
+  if (!SELLS_HERE) return { ok: false, error: 'failed' }; // the Stripe portal takes card changes: not from Android
   const auth = await authHeader();
   if (!auth) return { ok: false, error: 'sign_in' };
   try {

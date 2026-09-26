@@ -89,7 +89,7 @@ export default function PrivacyScreen() {
         </Section>
 
         <Section styles={styles} heading="Payment events">
-          Payments for Premium are processed by Stripe (on our website and on Android) or by Apple (on iPhone and iPad),
+          Payments for Premium are processed by Stripe (on our website) or by Apple (on iPhone and iPad),
           never by us. We never see or store your card details. On iPhone and iPad we use RevenueCat, a subscription
           service based in the United States, to confirm with Apple that a purchase is genuine. It receives the purchase
           receipt, your DoubleDone account id, and an identifier for your device, so your subscription can follow your

@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
 import { fonts, spacing, type Theme } from '@/constants/theme';
+import { SELLS_HERE } from '@/lib/storefront';
 import { useThemedStyles } from '@/lib/theme-provider';
 
 // The plain-English terms of service, also the public terms URL (doubledone.app/terms)
@@ -43,18 +44,33 @@ export default function TermsScreen() {
           cannot promise it will never be down.
         </Section>
 
-        <Section styles={styles} heading="Premium and billing">
-          Premium is optional. It costs A$5 per month or A$50 per year, and it renews automatically until you
-          cancel. New accounts get a 30-day trial with no card required. Where you bought it decides who handles the
-          billing. If you subscribed on our website or on Android, payment is handled by Stripe, and you can cancel any
-          time in the Stripe billing portal, reachable from the app. If you subscribed on an iPhone or iPad, payment is
-          handled by Apple through your Apple ID, and you cancel it in your Apple ID subscription settings, not in the
-          app. Either way you keep Premium until the end of the period you have already paid for, and we will give
-          reasonable notice of any price change.
-        </Section>
+        {/* Android sells nothing (lib/storefront, Path C), so its terms carry no price and point to no
+            billing page: what is true for someone who already has Premium, and the free month. */}
+        {SELLS_HERE ? (
+          <Section styles={styles} heading="Premium and billing">
+            Premium is optional. It costs A$5 per month or A$50 per year, and it renews automatically until you
+            cancel. New accounts get a 30-day trial with no card required. Where you bought it decides who handles the
+            billing. If you subscribed on our website, or in an earlier version of the Android app, payment is handled
+            by Stripe, and you can cancel any time in the Stripe billing portal, reachable from the app. Premium is
+            not sold in the current Android app. If you subscribed on an iPhone or iPad, payment is handled by Apple through your Apple ID, and you cancel it in
+            your Apple ID subscription settings, not in the app. Either way you keep Premium until the end of the
+            period you have already paid for, and we will give reasonable notice of any price change.
+          </Section>
+        ) : (
+          <Section styles={styles} heading="Premium and billing">
+            Premium is optional, and it is not sold in this app. If you already have it, it works here once you sign
+            in. New accounts can try it free for 30 days, with no card and no charge, and the trial never turns into a
+            subscription on its own. Where you bought Premium decides who handles the billing. If Stripe bills you, it
+            renews automatically until you cancel, and you can cancel any time from the website where you subscribed,
+            or by emailing support@doubledone.app. If you subscribed on an iPhone or iPad, Apple handles the payment
+            through your Apple ID, and you cancel it in your Apple ID subscription settings. Either way you keep
+            Premium until the end of the period you have already paid for, and we will give reasonable notice of
+            any price change.
+          </Section>
+        )}
 
         <Section styles={styles} heading="Refunds">
-          If you subscribed on our website or on Android and Premium does not work as described, email
+          If Stripe bills you (you subscribed on our website, or in an earlier version of the Android app) and Premium does not work as described, email
           support@doubledone.app within 7 days of the charge and we will refund it in full, back through Stripe, usually
           within 5 to 10 business days. Outside that window we do not refund the current period once it has started, but
           you can cancel any time to stop future charges. If you subscribed on an iPhone or iPad, Apple handles the

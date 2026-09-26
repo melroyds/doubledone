@@ -10,18 +10,23 @@ export type PrimaryAction =
   | 'convert' // the trial's "Go Premium to keep it" (Stripe checkout; the server's guard allows a trial to convert)
   | 'manage' // "Manage subscription": the Stripe portal, or Apple's sheet (manage() routes by source)
   | 'nothing' // premium with nothing to manage (comp/allowlisted: no Stripe customer, no portal exists): a calm line, no button
-  | 'none'; // no control at all (iOS mid-trial: StoreKit refuses a second purchase while premium, and the trial never auto-charges)
+  | 'none' // no control at all (iOS mid-trial: StoreKit refuses a second purchase while premium, and the trial never auto-charges)
+  | 'elsewhere'; // a plain line saying where it is managed, with no button or link (Android sells nothing, so it links to no billing)
 
 /**
  * Which primary control the PREMIUM (entitled) panel renders. `status` is the ENTITLEMENT status
  * from the server ('active' | 'trial' | 'comp' | 'canceled' | ...), never the URL param.
- * - trial: convert via Stripe where that works (web/Android); on iOS no control, the copy carries it.
+ * - trial: convert via Stripe where that works (the web); on iOS no control, the copy carries it.
  * - comp: nothing to manage, say so calmly (a Manage button here can only 404 the portal).
  * - everything else entitled: manage (portal or Apple's sheet).
+ * - where this build sells nothing (Android, `sellsHere` false): the trial has no control (the "Free until"
+ *   line carries it, as on iOS), comp keeps its calm line, and a paying member gets `elsewhere`, a plain line
+ *   saying where it is managed. Never a Stripe portal or checkout there (Play's Payments policy).
  */
-export function premiumPrimaryAction(status: string | null, iapAvailable: boolean): PrimaryAction {
-  if (status === 'trial') return iapAvailable ? 'none' : 'convert';
+export function premiumPrimaryAction(status: string | null, iapAvailable: boolean, sellsHere = true): PrimaryAction {
   if (status === 'comp') return 'nothing';
+  if (!sellsHere) return status === 'trial' ? 'none' : 'elsewhere';
+  if (status === 'trial') return iapAvailable ? 'none' : 'convert';
   return 'manage';
 }
 
