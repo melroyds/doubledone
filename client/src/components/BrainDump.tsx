@@ -64,6 +64,8 @@ type Props = {
   onRequestClose: () => void;
   /** Whether there are words in the field, for the pill's "words waiting" dots. Reported on a change only. */
   onDraftChange?: (has: boolean) => void;
+  /** The field took or let go of focus (on an iPhone, that is the keyboard coming and going). */
+  onFocusChange?: (focused: boolean) => void;
   today: Date;
   // OCR (premium): open the photo-capture modal. The parent premium-gates the tap; this just shows
   // the button as the upsell surface. Absent hides it.
@@ -121,7 +123,7 @@ const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
  * the field is tapped, so opening the panel never throws a keyboard at you.
  */
 export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
-  { onCapture, onBiteElephant, onSort, heading, onRequestClose, onDraftChange, today, onCamera, allowSteps = true, whenDefault = 'today', whenNote },
+  { onCapture, onBiteElephant, onSort, heading, onRequestClose, onDraftChange, onFocusChange, today, onCamera, allowSteps = true, whenDefault = 'today', whenNote },
   ref,
 ) {
   const [value, setValue] = useState('');
@@ -322,12 +324,14 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
   function handleFocus() {
     focusedRef.current = true;
     setFocused(true);
+    onFocusChange?.(true);
   }
 
   function handleBlur() {
     focusedRef.current = false;
     blurredAt.current = Date.now();
     setFocused(false);
+    onFocusChange?.(false);
   }
 
   // When is the persistent chip at the foot of the panel, so the control that opens the choices is the
@@ -342,6 +346,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
       focusedRef.current = false;
       blurredAt.current = 0;
       setFocused(false);
+      onFocusChange?.(false);
       stopDictation();
       track('capture.door.opened');
     }
