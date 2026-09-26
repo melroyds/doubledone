@@ -271,7 +271,7 @@ export type TypeScale = ReturnType<typeof makeTypeScale>;
 export type Theme = {
   scheme: 'light' | 'dark';
   colors: Palette;
-  // The "Quiet interface" appearance (Premium): 'standard' (full chrome) or 'quiet' (chrome
+  // The "Quiet interface" appearance (free for everyone): 'standard' (full chrome) or 'quiet' (chrome
   // stripped to calm text). Components branch their makeStyles on this; the layout stays identical.
   appearance: 'standard' | 'quiet';
   // Derived usage tokens for quiet mode: no new colours, just usage (and alphas) of the ACTIVE

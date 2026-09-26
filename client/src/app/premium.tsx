@@ -49,7 +49,6 @@ export default function PremiumScreen() {
     : from === 'pin' ? t('today.pin')
     : from === 'insights' ? t('welcome.premiumPatternsName')
     : from === 'theme' ? t('premium.reasonTheme')
-    : from === 'quiet' ? t('premium.reasonQuiet')
     : from === 'energy' ? t('premium.reasonEnergy')
     : from === 'ocr' || from === 'ocr_ours' ? t('premium.reasonScan')
     : from === 'free_monthly' ? t('premium.reasonScrapbook')
@@ -450,7 +449,6 @@ export default function PremiumScreen() {
               {[
                 t('premium.featureScan'),
                 t('premium.featurePin'),
-                t('premium.featureQuiet'),
                 t('premium.featureThemes'),
                 t('premium.featureScrapbook'),
                 t('premium.featurePatterns'),

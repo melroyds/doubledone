@@ -190,9 +190,9 @@ Display Name (30 max, 15 used):
 Premium Monthly
 ```
 
-Description (45 max, 44 used):
+Description (45 max, 42 used):
 ```
-Scan, themes, Quiet, scrapbook and insights.
+Scan, Pin, themes, scrapbook and insights.
 ```
 
 ### `app.doubledone.premium.annual`
@@ -202,12 +202,12 @@ Display Name (30 max, 14 used):
 Premium Yearly
 ```
 
-Description (45 max, 44 used):
+Description (45 max, 42 used):
 ```
-A year of scan, themes, Quiet and scrapbook.
+A year of scan, Pin, themes and scrapbook.
 ```
 
-Both descriptions name only features that exist in `client/src/lib/catalogs/en.ts`. Nothing promised that is not shipped.
+Both descriptions name only features that exist in `client/src/lib/catalogs/en.ts`. Nothing promised that is not shipped. Quiet came out of both on 2026-09-27, when it became free for everyone, because a paid product's description must not sell a free feature. The live products still carry the older text, so both are edited by hand in App Store Connect. No build changes them.
 
 ### Review notes
 
@@ -219,8 +219,8 @@ task list overwhelming. The full daily loop is free forever and needs no
 account. Premium adds optional extras only.
 
 This subscription unlocks: photo scan to tasks, pin the day's one thing,
-the Quiet interface, colour themes, the weekly AI scrapbook, patterns and
-insights, Chart a course, Plan my day, and energy matching. The scrapbook
+colour themes, the weekly AI scrapbook, patterns and insights, Chart a
+course, Plan my day, and energy matching. The scrapbook
 and the insights accrue over time (a week, then two months, then six
 months), so the value is ongoing rather than a one-off unlock.
 

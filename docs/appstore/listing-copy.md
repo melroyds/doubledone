@@ -103,6 +103,7 @@ Free, forever:
 - Focus on one thing, hide the rest and keep just one task in view
 - Combine, fold a few small tasks into one when the day feels cluttered
 - Settle, a quiet room with a breathing guide, for when the day is loud
+- Quiet, a borderless look where nothing shouts
 - Repeating tasks and gentle reminders
 - Close the day, and a shame-free return whenever you have been away
 - Your Calendar, everything you finished, kept
@@ -113,7 +114,6 @@ Free, forever:
 Premium, if you ever want more:
 - Scan a photo of a list straight into tasks
 - Pin the day's one thing
-- Quiet, a borderless look where nothing shouts
 - Seven calm colour themes
 - A weekly AI scrapbook, growing the longer you stay
 - Your patterns, gentle stats and a warm weekly reflection

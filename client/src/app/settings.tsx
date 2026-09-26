@@ -492,14 +492,14 @@ export default function SettingsScreen() {
             </View>
           </View>
           <View style={styles.divider} />
-          {/* The Quiet interface appearance, beside the colour themes: same Premium gate, the shared
-              Segmented toggle. Switching re-paints the whole app live and layout-stable. */}
+          {/* The Quiet interface appearance, beside the colour themes: free for everyone, the shared
+              Segmented toggle. Switching re-paints the whole app live and layout-stable. It is never
+              gated, in either direction, so nobody can be left stuck in a look they cannot leave. */}
           <View style={styles.row}>
             <View style={styles.accentHead}>
               <Text style={styles.rowLabel}>{t('settings.appearanceLabel')}</Text>
-              {!premium && <PremiumTag />}
             </View>
-            <Text style={styles.rowHint}>{premium ? t('settings.appearanceHintPremium') : t('settings.appearanceHintFree')}</Text>
+            <Text style={styles.rowHint}>{t('settings.appearanceHint')}</Text>
             <View style={styles.segment}>
               <Segmented<Appearance>
                 value={settings.appearance}
@@ -508,13 +508,8 @@ export default function SettingsScreen() {
                   { value: 'quiet', label: t('settings.appearanceQuiet') },
                 ]}
                 onChange={(ap) => {
-                  if (premium) {
-                    setSettings({ appearance: ap });
-                    track('appearance.set', { appearance: ap });
-                  } else {
-                    track('appearance.locked');
-                    router.push({ pathname: '/premium', params: { from: 'quiet' } });
-                  }
+                  setSettings({ appearance: ap });
+                  track('appearance.set', { appearance: ap });
                 }}
                 accessibilityLabel={t('settings.appearanceLabel')}
               />

@@ -15,7 +15,7 @@ export type ThemePref = 'system' | 'light' | 'dark';
 export type TextSize = 'small' | 'default' | 'large';
 export type MotionPref = 'system' | 'reduce';
 export type ThemeName = 'dusk' | 'sage' | 'slate' | 'heather' | 'fog' | 'honey' | 'rose';
-export type Appearance = 'standard' | 'quiet'; // Premium: the "Quiet interface" appearance (Standard is the default and free)
+export type Appearance = 'standard' | 'quiet'; // free, a comfort choice: the "Quiet interface" appearance (Standard is the default)
 export type FinishedTasks = 'keep' | 'tuck'; // keep = a ticked task stays in Today's list; tuck = it folds into a "Done today" line
 
 export type Settings = {
@@ -23,7 +23,7 @@ export type Settings = {
   textSize: TextSize;
   motion: MotionPref;
   themePreset: ThemeName; // Premium: the full colour theme (Dusk is the default and the free state)
-  appearance: Appearance; // Premium: Standard (full chrome, the default) or Quiet (chrome stripped to calm text)
+  appearance: Appearance; // free, a comfort choice: Standard (full chrome, the default) or Quiet (chrome stripped to calm text)
   aiEnabled: boolean; // whether the AI features are offered at all; false = a fully offline, AI-free app
   finishedTasks: FinishedTasks; // what a ticked task does on Today (free, a comfort choice)
 };

@@ -17,18 +17,18 @@ DoubleDone is free to use, completely: the whole daily loop, all the AI relief, 
 - The Lookback: the calendar, your completion history, and the warm celebration
 - Cross-device sync and account, full offline use, data export
 - The ADHD seam: Done-is-done / Good-enough, the low-capacity day, Routines, shame-free re-entry, gentle reminders
+- The **Quiet interface**: a borderless appearance where nothing shouts, same layout, same features *(shipped 2026-07-10 as Premium, made free 2026-09-27: for this audience a calmer screen is an access need, the same reason theme, text size and motion are free)*
 - The public REST API and the MCP server
 
 > \*The AI features carry a **generous** free allowance (about 10 breakdowns a month, enough to feel unlimited in normal use). Premium lifts the cap. The allowance is deliberately never tight enough to bite on a crisis day, because that would gate the relief, which the spine forbids. (Energy matching's 15-a-month meter is live; the breakdown meter uses the same proven pattern and is queued, see Unlimited AI in the roadmap and the BUILD-PLAN Backlog.)
 
-**Premium (A$5 / month, or A$50 / year)** (abundance, power, and optional polish; this list matches the live paywall as of the 2026-07-12 release):
+**Premium (A$5 / month, or A$50 / year)** (abundance, power, and optional polish; this list matches the live paywall as of the 2026-07-12 release, less Quiet, which left it on 2026-09-27):
 - The **AI Scrapbook**: a weekly keepsake image, scaling 1 to 2 to 4 a week by tenure; free keeps a monthly taste *(shipped)*
 - **OCR photo capture** ("Scan" on the paywall): photograph a post-it or a printed list, Claude vision turns it into tasks *(shipped)*
 - **Prioritise / pin a task** *(shipped)*
 - **Richer Lookback insights** ("Your patterns"): stats and an optional AI weekly summary, layered on top of the free calendar, never replacing it *(shipped)*
 - **AI "chart a course"** (goal planning) and **AI sequencing** ("Plan my day") *(shipped)*
 - **Energy matching without limits**: "What fits right now?" inside Focus mode; free gets 15 picks a calendar month with calm reminders at 10 and 5 left, premium is unmetered *(shipped 2026-07-11)*
-- The **Quiet interface**: a borderless appearance where nothing shouts, same layout, same features *(shipped 2026-07-10)*
 - **Custom colour themes**: seven calm palettes, Dusk free for everyone, the other six premium *(shipped 2026-06-27)*
 - **Unlimited AI**, beyond the free allowance *(held, see the roadmap)*
 - Later and guarded: **colour categories**, **task notes**, **two-way calendar sync**
@@ -59,9 +59,9 @@ The AI Scrapbook is the model every gate is held to: monetise the genuinely expe
 8. **AI "chart a course"**, BUILT. A `/chart` Sonnet route turns a goal into a calm ordered list of next steps, accepted as FLAT one-off tasks into the single Today/backlog (never a project). Gated at the moment of asking. Optional target-date pacing is a fast-follow.
 9. **AI sequencing / energy matching**, SHIPPED in full. "Plan my day" proposes a calm in-place order for today's tasks via `/sequence`, accepted via a render-time, local-only `manualOrder` (per-device order is arguably a feature; the cross-device follow-up stays in the Backlog). The energy chooser followed 2026-07-11, moving inside Focus mode's "Which one?" picker on 2026-07-12 after device testing: one calm question (Running low / Somewhere in between / Feeling good), Haiku picks ONE task via `/energy` with a short warm line, propose-only. Freemium on Melroy's call: 15 free picks a calendar month, metered locally like the scrapbook gate (no server bookkeeping, no account needed), reminders exactly at 10 and 5 left, a use spent only on a successful pick, and past 15 the tap routes to the paywall with no AI call made. At roughly USD 0.002 a call the meter is conversion psychology, not cost control, and that is the right reason.
 
-**Tier 3, personalisation, guarded** (two shipped, two still later):
+**Tier 3, personalisation, guarded** (two shipped, one of them since made free, two still later):
 10. **Custom themes**, SHIPPED 2026-06-27. Seven calm full palettes (Dusk the free default, plus Sage, Slate, Heather, Fog, Honey and Rose as premium), each with a tuned light and dark variant, WCAG-verified, one optional selector and never a WYSIWYG editor.
-11. **The Quiet interface**, SHIPPED 2026-07-10 (grew out of this tier's instinct, not on the original list). A premium appearance option that strips decorative chrome so the app reads as calm text on paper: same layout, same features, same warmth, covering the whole Today surface plus the Settings toggle. The transient overlays and the other screens deliberately stay standard, the discipline of stopping.
+11. **The Quiet interface**, SHIPPED 2026-07-10, **made free 2026-09-27** (grew out of this tier's instinct, not on the original list). Premium until Melroy's call on 2026-09-27, now an appearance option for everyone that strips decorative chrome so the app reads as calm text on paper: same layout, same features, same warmth, covering the whole Today surface plus the Settings toggle. The transient overlays and the other screens deliberately stay standard, the discipline of stopping. Why it left Premium: a calmer, less cluttered screen is an access need for this audience rather than polish, and the write-time-only gate had a trap in it (a subscriber whose Premium or trial ended while on Quiet could not tap back to Standard, because every tap bounced to the paywall, and on Android that paywall sells nothing). Colour themes stay Premium, since Dusk is always free and no one can get stuck in a theme.
 12. **Colour categories** (strict guard-rails, a quiet cue not a tagging system; requires a written decision-log entry on why it will not feed organising-as-avoidance before it ships).
 13. **Task notes** (ruthlessly minimal: text plus one voice memo, never a notes CRUD that spirals into mini-projects).
 14. **Two-way calendar sync** (OAuth-heavy, high support, the latest).
