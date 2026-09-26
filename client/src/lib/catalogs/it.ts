@@ -587,7 +587,6 @@ export const it: Catalog = {
     turnOn: 'Attiva il promemoria giornaliero',
   },
   repeat: {
-    closeDrawerA11y: 'Chiudi le attività ricorrenti',
     editA11y: 'Modifica {title}',
     editSheetTitle: "Modifica l'attività ricorrente",
     empty: 'Ancora nessuna attività ricorrente. Mentre aggiungi qualcosa, apri Quando e scegli come si ripete.',

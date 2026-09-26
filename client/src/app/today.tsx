@@ -1,6 +1,6 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, AccessibilityInfo, Animated, AppState, BackHandler, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Linking, AccessibilityInfo, Animated, AppState, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -16,7 +16,6 @@ import { DatePicker } from '@/components/DatePicker';
 import { LivingBackground } from '@/components/LivingBackground';
 import { ModalCard } from '@/components/ModalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { RepeatingDrawer } from '@/components/RepeatingDrawer';
 import { RotatingPhrase } from '@/components/RotatingPhrase';
 import { TaskRow } from '@/components/TaskRow';
 import { border, cardShadow, fonts, layout, motion, PRESSED_OPACITY, radius, rgba, spacing, type Theme } from '@/constants/theme';
@@ -64,9 +63,9 @@ import { changedSinceLooked, isSharedDoneOn, setSharedDone, type SharedTask } fr
 import { isUnreadableRepeat, cadenceLine, sharedDueOn, syncPairOnce, willTrim } from '@/lib/ours-sync';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { buildOutcome } from '@/lib/outcome';
-import { scheduleFields, type CaptureSchedule, type Recurrence } from '@/lib/recurrence';
+import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { availableNudgePresets, isWindDownTime, type NudgePreset, nudgeTargetFor } from '@/lib/nudge';
-import { cancelHold, cancelNudge, disableDailyReminder, enableDailyReminder, scheduleHold, scheduleNudge } from '@/lib/reminders';
+import { cancelHold, disableDailyReminder, enableDailyReminder, scheduleHold, scheduleNudge } from '@/lib/reminders';
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
@@ -77,6 +76,8 @@ import { restedOffer } from '@/lib/offers';
 import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/plan-day';
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
 import { isSyncConfigured, supabase } from '@/lib/supabase';
+import { clearNudgeIfAny, writeTasks } from '@/lib/task-writes';
+import { mirrorTickToShared as mirrorSharedTick } from '@/lib/ours-tick';
 import { syncScrapbooks } from '@/lib/scrapbook-sync';
 import { DebugPanel } from '@/components/DebugPanel';
 import { debugLog } from '@/lib/debug-log';
@@ -85,7 +86,6 @@ import { isAccountGone, localBelongsToAnother, syncOnce } from '@/lib/sync';
 import { completeOnDay, makeId, nowMs, parseDump, sweepElapsedNudges, type Task, withMonotonicStamps } from '@/lib/tasks';
 import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
-import { updateWidget } from '@/widget/update';
 import { useReducedMotion, useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { usePremium } from '@/lib/premium-provider';
 import { applyManualOrder, completeAncestors, deferTo, hasActiveTinyChild, holdSecond, isDoneOn, isRecurring, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, tuckFinished, upcomingTasks } from '@/lib/today';
@@ -379,10 +379,6 @@ export default function TodayScreen() {
   const [tuckOpenOn, setTuckOpenOn] = useState<string | null>(null);
   const [tuckSaid, setTuckSaid] = useState({ text: '', n: 0 });
   const doneLineRef = useRef<View>(null);
-  // The Repeating drawer was opened FROM the Menu's contents page, so closing it goes back there.
-  // Whether the Repeating drawer was handed over by the Menu's contents page: its top then says "‹ Menu"
-  // and closing it goes back there. State, not a ref, because the drawer draws it.
-  const [drawerFromMenu, setDrawerFromMenu] = useState(false);
   // A double tap on Ours must not push the room twice.
   const oursNavAt = useRef(0);
   const scrollRef = useRef<ScrollView>(null);
@@ -393,7 +389,6 @@ export default function TodayScreen() {
   const [selected, setSelected] = useState<string[]>([]);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [strategising, setStrategising] = useState(false);
   const [plan, setPlan] = useState<PlanItem[] | null>(null);
   const [strategiseError, setStrategiseError] = useState<string | null>(null);
@@ -931,13 +926,6 @@ export default function TodayScreen() {
           track('focus.opened', { via: 'shortcut' });
           return;
         }
-        // The Menu's contents page handing over the one room that lives here, not in a route.
-        if (i.kind === 'repeating') {
-          setDrawerFromMenu(true);
-          setDrawerOpen(true);
-          track('repeating.opened', { via: 'rooms' });
-          return;
-        }
         // Another room (Chart a course) just added tasks: show where they landed with the composer's tint,
         // briefly, then let it fade (320ms, in TaskRow). Only rows actually on Today can show it.
         if (i.kind === 'landed') {
@@ -1079,26 +1067,11 @@ export default function TodayScreen() {
             ? t('today.toolSettle')
             : t('today.closeTheDay');
 
-  // When a task leaves the active-today state (done, removed, deferred), cancel any pending
-  // nudge and strip its fields, so you are never poked about something already handled.
-  function clearNudgeIfAny(task: Task): Task {
-    if (!task.nudgeId) return task;
-    void cancelNudge(task.nudgeId);
-    const next = { ...task };
-    delete next.nudgeId;
-    delete next.nudgeAt;
-    return next;
-  }
-
+  // Every change to the list: stamp (monotonic, so a local edit beats a synced copy), save, and keep the
+  // widget in step. The body is lib/task-writes, shared with the Repeating room, so the two screens can
+  // never write differently. `clearNudgeIfAny` comes from there too.
   function commit(next: Task[]) {
-    // Monotonic updatedAt (see withMonotonicStamps): guarantees a task we changed beats the
-    // copy we synced, even one written by the MCP Worker's clock or another device, so a
-    // delete/edit can never lose last-write-wins to a future-timestamped remote row and
-    // silently resurrect on the next pull.
-    const stamped = withMonotonicStamps(next, tasks);
-    setTasks(stamped);
-    void saveTasks(stamped);
-    void updateWidget(stamped, closedDate); // keep any home-screen widget in sync (native; no-op on web)
+    setTasks(writeTasks(next, tasks, closedDate));
   }
 
   // Remove is scoped to what Today shows: Today manages days, the Repeating drawer
@@ -1661,31 +1634,6 @@ export default function TodayScreen() {
     setToolsOpen(!toolsOpen);
   }
 
-  // The Repeating drawer manages the series (Today manages days): rename or
-  // re-cadence a repeating task in place. updatedAt bumps so the edit wins
-  // last-write-wins sync, the same commit path as every other task mutation.
-  function editSeries(id: string, title: string, recurrence: Recurrence) {
-    const now = nowMs();
-    commit(tasks.map((x) => (x.id === id ? { ...x, title, recurrence, updatedAt: now } : x)));
-    track('repeat.series_edited');
-  }
-
-  // Remove the whole series: the standard tombstone (hidden from every view, syncs
-  // as a delete). The drawer pairs it with a 6-second undo, matching routines, so
-  // it is recoverable rather than a confirmation gauntlet.
-  function removeSeries(id: string) {
-    const now = nowMs();
-    commit(tasks.map((x) => (x.id === id ? clearNudgeIfAny({ ...x, deletedAt: now, updatedAt: now }) : x)));
-    track('repeat.series_removed');
-  }
-
-  // The undo: clear the tombstone and the series is back, cadence and history intact.
-  function restoreSeries(id: string) {
-    const now = nowMs();
-    commit(tasks.map((x) => (x.id === id ? { ...x, deletedAt: null, updatedAt: now } : x)));
-    track('repeat.remove.undone');
-  }
-
   // A calm daily reminder, opt-in. Native schedules a local one; on web (Phase 2)
   // reminders.web.ts subscribes to a web-push daily nudge. Same toggle, platform-fit.
   async function toggleReminder() {
@@ -1899,43 +1847,12 @@ export default function TodayScreen() {
    *
    * It carries WHEN and never who. There is no field on a shared row that could say otherwise.
    */
-  async function mirrorTickToShared(ref: string, done: boolean) {
-    const link = parseSharedRef(ref);
-    if (!link || !supabase) return;
-    const client = supabase;
-    try {
-      // PULL FIRST when the row is not in the local cache. Nothing on Today ever writes that cache;
-      // only the room does. So on a laptop, a second phone, or after a reinstall it is empty, and
-      // reading "not in my cache" as "removed on the other side" silently threw away every tick on
-      // a brought copy. That is precisely the failure the synced `shared_ref` column was added to
-      // prevent: the column made the copy appear, and this handler could still not act on it.
-      let rows = await loadOursTasks(link.pairId);
-      if (!rows.some((task: SharedTask) => task.id === link.sharedId)) {
-        rows = (await syncPairOnce(client, link.pairId, rows)).merged;
-        await saveOursTasks(link.pairId, rows); // seed the cache, so this costs a pull only once
-      }
-      const found = rows.find((task: SharedTask) => task.id === link.sharedId && !task.deletedAt);
-      // Genuinely gone, or a cadence this build cannot read. The second matters: an unreadable
-      // repeat has no recurrence object, so setSharedDone would treat it as a one-off and mark a
-      // repeating task finished forever, for both of you. The room refuses that tap; so must this.
-      if (!found || isUnreadableRepeat(found)) return;
-      const next = rows.map((task: SharedTask) => (task.id === link.sharedId ? setSharedDone(task, toISODate(today), done, nowMs()) : task));
+  function mirrorTickToShared(ref: string, done: boolean) {
+    // The body lives in lib/ours-tick (the Repeating room ticks shared copies too). Bumping sharedWrites
+    // just before the cache write is how the settle below learns it has been overtaken.
+    return mirrorSharedTick(supabase, ref, today, done, () => {
       sharedWrites.current += 1;
-      await saveOursTasks(link.pairId, next);
-      const { merged, pushError } = await syncPairOnce(client, link.pairId, next);
-      // The tick is on this device and not on theirs. Nothing on Today should shout about it (this
-      // is the working surface), but it must not vanish either: the room says it in words, and this
-      // is the trail that makes it findable when somebody reports "it didn't reach my wife's phone".
-      if (pushError) console.warn('[ours] tick did not reach the shared list', pushError);
-      await saveOursTasks(link.pairId, merged);
-      // My own write, so it must not come back tinted as my person's change (see ours-list's wash).
-      // The id, not the clock: advancing the last-look would also clear the wash on THEIR changes
-      // that arrived before this one and that I have not looked at yet.
-      await noteOursMine(link.pairId, [link.sharedId]);
-    } catch (err) {
-      // The local copy is already right. The next reconcile carries it.
-      console.warn('[ours] mirrorTickToShared failed', err);
-    }
+    });
   }
 
   /** Put a copy of one of your own tasks on the shared list. The 500-character cap is stated BEFORE
@@ -2627,28 +2544,6 @@ export default function TodayScreen() {
     oursNavAt.current = now;
     router.push('/ours-list');
   }
-
-  function closeDrawer() {
-    setDrawerOpen(false);
-    // The flag stays set: the Menu is the drawer's only way in, and clearing it here swapped "‹ Menu" for
-    // "Close" while the panel was still sliding out.
-    if (drawerFromMenu) openMenu();
-  }
-
-  // Android's back closes the drawer rather than leaving the app from under it. Registered only while
-  // this Today is on screen and the drawer is open, so a Today buried under the stack never swallows it.
-  useFocusEffect(
-    useCallback(() => {
-      if (!drawerOpen || Platform.OS !== 'android') return;
-      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        // closeDrawer's own steps, inline, so this effect depends on values rather than a fresh function.
-        setDrawerOpen(false);
-        if (drawerFromMenu) router.push({ pathname: '/rooms', params: { ours: oursDest } });
-        return true;
-      });
-      return () => sub.remove();
-    }, [drawerOpen, drawerFromMenu, router, oursDest]),
-  );
 
   // A household's own name for its list wins over "Ours"; absent a LIVE list there is no Ours word at all.
   const oursHeadingLabel = oursPairId ? (oursName && oursName.trim() ? oursName.trim() : t('ours.defaultName')) : null;
@@ -4206,18 +4101,6 @@ export default function TodayScreen() {
           setCameraOpen(false);
           sheetRef.current?.seed(scanned.join('\n'), false);
         }}
-      />
-
-      <RepeatingDrawer
-        open={drawerOpen}
-        onClose={closeDrawer}
-        fromMenu={drawerFromMenu}
-        tasks={tasks}
-        today={today}
-        onToggle={toggle}
-        onEditSeries={editSeries}
-        onRemoveSeries={removeSeries}
-        onRestoreSeries={restoreSeries}
       />
 
       {bdPhase === 'questions' && bdQuestions && (

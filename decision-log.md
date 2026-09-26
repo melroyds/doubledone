@@ -8387,3 +8387,41 @@ after six seconds. The Android and iOS-Safari keyboard fixes need a device look 
 **Decided against:** a bar or row behind the pill (the handoff's version 1), hide-on-scroll, a text
 label on the pill (it would vary a lot across five languages), a swipe-up to open (it fights the home
 gesture, and the standing rule is buttons, never drag).
+
+## 2026-09-26: Repeating becomes a room, Routines starts empty, one voice for room explanations
+
+*(Built in d9e81b8, Rise and Rooms handoff sections 2 and 3; this entry and Today's switchover land in the
+commit after it.)*
+
+**Decided:** Repeating was the one room that was not a route. It was a drawer living on Today's own state,
+so the Menu had to hand it back to Today through the inbound bridge. It is now `app/repeating.tsx`, built
+like Routines (the room top, "‹ Menu" from the Menu and "‹ Today" from anywhere else, the band, the title,
+the card's hint). What the drawer held moved in as it was: the tick, the title, the cadence line, Edit
+(CadenceSheet) and Remove with its undo line. Series are grouped: Every day, Each week, Every few days,
+Each month. The drawer is deleted, and so is the inbound `repeating` hand-off.
+
+Routines loses the three always-visible rhythm presets and the Morning button under the empty line. The
+one suggestion per form now lives inside the form, only while you have none of that kind, and it FILLS the
+form rather than saving. The room explanations (Routines' empty line, the rhythm intro, Repeating's empty
+line) share one `RoomIntro` style.
+
+**Calls the handoff did not make (Melroy to challenge):**
+- **A fourth group, Each month.** The app has four repeat kinds, and a monthly repeat (the rent) is
+  exactly what this room is for. The handoff's three groups would have hidden it.
+- **Room writes re-read storage and apply the change to that,** one at a time, because Today stays mounted
+  underneath and keeps writing (the resume sweep, the Ours settle, a widget add). Writing the room's own
+  snapshot back would erase those. An empty read never outranks a list on screen. The cost is no
+  optimistic update: a tick shows after the store round trip.
+- **The room's tick is the shared CheckCircle, with no strike-through,** per "one done sign", rather than
+  the board's sage fill.
+- **A room tick does the list change, the nudge clear, the shared mirror and the telemetry,** and none of
+  Today's own effects (haptics, the celebration line, Tuck).
+- **A rhythm made from the Water suggestion keeps `preset: 'water'`,** so `rhythm.created` counts stay
+  comparable with the old one-tap button.
+
+**How the two screens are kept from drifting:** the writes live in `lib/task-writes.ts` (Today's commit
+and series handlers, word for word) and the shared-tick mirror in `lib/ours-tick.ts`, and Today now calls
+both, so a tick in the room and a tick on Today are the same code.
+
+**Decided against:** a "+ New" in the Repeating room (repeats are made from capture's When), hiding
+monthly repeats, writing the in-memory list the way Lookback does, and keeping the drawer as a second way in.

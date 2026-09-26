@@ -587,7 +587,6 @@ export const fr: Catalog = {
     turnOn: 'Activer le rappel quotidien',
   },
   repeat: {
-    closeDrawerA11y: 'Fermer les tâches récurrentes',
     editA11y: 'Modifier {title}',
     editSheetTitle: 'Modifier la tâche récurrente',
     empty: 'Pas encore de tâche récurrente. En ajoutant une tâche, ouvre Quand et choisis comment elle se répète.',

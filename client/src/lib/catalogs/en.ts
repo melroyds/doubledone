@@ -591,7 +591,6 @@ export const en = {
     turnOn: 'Turn on daily reminder',
   },
   repeat: {
-    closeDrawerA11y: 'Close repeating tasks',
     editA11y: 'Edit {title}',
     editSheetTitle: 'Edit repeating task',
     empty: 'No repeating tasks yet. When you add something, open When and choose how it repeats.',

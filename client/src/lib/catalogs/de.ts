@@ -591,7 +591,6 @@ export const de: Catalog = {
     turnOn: 'Tägliche Erinnerung einschalten',
   },
   repeat: {
-    closeDrawerA11y: 'Wiederkehrende Aufgaben schließen',
     editA11y: '{title} bearbeiten',
     editSheetTitle: 'Wiederkehrende Aufgabe bearbeiten',
     empty: 'Noch keine wiederkehrenden Aufgaben. Wenn du etwas hinzufügst, öffne Wann und wähl, wie es sich wiederholt.',

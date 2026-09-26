@@ -8,7 +8,6 @@ export type Inbound =
   | { kind: 'dump' } // open the capture box, ready to type
   | { kind: 'focus' } // open Focus mode
   | { kind: 'capture'; text: string } // prefill the capture box with shared text
-  | { kind: 'repeating' } // open the Repeating drawer, handed over by the Menu's contents page (the drawer lives on Today, on Today's own task state and write path)
   | { kind: 'landed'; ids: string[] }; // tasks another room just added (Chart a course): Today shows where they landed with the just-added tint
 
 let pending: Inbound | null = null;

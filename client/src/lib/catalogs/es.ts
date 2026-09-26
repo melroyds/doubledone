@@ -587,7 +587,6 @@ export const es: Catalog = {
     turnOn: 'Activar recordatorio diario',
   },
   repeat: {
-    closeDrawerA11y: 'Cerrar las tareas repetidas',
     editA11y: 'Editar {title}',
     editSheetTitle: 'Editar la tarea repetida',
     empty: 'Aún no hay tareas que se repitan. Al añadir algo, abre Cuándo y elige cómo se repite.',

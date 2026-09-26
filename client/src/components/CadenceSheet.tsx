@@ -14,8 +14,8 @@ import { DatePicker } from './DatePicker';
 import { ModalCard } from './ModalCard';
 import { PrimaryButton } from './PrimaryButton';
 
-// THE cadence surface. One in the whole app, which is the point: this was lifted out of
-// RepeatingDrawer so the shared list could use the identical controls rather than grow a second,
+// THE cadence surface. One in the whole app, which is the point: this was lifted out of the old
+// Repeating drawer (now the Repeating room) so the shared list could use the identical controls rather than grow a second,
 // slightly-different picker that drifts a fortnight later. A repeat set here, set on Ours, set by
 // the REST API or by an agent over MCP, all end up the same shape, because they all end up in
 // `scheduleFields`.
