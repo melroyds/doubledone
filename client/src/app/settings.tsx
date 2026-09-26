@@ -206,11 +206,18 @@ export default function SettingsScreen() {
     const res = await deleteAccount(supabase);
     if (!res.ok) {
       setDeleteError(
-        res.error === 'billing' ? t('settings.deleteBillingError') : res.error === 'sign_in' ? t('settings.deleteSignIn') : t('settings.deleteError'),
+        res.error === 'billing'
+          ? t('settings.deleteBillingError')
+          : res.error === 'sign_in'
+            ? t('settings.deleteSignIn')
+            : res.cancelled > 0
+              ? t('settings.deleteAfterBilling')
+              : t('settings.deleteError'),
       );
-      // A failed delete AFTER billing closed: any Stripe subscription is now cancelled, so let the Premium
-      // card catch up rather than keep saying Active.
-      if (res.error === 'delete') refresh();
+      // Billing may have stopped even when the delete did not happen (a cancel that landed before a lost
+      // reply, or one of two subscriptions cancelled), so the Premium card re-reads rather than keep saying
+      // Active.
+      if (res.error === 'delete' || res.error === 'billing') refresh();
       setDeleting(false);
       return;
     }

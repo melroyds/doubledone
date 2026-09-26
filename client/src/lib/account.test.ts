@@ -95,9 +95,14 @@ describe('deleteAccount: billing first', () => {
     }
   });
 
+  it('says how many subscriptions were cancelled when the delete fails after billing closed', async () => {
+    const h = harness({ billing: json({ cancelled: 1 }), rpcError: { message: 'boom' } });
+    expect(await deleteAccount(h.client, h.fetchImpl)).toEqual({ ok: false, error: 'delete', cancelled: 1 });
+  });
+
   it('reports a failed delete (billing already closed) and does NOT sign out', async () => {
     const h = harness({ rpcError: { message: 'boom' } });
-    expect(await deleteAccount(h.client, h.fetchImpl)).toEqual({ ok: false, error: 'delete' });
+    expect(await deleteAccount(h.client, h.fetchImpl)).toEqual({ ok: false, error: 'delete', cancelled: 0 });
     expect(h.signOut).not.toHaveBeenCalled();
   });
 

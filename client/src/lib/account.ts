@@ -45,7 +45,12 @@ export async function closeBilling(token: string, fetchImpl: typeof fetch = fetc
 // 'sign_in': the session could not be read or the Worker refused it; sign in again, nothing was deleted.
 // 'billing': billing could not be closed, so nothing was deleted.
 // 'delete': billing IS closed, but the delete itself failed; the account is intact and a retry is safe.
-export type DeleteAccountResult = { ok: true } | { ok: false; error: 'sign_in' | 'billing' | 'delete' };
+// A 'delete' failure carries how many subscriptions WERE cancelled, so the screen can say so honestly.
+export type DeleteAccountResult =
+  | { ok: true }
+  | { ok: false; error: 'sign_in' }
+  | { ok: false; error: 'billing' }
+  | { ok: false; error: 'delete'; cancelled: number };
 
 /** Close billing, then delete the account, then sign out. Each step runs only if the one before it worked. */
 export async function deleteAccount(client: SupabaseClient, fetchImpl: typeof fetch = fetch): Promise<DeleteAccountResult> {
@@ -62,7 +67,7 @@ export async function deleteAccount(client: SupabaseClient, fetchImpl: typeof fe
   if (!billing.ok) return { ok: false, error: billing.error === 'sign_in' ? 'sign_in' : 'billing' };
 
   const { error } = await client.rpc('delete_account');
-  if (error) return { ok: false, error: 'delete' };
+  if (error) return { ok: false, error: 'delete', cancelled: billing.cancelled };
   try {
     await client.auth.signOut();
   } catch {

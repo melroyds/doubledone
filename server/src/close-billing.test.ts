@@ -19,7 +19,7 @@ type FakeSub = { id: string; status: string; customer: string; userId: string };
 type Call = { method: string; url: string; auth: string | null; body: string | null };
 
 /** An in-memory Stripe: the list, search, retrieve and cancel endpoints, over a mutable set of subs. */
-function fakeStripe(subs: FakeSub[], opts: { fail?: 'list' | 'search'; hasMore?: 'list' | 'search'; refuseCancel?: string[] } = {}) {
+function fakeStripe(subs: FakeSub[], opts: { fail?: 'list' | 'search'; hasMore?: 'list' | 'search'; refuseCancel?: string[]; missingCustomer?: boolean } = {}) {
   const calls: Call[] = [];
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
   const view = (s: FakeSub) => ({ id: s.id, object: 'subscription', status: s.status, customer: s.customer, metadata: { user_id: s.userId } });
@@ -30,6 +30,8 @@ function fakeStripe(subs: FakeSub[], opts: { fail?: 'list' | 'search'; hasMore?:
     const path = url.pathname.replace(/^\/v1/, '');
     if (method === 'GET' && path === '/subscriptions') {
       if (opts.fail === 'list') return json({ error: { message: 'boom' } }, 500);
+      // A customer id the key cannot see (a test-mode id under the live key, or a removed customer).
+      if (opts.missingCustomer) return json({ error: { code: 'resource_missing', message: 'No such customer' } }, 400);
       // Stripe's default list leaves out canceled subscriptions.
       const data = subs.filter((s) => s.customer === url.searchParams.get('customer') && s.status !== 'canceled').map(view);
       return json({ object: 'list', data, has_more: opts.hasMore === 'list' });
@@ -268,5 +270,41 @@ describe('the close-billing helpers', () => {
     expect(stripe.fetchStub).not.toHaveBeenCalled();
     // ...and the handler turns that into the calm 502, not a delete.
     expect((await handleCloseBilling(post(tokenFor('not-a-uuid')), env(dbWith(null)), cors, trust)).status).toBe(502);
+  });
+});
+
+describe('close-billing: the review fixes', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const env = (extra: Record<string, unknown> = {}) => ({ STRIPE_SECRET_KEY: SK, SUPABASE_URL: 'https://p.supabase.co', ...extra });
+
+  it('treats a customer Stripe says does not exist as empty, and still cancels what the search finds', async () => {
+    const stripe = fakeStripe([{ id: 'sub_live', status: 'active', customer: 'cus_live', userId: USER }], { missingCustomer: true });
+    const res = await handleCloseBilling(post(tokenFor(USER)), { ...env(), DB: dbWith('cus_test_leftover') }, cors, trust);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ cancelled: 1 });
+    expect(stripe.deletes()).toEqual(['sub_live']);
+  });
+
+  it('still fails closed when the customer list fails for any other reason', async () => {
+    fakeStripe([{ id: 'sub_live', status: 'active', customer: 'cus_live', userId: USER }], { fail: 'list' });
+    const res = await handleCloseBilling(post(tokenFor(USER)), { ...env(), DB: dbWith('cus_live') }, cors, trust);
+    expect(res.status).toBe(502);
+  });
+
+  it('rate-limits per verified user before any D1 or Stripe call', async () => {
+    const stripe = fakeStripe([{ id: 'sub_live', status: 'active', customer: 'cus_live', userId: USER }]);
+    const keys: string[] = [];
+    const limiter = {
+      limit: async ({ key }: { key: string }) => {
+        keys.push(key);
+        return { success: false };
+      },
+    };
+    const db = dbWith('cus_live');
+    const res = await handleCloseBilling(post(tokenFor(USER)), { ...env(), DB: db, BILLING_LIMITER: limiter }, cors, trust);
+    expect(res.status).toBe(429);
+    expect(keys).toEqual([`close:${USER}`]);
+    expect(stripe.calls).toHaveLength(0);
+    expect(db.reads).toBe(0);
   });
 });

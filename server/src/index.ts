@@ -112,6 +112,8 @@ export interface Env {
   // with in D1. OAUTH_PROVIDER is injected by the library on requests it routes.
   OAUTH_KV?: KVNamespaceLike;
   OTP_LIMITER?: RateLimitBinding;
+  // Per-user limit on POST /account/close-billing (see stripe.ts handleCloseBilling).
+  BILLING_LIMITER?: RateLimitBinding;
   MCP_GRANT_KEY?: string;
   OAUTH_PROVIDER?: OAuthHelpers;
 }

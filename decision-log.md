@@ -8485,3 +8485,54 @@ allowed).
 
 **Found on the way, parked as its own task:** deleting an account never cancels a Stripe subscription, on
 any platform, so a deleted user can keep being charged. Flagged for a separate session.
+
+## 2026-09-27: Quiet is free for everyone
+
+**Decided:** the Quiet interface (the borderless, calm-text look) is no longer Premium, on any platform.
+Melroy's call: "Quiet mode with less clutter? Let's make it not premium." Every gate, Premium tag, upsell
+reason line and Premium feature-list entry for Quiet is gone (Settings, the Premium page, the welcome's
+Premium step, the docs and listing sources), and the Settings row saves straight away for everyone. It
+also fixes a trap the map found: a member whose Premium or free month ended while in Quiet could not tap
+back to Standard without meeting the paywall.
+
+**Why:** Quiet is an access need for this audience, not an extra, in the same family as text size and
+reduced motion. Charging for "less clutter" in an app for overwhelmed brains is charging for relief, which
+sits badly with the never-shame spine. The colour themes, the other half of the old "personalisation
+pair", stay Premium: they are genuinely an extra.
+
+**Decided against:** a migration (nothing needs moving: the setting was always stored, only the gate
+changed); adding Quiet to the Play listings' free lists now (it would reopen the character counts in five
+locales for a small gain).
+
+## 2026-09-27: deleting an account stops Stripe billing first
+
+**Decided:** Settings > Delete account and data used to remove only the login (the `delete_account` RPC),
+so a Stripe subscription kept charging a person who no longer had an account to cancel it from. Now the
+client first calls a new Worker route, `POST /account/close-billing`, which verifies the bearer
+(`verify.ts`), finds every chargeable subscription the user has (the D1-known customer AND a search across
+customers for the user's id, because checkout makes a new customer each time and D1 keeps only the
+latest), and cancels each immediately. Only a 200 with a numeric `cancelled` lets the delete go ahead;
+anything else (an outage, offline, a 401, or the old Worker) leaves the account untouched with one calm
+line. Apple-billed members, whom we cannot cancel, see an unlinked line in the confirmation telling them to
+cancel in their iPhone's settings first; it does not block them.
+
+**Why:** money and dignity. A charge after deletion is the worst kind of surprise, and the person has no
+way left to stop it.
+
+**Decided against:** cancelling at period end (the account is going; the next charge is the thing to
+stop); deleting the Stripe customer (invoices must remain for records and refunds, and Stripe keeps the
+email for that); refunding automatically (the refund policy stands, by email); blocking Apple members
+until they cancel (we cannot see or change Apple billing, and blocking a deletion is worse); trusting any
+200 (the deployed Worker answers unknown paths with a plain 200, so the body shape is the proof).
+
+**Hardened by review** (19 agents, 5 confirmed, all fixed): a customer Stripe says does not exist (a
+test-mode id left in D1 from before go-live) now counts as nothing to cancel rather than a failure, which
+had made deletion impossible forever for that person; the lines never claim billing is untouched when part
+of it may have stopped, a failed delete after a cancel says the subscription is cancelled, and the Premium
+card re-reads in both cases; the route is rate-limited per verified user (`BILLING_LIMITER`, 5 a minute),
+like the other paid routes; and German names the iPhone's "Abonnements" row by its real label.
+
+**Deploy order (it matters):** the Worker ships FIRST, then the clients. A client carrying this that meets
+the old Worker refuses every deletion with the billing line: no money at risk, but no one can delete until
+the Worker is up. iOS 1.5.1 and the Android builds already in the stores keep the old behaviour until
+people update.

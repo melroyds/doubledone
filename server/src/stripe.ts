@@ -105,6 +105,27 @@ async function stripeGet(env: StripeEnv, path: string): Promise<unknown | null> 
   }
 }
 
+/**
+ * Like stripeGet, but it also says when Stripe answered "no such resource". A customer id the live key cannot
+ * see (a TEST-mode id left in D1 from before go-live, or a customer removed in the dashboard) is answered with
+ * a 400/404 `resource_missing`, and that customer then has no subscriptions under this key: it is an empty
+ * list, not a failure. Treating it as a failure made the route 502 forever for that person, so they could
+ * never delete their account.
+ */
+async function stripeGetOrMissing(env: StripeEnv, path: string): Promise<{ body: unknown | null; missing: boolean }> {
+  try {
+    const res = await fetch(`${STRIPE_API}${path}`, { headers: { authorization: `Bearer ${env.STRIPE_SECRET_KEY}` } });
+    if (res.ok) return { body: await res.json(), missing: false };
+    if (res.status === 400 || res.status === 404) {
+      const err = (await res.json().catch(() => null)) as { error?: { code?: unknown } } | null;
+      if (err?.error?.code === 'resource_missing') return { body: null, missing: true };
+    }
+    return { body: null, missing: false };
+  } catch {
+    return { body: null, missing: false };
+  }
+}
+
 /** The chargeable subscription ids in one Stripe list or search page, or null when the page cannot be
  *  trusted to be complete (malformed, or has_more, which would hide a live subscription behind a cursor). */
 function chargeableIds(body: unknown): string[] | null {
@@ -130,10 +151,15 @@ export async function findChargeableSubscriptions(env: StripeEnv, userId: string
   if (!env.STRIPE_SECRET_KEY || !UUID_RE.test(userId)) return null;
   const ids = new Set<string>();
   if (customerId) {
-    // No status filter: Stripe's default leaves out canceled ones, and the rest are filtered here.
-    const byCustomer = chargeableIds(await stripeGet(env, `/subscriptions?customer=${encodeURIComponent(customerId)}&limit=100`));
-    if (!byCustomer) return null;
-    byCustomer.forEach((id) => ids.add(id));
+    // No status filter: Stripe's default leaves out canceled ones, and the rest are filtered here. A customer
+    // Stripe says does not exist has nothing to cancel, and the search below still covers every live one.
+    // Anything else short of a full answer fails closed.
+    const got = await stripeGetOrMissing(env, `/subscriptions?customer=${encodeURIComponent(customerId)}&limit=100`);
+    if (!got.missing) {
+      const byCustomer = chargeableIds(got.body);
+      if (!byCustomer) return null;
+      byCustomer.forEach((id) => ids.add(id));
+    }
   }
   const query = `metadata['user_id']:'${userId}'`;
   const byUser = chargeableIds(await stripeGet(env, `/subscriptions/search?query=${encodeURIComponent(query)}&limit=100`));
@@ -318,6 +344,9 @@ type FullEnv = StripeEnv & {
   // hourly monitor + /feedback use. Optional, so a webhook with billing-only config skips it.
   SEND_EMAIL?: { send(message: unknown): Promise<unknown> };
   FEEDBACK_TO?: string;
+  // Per-USER limit on /account/close-billing (keyed on the verified sub, so a carrier NAT never locks out
+  // real people). Optional, so tests and local dev without the binding simply skip it.
+  BILLING_LIMITER?: { limit(o: { key: string }): Promise<{ success: boolean }> };
 };
 
 /** Email the owner via the proven send_email path (same as /feedback + the monitor). */
@@ -437,6 +466,11 @@ export async function handleCloseBilling(
   // person's uuid must never reach Stripe. An unset SUPABASE_URL fails closed inside the verifier (null -> 401).
   const sub = await verifySub(token, env.SUPABASE_URL ?? '');
   if (!sub) return new Response(JSON.stringify({ error: 'sign_in_required' }), { status: 401, headers: { ...JSON_HEADERS, ...cors } });
+  // Each call spends Stripe reads (a list and a search), which are capped across the whole account, so a
+  // person gets a few tries a minute and no more. Checked before any D1 or Stripe call.
+  if (env.BILLING_LIMITER && !(await env.BILLING_LIMITER.limit({ key: `close:${sub}` })).success) {
+    return new Response(JSON.stringify({ error: 'rate_limited' }), { status: 429, headers: { ...JSON_HEADERS, ...cors } });
+  }
   if (!env.STRIPE_SECRET_KEY) {
     return new Response(JSON.stringify({ error: 'not_configured' }), { status: 503, headers: { ...JSON_HEADERS, ...cors } });
   }
