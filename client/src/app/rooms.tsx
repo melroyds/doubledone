@@ -5,10 +5,10 @@
 // (the payoff) gets the wide card, and Settings and Premium step down to the edges.
 //
 // A real route, not a sheet, so every room's own back returns HERE, as the handoff asks: each room is
-// opened with `from: 'menu'`, which is what makes its back row say "‹ Menu" (the room-entry handoff). The
-// one room that is not a route, Repeating (a drawer living on Today's own task state and write path), is
-// handed back to Today through the inbound bridge, and Today brings you back here when the drawer closes.
-// Ours is not a room at all any more: it lives behind Today's heading, so its card lands on that tab.
+// opened with `from: 'menu'`, which is what makes its back row say "‹ Menu" (the room-entry handoff).
+// Repeating is a route now too (the Rise and Rooms handoff): it used to be a drawer on Today that this page
+// had to hand back to Today to open. Ours is not a room at all any more: it lives behind Today's heading,
+// so its card lands on that tab.
 //
 // What it must never become: no "new" dots or badges on rooms, no ordering by use, no coach marks, and
 // the pictures never change by time or by use. The same rooms in the same place, always.
@@ -25,7 +25,6 @@ import repeatingArt from '../../assets/images/rooms/repeating.webp';
 import routinesArt from '../../assets/images/rooms/routines.webp';
 import { border, fonts, layout, PRESSED_OPACITY, spacing, type Theme } from '@/constants/theme';
 import { useSession } from '@/lib/auth';
-import { setInbound } from '@/lib/inbound';
 import { t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
 import { scaleFor } from '@/lib/settings';
@@ -85,15 +84,7 @@ export default function RoomsScreen() {
     else router.replace('/today');
   }
 
-  // Repeating lives on Today. Hand it over, then go to Today: the Today that comes on screen takes the
-  // hand-off, opens its drawer, and brings you back here when you close it.
-  function openRepeating() {
-    track('rooms.opened', { room: 'repeating' });
-    setInbound({ kind: 'repeating' });
-    backToToday();
-  }
-
-  function go(room: string, path: '/lookback' | '/routines' | '/chart' | '/ours') {
+  function go(room: string, path: '/lookback' | '/routines' | '/repeating' | '/chart' | '/ours') {
     return () => {
       track('rooms.opened', { room });
       router.push({ pathname: path, params: { from: 'menu' } });
@@ -111,7 +102,7 @@ export default function RoomsScreen() {
   const lookback: Room = { key: 'lookback', label: t('lookback.title'), hint: t('rooms.lookbackHint'), art: lookbackArt, onPress: go('lookback', '/lookback') };
   const grid: Room[] = [
     { key: 'routines', label: t('routines.title'), hint: t('rooms.routinesHint'), art: routinesArt, onPress: go('routines', '/routines') },
-    { key: 'repeating', label: t('repeat.title'), hint: t('rooms.repeatingHint'), art: repeatingArt, onPress: openRepeating },
+    { key: 'repeating', label: t('repeat.title'), hint: t('rooms.repeatingHint'), art: repeatingArt, onPress: go('repeating', '/repeating') },
     ...(ours === 'none'
       ? []
       : [

@@ -154,6 +154,7 @@ function RootStack() {
             fight that, and reads as a new page rather than walking into the room you just saw. */}
         <Stack.Screen name="lookback" options={{ animation: 'fade', animationDuration: 180 }} />
         <Stack.Screen name="routines" options={{ animation: 'fade', animationDuration: 180 }} />
+        <Stack.Screen name="repeating" options={{ animation: 'fade', animationDuration: 180 }} />
         <Stack.Screen name="chart" options={{ animation: 'fade', animationDuration: 180 }} />
         <Stack.Screen name="ours" options={{ animation: 'fade', animationDuration: 180 }} />
       </Stack>
