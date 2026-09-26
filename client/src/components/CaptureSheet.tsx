@@ -15,7 +15,7 @@
 
 import { useFocusEffect } from 'expo-router';
 import { type ComponentProps, forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, BackHandler, Easing, Keyboard, PixelRatio, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type KeyboardEvent } from 'react-native';
+import { AccessibilityInfo, Animated, BackHandler, Easing, Keyboard, PixelRatio, Platform, Pressable, StyleSheet, useWindowDimensions, View, type KeyboardEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 
@@ -93,9 +93,6 @@ export const CaptureSheet = forwardRef<CaptureSheetHandle, Props>(function Captu
   // may meet the keyboard by pushing the whole page up itself, and then the viewport sum below reads about
   // zero (Melroy's iPhone, 2026-09-27: the page's header had gone off the top and the clearance never came).
   const [fieldFocused, setFieldFocused] = useState(false);
-  // TEMPORARY, for the iPhone keyboard hunt: `?kbdebug` in the address shows the numbers inside the panel.
-  const [diag] = useState(() => Platform.OS === 'web' && typeof location !== 'undefined' && /[?&]kbdebug\b/.test(location.search));
-  const [diagText, setDiagText] = useState('');
   // iPhone Safari in a tab floats its address label over the page's foot while the keyboard is up, right
   // where When and Add sit, so the foot keeps clear of it (see lib/safari-chrome). Asked once.
   const [safariBar] = useState(
@@ -224,7 +221,6 @@ export const CaptureSheet = forwardRef<CaptureSheetHandle, Props>(function Captu
         // scroll into view there), which carries the panel up with it, so that scroll is taken off the lift.
         const lift = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop - window.scrollY));
         setWebKbUp(lift > 0);
-        setDiagText(`inner ${window.innerHeight} vv ${Math.round(vv.height)} off ${Math.round(vv.offsetTop)} scrollY ${Math.round(window.scrollY)} lift ${lift} · ${navigator.userAgent.slice(0, 60)}`);
         Animated.timing(kbLift, { toValue: lift, duration: 250, easing: EASE_RISE, useNativeDriver: false }).start();
       };
       vv.addEventListener('resize', onViewport);
@@ -369,11 +365,6 @@ export const CaptureSheet = forwardRef<CaptureSheetHandle, Props>(function Captu
           aria-hidden={!shown}
           {...webInert(!shown)}
         >
-          {diag && (
-            <Text style={styles.diag} selectable>
-              {`kbdebug v4 · safari ${safariBar} · focus ${fieldFocused} · kbUp ${kbUp} · pad ${padBottom} · panel ${Math.round(panelH)} · winH ${Math.round(winH)} · ${diagText}`}
-            </Text>
-          )}
           <BrainDump ref={dumpRef} {...composer} onRequestClose={closeSheet} onDraftChange={setDraft} onFocusChange={setFieldFocused} />
         </Animated.View>
       </Animated.View>
@@ -420,7 +411,6 @@ const makeStyles = (t: Theme) => {
     },
     pillPressed: { opacity: 0.85 },
     panelLift: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-    diag: { fontSize: 10, lineHeight: 13, color: t.colors.ink, backgroundColor: t.colors.bg, padding: 4, borderRadius: 4 },
     panel: {
       // Solid, not surfaceCard: that one is translucent so cards show the living background, and a panel
       // lying over the list let the rows and the hint show through it (Melroy's iPhone, 2026-09-27).
