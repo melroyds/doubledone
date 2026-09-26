@@ -59,7 +59,6 @@ export const en = {
   capture: {
     addedFor: 'Added. {what}.',
     added: 'Added.',
-    placeholderShort: 'Empty your head…',
     add: 'Add',
     addN: 'Add {count}',
     aiNote: "Sort for me and Break it down send what you type to Anthropic's Claude.",
@@ -88,6 +87,8 @@ export const en = {
     everyNDays: 'Every {count} days',
     fewerDaysA11y: 'Fewer days',
     inputA11y: 'Brain dump. Add one or more things, one per line',
+    openA11y: 'Add a task',
+    draftA11y: 'Your words are waiting',
     listening: 'Listening…',
     modeDaily: 'Daily',
     modeEveryN: 'Every few days',

@@ -1,12 +1,12 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, AccessibilityInfo, Animated, AppState, BackHandler, Easing, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Linking, AccessibilityInfo, Animated, AppState, BackHandler, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Bloom, type BloomData } from '@/components/Bloom';
 import { BedtimeCapture } from '@/components/BedtimeCapture';
-import { BrainDump, type BrainDumpHandle } from '@/components/BrainDump';
+import { CaptureSheet, type CaptureSheetHandle, restingListPad, restingPanelHeight } from '@/components/CaptureSheet';
 import { DayHeading } from '@/components/DayHeading';
 import { MenuPill } from '@/components/MenuPill';
 import { CameraCapture } from '@/components/CameraCapture';
@@ -311,6 +311,7 @@ export default function TodayScreen() {
   const [affirmation, setAffirmation] = useState<string | null>(null); // a brief "done is done" / "good enough" reassurance; auto-clears
   const [bloom, setBloom] = useState<BloomData | null>(null); // the held whole-task-finish celebration
   const affirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sortTimer = useRef<ReturnType<typeof setTimeout> | null>(null); // the floating sort summary lets go too
   const affirmCount = useRef(0); // rotates the completion affirmation through the pool (lib/celebrate)
   const tinyBusy = useRef(false); // guards the make-it-tiny AI call from a double-fire
   const [reentry, setReentry] = useState(false);
@@ -359,11 +360,11 @@ export default function TodayScreen() {
   // `entitlement` is the RAW server one, deliberately: the dev override must never conjure a
   // renewal notice about money that is not moving.
   const { premium, loading: premiumLoading, entitlement } = usePremium(); // gates Pin; a dev override drives it locally
-  const brainDumpRef = useRef<BrainDumpHandle>(null);
-  // The composer is OPEN (its box has focus, or When is open). While it is, Today's heading shrinks so
-  // the weight line and the last few tasks stay in view above the keyboard, the keyboard lift applies,
-  // and every task it adds keeps a soft tint until it closes (the Today v3 handoff).
-  const [composing, setComposing] = useState(false);
+  const sheetRef = useRef<CaptureSheetHandle>(null);
+  const listEndRef = useRef(0); // where today's rows end, in the scroll content (see revealListEnd)
+  // The capture panel is up (the pill's sheet). While it is, the list leaves room above it, and a row it
+  // just added keeps a soft tint until it closes.
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [justAdded, setJustAdded] = useState<string[]>([]);
   // Tuck: rows ticked a moment ago stay in place for a beat before they fold into "Done today"; whether
   // that line is open; and what it last said, for a screen reader on web (announce is a no-op there).
@@ -382,9 +383,6 @@ export default function TodayScreen() {
   // Whether the Repeating drawer was handed over by the Menu's contents page: its top then says "‹ Menu"
   // and closing it goes back there. State, not a ref, because the drawer draws it.
   const [drawerFromMenu, setDrawerFromMenu] = useState(false);
-  // Web: a Scan's words are seeded while the camera is still closing, and its Modal's focus trap takes the
-  // focus back, so the box is focused once more after the Modal has truly gone (its onDismiss).
-  const scanFocusPending = useRef(false);
   // A double tap on Ours must not push the room twice.
   const oursNavAt = useRef(0);
   const scrollRef = useRef<ScrollView>(null);
@@ -418,12 +416,6 @@ export default function TodayScreen() {
   const [scrapbookOfferMade, setScrapbookOfferMade] = useState(true); // default true: never flash the ask
   const [scrapbookMade, setScrapbookMade] = useState(true);
   const [showWhatsNew, setShowWhatsNew] = useState(false); // default false: never flash the card
-  // The keyboard's current height. The OS gives us NOTHING here: SDK 5x Android is
-  // edge-to-edge, which IGNORES adjustResize, so the keyboard overlays the window and a
-  // bottom-anchored panel simply vanishes under it (tester screenshots, 2026-07-26). The
-  // web keyboard is handled by the viewport meta (interactive-widget) instead; RN's
-  // Keyboard module never fires there, so this stays 0 on web by construction.
-  const [kbHeight, setKbHeight] = useState(0);
   const [widgetHowShown, setWidgetHowShown] = useState(false); // the ask swaps to the instructions in place
   // Break it down, the two-call flow: qualify (questions) -> decompose (review).
   const [bdPhase, setBdPhase] = useState<'off' | 'questions' | 'review'>('off');
@@ -956,8 +948,8 @@ export default function TodayScreen() {
         }
         // The composer is always there (it stays mounted), so a seed goes straight in and focuses it.
         const text = i.kind === 'capture' ? i.text : null;
-        if (brainDumpRef.current) {
-          brainDumpRef.current.seed(text);
+        if (sheetRef.current) {
+          sheetRef.current.seed(text, true);
         } else {
           pendingSeed.current = text;
         }
@@ -968,28 +960,14 @@ export default function TodayScreen() {
   );
 
 
-  // Track the keyboard so the footer can lift the capture panel above it (see kbHeight).
-  // iOS uses the will-events (the did-events land after the animation and read as lag).
-  useEffect(() => {
-    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', (e) => {
-      setKbHeight(e.endCoordinates?.height ?? 0);
-    });
-    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => {
-      setKbHeight(0);
-    });
-    return () => {
-      show.remove();
-      hide.remove();
-    };
-  }, []);
 
   // The ref both render sites pass to BrainDump: keeps .current in sync AND flushes any
   // parked seed exactly when the box mounts, however late that is (a cold start's first
   // load, the footer appearing, the capture panel opening). Timing can no longer lose it.
-  function attachBrainDump(h: BrainDumpHandle | null) {
-    brainDumpRef.current = h;
+  function attachSheet(h: CaptureSheetHandle | null) {
+    sheetRef.current = h;
     if (h && pendingSeed.current !== undefined) {
-      h.seed(pendingSeed.current);
+      h.seed(pendingSeed.current, true);
       pendingSeed.current = undefined;
     }
   }
@@ -2434,7 +2412,11 @@ export default function TodayScreen() {
     // existing task becomes the parent; an at-capture breakdown mints one.
     const parentId = bdParentId ?? makeId();
     // An at-capture breakdown: the words have now landed as steps, so now (and only now) the box empties.
-    if (bdParentId == null) brainDumpRef.current?.clear();
+    if (bdParentId == null) {
+      // The words became steps: clear them, and put the panel away so the new steps are in view.
+      sheetRef.current?.clear();
+      sheetRef.current?.close();
+    }
     const link = { parentId, parentTitle: bdTask };
     const totalMinutes = selected.reduce((sum, s) => sum + s.minutes, 0);
     const stepTasks: Task[] = selected.map((s, i) => ({
@@ -2578,6 +2560,17 @@ export default function TodayScreen() {
 
   function captureFromComposer(text: string, schedule: CaptureSchedule, sliceCount?: number) {
     capture(text, schedule, sliceCount, true);
+    // A row for today lands at the end of today's list: bring that end up to just above the panel, where
+    // you can see it tinted. NOT scrollToEnd, which runs past Later and the footer links and carries the
+    // new rows off the top of the screen. A row for another day goes to Later, and the page stays still.
+    if (schedule.mode === 'today') setTimeout(revealListEnd, 120);
+  }
+
+  // The last of today's rows, 12 above the panel's top edge. Read from the list's own layout, which has
+  // re-measured by the time this runs (the new rows committed a render ago).
+  function revealListEnd() {
+    const panelTop = winH - restingPanelHeight(winH);
+    scrollRef.current?.scrollTo({ y: Math.max(0, listEndRef.current + 12 - panelTop), animated: !reduced });
   }
 
   // AI triage: sort a brain-dump into buckets, then apply (later -> tomorrow; today
@@ -2592,6 +2585,12 @@ export default function TodayScreen() {
     commit([...tasksRef.current, ...added]);
     const summary = summarizeAdded(added);
     setSortSummary(summaryLine(summary));
+    // It floats over the foot of the list now, so it says its piece and goes, a little longer than the
+    // affirmation because it is longer to read.
+    if (sortTimer.current) clearTimeout(sortTimer.current);
+    sortTimer.current = setTimeout(() => setSortSummary(null), 6000);
+    // The dump is sorted and on the day: the panel goes, so the summary and the rows are in view.
+    sheetRef.current?.close();
     track('triage.applied', {
       total: lines.length,
       today: summary.today,
@@ -2600,18 +2599,17 @@ export default function TodayScreen() {
     });
   }
 
-  // The composer opened or closed. Closing lets the just-added tints go (their 320ms fade lives in TaskRow).
-  function onComposerActive(active: boolean) {
-    setComposing(active);
-    if (!active) setJustAdded((prev) => (prev.length === 0 ? prev : []));
-  }
-
-  // The box took focus: the day tools close, and the list scrolls to its end so the newest rows sit just
-  // above the composer (after the heading has shrunk, hence the beat).
-  function onComposerFocus() {
-    setToolsOpen(false);
-    setToolHint(null);
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: !reduced }), 80);
+  // The panel rose or went. Rising closes the day tools; going lets the just-added tints go (their 320ms
+  // fade lives in TaskRow).
+  function onSheetOpenChange(open: boolean) {
+    setSheetOpen(open);
+    if (open) {
+      setToolsOpen(false);
+      setToolHint(null);
+      setSortSummary(null); // the last sort's line has had its moment once you are adding again
+    } else {
+      setJustAdded((prev) => (prev.length === 0 ? prev : []));
+    }
   }
 
   // Where the Menu's Ours card leads, as a plain word (never a pair id in a URL): a live list, Ours' own
@@ -2654,8 +2652,6 @@ export default function TodayScreen() {
 
   // A household's own name for its list wins over "Ours"; absent a LIVE list there is no Ours word at all.
   const oursHeadingLabel = oursPairId ? (oursName && oursName.trim() ? oursName.trim() : t('ours.defaultName')) : null;
-  // The shrunk heading is for the phone's keyboard: on wide web there is room, and the page stays still.
-  const compactHeader = composing && dockFooter && !isClosed && !selectMode;
 
   // One row, as the list draws it. Shared by the open rows and the tucked ones, so a finished task in the
   // Done today line is the very same row (tick it again to bring it back).
@@ -2729,26 +2725,21 @@ export default function TodayScreen() {
     // reproduce. A remount on an appearance change is rare and invisible (same values).
     <View key={theme.appearance} style={styles.screen}>
       <LivingBackground />
-      {/* The shrunk heading while the composer is open: Today · Ours at 21pt, the weight line and a thin
-          gauge. Outside the scroll so it stays put above the keyboard while the list scrolls under it. */}
-      {compactHeader && (
-        <View style={[styles.compactHead, { paddingTop: insets.top + spacing.two }]}>
-          <DayHeading
-            compact
-            current="today"
-            oursLabel={oursHeadingLabel}
-            changed={sharedChanged}
-            weightLabel={loaded ? weightOfDay.label : undefined}
-            weightFill={loaded ? weightOfDay.fill : undefined}
-            onToday={() => undefined}
-            onOurs={goOurs}
-          />
-        </View>
-      )}
       <ScrollView
         ref={scrollRef}
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingTop: compactHeader ? spacing.three : insets.top + spacing.seven }]}
+        // While the panel is up the day behind it is out of reach: the panel is a modal region.
+        accessibilityElementsHidden={sheetOpen}
+        importantForAccessibility={sheetOpen ? 'no-hide-descendants' : 'auto'}
+        aria-hidden={sheetOpen}
+        {...(Platform.OS === 'web' ? ({ inert: sheetOpen } as object) : null)}
+        // The list runs to the bottom edge and ends with the pill's home: one row's worth of empty space it
+        // sits in, so it never covers the last task. With the panel up, room for the panel instead, so the
+        // rows it just added can scroll into view above it.
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + spacing.seven, paddingBottom: sheetOpen ? restingPanelHeight(winH) + 8 : restingListPad(insets.bottom) },
+        ]}
         keyboardShouldPersistTaps="handled"
         // Swipe anywhere on the page to put the keyboard away. The capture box is multiline, so
         // iOS's Return key inserts a newline instead of dismissing, which left the keyboard stuck
@@ -2764,13 +2755,11 @@ export default function TodayScreen() {
             one. Nothing above it can gate it now. */}
         {debugOn ? <DebugPanel /> : null}
 
-        {!compactHeader && (
         <View style={styles.topBar}>
           <Text style={styles.date}>{formatTodayLabel(today)}</Text>
           <MenuPill onPress={openMenu} />
         </View>
-        )}
-        {reentry && !isClosed && !compactHeader && (
+        {reentry && !isClosed && (
           <View style={styles.reentry}>
             <Text style={styles.reentryTitle}>{t('today.reentryTitle')}</Text>
             <Text style={styles.reentryBody}>
@@ -2786,17 +2775,15 @@ export default function TodayScreen() {
         )}
         {/* The heading: Today · Ours, two serif words with the underline under the page you are on. It
             replaces the Ours door row, and its "!" is that row's "since you looked", as a tinted mark. */}
-        {!compactHeader && (
-          <DayHeading current="today" oursLabel={oursHeadingLabel} changed={sharedChanged} onToday={() => undefined} onOurs={goOurs} />
-        )}
-        {!compactHeader && <Text style={styles.spine}>{phaseGreeting(today)}</Text>}
+        <DayHeading current="today" oursLabel={oursHeadingLabel} changed={sharedChanged} onToday={() => undefined} onOurs={goOurs} />
+        <Text style={styles.spine}>{phaseGreeting(today)}</Text>
         {/* The day panel, ALWAYS rendered on an open day (real-user report, 2026-07-26: with the
             gauge gated on having tasks, an empty day left the pills floating with no anchor and no
             header, "not so good"). dayWeight(0) already answers the empty day calmly ("A clear
             day."), so the gate predated the redesign and no longer earned its keep: the constant
             frame's own rule, nothing appears or vanishes with the task count, now covers the top
             of the screen too. */}
-        {loaded && !isClosed && !compactHeader && (
+        {loaded && !isClosed && (
           <View style={styles.weight}>
             {/* The energy gauge stays in Quiet, just whisper-thin: a 3px hairline track (see styles). */}
             <View style={styles.weightTrack}>
@@ -2812,7 +2799,7 @@ export default function TodayScreen() {
             "full" means, so the gauge and the Lighten offer move with the person, not against them.
             Resets to Normal each morning, so it can never become configuration debt. The visible
             overline is the same feedback: three bare words with no header read as lost text. */}
-        {loaded && !isClosed && !compactHeader && (
+        {loaded && !isClosed && (
           <View>
           <Text style={styles.energyOverline}>{t('today.energyOverline')}</Text>
           <View
@@ -2849,7 +2836,7 @@ export default function TodayScreen() {
             the list moves down to make room and nothing covers it, so there is no scrim. An unavailable
             tool keeps its place at lowered contrast and explains itself in one plain line when tapped. In
             select mode the card rests (dimmed, untouchable) rather than vanishing, so the list does not jump. */}
-        {loaded && !isClosed && !compactHeader && (
+        {loaded && !isClosed && (
           <View
             style={[styles.rightNowCard, selectMode && styles.frameResting]}
             pointerEvents={selectMode ? 'none' : 'auto'}
@@ -2929,7 +2916,7 @@ export default function TodayScreen() {
             )}
           </View>
         )}
-        {loaded && !isClosed && !compactHeader && (
+        {loaded && !isClosed && (
           <>
             {toolHint != null && !toolsOpen && gateFor(toolHint).hintKey != null && (
               <Text style={styles.toolHintLine}>{t(gateFor(toolHint).hintKey!)}</Text>
@@ -3104,7 +3091,12 @@ export default function TodayScreen() {
             </Pressable>
           </View>
         )}
-        <View style={styles.list}>
+        <View
+          style={styles.list}
+          onLayout={(e) => {
+            listEndRef.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height;
+          }}
+        >
           {rows.map((task, i) => rowFor(task, i, rows))}
         </View>
 
@@ -3360,39 +3352,43 @@ export default function TodayScreen() {
         </View>
       </ScrollView>
 
-      {/* The footer is the composer now, and only the composer (or, in select mode, the select shelf). While
-          it is open it lifts by the keyboard's height, so it rides ABOVE the keyboard instead of vanishing
-          under it (edge-to-edge Android never resizes the window for us; web uses interactive-widget). iOS
-          reports a height that includes the home-indicator strip the padding already covers. Scoped to the
-          composer being open: the held card's inline rename and the modals manage their own keyboards. */}
-      <View style={[styles.footer, dockFooter && !isClosed && styles.footerDock, { paddingBottom: insets.bottom + (composing ? spacing.two : spacing.three) + (composing ? Math.max(0, kbHeight - (Platform.OS === 'ios' ? insets.bottom : 0)) : 0) }]}>
-        {/* The two transient lines (the sort summary and the affirmation: pin, done, a low day) sit just
-            above the composer, where the eye already is. */}
-        {!isClosed && !selectMode && sortSummary && <Text style={styles.sortSummary}>{sortSummary}</Text>}
-        {!isClosed && !selectMode && affirmation && <Text style={styles.affirmation}>{affirmation}</Text>}
-        {/* THE COMPOSER (the Today v3 handoff, 1a): one line under your thumb. It stays MOUNTED in every
-            state (display none in select mode and on a closed day, never unmounted) so typed text
-            survives: the capture iron rule that text is never lost. */}
-        <View style={[styles.capturePanel, (selectMode || isClosed) && styles.capturePanelHidden]}>
-          <BrainDump
-            ref={attachBrainDump}
-            onCapture={captureFromComposer}
-            onBiteElephant={biteElephant}
-            onSort={sortDump}
-            onActiveChange={onComposerActive}
-            onFocusBox={onComposerFocus}
-            today={today}
-            onCamera={() => {
-              if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
-              if (!premium) {
-                track('premium.gate_hit', { reason: 'ocr' });
-                router.push({ pathname: '/premium', params: { from: 'ocr' } });
-                return;
-              }
-              setCameraOpen(true);
-            }}
-          />
+      {/* The two transient lines (the sort summary and the affirmation: pin, done, a low day) float just
+          above the pill, where the eye already is, on a soft card so they read over the rows. */}
+      {!isClosed && !selectMode && !sheetOpen && (sortSummary || affirmation) && (
+        // The card takes its own taps (they do nothing), so a tap on it never lands on a link hidden under it.
+        <View style={[styles.floatNoteWrap, { bottom: restingListPad(insets.bottom) + 4 }]} pointerEvents="box-none">
+          <View style={styles.floatNote}>
+            {sortSummary ? <Text style={styles.sortSummary}>{sortSummary}</Text> : null}
+            {affirmation ? <Text style={styles.affirmation}>{affirmation}</Text> : null}
+          </View>
         </View>
+      )}
+
+      {/* CAPTURE: the floating pill and the panel that rises from it (design_handoff_capture_pill). It stays
+          MOUNTED in every state (hidden in select mode and on a closed day, never unmounted), so typed
+          words survive: the capture iron rule that text is never lost. */}
+      <CaptureSheet
+        ref={attachSheet}
+        heading={t('ours.addTo', { name: t('common.today') })}
+        hidden={selectMode || isClosed}
+        onOpenChange={onSheetOpenChange}
+        onCapture={captureFromComposer}
+        onBiteElephant={biteElephant}
+        onSort={sortDump}
+        today={today}
+        onCamera={() => {
+          if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
+          if (!premium) {
+            track('premium.gate_hit', { reason: 'ocr' });
+            router.push({ pathname: '/premium', params: { from: 'ocr' } });
+            return;
+          }
+          setCameraOpen(true);
+        }}
+      />
+
+      {/* The select shelf docks at the foot while selecting (the pill steps aside). */}
+      <View style={[styles.footer, dockFooter && selectMode && styles.footerDock, { paddingTop: selectMode ? spacing.three : 0, paddingBottom: selectMode ? insets.bottom + spacing.three : 0 }]}>
         {selectMode && (
           /* The select shelf (design congruency pass): a card in the held-card-v2 family.
              GENUINELY BULK, and nothing else: every single-task action lives on the held card.
@@ -4208,13 +4204,7 @@ export default function TodayScreen() {
         onClose={() => setCameraOpen(false)}
         onTasks={(scanned) => {
           setCameraOpen(false);
-          brainDumpRef.current?.seed(scanned.join('\n'));
-          if (Platform.OS === 'web') scanFocusPending.current = true;
-        }}
-        onDismiss={() => {
-          if (!scanFocusPending.current) return;
-          scanFocusPending.current = false;
-          brainDumpRef.current?.seed(null);
+          sheetRef.current?.seed(scanned.join('\n'), false);
         }}
       />
 
@@ -4545,7 +4535,6 @@ const makeStyles = (t: Theme) =>
     toolsPanel: { paddingRight: spacing.three, paddingBottom: spacing.one },
     toolsDivider: { height: border.hair, backgroundColor: t.colors.line, marginTop: 6, marginBottom: 2, marginRight: spacing.one },
     // The shrunk heading's bar, outside the scroll while the composer is open.
-    compactHead: { paddingHorizontal: spacing.five, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
     toolRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
     toolName: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', flexShrink: 1 },
     // Quiet-unavailable: lowered contrast, no lock, no border, no strikethrough. Present, resting.
@@ -4639,9 +4628,9 @@ const makeStyles = (t: Theme) =>
       textTransform: 'uppercase',
       marginBottom: spacing.one,
     },
-    capturePanel: { gap: spacing.two },
+    floatNoteWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', paddingHorizontal: spacing.five },
+    floatNote: { maxWidth: layout.maxContentWidth - 48, backgroundColor: t.colors.surfaceCard, borderRadius: radius.lg, paddingHorizontal: spacing.four, paddingTop: spacing.two, gap: 2 },
     // display none (not unmount): BrainDump keeps its typed text while the panel is away.
-    capturePanelHidden: { display: 'none' },
     alsoDidLink: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     didTitle: { ...t.type.subheading, color: t.colors.ink, letterSpacing: -0.3 },
     didHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body },

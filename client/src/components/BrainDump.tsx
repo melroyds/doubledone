@@ -13,11 +13,10 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 
-import { border, fonts, layout, PRESSED_OPACITY, radius, rgba, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { split } from '@/lib/ai';
 import { addButtonLabel, type CaptureRepeat, type CaptureWhen, doorSummary, repeatLabel, whenLabel } from '@/lib/capture-door';
 import { aiErrorLine } from '@/lib/connection';
@@ -40,13 +39,9 @@ import { DatePicker } from './DatePicker';
 // with an explicit Done. iOS-only by design (neither Android nor web has the problem).
 const CAPTURE_ACCESSORY_ID = 'ddCaptureAccessory';
 
-// A blur that is really the start of a tap on one of the composer's own controls (on web, pressing
-// a button blurs the box a beat BEFORE the click lands) must not collapse the composer under the
-// finger. The box counts as focused for this long after it loses focus.
-const BLUR_GRACE_MS = 220;
-
-// The box grows to four lines, then scrolls (the handoff's rule), measured in the body line height.
-const MAX_LINES = 4;
+// On web, pressing a button blurs the field a beat BEFORE the click lands. An Add that follows a blur
+// this closely was pressed while typing, so the field takes focus back for the next line.
+const REFOCUS_WINDOW_MS = 400;
 
 type Props = {
   onCapture: (text: string, schedule: CaptureSchedule, slices?: number) => void;
@@ -63,23 +58,16 @@ type Props = {
    * day, and choosing one there means the row will appear on BOTH your Todays.
    */
   whenDefault?: CaptureWhen;
-  /** Called when the composer closes (the box lets go and When is shut). Optional. */
-  onClose?: () => void;
-  /**
-   * The composer is OPEN (the box has focus, or When or the date picker is open, or an AI shaper
-   * or dictation is running). The parent shrinks its heading while it is, so the weight line and
-   * the last few tasks stay in view above the keyboard, and keeps a just-added row tinted until it
-   * closes (the Today v3 handoff).
-   */
-  onActiveChange?: (active: boolean) => void;
-  /** The box took focus: the parent scrolls its list to the end so the newest rows sit just above. */
-  onFocusBox?: () => void;
+  /** The panel's heading, "Add to Today" or "Add to {list}". It is where a screen reader lands on open. */
+  heading: string;
+  /** Close, from the header's own button. The sheet around the panel owns the open state. */
+  onRequestClose: () => void;
+  /** Whether there are words in the field, for the pill's "words waiting" dots. Reported on a change only. */
+  onDraftChange?: (has: boolean) => void;
   today: Date;
   // OCR (premium): open the photo-capture modal. The parent premium-gates the tap; this just shows
   // the button as the upsell surface. Absent hides it.
   onCamera?: () => void;
-  /** The box's resting words. Today: "Empty your head…". The shared list: "Add to {name}". */
-  placeholder?: string;
   /**
    * The line beside When, where the surface needs When explained BEFORE the add (the shared list:
    * "It stays on the list. It reaches nobody's day."). Only shown on surfaces with no AI shaper,
@@ -91,7 +79,14 @@ type Props = {
 // What a parent can do to the box via ref: drop in text (or null to just focus) and focus the input.
 // Used by the launcher "Brain dump" shortcut, shared text, and a scanned list.
 export type BrainDumpHandle = {
-  seed: (text: string | null) => void;
+  /** Drop words in (under any draft, never over it). `focus` raises the keyboard; otherwise the panel waits. */
+  seed: (text: string | null, focus?: boolean) => void;
+  /** Screen-reader focus to the heading, the way in when the panel opens (the keyboard stays down). */
+  focusHeading: () => void;
+  /** Let go of the field (the keyboard goes; the words stay). */
+  blurField: () => void;
+  /** Stop web dictation, if it is listening (the panel is closing). */
+  stopListening: () => void;
   /** Empty the box and put When back to rest. For the parent to call once words it took (Break it
    *  down's accepted steps) have really landed, so nothing is cleared on the way to a sheet you might cancel. */
   clear: () => void;
@@ -114,38 +109,32 @@ const WEEKDAY_KEYS = [
 const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 
 /**
- * The composer (the Today v3 handoff, 1a, Melroy's pick 2026-09-26): ONE message-style line at the
- * bottom of the screen replaces the half-screen capture panel, so the list you are adding to stays
- * in view while you add to it.
+ * The capture PANEL's contents (design_handoff_capture_pill, 2026-09-26): the heading and Close, the
+ * field, one hint seat (an error, the Tidy offer, or the AI note), the tools (Speak, Scan, and the one AI
+ * slot, Break it down or Sort for me), then When and Add. CaptureSheet owns the pill, the rise and the
+ * keyboard; this owns the words and everything done with them.
  *
- * At rest it is Scan, the box, and one end button that says Speak while the box is empty and Add once
- * you type. Open (the box has focus), a row above it carries the When chip and Break it down, which
- * becomes Sort for me in the same seat once there are two or more lines. When opens in the keyboard's
- * place with the same rows the shipped door had (a day, a rhythm, steps), and the Add button names the
- * consequence before the tap ("Add · Tomorrow", "Add 3").
- *
- * Everything the old panel promised still holds, because the logic below is the old panel's: the text
- * is never lost (the composer stays mounted; nothing clears it but an Add or an accepted sort), the
- * first keystroke never waits, every part stays in its place while you type, and When resets to the
- * calm default after every Add. Nothing reaches the day until you tap Add or accept the sort.
+ * The rules the earlier composers kept still hold, because the logic below is theirs: the text is never
+ * lost (this stays mounted; only an Add, an accepted breakdown or a successful Sort clears it), the Add
+ * button names its consequence before the tap, When resets to the calm default after every Add, and
+ * nothing reaches the day until you tap Add or accept the sort. New here: the keyboard rises only when
+ * the field is tapped, so opening the panel never throws a keyboard at you.
  */
 export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
-  { onCapture, onBiteElephant, onSort, onClose, onActiveChange, onFocusBox, today, onCamera, allowSteps = true, whenDefault = 'today', placeholder, whenNote },
+  { onCapture, onBiteElephant, onSort, heading, onRequestClose, onDraftChange, today, onCamera, allowSteps = true, whenDefault = 'today', whenNote },
   ref,
 ) {
   const [value, setValue] = useState('');
   const [doorOpen, setDoorOpenState] = useState(false);
   const doorOpenRef = useRef(false);
   const [focused, setFocused] = useState(false);
-  // When opens in place of the chip that opened it, so the chip (and the focus on it) is gone. Focus
-  // moves to the door's header instead, for a keyboard or a screen reader; set on open, spent in an effect.
-  const doorHeadRef = useRef<View>(null);
-  const doorFocusPending = useRef(false);
+  const focusedRef = useRef(false);
+  const blurredAt = useRef(0);
+  const headRef = useRef<Text>(null);
   // What the last Add said, for web screen readers. react-native-web's announceForAccessibility is a
   // no-op, so on web the words go through a hidden polite live region instead. The count flips a
   // trailing no-break space so a second "Added." is still a change the reader hears.
   const [said, setSaid] = useState({ text: '', n: 0 });
-  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [when, setWhen] = useState<CaptureWhen>(whenDefault);
   const [repeat, setRepeat] = useState<CaptureRepeat>(null);
   const [weekdays, setWeekdays] = useState<number[]>([today.getDay()]);
@@ -165,7 +154,6 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
   const { settings } = useSettings();
   const aiEnabled = settings.aiEnabled; // false hides every gen-AI affordance here (Sort for me, Break it down, Tidy, Scan). Speak stays: it is on-device dictation, not a server AI call.
   const inputRef = useRef<TextInput>(null);
-  const { height: winH } = useWindowDimensions();
   const [doorFade] = useState(() => new Animated.Value(0));
 
   // Talk-to-capture (the mic stays hidden where unsupported). Each spoken phrase lands as its own
@@ -184,12 +172,36 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
   // clears in-progress text) and focus the input. Imperative, so the setState runs like an event
   // handler, never during render or as a cascading effect.
   useImperativeHandle(ref, () => ({
-    seed: (text: string | null) => {
-      // Joined under a draft, never over it: with the composer always on screen, an unsent line in the
-      // box is the normal resting state, and a Scan or a share used to replace it without a word.
+    seed: (text: string | null, focus = true) => {
+      // Joined under a draft, never over it: an unsent line waiting in the panel is a normal resting
+      // state, and a Scan or a share used to replace it without a word.
       if (text !== null) setValue((v) => (v.trim() ? `${v.replace(/\s+$/, '')}\n${text}` : text));
-      inputRef.current?.focus();
+      if (!focus) return;
+      // With When open the field is not mounted, so shut When first and focus once it is back.
+      if (doorOpenRef.current) {
+        setDoorOpen(false);
+        setTimeout(() => inputRef.current?.focus(), 50);
+      } else {
+        inputRef.current?.focus();
+      }
     },
+    focusHeading: () => {
+      // Never away from a field that already has focus (a share's focus lands first, or a quick tap). The
+      // web also asks the document, which knows even when the focus event has not been delivered yet.
+      if (focusedRef.current) return;
+      if (Platform.OS === 'web' && typeof document !== 'undefined' && document.activeElement === (inputRef.current as unknown as Element)) return;
+      const node = headRef.current;
+      if (!node) return;
+      if (Platform.OS === 'web') {
+        const el = node as unknown as HTMLElement;
+        el.setAttribute?.('tabindex', '-1');
+        el.focus?.({ preventScroll: true });
+      } else {
+        AccessibilityInfo.sendAccessibilityEvent(node, 'focus');
+      }
+    },
+    blurField: () => inputRef.current?.blur(),
+    stopListening: () => stopDictation(),
     clear: () => reset(),
   }));
 
@@ -197,12 +209,11 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
   // effect body), so the React Compiler stays happy.
   useEffect(() => () => {
     dictationRef.current?.stop();
-    if (blurTimer.current) clearTimeout(blurTimer.current);
   }, []);
 
-  // Android's back gesture (and iOS's swipe-down) can put the keyboard away WITHOUT blurring the box,
-  // which would leave the composer open, and Today's heading shrunk, over a keyboard that is gone.
-  // When the keyboard goes and When is not what took its place, let go of the box too.
+  // Android's back gesture (and iOS's swipe-down) can put the keyboard away WITHOUT blurring the field,
+  // which would leave its accent edge (and the panel's keyboard layout) on over a keyboard that is gone.
+  // When the keyboard goes and When is not what took its place, let go of the field too.
   useEffect(() => {
     if (Platform.OS === 'web') return;
     const sub = Keyboard.addListener('keyboardDidHide', () => {
@@ -246,31 +257,16 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
   const addLabel = addButtonLabel(doorState, today, lineCount);
   const whenLbl = whenLabel(doorState, today);
 
-  // OPEN = the person is here. The parent shrinks its heading and holds a just-added tint for exactly
-  // this long. Text alone does not hold it open: words left in the box wait there, calmly, while the
-  // full page (Right now, the tools) comes back.
-  const active = focused || doorOpen || pickerOpen || busy || listening;
-  // Reported on a CHANGE only. A parent's handler is usually a fresh function every render, and hearing
-  // "closed" on every render let a parent that clears state on close loop itself to death (the first
-  // preview of this build: "Maximum update depth exceeded").
-  const lastReported = useRef<boolean | null>(null);
+  // Words waiting: the pill shows them while the panel is shut. Reported on a CHANGE only (a parent's
+  // handler is usually a fresh function every render; hearing it every render once looped a screen).
+  const lastDraft = useRef<boolean | null>(null);
   useEffect(() => {
-    if (lastReported.current === active) return;
-    const was = lastReported.current;
-    lastReported.current = active;
-    onActiveChange?.(active);
-    if (was && !active) onClose?.();
-  }, [active, onActiveChange, onClose]);
+    if (lastDraft.current === hasText) return;
+    lastDraft.current = hasText;
+    onDraftChange?.(hasText);
+  }, [hasText, onDraftChange]);
 
-  // When opens with a 180ms fade and a 4px settle, like the held card; reduced motion is a 90ms fade.
-  useEffect(() => {
-    if (!doorOpen || !doorFocusPending.current) return;
-    doorFocusPending.current = false;
-    const head = doorHeadRef.current;
-    if (!head) return;
-    if (Platform.OS === 'web') (head as unknown as { focus?: () => void }).focus?.();
-    else AccessibilityInfo.sendAccessibilityEvent(head, 'focus');
-  }, [doorOpen]);
+  // When opens in the field's place with a 180ms fade and a 4px settle; reduced motion is a 90ms fade.
 
   useEffect(() => {
     if (!doorOpen) {
@@ -324,46 +320,30 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
   }
 
   function handleFocus() {
-    if (blurTimer.current) {
-      clearTimeout(blurTimer.current);
-      blurTimer.current = null;
-    }
-    setFocused(true);
-    // Tap the box and the keyboard comes back: When goes back to its chip.
-    if (doorOpenRef.current) setDoorOpen(false);
-    onFocusBox?.();
-  }
-
-  // Focus on one of the composer's OWN controls (the When chip, Break it down / Sort for me, Tidy, the
-  // door's header) keeps it open, exactly like focus in the box, without the box's side effects (closing
-  // When, the scroll). Web in practice, where a click or a Tab moves focus: without it a keyboard user who
-  // tabbed onto When lost it 220ms later, and a slow, deliberate click was dropped mid-press.
-  function holdFocus() {
-    if (blurTimer.current) {
-      clearTimeout(blurTimer.current);
-      blurTimer.current = null;
-    }
+    focusedRef.current = true;
     setFocused(true);
   }
 
   function handleBlur() {
-    if (blurTimer.current) clearTimeout(blurTimer.current);
-    blurTimer.current = setTimeout(() => {
-      blurTimer.current = null;
-      setFocused(false);
-    }, BLUR_GRACE_MS);
+    focusedRef.current = false;
+    blurredAt.current = Date.now();
+    setFocused(false);
   }
 
+  // When is the persistent chip at the foot of the panel, so the control that opens the choices is the
+  // control that closes them, and focus never has to move anywhere. Opening puts the keyboard away (the
+  // choices need the room; the text is untouched). Closing brings the field back, keyboard down.
   function toggleDoor() {
     if (!doorOpen) {
-      Keyboard.dismiss(); // the choices need the room; the text is untouched
+      Keyboard.dismiss();
+      // The field unmounts under When, and a native blur from an unmounted input can be dropped, so the
+      // focus state is let go of here. Otherwise a later Add would think the field still had the keyboard
+      // and pop it back up. Speak goes too: its stop button is not on screen while When is open.
+      focusedRef.current = false;
+      blurredAt.current = 0;
+      setFocused(false);
+      stopDictation();
       track('capture.door.opened');
-      doorFocusPending.current = true;
-    } else {
-      // Closing goes back to the box (the handoff: tap the box and the keyboard comes back). Held open
-      // through the hand-over, or with focus already gone the whole composer folded away under you.
-      holdFocus();
-      inputRef.current?.focus();
     }
     setDoorOpen(!doorOpen);
   }
@@ -428,11 +408,9 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
     const words = consequence ? t('capture.addedFor', { what: consequence }) : t('capture.added');
     AccessibilityInfo.announceForAccessibility(words);
     if (Platform.OS === 'web') setSaid((prev) => ({ text: words, n: prev.n + 1 }));
-    // Focus stays in the box, so the next thing goes in without another tap. Held open THROUGH the add:
-    // on native the focus lands a frame later, and in between nothing held the composer open (When had
-    // just closed), so it reported closed and Today wiped the tint it had only just recorded.
-    holdFocus();
-    inputRef.current?.focus();
+    // Typing stays typing: if the field had the keyboard (or lost it only to this very press, on web), it
+    // keeps it for the next line. An Add made with the keyboard down leaves it down.
+    if (focusedRef.current || Date.now() - blurredAt.current < REFOCUS_WINDOW_MS) inputRef.current?.focus();
   }
 
   async function biteElephant() {
@@ -518,81 +496,37 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
   const doorOverline = doorRows.join(' · ');
   const note = !hasShapers && whenNote ? whenNote({ when, repeating: repeat !== null }) : null;
 
-  // The one end button, in one seat: Speak on an empty box (where dictation exists), Listening while
-  // it does, Add (naming the consequence) once there is something to add.
-  const endMode: 'speak' | 'listening' | 'add' = listening ? 'listening' : !hasText && canDictate ? 'speak' : 'add';
   const multiline = lineCount >= 2;
-  const lineH = 22 * theme.scale;
+  const doorA11y = t('capture.doorA11yComposed', { rows: doorRows.join(', '), summary });
 
   return (
-    <View style={styles.wrap}>
+    <View style={styles.body}>
       {Platform.OS === 'web' && (
         <Text accessibilityLiveRegion="polite" style={styles.srOnly}>
-          {said.text ? said.text + (said.n % 2 ? ' ' : '') : ''}
+          {said.text ? said.text + (said.n % 2 ? '\u00a0' : '') : ''}
         </Text>
       )}
-      {active && !doorOpen && (
-        <View style={styles.chipRow}>
-          <Pressable
-            onPress={toggleDoor}
-            onFocus={holdFocus}
-            onBlur={handleBlur}
-            accessibilityRole="button"
-            aria-expanded={false}
-            accessibilityLabel={t('capture.doorA11yComposed', { rows: doorRows.join(', '), summary })}
-            hitSlop={4}
-            style={({ pressed }) => [styles.whenChip, pressed && styles.pressed]}
-          >
-            <Text style={styles.whenOverline}>{t('capture.rowWhen')}</Text>
-            <Text style={styles.whenValue}>{summary}</Text>
-            <Text style={styles.whenCaret}>˅</Text>
-          </Pressable>
-          {hasShapers ? (
-            <Pressable
-              onPress={multiline ? sortDump : biteElephant}
-              onFocus={holdFocus}
-              onBlur={handleBlur}
-              disabled={busy || !hasText}
-              accessibilityRole="button"
-              aria-disabled={busy || !hasText}
-              accessibilityLabel={multiline ? t('capture.sortA11y') : t('capture.breakDownA11y')}
-              hitSlop={4}
-              style={({ pressed }) => [styles.shaper, pressed && styles.pressed, (busy || !hasText) && styles.dim]}
-            >
-              {busyKind === 'sort' || busyKind === 'bite' ? (
-                <View style={styles.busyRow}>
-                  <ActivityIndicator size="small" color={theme.colors.accent} />
-                  <Text style={styles.shaperText}>{busyKind === 'sort' ? t('capture.sorting') : t('capture.breakingDown')}</Text>
-                </View>
-              ) : (
-                <Text style={styles.shaperText}>{multiline ? t('actions.sortForMe') : t('actions.breakItDown')}</Text>
-              )}
-            </Pressable>
-          ) : note ? (
-            <Text style={styles.note}>{note}</Text>
-          ) : null}
-        </View>
-      )}
 
-      {doorOpen && (
+      {/* HEADER: where a screen reader lands when the panel opens (the keyboard stays down). */}
+      <View style={styles.head}>
+        <Text ref={headRef} style={styles.heading} accessibilityRole="header" numberOfLines={1}>
+          {heading}
+        </Text>
+        <Pressable onPress={onRequestClose} accessibilityRole="button" accessibilityLabel={t('common.close')} hitSlop={6} style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
+          <Text style={styles.closeText}>{t('common.close')}</Text>
+        </Pressable>
+      </View>
+
+      {doorOpen ? (
+        // WHEN, opened: the same rows the shipped door had, in the field's place. Its chip below closes it.
         <Animated.View
           style={[
             styles.door,
             { opacity: doorFade, transform: [{ translateY: doorFade.interpolate({ inputRange: [0, 1], outputRange: [theme.reduceMotion ? 0 : 4, 0] }) }] },
           ]}
         >
-          <Pressable
-            ref={doorHeadRef}
-            onPress={toggleDoor}
-            accessibilityRole="button"
-            aria-expanded
-            accessibilityLabel={t('capture.doorA11yComposed', { rows: doorRows.join(', '), summary })}
-            style={({ pressed }) => [styles.doorHead, pressed && styles.pressed]}
-          >
-            <Text style={styles.zoneOverline}>{doorOverline}</Text>
-            <Text style={styles.doorHeadValue}>{summary} ˄</Text>
-          </Pressable>
-          <ScrollView style={{ maxHeight: Math.max(220, winH * 0.5) }} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.doorBody}>
+          <Text style={styles.zoneOverline}>{doorOverline}</Text>
+          <ScrollView style={styles.doorScroll} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.doorBody}>
             {/* A DAY. The shared list gets Anytime in FRONT, which is its resting state. A picked date
                 lands IN the Pick a date chip, so the chip always says what is set. */}
             <View style={styles.zone}>
@@ -740,112 +674,132 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
             )}
           </ScrollView>
         </Animated.View>
-      )}
-
-      {/* One fixed hint line while the composer is open: an error, the Tidy offer, or the AI egress
-          note, in that priority. Its seat exists whenever it has anything to say, so the first
-          keystroke never shifts the box. An ERROR also shows at rest: on web the click that started
-          Sort or Tidy had already let go of the box, so a failure used to land with the composer
-          folded and say nothing. It clears on the next keystroke, or with the next Add. */}
-      {(error || (active && (showTidy || aiNoteKey))) && (
-        <View style={styles.hintRegion}>
-          {error ? (
-            <Text style={styles.error}>{error}</Text>
-          ) : showTidy ? (
-            <Pressable
-              onPress={splitDump}
-              onFocus={holdFocus}
+      ) : (
+        <>
+          {/* THE FIELD: flex, never smaller than 56; the keyboard rises only when it is tapped. */}
+          <View style={[styles.field, focused && styles.fieldFocused]}>
+            <TextInput
+              ref={inputRef}
+              value={value}
+              onChangeText={(v) => {
+                setValue(v);
+                if (error) setError(null);
+              }}
+              onFocus={handleFocus}
               onBlur={handleBlur}
-              disabled={busy}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={t('capture.tidyA11y')}
-              style={({ pressed }) => [pressed && styles.pressed, busy && styles.dim]}
-            >
-              {busyKind === 'split' ? (
-                <View style={styles.busyRow}>
-                  <ActivityIndicator size="small" color={theme.colors.accent} />
-                  <Text style={styles.tidyText}>{t('capture.tidying')}</Text>
-                </View>
-              ) : (
-                <Text style={styles.tidyText}>{t('capture.tidy')}</Text>
-              )}
-            </Pressable>
-          ) : aiNoteKey ? (
-            <Text style={styles.aiNote}>{t(aiNoteKey)}</Text>
-          ) : null}
-        </View>
+              editable={!busy}
+              placeholder={t('capture.placeholder')}
+              placeholderTextColor={theme.colors.inkFaint}
+              style={styles.input}
+              multiline
+              textAlignVertical="top"
+              accessibilityLabel={t('capture.inputA11y')}
+              inputAccessoryViewID={Platform.OS === 'ios' ? CAPTURE_ACCESSORY_ID : undefined}
+            />
+          </View>
+
+          {/* ONE hint seat, always the same place: an error, the Tidy offer, or the AI note, in that order. */}
+          <View style={styles.hintSeat}>
+            {error ? (
+              <Text style={styles.error}>{error}</Text>
+            ) : showTidy ? (
+              <Pressable onPress={splitDump} disabled={busy} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('capture.tidyA11y')} style={({ pressed }) => [pressed && styles.pressed, busy && styles.dim]}>
+                {busyKind === 'split' ? (
+                  <View style={styles.busyRow}>
+                    <ActivityIndicator size="small" color={theme.colors.accent} />
+                    <Text style={styles.toolText}>{t('capture.tidying')}</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.toolText}>{t('capture.tidy')}</Text>
+                )}
+              </Pressable>
+            ) : aiNoteKey ? (
+              <Text style={styles.aiNote}>{t(aiNoteKey)}</Text>
+            ) : null}
+          </View>
+
+          {/* TOOLS: Speak and Scan on the left, the one AI slot on the right (or, on the shared list, the
+              line that says what a day means there). */}
+          <View style={styles.tools}>
+            {canDictate && (
+              <Pressable
+                onPress={toggleDictation}
+                disabled={busy}
+                accessibilityRole="button"
+                aria-selected={listening}
+                accessibilityLabel={listening ? t('capture.speakListeningA11y') : t('capture.speakA11y')}
+                hitSlop={4}
+                style={({ pressed }) => [styles.tool, pressed && styles.pressed, busy && styles.dim]}
+              >
+                {listening && <View style={styles.liveDot} />}
+                <Text style={styles.toolText}>{listening ? t('capture.listening') : t('capture.speak')}</Text>
+              </Pressable>
+            )}
+            {onCamera && aiEnabled && (
+              <Pressable onPress={onCamera} disabled={busy} hitSlop={4} accessibilityRole="button" accessibilityLabel={t('capture.scanA11y')} style={({ pressed }) => [styles.tool, pressed && styles.pressed, busy && styles.dim]}>
+                <Text style={styles.toolText}>{t('capture.scan')}</Text>
+              </Pressable>
+            )}
+            <View style={styles.toolsGap} />
+            {hasShapers ? (
+              <Pressable
+                onPress={multiline ? sortDump : biteElephant}
+                disabled={busy || !hasText}
+                accessibilityRole="button"
+                aria-disabled={busy || !hasText}
+                accessibilityLabel={multiline ? t('capture.sortA11y') : t('capture.breakDownA11y')}
+                hitSlop={4}
+                style={({ pressed }) => [styles.tool, pressed && styles.pressed, (busy || !hasText) && styles.dim]}
+              >
+                {busyKind === 'sort' || busyKind === 'bite' ? (
+                  <View style={styles.busyRow}>
+                    <ActivityIndicator size="small" color={theme.colors.accent} />
+                    <Text style={styles.toolText}>{busyKind === 'sort' ? t('capture.sorting') : t('capture.breakingDown')}</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.toolText}>{multiline ? t('actions.sortForMe') : t('actions.breakItDown')}</Text>
+                )}
+              </Pressable>
+            ) : note ? (
+              <Text style={styles.note}>{note}</Text>
+            ) : null}
+          </View>
+        </>
       )}
 
-      <View style={styles.inputRow}>
-        {onCamera && aiEnabled && (
-          <Pressable
-            onPress={onCamera}
-            disabled={busy}
-            hitSlop={4}
-            style={({ pressed }) => [styles.scan, pressed && styles.pressed, busy && styles.dim]}
-            accessibilityRole="button"
-            accessibilityLabel={t('capture.scanA11y')}
-          >
-            <Text style={styles.scanText}>{t('capture.scan')}</Text>
-          </Pressable>
-        )}
-        <View style={[styles.box, multiline && styles.boxMulti, active && styles.boxFocused]}>
-          <TextInput
-            ref={inputRef}
-            value={value}
-            onChangeText={(v) => {
-              setValue(v);
-              if (error) setError(null);
-            }}
-            onFocus={handleFocus}
-            onBlur={handleBlur}
-            editable={!busy}
-            placeholder={placeholder ?? t('capture.placeholderShort')}
-            placeholderTextColor={theme.colors.inkFaint}
-            style={[styles.input, { maxHeight: lineH * MAX_LINES + spacing.five }]}
-            multiline
-            textAlignVertical="top"
-            accessibilityLabel={t('capture.inputA11y')}
-            inputAccessoryViewID={Platform.OS === 'ios' ? CAPTURE_ACCESSORY_ID : undefined}
-          />
-          {endMode === 'add' ? (
-            <Pressable
-              onPress={add}
-              disabled={busy || !hasText}
-              accessibilityRole="button"
-              aria-disabled={busy || !hasText}
-              accessibilityLabel={addLabel}
-              hitSlop={4}
-              style={({ pressed }) => [styles.addBtn, pressed && styles.pressed, (busy || !hasText) && styles.dim]}
-            >
-              <Text style={styles.addText}>{addLabel}</Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              onPress={toggleDictation}
-              disabled={busy}
-              accessibilityRole="button"
-              aria-selected={listening}
-              accessibilityLabel={listening ? t('capture.speakListeningA11y') : t('capture.speakA11y')}
-              hitSlop={4}
-              style={({ pressed }) => [styles.speak, pressed && styles.pressed, busy && styles.dim]}
-            >
-              {listening && <View style={styles.liveDot} />}
-              <Text style={styles.speakText}>{listening ? t('capture.listening') : t('capture.speak')}</Text>
-            </Pressable>
-          )}
-        </View>
-        {Platform.OS === 'ios' && (
-          <InputAccessoryView nativeID={CAPTURE_ACCESSORY_ID}>
-            <View style={styles.kbBar}>
-              <Pressable onPress={() => Keyboard.dismiss()} accessibilityRole="button" accessibilityLabel={t('common.done')} hitSlop={10}>
-                <Text style={styles.kbDone}>{t('common.done')}</Text>
-              </Pressable>
-            </View>
-          </InputAccessoryView>
-        )}
+      {/* WHEN AND ADD: the chip that opens and closes the choices, and the button that names its consequence. */}
+      <View style={styles.bottomRow}>
+        <Pressable onPress={toggleDoor} accessibilityRole="button" aria-expanded={doorOpen} accessibilityLabel={doorA11y} hitSlop={4} style={({ pressed }) => [styles.whenChip, pressed && styles.pressed]}>
+          <Text style={styles.whenOverline}>{t('capture.rowWhen')}</Text>
+          <Text style={styles.whenValue} numberOfLines={1}>
+            {summary}
+          </Text>
+          <Text style={styles.whenCaret}>{doorOpen ? '˄' : '˅'}</Text>
+        </Pressable>
+        <Pressable
+          onPress={add}
+          disabled={busy || !hasText}
+          accessibilityRole="button"
+          aria-disabled={busy || !hasText}
+          accessibilityLabel={addLabel}
+          hitSlop={4}
+          style={({ pressed }) => [styles.addBtn, pressed && styles.pressed, (busy || !hasText) && styles.dim]}
+        >
+          <Text style={styles.addText} numberOfLines={2}>
+            {addLabel}
+          </Text>
+        </Pressable>
       </View>
+
+      {Platform.OS === 'ios' && (
+        <InputAccessoryView nativeID={CAPTURE_ACCESSORY_ID}>
+          <View style={styles.kbBar}>
+            <Pressable onPress={() => Keyboard.dismiss()} accessibilityRole="button" accessibilityLabel={t('common.done')} hitSlop={10}>
+              <Text style={styles.kbDone}>{t('common.done')}</Text>
+            </Pressable>
+          </View>
+        </InputAccessoryView>
+      )}
 
       <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
         <View style={styles.pickerRoot}>
@@ -873,43 +827,72 @@ const makeStyles = (t: Theme) => {
     textTransform: 'uppercase' as const,
   };
   return StyleSheet.create({
-    wrap: { gap: spacing.two },
+    body: { flex: 1, gap: 6 },
     // Present to a screen reader, invisible and zero-footprint for everyone else.
     srOnly: { position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0 },
-    // The row above the box while it is open: the When chip on the left, the one AI shaper (or, on
-    // the shared list, the line that explains When) on the right. Wraps rather than truncates at the
-    // largest text sizes.
-    chipRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.two },
+    head: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.two },
+    heading: { flex: 1, color: t.colors.ink, fontSize: 22 * t.scale, lineHeight: 28 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
+    close: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
+    closeText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    // The field: paper inside the panel's surface, a hairline at rest, the accent once it has the keyboard.
+    // Quiet turns it into a capture line: a 1px underline, no fill, no radius.
+    field: quiet
+      ? { flex: 1, minHeight: 56, borderBottomWidth: border.hair, borderColor: t.quiet.captureUnderline }
+      : { flex: 1, minHeight: 56, backgroundColor: t.colors.bg, borderWidth: border.hair, borderColor: t.colors.line, borderRadius: 14 },
+    fieldFocused: quiet ? { borderColor: t.colors.accent } : { borderWidth: border.thin, borderColor: t.colors.accent },
+    input: {
+      flex: 1,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      fontSize: 17 * t.scale,
+      lineHeight: 24 * t.scale,
+      fontFamily: fonts.body,
+      color: t.colors.ink,
+      // The field's accent edge is the focus indicator; the browser's own rectangle inside it is noise.
+      // SOLID at zero width, not a bare zero width: Chrome's default focus style is `auto`, which ignores
+      // the width and drew a yellow rectangle inside the box in an earlier preview.
+      ...(Platform.OS === 'web' ? { outlineStyle: 'solid' as const, outlineWidth: 0 } : null),
+    },
+    hintSeat: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 2 },
+    aiNote: { color: t.colors.inkSoft, fontSize: 12.5 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body },
+    error: { color: t.colors.accent, fontSize: 13 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body },
+    tools: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 4, minHeight: 44 },
+    toolsGap: { flex: 1 },
+    tool: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.two, paddingHorizontal: 6 },
+    toolText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.colors.accent },
+    busyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
+    note: { flexShrink: 1, minWidth: 140, color: t.colors.inkSoft, fontSize: 12.5 * t.scale, lineHeight: 17.5 * t.scale, fontFamily: fonts.body, textAlign: 'right' },
+    // When and Add, one row, 48 tall.
+    bottomRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
     whenChip: {
+      flex: 1,
+      minWidth: 0,
+      minHeight: 48,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: spacing.two,
-      minHeight: 44,
-      paddingHorizontal: 15,
+      gap: 6,
+      paddingHorizontal: 14,
       borderRadius: radius.pill,
       borderWidth: border.hair,
       borderColor: t.colors.line,
-      backgroundColor: quiet ? 'transparent' : t.colors.surface,
-      flexShrink: 1,
     },
-    whenOverline: overline,
+    whenOverline: { ...overline, color: t.colors.inkFaint, fontSize: 10.5 * t.scale, letterSpacing: 1 },
     whenValue: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', flexShrink: 1 },
-    whenCaret: { color: t.colors.inkSoft, fontSize: 11 * t.scale, fontFamily: fonts.body },
-    shaper: {
-      minHeight: 44,
+    whenCaret: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body },
+    addBtn: {
+      minWidth: 76,
+      maxWidth: '55%',
+      minHeight: 48,
       justifyContent: 'center',
-      paddingHorizontal: 15,
+      paddingHorizontal: 18,
       borderRadius: radius.pill,
-      borderWidth: border.hair,
-      borderColor: t.colors.accent,
+      backgroundColor: t.colors.accent,
     },
-    shaperText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    busyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-    note: { flex: 1, minWidth: 140, color: t.colors.inkSoft, fontSize: 12.5 * t.scale, lineHeight: 17.5 * t.scale, fontFamily: fonts.body },
-    // When, opened: the same rows the shipped door had, in the keyboard's place.
-    door: { gap: spacing.one },
-    doorHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three, minHeight: 44 },
-    doorHeadValue: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', flexShrink: 1, textAlign: 'right' },
+    addText: { color: t.colors.onAccent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', textAlign: 'center' },
+    // When, opened, in the field's place.
+    door: { flex: 1, gap: 6 },
+    doorScroll: { flex: 1 },
     doorBody: { gap: spacing.three, paddingBottom: spacing.two },
     zone: { gap: 6 },
     zoneOverline: overline,
@@ -951,76 +934,6 @@ const makeStyles = (t: Theme) => {
     // contrast; the line below says why. Never absent, never locked.
     quiet: { opacity: 0.45 },
     stepsHint: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body },
-    hintRegion: { minHeight: 20, justifyContent: 'center', paddingHorizontal: spacing.one },
-    aiNote: { color: t.colors.inkFaint, fontSize: 12.5 * t.scale, fontFamily: fonts.body },
-    tidyText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    error: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body },
-    // The line itself: Scan, the box, and the box's one end button.
-    inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.one },
-    scan: { minHeight: 50, justifyContent: 'center', paddingHorizontal: spacing.two },
-    scanText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    // Quiet turns the rounded box into a capture line: a 1px underline, no fill, no radius.
-    box: quiet
-      ? {
-          flex: 1,
-          minHeight: 50,
-          flexDirection: 'row',
-          alignItems: 'flex-end',
-          gap: spacing.two,
-          borderBottomWidth: border.hair,
-          borderColor: t.quiet.captureUnderline,
-          paddingLeft: 2,
-          paddingVertical: spacing.one,
-        }
-      : {
-          flex: 1,
-          minHeight: 50,
-          flexDirection: 'row',
-          alignItems: 'flex-end',
-          gap: spacing.two,
-          backgroundColor: t.colors.surface,
-          // A resting edge a shade firmer than the hairline, so the box reads as the place to type
-          // on a paper-coloured footer. An alpha of ink, no new colour.
-          borderWidth: border.hair,
-          borderColor: rgba(t.colors.ink, t.scheme === 'dark' ? 0.22 : 0.14),
-          borderRadius: 25,
-          paddingLeft: 18,
-          paddingRight: spacing.one,
-          paddingVertical: spacing.one,
-        },
-    boxMulti: quiet ? {} : { borderRadius: 22 },
-    // Open: the edge firms to the accent, which is also the box's visible focus state.
-    boxFocused: quiet ? { borderColor: t.colors.accent } : { borderWidth: border.thin, borderColor: t.colors.accent },
-    input: {
-      flex: 1,
-      // A floor, so a long consequence on the button ("Add · Weekly on Mo, We") can never squeeze the box
-      // to a few characters; the button's label wraps instead.
-      minWidth: 120 * t.scale,
-      minHeight: 40,
-      fontSize: 16 * t.scale,
-      lineHeight: 22 * t.scale,
-      fontFamily: fonts.body,
-      color: t.colors.ink,
-      paddingTop: 10,
-      paddingBottom: 10,
-      paddingHorizontal: 0,
-      // The box's accent edge is the focus indicator; the browser's own rectangle inside a pill is noise.
-      // SOLID at zero width, not a bare zero width: Chrome's default focus style is `auto`, which ignores
-      // the width and drew a yellow rectangle inside the pill in the first preview.
-      ...(Platform.OS === 'web' ? { outlineStyle: 'solid' as const, outlineWidth: 0 } : null),
-    },
-    speak: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.two, paddingHorizontal: 14 },
-    speakText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.colors.accent },
-    addBtn: {
-      minHeight: 42,
-      maxWidth: '62%',
-      justifyContent: 'center',
-      paddingHorizontal: 18,
-      borderRadius: radius.pill,
-      backgroundColor: t.colors.accent,
-    },
-    addText: { color: t.colors.onAccent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', textAlign: 'center' },
     pressed: { opacity: PRESSED_OPACITY },
     dim: { opacity: 0.45 },
     pickerRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.five },

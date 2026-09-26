@@ -8338,3 +8338,52 @@ drawer lands straight where it belongs); the line shows in select mode so a sele
 row stays visible; its open state is keyed to the day; the welcome's chosen card uses ink on its tint
 (soft ink fell under AA in light); the screenshot harness's shared-list shot moved one press; and two
 Italian strings (agreement, and the catalog's settled "su Oggi").
+
+## 2026-09-26: capture is a floating + pill, and the panel rises from the bottom (design_handoff_capture_pill)
+
+**Decided:** the one-line composer docked at the foot of Today (and of the Ours list) is gone. In its
+place a small accent pill with a "+" floats centred, 34 above the bottom edge, and rows scroll under
+it. Tapping it raises a panel from the bottom, headed "Add to Today" (or "Add to {name}" on Ours) with
+Close: the box, the hint seat, the tools row (Speak, Scan, the AI slot) and When + Add. It is
+`components/CaptureSheet.tsx`, which hosts the rebuilt `BrainDump` as its contents, and Today and Ours
+mount the same component. This came from Melroy's wife's first look ("Input: plus button ... with sleeve
+input"), went through a Claude Design round (the capture sleeve prompt), and the handoff locked the pill
+over the earlier edge tab.
+
+**How it follows the handoff:** the list ends with one row's worth of empty space
+(`8 + 52 + max(inset - 2, 32)`), so the pill never covers the last task. The panel is about 384 tall
+and never more than 55% of the window; with the keyboard up it sits on the keyboard and the box shrinks
+first. The keyboard waits until the box is tapped. Open is 280ms on the handoff's curve, close 200,
+reduced motion a 90ms cross-fade. Words left in the panel widen the pill to show three dots, and a
+screen reader hears "Add a task. Your words are waiting". Close, the scrim, Android back and Escape
+all put it away, and focus goes back to the pill. The panel owns its keyboard lift now, so Today's and
+Ours' own keyboard listeners are removed.
+
+**Calls the handoff did not make (Melroy to challenge):**
+- **Sort for me and an accepted Break it down close the panel.** The dump has become rows, so the panel
+  goes and the rows (and the sort summary) are in view. A plain Add keeps it open for the next line.
+- **The sort summary and the affirmation float just above the pill** on a soft card, because the footer
+  they used to sit in no longer exists.
+- **After an Add, today's list scrolls so its last row sits 12 above the panel,** not to the page's end
+  (which ran past Later and the links and carried the new rows off the top). An add for another day
+  leaves the page still.
+- **The compact heading is retired.** It existed to make room above a keyboard-lifted composer, and the
+  panel now covers the lower screen instead, so the heading stays whole.
+- **A scanned list lands in the panel with the keyboard down,** ready to read before adding. Shares and
+  the Brain dump shortcut open it with the keyboard up.
+- **Ours gets the same pill.** A closed list has no pill at all; select mode hides it (never unmounts it).
+
+**Hardened by review before it shipped** (a 32-agent review, 28 confirmed findings, 11 distinct): on
+Android the panel also clears the navigation bar's inset when it sits on the keyboard (RN reports the
+keyboard's height without it, and the old footer had quietly added it back); a share or the Brain dump
+shortcut on a closed day or in select mode only parks the words as a draft instead of focusing an
+invisible field; back and Escape are scoped to the screen in front (Escape on keyup, so it closes only the
+top layer); closing the panel, or opening When, stops web dictation; the shut panel and scrim are `inert`
+on web and the list behind an open panel is hidden from screen readers; the heading never takes focus
+from the field; the panel's floor scales with text size; iOS Safari's keyboard (which ignores
+interactive-widget) lifts the panel through `visualViewport`; and the floating sort summary lets go
+after six seconds. The Android and iOS-Safari keyboard fixes need a device look before release.
+
+**Decided against:** a bar or row behind the pill (the handoff's version 1), hide-on-scroll, a text
+label on the pill (it would vary a lot across five languages), a swipe-up to open (it fights the home
+gesture, and the standing rule is buttons, never drag).

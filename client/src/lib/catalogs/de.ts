@@ -59,7 +59,6 @@ export const de: Catalog = {
   capture: {
     addedFor: 'Hinzugefügt: {what}',
     added: 'Hinzugefügt.',
-    placeholderShort: 'Schreib dir den Kopf leer…',
     add: 'Hinzufügen',
     addN: '{count} hinzufügen',
     aiNote: '„Sortier für mich“ und „Mach Schritte draus“ schicken, was du tippst, an Claude von Anthropic.',
@@ -88,6 +87,8 @@ export const de: Catalog = {
     everyNDays: 'Alle {count} Tage',
     fewerDaysA11y: 'Weniger Tage',
     inputA11y: 'Kopf leeren. Eine oder mehrere Sachen hinzufügen, eine pro Zeile',
+    openA11y: 'Aufgabe hinzufügen',
+    draftA11y: 'Deine Worte warten',
     listening: 'Ich höre zu…',
     modeDaily: 'Täglich',
     modeEveryN: 'Alle paar Tage',

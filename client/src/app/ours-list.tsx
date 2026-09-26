@@ -1,10 +1,10 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { AppState, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
-import { BrainDump, type BrainDumpHandle } from '@/components/BrainDump';
+import { CaptureSheet, type CaptureSheetHandle, restingListPad, restingPanelHeight } from '@/components/CaptureSheet';
 import { CameraCapture } from '@/components/CameraCapture';
 import { DayHeading } from '@/components/DayHeading';
 import { MenuPill } from '@/components/MenuPill';
@@ -122,12 +122,6 @@ export default function OursListScreen() {
   // `isPairReadOnly` existed for exactly this and had no call site at all until the audit found it.
   const [readOnly, setReadOnly] = useState(false);
   const [notice, setNotice] = useState<string | null>(null); // one calm line, for things worth saying once
-  // The keyboard lift. NOTHING on this stack raises a bottom-anchored input above the keyboard on
-  // its own: SDK 5x Android is edge-to-edge and ignores softwareKeyboardLayoutMode, and there is no
-  // KeyboardAvoidingView here. Today already carries this exact listener for the same reason (see
-  // CLAUDE.md's keyboard gotcha, which cost a whole tester round), and the room's capture bar is a
-  // new bottom-anchored surface that can hold focus, so it needs the same plan.
-  const [kbHeight, setKbHeight] = useState(0);
   // Newest-issued-wins, the same guard the pairing screen needed: several call sites, a network
   // round trip in each, and whichever reply lands last would otherwise win regardless of age.
   const pass = useRef(0);
@@ -239,7 +233,7 @@ export default function OursListScreen() {
   // making a second copy. My tasks, read here only to answer that one question.
   const [pulled, setPulled] = useState<Map<string, string>>(new Map());
   const [cadenceId, setCadenceId] = useState<string | null>(null); // the row whose rhythm is being set
-  // CAPTURE IS TODAY'S CAPTURE. Not a lookalike: the same `BrainDump` component, so the input, the
+  // CAPTURE IS TODAY'S CAPTURE. Not a lookalike: the same `CaptureSheet` (pill and panel), so the input, the
   // Speak button, the door, the iOS keyboard bar and the Add button that names its own consequence
   // are the same objects in both rooms and can never drift apart. Melroy asked for exactly this
   // ("I want consistent UI between Today and Ours"), and the reason it is worth the wiring is that
@@ -250,15 +244,12 @@ export default function OursListScreen() {
   // in, and slicing is a personal shaping tool. How you break a thing down is yours, not a
   // household's. WHEN and REPEATING both belong here, and WHEN rests on Anytime, because most of a
   // household list has no day and choosing one means the row appears on BOTH your Todays.
-  // The composer is OPEN (its box has focus, or When is open): the heading shrinks and the keyboard lift
-  // applies, exactly as on Today. The composer itself is always there, one line at the bottom.
-  const [composing, setComposing] = useState(false);
-  const brainDumpRef = useRef<BrainDumpHandle>(null);
+  // The capture panel is up (the pill's sheet): the list leaves room above it, exactly as on Today.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const sheetRef = useRef<CaptureSheetHandle>(null);
   const scrollRef = useRef<ScrollView>(null);
-  const { width: winW } = useWindowDimensions();
+  const { height: winH } = useWindowDimensions();
   const reduced = useReducedMotion();
-  // Web: see Today's twin. The closing camera Modal's focus trap takes the seed's focus back.
-  const scanFocusPending = useRef(false);
   // SCAN (premium), on the shared list because this is where it most belongs. The single most
   // photographed list in anybody's life is the one on the fridge, and that list is shared by
   // definition: a handwritten shopping list, a recipe's ingredients, the school's bring-these-things
@@ -397,20 +388,6 @@ export default function OursListScreen() {
     [session, sessionKnown, wantedId, pair, washFor],
   );
 
-  // iOS uses the will-events; the did-events land after the animation and read as lag.
-  useEffect(() => {
-    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', (e) => {
-      setKbHeight(e.endCoordinates?.height ?? 0);
-    });
-    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => {
-      setKbHeight(0);
-    });
-    return () => {
-      show.remove();
-      hide.remove();
-    };
-  }, []);
-
   // The live sync, held in a ref so the two effects below can depend on NOTHING that changes.
   //
   // This is the whole bug: `sync` calls `setPair` with a fresh object every run, so `pair` changed
@@ -526,7 +503,7 @@ export default function OursListScreen() {
     const titles = parseDump(text);
     if (titles.length === 0 || !pair || isPairFrozen(pair)) return;
     // Typing is activity. `lastTouch` is the ten-minute idle gate on polling, and it used to be fed
-    // by the old bar's onChangeText; BrainDump owns its own text, so the two moments that still
+    // by the old bar's onChangeText; the capture panel owns its own text, so the two moments that still
     // prove a person is here (opening the panel, and this) feed it instead.
     lastTouch.current = nowMs();
     if (titles.some(willTrim)) setNotice(t('ours.shareTrim')); // said BEFORE, never discovered after
@@ -747,7 +724,6 @@ export default function OursListScreen() {
   // The Today · Ours heading is for the LIVE list, the one Today's heading switches to. A closed list
   // opened from the archive (?pair=) keeps its own title and back link: the Ours word means the live list.
   const tabbed = !frozen && !wantedId;
-  const compactHeader = composing && tabbed && !selectMode && (Platform.OS !== 'web' || winW < 700);
 
   // Today, by the heading's word: all the way back to Today, past the Menu's contents page if that is
   // how you got here (the room's own back still returns to wherever you came from).
@@ -756,13 +732,14 @@ export default function OursListScreen() {
     else router.replace('/today');
   }
 
-  function onComposerActive(active: boolean) {
-    setComposing(active);
-    if (active) lastTouch.current = nowMs(); // composing is a person being here: the poll must not idle out
+  function onSheetOpenChange(open: boolean) {
+    setSheetOpen(open);
+    if (open) lastTouch.current = nowMs(); // composing is a person being here: the poll must not idle out
   }
 
-  function onComposerFocus() {
-    lastTouch.current = nowMs();
+  // Added from the panel: the new rows land at the end, so bring them up above it.
+  function captureFromSheet(text: string, schedule: CaptureSchedule) {
+    capture(text, schedule);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: !reduced }), 80);
   }
 
@@ -776,34 +753,39 @@ export default function OursListScreen() {
 
   return (
     <View style={styles.screen}>
-      {compactHeader && (
-        <View style={[styles.compactHead, { paddingTop: insets.top + spacing.two }]}>
-          <DayHeading compact current="ours" oursLabel={listName} onToday={goToday} onOurs={() => undefined} />
-        </View>
-      )}
       <ScrollView
         ref={scrollRef}
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingTop: compactHeader ? spacing.three : insets.top + spacing.four }]}
+        // While the panel is up the list behind it is out of reach: the panel is a modal region.
+        accessibilityElementsHidden={sheetOpen}
+        importantForAccessibility={sheetOpen ? 'no-hide-descendants' : 'auto'}
+        aria-hidden={sheetOpen}
+        {...(Platform.OS === 'web' ? ({ inert: sheetOpen } as object) : null)}
+        // The list ends with the pill's home (one row of empty space it sits in), or room for the panel.
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: insets.top + spacing.four,
+            paddingBottom: frozen ? spacing.six : sheetOpen ? restingPanelHeight(winH) + 8 : restingListPad(insets.bottom),
+          },
+        ]}
         keyboardShouldPersistTaps="handled"
         onScrollBeginDrag={() => {
           lastTouch.current = nowMs();
         }}
       >
         {tabbed ? (
-          !compactHeader && (
-            <>
-              {/* The same status row as Today: the date, and the Menu pill in its place. */}
-              <View style={styles.topBar}>
-                <Text style={styles.date}>{formatTodayLabel(now)}</Text>
-                <MenuPill onPress={() => router.push({ pathname: '/rooms', params: { ours: 'list', from: 'ours' } })} />
-              </View>
-              <DayHeading current="ours" oursLabel={listName} onToday={goToday} onOurs={() => undefined} />
-              {/* The weight, Energy and the tools belong to Today, so they step aside here. What is here
-                  instead is the one rule of the room, said once. */}
-              <Text style={styles.sharedLine}>{t('ours.sharedLine')}</Text>
-            </>
-          )
+          <>
+            {/* The same status row as Today: the date, and the Menu pill in its place. */}
+            <View style={styles.topBar}>
+              <Text style={styles.date}>{formatTodayLabel(now)}</Text>
+              <MenuPill onPress={() => router.push({ pathname: '/rooms', params: { ours: 'list', from: 'ours' } })} />
+            </View>
+            <DayHeading current="ours" oursLabel={listName} onToday={goToday} onOurs={() => undefined} />
+            {/* The weight, Energy and the tools belong to Today, so they step aside here. What is here
+                instead is the one rule of the room, said once. */}
+            <Text style={styles.sharedLine}>{t('ours.sharedLine')}</Text>
+          </>
         ) : (
           <>
             <BackLink label={t('common.today')} />
@@ -955,13 +937,7 @@ export default function OursListScreen() {
         onClose={() => setCameraOpen(false)}
         onTasks={(scanned) => {
           setCameraOpen(false);
-          brainDumpRef.current?.seed(scanned.join('\n'));
-          if (Platform.OS === 'web') scanFocusPending.current = true;
-        }}
-        onDismiss={() => {
-          if (!scanFocusPending.current) return;
-          scanFocusPending.current = false;
-          brainDumpRef.current?.seed(null);
+          sheetRef.current?.seed(scanned.join('\n'), false);
         }}
       />
 
@@ -1062,63 +1038,54 @@ export default function OursListScreen() {
         </View>
       )}
 
+      {/* The composer: the floating pill and the panel that rises from it, the same object as Today's.
+          MOUNTED always (hidden while selecting, never unmounted), which is the capture iron rule that typed
+          text is never lost: tick something mid-sentence, come back, the words are still there. A closed
+          list takes no new rows, so it has no pill at all. */}
       {!frozen && (
-        <View
-          style={[
-            styles.capture,
-            selectMode && styles.captureHidden,
-            { paddingBottom: insets.bottom + (composing ? spacing.two : spacing.three) + (composing ? Math.max(0, kbHeight - (Platform.OS === 'ios' ? insets.bottom : 0)) : 0) },
-          ]}
-        >
-          {/* The composer, one line under your thumb (the Today v3 handoff). MOUNTED always, which is the
-              capture iron rule that typed text is never lost: tick something mid-sentence, come back, the
-              words are still there. */}
-          <View style={styles.capturePanel}>
-            <BrainDump
-              ref={brainDumpRef}
-              onCapture={capture}
-              onActiveChange={onComposerActive}
-              onFocusBox={onComposerFocus}
-              placeholder={t('ours.addTo', { name: listName })}
-              whenNote={whenNote}
-              today={now}
-              /* STEPS stay off: a shared row has no `slices` field to hold them, and breaking a
-                 thing down is a personal shaping tool. How you approach a task is yours; that it
-                 needs doing is the household's.
+        <CaptureSheet
+          ref={sheetRef}
+          heading={t('ours.addTo', { name: listName })}
+          hidden={selectMode}
+          onOpenChange={onSheetOpenChange}
+          onCapture={captureFromSheet}
+          whenNote={whenNote}
+          today={now}
+          /* STEPS stay off: a shared row has no `slices` field to hold them, and breaking a
+             thing down is a personal shaping tool. How you approach a task is yours; that it
+             needs doing is the household's.
 
-                 WHEN is ON, with ANYTIME as its resting answer, and that is a reversal of the
-                 call made when this bar was built. The reasoning then was that a shared list is
-                 not a day. It has become one, in the only sense that matters: a dated or repeating
-                 shared row now appears on BOTH your Todays, so choosing a day here is a real and
-                 useful act rather than a word that means nothing. Anytime stays the default because
-                 most of a household list has no day and must never become somebody's morning. */
-              whenDefault="anytime"
-              allowSteps={false}
-              /* Break-it-down and Sort-for-me stay off, by omission rather than a flag: they have a
-                 model AUTHOR content that then lands on a list another person reads, and pointing a
-                 model at somebody else's screen is a decision about them, not a UI convenience.
+             WHEN is ON, with ANYTIME as its resting answer, and that is a reversal of the
+             call made when this bar was built. The reasoning then was that a shared list is
+             not a day. It has become one, in the only sense that matters: a dated or repeating
+             shared row now appears on BOTH your Todays, so choosing a day here is a real and
+             useful act rather than a word that means nothing. Anytime stays the default because
+             most of a household list has no day and must never become somebody's morning. */
+          whenDefault="anytime"
+          allowSteps={false}
+          /* Break-it-down and Sort-for-me stay off, by omission rather than a flag: they have a
+             model AUTHOR content that then lands on a list another person reads, and pointing a
+             model at somebody else's screen is a decision about them, not a UI convenience.
 
-                 SCAN is not that, which is worth spelling out because the sentence above nearly
-                 excluded it by association. Scan reads a photo YOU pointed a camera at and drops the
-                 words into YOUR capture box, where you read them, edit them, and Add them yourself.
-                 The model commits nothing; it is a camera-shaped keyboard. And the photo never
-                 reaches the shared table at all: your person sees the rows you added, exactly as if
-                 you had typed them. */
-              onCamera={() => {
-                if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
-                if (!premium) {
-                  // Tagged apart from Today's own OCR gate on purpose. A paywall met on a surface a
-                  // second person can see is a genuinely different moment from one met alone, and
-                  // whether the shared list converts is a thing worth being able to answer.
-                  track('premium.gate_hit', { reason: 'ocr_ours' });
-                  router.push({ pathname: '/premium', params: { from: 'ocr_ours' } });
-                  return;
-                }
-                setCameraOpen(true);
-              }}
-            />
-          </View>
-        </View>
+             SCAN is not that, which is worth spelling out because the sentence above nearly
+             excluded it by association. Scan reads a photo YOU pointed a camera at and drops the
+             words into YOUR capture box, where you read them, edit them, and Add them yourself.
+             The model commits nothing; it is a camera-shaped keyboard. And the photo never
+             reaches the shared table at all: your person sees the rows you added, exactly as if
+             you had typed them. */
+          onCamera={() => {
+            if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
+            if (!premium) {
+              // Tagged apart from Today's own OCR gate on purpose. A paywall met on a surface a
+              // second person can see is a genuinely different moment from one met alone, and
+              // whether the shared list converts is a thing worth being able to answer.
+              track('premium.gate_hit', { reason: 'ocr_ours' });
+              router.push({ pathname: '/premium', params: { from: 'ocr_ours' } });
+              return;
+            }
+            setCameraOpen(true);
+          }}
+        />
       )}
     </View>
   );
@@ -1140,7 +1107,6 @@ const makeStyles = (t: Theme) =>
     topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.one },
     date: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
     sharedLine: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 21 * t.scale, fontFamily: fonts.body, marginTop: 9 },
-    compactHead: { paddingHorizontal: spacing.five, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
     waitBridge: {
       alignSelf: 'flex-start',
       marginTop: spacing.two,
@@ -1182,11 +1148,7 @@ const makeStyles = (t: Theme) =>
       borderTopColor: t.colors.line,
       backgroundColor: t.colors.bg,
     },
-    capturePanel: { gap: spacing.two, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
-    // Select mode takes the bar's seat; the composer steps out of the layout but stays mounted, so a
-    // half-typed line is still there when selecting ends (the capture iron rule).
-    captureHidden: { display: 'none' },
-    // The select shelf, sharing the capture bar's container so the two occupy one seat.
+    // The select shelf, docked at the foot while selecting (the pill steps aside).
     selectTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.three },
     selectHint: { color: t.colors.inkFaint, fontSize: 14 * t.scale, fontFamily: fonts.body },
     selectCount: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },

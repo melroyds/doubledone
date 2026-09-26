@@ -55,7 +55,6 @@ export const it: Catalog = {
   capture: {
     addedFor: 'Aggiunto. {what}.',
     added: 'Aggiunto.',
-    placeholderShort: 'Svuota la testa…',
     add: 'Aggiungi',
     addN: 'Aggiungi {count}',
     aiNote: 'Ordina tu per me e Dividi in passaggi inviano quello che scrivi a Claude di Anthropic.',
@@ -84,6 +83,8 @@ export const it: Catalog = {
     everyNDays: 'Ogni {count} giorni',
     fewerDaysA11y: 'Meno giorni',
     inputA11y: 'Svuota la testa. Aggiungi una o più cose, una per riga',
+    openA11y: "Aggiungi un'attività",
+    draftA11y: 'Le tue parole ti aspettano',
     listening: 'Ti ascolto…',
     modeDaily: 'Ogni giorno',
     modeEveryN: 'Ogni pochi giorni',
