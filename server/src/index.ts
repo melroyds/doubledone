@@ -30,7 +30,7 @@ import { logAppEvent, parseAppEvent } from './events';
 import { handleRcWebhook } from './revenuecat';
 import { handleAppleReconcile } from './revenuecat-api';
 import { handleReviewCode, handleReviewEmail } from './review-otp';
-import { handleCheckout, handleEntitlement, handlePortal, handleWebhook } from './stripe';
+import { handleCheckout, handleCloseBilling, handleEntitlement, handlePortal, handleWebhook } from './stripe';
 import { type D1LikeDatabase, extractUsage, logAiCall, logOutcome } from './telemetry';
 import { buildTriageRequest, parseTriageResponse, TRIAGE_MODEL } from './triage';
 
@@ -268,7 +268,9 @@ const router = {
     // The money routes: a browser call must come from the app's own origin (cross-site abuse); native apps
     // send no Origin and pass. Who is asking is settled INSIDE each handler by verifying the token's
     // signature, the same check /trial/start has always made (2026-09-25 audit).
-    const moneyRoute = ((pathname === '/checkout' || pathname === '/portal') && request.method === 'POST') || (pathname === '/entitlement' && request.method === 'GET');
+    const moneyRoute =
+      ((pathname === '/checkout' || pathname === '/portal' || pathname === '/account/close-billing') && request.method === 'POST') ||
+      (pathname === '/entitlement' && request.method === 'GET');
     if (moneyRoute && origin !== null && !isAllowedOrigin(origin)) {
       return Response.json({ error: 'forbidden origin' }, { status: 403, headers: cors });
     }
@@ -277,6 +279,13 @@ const router = {
     }
     if (pathname === '/portal' && request.method === 'POST') {
       return handlePortal(request, env, cors);
+    }
+    // Account deletion runs this FIRST: it cancels every Stripe subscription that can still charge the
+    // caller, and the app deletes nothing unless it answers 200 with a count. Must be deployed BEFORE any
+    // client that calls it ships, or deletion refuses for everyone (an unknown route answers a plain 200
+    // 'doubledone-ai', which the client correctly reads as a failure).
+    if (pathname === '/account/close-billing' && request.method === 'POST') {
+      return handleCloseBilling(request, env, cors);
     }
     if (pathname === '/entitlement' && request.method === 'GET') {
       return handleEntitlement(request, env, cors);

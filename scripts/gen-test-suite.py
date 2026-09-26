@@ -538,18 +538,27 @@ CASES = [
      "Changes sync up on reconnect. Nothing lost.", "Both"),
 
     # --- Account deletion -----------------------------------------------------
-    ("DEL-00", "Account deletion", "P1", "PREREQ: create the delete function",
-     "Run the delete_account() function from supabase/schema.sql once in the Supabase SQL editor.",
-     "Function created. (One-time setup; cannot be rolled back.)", "Setup"),
+    ("DEL-00", "Account deletion", "P1", "PREREQ: create the delete function, deploy the billing route",
+     "Run the delete_account() function from supabase/schema.sql once in the Supabase SQL editor. Then deploy the Worker carrying POST /account/close-billing, BEFORE any web deploy or store build that calls it. Check it: POST https://api.doubledone.app/account/close-billing with no token.",
+     "Function created. (One-time setup; cannot be rolled back.) The route answers 401 {\"error\":\"sign_in_required\"}. A plain 200 reading 'doubledone-ai' means the Worker is still the old one: the new app will then refuse every delete with the billing line (DEL-06), so deploy the Worker first.", "Setup"),
     ("DEL-01", "Account deletion", "P1", "Delete account + data",
      "Settings -> Delete account and data -> confirm. (Use a throwaway account first.)",
-     "Account and synced data are gone. Returns to a clean, signed-out Today.", "Both"),
+     "Account and synced data are gone. Returns to a clean, signed-out Today. A free account deletes exactly as before: the billing check finds nothing and says nothing.", "Both"),
     ("DEL-02", "Account deletion", "P1", "Originating device is wiped",
      "On the device you deleted from, look at Today, the Calendar, the scrapbook, and any routines.",
      "Nothing of the account remains locally: no tasks, an empty Calendar, no scrapbook, no routines. Only display prefs (theme, text size) persist.", "Both"),
     ("DEL-03", "Account deletion", "P3", "Known limit: second device",
      "On a second signed-in device after deletion, observe behaviour.",
      "It keeps local data until its next sync fails auth (documented limitation).", "Both"),
+    ("DEL-04", "Account deletion", "P1", "Deleting stops a Stripe subscription first",
+     "PREREQ: DEL-00, and a throwaway account with a Stripe Premium subscription (Stripe is live, so a real purchase you refund afterwards). Settings -> Delete account and data -> Delete. Then open the Stripe dashboard: Customers, find the throwaway's email, open its subscription.",
+     "The account is deleted as in DEL-01. In Stripe the subscription reads Canceled, canceled NOW (not 'cancels at period end'), with the cancellation comment 'account_deleted', and there is no upcoming invoice. The customer record and its past invoices are still there (kept for refunds). If the person has another live subscription, including one on an older Stripe customer or one whose card is failing (past due), it is canceled too (unit-tested in close-billing.test.ts; check it here only if such an account exists). No price, no Stripe link and no purchase control appears in the confirmation on any platform. Refunds are not automatic: issue one by hand if the policy calls for it.", "Both"),
+    ("DEL-05", "Account deletion", "P1", "An Apple subscriber is told to cancel with Apple",
+     "On an iPhone with an Apple Premium subscription (a signed-in account whose Premium came from the App Store), Settings -> Delete account and data. Read the confirmation before tapping anything. Then tap Keep my account.",
+     "Under the usual warning, one extra line: 'Your Premium is billed by Apple, so deleting your account does not stop it. Cancel it first on your iPhone or iPad: Settings, tap your name, then Subscriptions.' It is plain text, not a link, and Delete stays available (it warns, it never blocks). A Stripe subscriber and a free account never see this line. The same account opened on the web or Android shows the same line.", "iOS"),
+    ("DEL-06", "Account deletion", "P2", "No billing check, no delete",
+     "Signed in, Settings -> Delete account and data. With the confirmation open, go offline (airplane mode, or browser dev tools Offline), then tap Delete. Then go back online and tap Delete again.",
+     "Offline: nothing is deleted, the account and its tasks stay exactly as they were, you stay signed in, and one calm line shows under the buttons: 'Nothing was deleted, because we couldn't check your billing just now. Try again in a moment, or email support@doubledone.app.' Online again: the delete goes through as in DEL-01.", "Both"),
 
     # --- MCP server -----------------------------------------------------------
     ("MCP-00", "MCP", "P1", "PREREQ: copy your token",
@@ -1494,7 +1503,8 @@ def build_xlsx(path: str) -> None:
     r = line(r, "APK build", "")
     r += 1
     r = line(r, "Note on prerequisites",
-             "Some rows need one-time setup first: DEL-00 (create the delete_account function in Supabase), "
+             "Some rows need one-time setup first: DEL-00 (create the delete_account function in Supabase, "
+             "and deploy the Worker's /account/close-billing route), "
              "AUTH-01 (sign in), MCP-00/01 (copy token + connect a client), DEP-02 (sideload the APK). "
              "Do those before the rows that depend on them.")
 
