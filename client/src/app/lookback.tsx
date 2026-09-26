@@ -1,11 +1,13 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Animated, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import bandArt from '../../assets/images/rooms/band-lookback.webp';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BackLink } from '@/components/BackLink';
 import { PremiumButton } from '@/components/PremiumButton';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { RoomBackRow, RoomHead, useRoomEntrance, useRoomOrigin } from '@/components/RoomTop';
 import { border, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { lookbackSummary, makeScrapbook } from '@/lib/ai';
 import { addMonths, canAddToDay, completionsByDay, monthLabel, monthMatrix, scheduledByDay, WEEKDAY_LABELS } from '@/lib/calendar';
@@ -31,6 +33,8 @@ import { useReducedMotion, useSettings, useTheme, useThemedStyles } from '@/lib/
 export default function LookbackScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const origin = useRoomOrigin();
+  const entrance = useRoomEntrance();
   const reduced = useReducedMotion();
   const today = useMemo(() => new Date(), []);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -246,14 +250,18 @@ export default function LookbackScreen() {
   }
 
   return (
+    <Animated.View style={[styles.screen, entrance]}>
+    {/* The room top (the room-entry handoff): the back row stays put, the band and title scroll away. */}
+    <View style={{ paddingTop: insets.top + spacing.two }}>
+      <RoomBackRow origin={origin} />
+    </View>
     <ScrollView
-      style={styles.screen}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.six, paddingBottom: insets.bottom + spacing.six }]}
+      style={styles.scroll}
+      contentContainerStyle={[styles.content, { paddingTop: spacing.one, paddingBottom: insets.bottom + spacing.six }]}
     >
-      <BackLink label={t('common.today')} />
-
-      <Text style={styles.title}>{t('lookback.title')}</Text>
-      <Text style={styles.sub}>{t('lookback.subtitle')}</Text>
+      <View style={styles.head}>
+        <RoomHead art={bandArt} title={t('lookback.title')} hint={t('rooms.lookbackHint')} />
+      </View>
 
       <View style={styles.monthBar}>
         <Pressable onPress={() => step(-1)} accessibilityRole="button" accessibilityLabel={t('common.previousMonth')} hitSlop={10}>
@@ -577,14 +585,15 @@ export default function LookbackScreen() {
           </Pressable>
         ))}
     </ScrollView>
+    </Animated.View>
   );
 }
 
 const makeStyles = (t: Theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: t.colors.bg },
   content: { paddingHorizontal: spacing.five, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
-  title: { color: t.colors.ink, fontSize: 34 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.5, marginTop: spacing.five },
-  sub: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, marginTop: spacing.two, marginBottom: spacing.six },
+  scroll: { flex: 1 },
+  head: { marginBottom: spacing.five },
   monthBar: {
     flexDirection: 'row',
     alignItems: 'center',

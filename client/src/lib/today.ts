@@ -72,6 +72,29 @@ export function tasksForToday<T extends Scheduled>(tasks: T[], date: Date): T[] 
   });
 }
 
+/**
+ * The Tuck choice: split today's rows into the ones that stay in the list and the finished ones that fold
+ * into the "Done today" line at its foot. A pure, order-keeping partition done at RENDER, so everything
+ * that reads the whole day (the weight gauge, the close-the-day count, Plan my day, the Calendar) is
+ * untouched by construction. Two finished rows stay in place anyway: one ticked a moment ago (`settling`,
+ * so the tick is seen before it goes) and `keepInPlace` (the held task's closing line, which plays where
+ * the tick happened).
+ */
+export function tuckFinished<T extends Scheduled & { id: string }>(
+  rows: T[],
+  date: Date,
+  settling: readonly string[],
+  keepInPlace: string | null,
+): { open: T[]; tucked: T[] } {
+  const open: T[] = [];
+  const tucked: T[] = [];
+  for (const row of rows) {
+    if (isDoneOn(row, date) && !settling.includes(row.id) && row.id !== keepInPlace) tucked.push(row);
+    else open.push(row);
+  }
+  return { open, tucked };
+}
+
 /** A task that can be pinned as the day's one priority (premium). `done` gates the float: a completed
  *  pin recedes so the day re-centres on the open work (see pinFirst). */
 export type Pinnable = { pinnedAt?: number; done?: boolean };

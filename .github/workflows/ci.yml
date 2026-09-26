@@ -80,6 +80,7 @@ jobs:
           node scripts/inject-web-meta.mjs
           grep -q 'property="og:image"' client/dist/index.html
           grep -q 'interactive-widget=resizes-content' client/dist/index.html
+          grep -q 'id="dd-viewport"' client/dist/index.html
       - name: Stamp + verify the version file
         # The app asks doubledone.app/version.json whether a newer build exists. Gate it here so a
         # broken stamp fails CI rather than the deploy, and so the file can never silently vanish

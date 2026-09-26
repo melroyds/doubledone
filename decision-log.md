@@ -8102,3 +8102,326 @@ Inspector discovery needs the bearer (the 401 is how OAuth starts); a pasted tok
 hour); and Today on both surfaces is the UTC day for now, said plainly in OpenAPI, api.md and mcp.md
 until the timezone option lands. OpenAPI is 1.2.2. **Decided against:** a read-only OAuth scope
 (Tier 4: one scope is right while the only clients are claude.ai, ChatGPT and Cowork).
+
+## 2026-09-26: Today v3, the kitchen and the rest of the house (its own PR, not shipped)
+
+**Decided:** build the Claude Design "Today v3" handoff on web, on its own branch (`today-v3`) and PR,
+previewed on a Pages branch URL and never pushed to `main`, because a merge to main IS the web deploy.
+The handoff's four moves, as built:
+- **The heading is a tab pair.** "Today" and the live shared list's name (its own name when it has
+  one, else "Ours") sit side by side in the serif, the current one underlined. A small tinted "!"
+  sits beside the Ours word when your person changed something since you looked. It is counted by
+  `changedSinceLooked`, which is the room's own `washedSince` minus tombstones, so a deletion never
+  raises it and your own edits never do. No number is drawn: the mark is bounded by attention, not
+  by the list's length.
+- **Right now moves up** under Energy, and its caret opens the same tools DOWNWARD inside the card.
+  The list moves down to make room, nothing covers it, so the scrim is gone.
+- **Capture is one line at the bottom**, always mounted (the capture iron rule). Focus opens it
+  where it is: the heading shrinks to a compact bar, a chip row appears (When, plus Break it down or
+  Sort for me), and the list scrolls to its end. Add keeps focus, tints the rows it added until the
+  composer closes, and says "Added." or "Added. Tomorrow."
+- **The Rooms sheet becomes a page**, "The rest of the house", with five pictures (bundled WebP),
+  for-when hints in place of what-it-is hints, Settings at the top right and Premium as a quiet row.
+- **Ours gets the same heading**, the same Menu pill and the same composer ("Add to {name}…"), plus
+  one line that says what sharing means.
+
+**Decided (calls the handoff left open):**
+- **Routes stay.** Ours is still its own route, faded rather than slid so it reads as a tab. Not a
+  real tab navigator: the room's sync, poll and wash all live in that screen, and moving them is a
+  rewrite for the sake of a transition.
+- **Repeating stays a drawer on Today** (it lives on Today's task state and write path). The contents
+  page hands it over through the inbound bridge and dismisses to Today, and closing the drawer returns
+  to the contents page, where the person started.
+- **Only the Today ON SCREEN takes an inbound intent** (`useFocusEffect`, not a mount effect). A second
+  Today can sit under the stack, and a broadcast went to whichever had subscribed first, so the Menu's
+  Repeating card opened a drawer nobody could see. An intent now waits and is drained on focus. Chart
+  and Premium dismiss to the Today underneath instead of replacing themselves with a second one.
+- **The compact heading only when the footer is docked** (phones and narrow web). A wide window keeps
+  the full heading, because there is room and the page should stay still.
+- **The Lookback card is labelled "Calendar"**, the room's live name, not the handoff's "Lookback".
+  Two names for one room is a bug.
+- **The keyboard lift stays** (`kbHeight`), not a KeyboardAvoidingView, per the CLAUDE.md gotcha.
+- **Tidy is off on Ours**, for the same reason Break it down is: a model rewriting words on a list
+  another person reads.
+- **Break it down keeps the words** in the box until the steps are accepted, so a dismissed proposal
+  loses nothing.
+- **Chart a course is a card only with AI on** (the AI-off rule), wearing the honey mark and saying
+  "Premium" to a screen reader when you are not Premium.
+- **One column** when the app's text size times the phone's font scale reaches "Large", or under 330
+  wide. An odd card takes the full row.
+- **The Menu's spoken label** lists the rooms in page order, Ours included, in all five locales.
+- **The Ours destination comes from the pair and the session**, not the `ours_is_open` gate: before
+  that RPC answered, the page was pushed with no Ours card and a route param cannot change its mind.
+- **Rooms reached from the contents page say "Back"**, because "‹ Today" named a page the tap no
+  longer reaches. (Superseded later the same day by the room-entry handoff's `‹ Menu` / `‹ Today`.)
+
+**Fixed on the way, from the preview and from a ten-agent adversarial review (33 confirmed):**
+- The composer reported "closed" on every render, and Today's clear on close looped the page to
+  death ("Maximum update depth exceeded"). It reports a CHANGE only now.
+- Web only: react-native-web treats every scroll as a drag, so `keyboardDismissMode="on-drag"` dropped
+  focus a second after an Add (the app's own scroll to the new row). It is native-only now.
+- Web only: `announceForAccessibility` is a no-op in react-native-web, so the composer carries its
+  own hidden polite live region for "Added."
+- Chrome draws an `auto` focus ring whatever its width, so the box's outline is `solid` at zero.
+- A Sort, Tidy or dictation failure on web landed with the composer already folded and said nothing,
+  and nothing ever cleared an error. An error now shows at rest and clears on typing or on Add.
+- A keyboard user who tabbed onto When lost it 220ms later, and a slow click was dropped mid-press:
+  focus on the composer's own controls holds it open. Opening When moves focus to its header, and
+  closing hands focus back to the box.
+- Adding from an open When door on native dropped the composer for a frame and wiped the tint it had
+  just recorded. The composer is held open through the Add, and the tint is keyed on the composer
+  having added the row, not on whether it looked open.
+- A Scan or a share now joins a half-typed draft rather than replacing it. Dictation stops before an
+  AI call reads the box. Sort commits against the list as it is after the call, not before.
+- Ours: select mode unmounted the composer (typed text lost, the compact heading stuck on). It is
+  hidden, not unmounted, now.
+- The Menu's "‹ Today" and its Repeating card went back to Ours when the Menu was opened from Ours.
+  Both dismiss to Today now, and Ours → Menu → Ours goes back rather than stacking another room.
+- The stepped row never showed the just-added tint, the mark never reached a screen reader, and the
+  mark's accent was 4.0:1 in light Dusk (ink there now). The Right now card in select mode is disabled
+  for real (keyboard and screen reader), not just dimmed. Android back closes the Menu's Repeating
+  drawer rather than leaving the app.
+- Translations: German "Für wenn" was a calque ("Für Tage, an denen…"). German and French "Added" used
+  a colon, because their dates and ordinals end in a full stop and the sentence form doubled it. The
+  welcome's quotes match each catalog's own convention (« », «», “ ”).
+- Eight strings the old layout used are gone from all five catalogs, as are the styles it orphaned.
+
+**Decided against:** a real tab navigator for Today and Ours; a KeyboardAvoidingView; keeping the steps
+teaching lines ("Has parts? Track it in steps.") that the handoff's Steps row drops (the row still says
+why it is off); an image morph or any transition beyond a fade; and shipping. **Rolls back by:**
+not merging. No schema, no migration, no Worker change; native is untouched until a build is asked for.
+
+**Assumptions to challenge (Melroy):** the Calendar label on the Lookback card; the compact heading
+only on docked layouts; one column at the "Large" text size; the steps teaching lines dropped; and
+"Added: {what}" in German and French while English, Spanish and Italian keep the sentence form.
+
+## 2026-09-26: walking into a room, Chart a course, and Settings in five cards (same PR as Today v3)
+
+**Decided:** build the Claude Design "room entry" handoff, the follow-on to Today v3, on the same branch
+and PR. What happens after a tap on the Menu's contents page:
+- **Every room gets the same top** (`components/RoomTop.tsx`): a back row that names where it goes,
+  the room's picture as a 104pt band, the title in the serif, and the card's for-when line as the
+  subtitle, word for word, so the card and the room say the same thing. The back row stays put;
+  the band and title scroll away. The title is a heading and takes the screen reader's focus on
+  arrival. The band is decorative, the same height at every text size and the same image in dark.
+  Routines, Calendar and Chart a course get the whole top. The Ours invite screen gets the back row
+  and the band, but not a second title, because each of its states carries its own. The old
+  subtitles ("Gentle rituals…", "Everything you've actually finished.", and the Repeating drawer's)
+  are retired in all five locales.
+- **The bands are hand-picked 3:1 crops** (1200 × 400, `band-*.webp`), never a runtime crop of the
+  4:3 card art, so no subject is ever cut off.
+- **A back label names the place it returns to.** The contents page opens every room with
+  `from=menu`, which reads "‹ Menu" and goes back there. Anything else reads "‹ Today" and lands on
+  Today. The Ours list's "Kept with" opens the pairing screen with `from=ours`, which reads "‹ Back",
+  because the Ours list is neither word.
+- **The Ours card goes home**, not into a room. With a live list it replaces the contents page with
+  Today's Ours tab in a 200ms fade. From the Ours tab's own Menu it goes back there. With no list yet
+  it opens the invite screen as a room.
+- **Chart a course**, for Premium and free users alike, is the shipped screen under the room top,
+  with the handoff's four recommendations: the timeframe named once the chips step aside ("By when ·
+  In 2 months"); the added steps shown on Today with the just-added tint for a couple of seconds,
+  handed over through the inbound bridge; one static "✦ Suggesting steps is part of Premium." for a
+  free user, before the tap; and the faint marks (the empty box, the minutes, the ✕, both notes) moved
+  from inkFaint and line to inkSoft. The intro is in ink.
+- **Settings in five cards** under serif headings (Comfort, Look, AI, Access & data, Help), the
+  Premium card between the last two. Every control and every string is kept. Links became whole-row
+  taps with a chevron in inkSoft, so the accent is only for active choices and the back link. AI
+  agent access folds behind one row and opens downward in place. Delete is the last row of its card,
+  in the danger colour, with the confirmation in place. The feedback form opens inside Help. The Ours
+  row is gone (phase 2's way in; Ours lives on Today's heading and the Menu). Quiet drops the cards'
+  fill and border. The four link strings lose their "›" in all five locales, because the row draws it.
+- **Two shared contrast fixes the handoff asked for:** the premium gradient's middle stop deepens
+  from #B5798F to #9E6479 (with the stop positions below, a white label reads at 4.6:1 or better on
+  Plan my day, Suggest steps and the Settings Premium card alike); and a selected soft chip's label is
+  ink on light (the accent on its tint was 4.0:1), the accent on dark.
+
+**Decided against, or changed from the handoff:**
+- **Chart dismisses to Today rather than replacing itself** (`router.dismissTo`). The handoff asks
+  for `replace` so that back never returns to a spent proposal. Dismissing gives that too, while
+  replace stacked a second Today over the contents page, which is the bug the Today v3 review found.
+- **Repeating stays a drawer.** It lives on Today's own task state and write path, so a route would be
+  a second writer. Opened from the Menu, the drawer carries the room top instead: "‹ Menu", the band,
+  the serif title and the for-when line. (The Menu is its only way in; a Close remains for any future one.)
+- **Premium keeps its plain back** except from the Menu, where it reads "‹ Menu". It is opened from a
+  dozen places, and "‹ Today" would lie from most of them.
+- **Settings and Premium get no band and no entrance motion**, as the handoff says: they are not rooms.
+- **No image morph from the card into the band, and no parallax**, as the handoff decided.
+- **The band follows the page gutter (24pt)**, not the handoff's 20pt, so it lines up with the title
+  and the room below it.
+
+**Fixed on the way, from a ten-agent adversarial review (18 confirmed, none in the translations):**
+- The welcome's "Change in Settings" opened Settings with no origin, so its back said "‹ Today" and
+  threw the welcome away mid-flow. It now opens with `from=welcome`, which, like `from=ours`, is a
+  plain "‹ Back" to whoever opened it.
+- The row hints never reached a screen reader (the row's label replaced them); the delete
+  confirmation lost its spacing, which put Delete's reach over the words above it.
+- The gradient fix was only true at the centre of a label: with even stops the right half of
+  "Suggest steps" fell to 3.4:1 and the honey end to 2.2:1. The stops now sit at 0, 0.88 and 1, so
+  white holds at 4.6:1 or better wherever a label or the card's line sits, and the card's line is
+  solid white. The honey is kept, in the last corner.
+- Dusk dark rendered an inkSoft (#8A7F73) that its own preset had already corrected (#A89E93); on the
+  new cards' surface it measured 4.09:1. The canonical palette and the widget's copy now match.
+- Chart's tint hand-off could overwrite a waiting shared line of text (the bridge holds one intent),
+  so it only hands over when nothing is waiting. A goal typed before the Premium ask now survives a
+  web checkout (one sessionStorage draft, read once), and on the phone the Premium panel's way out
+  after a purchase from Chart goes back to Chart. The ✦ in the free-user line is a silent sibling,
+  not a nested span a screen reader reads.
+- The drawer: its top clears the status bar, the band and title scroll away with the list, it is out
+  of the accessibility tree while closed, the screen reader lands on its title when it opens, and it
+  no longer swaps "‹ Menu" for "Close" while sliding out (the Menu is its only way in).
+- When a shared list ends under the pairing screen, the room goes back to that screen rather than
+  stacking a second one under a label the system back no longer matched.
+- The composer's selected day pills follow the new chip rule (ink on light).
+
+**Assumptions to challenge (Melroy):** the honey held to the last 12% of the gradient; Dusk dark's
+lighter inkSoft everywhere (it was the preset's own value); the band on the page gutter; "‹ Back"
+for the Ours list and the welcome; and Repeating's room top living inside the drawer.
+
+**Rolls back by:** not merging, or reverting this commit. No schema, no Worker change.
+
+## 2026-09-26: a fresh eye on Today v3: one done sign, Quiet's Energy, and the Ours name flash
+
+**Decided (from Melroy's wife's first look):**
+- **A done task wears one sign, not two.** The round check fills with the theme's own accent (it was
+  the one sage thing in a mauve interface), and the words turn soft ink without a strikethrough. The
+  same rule covers the done card's title, the Repeating drawer's boxes, Routines' steps and the
+  stepped row's progress bar. Sage stays where it means celebration (the logo, the Calendar's days,
+  the rest-note, the held card's closing line), never on a control you tap. A removed step in a
+  Break-it-down proposal keeps its strikethrough, because that means "left out", not "done".
+- **Quiet draws Energy as three words**, the chosen one in bold ink, no pill, the same 44pt reach.
+- **The Ours room no longer flashes the default name.** It showed "La nostra lista" until its own
+  network read landed, then flipped to the household's name ("Just us"), which read as the app
+  changing language. Today now hands over the name it already has (memory only, `lib/ours-name.ts`).
+  A list's own name is shown as typed, in whatever language it was typed.
+
+**Open, for Melroy:** whether finished tasks can leave Today (a keep-or-tuck choice), and the capture
+sleeve (a + on the right with the input sliding out of it), which goes to Claude Design first:
+`docs/design-source/capture-sleeve-design-prompt.md`.
+
+## 2026-09-26: Tuck, a finished task can fold into "Done today" (a Settings choice and a welcome step)
+
+**Decided:** a new comfort setting, **Finished tasks: Keep on Today / Tuck away**, default Keep. With
+Tuck, a task you finish stays in place for a beat (1.2s, long enough to see the tick), then folds into
+a quiet "Done today · N" line at the foot of Today's list. The line opens in place to show them, as the
+same rows; unticking one sends it back to its place. It is asked once in the welcome, as its own step
+straight after "What you finish, you keep.", and lives in Settings' Comfort card.
+
+**Why a setting, when the rule is "never add a setting":** this one is a real split between the
+people the app is for, not a preference knob. Out of sight is a relief for many ADHD brains ("Completed
+items should disappear", Melroy's wife's first reaction); seeing it ticked is the reassurance an OCD
+brain needs ("did I actually do it?"), which is why Done-is-done exists. One question, asked once,
+answered by the person it is about.
+
+**Why tuck, not vanish:** a vanished row cannot be checked, and a mis-tapped one cannot be found. Tuck
+keeps both a tap away, keeps the count visible without making it a score, and the Calendar keeps
+everything either way. Melroy chose it over vanishing.
+
+**How it is kept safe:** the split happens only at render (`tuckFinished` in `lib/today.ts`,
+unit-tested). `visible` stays the whole of today, so the weight gauge, allDone, the close-the-day
+count, Plan my day and the Calendar read exactly what they did. Reorder moves among the rows you can
+see, with the tucked ones kept behind them. The beat runs on every hand-made finish (a tick, a stepped
+task's last step) and never on sync or bulk actions. A screen reader hears "Done. Tucked away with
+today's finished tasks."
+
+**Decided against:** vanishing outright; applying it to the shared Ours list (seeing what your person
+finished is the point of that list, and its done rows already leave the next day); a count badge; and
+remembering whether the Done line was open across launches (it starts closed, calm).
+
+**Fixed before it shipped, from a six-agent adversarial review (13 confirmed):** one timer for the
+beat, restarted by each tick, so a run of ticks folds together once you pause (a stale per-tick timer
+could fold a re-tick early and announce twice); the fold is said only when something still finished
+actually folded, and focus then moves to the Done today line, because the row that held it has gone (on
+native only with a screen reader on; on web only if focus had nowhere left); unticking inside the line
+keeps focus on it, or says "Back on Today." for the last one; the held task stays seated for its whole
+contract, not only its closing line; only a row on screen settles (a Later row or a repeat ticked in the
+drawer lands straight where it belongs); the line shows in select mode so a selection made from a tucked
+row stays visible; its open state is keyed to the day; the welcome's chosen card uses ink on its tint
+(soft ink fell under AA in light); the screenshot harness's shared-list shot moved one press; and two
+Italian strings (agreement, and the catalog's settled "su Oggi").
+
+## 2026-09-26: capture is a floating + pill, and the panel rises from the bottom (design_handoff_capture_pill)
+
+**Decided:** the one-line composer docked at the foot of Today (and of the Ours list) is gone. In its
+place a small accent pill with a "+" floats centred, 34 above the bottom edge, and rows scroll under
+it. Tapping it raises a panel from the bottom, headed "Add to Today" (or "Add to {name}" on Ours) with
+Close: the box, the hint seat, the tools row (Speak, Scan, the AI slot) and When + Add. It is
+`components/CaptureSheet.tsx`, which hosts the rebuilt `BrainDump` as its contents, and Today and Ours
+mount the same component. This came from Melroy's wife's first look ("Input: plus button ... with sleeve
+input"), went through a Claude Design round (the capture sleeve prompt), and the handoff locked the pill
+over the earlier edge tab.
+
+**How it follows the handoff:** the list ends with one row's worth of empty space
+(`8 + 52 + max(inset - 2, 32)`), so the pill never covers the last task. The panel is about 384 tall
+and never more than 55% of the window; with the keyboard up it sits on the keyboard and the box shrinks
+first. The keyboard waits until the box is tapped. Open is 280ms on the handoff's curve, close 200,
+reduced motion a 90ms cross-fade. Words left in the panel widen the pill to show three dots, and a
+screen reader hears "Add a task. Your words are waiting". Close, the scrim, Android back and Escape
+all put it away, and focus goes back to the pill. The panel owns its keyboard lift now, so Today's and
+Ours' own keyboard listeners are removed.
+
+**Calls the handoff did not make (Melroy to challenge):**
+- **Sort for me and an accepted Break it down close the panel.** The dump has become rows, so the panel
+  goes and the rows (and the sort summary) are in view. A plain Add keeps it open for the next line.
+- **The sort summary and the affirmation float just above the pill** on a soft card, because the footer
+  they used to sit in no longer exists.
+- **After an Add, today's list scrolls so its last row sits 12 above the panel,** not to the page's end
+  (which ran past Later and the links and carried the new rows off the top). An add for another day
+  leaves the page still.
+- **The compact heading is retired.** It existed to make room above a keyboard-lifted composer, and the
+  panel now covers the lower screen instead, so the heading stays whole.
+- **A scanned list lands in the panel with the keyboard down,** ready to read before adding. Shares and
+  the Brain dump shortcut open it with the keyboard up.
+- **Ours gets the same pill.** A closed list has no pill at all; select mode hides it (never unmounts it).
+
+**Hardened by review before it shipped** (a 32-agent review, 28 confirmed findings, 11 distinct): on
+Android the panel also clears the navigation bar's inset when it sits on the keyboard (RN reports the
+keyboard's height without it, and the old footer had quietly added it back); a share or the Brain dump
+shortcut on a closed day or in select mode only parks the words as a draft instead of focusing an
+invisible field; back and Escape are scoped to the screen in front (Escape on keyup, so it closes only the
+top layer); closing the panel, or opening When, stops web dictation; the shut panel and scrim are `inert`
+on web and the list behind an open panel is hidden from screen readers; the heading never takes focus
+from the field; the panel's floor scales with text size; iOS Safari's keyboard (which ignores
+interactive-widget) lifts the panel through `visualViewport`; and the floating sort summary lets go
+after six seconds. The Android and iOS-Safari keyboard fixes need a device look before release.
+
+**Decided against:** a bar or row behind the pill (the handoff's version 1), hide-on-scroll, a text
+label on the pill (it would vary a lot across five languages), a swipe-up to open (it fights the home
+gesture, and the standing rule is buttons, never drag).
+
+## 2026-09-26: Repeating becomes a room, Routines starts empty, one voice for room explanations
+
+*(Built in d9e81b8, Rise and Rooms handoff sections 2 and 3; this entry and Today's switchover land in the
+commit after it.)*
+
+**Decided:** Repeating was the one room that was not a route. It was a drawer living on Today's own state,
+so the Menu had to hand it back to Today through the inbound bridge. It is now `app/repeating.tsx`, built
+like Routines (the room top, "‹ Menu" from the Menu and "‹ Today" from anywhere else, the band, the title,
+the card's hint). What the drawer held moved in as it was: the tick, the title, the cadence line, Edit
+(CadenceSheet) and Remove with its undo line. Series are grouped: Every day, Each week, Every few days,
+Each month. The drawer is deleted, and so is the inbound `repeating` hand-off.
+
+Routines loses the three always-visible rhythm presets and the Morning button under the empty line. The
+one suggestion per form now lives inside the form, only while you have none of that kind, and it FILLS the
+form rather than saving. The room explanations (Routines' empty line, the rhythm intro, Repeating's empty
+line) share one `RoomIntro` style.
+
+**Calls the handoff did not make (Melroy to challenge):**
+- **A fourth group, Each month.** The app has four repeat kinds, and a monthly repeat (the rent) is
+  exactly what this room is for. The handoff's three groups would have hidden it.
+- **Room writes re-read storage and apply the change to that,** one at a time, because Today stays mounted
+  underneath and keeps writing (the resume sweep, the Ours settle, a widget add). Writing the room's own
+  snapshot back would erase those. An empty read never outranks a list on screen. The cost is no
+  optimistic update: a tick shows after the store round trip.
+- **The room's tick is the shared CheckCircle, with no strike-through,** per "one done sign", rather than
+  the board's sage fill.
+- **A room tick does the list change, the nudge clear, the shared mirror and the telemetry,** and none of
+  Today's own effects (haptics, the celebration line, Tuck).
+- **A rhythm made from the Water suggestion keeps `preset: 'water'`,** so `rhythm.created` counts stay
+  comparable with the old one-tap button.
+
+**How the two screens are kept from drifting:** the writes live in `lib/task-writes.ts` (Today's commit
+and series handlers, word for word) and the shared-tick mirror in `lib/ours-tick.ts`, and Today now calls
+both, so a tick in the room and a tick on Today are the same code.
+
+**Decided against:** a "+ New" in the Repeating room (repeats are made from capture's When), hiding
+monthly repeats, writing the in-memory list the way Lookback does, and keeping the drawer as a second way in.

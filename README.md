@@ -220,9 +220,10 @@ client/                     Expo app (Android + web, one codebase)
     welcome.tsx             the guided first-run (redirected to once; replayable from Settings)
     lookback.tsx            the calendar payoff
     routines.tsx            morning / evening checklists + Rhythms (never a streak)
+    repeating.tsx           the Repeating room: every repeating series, grouped by rhythm
     sign-in.tsx             passwordless email-OTP sign-in
-  src/components/           BrainDump · TaskRow · BreakdownQuestions · BreakdownReview
-                            DatePicker · MarqueeText · RepeatingDrawer
+  src/components/           CaptureSheet (the + pill and its panel) · BrainDump · TaskRow
+                            BreakdownQuestions · BreakdownReview · DatePicker · MarqueeText · CadenceSheet
   src/lib/                  pure, unit-tested logic (+ co-located *.test.ts)
     tasks · today · recurrence · slices · spread · calendar · reward · estimate
     day · sync · sync-merge · storage · ai · telemetry · reminders · nudge · routines · supabase · auth

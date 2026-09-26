@@ -144,7 +144,20 @@ function RootStack() {
           headerShown: false,
           contentStyle: { backgroundColor: 'transparent' },
         }}
-      />
+      >
+        {/* The Menu's contents page does its own fade-and-rise (a 90ms fade under reduced motion), and
+            Ours is the other half of Today's heading, so both skip the platform's sideways slide: switching
+            between Today and Ours reads as a tab changing, not a page arriving. */}
+        <Stack.Screen name="rooms" options={{ animation: 'fade' }} />
+        <Stack.Screen name="ours-list" options={{ animation: 'fade', animationDuration: 200 }} />
+        {/* The rooms themselves fade in (and rise, inside the screen); the platform's sideways slide would
+            fight that, and reads as a new page rather than walking into the room you just saw. */}
+        <Stack.Screen name="lookback" options={{ animation: 'fade', animationDuration: 180 }} />
+        <Stack.Screen name="routines" options={{ animation: 'fade', animationDuration: 180 }} />
+        <Stack.Screen name="repeating" options={{ animation: 'fade', animationDuration: 180 }} />
+        <Stack.Screen name="chart" options={{ animation: 'fade', animationDuration: 180 }} />
+        <Stack.Screen name="ours" options={{ animation: 'fade', animationDuration: 180 }} />
+      </Stack>
     </View>
   );
 }

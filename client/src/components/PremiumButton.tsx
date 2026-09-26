@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, type StyleProp, StyleSheet, Text, type ViewStyle } from 'react-native';
 
-import { fonts, PREMIUM_GRADIENT, radius, spacing, type Theme } from '@/constants/theme';
+import { fonts, PREMIUM_GRADIENT, PREMIUM_GRADIENT_LOCATIONS, radius, spacing, type Theme } from '@/constants/theme';
 import { useThemedStyles } from '@/lib/theme-provider';
 
 type Props = {
@@ -25,7 +25,7 @@ export function PremiumButton({ label, onPress, disabled = false, accessibilityL
       accessibilityLabel={accessibilityLabel ?? label}
       style={({ pressed }) => [styles.wrap, style, pressed && styles.pressed, disabled && styles.disabled]}
     >
-      <LinearGradient colors={PREMIUM_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.grad}>
+      <LinearGradient colors={PREMIUM_GRADIENT} locations={PREMIUM_GRADIENT_LOCATIONS} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.grad}>
         <Text style={styles.text}>{label}</Text>
       </LinearGradient>
     </Pressable>

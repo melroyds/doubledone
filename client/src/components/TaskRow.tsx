@@ -27,6 +27,7 @@ type Props = {
   onBreakdown?: () => void;
   plain?: boolean; // drop the one-off (periwinkle) border. On Today it separates one-offs from repeats; on a list that is almost ALL one-offs it lands on every row and separates nothing
   washed?: boolean; // changed since you last looked (the shared list): the row's OWN surface warms and its OWN border firms, never a second ring drawn around it
+  justAdded?: boolean; // Today: the open composer just added this row. The same soft wash plus a quiet "just added", held until the composer closes, then a 320ms fade (the Today v3 handoff)
   note?: string; // a state worth SAYING as well as showing: rendered as a quiet second line AND folded into the spoken label, so it is never colour-only and never screen-reader-only
   inert?: string; // this row cannot be ticked, and this is why: the reason travels WITH the control, so a screen reader hears it and a tap is never silently dead
   removesWholeSeries?: boolean; // the caller's Remove tombstones the SERIES, so it must not borrow the "Skip today" label
@@ -109,6 +110,7 @@ export function TaskRow({
   repeatValue,
   plain,
   washed,
+  justAdded,
   note,
   inert,
   removesWholeSeries,
@@ -203,18 +205,23 @@ export function TaskRow({
   useEffect(() => {
     Animated.timing(selFade, { toValue: selecting ? 1 : 0, duration: reducedMotion ? 1 : 120, useNativeDriver: false }).start();
   }, [selecting, reducedMotion, selFade]);
+  // Which of the two tints last lit the layer, so its fade-off takes that tint's own time.
+  const lastTint = useRef<'washed' | 'justAdded'>('washed');
   useEffect(() => {
     // On is immediate either way: the mark is information, and information should not creep in.
-    // Off is 700ms, or instant for anybody who has asked for less motion.
+    // Off is 700ms for the room's wash and 320ms for a just-added row, or instant for anybody who has
+    // asked for less motion.
+    const on = Boolean(washed || justAdded);
+    if (on) lastTint.current = washed ? 'washed' : 'justAdded';
     const animation = Animated.timing(washFade, {
-      toValue: washed ? 1 : 0,
-      duration: washed || reducedMotion ? 0 : 700,
+      toValue: on ? 1 : 0,
+      duration: on || reducedMotion ? 0 : lastTint.current === 'justAdded' ? 320 : 700,
       easing: Easing.out(Easing.quad),
       useNativeDriver: false,
     });
     animation.start();
     return () => animation.stop();
-  }, [washed, reducedMotion, washFade]);
+  }, [washed, justAdded, reducedMotion, washFade]);
   const [wasConfirming, setWasConfirming] = useState(confirming);
   if (wasConfirming !== confirming) {
     setWasConfirming(confirming);
@@ -238,6 +245,7 @@ export function TaskRow({
     (nudgeAt ? t('today.rowLabelReminderSuffix', { time: formatNudgeTime(nudgeAt) }) : '') +
     (held ? t('today.rowLabelHeldSuffix') : '') +
     (origin ? t('ours.rowLabelOriginSuffix') : '') +
+    (justAdded ? `, ${t('today.justAdded')}` : '') +
     (note ? `, ${note}` : '') +
     (inert ? `. ${inert}` : '');
 
@@ -714,21 +722,23 @@ export function TaskRow({
         accessibilityRole="button"
         aria-checked={complete}
         accessibilityLabel={
-          complete
+          (complete
             ? t('today.sliceRowLabelComplete', { title, done: slices.done, total: slices.total })
-            : t('today.sliceRowLabelInProgress', { title, done: slices.done, total: slices.total })
+            : t('today.sliceRowLabelInProgress', { title, done: slices.done, total: slices.total })) + (justAdded ? `, ${t('today.justAdded')}` : '')
         }
       >
+        <Animated.View pointerEvents="none" style={[styles.washLayer, { opacity: washFade }]} />
         <View style={styles.sliceTop}>
           <CheckCircle done={complete} />
           <MarqueeText text={title} style={[styles.text, complete && styles.textDone]} />
+          {justAdded ? <Text style={styles.justAddedMark} accessible={false} importantForAccessibility="no">{t('today.justAdded')}</Text> : null}
           <Text style={styles.sliceCount}>
             {slices.done} / {slices.total}
           </Text>
         </View>
         {theme.appearance !== 'quiet' && (
           <View style={styles.track}>
-            <View style={{ flex: slices.done, backgroundColor: theme.colors.done }} />
+            <View style={{ flex: slices.done, backgroundColor: theme.colors.accent }} />
             <View style={{ flex: rest }} />
           </View>
         )}
@@ -857,6 +867,7 @@ export function TaskRow({
         {/* Your copy is marked, the shared row is NOT. Any marker over there would be attribution
             through the side door: "somebody pulled this" is one inference from "somebody". */}
         {origin ? <Text style={styles.originMark} accessible={false} importantForAccessibility="no">{origin}</Text> : null}
+        {justAdded ? <Text style={styles.justAddedMark} accessible={false} importantForAccessibility="no">{t('today.justAdded')}</Text> : null}
         {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
         {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
         {/* the pin mark sits last, at the extreme right, so it stays the clear cue beside any other mark */}
@@ -970,12 +981,12 @@ const makeStyles = (t: Theme) => {
     confirmTitleEditable: { textDecorationLine: 'underline', textDecorationColor: t.colors.inkFaint },
     confirmTitleInput: { paddingVertical: 0, borderBottomWidth: border.hair, borderColor: t.colors.accent },
     doneTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, paddingHorizontal: spacing.two, paddingBottom: spacing.one },
-    doneCheck: { color: t.colors.done, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    doneCheck: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     titleLine: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.two },
     titleGrow: { flexShrink: 1 },
     titleCount: { ...t.type.label, color: t.colors.inkSoft, paddingTop: 2 },
     titleCountLive: { color: t.colors.accent },
-    confirmTitleDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through', paddingHorizontal: 0, paddingBottom: 0, flexShrink: 1 },
+    confirmTitleDone: { color: t.colors.inkSoft, paddingHorizontal: 0, paddingBottom: 0, flexShrink: 1 },
     // The done card's inscription: the serif voice (like Today's rotating line), above the shelf.
     doneIsDone: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', textAlign: 'center', paddingTop: spacing.two, paddingBottom: spacing.one },
     // Every held-card action is a full-width row: label left, a quiet sub-label / state right. Content-sized
@@ -1019,6 +1030,8 @@ const makeStyles = (t: Theme) => {
     },
     // The faint "· Ours" on YOUR copy. Quiet enough to be a fact and not a badge.
     originMark: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginLeft: spacing.two },
+    // Ink on light (the accent on its own wash is 4.0:1, under AA for text this small), the accent on dark (4.9:1).
+    justAddedMark: { color: t.scheme === 'dark' ? t.colors.accent : t.colors.ink, fontSize: 11 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     heroSub: { color: heroText, opacity: 0.82 },
     // Mark-as-a-lot, active: the row tints and its text lifts to accent, the app quietly agreeing.
     actionRowActive: t.appearance === 'quiet' ? {} : { backgroundColor: t.colors.accentSoft, borderRadius: radius.sm },
@@ -1097,7 +1110,9 @@ const makeStyles = (t: Theme) => {
     selectDotOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
     tick: { color: t.colors.onAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', lineHeight: 17 * t.scale },
     text: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale, userSelect: 'none' },
-    textDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
+    // Ticked, not ALSO struck through: one sign is enough, and a struck line is harder to read (the Today v3
+    // feedback, 2026-09-26). Soft ink says done while keeping the words legible.
+    textDone: { color: t.colors.inkSoft },
     repeatMark: { color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     heldDot: { width: 8, height: 8, borderRadius: 999, backgroundColor: t.colors.accent, marginLeft: 6, alignSelf: 'center' },
     heldLabel: { color: t.colors.accent },

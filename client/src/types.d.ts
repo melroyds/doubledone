@@ -15,3 +15,10 @@ declare module '*.png' {
   const src: number;
   export default src;
 }
+
+// The Menu's room pictures are WebP (the Today v3 handoff: small, and decoded natively on web, on
+// iOS 14+ through ImageIO and on Android through Fresco, all static lossy files with no animation).
+declare module '*.webp' {
+  const src: number;
+  export default src;
+}

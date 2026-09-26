@@ -1,5 +1,7 @@
-// CheckCircle.tsx — the round sage completion check, shared. A circular outline that, when
-// done, fills sage with a white tick. TaskRow (its default + suggest rows) and BreakdownReview
+// CheckCircle.tsx — the round completion check, shared. A circular outline that, when done, fills with
+// the theme's accent and its onAccent tick. (It was sage: the one green thing in a mauve interface, and
+// the first thing a new eye asked about, 2026-09-26. Sage stays where it means celebration, never on the
+// control you tap.) TaskRow (its default + suggest rows) and BreakdownReview
 // rendered this inline near-identically; extracted here so the one canonical look can't drift.
 // The genuinely-different marks (chart's rounded-square select, routines' square box, welcome's
 // hollow bullet, the multi-select dot) are deliberately NOT this and stay where they are.
@@ -48,9 +50,9 @@ const makeStyles = (t: Theme) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    checkDone: { backgroundColor: t.colors.done, borderColor: t.colors.done },
+    checkDone: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
     // The same 0.45 every other quiet-unavailable control in this app uses. Lowered contrast, not
     // removal: the row keeps its shape, so the list never reflows around what you cannot do.
     dim: { opacity: 0.45 },
-    tick: { color: t.colors.onDone, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', lineHeight: 17 * t.scale },
+    tick: { color: t.colors.onAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', lineHeight: 17 * t.scale },
   });

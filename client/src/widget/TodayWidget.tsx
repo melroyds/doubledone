@@ -15,7 +15,7 @@ const hx = (c: string): HexColor => c as HexColor;
 // and left the widget rendering blank on device. The widget needs only these four hues per scheme.
 const WIDGET_COLORS = {
   light: { accent: '#946475', ink: '#2B2722', inkSoft: '#7A7066', bg: '#FAF6F1' }, // accent kept in sync with the deepened Dusk accent (the 'Today' header is accent-as-text, so it must clear AA)
-  dark: { accent: '#C68BA0', ink: '#F2EBE0', inkSoft: '#8A7F73', bg: '#1B1917' },
+  dark: { accent: '#C68BA0', ink: '#F2EBE0', inkSoft: '#A89E93', bg: '#1B1917' }, // inkSoft kept in sync with the Dusk dark palette
 } as const;
 
 export function TodayWidget({ model, scheme }: { model: WidgetModel; scheme: 'light' | 'dark' }) {

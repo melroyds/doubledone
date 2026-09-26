@@ -4,6 +4,7 @@ import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
+import { RoomBackRow } from '@/components/RoomTop';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { useSession } from '@/lib/auth';
@@ -278,7 +279,7 @@ export default function PremiumScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top + spacing.three }]}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <BackLink />
+        {from === 'menu' ? <RoomBackRow origin="menu" bare /> : <BackLink />}
         <Text style={styles.title}>{t('common.premium')}</Text>
         {fromFeature ? <Text style={styles.fromLine}>{t('premium.fromLine', { feature: fromFeature })}</Text> : null}
 
@@ -357,9 +358,15 @@ export default function PremiumScreen() {
                 style={styles.ctaSpace}
               />
             ) : null}
-            <Pressable onPress={() => router.replace('/today')} accessibilityRole="button" accessibilityLabel={t('common.backToToday')} hitSlop={8} style={styles.backLink}>
-              <Text style={styles.backLinkText}>{t('common.backToToday')}</Text>
-            </Pressable>
+            {from === 'chart' && router.canGoBack() ? (
+              <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={t('common.goBack')} hitSlop={8} style={styles.backLink}>
+                <Text style={styles.backLinkText}>‹ {t('actions.chartACourse')}</Text>
+              </Pressable>
+            ) : (
+              <Pressable onPress={() => router.dismissTo('/today')} accessibilityRole="button" accessibilityLabel={t('common.backToToday')} hitSlop={8} style={styles.backLink}>
+                <Text style={styles.backLinkText}>{t('common.backToToday')}</Text>
+              </Pressable>
+            )}
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </View>
         ) : (

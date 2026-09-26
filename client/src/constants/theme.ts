@@ -62,7 +62,7 @@ const dark = {
   surface: '#252119',
   surfaceCard: 'rgba(37,33,25,0.86)', // cards over the living background
   ink: '#F2EBE0',
-  inkSoft: '#8A7F73',
+  inkSoft: '#A89E93', // matches THEME_PRESETS.dusk.dark; #8A7F73 was 4.09:1 on the dark surface the Settings cards use
   inkFaint: '#7A7066',
   line: '#34302A',
   accent: '#C68BA0', // lifted mauve
@@ -84,7 +84,12 @@ export const Colors = { light, dark } as const;
 // The DoubleDone Premium gradient (mauve -> rose -> honey): the shared visual signal that a surface or action
 // is premium. The one deliberate glow against the calm Dusk palette. Used by the Settings premium card and the
 // PremiumButton (Plan my order, Chart a course, Reflect on this week).
-export const PREMIUM_GRADIENT = ['#8E5E72', '#B5798F', '#D6A77E'] as const;
+export const PREMIUM_GRADIENT = ['#8E5E72', '#9E6479', '#D6A77E'] as const; // middle stop deepened from #B5798F
+// Where the stops sit. The honey is held to the last corner: with the middle stop at 0.88, white stays at or
+// above 4.6:1 for the first 88% of the diagonal, which is where every label and the Settings card's line and
+// cue sit (measured 2026-09-26; at the default even spacing the right half of a label fell to 3.4:1 and the
+// honey end to 2.2:1). Pass it wherever PREMIUM_GRADIENT is drawn.
+export const PREMIUM_GRADIENT_LOCATIONS = [0, 0.88, 1] as const;
 
 // The Premium custom-theme presets (the "Dusk" family): seven calm, paper-like FULL palettes, each with a
 // light and dark variant on the same token names (designed and WCAG-verified in Claude Design). Dusk is the

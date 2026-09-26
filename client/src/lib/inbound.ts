@@ -7,7 +7,8 @@
 export type Inbound =
   | { kind: 'dump' } // open the capture box, ready to type
   | { kind: 'focus' } // open Focus mode
-  | { kind: 'capture'; text: string }; // prefill the capture box with shared text
+  | { kind: 'capture'; text: string } // prefill the capture box with shared text
+  | { kind: 'landed'; ids: string[] }; // tasks another room just added (Chart a course): Today shows where they landed with the just-added tint
 
 let pending: Inbound | null = null;
 const listeners = new Set<() => void>();
@@ -16,6 +17,11 @@ const listeners = new Set<() => void>();
 export function setInbound(intent: Inbound): void {
   pending = intent;
   listeners.forEach((l) => l());
+}
+
+/** Whether something is already waiting for Today (a cosmetic hand-off must never take its place). */
+export function hasPendingInbound(): boolean {
+  return pending !== null;
 }
 
 /** Take the pending intent, clearing it, so it is acted on exactly once. */

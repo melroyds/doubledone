@@ -229,6 +229,17 @@ export function washedSince(tasks: SharedTask[], seenAt: number, mine: ReadonlyS
 }
 
 /**
+ * What Today's heading counts for the "!" beside Ours: the rows the room WOULD wash if you opened it
+ * now, and only those. The same `washedSince` arithmetic, minus the tombstones, because the room only
+ * draws rows that are still on the list: counting a row your person REMOVED lit the mark for a change
+ * the room then had no row to show (the 2026-09-26 audit of the Today v3 build). With this the mark,
+ * the spoken count and the washed rows agree by construction, not by hope.
+ */
+export function changedSinceLooked(tasks: SharedTask[], seenAt: number, mine: ReadonlySet<string>): Set<string> {
+  return washedSince(tasks.filter((task) => !task.deletedAt), seenAt, mine);
+}
+
+/**
  * Whether a row still belongs on the list at all.
  *
  * It used to drop finished one-offs at the day boundary, for parity with Today. That was Today's

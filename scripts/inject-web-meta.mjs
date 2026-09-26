@@ -63,6 +63,31 @@ if (!html.includes('interactive-widget=resizes-content')) {
   process.exit(1);
 }
 
+// The page's own scroller (2026-09-26, Melroy's Android screenshot). Once the capture footer became a
+// floating pill, Today's list filled the whole screen, and Chrome on Android PROMOTES a scroller that
+// fills the viewport to be the page's own (the implicit root scroller, Android-only): scrolling it slid
+// the address bar away. The app is `height: 100%` (Expo's reset), which stays at the small viewport, so
+// the freed 56px showed the bare page (white) and the top of the shut capture panel parked below the
+// app. The same promotion also handed the list Chrome's pull-to-refresh, which reloads the app.
+//
+// - `#root { overflow: hidden }` is the fix. Chromium never promotes a scroller that has an ancestor
+//   clipping overflow (root_scroller_controller IsValidImplicit), so the address bar stays put while the
+//   list scrolls, exactly as before v3 and as the installed app already looks. No strip, no pill jump,
+//   no pull-to-refresh on the list.
+// - `overscroll-behavior-y: contain` on html and body is the backstop for pull-to-refresh if a Chrome
+//   ever promotes anyway (the viewport reads it from the root element, older Chrome from body).
+// - `100dvh` is the backstop for the strip. It is NOT live: Chrome switches it between the small and the
+//   large viewport only once the address bar is idle, so on its own it would still leave a brief band
+//   and a 56px jump. It plays no part in the keyboard, which interactive-widget above already handles.
+//
+// Browsers without dvh keep the 100% they had. Placed last in the head so it wins over the reset.
+const VIEWPORT_STYLE = '<style id="dd-viewport">#root { overflow: hidden; } html, body { overscroll-behavior-y: contain; } @supports (height: 100dvh) { html, body, #root { height: 100dvh; } }</style>';
+if (!html.includes('id="dd-viewport"')) html = html.replace('</head>', `  ${VIEWPORT_STYLE}\n  </head>`);
+if (!html.includes('id="dd-viewport"')) {
+  console.error('inject-web-meta: could not add the dynamic-viewport style — no </head> in the export?');
+  process.exit(1);
+}
+
 if (html.includes('property="og:image"')) {
   writeFileSync(HTML, html);
   console.log('inject-web-meta: og:image already present; viewport ensured, nothing else to do');
