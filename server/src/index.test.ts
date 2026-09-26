@@ -354,6 +354,7 @@ describe('the money routes: origin gate before the verified bearer', () => {
   const routes: [string, string][] = [
     ['POST', '/checkout'],
     ['POST', '/portal'],
+    ['POST', '/account/close-billing'],
     ['GET', '/entitlement'],
   ];
   for (const [method, path] of routes) {

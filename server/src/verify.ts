@@ -1,6 +1,6 @@
 // The ONE place a bearer is cryptographically verified. Every route that spends money, spends AI, or
 // answers over a user's data runs this before doing anything else: the Stripe routes (/checkout,
-// /portal, /entitlement), the trial, the MCP tools/call path (pasted token AND OAuth custody), the public
+// /portal, /entitlement, /account/close-billing), the trial, the MCP tools/call path (pasted token AND OAuth custody), the public
 // REST API, and the disconnect kill switch. Decoding a JWT without checking its signature is fine for
 // reading a hint (an email for a comp check AFTER verification); it is never fine for deciding who is
 // asking. Before 2026-09-25 the Stripe routes, the MCP header path and the REST API only decoded, so a

@@ -79,6 +79,93 @@ export async function createPortalSession(env: StripeEnv, customerId: string, re
   return typeof session.url === 'string' ? session.url : null;
 }
 
+// --- Closing billing on account deletion ------------------------------------
+// Deleting an account removes the auth row, and nothing in that path ever reached Stripe, so a paying
+// person who deleted kept being charged with no account left to cancel from. /account/close-billing runs
+// FIRST (the client refuses to delete until it answers), and cancels every Stripe subscription that can
+// still take money. The customer record itself is KEPT: its invoices are the trail for refunds and disputes.
+
+// Every status in which a subscription can still take money, or come back to taking it. past_due and unpaid
+// read as "not Premium" to the app but Stripe keeps retrying the card; incomplete can still be paid; paused
+// (a trial that ended with no card) resumes into charging the moment a card is added.
+export const CHARGEABLE_STATUSES: ReadonlySet<string> = new Set(['active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'paused']);
+
+// The verified sub is always a Supabase uuid. It is checked against this before it goes into a Stripe search
+// query, so no caller can ever shape that query.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** GET a Stripe resource: the parsed body on a 2xx, null on anything else (a non-2xx, a throw, bad JSON). */
+async function stripeGet(env: StripeEnv, path: string): Promise<unknown | null> {
+  try {
+    const res = await fetch(`${STRIPE_API}${path}`, { headers: { authorization: `Bearer ${env.STRIPE_SECRET_KEY}` } });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/** The chargeable subscription ids in one Stripe list or search page, or null when the page cannot be
+ *  trusted to be complete (malformed, or has_more, which would hide a live subscription behind a cursor). */
+function chargeableIds(body: unknown): string[] | null {
+  const page = body as { data?: unknown; has_more?: unknown } | null;
+  if (!page || !Array.isArray(page.data) || page.has_more === true) return null;
+  return page.data
+    .filter((s): s is { id: string; status: string } => typeof s?.id === 'string' && typeof s?.status === 'string')
+    .filter((s) => CHARGEABLE_STATUSES.has(s.status))
+    .map((s) => s.id);
+}
+
+/**
+ * Every subscription that can still charge this user, or null when Stripe could not answer in full (the
+ * caller then fails closed: an account is never deleted on a half look). Two lookups, merged by id:
+ *  - the customer D1 knows (`customerId`), which is always current;
+ *  - a search on metadata.user_id, because Checkout sends customer_email rather than customer, so every
+ *    checkout makes a NEW Stripe customer and D1 keeps only the latest. A person who lapsed and came back,
+ *    or who met the old double-subscription bug, can have a live subscription on a customer D1 has lost.
+ *    Every subscription carries metadata.user_id (checkoutSessionForm), so the search finds them all.
+ * Search is eventually consistent (about a minute), which is why the customer list runs as well.
+ */
+export async function findChargeableSubscriptions(env: StripeEnv, userId: string, customerId: string | null): Promise<string[] | null> {
+  if (!env.STRIPE_SECRET_KEY || !UUID_RE.test(userId)) return null;
+  const ids = new Set<string>();
+  if (customerId) {
+    // No status filter: Stripe's default leaves out canceled ones, and the rest are filtered here.
+    const byCustomer = chargeableIds(await stripeGet(env, `/subscriptions?customer=${encodeURIComponent(customerId)}&limit=100`));
+    if (!byCustomer) return null;
+    byCustomer.forEach((id) => ids.add(id));
+  }
+  const query = `metadata['user_id']:'${userId}'`;
+  const byUser = chargeableIds(await stripeGet(env, `/subscriptions/search?query=${encodeURIComponent(query)}&limit=100`));
+  if (!byUser) return null;
+  byUser.forEach((id) => ids.add(id));
+  return [...ids];
+}
+
+/**
+ * Cancel one subscription NOW, not at the period end: the account it serves is being deleted, so there is
+ * no access left to run out. Stripe's defaults apply (no proration credit, no final invoice), and the
+ * comment shows on the subscription in the dashboard. A refusal is re-read before it counts as a failure,
+ * because the usual cause is that it is already canceled (a double tap, or a second device at once).
+ */
+export async function cancelSubscriptionNow(env: StripeEnv, subscriptionId: string): Promise<boolean> {
+  if (!env.STRIPE_SECRET_KEY) return false;
+  const form = new URLSearchParams();
+  form.set('cancellation_details[comment]', 'account_deleted');
+  try {
+    const res = await fetch(`${STRIPE_API}/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${env.STRIPE_SECRET_KEY}`, 'content-type': 'application/x-www-form-urlencoded' },
+      body: form.toString(),
+    });
+    if (res.ok) return true;
+  } catch {
+    // a dropped connection may still have landed at Stripe: read it back below
+  }
+  const now = (await stripeGet(env, `/subscriptions/${encodeURIComponent(subscriptionId)}`)) as { status?: unknown } | null;
+  return now?.status === 'canceled' || now?.status === 'incomplete_expired';
+}
+
 // --- Webhook signature (Stripe's scheme, via Web Crypto) -------------------
 
 /** Parse a `Stripe-Signature` header: `t=...,v1=...,v1=...`. */
@@ -325,6 +412,54 @@ export async function handlePortal(
   const url = await createPortalSession(env, view.customerId, `${env.APP_URL ?? DEFAULT_APP_URL}/premium`);
   if (!url) return new Response(JSON.stringify({ error: 'portal_failed' }), { status: 502, headers: { ...JSON_HEADERS, ...cors } });
   return new Response(JSON.stringify({ url }), { headers: { ...JSON_HEADERS, ...cors } });
+}
+
+/**
+ * POST /account/close-billing, authed. Called by the app BEFORE it deletes the account, on every
+ * platform (it cancels billing, it sells nothing, so Android's Path C allows it). Cancels every Stripe
+ * subscription that can still charge the caller, immediately, and answers 200 { cancelled: n }; 0 when
+ * there is nothing to cancel. Idempotent: a second call finds nothing live and answers 0.
+ *
+ * Fails closed and claims nothing it did not do: a Stripe lookup it cannot trust in full, or any cancel
+ * that did not land, answers 502 (after still trying every other cancel), and the app then deletes
+ * nothing. The Stripe customer and its invoices stay. Apple billing is out of reach: the app tells an
+ * Apple subscriber to cancel in their iPhone's Settings before they confirm.
+ */
+export async function handleCloseBilling(
+  request: Request,
+  env: FullEnv,
+  cors: Record<string, string>,
+  verifySub: SubVerifier = defaultVerifySub,
+): Promise<Response> {
+  const token = bearer(request);
+  if (!token) return new Response(JSON.stringify({ error: 'sign_in_required' }), { status: 401, headers: { ...JSON_HEADERS, ...cors } });
+  // VERIFIED, not decoded: this route cancels somebody's subscriptions, so a forged token carrying another
+  // person's uuid must never reach Stripe. An unset SUPABASE_URL fails closed inside the verifier (null -> 401).
+  const sub = await verifySub(token, env.SUPABASE_URL ?? '');
+  if (!sub) return new Response(JSON.stringify({ error: 'sign_in_required' }), { status: 401, headers: { ...JSON_HEADERS, ...cors } });
+  if (!env.STRIPE_SECRET_KEY) {
+    return new Response(JSON.stringify({ error: 'not_configured' }), { status: 503, headers: { ...JSON_HEADERS, ...cors } });
+  }
+  // The customer D1 knows, found the same way /portal finds it. A missing row or a D1 hiccup is not fatal:
+  // the metadata search still finds every subscription, on every customer.
+  let customerId: string | null = null;
+  if (env.DB) {
+    try {
+      customerId = (await readEntitlement(env.DB, sub)).customerId;
+    } catch {
+      customerId = null;
+    }
+  }
+  const ids = await findChargeableSubscriptions(env, sub, customerId);
+  if (!ids) return new Response(JSON.stringify({ error: 'close_billing_failed' }), { status: 502, headers: { ...JSON_HEADERS, ...cors } });
+  let cancelled = 0;
+  let failed = false;
+  for (const id of ids) {
+    if (await cancelSubscriptionNow(env, id)) cancelled += 1;
+    else failed = true; // keep going: stop as much billing as we can, then say it was not all
+  }
+  if (failed) return new Response(JSON.stringify({ error: 'close_billing_failed' }), { status: 502, headers: { ...JSON_HEADERS, ...cors } });
+  return new Response(JSON.stringify({ cancelled }), { headers: { ...JSON_HEADERS, ...cors } });
 }
 
 /** POST /stripe-webhook — Stripe calls this. Verifies the signature, then writes the
