@@ -281,7 +281,7 @@ export const CaptureSheet = forwardRef<CaptureSheetHandle, Props>(function Captu
   return (
     // A modal region while open: on iOS, accessibilityViewIsModal hides this view's SIBLINGS, which are the
     // screen's own content (the parent also hides its list from Android and the web while the panel is up).
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none" accessibilityViewIsModal={shown}>
+    <View style={[StyleSheet.absoluteFill, styles.layer]} pointerEvents="box-none" accessibilityViewIsModal={shown}>
       {/* The scrim: a light wash over the day, and a tap on it is Close. A pointer target only: the panel's
           own Close is the accessible way out, so the scrim is never in the Tab order or a screen reader's path. */}
       <Animated.View
@@ -352,6 +352,9 @@ export const CaptureSheet = forwardRef<CaptureSheetHandle, Props>(function Captu
 const makeStyles = (t: Theme) => {
   const dark = t.scheme === 'dark';
   return StyleSheet.create({
+    // Web clips the layer so the panel parked below the screen can never be painted outside the app (it
+    // showed under Chrome's sliding address bar). Native leaves it unclipped; the window does that job.
+    layer: Platform.OS === 'web' ? { overflow: 'hidden' } : {},
     scrim: { backgroundColor: dark ? 'rgba(0,0,0,0.4)' : rgba(t.colors.ink, 0.16) },
     pillWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
     // The shadow lives on its own layer so the pill's width can animate while the shadow follows it.

@@ -50,6 +50,10 @@ export default function Root({ children }: PropsWithChildren) {
 
         {/* Disable body scrolling on web so ScrollView components behave like native. */}
         <ScrollViewStyleReset />
+        {/* Chrome on Android must not treat the list as the page's own scroller (the address bar slid
+            away and uncovered the page under the app). See scripts/inject-web-meta.mjs, which is what
+            actually ships and explains each rule. */}
+        <style id="dd-viewport" dangerouslySetInnerHTML={{ __html: '#root { overflow: hidden; } html, body { overscroll-behavior-y: contain; } @supports (height: 100dvh) { html, body, #root { height: 100dvh; } }' }} />
       </head>
       <body>{children}</body>
     </html>

@@ -98,6 +98,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [settings, systemScheme, systemReduce],
   );
 
+  // Web: the page behind the app wears the theme's ground. Anything the app does not cover for a moment
+  // (Chrome's address bar mid-slide, an overscroll) then shows the day's own colour, not browser white.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    document.documentElement.style.backgroundColor = theme.colors.bg;
+    document.body.style.backgroundColor = theme.colors.bg;
+  }, [theme.colors.bg]);
+
   const value = useMemo<ThemeContextValue>(
     () => ({ theme, settings, setSettings, ready }),
     [theme, settings, setSettings, ready],
