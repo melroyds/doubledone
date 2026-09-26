@@ -8297,3 +8297,44 @@ for the Ours list and the welcome; and Repeating's room top living inside the dr
 **Open, for Melroy:** whether finished tasks can leave Today (a keep-or-tuck choice), and the capture
 sleeve (a + on the right with the input sliding out of it), which goes to Claude Design first:
 `docs/design-source/capture-sleeve-design-prompt.md`.
+
+## 2026-09-26: Tuck, a finished task can fold into "Done today" (a Settings choice and a welcome step)
+
+**Decided:** a new comfort setting, **Finished tasks: Keep on Today / Tuck away**, default Keep. With
+Tuck, a task you finish stays in place for a beat (1.2s, long enough to see the tick), then folds into
+a quiet "Done today · N" line at the foot of Today's list. The line opens in place to show them, as the
+same rows; unticking one sends it back to its place. It is asked once in the welcome, as its own step
+straight after "What you finish, you keep.", and lives in Settings' Comfort card.
+
+**Why a setting, when the rule is "never add a setting":** this one is a real split between the
+people the app is for, not a preference knob. Out of sight is a relief for many ADHD brains ("Completed
+items should disappear", Melroy's wife's first reaction); seeing it ticked is the reassurance an OCD
+brain needs ("did I actually do it?"), which is why Done-is-done exists. One question, asked once,
+answered by the person it is about.
+
+**Why tuck, not vanish:** a vanished row cannot be checked, and a mis-tapped one cannot be found. Tuck
+keeps both a tap away, keeps the count visible without making it a score, and the Calendar keeps
+everything either way. Melroy chose it over vanishing.
+
+**How it is kept safe:** the split happens only at render (`tuckFinished` in `lib/today.ts`,
+unit-tested). `visible` stays the whole of today, so the weight gauge, allDone, the close-the-day
+count, Plan my day and the Calendar read exactly what they did. Reorder moves among the rows you can
+see, with the tucked ones kept behind them. The beat runs on every hand-made finish (a tick, a stepped
+task's last step) and never on sync or bulk actions. A screen reader hears "Done. Tucked away with
+today's finished tasks."
+
+**Decided against:** vanishing outright; applying it to the shared Ours list (seeing what your person
+finished is the point of that list, and its done rows already leave the next day); a count badge; and
+remembering whether the Done line was open across launches (it starts closed, calm).
+
+**Fixed before it shipped, from a six-agent adversarial review (13 confirmed):** one timer for the
+beat, restarted by each tick, so a run of ticks folds together once you pause (a stale per-tick timer
+could fold a re-tick early and announce twice); the fold is said only when something still finished
+actually folded, and focus then moves to the Done today line, because the row that held it has gone (on
+native only with a screen reader on; on web only if focus had nowhere left); unticking inside the line
+keeps focus on it, or says "Back on Today." for the last one; the held task stays seated for its whole
+contract, not only its closing line; only a row on screen settles (a Later row or a repeat ticked in the
+drawer lands straight where it belongs); the line shows in select mode so a selection made from a tucked
+row stays visible; its open state is keyed to the day; the welcome's chosen card uses ink on its tint
+(soft ink fell under AA in light); the screenshot harness's shared-list shot moved one press; and two
+Italian strings (agreement, and the catalog's settled "su Oggi").

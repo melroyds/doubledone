@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { type Recurrence } from './recurrence';
-import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, holdSecond, isDoneOn, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, type Scheduled, upcomingTasks } from './today';
+import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, holdSecond, isDoneOn, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, type Scheduled, upcomingTasks, tuckFinished } from './today';
 
 const today = new Date(2026, 5, 17);
 const iso = '2026-06-17';
@@ -475,5 +475,32 @@ describe('holdSecond', () => {
   it('a task that is both pinned and held keeps the pin seat, once', () => {
     const both = [t('x', { pinnedAt: 5 }), t('a')];
     expect(holdSecond(both, 'x')).toBe(both);
+  });
+});
+
+describe('tuckFinished', () => {
+  const day = new Date(2026, 8, 26, 10);
+  const doneAt = new Date(2026, 8, 26, 9).getTime();
+  const open = { id: 'a', title: 'open', done: false };
+  const doneOne = { id: 'b', title: 'done one-off', done: true, completedAt: doneAt };
+  const doneRepeat = { id: 'c', title: 'repeat ticked today', done: false, recurrence: { kind: 'daily' as const, start: '2026-09-01' }, completedDates: ['2026-09-26'] };
+  const openRepeat = { id: 'd', title: 'repeat not yet', done: false, recurrence: { kind: 'daily' as const, start: '2026-09-01' }, completedDates: ['2026-09-25'] };
+
+  it('keeps open rows in order and tucks the finished ones, one-offs and repeats alike', () => {
+    const { open: shown, tucked } = tuckFinished([open, doneOne, openRepeat, doneRepeat], day, [], null);
+    expect(shown.map((t) => t.id)).toEqual(['a', 'd']);
+    expect(tucked.map((t) => t.id)).toEqual(['b', 'c']);
+  });
+
+  it('leaves a just-ticked row in place for its beat, and the held task for its closing line', () => {
+    expect(tuckFinished([open, doneOne], day, ['b'], null).open.map((t) => t.id)).toEqual(['a', 'b']);
+    expect(tuckFinished([open, doneOne], day, [], 'b').tucked).toEqual([]);
+  });
+
+  it('tucks nothing on a day where nothing is finished', () => {
+    const rows = [open, openRepeat];
+    const { open: shown, tucked } = tuckFinished(rows, day, [], null);
+    expect(shown).toEqual(rows);
+    expect(tucked).toEqual([]);
   });
 });

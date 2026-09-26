@@ -369,7 +369,7 @@ async function run() {
         { name: 'settings-light', route: '/settings', tasks: TODAY_TASKS, theme: 'light', motion: 'system', waitText: 'Theme' },
         { name: 'settings-dark', route: '/settings', tasks: TODAY_TASKS, theme: 'dark', motion: 'system', waitText: 'Theme' },
         { name: 'welcome', route: '/welcome', tasks: TODAY_TASKS, theme: 'light', waitText: 'A calmer kind of to-do' },
-        // The shared-list step, five presses in (welcome, capture, reveal, safetynet, keep). It is the
+        // The shared-list step, six presses in (welcome, capture, reveal, safetynet, keep, finished) (welcome, capture, reveal, safetynet, keep). It is the
         // one onboarding screen that cannot be reached by a route, so without this nobody can look at it.
         {
           name: 'welcome-shared',
@@ -377,7 +377,7 @@ async function run() {
           tasks: TODAY_TASKS,
           theme: 'light',
           waitText: 'A calmer kind of to-do',
-          advance: 5,
+          advance: 6,
           ai: false,
           afterText: 'A list the two of you keep',
         },

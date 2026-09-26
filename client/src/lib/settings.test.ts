@@ -67,7 +67,15 @@ describe('parseSettings', () => {
       themePreset: 'dusk',
       appearance: 'standard',
       aiEnabled: true,
+      finishedTasks: 'keep',
     });
+  });
+
+  it('reads the finished-tasks choice and rejects anything else', () => {
+    expect(parseSettings(JSON.stringify({ finishedTasks: 'tuck' })).finishedTasks).toBe('tuck');
+    expect(parseSettings(JSON.stringify({ finishedTasks: 'keep' })).finishedTasks).toBe('keep');
+    expect(parseSettings(JSON.stringify({ finishedTasks: 'vanish' })).finishedTasks).toBe('keep');
+    expect(parseSettings(JSON.stringify({ theme: 'dark' })).finishedTasks).toBe('keep'); // an older blob, from before the choice existed
   });
 
   it('rejects out-of-range values per field', () => {
@@ -77,7 +85,7 @@ describe('parseSettings', () => {
   });
 
   it('preserves a fully valid blob', () => {
-    const s: Settings = { theme: 'light', textSize: 'large', motion: 'reduce', themePreset: 'rose', appearance: 'quiet', aiEnabled: false };
+    const s: Settings = { theme: 'light', textSize: 'large', motion: 'reduce', themePreset: 'rose', appearance: 'quiet', aiEnabled: false, finishedTasks: 'tuck' };
     expect(parseSettings(serializeSettings(s))).toEqual(s);
   });
 

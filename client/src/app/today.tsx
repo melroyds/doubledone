@@ -88,10 +88,14 @@ import { track } from '@/lib/telemetry';
 import { updateWidget } from '@/widget/update';
 import { useReducedMotion, useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { usePremium } from '@/lib/premium-provider';
-import { applyManualOrder, completeAncestors, deferTo, hasActiveTinyChild, holdSecond, isDoneOn, isRecurring, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, upcomingTasks } from '@/lib/today';
+import { applyManualOrder, completeAncestors, deferTo, hasActiveTinyChild, holdSecond, isDoneOn, isRecurring, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, tuckFinished, upcomingTasks } from '@/lib/today';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
+
+// How long a just-ticked row stays in place before Tuck folds it away: long enough to SEE the tick (the
+// point of ticking), short enough that the list settles while you are still looking at it.
+const TUCK_SETTLE_MS = 1200;
 
 const REENTRY_GAP_DAYS = 4; // a calm "welcome back" shows on the first open after this many days away
 
@@ -361,6 +365,19 @@ export default function TodayScreen() {
   // and every task it adds keeps a soft tint until it closes (the Today v3 handoff).
   const [composing, setComposing] = useState(false);
   const [justAdded, setJustAdded] = useState<string[]>([]);
+  // Tuck: rows ticked a moment ago stay in place for a beat before they fold into "Done today"; whether
+  // that line is open; and what it last said, for a screen reader on web (announce is a no-op there).
+  const [settling, setSettling] = useState<string[]>([]);
+  // ONE timer for every settling row, restarted by each tick, so a run of ticks folds together once you
+  // pause rather than the list shifting under a finger mid-run (and a re-tick can never be cut short by a
+  // stale timer from the first tick). The refs are what that timer reads when it fires.
+  const tuckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const settlingRef = useRef<string[]>([]);
+  const holdClosingRef = useRef<string | null>(null);
+  // Open for TODAY only: keyed to the day, so a line that emptied, or a new morning, starts closed again.
+  const [tuckOpenOn, setTuckOpenOn] = useState<string | null>(null);
+  const [tuckSaid, setTuckSaid] = useState({ text: '', n: 0 });
+  const doneLineRef = useRef<View>(null);
   // The Repeating drawer was opened FROM the Menu's contents page, so closing it goes back there.
   // Whether the Repeating drawer was handed over by the Menu's contents page: its top then says "‹ Menu"
   // and closing it goes back there. State, not a ref, because the drawer draws it.
@@ -504,6 +521,7 @@ export default function TodayScreen() {
   const [closeRise] = useState(() => new Animated.Value(0));
   const styles = useThemedStyles(makeStyles);
   const aiEnabled = useSettings().settings.aiEnabled; // false hides every gen-AI affordance on Today (Break it down, Strategise, Make it tiny, Combine, Plan my day)
+  const tuck = useSettings().settings.finishedTasks === 'tuck'; // finished tasks fold into a "Done today" line (a Settings + welcome choice)
   const theme = useTheme();
 
   // Re-read the persisted list on every focus, not only first mount, so returning
@@ -631,6 +649,18 @@ export default function TodayScreen() {
   useEffect(() => {
     tasksRef.current = tasks;
   }, [tasks]);
+  useEffect(() => {
+    settlingRef.current = settling;
+  }, [settling]);
+  useEffect(() => {
+    holdClosingRef.current = holdClosing;
+  }, [holdClosing]);
+  useEffect(
+    () => () => {
+      if (tuckTimer.current) clearTimeout(tuckTimer.current);
+    },
+    [],
+  );
 
   // Reflect the persisted daily-reminder toggle (the schedule itself survives restarts).
   useEffect(() => {
@@ -678,6 +708,30 @@ export default function TodayScreen() {
     void loadHold().then(setHold);
   }, []);
 
+  // Said once, and focus goes to the Done today line, because the row that had it has just gone. Native:
+  // with a screen reader on, the line takes its focus and reads its own label (so no second announcement).
+  // Web: the polite live region speaks, and keyboard focus moves to the line if it had nowhere left to be.
+  function sayFolded() {
+    const words = t('today.tuckedA11y');
+    if (Platform.OS === 'web') {
+      setTuckSaid((prev) => ({ text: words, n: prev.n + 1 }));
+      setTimeout(() => {
+        const line = doneLineRef.current as unknown as HTMLElement | null;
+        const active = typeof document !== 'undefined' ? document.activeElement : null;
+        if (line && (active == null || active === document.body)) line.focus?.({ preventScroll: true });
+      }, 60);
+      return;
+    }
+    void AccessibilityInfo.isScreenReaderEnabled().then((on) => {
+      if (!on) return;
+      setTimeout(() => {
+        const line = doneLineRef.current;
+        if (line) AccessibilityInfo.sendAccessibilityEvent(line, 'focus');
+        else AccessibilityInfo.announceForAccessibility(words);
+      }, 60);
+    });
+  }
+
   // The contract's ONE ending choke point. Every path that finishes or removes the held task
   // (tick, bulk-complete, remove, defer, sync pulling a change from another device) flows through
   // the tasks array, so watching it here ends the contract on ALL of them without each call site
@@ -710,8 +764,12 @@ export default function TodayScreen() {
         setTimeout(() => {
           if (reduced) {
             setHoldClosing(null);
+            if (tuck) sayFolded();
           } else {
-            Animated.timing(holdCloseFade, { toValue: 0, duration: 400, useNativeDriver: true }).start(() => setHoldClosing(null));
+            Animated.timing(holdCloseFade, { toValue: 0, duration: 400, useNativeDriver: true }).start(() => {
+              setHoldClosing(null);
+              if (tuck) sayFolded();
+            });
           }
         }, 1800);
       }
@@ -941,6 +999,12 @@ export default function TodayScreen() {
   // float persists through the closing beat (holdClosing) so the sage line plays where the tick
   // just happened, then the row settles once the beat ends.
   const visible = holdSecond(pinFirst(applyManualOrder(tasksForToday(tasks, today))), holdClosing ?? (hold ? hold.taskId : null));
+  // Tuck splits the rows only at RENDER. `visible` stays the whole of today, so the gauge, allDone, the
+  // close-the-day count, Plan my day and everything else read exactly what they always did.
+  const { open: rows, tucked: tuckedRows } = tuck
+    ? tuckFinished(visible, today, settling, holdClosing ?? (hold ? hold.taskId : null))
+    : { open: visible, tucked: [] as Task[] };
+  const tuckOpen = tuckOpenOn === toISODate(today);
   // The current week's deduped finishes: the scrapbook's raw material, read by the earned-moment mention.
   const weekFinishes = weekTitles(completionsByDay(tasks), weekStartISO(today)).length;
   const upcoming = upcomingTasks(tasks, today);
@@ -1282,10 +1346,12 @@ export default function TodayScreen() {
   // premium and was the only ordering a free user could even be told about, which was none.
   // Deliberately not act-and-dismiss: the card stays held so three places is three taps.
   function moveRow(id: string, delta: -1 | 1) {
-    const ids = visible.map((v) => v.id);
+    // Among the rows you can SEE: with Tuck on, a swap with a hidden finished neighbour would look dead.
+    // The tucked rows keep their order, behind the open ones.
+    const ids = rows.map((v) => v.id);
     const next = moveInOrder(ids, ids.indexOf(id), delta);
     if (next === ids) return; // already at the edge
-    commit(setSequence(tasks, next, nowMs()));
+    commit(setSequence(tasks, [...next, ...tuckedRows.map((v) => v.id)], nowMs()));
     // The design-v2 contract: each rail tap announces the landing place, so a screen-reader
     // user hears the move happen without leaving the still-open card.
     const pos = next.indexOf(id) + 1;
@@ -1924,6 +1990,58 @@ export default function TodayScreen() {
     }
   }
 
+  // Tuck: a task you just finished ON SCREEN is seen finished first, then folds into "Done today". Called
+  // from the hand-made finishes (a tick, a stepped task's last step) for a row that is actually in the
+  // open list; anything else (sync, bulk Done, a Later row, a repeat ticked in the drawer) just lands where
+  // it belongs. Every call restarts the one timer, so a run of ticks folds together once you pause.
+  function beginTuck(id: string) {
+    if (!tuck) return;
+    setSettling((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    if (tuckTimer.current) clearTimeout(tuckTimer.current);
+    tuckTimer.current = setTimeout(foldSettled, TUCK_SETTLE_MS);
+  }
+
+  // A settling row un-finished inside its beat: it simply stays open, and the timer goes if nothing else
+  // is waiting on it.
+  function endTuck(id: string) {
+    setSettling((prev) => prev.filter((x) => x !== id));
+    if (settlingRef.current.length <= 1 && settlingRef.current.every((x) => x === id) && tuckTimer.current) {
+      clearTimeout(tuckTimer.current);
+      tuckTimer.current = null;
+    }
+  }
+
+  // The beat is over. Fold the settled rows, and say so only if something that is still finished actually
+  // folded (not a row un-ticked meanwhile, a pebble that retired, or the held task still on its line).
+  function foldSettled() {
+    tuckTimer.current = null;
+    const ids = settlingRef.current;
+    setSettling([]);
+    const folded = ids.filter((id) => {
+      const task = tasksRef.current.find((x) => x.id === id);
+      return task != null && id !== holdClosingRef.current && tasksForToday([task], today).length === 1 && isDoneOn(task, today);
+    });
+    if (folded.length > 0) sayFolded();
+  }
+
+  // A tucked task brought back by unticking it inside the Done today list: its row moves up into the list,
+  // so focus goes back to the line, or, if that was the last one and the line has gone, it is said.
+  function sayUntucked(lastOne: boolean) {
+    if (lastOne) {
+      setTuckOpenOn(null);
+      const words = t('today.untuckedA11y');
+      AccessibilityInfo.announceForAccessibility(words);
+      if (Platform.OS === 'web') setTuckSaid((prev) => ({ text: words, n: prev.n + 1 }));
+      return;
+    }
+    setTimeout(() => {
+      const line = doneLineRef.current;
+      if (!line) return;
+      if (Platform.OS === 'web') (line as unknown as HTMLElement).focus?.({ preventScroll: true });
+      else AccessibilityInfo.sendAccessibilityEvent(line, 'focus');
+    }, 60);
+  }
+
   function toggle(id: string) {
     const next = tasks.map((t) => {
       if (t.id !== id) return t;
@@ -1940,6 +2058,9 @@ export default function TodayScreen() {
     if (justToggled?.sharedRef) void mirrorTickToShared(justToggled.sharedRef, done);
     // The moat starts at the call site: log the outcome, not just "done".
     track('task.toggled', { done });
+    if (done && rows.some((r) => r.id === id)) beginTuck(id);
+    if (!done && settling.includes(id)) endTuck(id);
+    if (!done && tuckedRows.some((r) => r.id === id)) sayUntucked(tuckedRows.length === 1);
     // The moat's completion half: a finished breakdown step reports an anonymised
     // outcome (id + timing only), so "how long this takes" becomes real data over time.
     if (justToggled && justToggled.decompositionId && isDoneOn(justToggled, today)) {
@@ -2225,7 +2346,9 @@ export default function TodayScreen() {
       total: after?.slices?.total ?? 0,
       complete: after?.done ?? false,
     });
+    if (!after?.done && before?.done && settling.includes(id)) endTuck(id);
     if (after?.done && !before?.done) {
+      if (rows.some((r) => r.id === id)) beginTuck(id);
       const todays = tasksForToday(next, today);
       if (todays.length > 0 && todays.every((t) => isDoneOn(t, today))) {
         track('day.cleared', { count: todays.length });
@@ -2533,6 +2656,69 @@ export default function TodayScreen() {
   const oursHeadingLabel = oursPairId ? (oursName && oursName.trim() ? oursName.trim() : t('ours.defaultName')) : null;
   // The shrunk heading is for the phone's keyboard: on wide web there is room, and the page stays still.
   const compactHeader = composing && dockFooter && !isClosed && !selectMode;
+
+  // One row, as the list draws it. Shared by the open rows and the tucked ones, so a finished task in the
+  // Done today line is the very same row (tick it again to bring it back).
+  function rowFor(task: Task, i: number, list: Task[]) {
+    return (
+    <TaskRow
+      key={task.id}
+      title={task.title}
+      done={isDoneOn(task, today)}
+      onToggle={() => toggle(task.id)}
+      onLongPress={() => onRowLongPress(task.id)}
+      confirming={confirmingId === task.id}
+      onRemove={() => removeTask(task.id)}
+      onKeep={() => setConfirmingId(null)}
+      recurring={isRecurring(task)}
+      /* Reorder eligibility: never on a done task, never on the pinned task (pinFirst
+         refloats it, the tap would look dead), and "up" stops below a pinned top. */
+      onMoveUp={canReorder(task, today) && task.id !== hold?.taskId && i > reorderTopIdx ? () => moveRow(task.id, -1) : undefined}
+      onMoveDown={canReorder(task, today) && task.id !== hold?.taskId && i >= reorderTopIdx && i < list.length - 1 ? () => moveRow(task.id, 1) : undefined}
+      slices={task.slices ?? undefined}
+      onAdvance={() => step(task.id, 1)}
+      onBreakdown={aiEnabled ? () => breakdownExisting(task.title, task.id) : () => openManualBreakdown(task.id, task.title)}
+      onMakeTiny={aiEnabled ? () => makeTiny(task.id, task.title) : undefined}
+      onBig={() => bigRow(task)}
+      onPin={() => pinRow(task)}
+      onSelectMore={() => selectFromRow(task.id)}
+      onRename={(title) => renameRow(task.id, title)}
+      onNudge={Platform.OS !== 'web' && !isDoneOn(task, today) ? () => openNudge(task.id) : undefined}
+      onHold={Platform.OS !== 'web' && (!isDoneOn(task, today) || hold?.taskId === task.id) ? () => tapHold(task) : undefined}
+      held={hold?.taskId === task.id}
+      onHoldFocus={
+        hold?.taskId === task.id
+          ? () => {
+              setFocusPick(task.id);
+              setFocusOpen(true);
+              track('focus.opened');
+            }
+          : undefined
+      }
+      onHoldRelease={hold?.taskId === task.id ? releaseHold : undefined}
+      holdClosed={holdClosing === task.id}
+      holdCloseFade={holdCloseFade}
+      onSteps={!isRecurring(task) && !isDoneOn(task, today) ? () => openSliceEdit(task.id) : undefined}
+      onMoveTo={!isRecurring(task) ? () => setMoveIds([task.id]) : undefined}
+      onDoneOn={isDoneOn(task, today) && !isRecurring(task) ? () => openDoneOn(task.id) : undefined}
+      origin={task.sharedRef ? `· ${t('ours.defaultName')}` : undefined}
+      /* Said in WORDS, not by a colour or a strikethrough, so a screen reader hears it
+         too and nobody has to infer it from styling. */
+      note={originGone.has(task.id) ? (oursName ? t('ours.noLongerOnNamed', { name: oursName }) : t('ours.noLongerOn')) : undefined}
+      onShareToOurs={oursPairId && !task.sharedRef && !sharedToOurs.has(task.id) && !isDoneOn(task, today) ? () => void shareToOurs(task) : undefined}
+      pinDim={!premium && task.pinnedAt == null}
+      suggestBreakdown={task.suggestBreakdown}
+      selecting={selectMode}
+      selected={selected.includes(task.id)}
+      onSelect={() => toggleSelect(task.id)}
+      nudgeAt={task.nudgeAt != null && task.nudgeAt > nowMs() ? task.nudgeAt : undefined}
+      tinyParent={tinyParentTitle(tasks, task)}
+      pinned={task.pinnedAt != null && !isDoneOn(task, today)}
+      big={task.big}
+      justAdded={justAdded.includes(task.id)}
+    />
+    );
+  }
 
   return (
     // Keyed by appearance: switching Standard <-> Quiet remounts Today's subtree so native
@@ -2919,65 +3105,40 @@ export default function TodayScreen() {
           </View>
         )}
         <View style={styles.list}>
-          {visible.map((task, i) => (
-            <TaskRow
-              key={task.id}
-              title={task.title}
-              done={isDoneOn(task, today)}
-              onToggle={() => toggle(task.id)}
-              onLongPress={() => onRowLongPress(task.id)}
-              confirming={confirmingId === task.id}
-              onRemove={() => removeTask(task.id)}
-              onKeep={() => setConfirmingId(null)}
-              recurring={isRecurring(task)}
-              /* Reorder eligibility: never on a done task, never on the pinned task (pinFirst
-                 refloats it, the tap would look dead), and "up" stops below a pinned top. */
-              onMoveUp={canReorder(task, today) && task.id !== hold?.taskId && i > reorderTopIdx ? () => moveRow(task.id, -1) : undefined}
-              onMoveDown={canReorder(task, today) && task.id !== hold?.taskId && i >= reorderTopIdx && i < visible.length - 1 ? () => moveRow(task.id, 1) : undefined}
-              slices={task.slices ?? undefined}
-              onAdvance={() => step(task.id, 1)}
-              onBreakdown={aiEnabled ? () => breakdownExisting(task.title, task.id) : () => openManualBreakdown(task.id, task.title)}
-              onMakeTiny={aiEnabled ? () => makeTiny(task.id, task.title) : undefined}
-              onBig={() => bigRow(task)}
-              onPin={() => pinRow(task)}
-              onSelectMore={() => selectFromRow(task.id)}
-              onRename={(title) => renameRow(task.id, title)}
-              onNudge={Platform.OS !== 'web' && !isDoneOn(task, today) ? () => openNudge(task.id) : undefined}
-              onHold={Platform.OS !== 'web' && (!isDoneOn(task, today) || hold?.taskId === task.id) ? () => tapHold(task) : undefined}
-              held={hold?.taskId === task.id}
-              onHoldFocus={
-                hold?.taskId === task.id
-                  ? () => {
-                      setFocusPick(task.id);
-                      setFocusOpen(true);
-                      track('focus.opened');
-                    }
-                  : undefined
-              }
-              onHoldRelease={hold?.taskId === task.id ? releaseHold : undefined}
-              holdClosed={holdClosing === task.id}
-              holdCloseFade={holdCloseFade}
-              onSteps={!isRecurring(task) && !isDoneOn(task, today) ? () => openSliceEdit(task.id) : undefined}
-              onMoveTo={!isRecurring(task) ? () => setMoveIds([task.id]) : undefined}
-              onDoneOn={isDoneOn(task, today) && !isRecurring(task) ? () => openDoneOn(task.id) : undefined}
-              origin={task.sharedRef ? `· ${t('ours.defaultName')}` : undefined}
-              /* Said in WORDS, not by a colour or a strikethrough, so a screen reader hears it
-                 too and nobody has to infer it from styling. */
-              note={originGone.has(task.id) ? (oursName ? t('ours.noLongerOnNamed', { name: oursName }) : t('ours.noLongerOn')) : undefined}
-              onShareToOurs={oursPairId && !task.sharedRef && !sharedToOurs.has(task.id) && !isDoneOn(task, today) ? () => void shareToOurs(task) : undefined}
-              pinDim={!premium && task.pinnedAt == null}
-              suggestBreakdown={task.suggestBreakdown}
-              selecting={selectMode}
-              selected={selected.includes(task.id)}
-              onSelect={() => toggleSelect(task.id)}
-              nudgeAt={task.nudgeAt != null && task.nudgeAt > nowMs() ? task.nudgeAt : undefined}
-              tinyParent={tinyParentTitle(tasks, task)}
-              pinned={task.pinnedAt != null && !isDoneOn(task, today)}
-              big={task.big}
-              justAdded={justAdded.includes(task.id)}
-            />
-          ))}
+          {rows.map((task, i) => rowFor(task, i, rows))}
         </View>
+
+        {/* TUCK: today's finished tasks, folded into one quiet line at the foot of the list. Never a count to
+            chase, never hidden past a tap: it opens in place, and a tick in it brings the task back. */}
+        {tuck && tuckedRows.length > 0 && (
+          <>
+            <Pressable
+              ref={doneLineRef}
+              onPress={() => {
+                setTuckOpenOn(tuckOpen ? null : toISODate(today));
+                track('done_line.toggled', { open: !tuckOpen });
+              }}
+              accessibilityRole="button"
+              aria-expanded={tuckOpen}
+              accessibilityLabel={
+                tuckOpen ? t('today.doneTodayHideA11y', { count: String(tuckedRows.length) }) : t('today.doneTodayShowA11y', { count: String(tuckedRows.length) })
+              }
+              hitSlop={4}
+              style={({ pressed }) => [styles.doneLine, pressed && styles.pressed]}
+            >
+              <Text style={styles.doneLineText}>{t('today.doneTodayLine', { count: String(tuckedRows.length) })}</Text>
+              <Text style={styles.doneLineCaret} accessible={false} importantForAccessibility="no">
+                {tuckOpen ? '˄' : '˅'}
+              </Text>
+            </Pressable>
+            {tuckOpen && <View style={[styles.list, styles.tuckedList]}>{tuckedRows.map((task, i) => rowFor(task, i, tuckedRows))}</View>}
+          </>
+        )}
+        {Platform.OS === 'web' && (
+          <Text accessibilityLiveRegion="polite" style={styles.srOnly}>
+            {tuckSaid.text ? tuckSaid.text + (tuckSaid.n % 2 ? '\u00a0' : '') : ''}
+          </Text>
+        )}
 
         {loaded && visible.length === 0 && (
           <View style={styles.emptyState}>
@@ -4144,6 +4305,21 @@ const makeStyles = (t: Theme) =>
     date: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
     spine: { color: t.colors.inkSoft, fontSize: 16 * t.scale, marginTop: spacing.two, marginBottom: spacing.six, fontFamily: fonts.body },
     list: { gap: spacing.two },
+    // The Done today line: a hairline, the words and a caret in soft ink, the whole row a 44pt tap.
+    doneLine: {
+      minHeight: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: spacing.three,
+      paddingHorizontal: spacing.two,
+      borderTopWidth: border.hair,
+      borderTopColor: t.appearance === 'quiet' ? t.quiet.hairline : t.colors.line,
+    },
+    doneLineText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    doneLineCaret: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    tuckedList: { marginTop: spacing.two },
+    srOnly: { position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0 },
     calmNote: { color: t.colors.inkSoft, fontSize: 16 * t.scale, marginTop: spacing.five, lineHeight: 24 * t.scale, fontFamily: fonts.body },
     emptyState: { alignItems: 'center' },
     emptyArt: { width: '100%', maxWidth: 420, aspectRatio: 16 / 9, borderRadius: radius.lg, marginTop: spacing.five, overflow: 'hidden' },

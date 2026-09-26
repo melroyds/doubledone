@@ -27,7 +27,7 @@ import emptyArt from '../../assets/images/empty.jpg';
 // (curate, don't catalogue). The Today screen redirects here once, when onboarded is unset.
 // 'shared' sits between 'keep' and 'premium' DELIBERATELY: Ours is free, and a free feature read
 // immediately before the premium screen would be mistaken for part of the paid list.
-const STEPS = ['welcome', 'capture', 'reveal', 'safetynet', 'keep', 'shared', 'premium', 'handoff'] as const;
+const STEPS = ['welcome', 'capture', 'reveal', 'safetynet', 'keep', 'finished', 'shared', 'premium', 'handoff'] as const;
 type Step = (typeof STEPS)[number];
 
 const PRIMARY: Record<Step, string> = {
@@ -36,6 +36,7 @@ const PRIMARY: Record<Step, string> = {
   reveal: t('welcome.primaryLooksGood'),
   safetynet: t('common.gotIt'),
   keep: t('common.continue'),
+  finished: t('common.continue'),
   shared: t('common.continue'),
   premium: t('common.continue'),
   handoff: t('welcome.primaryOpenToday'),
@@ -381,6 +382,56 @@ export default function WelcomeScreen() {
           </View>
         )}
 
+        {/* FINISHED TASKS: the one choice the welcome asks for, right after "what you finish, you keep",
+            because it is a real split between the people this app is for. Keep is chosen already, so
+            Continue without touching anything changes nothing; a tap applies at once and Settings holds it. */}
+        {step === 'finished' && (
+          <View style={styles.block}>
+            <Text style={styles.h1}>{t('welcome.finishedHeading')}</Text>
+            <Text style={styles.lead}>{t('welcome.finishedLead')}</Text>
+            <View style={styles.choiceList} accessibilityRole="radiogroup">
+              {(['keep', 'tuck'] as const).map((opt) => {
+                const on = settings.finishedTasks === opt;
+                const name = opt === 'keep' ? t('settings.finishedKeep') : t('settings.finishedTuck');
+                const what = opt === 'keep' ? t('welcome.finishedKeepWhat') : t('welcome.finishedTuckWhat');
+                return (
+                  <Pressable
+                    key={opt}
+                    onPress={() => {
+                      setSettings({ finishedTasks: opt });
+                      track('finished_tasks.set', { value: opt, via: 'welcome' });
+                    }}
+                    accessibilityRole="radio"
+                    aria-checked={on}
+                    accessibilityLabel={`${name}. ${what}`}
+                    style={({ pressed }) => [styles.choiceCard, on && styles.choiceCardOn, pressed && styles.choicePressed]}
+                  >
+                    {/* A small picture of each, drawn from the app's own marks rather than words. */}
+                    <View style={styles.choicePreview} accessible={false} importantForAccessibility="no-hide-descendants">
+                      {opt === 'keep' ? (
+                        <View style={styles.previewRow}>
+                          <View style={styles.previewTick}>
+                            <Text style={styles.previewTickMark}>✓</Text>
+                          </View>
+                          <View style={styles.previewBar} />
+                        </View>
+                      ) : (
+                        <View style={styles.previewTuck}>
+                          <Text style={[styles.previewTuckText, on && styles.onTint]}>{t('today.doneTodayLine', { count: '3' })}</Text>
+                          <Text style={[styles.previewTuckText, on && styles.onTint]}>˅</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={[styles.choiceName, on && styles.choiceNameOn]}>{name}</Text>
+                    <Text style={[styles.choiceWhat, on && styles.onTint]}>{what}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Text style={styles.fine}>{t('welcome.finishedFine')}</Text>
+          </View>
+        )}
+
         {/* OURS, the one free feature that was advertised nowhere. Its own step rather than a line,
             because Melroy asked for one and because the objection that carried most weight against it
             (a screen teaching a feature whose door most accounts could not see) died when the
@@ -565,6 +616,29 @@ const makeStyles = (t: Theme) =>
     revealHint: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.half },
     laterLine: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.three },
     netList: { marginTop: spacing.two },
+    // The finished-tasks choice: two cards, the chosen one wearing the accent edge and tint.
+    choiceList: { gap: spacing.three, marginTop: spacing.two },
+    choiceCard: {
+      borderWidth: border.thin,
+      borderColor: t.colors.line,
+      backgroundColor: t.colors.surface,
+      borderRadius: radius.lg,
+      padding: spacing.four,
+      gap: spacing.one,
+    },
+    choiceCardOn: { borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
+    choicePressed: { opacity: 0.8 },
+    choicePreview: { marginBottom: spacing.two },
+    previewRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
+    previewTick: { width: 22, height: 22, borderRadius: 11, backgroundColor: t.colors.accent, alignItems: 'center', justifyContent: 'center' },
+    previewTickMark: { color: t.colors.onAccent, fontSize: 12, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    previewBar: { height: 10, width: 120, borderRadius: 5, backgroundColor: t.colors.inkFaint, opacity: 0.5 }, // `line` vanished on the selected card's tint in dark
+    previewTuck: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: border.hair, borderTopColor: t.colors.line, paddingTop: spacing.two },
+    previewTuckText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    choiceName: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    choiceNameOn: { color: t.scheme === 'dark' ? t.colors.accent : t.colors.ink },
+    choiceWhat: { color: t.colors.inkSoft, fontSize: 15 * t.scale, lineHeight: 21 * t.scale, fontFamily: fonts.body },
+    onTint: { color: t.colors.ink }, // on the chosen card's accent tint, soft ink falls under AA in light
     netRow: {
       // Column, not a wrapping row: the name on its own line, the description beneath, so every item is
       // laid out identically (no "this one fits on the line, that one wraps" asymmetry). Used by the

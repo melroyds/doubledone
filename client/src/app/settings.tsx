@@ -18,7 +18,7 @@ import { t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { clampHour, formatReminderHour, reminderReasonLine } from '@/lib/reminders-types';
-import { type Appearance, type MotionPref, type TextSize, THEME_NAMES, type ThemePref } from '@/lib/settings';
+import { type Appearance, type FinishedTasks, type MotionPref, type TextSize, THEME_NAMES, type ThemePref } from '@/lib/settings';
 import { loadLastSyncOk, loadReminderHour, loadReminderOn, loadScrapbooks, loadTasks, saveReminderHour, saveReminderOn, wipeLocalData } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { checkForUpdate, currentPlatform } from '@/lib/update-check';
@@ -371,6 +371,22 @@ export default function SettingsScreen() {
                 { value: 'reduce', label: t('settings.motionReduce') },
               ]}
               onChange={(motion) => setSettings({ motion })}
+            />
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <Choice<FinishedTasks>
+              label={t('settings.finishedLabel')}
+              hint={t('settings.finishedHint')}
+              value={settings.finishedTasks}
+              options={[
+                { value: 'keep', label: t('settings.finishedKeep') },
+                { value: 'tuck', label: t('settings.finishedTuck') },
+              ]}
+              onChange={(finishedTasks) => {
+                setSettings({ finishedTasks });
+                track('finished_tasks.set', { value: finishedTasks, via: 'settings' });
+              }}
             />
           </View>
           <View style={styles.divider} />
