@@ -21,6 +21,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 
 import { layout, rgba, type Theme } from '@/constants/theme';
 import { t } from '@/lib/locale';
+import { hasSafariKeyboardAddressBar, SAFARI_KEYBOARD_ADDRESS_CLEAR } from '@/lib/safari-chrome';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 import { BrainDump, type BrainDumpHandle } from './BrainDump';
@@ -88,6 +89,18 @@ export const CaptureSheet = forwardRef<CaptureSheetHandle, Props>(function Captu
   const [kbH, setKbH] = useState(0);
   // The web keyboard, where the page does not resize for it (iOS Safari): up or not, for the foot padding.
   const [webKbUp, setWebKbUp] = useState(false);
+  // iPhone Safari in a tab floats its address label over the page's foot while the keyboard is up, right
+  // where When and Add sit, so the foot keeps clear of it (see lib/safari-chrome). Asked once.
+  const [safariBar] = useState(
+    () =>
+      Platform.OS === 'web' &&
+      typeof navigator !== 'undefined' &&
+      typeof window !== 'undefined' &&
+      hasSafariKeyboardAddressBar(
+        navigator.userAgent,
+        (navigator as Navigator & { standalone?: boolean }).standalone === true || window.matchMedia?.('(display-mode: standalone)').matches === true,
+      ),
+  );
   // Android reports the keyboard's height WITHOUT the navigation bar, and this edge-to-edge screen runs
   // behind that bar, so the panel must also clear the bar's inset to sit on the keyboard. iOS's height
   // already includes the home-indicator strip. Read inside the keyboard listener, so kept in a ref.
@@ -260,13 +273,13 @@ export const CaptureSheet = forwardRef<CaptureSheetHandle, Props>(function Captu
   // The fixed rows grow with the app's text size and the phone's, and the field is the part that gives,
   // so the floor they need is scaled with the text rather than read off the design at 100%.
   const textScale = Math.max(1, PixelRatio.getFontScale() * theme.scale);
-  const minH = 8 + 56 + 6 * 4 + 8 + (48 + 36 + 44 + 48) * textScale;
+  const padBottom = kbUp ? 8 + (webKbUp && safariBar ? SAFARI_KEYBOARD_ADDRESS_CLEAR : 0) : Math.max(insets.bottom, 12);
+  const minH = 8 + 56 + 6 * 4 + padBottom + (48 + 36 + 44 + 48) * textScale;
   // The web lift is not counted here: where the page does not resize, the window height already follows
   // the visual viewport on react-native-web, so subtracting it again would count the keyboard twice.
   const room = winH - (kbH > 0 ? kbH + navInset : 0) - insets.top - 24;
   const restH = restingPanelHeight(winH);
   const panelH = Math.max(Math.min(restH, room), Math.min(minH, room));
-  const padBottom = kbUp ? 8 : Math.max(insets.bottom, 12);
   const colW = Math.min(winW, layout.maxContentWidth);
 
   // Reduced motion: no travel, a cross-fade. The shut panel is still parked below the screen (it snaps into
