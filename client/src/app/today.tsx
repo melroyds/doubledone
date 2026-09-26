@@ -56,6 +56,7 @@ import { aiLanguage, fmt, t } from '@/lib/locale';
 import * as Application from 'expo-application';
 
 import { isOursOpen, loadMyPairs, syncClock } from '@/lib/ours-api';
+import { rememberOursName } from '@/lib/ours-name';
 import { checkForUpdate, currentPlatform } from '@/lib/update-check';
 import { FALLBACK_VERSION, shouldMention, type UpdateStatus, updateUrl } from '@/lib/updates';
 import { makeSharedRef, parseSharedRef, removedOrigins, sharedRestNotes } from '@/lib/ours-bridge';
@@ -589,6 +590,7 @@ export default function TodayScreen() {
             if (!res.ok) return;
             const live = res.value.live;
             setOursName(live ? (live.name?.trim() ?? '') : null);
+            rememberOursName(live ? (live.name?.trim() ?? '') : null);
             setOursPairId(live?.pairId ?? null);
           });
         });
@@ -4314,18 +4316,26 @@ const makeStyles = (t: Theme) =>
       marginBottom: spacing.one,
     },
     energyRow: { flexDirection: 'row', gap: spacing.two, marginBottom: spacing.four, flexWrap: 'wrap' },
-    energyPill: {
-      minHeight: 44,
-      justifyContent: 'center',
-      paddingHorizontal: spacing.four,
-      paddingVertical: spacing.one,
-      borderRadius: radius.pill,
-      borderWidth: border.hair,
-      borderColor: 'transparent',
-    },
-    energyPillOn: { backgroundColor: t.colors.accentSoft, borderColor: rgba(t.colors.accent, 0.4) },
+    // Quiet draws Energy as three words, the chosen one in bold ink: no pill, no tint, the same 44pt reach
+    // (the Today v3 feedback, 2026-09-26). Standard keeps the soft pill.
+    energyPill:
+      t.appearance === 'quiet'
+        ? { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.two, paddingVertical: spacing.one }
+        : {
+            minHeight: 44,
+            justifyContent: 'center',
+            paddingHorizontal: spacing.four,
+            paddingVertical: spacing.one,
+            borderRadius: radius.pill,
+            borderWidth: border.hair,
+            borderColor: 'transparent',
+          },
+    energyPillOn: t.appearance === 'quiet' ? {} : { backgroundColor: t.colors.accentSoft, borderColor: rgba(t.colors.accent, 0.4) },
     energyPillText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
-    energyPillTextOn: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    energyPillTextOn:
+      t.appearance === 'quiet'
+        ? { color: t.colors.ink, fontFamily: fonts.bodyBold, fontWeight: '700' }
+        : { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '600' },
     // The day tools' card under Energy (the Today v3 handoff): the Right-now slot + caret on one row, and
     // the tools opening DOWNWARD inside the same card behind a hairline. The slot occupant is the one
     // accent-weight thing in it. Quiet keeps the structure and drops the card chrome.

@@ -8278,3 +8278,22 @@ lighter inkSoft everywhere (it was the preset's own value); the band on the page
 for the Ours list and the welcome; and Repeating's room top living inside the drawer.
 
 **Rolls back by:** not merging, or reverting this commit. No schema, no Worker change.
+
+## 2026-09-26: a fresh eye on Today v3: one done sign, Quiet's Energy, and the Ours name flash
+
+**Decided (from Melroy's wife's first look):**
+- **A done task wears one sign, not two.** The round check fills with the theme's own accent (it was
+  the one sage thing in a mauve interface), and the words turn soft ink without a strikethrough. The
+  same rule covers the done card's title, the Repeating drawer's boxes, Routines' steps and the
+  stepped row's progress bar. Sage stays where it means celebration (the logo, the Calendar's days,
+  the rest-note, the held card's closing line), never on a control you tap. A removed step in a
+  Break-it-down proposal keeps its strikethrough, because that means "left out", not "done".
+- **Quiet draws Energy as three words**, the chosen one in bold ink, no pill, the same 44pt reach.
+- **The Ours room no longer flashes the default name.** It showed "La nostra lista" until its own
+  network read landed, then flipped to the household's name ("Just us"), which read as the app
+  changing language. Today now hands over the name it already has (memory only, `lib/ours-name.ts`).
+  A list's own name is shown as typed, in whatever language it was typed.
+
+**Open, for Melroy:** whether finished tasks can leave Today (a keep-or-tuck choice), and the capture
+sleeve (a + on the right with the input sliding out of it), which goes to Claude Design first:
+`docs/design-source/capture-sleeve-design-prompt.md`.

@@ -21,6 +21,7 @@ import { type CaptureSchedule, scheduleFields } from '@/lib/recurrence';
 import { t } from '@/lib/locale';
 import { makeSharedRef, pulledFrom } from '@/lib/ours-bridge';
 import { loadMyPairs, type MyPair, syncClock } from '@/lib/ours-api';
+import { knownOursName, rememberOursName } from '@/lib/ours-name';
 import { isSharedDoneOn, releaseCompletions, setSharedDone, type SharedTask, washedSince } from '@/lib/ours-merge';
 import { isUnreadableRepeat, onSharedListOn, POLL_MS, cadenceLine, shouldPoll, syncPairOnce, tickableInRoom, willTrim } from '@/lib/ours-sync';
 import { whenValue, type WhenAnswer } from '@/lib/when';
@@ -329,6 +330,7 @@ export default function OursListScreen() {
       const chosen = wantedId ? (all.find((p) => p?.pairId === wantedId) ?? null) : (held ?? live);
       openId.current = chosen?.pairId ?? null;
       setPair(chosen);
+      if (chosen && !wantedId) rememberOursName(chosen.name?.trim() ?? '');
       if (!chosen) {
         debugLog('sync', { call, stop: 'no-pair', live: Boolean(live), frozen: frozen.length });
         return setLoaded(true);
@@ -737,7 +739,11 @@ export default function OursListScreen() {
   const removed = tasks
     .filter((task) => task.deletedAt != null && nowMs() - task.deletedAt < RECENTLY_REMOVED_MS)
     .sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0));
-  const listName = pair?.name?.trim() || t('ours.defaultName');
+  // Before the pair has loaded, the name Today already knew. Falling back to the default here showed
+  // "La nostra lista" for a beat and then flipped to the household's own name, which read as the app
+  // switching language (Melroy, on Italian, 2026-09-26). The default is only for a list with no name.
+  const [handedName] = useState(knownOursName);
+  const listName = pair ? pair.name?.trim() || t('ours.defaultName') : handedName || t('ours.defaultName');
   // The Today · Ours heading is for the LIVE list, the one Today's heading switches to. A closed list
   // opened from the archive (?pair=) keeps its own title and back link: the Ours word means the live list.
   const tabbed = !frozen && !wantedId;

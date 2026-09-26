@@ -738,7 +738,7 @@ export function TaskRow({
         </View>
         {theme.appearance !== 'quiet' && (
           <View style={styles.track}>
-            <View style={{ flex: slices.done, backgroundColor: theme.colors.done }} />
+            <View style={{ flex: slices.done, backgroundColor: theme.colors.accent }} />
             <View style={{ flex: rest }} />
           </View>
         )}
@@ -981,12 +981,12 @@ const makeStyles = (t: Theme) => {
     confirmTitleEditable: { textDecorationLine: 'underline', textDecorationColor: t.colors.inkFaint },
     confirmTitleInput: { paddingVertical: 0, borderBottomWidth: border.hair, borderColor: t.colors.accent },
     doneTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, paddingHorizontal: spacing.two, paddingBottom: spacing.one },
-    doneCheck: { color: t.colors.done, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    doneCheck: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     titleLine: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.two },
     titleGrow: { flexShrink: 1 },
     titleCount: { ...t.type.label, color: t.colors.inkSoft, paddingTop: 2 },
     titleCountLive: { color: t.colors.accent },
-    confirmTitleDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through', paddingHorizontal: 0, paddingBottom: 0, flexShrink: 1 },
+    confirmTitleDone: { color: t.colors.inkSoft, paddingHorizontal: 0, paddingBottom: 0, flexShrink: 1 },
     // The done card's inscription: the serif voice (like Today's rotating line), above the shelf.
     doneIsDone: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', textAlign: 'center', paddingTop: spacing.two, paddingBottom: spacing.one },
     // Every held-card action is a full-width row: label left, a quiet sub-label / state right. Content-sized
@@ -1110,7 +1110,9 @@ const makeStyles = (t: Theme) => {
     selectDotOn: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
     tick: { color: t.colors.onAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', lineHeight: 17 * t.scale },
     text: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale, userSelect: 'none' },
-    textDone: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
+    // Ticked, not ALSO struck through: one sign is enough, and a struck line is harder to read (the Today v3
+    // feedback, 2026-09-26). Soft ink says done while keeping the words legible.
+    textDone: { color: t.colors.inkSoft },
     repeatMark: { color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     heldDot: { width: 8, height: 8, borderRadius: 999, backgroundColor: t.colors.accent, marginLeft: 6, alignSelf: 'center' },
     heldLabel: { color: t.colors.accent },
