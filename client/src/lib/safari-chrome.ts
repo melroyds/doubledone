@@ -10,8 +10,10 @@
 // home-screen app has no browser chrome at all, and the store app measures its keyboard exactly, so
 // neither needs it. Android's Chrome resizes the page around the keyboard (interactive-widget).
 
-/** Room kept below a bottom-anchored control for a browser's floating chrome over the keyboard (points). */
-export const SAFARI_KEYBOARD_ADDRESS_CLEAR = 44;
+/** Room kept below a bottom-anchored control for a browser's floating chrome over the keyboard (points).
+ *  Measured off Melroy's iPhone 16e in Safari (2026-09-27): the label spans about 12 to 40 above the
+ *  keyboard's bar, and the panel's foot sits a little under that bar, so 44 still grazed Add. */
+export const SAFARI_KEYBOARD_ADDRESS_CLEAR = 56;
 
 /** Whether this page is in an iPhone browser tab, where browser chrome can float over the keyboard's edge. */
 export function hasSafariKeyboardAddressBar(userAgent: string, standalone: boolean): boolean {

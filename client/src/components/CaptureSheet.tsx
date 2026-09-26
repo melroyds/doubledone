@@ -422,7 +422,9 @@ const makeStyles = (t: Theme) => {
     panelLift: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
     diag: { fontSize: 10, lineHeight: 13, color: t.colors.ink, backgroundColor: t.colors.bg, padding: 4, borderRadius: 4 },
     panel: {
-      backgroundColor: t.colors.surfaceCard,
+      // Solid, not surfaceCard: that one is translucent so cards show the living background, and a panel
+      // lying over the list let the rows and the hint show through it (Melroy's iPhone, 2026-09-27).
+      backgroundColor: t.colors.surface,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderColor: t.colors.line,
       borderTopLeftRadius: 24,
