@@ -8,8 +8,8 @@
 // dark. There is deliberately no image morph from the card, and no parallax: movement to track.
 
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, Easing, Image, Platform, Pressable, type StyleProp, StyleSheet, Text, type TextStyle, View } from 'react-native';
 
 import { fonts, layout, PRESSED_OPACITY, spacing, type Theme } from '@/constants/theme';
 import { t } from '@/lib/locale';
@@ -101,6 +101,16 @@ export function RoomHead({ art, title, hint }: { art?: number; title: string; hi
 }
 
 /**
+ * How a room explains itself, in one voice. Routines' empty line, the Rhythms intro and Repeating's empty
+ * line were all Atkinson but at two sizes and two inks, so they read as two people talking. Every room
+ * explanation now uses this: Atkinson 15, line-height 1.55, soft ink. Spacing belongs to the caller.
+ */
+export function RoomIntro({ children, style }: { children: ReactNode; style?: StyleProp<TextStyle> }) {
+  const styles = useThemedStyles(makeStyles);
+  return <Text style={[styles.intro, style]}>{children}</Text>;
+}
+
+/**
  * The arrival: the room fades in and rises 8pt over 180ms, the same as the contents page opening. Under
  * reduced motion, a 90ms fade and nothing moves. Returns the style for the scroll's content.
  */
@@ -135,4 +145,5 @@ const makeStyles = (t: Theme) =>
     bandImage: { width: '100%', height: '100%' },
     title: { color: t.colors.ink, fontSize: 34 * t.scale, lineHeight: 37 * t.scale, fontFamily: fonts.sans, fontWeight: '400', marginTop: 18 },
     hint: { color: t.colors.inkSoft, fontSize: 15 * t.scale, lineHeight: 22 * t.scale, fontFamily: fonts.body, marginTop: 6 },
+    intro: { color: t.colors.inkSoft, fontSize: 15 * t.scale, lineHeight: 15 * 1.55 * t.scale, fontFamily: fonts.body },
   });

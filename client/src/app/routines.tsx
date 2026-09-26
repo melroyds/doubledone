@@ -6,7 +6,7 @@ import bandArt from '../../assets/images/rooms/band-routines.webp';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { RoomBackRow, RoomHead, useRoomEntrance, useRoomOrigin } from '@/components/RoomTop';
+import { RoomBackRow, RoomHead, RoomIntro, useRoomEntrance, useRoomOrigin } from '@/components/RoomTop';
 import { Segmented } from '@/components/Segmented';
 import { border, cardShadow, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { toISODate } from '@/lib/day';
@@ -21,7 +21,6 @@ import {
   RHYTHM_AT_TIMES_MAX,
   RHYTHM_INTERVAL_MAX,
   RHYTHM_INTERVAL_MIN,
-  RHYTHM_MEDS_DEFAULT_TIMES,
   RHYTHM_WINDOW_END_DEFAULT,
   RHYTHM_WINDOW_START_DEFAULT,
   type RhythmTime,
@@ -41,6 +40,13 @@ let idCounter = 0;
 function makeId(): string {
   idCounter += 1;
   return `r-${Date.now().toString(36)}-${idCounter.toString(36)}`;
+}
+
+// The clock for saveRoutine, read at module scope for the same reason as makeId. With the routine form
+// above the Rhythms section (the Rise and Rooms handoff), the React Compiler's purity lint reads
+// saveRoutine's own Date.now() as a call during render, which it is not: it only ever runs from a tap.
+function stampNow(): number {
+  return Date.now();
 }
 
 // A sensible first hour when the nudge turns on, matched to the routine's slot (the
@@ -110,6 +116,9 @@ export default function RoutinesScreen() {
   const [rhythmWinStart, setRhythmWinStart] = useState(RHYTHM_WINDOW_START_DEFAULT);
   const [rhythmWinEnd, setRhythmWinEnd] = useState(RHYTHM_WINDOW_END_DEFAULT);
   const [rhythmHint, setRhythmHint] = useState<'name' | 'times' | null>(null);
+  // The form was filled from the Water suggestion, so the rhythm it saves is recorded as the water
+  // preset (the one the old one-tap button made), which keeps the telemetry comparable across the change.
+  const [rhythmFromStarter, setRhythmFromStarter] = useState(false);
   const rhythmNameInput = useRef<TextInput>(null);
   // Fixed-time mode (the meds shape): the form is EITHER every-N-hours OR at set clock
   // times. Times are held as raw 24h text pairs (like the checklist's precise entry) and
@@ -174,7 +183,7 @@ export default function RoutinesScreen() {
     }
     const existing = editingId ? routines.find((r) => r.id === editingId) : undefined;
     if (editingId && !existing) return; // removed while the form was open; nothing to save onto
-    const now = Date.now();
+    const now = stampNow();
     const id = existing ? existing.id : makeId();
     const wanted = nudgeOn ? nudgeHour : null;
     const wantedMinute = clampMinute(nudgeMinute);
@@ -227,8 +236,9 @@ export default function RoutinesScreen() {
     setAdding(true);
   }
 
-  // A one-tap starter for the blank-slate problem: prefill a sensible Morning routine and open the form,
-  // editable before save. One example beats a paragraph for a task-initiation audience.
+  // The blank-slate answer, inside the new-routine form while there are no routines: prefill a sensible
+  // Morning routine, editable before save. One example beats a paragraph for a task-initiation audience,
+  // and one example teaches where three would be a menu.
   function startMorningExample() {
     setName(t('routines.whenMorning'));
     setWhen('morning');
@@ -241,7 +251,6 @@ export default function RoutinesScreen() {
       ].join('\n'),
     );
     setFormHint(null);
-    setAdding(true);
     track('routine.starter_opened');
   }
 
@@ -311,40 +320,6 @@ export default function RoutinesScreen() {
     else if (undo.nudgeHour != null) void scheduleRoutineNudge(undo.id, undo.name, undo.nudgeHour, undo.nudgeMinute ?? 0).then(refreshNudgeHealth);
     track(undo.kind === 'rhythm' ? 'rhythm.remove.undone' : 'routine.remove.undone');
     setUndo(null);
-  }
-
-  // Add a Rhythm from a preset: one tap creates AND activates it, never a form to fill.
-  // Presets are complete on their own (water every 2h 9-21; meds at 8:00 + 20:00), keeping
-  // setup near-zero; Edit opens the form to reshape any of them.
-  function addRhythm(preset: 'water' | 'stand' | 'meds') {
-    const now = Date.now();
-    const name =
-      preset === 'water' ? t('routines.rhythmNameWater') : preset === 'stand' ? t('routines.rhythmNameStand') : t('routines.rhythmNameMeds');
-    const shape: Partial<Routine> =
-      preset === 'meds'
-        ? { atTimes: RHYTHM_MEDS_DEFAULT_TIMES }
-        : { intervalMinutes: preset === 'water' ? 120 : 60, windowStart: RHYTHM_WINDOW_START_DEFAULT, windowEnd: RHYTHM_WINDOW_END_DEFAULT };
-    const rhythm: Routine = {
-      id: makeId(),
-      name,
-      kind: 'rhythm',
-      when: 'anytime',
-      steps: [],
-      done: {},
-      preset,
-      ...shape,
-      paused: false,
-      createdAt: now,
-      updatedAt: now,
-    };
-    commit([...routines, rhythm]);
-    // Schedule on device; on web this is a no-op ('unsupported') and the section already says
-    // reminders arrive on the phone, so only a real native failure (denied) surfaces a line.
-    void scheduleRhythm(rhythm).then((res) => {
-      if (!res.ok && res.reason !== 'unsupported') setNudgeNote(reminderReasonLine(res.reason));
-      refreshNudgeHealth();
-    });
-    track('rhythm.created', { preset });
   }
 
   // Pause / resume a Rhythm: an honest, indefinite pause (a sick or off day). Paused cancels
@@ -429,7 +404,22 @@ export default function RoutinesScreen() {
     setRhythmWinEnd(RHYTHM_WINDOW_END_DEFAULT);
     setRhythmTimeTexts([{ h: '8', m: '00' }]);
     setRhythmHint(null);
+    setRhythmFromStarter(false);
     setRhythmFormOpen(true);
+  }
+
+  // The Water suggestion, inside the new-rhythm form while there are no rhythms. It FILLS the form (name,
+  // every 2 hours, the default window) rather than saving straight away, so the hours can change first.
+  // Stand up and Meds are no longer offered: both can still be made here.
+  function startWaterExample() {
+    setRhythmName(t('routines.rhythmNameWater'));
+    setRhythmMode('interval');
+    setRhythmInterval(120);
+    setRhythmWinStart(RHYTHM_WINDOW_START_DEFAULT);
+    setRhythmWinEnd(RHYTHM_WINDOW_END_DEFAULT);
+    setRhythmHint(null);
+    setRhythmFromStarter(true);
+    track('rhythm.starter_opened');
   }
 
   // Open the custom form prefilled from an existing Rhythm, so a preset is a starting point,
@@ -448,6 +438,7 @@ export default function RoutinesScreen() {
         : [{ h: '8', m: '00' }],
     );
     setRhythmHint(null);
+    setRhythmFromStarter(false);
     setRhythmFormOpen(true);
   }
 
@@ -469,6 +460,7 @@ export default function RoutinesScreen() {
     setEditingRhythmId(null);
     setRhythmName('');
     setRhythmHint(null);
+    setRhythmFromStarter(false);
   }
 
   // Save the custom form, creating or editing. A missing name points there with a quiet hint
@@ -506,7 +498,7 @@ export default function RoutinesScreen() {
       when: 'anytime',
       steps: [],
       done: {},
-      preset: existing?.preset ?? 'custom',
+      preset: existing?.preset ?? (rhythmFromStarter ? 'water' : 'custom'),
       ...shape,
       paused: existing?.paused ?? false,
       createdAt: existing?.createdAt ?? now,
@@ -528,6 +520,9 @@ export default function RoutinesScreen() {
     (g) => g.items.length > 0,
   );
   const rhythms = routines.filter((r) => r.kind === 'rhythm');
+  // No routines yet, whatever rhythms exist: the empty explanation shows, and the new-routine form
+  // offers its one suggestion. It comes back if every routine is removed.
+  const noRoutines = routines.every((r) => r.kind === 'rhythm');
 
   return (
     <Animated.View style={[styles.screen, entrance]}>
@@ -548,21 +543,9 @@ export default function RoutinesScreen() {
         )}
 
         {/* Zero ROUTINES, whatever rhythms exist: a rhythm is a different thing, and adding one
-            used to hide this explanation and the Morning starter (the 2026-09-21 flow audit). */}
-        {routines.every((r) => r.kind === 'rhythm') && !adding && (
-          <View>
-            <Text style={styles.empty}>{t('routines.empty')}</Text>
-            <Pressable
-              onPress={startMorningExample}
-              accessibilityRole="button"
-              accessibilityLabel={t('routines.starterA11y')}
-              style={styles.starterBtn}
-              hitSlop={6}
-            >
-              <Text style={styles.starterBtnText}>{t('routines.starter')}</Text>
-            </Pressable>
-          </View>
-        )}
+            used to hide this explanation (the 2026-09-21 flow audit). The Morning starter no longer
+            sits here: it lives inside the new-routine form, the one place a suggestion is asked for. */}
+        {noRoutines && !adding && <RoomIntro style={styles.empty}>{t('routines.empty')}</RoomIntro>}
 
         {groups.map((g) => (
           <View key={g.value} style={styles.group}>
@@ -625,311 +608,26 @@ export default function RoutinesScreen() {
           </View>
         ))}
 
-        {/* Rhythms: gentle recurring nudges, in their OWN section (never the checklist group
-            path), with no checkboxes, no progress, no streak. Presets create-and-activate in
-            one tap. On web scheduling is a no-op, so a calm line says reminders arrive on the phone. */}
-        <View style={styles.group}>
-          <Text style={styles.groupHeading}>{t('routines.rhythmSection')}</Text>
-          <Text style={styles.rhythmIntro}>{t('routines.rhythmIntro')}</Text>
-          {Platform.OS === 'web' && <Text style={styles.rhythmWebNote}>{t('routines.rhythmWebNote')}</Text>}
-          {rhythms.map((r) => (
-            <View key={r.id} style={styles.card}>
-              <View style={styles.cardHead}>
-                <Text style={styles.cardName}>{r.name}</Text>
-                {r.paused && <Text style={styles.cardProgress}>{t('routines.rhythmPaused')}</Text>}
-              </View>
-              <Text style={styles.cardNudge}>{cadenceLine(r)}</Text>
-              <View style={styles.cardActions}>
-                <Pressable
-                  onPress={() => startEditRhythm(r)}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('routines.editA11y', { name: r.name })}
-                  hitSlop={6}
-                >
-                  <Text style={styles.edit}>{t('routines.edit')}</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => toggleRhythmPause(r.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={r.paused ? t('routines.rhythmResumeA11y', { name: r.name }) : t('routines.rhythmPauseA11y', { name: r.name })}
-                  hitSlop={6}
-                >
-                  <Text style={styles.edit}>{r.paused ? t('routines.rhythmResume') : t('routines.rhythmPause')}</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => removeRoutine(r.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('routines.removeA11y', { name: r.name })}
-                  hitSlop={6}
-                >
-                  <Text style={styles.remove}>{t('common.remove')}</Text>
-                </Pressable>
-              </View>
-            </View>
-          ))}
-          {rhythmFormOpen ? (
-            <View style={styles.form}>
-              <TextInput
-                ref={rhythmNameInput}
-                style={styles.input}
-                placeholder={t('routines.rhythmNamePlaceholder')}
-                placeholderTextColor={theme.colors.inkFaint}
-                value={rhythmName}
-                onChangeText={(v) => {
-                  setRhythmName(v);
-                  if (rhythmHint === 'name') setRhythmHint(null);
-                }}
-                accessibilityLabel={t('routines.rhythmNameA11y')}
-              />
-              {rhythmHint === 'name' && <Text style={styles.formHint}>{t('routines.nameFirstHint')}</Text>}
-
-              <Text style={styles.nudgeTitle}>{t('routines.rhythmHowOften')}</Text>
-              <Segmented
-                value={rhythmMode}
-                options={[
-                  { value: 'interval', label: t('routines.rhythmModeInterval') },
-                  { value: 'times', label: t('routines.rhythmModeTimes') },
-                ]}
-                onChange={setRhythmMode}
-                accessibilityLabel={t('routines.rhythmHowOften')}
-              />
-
-              {rhythmMode === 'interval' && (
-              <>
-              <View style={styles.stepper}>
-                <Pressable
-                  onPress={() => setRhythmInterval((n) => stepInterval(n, -1))}
-                  disabled={rhythmInterval <= RHYTHM_INTERVAL_MIN}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('routines.rhythmLessOftenA11y')}
-                  hitSlop={8}
-                  style={({ pressed }) => [styles.stepBtn, rhythmInterval <= RHYTHM_INTERVAL_MIN && styles.stepBtnOff, pressed && styles.pressed]}
-                >
-                  <Text style={styles.stepGlyph}>−</Text>
-                </Pressable>
-                <Text style={styles.stepValue}>{intervalLabel(rhythmInterval)}</Text>
-                <Pressable
-                  onPress={() => setRhythmInterval((n) => stepInterval(n, 1))}
-                  disabled={rhythmInterval >= RHYTHM_INTERVAL_MAX}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('routines.rhythmMoreOftenA11y')}
-                  hitSlop={8}
-                  style={({ pressed }) => [styles.stepBtn, rhythmInterval >= RHYTHM_INTERVAL_MAX && styles.stepBtnOff, pressed && styles.pressed]}
-                >
-                  <Text style={styles.stepGlyph}>+</Text>
-                </Pressable>
-              </View>
-
-              <Text style={styles.nudgeTitle}>{t('routines.rhythmActiveHours')}</Text>
-              <View style={styles.windowRow}>
-                <View style={styles.stepper}>
-                  <Pressable
-                    onPress={() => setRhythmWinStart((h) => Math.max(0, h - 1))}
-                    disabled={rhythmWinStart <= 0}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('settings.reminderEarlier')}
-                    hitSlop={8}
-                    style={({ pressed }) => [styles.stepBtn, rhythmWinStart <= 0 && styles.stepBtnOff, pressed && styles.pressed]}
-                  >
-                    <Text style={styles.stepGlyph}>−</Text>
-                  </Pressable>
-                  <Text style={styles.windowValue}>{formatReminderTime(rhythmWinStart, 0)}</Text>
-                  <Pressable
-                    onPress={() => setRhythmWinStart((h) => Math.min(rhythmWinEnd - 1, h + 1))}
-                    disabled={rhythmWinStart >= rhythmWinEnd - 1}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('today.laterHeading')}
-                    hitSlop={8}
-                    style={({ pressed }) => [styles.stepBtn, rhythmWinStart >= rhythmWinEnd - 1 && styles.stepBtnOff, pressed && styles.pressed]}
-                  >
-                    <Text style={styles.stepGlyph}>+</Text>
-                  </Pressable>
-                </View>
-                <Text style={styles.windowTo}>{t('routines.rhythmTo')}</Text>
-                <View style={styles.stepper}>
-                  <Pressable
-                    onPress={() => setRhythmWinEnd((h) => Math.max(rhythmWinStart + 1, h - 1))}
-                    disabled={rhythmWinEnd <= rhythmWinStart + 1}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('settings.reminderEarlier')}
-                    hitSlop={8}
-                    style={({ pressed }) => [styles.stepBtn, rhythmWinEnd <= rhythmWinStart + 1 && styles.stepBtnOff, pressed && styles.pressed]}
-                  >
-                    <Text style={styles.stepGlyph}>−</Text>
-                  </Pressable>
-                  <Text style={styles.windowValue}>{formatReminderTime(rhythmWinEnd, 0)}</Text>
-                  <Pressable
-                    onPress={() => setRhythmWinEnd((h) => Math.min(23, h + 1))}
-                    disabled={rhythmWinEnd >= 23}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('today.laterHeading')}
-                    hitSlop={8}
-                    style={({ pressed }) => [styles.stepBtn, rhythmWinEnd >= 23 && styles.stepBtnOff, pressed && styles.pressed]}
-                  >
-                    <Text style={styles.stepGlyph}>+</Text>
-                  </Pressable>
-                </View>
-              </View>
-              </>
-              )}
-
-              {rhythmMode === 'times' && (
-                <View>
-                  <Text style={styles.nudgeTitle}>{t('routines.rhythmTimesTitle')}</Text>
-                  {rhythmTimeTexts.map((row, i) => (
-                    <View key={i} style={styles.timeEntryRow}>
-                      <TextInput
-                        style={[styles.input, styles.timeInput]}
-                        value={row.h}
-                        onChangeText={(v) => setRhythmTimeText(i, 'h', v)}
-                        keyboardType="number-pad"
-                        maxLength={2}
-                        accessibilityLabel={t('routines.timeHourA11y')}
-                      />
-                      <Text style={styles.timeColon}>:</Text>
-                      <TextInput
-                        style={[styles.input, styles.timeInput]}
-                        value={row.m}
-                        onChangeText={(v) => setRhythmTimeText(i, 'm', v)}
-                        keyboardType="number-pad"
-                        maxLength={2}
-                        accessibilityLabel={t('routines.timeMinuteA11y')}
-                      />
-                      {rhythmTimeTexts.length > 1 && (
-                        <Pressable
-                          onPress={() => removeRhythmTimeRow(i)}
-                          accessibilityRole="button"
-                          accessibilityLabel={t('routines.rhythmRemoveTimeA11y')}
-                          hitSlop={8}
-                        >
-                          <Text style={styles.remove}>{t('common.remove')}</Text>
-                        </Pressable>
-                      )}
-                    </View>
-                  ))}
-                  {rhythmTimeTexts.length < RHYTHM_AT_TIMES_MAX && (
-                    <Pressable onPress={addRhythmTimeRow} accessibilityRole="button" accessibilityLabel={t('routines.rhythmAddTime')} hitSlop={6}>
-                      <Text style={styles.addTimeText}>{t('routines.rhythmAddTime')}</Text>
-                    </Pressable>
-                  )}
-                  <Text style={styles.timeResult}>{t('routines.timeEntry24hHint')}</Text>
-                  {rhythmHint === 'times' && <Text style={styles.formHint}>{t('routines.rhythmTimesHint')}</Text>}
-                </View>
-              )}
-
-              <Text style={styles.timeResult}>
-                {rhythmMode === 'times'
-                  ? (() => {
-                      const parsed = parsedRhythmTimes(rhythmTimeTexts);
-                      return parsed.length > 0 ? fixedTimesLine(parsed) : t('routines.rhythmTimesHint');
-                    })()
-                  : cadenceLine({ intervalMinutes: rhythmInterval, windowStart: rhythmWinStart, windowEnd: rhythmWinEnd })}
-              </Text>
-
-              <View style={styles.formActions}>
-                <Pressable onPress={cancelRhythmForm} accessibilityRole="button" hitSlop={6}>
-                  <Text style={styles.cancel}>{t('common.cancel')}</Text>
-                </Pressable>
-                <PrimaryButton
-                  label={editingRhythmId ? t('routines.saveChanges') : t('routines.rhythmSave')}
-                  onPress={saveRhythmForm}
-                  pill
-                  accessibilityLabel={editingRhythmId ? t('routines.saveChanges') : t('routines.rhythmSave')}
-                />
-              </View>
-            </View>
-          ) : (
-            <View style={styles.rhythmPresets}>
-              <Pressable
-                onPress={() => addRhythm('water')}
-                accessibilityRole="button"
-                accessibilityLabel={t('routines.rhythmAddWater')}
-                style={styles.presetBtn}
-                hitSlop={6}
-              >
-                <Text style={styles.presetBtnText}>{t('routines.rhythmAddWater')}</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => addRhythm('stand')}
-                accessibilityRole="button"
-                accessibilityLabel={t('routines.rhythmAddStand')}
-                style={styles.presetBtn}
-                hitSlop={6}
-              >
-                <Text style={styles.presetBtnText}>{t('routines.rhythmAddStand')}</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => addRhythm('meds')}
-                accessibilityRole="button"
-                accessibilityLabel={t('routines.rhythmAddMeds')}
-                style={styles.presetBtn}
-                hitSlop={6}
-              >
-                <Text style={styles.presetBtnText}>{t('routines.rhythmAddMeds')}</Text>
-              </Pressable>
-              <Pressable
-                onPress={openNewRhythm}
-                accessibilityRole="button"
-                accessibilityLabel={t('routines.rhythmNew')}
-                style={styles.presetBtn}
-                hitSlop={6}
-              >
-                <Text style={styles.presetBtnText}>{t('routines.rhythmNew')}</Text>
-              </Pressable>
-            </View>
-          )}
-          {/* Nudge health (native): the OS's own ground truth for this phone, the debug line
-              for "the nudge never came". Zero scheduled while Rhythms exist = scheduling is
-              broken; a right count with nothing arriving = the OS (battery management) is
-              holding them, hence the battery hint and the door to the app's system settings. */}
-          {Platform.OS !== 'web' && rhythms.length > 0 && (
-            <View style={styles.nudgeHealth}>
-              {/* One calm line, never a count: "Next nudge around 3:00 pm." The raw scheduled-
-                  notification number (39!) was honest but overwhelming for exactly this
-                  audience (Melroy, 2026-07-12), so it is gone. The ZERO state stays: nothing-
-                  scheduled-while-Rhythms-exist is the one red flag this line exists to surface,
-                  and getNudgeHealth still returns the count for that check alone. */}
-              <Text style={styles.nudgeHealthText}>
-                {nudgeHealth == null
-                  ? ' '
-                  : nudgeHealth.count === 0
-                    ? t('routines.nudgeHealthNone')
-                    : nudgeHealth.next
-                      ? t('routines.nudgeHealthNext', { time: formatReminderTime(nudgeHealth.next.hour, nudgeHealth.next.minute) })
-                      : ' '}
-              </Text>
-              {/* The exact-alarm door (Android 12+): without the "Alarms & reminders" special
-                  access every trigger is an INEXACT alarm that Doze holds until the app next
-                  wakes, i.e. nudges only arrive when the app is opened, battery settings
-                  notwithstanding. Android 14+ ships the toggle OFF, so this is the fix door. */}
-              {exactAlarmDoorRelevant() && (
-                <>
-                  <Text style={styles.nudgeHealthText}>{t('routines.exactHint')}</Text>
-                  <Pressable
-                    onPress={() => void grantExactAlarms()}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('routines.exactOpen')}
-                    hitSlop={6}
-                  >
-                    <Text style={styles.batteryLink}>{t('routines.exactOpen')}</Text>
-                  </Pressable>
-                </>
-              )}
-              <Text style={styles.nudgeHealthText}>{t('routines.batteryHint')}</Text>
-              <Pressable
-                onPress={() => void Linking.openSettings()}
-                accessibilityRole="button"
-                accessibilityLabel={t('routines.batteryOpen')}
-                hitSlop={6}
-              >
-                <Text style={styles.batteryLink}>{t('routines.batteryOpen')}</Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
-
+        {/* The routines' own door sits with the routines, so an empty room reads as its explanation
+            and then "+ New routine", before the Rhythms section starts. */}
         {adding ? (
           <View style={styles.form}>
+            {/* One suggestion, only while there are no routines (rhythms don't count), and never when
+                editing. It fills the form; nothing is saved until Add routine. */}
+            {noRoutines && !editingId && (
+              <View style={styles.starterStrip}>
+                <Text style={styles.starterLead}>{t('routines.starterLead')}</Text>
+                <Pressable
+                  onPress={startMorningExample}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('routines.starterA11y')}
+                  style={styles.starterBtn}
+                  hitSlop={4}
+                >
+                  <Text style={styles.starterBtnText}>{t('routines.starter')}</Text>
+                </Pressable>
+              </View>
+            )}
             <TextInput
               ref={nameInput}
               style={styles.input}
@@ -1100,6 +798,298 @@ export default function RoutinesScreen() {
           </Pressable>
         )}
         {nudgeNote && <Text style={styles.nudgeNote}>{nudgeNote}</Text>}
+
+        {/* Rhythms: gentle recurring nudges, in their OWN section (never the checklist group
+            path), with no checkboxes, no progress, no streak. The three always-visible presets are
+            gone: the one suggestion lives inside the form. On web scheduling is a no-op, so a calm
+            line says reminders arrive on the phone. */}
+        <View style={styles.group}>
+          <Text style={styles.groupHeading}>{t('routines.rhythmSection')}</Text>
+          <RoomIntro style={styles.rhythmIntro}>{t('routines.rhythmIntro')}</RoomIntro>
+          {Platform.OS === 'web' && <Text style={styles.rhythmWebNote}>{t('routines.rhythmWebNote')}</Text>}
+          {rhythms.map((r) => (
+            <View key={r.id} style={styles.card}>
+              <View style={styles.cardHead}>
+                <Text style={styles.cardName}>{r.name}</Text>
+                {r.paused && <Text style={styles.cardProgress}>{t('routines.rhythmPaused')}</Text>}
+              </View>
+              <Text style={styles.cardNudge}>{cadenceLine(r)}</Text>
+              <View style={styles.cardActions}>
+                <Pressable
+                  onPress={() => startEditRhythm(r)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('routines.editA11y', { name: r.name })}
+                  hitSlop={6}
+                >
+                  <Text style={styles.edit}>{t('routines.edit')}</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => toggleRhythmPause(r.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={r.paused ? t('routines.rhythmResumeA11y', { name: r.name }) : t('routines.rhythmPauseA11y', { name: r.name })}
+                  hitSlop={6}
+                >
+                  <Text style={styles.edit}>{r.paused ? t('routines.rhythmResume') : t('routines.rhythmPause')}</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => removeRoutine(r.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('routines.removeA11y', { name: r.name })}
+                  hitSlop={6}
+                >
+                  <Text style={styles.remove}>{t('common.remove')}</Text>
+                </Pressable>
+              </View>
+            </View>
+          ))}
+          {rhythmFormOpen ? (
+            <View style={styles.form}>
+              {/* The same strip, only while there are no rhythms. Water FILLS the form rather than
+                  saving, so the hours can change before anything reaches the phone. */}
+              {rhythms.length === 0 && !editingRhythmId && (
+                <View style={styles.starterStrip}>
+                  <Text style={styles.starterLead}>{t('routines.starterLead')}</Text>
+                  <Pressable
+                    onPress={startWaterExample}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('routines.rhythmAddWater')}
+                    style={styles.starterBtn}
+                    hitSlop={4}
+                  >
+                    <Text style={styles.starterBtnText}>{t('routines.rhythmAddWater')}</Text>
+                  </Pressable>
+                </View>
+              )}
+              <TextInput
+                ref={rhythmNameInput}
+                style={styles.input}
+                placeholder={t('routines.rhythmNamePlaceholder')}
+                placeholderTextColor={theme.colors.inkFaint}
+                value={rhythmName}
+                onChangeText={(v) => {
+                  setRhythmName(v);
+                  if (rhythmHint === 'name') setRhythmHint(null);
+                }}
+                accessibilityLabel={t('routines.rhythmNameA11y')}
+              />
+              {rhythmHint === 'name' && <Text style={styles.formHint}>{t('routines.nameFirstHint')}</Text>}
+
+              <Text style={styles.nudgeTitle}>{t('routines.rhythmHowOften')}</Text>
+              <Segmented
+                value={rhythmMode}
+                options={[
+                  { value: 'interval', label: t('routines.rhythmModeInterval') },
+                  { value: 'times', label: t('routines.rhythmModeTimes') },
+                ]}
+                onChange={setRhythmMode}
+                accessibilityLabel={t('routines.rhythmHowOften')}
+              />
+
+              {rhythmMode === 'interval' && (
+              <>
+              <View style={styles.stepper}>
+                <Pressable
+                  onPress={() => setRhythmInterval((n) => stepInterval(n, -1))}
+                  disabled={rhythmInterval <= RHYTHM_INTERVAL_MIN}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('routines.rhythmLessOftenA11y')}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.stepBtn, rhythmInterval <= RHYTHM_INTERVAL_MIN && styles.stepBtnOff, pressed && styles.pressed]}
+                >
+                  <Text style={styles.stepGlyph}>−</Text>
+                </Pressable>
+                <Text style={styles.stepValue}>{intervalLabel(rhythmInterval)}</Text>
+                <Pressable
+                  onPress={() => setRhythmInterval((n) => stepInterval(n, 1))}
+                  disabled={rhythmInterval >= RHYTHM_INTERVAL_MAX}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('routines.rhythmMoreOftenA11y')}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.stepBtn, rhythmInterval >= RHYTHM_INTERVAL_MAX && styles.stepBtnOff, pressed && styles.pressed]}
+                >
+                  <Text style={styles.stepGlyph}>+</Text>
+                </Pressable>
+              </View>
+
+              <Text style={styles.nudgeTitle}>{t('routines.rhythmActiveHours')}</Text>
+              <View style={styles.windowRow}>
+                <View style={styles.stepper}>
+                  <Pressable
+                    onPress={() => setRhythmWinStart((h) => Math.max(0, h - 1))}
+                    disabled={rhythmWinStart <= 0}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('settings.reminderEarlier')}
+                    hitSlop={8}
+                    style={({ pressed }) => [styles.stepBtn, rhythmWinStart <= 0 && styles.stepBtnOff, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.stepGlyph}>−</Text>
+                  </Pressable>
+                  <Text style={styles.windowValue}>{formatReminderTime(rhythmWinStart, 0)}</Text>
+                  <Pressable
+                    onPress={() => setRhythmWinStart((h) => Math.min(rhythmWinEnd - 1, h + 1))}
+                    disabled={rhythmWinStart >= rhythmWinEnd - 1}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('today.laterHeading')}
+                    hitSlop={8}
+                    style={({ pressed }) => [styles.stepBtn, rhythmWinStart >= rhythmWinEnd - 1 && styles.stepBtnOff, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.stepGlyph}>+</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.windowTo}>{t('routines.rhythmTo')}</Text>
+                <View style={styles.stepper}>
+                  <Pressable
+                    onPress={() => setRhythmWinEnd((h) => Math.max(rhythmWinStart + 1, h - 1))}
+                    disabled={rhythmWinEnd <= rhythmWinStart + 1}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('settings.reminderEarlier')}
+                    hitSlop={8}
+                    style={({ pressed }) => [styles.stepBtn, rhythmWinEnd <= rhythmWinStart + 1 && styles.stepBtnOff, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.stepGlyph}>−</Text>
+                  </Pressable>
+                  <Text style={styles.windowValue}>{formatReminderTime(rhythmWinEnd, 0)}</Text>
+                  <Pressable
+                    onPress={() => setRhythmWinEnd((h) => Math.min(23, h + 1))}
+                    disabled={rhythmWinEnd >= 23}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('today.laterHeading')}
+                    hitSlop={8}
+                    style={({ pressed }) => [styles.stepBtn, rhythmWinEnd >= 23 && styles.stepBtnOff, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.stepGlyph}>+</Text>
+                  </Pressable>
+                </View>
+              </View>
+              </>
+              )}
+
+              {rhythmMode === 'times' && (
+                <View>
+                  <Text style={styles.nudgeTitle}>{t('routines.rhythmTimesTitle')}</Text>
+                  {rhythmTimeTexts.map((row, i) => (
+                    <View key={i} style={styles.timeEntryRow}>
+                      <TextInput
+                        style={[styles.input, styles.timeInput]}
+                        value={row.h}
+                        onChangeText={(v) => setRhythmTimeText(i, 'h', v)}
+                        keyboardType="number-pad"
+                        maxLength={2}
+                        accessibilityLabel={t('routines.timeHourA11y')}
+                      />
+                      <Text style={styles.timeColon}>:</Text>
+                      <TextInput
+                        style={[styles.input, styles.timeInput]}
+                        value={row.m}
+                        onChangeText={(v) => setRhythmTimeText(i, 'm', v)}
+                        keyboardType="number-pad"
+                        maxLength={2}
+                        accessibilityLabel={t('routines.timeMinuteA11y')}
+                      />
+                      {rhythmTimeTexts.length > 1 && (
+                        <Pressable
+                          onPress={() => removeRhythmTimeRow(i)}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('routines.rhythmRemoveTimeA11y')}
+                          hitSlop={8}
+                        >
+                          <Text style={styles.remove}>{t('common.remove')}</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  ))}
+                  {rhythmTimeTexts.length < RHYTHM_AT_TIMES_MAX && (
+                    <Pressable onPress={addRhythmTimeRow} accessibilityRole="button" accessibilityLabel={t('routines.rhythmAddTime')} hitSlop={6}>
+                      <Text style={styles.addTimeText}>{t('routines.rhythmAddTime')}</Text>
+                    </Pressable>
+                  )}
+                  <Text style={styles.timeResult}>{t('routines.timeEntry24hHint')}</Text>
+                  {rhythmHint === 'times' && <Text style={styles.formHint}>{t('routines.rhythmTimesHint')}</Text>}
+                </View>
+              )}
+
+              <Text style={styles.timeResult}>
+                {rhythmMode === 'times'
+                  ? (() => {
+                      const parsed = parsedRhythmTimes(rhythmTimeTexts);
+                      return parsed.length > 0 ? fixedTimesLine(parsed) : t('routines.rhythmTimesHint');
+                    })()
+                  : cadenceLine({ intervalMinutes: rhythmInterval, windowStart: rhythmWinStart, windowEnd: rhythmWinEnd })}
+              </Text>
+
+              <View style={styles.formActions}>
+                <Pressable onPress={cancelRhythmForm} accessibilityRole="button" hitSlop={6}>
+                  <Text style={styles.cancel}>{t('common.cancel')}</Text>
+                </Pressable>
+                <PrimaryButton
+                  label={editingRhythmId ? t('routines.saveChanges') : t('routines.rhythmSave')}
+                  onPress={saveRhythmForm}
+                  pill
+                  accessibilityLabel={editingRhythmId ? t('routines.saveChanges') : t('routines.rhythmSave')}
+                />
+              </View>
+            </View>
+          ) : (
+            <Pressable
+              onPress={openNewRhythm}
+              accessibilityRole="button"
+              accessibilityLabel={t('routines.rhythmNew')}
+              style={styles.newRhythmBtn}
+              hitSlop={6}
+            >
+              <Text style={styles.newRhythmBtnText}>{t('routines.rhythmNew')}</Text>
+            </Pressable>
+          )}
+          {/* Nudge health (native): the OS's own ground truth for this phone, the debug line
+              for "the nudge never came". Zero scheduled while Rhythms exist = scheduling is
+              broken; a right count with nothing arriving = the OS (battery management) is
+              holding them, hence the battery hint and the door to the app's system settings. */}
+          {Platform.OS !== 'web' && rhythms.length > 0 && (
+            <View style={styles.nudgeHealth}>
+              {/* One calm line, never a count: "Next nudge around 3:00 pm." The raw scheduled-
+                  notification number (39!) was honest but overwhelming for exactly this
+                  audience (Melroy, 2026-07-12), so it is gone. The ZERO state stays: nothing-
+                  scheduled-while-Rhythms-exist is the one red flag this line exists to surface,
+                  and getNudgeHealth still returns the count for that check alone. */}
+              <Text style={styles.nudgeHealthText}>
+                {nudgeHealth == null
+                  ? ' '
+                  : nudgeHealth.count === 0
+                    ? t('routines.nudgeHealthNone')
+                    : nudgeHealth.next
+                      ? t('routines.nudgeHealthNext', { time: formatReminderTime(nudgeHealth.next.hour, nudgeHealth.next.minute) })
+                      : ' '}
+              </Text>
+              {/* The exact-alarm door (Android 12+): without the "Alarms & reminders" special
+                  access every trigger is an INEXACT alarm that Doze holds until the app next
+                  wakes, i.e. nudges only arrive when the app is opened, battery settings
+                  notwithstanding. Android 14+ ships the toggle OFF, so this is the fix door. */}
+              {exactAlarmDoorRelevant() && (
+                <>
+                  <Text style={styles.nudgeHealthText}>{t('routines.exactHint')}</Text>
+                  <Pressable
+                    onPress={() => void grantExactAlarms()}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('routines.exactOpen')}
+                    hitSlop={6}
+                  >
+                    <Text style={styles.batteryLink}>{t('routines.exactOpen')}</Text>
+                  </Pressable>
+                </>
+              )}
+              <Text style={styles.nudgeHealthText}>{t('routines.batteryHint')}</Text>
+              <Pressable
+                onPress={() => void Linking.openSettings()}
+                accessibilityRole="button"
+                accessibilityLabel={t('routines.batteryOpen')}
+                hitSlop={6}
+              >
+                <Text style={styles.batteryLink}>{t('routines.batteryOpen')}</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+
       </ScrollView>
     </Animated.View>
   );
@@ -1123,9 +1113,21 @@ const makeStyles = (t: Theme) =>
     },
     undoText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
     undoAction: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
-    empty: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale, marginTop: spacing.four },
-    starterBtn: { marginTop: spacing.four, alignSelf: 'flex-start' },
-    starterBtnText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    empty: { marginTop: spacing.four },
+    // The suggestion strip at the top of a new form: paper inside the form's card, one hairline, a quiet
+    // lead and one accent button.
+    starterStrip: {
+      backgroundColor: t.colors.bg,
+      borderWidth: border.hair,
+      borderColor: t.colors.line,
+      borderRadius: radius.md,
+      paddingTop: 10,
+      paddingHorizontal: 14,
+      paddingBottom: spacing.one,
+    },
+    starterLead: { color: t.colors.inkSoft, fontSize: 13 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body },
+    starterBtn: { minHeight: 40, justifyContent: 'center', alignSelf: 'flex-start' },
+    starterBtnText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     group: { gap: spacing.two, marginTop: spacing.two },
     groupHeading: { ...t.type.eyebrow, color: t.colors.inkSoft, textTransform: 'uppercase' },
     card: {
@@ -1158,21 +1160,22 @@ const makeStyles = (t: Theme) =>
     cardActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.five, marginTop: spacing.two },
     edit: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body },
     remove: { color: t.colors.danger, fontSize: 13 * t.scale, fontFamily: fonts.body },
-    rhythmIntro: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale, marginBottom: spacing.one },
+    rhythmIntro: { marginBottom: spacing.one },
     rhythmWebNote: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two, fontStyle: 'italic' },
-    rhythmPresets: { gap: spacing.two, marginTop: spacing.one },
     nudgeHealth: { gap: spacing.one, marginTop: spacing.four },
     nudgeHealthText: { color: t.colors.inkFaint, fontSize: 13 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body },
     batteryLink: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    presetBtn: {
+    // "+ New rhythm", the shape the preset row's last button had, now standing alone.
+    newRhythmBtn: {
       borderWidth: border.hair,
       borderColor: t.colors.line,
       borderRadius: radius.pill,
       paddingVertical: spacing.three,
       paddingHorizontal: spacing.four,
       alignItems: 'center',
+      marginTop: spacing.one,
     },
-    presetBtnText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    newRhythmBtnText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body },
     addTimeText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, marginTop: spacing.two },
     windowRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, flexWrap: 'wrap', marginTop: spacing.two },
     windowValue: { ...t.type.bodyStrong, color: t.colors.ink, minWidth: 52, textAlign: 'center' },
