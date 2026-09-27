@@ -207,7 +207,7 @@ Description (45 max, 42 used):
 A year of scan, Pin, themes and scrapbook.
 ```
 
-Both descriptions name only features that exist in `client/src/lib/catalogs/en.ts`. Nothing promised that is not shipped. Quiet came out of both on 2026-09-27, when it became free for everyone, because a paid product's description must not sell a free feature. The live products still carry the older text, so both are edited by hand in App Store Connect. No build changes them.
+Both descriptions name only features that exist in `client/src/lib/catalogs/en.ts`. Nothing promised that is not shipped. Quiet came out of both on 2026-09-27, when it became free for everyone, because a paid product's description must not sell a free feature. **But these drafts were never what went live.** Checked in App Store Connect on 2026-09-27: the live monthly product reads Display Name `Premium`, Description `All Premium extras, billed monthly.`, which names no feature at all, so Quiet going free needed NO edit there. Leave an Approved product alone unless its live text is actually wrong, because any edit sends it back through review.
 
 ### Review notes
 
