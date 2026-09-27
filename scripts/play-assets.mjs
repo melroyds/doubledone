@@ -77,6 +77,10 @@ const TODAY_TASKS = [
 
 const LOOKBACK_TASKS = [
   { id: 'l1', title: 'Water the plants', done: true, completedAt: noon, createdAt: noon - DAY, updatedAt: now },
+  // More finished today, so the Calendar shot shows a day's worth kept rather than an empty scrapbook box.
+  { id: 'l7', title: 'Call the plumber', done: true, completedAt: noon - 3600000, createdAt: noon - DAY, updatedAt: now },
+  { id: 'l8', title: 'Pick up the dry cleaning', done: true, completedAt: noon - 7200000, createdAt: noon - DAY, updatedAt: now },
+  { id: 'l9', title: 'Answer the school email', done: true, completedAt: noon - 10800000, createdAt: noon - 2 * DAY, updatedAt: now },
   { id: 'l2', title: "Reply to Sam's message", done: true, completedAt: noon - DAY, createdAt: noon - 2 * DAY, updatedAt: now },
   { id: 'l3', title: 'Sort the recycling', done: true, completedAt: noon - 2 * DAY, createdAt: noon - 2 * DAY, updatedAt: now },
   { id: 'l4', title: 'Do the tax return', done: true, completedAt: noon - DAY, complexity: 40, createdAt: noon - 12 * DAY, updatedAt: now },
@@ -189,15 +193,18 @@ const RAW_RATIO = RAW_VP.height / RAW_VP.width;
 // the promise, the core, then the thing this version is for.
 const SHOTS = [
   { name: 'welcome', route: '/welcome', tasks: TODAY_TASKS, theme: 'light', waitText: 'A calmer kind of to-do', caption: 'Today is finite and achievable.' },
-  { name: 'today-light', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Drink a glass of water', caption: 'Only today, sized to feel possible.' },
+  { name: 'today-light', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Drink a glass of water', scrollEnd: true, caption: 'Only today, sized to feel possible.' },
+  // Today v3's headline: the floating + and the panel it raises, with a few lines typed in.
+  { name: 'capture', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Drink a glass of water', pill: 'Call the plumber\nWater the fern\nPick up the dry cleaning', caption: 'Empty your head. One tap to add.' },
   { name: 'ours-room', route: '/ours-list', tasks: TODAY_TASKS, theme: 'light', ours: true, waitText: 'Bin night', caption: 'One shared list. Never a scoreboard.' },
   { name: 'lookback-light', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'light', waitText: 'Water the plants', caption: 'Everything you finish, you keep.' },
   { name: 'ours-when', route: '/ours-list', tasks: TODAY_TASKS, theme: 'light', ours: true, waitText: 'Cat food', hold: 'Cat food', then: 'when-door', caption: 'A shared day, set from either phone.' },
-  { name: 'today-dark', route: '/today', tasks: TODAY_TASKS, theme: 'dark', waitText: 'Drink a glass of water', caption: 'A calm home screen, day or night.' },
+  { name: 'today-dark', route: '/today', tasks: TODAY_TASKS, theme: 'dark', waitText: 'Drink a glass of water', scrollEnd: true, caption: 'A calm home screen, day or night.' },
   // Settle breathes on a chained Animated loop, so it needs longer than the others to reach a frame
   // worth photographing. `motion: 'system'` on purpose: 'reduce' stops the breathing this shot is OF.
   { name: 'settle-light', route: '/settle', tasks: TODAY_TASKS, theme: 'light', motion: 'system', waitText: 'Breathing guide', delay: 2600, caption: 'A quiet room, for when today gets loud.' },
-  { name: 'settings-light', route: '/settings', tasks: TODAY_TASKS, theme: 'light', motion: 'system', waitText: 'Theme', caption: 'AI that helps. One tap turns it off.' },
+  // No settings-light since Path C (2026-09-27): it showed "Colour theme PREMIUM", and no Play screenshot
+  // may show a Premium surface (the Android app sells nothing). The capture shot took its seat.
 ];
 
 const DEVICES = [
@@ -219,6 +226,8 @@ async function captureRaw(browser, shot) {
     // first-run redirect eats the Today shot; without `whatsnew` the announcement card grows on it.
     'doubledone.onboarded.v1': 'yes',
     'doubledone.whatsnew.v1': '99',
+    // ... and the one-time "Hold a task for more" coachmark, which otherwise sits on every Today shot.
+    'doubledone.holdhint.v1': 'yes',
   };
   if (shot.ours) {
     const session = oursSession();
@@ -252,6 +261,32 @@ async function captureRaw(browser, shot) {
       await page.locator(`[data-testid="${shot.then}"]`).first().click({ timeout: 15000 });
       await page.waitForTimeout(700);
     }
+  }
+
+  // `pill`: open the capture panel from the floating + and type into it (the Today v3 capture is state,
+  // not a route). By testID, so it works in every locale.
+  if (shot.pill) {
+    await page.locator('[data-testid="capture-pill"]').first().click({ timeout: 15000 });
+    await page.waitForTimeout(700);
+    await page.locator('[data-testid="capture-field"]').first().fill(shot.pill);
+    await page.waitForTimeout(500);
+  }
+
+  // Drop whatever the screen focused on arrival (the rooms focus their heading for screen readers), or the
+  // browser paints its focus ring round it in a shot nobody tapped into. The capture shot keeps its focus:
+  // the box's accent edge is the point of that one.
+  // The dev server's error toast (#error-toast, Expo's web LogBox) floats a dark bolt button in the
+  // bottom-left corner whenever anything logged a warning. It is not the app, so it never belongs in a shot.
+  await page.addStyleTag({ content: '#error-toast { display: none !important; }' });
+  if (!shot.pill) await page.evaluate(() => document.activeElement && document.activeElement.blur && document.activeElement.blur());
+  // `scrollEnd`: bring the list to its end, where the floating + rests in its own slot below the last line.
+  if (shot.scrollEnd) {
+    await page.evaluate(() => {
+      const els = [...document.querySelectorAll('div')].filter((d) => /auto|scroll/.test(getComputedStyle(d).overflowY) && d.scrollHeight > d.clientHeight + 4);
+      const el = els.sort((a, b) => b.clientHeight - a.clientHeight)[0];
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+    await page.waitForTimeout(400);
   }
 
   const buf = await page.screenshot();

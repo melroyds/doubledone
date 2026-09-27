@@ -693,6 +693,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
               onFocus={handleFocus}
               onBlur={handleBlur}
               editable={!busy}
+              testID="capture-field"
               placeholder={t('capture.placeholder')}
               placeholderTextColor={theme.colors.inkFaint}
               style={styles.input}

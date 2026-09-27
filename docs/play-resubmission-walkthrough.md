@@ -299,9 +299,18 @@ La privacy, in parole semplici, su doubledone.app/privacy.
 #### Spanish, Latin America (es-419), if Play has it
 - [ ] Paste the **es-ES** texts above. The repo has no es-419 version yet. Never leave the old es-419 text in place, because it still has a price.
 
-### 3. Screenshots
-- [ ] In every listing, delete the screenshot showing **"Colour theme PREMIUM"** (the light Settings shot). Check the translated listings' own screenshots too.
-- Everything else can stay for now. New Today v3 screenshots can follow in a later update, and no shot may show a Premium surface.
+### 3. Screenshots (the new Today v3 set)
+- [ ] In every listing, delete **all** the old screenshots, including the **"Colour theme PREMIUM"** one. Check the translated listings' own screenshots too.
+- [ ] Upload the new eight, in this order, for **Phone** (`docs/play-store/phone/`), **7-inch tablet** (`docs/play-store/tablet7/`) and **10-inch tablet** (`docs/play-store/tablet10/`):
+  1. `today-light.png`: Only today, sized to feel possible.
+  2. `capture.png`: Empty your head. One tap to add.
+  3. `lookback-light.png`: Everything you finish, you keep.
+  4. `settle-light.png`: A quiet room, for when today gets loud.
+  5. `ours-room.png`: One shared list. Never a scoreboard.
+  6. `ours-when.png`: A shared day, set from either phone.
+  7. `today-dark.png`: A calm home screen, day or night.
+  8. `welcome.png`: Today is finite and achievable.
+- No shot shows a price or a Premium surface. That is deliberate, so don't add the Settings shot back.
 
 ### 4. App access
 **Monitor and improve > App content > App access**
@@ -417,5 +426,6 @@ Prova Silenziosa, l'aspetto senza bordi, nelle Impostazioni.
 ## The iPhone side (1.6.0, build 33)
 - [ ] Wait for Apple's processing email, about 5 to 10 minutes. Then install from **TestFlight** on your iPhone.
 - [ ] Quick native check: tap + then the box (When and Add sit above the keyboard); add a few tasks; turn on VoiceOver and open the panel (focus lands on "Add to Today").
+- [ ] In App Store Connect, **1.6.0 > Previews and Screenshots**: replace every old shot, in this order, for **iPhone 6.9"** (`docs/appstore/`), **iPhone 6.5"** (`docs/appstore/6.5-inch/`) and **iPad 13"** (`docs/appstore/ipad-13/`): `today-light`, `capture`, `lookback-light`, `held-card`, `settle-light`, `ours-room`, `ours-when`, `today-dark`, `settings-light`, `welcome`. (Settings may show Premium here, because the iPhone app does sell it.)
 - [ ] In App Store Connect: **1.6.0 > add build 33 > What's New** (from `docs/release-notes/1.6.0.md`) > **Submit for Review**.
 - [ ] In the review notes, tell Apple to **test the purchase signed out**. The `appreview@` account is comped, so signed in it never sees the paywall.

@@ -330,6 +330,7 @@ export const CaptureSheet = forwardRef<CaptureSheetHandle, Props>(function Captu
           <Animated.View style={[styles.pillShadow, { width: pillW }]}>
             <Pressable
               ref={pillRef}
+              testID="capture-pill"
               onPress={openSheet}
               accessibilityRole="button"
               accessibilityLabel={pillA11y}

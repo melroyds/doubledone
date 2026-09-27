@@ -38,7 +38,8 @@ const IOS = process.env.IOS === '1';
 // what expo-localization reads on web) and write to docs/screenshots-<locale>/ so the
 // English set is never overwritten. Unset = English, unchanged paths.
 const LOCALE = process.env.LOCALE;
-const OUT = path.join(process.cwd(), 'docs', IOS ? 'appstore' : LOCALE ? `screenshots-${LOCALE}` : 'screenshots');
+// SHOT_OUT overrides the folder, so the 6.5-inch and iPad sets land in their own subfolders.
+const OUT = process.env.SHOT_OUT ?? path.join(process.cwd(), 'docs', IOS ? 'appstore' : LOCALE ? `screenshots-${LOCALE}` : 'screenshots');
 // The iOS size is overridable: IOS_W/IOS_H CSS px at scale 3. 440x956 -> 1320x2868 (6.9-inch);
 // 428x926 -> 1284x2778 (6.5-inch, what some ASC records ask for instead).
 const IOS_VP = { width: Number(process.env.IOS_W ?? 440), height: Number(process.env.IOS_H ?? 956) };
@@ -90,8 +91,17 @@ const TODAY_TASKS = [
   { id: 's5', title: 'Take the bins out', done: true, completedAt: noon, createdAt: now - DAY, updatedAt: now },
 ];
 
+// The 6.5-inch screen (926pt) is 30pt shorter than the 6.9-inch one, and that is exactly enough for the
+// full Today list to overflow: scrolled to its end, the date and Menu row are cut in half. One fewer task
+// and the whole screen fits, with the floating + in its own slot below the last line.
+const TODAY_FIT = IOS && IOS_VP.height < 950 ? TODAY_TASKS.filter((t) => t.id !== 's2') : TODAY_TASKS;
+
 const LOOKBACK_TASKS = [
   { id: 'l1', title: 'Water the plants', done: true, completedAt: noon, createdAt: noon - DAY, updatedAt: now },
+  // More finished today, so the Calendar shot shows a day's worth kept rather than an empty scrapbook box.
+  { id: 'l7', title: 'Call the plumber', done: true, completedAt: noon - 3600000, createdAt: noon - DAY, updatedAt: now },
+  { id: 'l8', title: 'Pick up the dry cleaning', done: true, completedAt: noon - 7200000, createdAt: noon - DAY, updatedAt: now },
+  { id: 'l9', title: 'Answer the school email', done: true, completedAt: noon - 10800000, createdAt: noon - 2 * DAY, updatedAt: now },
   { id: 'l2', title: "Reply to Sam's message", done: true, completedAt: noon - DAY, createdAt: noon - 2 * DAY, updatedAt: now },
   { id: 'l3', title: 'Sort the recycling', done: true, completedAt: noon - 2 * DAY, createdAt: noon - 2 * DAY, updatedAt: now },
   // a long-dreaded, chunky task finally closed: the "a big one" celebration
@@ -235,6 +245,8 @@ async function capture(browser, shot) {
     // ... and stamp What's New as seen (the gotcha rule: seeded state must bypass
     // EVERY render gate), or every Today shot silently grows the announcement card.
     'doubledone.whatsnew.v1': '99',
+    // ... and the one-time "Hold a task for more" coachmark, which otherwise sits on every Today shot.
+    'doubledone.holdhint.v1': 'yes',
   };
   if (shot.scrapbooks) payload['doubledone.scrapbooks.v1'] = JSON.stringify(shot.scrapbooks);
   // A session that supabase-js will accept from storage without asking anybody. Not a credential:
@@ -315,6 +327,32 @@ async function capture(browser, shot) {
     }
   }
 
+  // `pill`: open the capture panel from the floating + and type into it (the Today v3 capture is state,
+  // not a route). By testID, so it works in every locale.
+  if (shot.pill) {
+    await page.locator('[data-testid="capture-pill"]').first().click({ timeout: 15000 });
+    await page.waitForTimeout(700);
+    await page.locator('[data-testid="capture-field"]').first().fill(shot.pill);
+    await page.waitForTimeout(500);
+  }
+
+  // Drop whatever the screen focused on arrival (the rooms focus their heading for screen readers), or the
+  // browser paints its focus ring round it in a shot nobody tapped into. The capture shot keeps its focus:
+  // the box's accent edge is the point of that one.
+  // The dev server's error toast (#error-toast, Expo's web LogBox) floats a dark bolt button in the
+  // bottom-left corner whenever anything logged a warning. It is not the app, so it never belongs in a shot.
+  await page.addStyleTag({ content: '#error-toast { display: none !important; }' });
+  if (!shot.pill) await page.evaluate(() => document.activeElement && document.activeElement.blur && document.activeElement.blur());
+  // `scrollEnd`: bring the list to its end, where the floating + rests in its own slot below the last line.
+  if (shot.scrollEnd) {
+    await page.evaluate(() => {
+      const els = [...document.querySelectorAll('div')].filter((d) => /auto|scroll/.test(getComputedStyle(d).overflowY) && d.scrollHeight > d.clientHeight + 4);
+      const el = els.sort((a, b) => b.clientHeight - a.clientHeight)[0];
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+    await page.waitForTimeout(400);
+  }
+
   const file = path.join(OUT, `${shot.name}.${EXT}`);
   const opts = EXT === 'jpeg' ? { path: file, type: 'jpeg', quality: 92 } : { path: file };
   if (shot.testid) {
@@ -338,8 +376,10 @@ async function run() {
   // not be 1320x2868, and App Store Connect enforces exact dimensions.
   const shots = (IOS
     ? [
-        { name: 'today-light', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Drink a glass of water' },
-        { name: 'today-dark', route: '/today', tasks: TODAY_TASKS, theme: 'dark', waitText: 'Drink a glass of water' },
+        { name: 'today-light', route: '/today', tasks: TODAY_FIT, theme: 'light', waitText: 'Drink a glass of water', scrollEnd: true },
+        // Today v3's headline: the floating + and the panel it raises, with a few lines typed in.
+        { name: 'capture', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Drink a glass of water', pill: 'Call the plumber\nWater the fern\nPick up the dry cleaning' },
+        { name: 'today-dark', route: '/today', tasks: TODAY_FIT, theme: 'dark', waitText: 'Drink a glass of water', scrollEnd: true },
         { name: 'lookback-light', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'light', waitText: 'Water the plants' },
         // The release's headline, and until now absent from every listing.
         { name: 'ours-room', route: '/ours-list', tasks: TODAY_TASKS, theme: 'light', ours: true, waitText: 'Bin night' },
@@ -353,7 +393,8 @@ async function run() {
         { name: 'welcome', route: '/welcome', tasks: TODAY_TASKS, theme: 'light', waitText: 'A calmer kind of to-do' },
         // The held card, which is where every relief tool actually lives. Screenshots of a to-do app
         // otherwise only ever show a list, and a list is the least interesting thing here.
-        { name: 'held-card', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Book the dentist', hold: 'Book the dentist' },
+        // scrollEnd, or on the 6.5-inch screen the floating + lands on the card's Close / Select several row.
+        { name: 'held-card', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Book the dentist', hold: 'Book the dentist', scrollEnd: true },
         // `motion: 'system'` on purpose. The other shots seed 'reduce', which is right for a still
         // photograph of a static screen and exactly wrong for the one screen whose subject IS the
         // motion: reduce stops the breathing and this becomes a picture of an empty room.
@@ -361,8 +402,10 @@ async function run() {
         { name: 'settings-light', route: '/settings', tasks: TODAY_TASKS, theme: 'light', motion: 'system', waitText: 'Theme' },
       ]
     : [
-        { name: 'today-light', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Drink a glass of water' },
-        { name: 'today-dark', route: '/today', tasks: TODAY_TASKS, theme: 'dark', waitText: 'Drink a glass of water' },
+        { name: 'today-light', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Drink a glass of water', scrollEnd: true },
+        // Today v3's headline: the floating + and the panel it raises, with a few lines typed in.
+        { name: 'capture', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Drink a glass of water', pill: 'Call the plumber\nWater the fern\nPick up the dry cleaning' },
+        { name: 'today-dark', route: '/today', tasks: TODAY_TASKS, theme: 'dark', waitText: 'Drink a glass of water', scrollEnd: true },
         { name: 'lookback-light', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'light', waitText: 'Water the plants' },
         { name: 'lookback-dark', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'dark', waitText: 'Water the plants' },
         { name: 'scrapbook-light', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'light', testid: 'scrapbook-card', waitText: 'Scrapbook' },
