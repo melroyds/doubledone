@@ -338,6 +338,7 @@ This account has Premium, so every feature is open. Premium is not sold in the A
 **Monitor and improve > App content > Content rating**
 - [ ] If it answers **Yes** to users buying digital goods in the app, change it to **No**, save, and submit the new rating (it goes out in the same batch).
 - [ ] Leave the shared-list (Ours) answers exactly as they are.
+- [ ] **Online Content: Yes.** The question names "generated AI content", which Break it down, Sort for me and the scrapbook pictures are. Every answer is in the table in `docs/play-store-release.md` section 5.
 
 ### 7. Optional tidy-ups
 - [ ] **Grow users > Store presence > Store settings > Website:** `https://doubledone.app/support` instead of the homepage.

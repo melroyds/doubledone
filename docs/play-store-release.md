@@ -497,6 +497,27 @@ buying digital goods in the app, change it to **No**, save, and submit the new r
 Leave the shared-list (Ours) answers exactly as [ours-store-compliance.md](ours-store-compliance.md) has
 them.
 
+**The full answer set, as submitted 2026-09-27** (Google rewords the questions, so match by topic):
+
+| Section | Question | Answer |
+|---|---|---|
+| Category | Email / category | `support@doubledone.app`, **All Other App Types** (the shared list is a feature, not the purpose) |
+| Downloaded App | Ratings-relevant content in the package | No |
+| User Content Sharing | Users interact or exchange content | **Yes** (Ours) |
+| | Shared UGC is the primary content | No |
+| | Public sharing of nudity / graphic violence | No / No (nothing in Ours is public) |
+| | Can block users or content | **Yes** (Leave this list, see ours-store-compliance.md) |
+| | Can report users or content | **Yes** (Report this list) |
+| | Chat moderation | No (there is no chat, and moderation is reactive) |
+| | Limited to invited friends only | **Yes** (a code is always required) |
+| Online Content | Content not in the download, accessed from the app | **Yes.** The question names "generated AI content": Break it down, Sort for me and the scrapbook pictures all come from our server. Answering No here was a mistake caught mid-form, so do not repeat it. |
+| ↳ its follow-ups | Violence, sexuality, language, controlled substances | No to each |
+| Age-Restricted | Promotes or sells age-restricted items | No |
+| Miscellaneous | Shares precise location | No |
+| | **Users can buy digital goods** | **No** (Path C) |
+| | Cash rewards, gift cards, crypto, NFTs | No |
+| | Web browser or search engine / news or educational | No / No |
+
 ### 6. Optional tidy-ups
 
 1. **Grow users > Store presence > Store settings**, the contact details' Website field: point it at
