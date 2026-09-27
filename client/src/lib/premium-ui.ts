@@ -30,6 +30,16 @@ export function premiumPrimaryAction(status: string | null, iapAvailable: boolea
   return 'manage';
 }
 
+/**
+ * Whether the entitled panel may say "the free monthly scrapbook is always yours, even if you cancel". Only
+ * to someone who COULD cancel: a trial and a comp have nothing to cancel, and a subscription already set to
+ * end has been cancelled. Saying "if you cancel" to them implies a subscription that is not there (the
+ * wording review, 2026-09-27: the comped reviewer account would read it). They get the plain line instead.
+ */
+export function showsCancelReassurance(status: string | null, cancelAtPeriodEnd: boolean): boolean {
+  return status !== 'trial' && status !== 'comp' && !cancelAtPeriodEnd;
+}
+
 /** Where the card-free trial offer sits on the paywall, or whether it sits there at all. */
 export type TrialSlot = 'inline' | 'separated' | 'hidden';
 

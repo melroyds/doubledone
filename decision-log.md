@@ -8536,3 +8536,25 @@ like the other paid routes; and German names the iPhone's "Abonnements" row by i
 the old Worker refuses every deletion with the billing line: no money at risk, but no one can delete until
 the Worker is up. iOS 1.5.1 and the Android builds already in the stores keep the old behaviour until
 people update.
+
+## 2026-09-27: the Android wording, settled by an adversarial review
+
+**Decided:** before the merge, Melroy asked for an adversarial review of the new Android words (a Google
+reviewer's eye, the real overwhelmed person, and the four translations): 24 agents, 21 confirmed, 9
+distinct, all taken. On Android: the free month is "Start a free month of Premium", and its line says
+plainly it is not a subscription and there is nothing to cancel ("never becomes a subscription on its own"
+hinted it could, some other way). A signed-out visitor is invited to "Sign in to start your free month",
+with the line for an existing member under it, so a new person can find the one thing on offer. The trial
+panel drops "more the longer you stay" and the thanks for keeping DoubleDone independent, and the tenure
+ladder is gone, because all three lean on a subscription the app cannot sell. A web subscriber is told
+their subscription is not billed through Google Play and how to cancel it (the DoubleDone website with the
+same email, or support); the past-due notice no longer says "no need to buy again" and no free month sits
+under it. The Terms say each account gets the free 30 days once, and date the change.
+
+**On every platform:** "even if you cancel" is said only to someone who could cancel (never a trial, a
+comp, or a subscription already set to end), a failing-payment member is not offered a free month, and
+every French string now carries the no-break space before : ? ! ; (a guard test keeps it that way).
+
+**Decided against:** naming the website to BUY on Android (still parked); keeping "Try Premium" on Android
+(it matches the Subscriptions policy's own example of trial wording that hides a charge, even though ours
+never charges).

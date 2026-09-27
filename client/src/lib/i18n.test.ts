@@ -144,3 +144,19 @@ describe('Hermes fallbacks (Intl.PluralRules / Intl.RelativeTimeFormat missing)'
     expect(formatRelativeDay('en-AU', new Date(2026, 5, 30), today)).toMatch(/30/);
   });
 });
+
+describe('French typography', () => {
+  it('puts a no-break space, never a plain one, before : ? ! ; in every French string', async () => {
+    const { fr } = await import('./catalogs/fr');
+    const bad: string[] = [];
+    const walk = (node: unknown, path: string) => {
+      if (typeof node === 'string') {
+        if (/ [:?!;]/.test(node)) bad.push(path);
+      } else if (node && typeof node === 'object') {
+        for (const [k, v] of Object.entries(node as Record<string, unknown>)) walk(v, path ? `${path}.${k}` : k);
+      }
+    };
+    walk(fr, '');
+    expect(bad).toEqual([]);
+  });
+});

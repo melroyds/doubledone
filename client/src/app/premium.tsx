@@ -12,7 +12,7 @@ import { weeklyAllowance } from '@/lib/entitlement';
 import { purchaseGate } from '@/lib/iap';
 import { t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
-import { premiumPrimaryAction, trialSlot } from '@/lib/premium-ui';
+import { premiumPrimaryAction, showsCancelReassurance, trialSlot } from '@/lib/premium-ui';
 import { buy, IAP_AVAILABLE, loadOffers, openAppleSubscriptions, restore, type StoreOffer } from '@/lib/purchases';
 import { loadTrialUsed, saveTrialUsed } from '@/lib/storage';
 import { SELLS_HERE } from '@/lib/storefront';
@@ -126,7 +126,10 @@ export default function PremiumScreen() {
   useEffect(() => {
     if (!SELLS_HERE && uid && effectiveEntitlement.status === 'trial') void saveTrialUsed(uid);
   }, [uid, effectiveEntitlement.status]);
-  const offerTrial = slot === 'inline' && (SELLS_HERE || !trialUsed);
+  // A member whose payment is failing is not offered a free month right under the notice that their
+  // subscription is paused (confusing, and the server would refuse it anyway).
+  const dunning = effectiveEntitlement.status === 'past_due' || effectiveEntitlement.status === 'unpaid';
+  const offerTrial = slot === 'inline' && (SELLS_HERE || !trialUsed) && !dunning;
   useEffect(() => {
     if (payStatus !== 'success' || premium) return;
     let tries = 0;
@@ -322,7 +325,11 @@ export default function PremiumScreen() {
                 offered them a Manage button that could only 404. */}
             <Text style={styles.panelHead}>{effectiveEntitlement.status === 'trial' ? t('premium.headTrialActive') : t('premium.headPremiumActive')}</Text>
             <Text style={styles.body}>
-              {allowance === 1
+              {/* Android's free month: no "more the longer you stay" and no thanks for keeping DoubleDone
+                  independent, both of which lean on a subscription this app cannot sell. */}
+              {!SELLS_HERE && effectiveEntitlement.status === 'trial'
+                ? t('premium.unlockedBodyTrialPlain')
+                : allowance === 1
                 ? t('premium.unlockedBodyOneGrowing', { allowance })
                 : allowance < 4
                   ? t('premium.unlockedBodyGrowing', { allowance })
@@ -335,7 +342,11 @@ export default function PremiumScreen() {
             ) : periodLabel ? (
               <Text style={styles.subStatus}>{t('premium.renews', { periodLabel })}</Text>
             ) : null}
-            <Text style={styles.foot}>{t('premium.freeScrapbookEvenIfCancel')}</Text>
+            <Text style={styles.foot}>
+              {showsCancelReassurance(effectiveEntitlement.status, effectiveEntitlement.cancelAtPeriodEnd)
+                ? t('premium.freeScrapbookEvenIfCancel')
+                : t('premium.footPlain')}
+            </Text>
             {primaryAction === 'convert' ? (
               // The card-free trial converts via Stripe checkout (the server's already-subscribed
               // guard deliberately lets a trial through), at EITHER cadence: the annual was
@@ -380,9 +391,12 @@ export default function PremiumScreen() {
               <Text style={styles.subStatus}>{t('premium.nothingToManage')}</Text>
             ) : primaryAction === 'elsewhere' ? (
               // Android sells nothing, so it links to no billing either: a plain line saying where it lives.
-              <Text style={styles.subStatus}>
-                {effectiveEntitlement.source === 'apple' ? t('premium.appleManageElsewhere') : t('premium.manageWhereBought')}
-              </Text>
+              // Already set to end (the "Premium until" line says when): nothing left to manage, so nothing.
+              effectiveEntitlement.source === 'apple' ? (
+                <Text style={styles.subStatus}>{t('premium.appleManageElsewhere')}</Text>
+              ) : effectiveEntitlement.cancelAtPeriodEnd ? null : (
+                <Text style={styles.subStatus}>{t('premium.manageWhereBought')}</Text>
+              )
             ) : primaryAction === 'manage' ? (
               <PrimaryButton
                 label={busy ? t('premium.opening') : t('premium.manageSubscription')}
@@ -464,14 +478,21 @@ export default function PremiumScreen() {
               <Text style={styles.featureMore}>{t('premium.featureMore')}</Text>
             </View>
 
-            <Text style={styles.keepsakeNote}>{t('premium.scrapbookGrows')}</Text>
-            <View style={styles.tiers}>
-              <Text style={styles.tier}>{t('premium.tierOneAWeek')}</Text>
-              <Text style={styles.tierArrow}>→</Text>
-              <Text style={styles.tier}>{t('premium.tierTwoAfterTwoMonths')}</Text>
-              <Text style={styles.tierArrow}>→</Text>
-              <Text style={styles.tier}>{t('premium.tierFourAfterSixMonths')}</Text>
-            </View>
+            {/* "Grows the longer you stay" means staying subscribed, which the Android app cannot offer:
+                longing with no path for the person, a loyalty pitch to a reviewer. The feature list above
+                already names the weekly scrapbook. */}
+            {SELLS_HERE ? (
+              <>
+                <Text style={styles.keepsakeNote}>{t('premium.scrapbookGrows')}</Text>
+                <View style={styles.tiers}>
+                  <Text style={styles.tier}>{t('premium.tierOneAWeek')}</Text>
+                  <Text style={styles.tierArrow}>→</Text>
+                  <Text style={styles.tier}>{t('premium.tierTwoAfterTwoMonths')}</Text>
+                  <Text style={styles.tierArrow}>→</Text>
+                  <Text style={styles.tier}>{t('premium.tierFourAfterSixMonths')}</Text>
+                </View>
+              </>
+            ) : null}
 
             {/* The plans are information, so a signed-out visitor sees them too (the flow audit:
                 the page ended at "A$5 / month" and never mentioned annual existed). Only the
@@ -529,13 +550,14 @@ export default function PremiumScreen() {
                 style={styles.ctaSpace}
               />
             ) : !SELLS_HERE ? (
-              // Android sells nothing: no buy button. A signed-out member gets the way back to what they
-              // already have; a signed-in free user gets the free month below and nothing to buy.
+              // Android sells nothing: no buy button. Signed out, the one thing to take is the free month,
+              // which needs an account; the foot line tells an existing member they get theirs by signing in
+              // too. Signed in, the free month sits below and there is nothing to buy.
               session ? null : (
                 <PrimaryButton
-                  label={t('premium.signInIfPremium')}
+                  label={t('premium.signInForTrial')}
                   onPress={() => router.push('/sign-in')}
-                  accessibilityLabel={t('premium.signInIfPremium')}
+                  accessibilityLabel={t('premium.signInForTrial')}
                   style={styles.ctaSpace}
                 />
               )
@@ -560,16 +582,16 @@ export default function PremiumScreen() {
                 onPress={startFreeTrial}
                 disabled={busy}
                 accessibilityRole="button"
-                accessibilityLabel={t('premium.trialLinkA11y')}
+                accessibilityLabel={SELLS_HERE ? t('premium.trialLinkA11y') : t('premium.trialLinkPlainA11y')}
                 hitSlop={6}
                 style={styles.trialLink}
               >
-                <Text style={styles.trialLinkText}>{t('premium.trialLink')}</Text>
+                <Text style={styles.trialLinkText}>{SELLS_HERE ? t('premium.trialLink') : t('premium.trialLinkPlain')}</Text>
               </Pressable>
             )}
             {/* Android: the free month is the one thing on this page you can take, so it says what it is
                 (no card, never a subscription), which is also the reviewer's first question. */}
-            {offerTrial && !SELLS_HERE ? <Text style={styles.foot}>{t('premium.trialNoCard')}</Text> : null}
+            {offerTrial && !SELLS_HERE ? <Text style={styles.foot}>{t('premium.trialNoCardPlain')}</Text> : null}
             {slot === 'inline' && trialNote ? <Text style={styles.trialNoteText}>{trialNote}</Text> : null}
             {/* Signed-out on iOS gets Apple's suggested explanation instead of the account
                 pitch: no account is needed, signing in extends Premium to other devices, and
@@ -582,7 +604,9 @@ export default function PremiumScreen() {
                   : t('premium.footPlain')
                 : IAP_AVAILABLE
                   ? t('premium.footAnonymousIap')
-                  : t('premium.footSignedOut')}
+                  : SELLS_HERE
+                    ? t('premium.footSignedOut')
+                    : t('premium.footSignedOutPlain')}
             </Text>
 
             {IAP_AVAILABLE ? (
@@ -615,7 +639,7 @@ export default function PremiumScreen() {
                 {/* The free month, in its OWN zone rather than twelve pixels under a button that
                     takes real money. Same offer, same tap, just not sitting where a thumb reaching
                     for one thing lands on the other. */}
-                {slot === 'separated' && (
+                {slot === 'separated' && !dunning && (
                   <View style={styles.trialZone}>
                     <Pressable
                       onPress={startFreeTrial}

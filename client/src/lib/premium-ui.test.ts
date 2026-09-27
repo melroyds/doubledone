@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { premiumPrimaryAction, trialSlot } from './premium-ui';
+import { premiumPrimaryAction, showsCancelReassurance, trialSlot } from './premium-ui';
 
 // The full state -> control table for the entitled panel. Each row here is a cell that either
 // shipped wrong (trial, comp) or must never drift (the live Stripe path). See premium-ui.ts for
@@ -81,5 +81,18 @@ describe('premiumPrimaryAction where this build sells nothing (Android, Path C)'
     expect(premiumPrimaryAction('trial', true)).toBe('none');
     expect(premiumPrimaryAction('active', false)).toBe('manage');
     expect(premiumPrimaryAction('active', true, true)).toBe('manage');
+  });
+});
+
+describe('showsCancelReassurance (never "if you cancel" to someone with nothing to cancel)', () => {
+  it('is said only to a member who could cancel', () => {
+    expect(showsCancelReassurance('active', false)).toBe(true);
+    expect(showsCancelReassurance('past_due', false)).toBe(true);
+  });
+
+  it('is never said to a trial, a comp, or a subscription already set to end', () => {
+    expect(showsCancelReassurance('trial', false)).toBe(false);
+    expect(showsCancelReassurance('comp', false)).toBe(false);
+    expect(showsCancelReassurance('active', true)).toBe(false);
   });
 });
