@@ -211,6 +211,11 @@ Both descriptions name only features that exist in `client/src/lib/catalogs/en.t
 
 ### Review notes
 
+> **Superseded from 1.6.0: paste the notes in `docs/release-notes/1.6.0.md` instead.** Two claims below are no
+> longer true: AI is ON by default (with an AI-free choice in the welcome and a Claude disclosure beside
+> every AI button), and buying on iOS needs no sign-in. The "fixed code" review account is gone too: the
+> code now comes from https://api.doubledone.app/review-code.
+
 Paste into both products. Swap the plan line for the annual one, and fill the two blanks. **Submitting with the credentials blank is the single most likely cause of a rejection here.**
 
 ```
