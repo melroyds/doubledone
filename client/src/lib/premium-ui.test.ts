@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { premiumPrimaryAction, trialSlot } from './premium-ui';
+import { premiumPrimaryAction, showsCancelReassurance, trialSlot } from './premium-ui';
 
 // The full state -> control table for the entitled panel. Each row here is a cell that either
 // shipped wrong (trial, comp) or must never drift (the live Stripe path). See premium-ui.ts for
 // why this is tested pure.
 describe('premiumPrimaryAction (the Premium panel primary control)', () => {
-  it('a trial converts via Stripe on web/Android (the CTA that never rendered for three weeks)', () => {
+  it('a trial converts via Stripe on the web (the CTA that never rendered for three weeks)', () => {
     expect(premiumPrimaryAction('trial', false)).toBe('convert');
   });
 
@@ -58,5 +58,41 @@ describe('trialSlot', () => {
     for (const iapAvailable of [true, false]) {
       expect(trialSlot({ signedIn: true, iapAvailable })).not.toBe('hidden');
     }
+  });
+});
+
+describe('premiumPrimaryAction where this build sells nothing (Android, Path C)', () => {
+  it('never offers a checkout or a portal', () => {
+    for (const status of ['active', 'trial', 'canceled', 'past_due', null]) {
+      const action = premiumPrimaryAction(status, false, false);
+      expect(action).not.toBe('convert');
+      expect(action).not.toBe('manage');
+    }
+  });
+
+  it('gives a trial no control, a paying member a plain line, and a comp its calm line', () => {
+    expect(premiumPrimaryAction('trial', false, false)).toBe('none');
+    expect(premiumPrimaryAction('active', false, false)).toBe('elsewhere');
+    expect(premiumPrimaryAction('comp', false, false)).toBe('nothing');
+  });
+
+  it('leaves the web and iOS exactly as they were', () => {
+    expect(premiumPrimaryAction('trial', false)).toBe('convert');
+    expect(premiumPrimaryAction('trial', true)).toBe('none');
+    expect(premiumPrimaryAction('active', false)).toBe('manage');
+    expect(premiumPrimaryAction('active', true, true)).toBe('manage');
+  });
+});
+
+describe('showsCancelReassurance (never "if you cancel" to someone with nothing to cancel)', () => {
+  it('is said only to a member who could cancel', () => {
+    expect(showsCancelReassurance('active', false)).toBe(true);
+    expect(showsCancelReassurance('past_due', false)).toBe(true);
+  });
+
+  it('is never said to a trial, a comp, or a subscription already set to end', () => {
+    expect(showsCancelReassurance('trial', false)).toBe(false);
+    expect(showsCancelReassurance('comp', false)).toBe(false);
+    expect(showsCancelReassurance('active', true)).toBe(false);
   });
 });

@@ -8425,3 +8425,136 @@ both, so a tick in the room and a tick on Today are the same code.
 
 **Decided against:** a "+ New" in the Repeating room (repeats are made from capture's When), hiding
 monthly repeats, writing the in-memory list the way Lookback does, and keeping the drawer as a second way in.
+
+## 2026-09-27: Path C, the Android app sells nothing (Google Play's Payments and Subscriptions policies)
+
+**Decided:** Google Play rejected Android 1.5.1 (2026-09-26) under the Subscriptions policy: the in-app
+Premium screen showed "A$5 / month" to a reviewer outside Australia. A policy sweep against Google's own
+pages then found the deeper problem: the Android app's Stripe link-out (checkout in a browser, the billing
+portal to manage it) was never allowed. Payments policy section 4 bans leading an Android user to any
+payment method but Play Billing, through in-app buttons, links, calls to action, and the store listing
+itself. Melroy weighed the two real fixes (Path A, Play Billing through RevenueCat, the elegant end state
+and about a week or two; Path C, sell nothing on Android, a few days) and chose C first, to get the new UI
+out and Google off his back, with A parked.
+
+On Android only: no price, currency, discount or spoken dollar amount; no Monthly / Annual toggle; no Go
+Premium or Subscribe; no "Billed securely via Stripe"; no Stripe checkout or portal; no line pointing at the
+website to buy. Premium bought on the web or an iPhone, and comps, work after sign-in, and each says where
+it is managed in one plain line (the website where you subscribed, or support@doubledone.app; Apple's
+settings for Apple). The card-free month stays: it takes no payment and never converts, which the policy
+allows, and it is the only way a new Android user can try the extras. The "{feature} is part of Premium"
+gates stay: they name a feature, not a price.
+
+**How:** one compile-time switch, `SELLS_HERE`, from `lib/storefront.ts` (true: web and iOS) and
+`lib/storefront.android.ts` (false), the same platform-split trick that keeps Apple's SDK off Android. It is
+constant-only, with no react-native import, so the pure, tested Premium logic reads it
+(`premiumPrimaryAction` gains a fourth answer, `elsewhere`). `startCheckout` and `startPortal` also refuse
+on Android, so no future call site can reopen Stripe there. The Android and iOS bundles' source maps were
+checked: Android carries `storefront.android.ts` and the inert `purchases.ts`, iOS carries `storefront.ts`
+and `purchases.ios.ts`, and the web the base. Web and iPhone therefore cannot change. The Terms screen (a
+draft) gets an Android wording with no price, the public Terms, Support and Privacy pages stop saying
+Android takes Stripe payments, the Play listing paste sources lose their price and Stripe lines in every
+locale, and `scripts/check-listings.mjs` now FAILS a listing that names a price or Stripe (it used to
+require them).
+
+**Calls for Melroy to challenge:**
+- **The free month stays on Android.** One sweep suggested hiding it as a "funnel to paying elsewhere";
+  the policy sweep found it allowed (free, no payment, never converts). Kept, with its "No card, no
+  charge" line under it, which also answers the reviewer's first question.
+- **Once an account's free month is used, Android stops offering it,** remembered per account on the
+  device. On Android the free month is the only thing the Premium page offers, so without this its link
+  would come back on every visit only to say "already had it", the one kind of control our own rule forbids.
+  The server stays the judge; the proper fix (`/entitlement` saying whether the trial was used) needs a
+  Worker deploy and is not needed for the resubmission.
+- **No website mention at all this time,** even though the FAQ allows one unlinked line in an app that
+  sells nothing. A reviewer who has just rejected the screen reads it least generously. Parked with a
+  trigger, and it must go again the day Play Billing lands.
+- **A past-due web subscriber on Android sees the paused notice with the support email,** not a card
+  form. Hiding the notice entirely would leave them wondering why Premium stopped.
+- **The annual renewal reminder task still appears on Android.** It is account information to someone
+  who already pays, not an offer.
+- **The server is unchanged.** It cannot tell Android from iPhone (neither sends an Origin), and an
+  iPhone user with a web subscription legitimately opens the Stripe portal through the same route.
+
+**Decided against:** refusing Android at the server (it would break iPhone web subscribers, needs a
+production Worker deploy, and a button whose only outcome is an error breaks our own rule); appealing the
+rejection (the finding was right, an appeal is one per enforcement, and a compliant update is the answer
+Google's process expects); the Stripe cancel-only portal on Android (a reviewer cannot see its
+configuration); and hiding the Premium page on Android (existing members need it, and the feature list is
+allowed).
+
+**Found on the way, parked as its own task:** deleting an account never cancels a Stripe subscription, on
+any platform, so a deleted user can keep being charged. Flagged for a separate session.
+
+## 2026-09-27: Quiet is free for everyone
+
+**Decided:** the Quiet interface (the borderless, calm-text look) is no longer Premium, on any platform.
+Melroy's call: "Quiet mode with less clutter? Let's make it not premium." Every gate, Premium tag, upsell
+reason line and Premium feature-list entry for Quiet is gone (Settings, the Premium page, the welcome's
+Premium step, the docs and listing sources), and the Settings row saves straight away for everyone. It
+also fixes a trap the map found: a member whose Premium or free month ended while in Quiet could not tap
+back to Standard without meeting the paywall.
+
+**Why:** Quiet is an access need for this audience, not an extra, in the same family as text size and
+reduced motion. Charging for "less clutter" in an app for overwhelmed brains is charging for relief, which
+sits badly with the never-shame spine. The colour themes, the other half of the old "personalisation
+pair", stay Premium: they are genuinely an extra.
+
+**Decided against:** a migration (nothing needs moving: the setting was always stored, only the gate
+changed); adding Quiet to the Play listings' free lists now (it would reopen the character counts in five
+locales for a small gain).
+
+## 2026-09-27: deleting an account stops Stripe billing first
+
+**Decided:** Settings > Delete account and data used to remove only the login (the `delete_account` RPC),
+so a Stripe subscription kept charging a person who no longer had an account to cancel it from. Now the
+client first calls a new Worker route, `POST /account/close-billing`, which verifies the bearer
+(`verify.ts`), finds every chargeable subscription the user has (the D1-known customer AND a search across
+customers for the user's id, because checkout makes a new customer each time and D1 keeps only the
+latest), and cancels each immediately. Only a 200 with a numeric `cancelled` lets the delete go ahead;
+anything else (an outage, offline, a 401, or the old Worker) leaves the account untouched with one calm
+line. Apple-billed members, whom we cannot cancel, see an unlinked line in the confirmation telling them to
+cancel in their iPhone's settings first; it does not block them.
+
+**Why:** money and dignity. A charge after deletion is the worst kind of surprise, and the person has no
+way left to stop it.
+
+**Decided against:** cancelling at period end (the account is going; the next charge is the thing to
+stop); deleting the Stripe customer (invoices must remain for records and refunds, and Stripe keeps the
+email for that); refunding automatically (the refund policy stands, by email); blocking Apple members
+until they cancel (we cannot see or change Apple billing, and blocking a deletion is worse); trusting any
+200 (the deployed Worker answers unknown paths with a plain 200, so the body shape is the proof).
+
+**Hardened by review** (19 agents, 5 confirmed, all fixed): a customer Stripe says does not exist (a
+test-mode id left in D1 from before go-live) now counts as nothing to cancel rather than a failure, which
+had made deletion impossible forever for that person; the lines never claim billing is untouched when part
+of it may have stopped, a failed delete after a cancel says the subscription is cancelled, and the Premium
+card re-reads in both cases; the route is rate-limited per verified user (`BILLING_LIMITER`, 5 a minute),
+like the other paid routes; and German names the iPhone's "Abonnements" row by its real label.
+
+**Deploy order (it matters):** the Worker ships FIRST, then the clients. A client carrying this that meets
+the old Worker refuses every deletion with the billing line: no money at risk, but no one can delete until
+the Worker is up. iOS 1.5.1 and the Android builds already in the stores keep the old behaviour until
+people update.
+
+## 2026-09-27: the Android wording, settled by an adversarial review
+
+**Decided:** before the merge, Melroy asked for an adversarial review of the new Android words (a Google
+reviewer's eye, the real overwhelmed person, and the four translations): 24 agents, 21 confirmed, 9
+distinct, all taken. On Android: the free month is "Start a free month of Premium", and its line says
+plainly it is not a subscription and there is nothing to cancel ("never becomes a subscription on its own"
+hinted it could, some other way). A signed-out visitor is invited to "Sign in to start your free month",
+with the line for an existing member under it, so a new person can find the one thing on offer. The trial
+panel drops "more the longer you stay" and the thanks for keeping DoubleDone independent, and the tenure
+ladder is gone, because all three lean on a subscription the app cannot sell. A web subscriber is told
+their subscription is not billed through Google Play and how to cancel it (the DoubleDone website with the
+same email, or support); the past-due notice no longer says "no need to buy again" and no free month sits
+under it. The Terms say each account gets the free 30 days once, and date the change.
+
+**On every platform:** "even if you cancel" is said only to someone who could cancel (never a trial, a
+comp, or a subscription already set to end), a failing-payment member is not offered a free month, and
+every French string now carries the no-break space before : ? ! ; (a guard test keeps it that way).
+
+**Decided against:** naming the website to BUY on Android (still parked); keeping "Try Premium" on Android
+(it matches the Subscriptions policy's own example of trial wording that hides a charge, even though ours
+never charges).

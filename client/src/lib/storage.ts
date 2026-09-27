@@ -30,6 +30,7 @@ const RENEWAL_KEY = 'doubledone.renewal.v1'; // what this device knows about an 
 const WHATSNEW_KEY = 'doubledone.whatsnew.v1'; // the last What's New content id this device has seen
 const REMINDERHOUR_KEY = 'doubledone.reminderhour.v1'; // the hour (0-23) the daily reminder fires; default 9am
 const DEV_PREMIUM_KEY = 'doubledone.devPremium.v1'; // DEV/preview only: the premium-flag override (see premium-flag.ts)
+const TRIALUSED_KEY = 'doubledone.trialused.v1'; // + '.' + user id: this account has had its free month (Android, lib/storefront)
 const HOLD_KEY = 'doubledone.hold.v1'; // the ONE live "Hold me to it" contract, or absent (see lib/hold)
 const ENERGY_USES_KEY = 'doubledone.energyUses.v1'; // energy-match use timestamps (the freemium meter, see lib/energy.ts)
 const OURS_KEY = 'doubledone.ours.v1'; // shared lists, keyed BY PAIR (see loadOursCache); holds another person's words
@@ -251,6 +252,29 @@ export async function loadHoldHintSeen(): Promise<boolean> {
     return (await AsyncStorage.getItem(HOLDHINT_KEY)) === 'yes';
   } catch {
     return false;
+  }
+}
+
+/**
+ * Whether this device knows the signed-in account has already had its free month. Android sells nothing
+ * (lib/storefront), so there the free month is the only thing the Premium page offers, and once it is used
+ * its link can only ever answer "already had it". Keyed by user id, so a second account on the same phone
+ * still sees its own offer. The server stays the judge (startTrial answers 'already'); this only stops the
+ * page offering what it knows it will refuse. Best effort both ways.
+ */
+export async function loadTrialUsed(userId: string): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(`${TRIALUSED_KEY}.${userId}`)) === 'yes';
+  } catch {
+    return false;
+  }
+}
+
+export async function saveTrialUsed(userId: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(`${TRIALUSED_KEY}.${userId}`, 'yes');
+  } catch {
+    // best effort
   }
 }
 

@@ -110,7 +110,7 @@ export function purchaseGate(s: {
   loading: boolean;
   premium: boolean;
 }): PurchaseGate {
-  if (!s.iapAvailable) return 'hidden'; // web + Android sell via Stripe; the store button never shows
+  if (!s.iapAvailable) return 'hidden'; // the web sells via Stripe, Android sells nothing (lib/storefront); no store button
   if (s.signedIn && s.loading) return 'wait'; // entitlement still resolving after sign-in: the double-charge window, button disabled
   if (s.premium) return 'already_premium'; // already entitled (Stripe, Apple, trial, or comp): never charge again
   return 'buy'; // signed-in and resolved, OR anonymous: Apple requires the anonymous path (5.1.1)

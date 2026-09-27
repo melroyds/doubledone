@@ -11,6 +11,12 @@ versioning: [SemVer](https://semver.org/).
 
 _Post-v1 work lands here._
 
+### Changed
+- **The Quiet interface is free for everyone**, on every platform (2026-09-27). The Settings row loses its Premium tag and gate, and Quiet leaves the paywall's feature list, the "You're Premium" panel and the welcome's Premium screen, in all five languages. For this audience a calmer, less cluttered screen is an access need, the same reason theme, text size and motion are free. The seven colour themes stay Premium.
+
+### Fixed
+- An account whose Premium or trial ended while it was on Quiet can switch back to Standard. The old gate bounced every tap to the paywall, Standard included, so the only ways out were to subscribe again or wipe the app's data, and on Android, whose Premium page sells nothing, there was no way out at all.
+
 ## [1.2.0] - 2026-07-12
 
 _The Android production release, versionCode 11 (git tag `android-v11`, code-frozen from `d983bbf`), with web deployed from the same code. Rhythms grow up (minutes-granular cadence, fixed times, and exact-alarm delivery that actually arrives on time), the Quiet interface and energy matching land, keepsakes share as a proper page and follow the account, and text shared from any app becomes one calm capture line._

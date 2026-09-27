@@ -1184,7 +1184,7 @@ export default function TodayScreen() {
   // One question (how much have you got), one Haiku pick, propose-only. Free is 15 a
   // calendar month, metered locally (lib/energy.ts, the scrapbook-gate precedent); the
   // gate is checked BEFORE any network call, and past the cap the tap routes to the
-  // paywall exactly like Pin / Quiet. Reminders surface at 10 and 5 picks left.
+  // paywall exactly like Pin. Reminders surface at 10 and 5 picks left.
   function openEnergy() {
     if (premiumLoading) return; // entitlement still resolving: a tap is a no-op, never a wrong bounce
     const gate = canMatchEnergy(premium, energyUses, nowMs());

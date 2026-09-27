@@ -9,12 +9,13 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { RoomBackRow, useRoomOrigin } from '@/components/RoomTop';
 import { Segmented } from '@/components/Segmented';
 import { border, fonts, layout, PREMIUM_GRADIENT, PREMIUM_GRADIENT_LOCATIONS, PRESSED_OPACITY, radius, spacing, THEME_PRESETS, type Theme } from '@/constants/theme';
-import { deleteAccount } from '@/lib/account';
+import { billedByApple, deleteAccount } from '@/lib/account';
 import { purgeScrapbookImages } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
 import { toISODate } from '@/lib/day';
 import { buildExport } from '@/lib/export';
 import { t } from '@/lib/locale';
+import { SELLS_HERE } from '@/lib/storefront';
 import { usePremium } from '@/lib/premium-provider';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { clampHour, formatReminderHour, reminderReasonLine } from '@/lib/reminders-types';
@@ -60,7 +61,7 @@ export default function SettingsScreen() {
   const [mcpExpired, setMcpExpired] = useState(false); // the access token couldn't be fetched (expired session)
   const [mcpDisconnecting, setMcpDisconnecting] = useState(false);
   const [mcpDisconnectNote, setMcpDisconnectNote] = useState<string | null>(null); // calm line after a disconnect
-  const { premium, devOverride, setDevOverride, devAllowed, refresh } = usePremium();
+  const { premium, entitlement, devOverride, setDevOverride, devAllowed, refresh } = usePremium();
   const [exporting, setExporting] = useState(false);
   const [exportNote, setExportNote] = useState<string | null>(null);
   const [reminderOn, setReminderOn] = useState(false);
@@ -195,15 +196,28 @@ export default function SettingsScreen() {
     }
   }
 
-  // Delete the account + all synced data (the RPC removes the auth row; tasks
-  // cascade), then wipe local tasks and reset to a clean, signed-out Today.
+  // Delete the account + all synced data, billing FIRST: lib/account stops every Stripe subscription
+  // before the RPC removes the auth row (tasks cascade), and deletes nothing if it cannot. Then wipe
+  // local tasks and reset to a clean, signed-out Today.
   async function runDelete() {
     if (!supabase || deleting) return;
     setDeleting(true);
     setDeleteError(null);
     const res = await deleteAccount(supabase);
     if (!res.ok) {
-      setDeleteError(t('settings.deleteError'));
+      setDeleteError(
+        res.error === 'billing'
+          ? t('settings.deleteBillingError')
+          : res.error === 'sign_in'
+            ? t('settings.deleteSignIn')
+            : res.cancelled > 0
+              ? t('settings.deleteAfterBilling')
+              : t('settings.deleteError'),
+      );
+      // Billing may have stopped even when the delete did not happen (a cancel that landed before a lost
+      // reply, or one of two subscriptions cancelled), so the Premium card re-reads rather than keep saying
+      // Active.
+      if (res.error === 'delete' || res.error === 'billing') refresh();
       setDeleting(false);
       return;
     }
@@ -491,14 +505,14 @@ export default function SettingsScreen() {
             </View>
           </View>
           <View style={styles.divider} />
-          {/* The Quiet interface appearance, beside the colour themes: same Premium gate, the shared
-              Segmented toggle. Switching re-paints the whole app live and layout-stable. */}
+          {/* The Quiet interface appearance, beside the colour themes: free for everyone, the shared
+              Segmented toggle. Switching re-paints the whole app live and layout-stable. It is never
+              gated, in either direction, so nobody can be left stuck in a look they cannot leave. */}
           <View style={styles.row}>
             <View style={styles.accentHead}>
               <Text style={styles.rowLabel}>{t('settings.appearanceLabel')}</Text>
-              {!premium && <PremiumTag />}
             </View>
-            <Text style={styles.rowHint}>{premium ? t('settings.appearanceHintPremium') : t('settings.appearanceHintFree')}</Text>
+            <Text style={styles.rowHint}>{t('settings.appearanceHint')}</Text>
             <View style={styles.segment}>
               <Segmented<Appearance>
                 value={settings.appearance}
@@ -507,13 +521,8 @@ export default function SettingsScreen() {
                   { value: 'quiet', label: t('settings.appearanceQuiet') },
                 ]}
                 onChange={(ap) => {
-                  if (premium) {
-                    setSettings({ appearance: ap });
-                    track('appearance.set', { appearance: ap });
-                  } else {
-                    track('appearance.locked');
-                    router.push({ pathname: '/premium', params: { from: 'quiet' } });
-                  }
+                  setSettings({ appearance: ap });
+                  track('appearance.set', { appearance: ap });
                 }}
                 accessibilityLabel={t('settings.appearanceLabel')}
               />
@@ -649,6 +658,9 @@ export default function SettingsScreen() {
                 <View style={[styles.row, styles.confirmStack]}>
                   <Text style={[styles.linkLabel, styles.dangerText]}>{t('settings.deleteAccountLink')}</Text>
                   <Text style={styles.confirmText}>{t('settings.deleteConfirmBody')}</Text>
+                  {/* Apple billing is out of our reach, so an Apple subscriber is told BEFORE they confirm.
+                      Plain text on every platform, never a link: it asks nothing and sells nothing. */}
+                  {billedByApple(entitlement) ? <Text style={styles.confirmText}>{t('settings.deleteAppleNote')}</Text> : null}
                   <View style={styles.confirmRow}>
                     <Pressable
                       onPress={() => setConfirming(false)}
@@ -681,7 +693,7 @@ export default function SettingsScreen() {
         <Pressable
           onPress={() => router.push('/premium')}
           accessibilityRole="button"
-          accessibilityLabel={premium ? t('settings.premiumCardActiveA11y') : t('settings.premiumCardSeePlansA11y')}
+          accessibilityLabel={premium ? t('settings.premiumCardActiveA11y') : SELLS_HERE ? t('settings.premiumCardSeePlansA11y') : t('premium.brandName')}
           style={({ pressed }) => [styles.premiumCardWrap, pressed && styles.pressed]}
         >
           <LinearGradient colors={PREMIUM_GRADIENT} locations={PREMIUM_GRADIENT_LOCATIONS} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premiumCard}>

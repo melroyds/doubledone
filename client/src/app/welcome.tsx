@@ -7,6 +7,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { triage } from '@/lib/ai';
 import { t } from '@/lib/locale';
+import { SELLS_HERE } from '@/lib/storefront';
 import { enableDailyReminder } from '@/lib/reminders';
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { loadReminderHour, loadReminderOfferMade, loadTasks, saveOnboarded, saveReminderOfferMade, saveReminderOn, saveTasks, saveWhatsNewSeen } from '@/lib/storage';
@@ -69,7 +70,6 @@ const PREMIUM_FEATURES: { name: string; what: string }[] = [
   { name: t('actions.planMyDay'), what: t('welcome.premiumPlanWhat') },
   { name: t('welcome.premiumPatternsName'), what: t('welcome.premiumPatternsWhat') },
   { name: t('welcome.premiumScanName'), what: t('welcome.premiumScanWhat') },
-  { name: t('welcome.premiumQuietName'), what: t('welcome.premiumQuietWhat') },
 ];
 
 // With AI off, the premium pitch drops the AI features (scrapbook, Chart, Plan my day, patterns, Scan) and shows
@@ -77,7 +77,6 @@ const PREMIUM_FEATURES: { name: string; what: string }[] = [
 const PREMIUM_FEATURES_NOAI: { name: string; what: string }[] = [
   { name: t('welcome.premiumColourName'), what: t('welcome.premiumColourWhat') },
   { name: t('welcome.premiumPinName'), what: t('welcome.premiumPinWhat') },
-  { name: t('welcome.premiumQuietName'), what: t('welcome.premiumQuietWhat') },
 ];
 
 export default function WelcomeScreen() {
@@ -465,7 +464,8 @@ export default function WelcomeScreen() {
                 </View>
               ))}
             </View>
-            <Text style={styles.fine}>{t('welcome.premiumFine')}</Text>
+            {/* Android sells nothing (lib/storefront), so its fine print carries no price. */}
+            <Text style={styles.fine}>{SELLS_HERE ? t('welcome.premiumFine') : t('welcome.premiumFinePlain')}</Text>
           </View>
         )}
 

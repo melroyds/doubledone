@@ -11,6 +11,11 @@
 > Google Play the same day**. Web deploys from the same code.
 > Section 5a below has been updated in place: after Play blocked `USE_EXACT_ALARM` on 2026-06-29, the app
 > now declares `SCHEDULE_EXACT_ALARM` alone (since versionCode 11).
+>
+> **Correction (2026-09-27), read before anything about Premium:** section 5d used to say the Stripe web
+> checkout was allowed on Android. It never was. Play rejected 1.5.1 on 2026-09-26, and the Android app is
+> now **consumption-only (Path C)**: it sells nothing and shows no price. Section 5d has the why, and
+> section 10 is the step-by-step resubmission run sheet.
 
 A first-release guide for DoubleDone (Expo SDK 56 / EAS, Android package `app.doubledone`, currently
 v1.0.0). Researched and adversarially reviewed 2026-06-24. Work top to bottom. The handful of things most
@@ -44,8 +49,8 @@ never hand-edit the versionCode. The rest of this is mostly Play Console work an
 1. Sign in at https://play.google.com/console, accept the Developer Program policies, pay the $25, fill in
    your profile (website https://doubledone.app). Account verification can take 24-48h, so start here.
 2. **Create app**: name **DoubleDone**, default language English, app category **Productivity**, type
-   **Free**. Not a game, no ads. (The base app is free; Premium is billed externally via Stripe, not Play
-   Billing, see section 5.)
+   **Free**. Not a game, no ads. (The Android app sells nothing. Premium bought on the web or an iPhone
+   works in it after sign-in, see section 5d.)
 3. **Package name**: lock it to **app.doubledone**. It is immutable after the first release.
 4. **App signing** (Release > Setup): let Google manage the signing key. This is mandatory for new apps,
    do not upload your own keystore.
@@ -96,7 +101,14 @@ flag stale dates.
 
 - **Name**: DoubleDone
 - **Short description** (<=80 chars): `A calm, ADHD-friendly to-do app with AI task breakdown.`
-- **Full description** (draft, edit to taste):
+- **Full description** (the original 2026-06 draft, kept for the record; the current paste source is in
+  [play-store-submission-pack.md](play-store-submission-pack.md), and the localised ones in
+  [play-store-listings-localised.md](play-store-listings-localised.md)):
+
+> **Rule for every Play listing, in every language (Path C, 2026-09-27):** no price, no Premium section,
+> no list of paid-only features, no "billed through Stripe" or "not Google Play" line, and no call to buy
+> or subscribe on the website. Payments policy section 4 names the store listing itself as a place an app
+> must not lead users to another payment method. `node scripts/check-listings.mjs` fails on any of it.
 
 ```
 DoubleDone is a calm, ADHD-friendly to-do app for people who get overwhelmed by ordinary
@@ -112,12 +124,6 @@ WHAT IT DOES:
 - Gentle reminders you ask for, never nagging.
 - Lookback: see everything you have actually finished.
 
-PREMIUM (optional):
-- Try it free for 30 days, no card needed.
-- A$5/month or A$50/year unlocks the AI keepsake scrapbook of your finished week, photo-to-tasks
-  scan, richer AI planning, and custom colour themes.
-- Cancel any time. Premium is billed via Stripe web checkout, not Google Play.
-
 PRIVACY:
 - Your tasks live on your device by default.
 - AI features (Break it down, Combine, and similar) send the task text to Anthropic's Claude to do
@@ -129,8 +135,9 @@ Read the plain-English privacy policy at doubledone.app/privacy.
 ```
 
 - **Graphics**: the feature graphic, screenshots, and icon from section 0.
-- **Content rating**: fill the questionnaire, answer No to all the sensitive-content questions. Expect a
-  3+ / Everyone rating.
+- **Content rating**: fill the questionnaire, answer No to all the sensitive-content questions, and No
+  to users buying digital goods in the app (the Android app sells nothing, see 5d). Expect a 3+ /
+  Everyone rating. The shared-list (Ours) answers are in [ours-store-compliance.md](ours-store-compliance.md).
 - **Support email**: support@doubledone.app (monitored, see section 0).
 
 ---
@@ -200,9 +207,11 @@ doubledone.app/privacy** (do not invent retention periods, use whatever your pol
 2. **Email -> Supabase.** Collected only if the user turns on sync. For account/authentication.
 3. **Pseudonymous completion telemetry -> the Worker's D1.** No user id, IP, or task text. For improving
    the breakdown suggestions. Disclose per your policy's wording.
-4. **Payment data -> Stripe.** Only if the user buys Premium. Stripe (not us) processes the card; the app
-   receives subscription events (type, amount, Stripe event id) to keep Premium status correct. Declare it
-   as collected + shared for purchases, matching the policy's "Payment events" section.
+4. **Payment info: Not collected, for the Android app (corrected 2026-09-27).** Premium is not sold in the
+   Android app (5d). Payments happen on the web (Stripe) or through Apple, outside this app, so the Android
+   Data Safety form declares **Financial info > Payment info: Not collected**. The privacy policy still
+   describes Stripe's payment events, because the web sells, and it should say plainly that those happen
+   on the website or through Apple, never in the Android app.
 
 Two things that must also match the policy: synced data is stored in **Supabase (Sydney, Australia)**, and the
 service sends the owner **system health alerts** (counts and error strings only, no personal data, no task
@@ -211,12 +220,58 @@ text) per the policy's "Keeping the service running" section.
 Declare **no ads, no third-party analytics/trackers, no advertising ID**. Do not declare camera, location,
 contacts, etc. (DoubleDone uses none).
 
-### 5d. Stripe Premium is not Play Billing
+### 5d. BLOCKER: the Android app sells nothing (Path C, corrected 2026-09-27)
 
-Premium is an external Stripe web checkout with a server-side entitlement check, not Google Play Billing.
-That is allowed, but keep the listing from implying otherwise: do not say "subscribe in-app" or "via Google
-Play". If a reviewer flags it, the response is that Premium is sold via external web checkout and the app
-does not use Play Billing.
+**What this section used to say was wrong.** It said the external Stripe web checkout was allowed on
+Android and planned a reviewer reply defending it. Neither was ever true, and that reply must **never be
+sent**. Do not appeal the rejection either. A compliant update is the answer.
+
+**What happened.** Play rejected Android 1.5.1 on 2026-09-26 under the Subscriptions policy ("Currency
+differences with prominent display price"): the in-app Premium screen showed "A$5 / month" to a reviewer
+outside Australia. A policy sweep then found the bigger problem. The Stripe link-out broke the Payments
+policy in essentially every country, whatever currency it showed:
+
+- **Payments policy, section 2:** an app sold on Play that charges for in-app features or services must
+  use Google Play's billing system.
+- **Payments policy, section 4:** an app may not lead users to a payment method other than Google Play's
+  billing system, and the channels it names include **the app's listing on Google Play** itself, as
+  well as in-app buttons, links, webviews and promotions.
+- **Payments policy, section 6:** developers must tell users the terms and pricing of anything offered
+  for purchase clearly and accurately. A fixed Australian-dollar price shown to everyone is the same
+  failure the Subscriptions rejection named.
+- **The exceptions (sections 8 and 9, and the country link-out programs):** the ones that allow an
+  outside payment link at all need enrolment and the Play Billing Library, and they require the listing
+  to carry no outside-purchase information. DoubleDone is in none of them.
+
+**The fix Melroy chose: Path C, consumption-only.** Built in code on the `play-reader` branch
+(`client/src/lib/storefront.android.ts`, `SELLS_HERE = false`). On Android:
+
+| Android shows | Android never shows |
+|---|---|
+| Premium that was bought on the web or an iPhone, or comped, working after sign-in | Any price, in any currency, anywhere in the app |
+| The card-free month: a server-granted trial, no payment taken, never converts to paid | A Subscribe, Upgrade or Buy control |
+| | A Stripe checkout or the Stripe billing portal |
+| | Any call to action to buy elsewhere, including an unlinked "available at doubledone.app" line |
+
+Web (Stripe) and iOS (Apple in-app purchase through RevenueCat) are unchanged. **Play Billing (Path A) is
+the later step**, parity-priced like iOS, and until it ships Android is a place to use Premium, never to
+buy it.
+
+**Why this is compliant.** The Payments FAQ says any app may be consumption-only, even as part of a paid
+service: a user can sign in and use content paid for somewhere else, provided nothing can be purchased
+from within the app. The free month takes no payment, so it is not a sale.
+
+**Why even the unlinked website line is out, this round.** The same FAQ lets a consumption-only app
+mention, without a link, that purchases can be made on the website. It is left out anyway for this
+resubmission. The app already has one rejection on this exact theme, and the listing is a named banned
+channel, so the resubmission gives a reviewer nothing that reads as a route to another payment method.
+Revisit only after approval, and only inside the app, never in the listing.
+
+**Sources:** [Payments policy](https://support.google.com/googleplay/android-developer/answer/9858738)
+(sections 2, 4 and 6), [Payments FAQ](https://support.google.com/googleplay/android-developer/answer/10281818),
+[Subscriptions policy](https://support.google.com/googleplay/android-developer/answer/9900533),
+[Fixing a rejected update](https://support.google.com/googleplay/android-developer/answer/2477981).
+The run sheet is section 10.
 
 ---
 
@@ -253,7 +308,8 @@ block in `eas.json`, and run `eas submit --platform android --latest`.
 - [ ] https://doubledone.app/privacy loads 200 in incognito with the full policy text (see section 3).
 - [ ] Privacy policy "Last updated" date is current, its content matches the Data Safety form, and `privacy.html` matches the in-app `privacy.tsx`.
 - [ ] Terms of Service live at https://doubledone.app/terms.
-- [ ] Stripe in LIVE mode: live keys + live price ids on the Worker, the webhook registered for the live endpoint, one real test purchase verified.
+- [ ] Stripe in LIVE mode: live keys + live price ids on the Worker, the webhook registered for the live endpoint, one real test purchase verified. (This is the WEB's checkout. The Android app sells nothing, 5d.)
+- [ ] The Android build shows no price, no purchase control and no buy-elsewhere line anywhere, and `node scripts/check-listings.mjs` passes on every listing paste source (5d, section 10).
 - [ ] Control centre armed: SEND_EMAIL / FEEDBACK_TO / HEARTBEAT_URL set, the cron active, the first heartbeat + pulse seen.
 - [ ] https://api.doubledone.app is live (the reviewer's device will call it for AI features). Check `/health`.
 - [ ] No secrets in the client bundle (all keys live on the Worker; gitleaks already guards this).
@@ -276,7 +332,7 @@ block in `eas.json`, and run `eas submit --platform android --latest`.
 | Privacy policy unreachable | The SPA served only a JS shell to the crawler | Serve a static/prerendered /privacy page (section 3) |
 | Data Safety mismatch | Form contradicts the policy | Align the policy and the form word for word |
 | "Requires sign-in" | Reviewer could not use it without an account | It is offline-first, verify on a clean device + the "Works offline" line is in the listing |
-| Requires Play Billing | Premium read as an in-app purchase | It is external Stripe, do not market it as in-app (5d) |
+| Payments / Subscriptions policy (this rejected 1.5.1 on 2026-09-26) | The app showed an A$ price and sold Premium through a Stripe link-out. Payments policy sections 2 and 4 forbid both on Android, and section 4 bans pointing to another payment method from the listing too | Never argue that Stripe is allowed, and never appeal. Ship the consumption-only build (5d, Path C) with scrubbed listings, then follow the run sheet (section 10). Play Billing is the later fix |
 
 ---
 
@@ -339,3 +395,130 @@ re-cut for v20.
 >
 > Thank you for being here before it was ready. It's nearly time.
 > Melroy
+
+---
+
+## 10. Path C resubmission run sheet (2026-09)
+
+Melroy's by-hand Play Console steps to replace the rejected 1.5.1 with the consumption-only build (5d).
+Do them in order and send everything for review as **one batch** in step 7. Menu names are as of
+September 2026, and the Console moves things. If a path has moved, the App content page is always
+reachable by swapping the last segment of the app-dashboard URL for `app-content`.
+
+**Nothing here starts until the new AAB exists.** It is built only when Melroy asks for a build in that
+exchange (the EAS quota rule), from `client/`, with
+`npx --yes eas-cli build -p android --profile production --non-interactive`. EAS auto-increments the
+versionCode, so it lands above the rejected 1.5.1 bundle.
+
+### 1. Replace the bundle on every track
+
+1. **Test and release > App bundle explorer**: note every track that holds the rejected 1.5.1 bundle or
+   the older live bundle. Expect production plus any of internal, closed or open testing.
+2. On each of those tracks (**Test and release > Production**, or **Test and release > Testing >**
+   Internal / Closed / Open testing): **Create new release**. If a draft release is sitting there,
+   discard it first.
+3. **Add from library** (or upload) the new AAB.
+4. Check that the rejected 1.5.1 bundle **and** the older live bundle both sit under **Not included**.
+   Google's rule: a non-compliant bundle left active fails the resubmission, and live versions can be
+   removed from Play.
+5. Release notes: paste the Play six-tag block from **`docs/release-notes/1.6.0.md`** (en-AU, de-DE,
+   es-419, es-ES, fr-FR, it-IT, each under 500 characters, real diacritics). It follows the listing rule:
+   no price, no Premium, no trial, no Stripe, no website. **Never paste `docs/release-notes/1.5.1.md`'s Play
+   block**: every tag in it mentions Premium.
+6. **Save > Review release**. On production, roll out to **100%**, not a staged percentage.
+
+### 2. Edit every store listing
+
+1. Run `node scripts/check-listings.mjs` from the repo root. It must pass before anything is pasted.
+2. **Grow users > Store presence > Store listings**, the main listing (en-AU): paste the short and full
+   description from [play-store-submission-pack.md](play-store-submission-pack.md) ("Store listing,
+   paste-ready").
+3. Each translated listing on the same page: de-DE, es-ES, fr-FR and it-IT from
+   [play-store-listings-localised.md](play-store-listings-localised.md).
+4. **es-419**, if Play has it (the release notes carry the tag, so it probably does): the repo has no
+   es-419 paste source. Paste the es-ES copy, which the gate has checked. It uses Spain's vosotros forms,
+   which is a copy nicety, not a policy problem. Never leave an old es-419 text in place that still carries
+   a price or a Stripe line.
+5. After each paste, read it once on screen: no price, no Premium section, no "Stripe", no "not Google
+   Play", no "subscribe on our website".
+6. **Screenshots.** Regenerate them for Today v3 (`node scripts/play-assets.mjs`) and make sure **no shot
+   shows a Premium surface**: no `settings-light` shot with "Colour theme PREMIUM", no Menu shot with a
+   Premium row. The current `settings-light` slide shows that badge, so re-capture it without it or drop
+   it. Check each translated listing's own screenshots too, and replace any that show Premium or a price.
+
+### 3. App access (the reviewer can sign in and lands on Premium)
+
+**Monitor and improve > App content > App access**: choose **All or some functionality in my app is
+restricted**, and add one set of instructions.
+
+Before filling it, three things outside the Console, all by hand:
+
+1. **The code relay still works.** In Cloudflare: doubledone.app > Email > Email Routing > routing rules,
+   `appreview@doubledone.app` must still route to the Worker `doubledone-ai`. The July note said to delete
+   it after Apple's approval, so it may be gone. Recreate it if so. (How the relay works:
+   `server/src/review-otp.ts`.)
+2. **A permanent comp on the review account.** Add `appreview@doubledone.app` to the `COMP_EMAILS` Worker
+   secret (Cloudflare dashboard > Workers & Pages > doubledone-ai > Settings > Variables and Secrets, or
+   `npx wrangler secret put COMP_EMAILS` from `server/`). The value **replaces** the whole list and cannot
+   be read back, so type every existing address plus this one, comma-separated. It is a production
+   change, so it is Melroy's hand.
+3. **Walk it yourself once** on the new build: sign in as the review account, see Premium on, see no price.
+
+Paste this into the instructions box. Username `appreview@doubledone.app`. Password: none, the account is
+passwordless.
+
+```
+Sign-in is passwordless: an email address and a one-time code. To sign in as the review account:
+1. Open DoubleDone and tap "Sync and sharing" on Today to reach Sign in.
+2. Enter appreview@doubledone.app and tap "Email me a code".
+3. In any browser, open https://api.doubledone.app/review-code. It shows the latest 6-digit code.
+4. Type that code into the app.
+Codes expire after an hour. If the page says there is no code yet, or that it has expired, tap send again in the app and refresh the page.
+Everything except Premium features and the shared list works with no account at all. This review account has Premium, so every feature is open.
+Premium is not sold in the Android app. Existing members sign in. New users can take a free 30-day trial with no payment.
+```
+
+> **The same account is Apple's review account.** While it is comped, an Apple reviewer signed in as it
+> finds Premium already on and no purchase screen. Before the next iOS submission that needs the in-app
+> purchase tested, either tell Apple in the review notes to test the purchase signed out (iOS sells
+> without sign-in) or lift the comp for that review window.
+
+### 4. Data safety
+
+**Monitor and improve > App content > Data safety**: set **Financial info > Payment info** to **Not
+collected**. Payments happen on the web or through Apple, outside this app. Every other answer stays as
+it is ([play-store-submission-pack.md](play-store-submission-pack.md) has the table).
+
+### 5. Content rating
+
+**Monitor and improve > App content > Content rating**: if the questionnaire answered **Yes** to users
+buying digital goods in the app, change it to **No**, save, and submit the new rating in the same batch.
+Leave the shared-list (Ours) answers exactly as [ours-store-compliance.md](ours-store-compliance.md) has
+them.
+
+### 6. Optional tidy-ups
+
+1. **Grow users > Store presence > Store settings**, the contact details' Website field: point it at
+   `https://doubledone.app/support` rather than the root. The root opens the web app, whose Premium screen
+   sells through Stripe. Check the support page carries no price and no buy link first.
+2. **Monetize with Play > Products**: confirm there is no subscription and no one-time (in-app) product,
+   not even a draft.
+
+### 7. Send it, and do not argue
+
+**Publishing overview > Send changes for review**, with every change above in the one batch: the tracks,
+the listings, App access, Data safety and the content rating. **Do not reply to the rejection and do not
+appeal it.** The compliant update is the reply.
+
+### 8. After approval, check it on a real Play install
+
+On a device installed **from Play** (never sideload over a Play install, the signatures differ), update
+from Play, then check:
+
+1. **No price anywhere**: the Premium screen, the welcome, Settings, the Menu, and the in-app Terms and
+   Privacy.
+2. **A web-bought account shows Premium** after sign-in.
+3. **The free month starts** on a fresh free account, with no payment step.
+
+Once the release is live at 100%, bump `android` in `client/public/version.json` by hand (it is only
+ever bumped once a store release is genuinely live).

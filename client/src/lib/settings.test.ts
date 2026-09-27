@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
+import { de } from './catalogs/de';
+import { en } from './catalogs/en';
+import { es } from './catalogs/es';
+import { fr } from './catalogs/fr';
+import { it as itCatalog } from './catalogs/it';
 import {
   DEFAULT_SETTINGS,
   parseSettings,
@@ -104,5 +109,31 @@ describe('parseSettings', () => {
     expect(parseSettings(JSON.stringify({ aiEnabled: true })).aiEnabled).toBe(true);
     expect(parseSettings(JSON.stringify({})).aiEnabled).toBe(true);
     expect(parseSettings(JSON.stringify({ aiEnabled: 'no' })).aiEnabled).toBe(true);
+  });
+});
+
+// Quiet has been free for everyone since 2026-09-27. The gate only ever lived inline in the Settings
+// screen, which the harness does not render, so what CAN drift is the copy: a Premium list or blurb
+// that sells Quiet again would tell a free user they are using something paid, and a hint written
+// for the old gate would contradict the row it sits on. The appearance itself was never gated at
+// read time: parseSettings keeps a stored 'quiet' whatever the entitlement, as the tests above show.
+describe('Quiet is free, and no Premium copy sells it', () => {
+  const catalogs = { en, de, es, fr, it: itCatalog };
+
+  it.each(Object.entries(catalogs))('%s: nothing under premium or the welcome Premium screen names Quiet', (_lang, c) => {
+    // Case-sensitive on purpose: the English welcome's "quiet stats" is an adjective, not the look.
+    const quiet = new RegExp('\\b' + c.settings.appearanceQuiet + '\\b');
+    const selling = [
+      ...Object.values(c.premium),
+      ...Object.entries(c.welcome)
+        .filter(([key]) => key.startsWith('premium'))
+        .map(([, value]) => value),
+    ];
+    expect(selling.filter((line) => quiet.test(line))).toEqual([]);
+  });
+
+  it.each(Object.entries(catalogs))('%s: the Interface hint is one line for everyone and never says Premium', (_lang, c) => {
+    expect(c.settings.appearanceHint).toContain(c.settings.appearanceQuiet);
+    expect(c.settings.appearanceHint).not.toMatch(/Premium/);
   });
 });
