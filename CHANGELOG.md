@@ -11,11 +11,25 @@ versioning: [SemVer](https://semver.org/).
 
 _Post-v1 work lands here._
 
+## [1.6.0] - 2026-09-27
+
+_Today v3 on all three surfaces (web live from `e8180bd` and `f720171`; iOS and Android from the 1.6.0 builds). The 1.3 to 1.5 releases were shipped without changelog sections; their notes live in `docs/release-notes/` and the why in `decision-log.md`._
+
+### Added
+- **Today v3**: the Today and Ours tab heading, Right now under Energy, the Menu as "The rest of the house", every room walked into the same way, Chart a course refreshed, and Settings in five cards.
+- **Capture is a floating +**: a pill at the foot of Today and Ours that raises a panel from the bottom; the keyboard waits until you tap the box, and words left in it show as "+ ···".
+- **Repeating is a room**, grouped Every day, Each week, Every few days and Each month; Routines start empty, with one suggestion inside each form.
+- **Tuck** (a Settings choice and a welcome step): a finished task can fold into a "Done today" line.
+
 ### Changed
 - **The Quiet interface is free for everyone**, on every platform (2026-09-27). The Settings row loses its Premium tag and gate, and Quiet leaves the paywall's feature list, the "You're Premium" panel and the welcome's Premium screen, in all five languages. For this audience a calmer, less cluttered screen is an access need, the same reason theme, text size and motion are free. The seven colour themes stay Premium.
+- **The Android app sells nothing** (Path C, Google Play's Payments and Subscriptions policies): no price, purchase control or Stripe link on Android. Premium bought on the web or an iPhone works there after sign-in, and the card-free month stays.
 
 ### Fixed
 - An account whose Premium or trial ended while it was on Quiet can switch back to Standard. The old gate bounced every tap to the paywall, Standard included, so the only ways out were to subscribe again or wipe the app's data, and on Android, whose Premium page sells nothing, there was no way out at all.
+- **Deleting an account stops Stripe billing first** (`POST /account/close-billing`): nothing is deleted unless billing is confirmed stopped, and Apple subscribers are told to cancel in their iPhone's settings first.
+- Android Chrome no longer slides its address bar off a strip of bare page under the app; iPhone Safari's floating address label no longer covers When and Add.
+- One done sign (an accent tick, no strike-through), Quiet's Energy as words, and no flash of the default Ours name in other languages.
 
 ## [1.2.0] - 2026-07-12
 
