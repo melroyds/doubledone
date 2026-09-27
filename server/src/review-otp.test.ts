@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { D1LikeDatabase } from './entitlements';
-import { extractOtpCode, handleReviewCode, handleReviewEmail, REVIEW_EMAIL, storeReviewCode } from './review-otp';
+import { emailBodyText, extractOtpCode, handleReviewCode, handleReviewEmail, REVIEW_EMAIL, storeReviewCode } from './review-otp';
 
 const NOW = Date.parse('2026-07-19T10:00:00Z');
 
@@ -121,5 +121,61 @@ describe('handleReviewEmail', () => {
     const db = fakeDb();
     await handleReviewEmail({ to: REVIEW_EMAIL, raw: asStream('welcome to the newsletter'), rawSize: 30 }, db, new Date(NOW).toISOString());
     expect(db.rows.size).toBe(0);
+  });
+});
+
+// Real sign-in emails are MIME: headers full of timestamps, bodies in base64 or quoted-printable.
+// 2026-09-27 the relay served "010601" (the send time, from a header) while the real code sat in a
+// base64 body, and Supabase refused it. These are shaped like what actually arrives.
+const b64 = (s: string) => btoa(unescape(encodeURIComponent(s))).replace(/(.{76})/g, '$1\r\n');
+const HEADERS = [
+  'Received: by mx.example.com with SMTP id 010601; Sat, 27 Sep 2026 01:06:01 +0000',
+  'Message-ID: <20260927.010601.4821@mail.supabase.io>',
+  'Date: Sat, 27 Sep 2026 01:06:01 +0000',
+  'From: Supabase Auth <noreply@mail.app.supabase.io>',
+  'To: appreview@doubledone.app',
+  'Subject: Your sign-in code',
+  'MIME-Version: 1.0',
+].join('\r\n');
+
+describe('emailBodyText + extractOtpCode on real-shaped mail', () => {
+  it('finds the code in a base64 HTML body and ignores the timestamps in the headers', () => {
+    const html = '<html><head><style>.c{color:#010601}</style></head><body><h2>Your code</h2><p>Enter this code: <strong>482913</strong></p><a href="https://example.com/verify" data-ref="123456">link</a></body></html>';
+    const raw = `${HEADERS}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n${b64(html)}\r\n`;
+    expect(extractOtpCode(emailBodyText(raw))).toBe('482913');
+  });
+
+  it('reads a multipart/alternative message, quoted-printable text with a soft break inside the code', () => {
+    const raw = [
+      HEADERS,
+      'Content-Type: multipart/alternative; boundary="b1"',
+      '',
+      '--b1',
+      'Content-Type: text/plain; charset=utf-8',
+      'Content-Transfer-Encoding: quoted-printable',
+      '',
+      'Your code is 73=',
+      '0152 =E2=80=94 it expires in an hour.',
+      '--b1',
+      'Content-Type: text/html; charset=utf-8',
+      'Content-Transfer-Encoding: base64',
+      '',
+      b64('<p>Your code is <b>730152</b></p>'),
+      '--b1--',
+      '',
+    ].join('\r\n');
+    expect(extractOtpCode(emailBodyText(raw))).toBe('730152');
+  });
+
+  it('never takes a number from the headers, even when the body has no code', () => {
+    const raw = `${HEADERS}\r\nContent-Type: text/plain\r\n\r\nWelcome to DoubleDone.\r\n`;
+    expect(extractOtpCode(emailBodyText(raw))).toBeNull();
+  });
+
+  it('relays the real code end to end from an encoded message', async () => {
+    const db = fakeDb();
+    const raw = `${HEADERS}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n${b64('<p>Your code: 604218</p>')}\r\n`;
+    await handleReviewEmail({ to: REVIEW_EMAIL, raw: new Response(raw).body as ReadableStream, rawSize: raw.length }, db, new Date(NOW).toISOString());
+    expect(db.rows.get(1)?.code).toBe('604218');
   });
 });

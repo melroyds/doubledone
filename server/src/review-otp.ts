@@ -25,6 +25,79 @@ export function extractOtpCode(raw: string): string | null {
   return any ? any[1] : null;
 }
 
+/**
+ * The readable text of an email: every text/plain and text/html part, decoded (base64 or
+ * quoted-printable) with the HTML tags dropped. The HEADERS are never included. Searching the raw
+ * message served the send time as the code (2026-09-27: a header carried "010601", 01:06:01 UTC, and
+ * the real code sat in a base64 body where no digit run was visible), so the reviewer was handed a
+ * code Supabase rightly refused. A message with no header block at all is taken as plain text.
+ */
+export function emailBodyText(raw: string): string {
+  if (!/^[A-Za-z0-9-]+:/.test(raw)) return raw;
+  const texts: string[] = [];
+  const walk = (part: string, depth: number) => {
+    const m = /\r?\n\r?\n/.exec(part);
+    if (!m) return;
+    const headers = part.slice(0, m.index).replace(/\r?\n[ \t]+/g, ' ');
+    const body = part.slice(m.index + m[0].length);
+    const header = (name: string) => new RegExp(`^${name}:[ \t]*(.*)$`, 'im').exec(headers)?.[1] ?? null;
+    const ctype = header('content-type') ?? 'text/plain';
+    const cte = (header('content-transfer-encoding') ?? '7bit').trim().toLowerCase();
+    const boundary = /boundary="?([^";\r\n]+)"?/i.exec(ctype)?.[1];
+    if (/^multipart\//i.test(ctype) && boundary && depth < 6) {
+      const pieces = body.split(`--${boundary}`);
+      for (const piece of pieces.slice(1)) {
+        if (piece.startsWith('--')) break; // the closing delimiter
+        walk(piece.replace(/^\r?\n/, ''), depth + 1);
+      }
+      return;
+    }
+    if (!/^text\//i.test(ctype)) return;
+    let text = cte === 'base64' ? decodeBase64(body) : cte === 'quoted-printable' ? decodeQuotedPrintable(body) : body;
+    if (/text\/html/i.test(ctype)) text = htmlToText(text);
+    texts.push(text);
+  };
+  walk(raw, 0);
+  return texts.join('\n');
+}
+
+function bytesToText(bytes: Uint8Array): string {
+  return new TextDecoder('utf-8').decode(bytes); // not fatal: a stray byte never loses the code
+}
+
+function decodeBase64(body: string): string {
+  try {
+    const bin = atob(body.replace(/[^A-Za-z0-9+/=]/g, ''));
+    return bytesToText(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+  } catch {
+    return '';
+  }
+}
+
+function decodeQuotedPrintable(body: string): string {
+  const joined = body.replace(/=\r?\n/g, ''); // soft line breaks can split the code itself
+  const bytes: number[] = [];
+  for (let i = 0; i < joined.length; i++) {
+    const hex = joined[i] === '=' ? joined.slice(i + 1, i + 3) : '';
+    if (/^[0-9A-Fa-f]{2}$/.test(hex)) {
+      bytes.push(parseInt(hex, 16));
+      i += 2;
+    } else {
+      bytes.push(...new TextEncoder().encode(joined[i]));
+    }
+  }
+  return bytesToText(Uint8Array.from(bytes));
+}
+
+function htmlToText(html: string): string {
+  return html
+    .replace(/<(style|script|head)[\s\S]*?<\/\1>/gi, ' ') // CSS colours like #010101 live here
+    .replace(/<[^>]+>/g, ' ') // attributes too: a link's token hash is not the code
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&#(\d+);/g, (_, n: string) => String.fromCharCode(Number(n)))
+    .replace(/&amp;/gi, '&');
+}
+
 async function ensureTable(db: D1LikeDatabase): Promise<void> {
   // Idempotent, like alerts_sent: the table exists after the first email regardless of schema.sql.
   await db.prepare('CREATE TABLE IF NOT EXISTS review_otp (id integer primary key, code text not null, updated_at text not null)').bind().run();
@@ -75,7 +148,7 @@ export async function handleReviewEmail(
     // The whole message (an OTP email is a few KB); cap the read defensively at 256 KB.
     if (message.rawSize > 256 * 1024) return;
     const raw = await new Response(message.raw).text();
-    const code = extractOtpCode(raw);
+    const code = extractOtpCode(emailBodyText(raw)); // the decoded body only, never the headers
     if (code) await storeReviewCode(db, code, nowISO);
   } catch {
     // best effort: a failed relay just means the reviewer taps "send code" again
