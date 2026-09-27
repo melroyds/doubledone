@@ -464,18 +464,19 @@ Before filling it, three things outside the Console, all by hand:
    change, so it is Melroy's hand.
 3. **Walk it yourself once** on the new build: sign in as the review account, see Premium on, see no price.
 
-Paste this into the instructions box. Username `appreview@doubledone.app`. Password: none, the account is
-passwordless.
+Play Console calls this **Sign in details** now (Monitor and improve > App content), not App access.
+Name `Review account (passwordless)`. Username `appreview@doubledone.app`. Password: the field will not
+stay blank, so `Not needed: one-time code, see instructions`. Paste this into **Any other information
+required to access your app**, which Play caps at **500 characters** (this is 435, so keep any edit short):
 
 ```
-Sign-in is passwordless: an email address and a one-time code. To sign in as the review account:
-1. Open DoubleDone and tap "Sync and sharing" on Today to reach Sign in.
+Passwordless sign-in (email + one-time code):
+1. On Today, tap "Sync and sharing".
 2. Enter appreview@doubledone.app and tap "Email me a code".
-3. In any browser, open https://api.doubledone.app/review-code. It shows the latest 6-digit code.
-4. Type that code into the app.
-Codes expire after an hour. If the page says there is no code yet, or that it has expired, tap send again in the app and refresh the page.
-Everything except Premium features and the shared list works with no account at all. This review account has Premium, so every feature is open.
-Premium is not sold in the Android app. Existing members sign in. New users can take a free 30-day trial with no payment.
+3. In any browser, open https://api.doubledone.app/review-code for the latest 6-digit code.
+4. Type it into the app.
+Codes last an hour. If none shows, tap send again in the app and refresh the page.
+This account has Premium, so every feature is open. Premium is not sold in the Android app.
 ```
 
 > **The same account is Apple's review account.** While it is comped, an Apple reviewer signed in as it

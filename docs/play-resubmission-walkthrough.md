@@ -312,21 +312,21 @@ La privacy, in parole semplici, su doubledone.app/privacy.
   8. `welcome.png`: Today is finite and achievable.
 - No shot shows a price or a Premium surface. That is deliberate, so don't add the Settings shot back.
 
-### 4. App access
-**Monitor and improve > App content > App access**
+### 4. Sign in details (was "App access")
+**Monitor and improve > App content > Sign in details > Manage.** Google renamed App access in 2026.
 - [ ] Choose **All or some functionality in my app is restricted**.
-- [ ] Username: `appreview@doubledone.app`. Password: none (passwordless).
-- [ ] Paste into the instructions:
+- [ ] Name: `Review account (passwordless)`
+- [ ] Username: `appreview@doubledone.app`. Password: `Not needed: one-time code, see instructions` (the field will not stay blank).
+- [ ] Paste into **Any other information required to access your app** (Play caps it at 500 characters, this is 435):
 
 ```
-Sign-in is passwordless: an email address and a one-time code. To sign in as the review account:
-1. Open DoubleDone and tap "Sync and sharing" on Today to reach Sign in.
+Passwordless sign-in (email + one-time code):
+1. On Today, tap "Sync and sharing".
 2. Enter appreview@doubledone.app and tap "Email me a code".
-3. In any browser, open https://api.doubledone.app/review-code. It shows the latest 6-digit code.
-4. Type that code into the app.
-Codes expire after an hour. If the page says there is no code yet, or that it has expired, tap send again in the app and refresh the page.
-Everything except Premium features and the shared list works with no account at all. This review account has Premium, so every feature is open.
-Premium is not sold in the Android app. Existing members sign in. New users can take a free 30-day trial with no payment.
+3. In any browser, open https://api.doubledone.app/review-code for the latest 6-digit code.
+4. Type it into the app.
+Codes last an hour. If none shows, tap send again in the app and refresh the page.
+This account has Premium, so every feature is open. Premium is not sold in the Android app.
 ```
 
 ### 5. Data safety
