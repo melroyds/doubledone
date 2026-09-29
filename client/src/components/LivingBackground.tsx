@@ -10,8 +10,15 @@ import { Animated, AppState, Easing, Platform, StyleSheet, useWindowDimensions, 
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { motion } from '@/constants/motion';
-import { dayPhase, PHASE_GRADIENT, PHASE_POOLS, poolLayout, type Phase } from '@/lib/phase';
+import { dayPhase, driftAt, PHASE_GRADIENT, PHASE_POOLS, poolLayout, type Phase } from '@/lib/phase';
 import { useReducedMotion, useTheme } from '@/lib/theme-provider';
+
+// The ease-in-out the drift always had, sampled so it can ride an interpolation: the loop itself now runs
+// LINEARLY off the wall clock (driftAt), which is what lets a fresh instance pick up exactly where every
+// other one is, and the curve is applied here instead. A sampled curve, not an `easing` on interpolate,
+// because the native driver takes plain input and output ranges only.
+const EASE_IN = Array.from({ length: 11 }, (_, i) => i / 10);
+const EASE_OUT = EASE_IN.map(Easing.inOut(Easing.ease));
 
 // A single soft light pool: an SVG radial gradient (colour at the centre fading to fully
 // transparent at the edge), in an absolutely-positioned box that drifts on a slow loop.
@@ -30,32 +37,36 @@ function Pool({
   drift: { x: number; y: number };
   reduceMotion: boolean;
 }) {
-  const [progress] = useState(() => new Animated.Value(0));
+  // Reduced motion rests every pool at 0, so two screens still agree (a still sky, not a clock).
+  const [progress] = useState(() => new Animated.Value(reduceMotion ? 0 : driftAt(Date.now(), motion.ambient).value));
 
   useEffect(() => {
-    if (reduceMotion) return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(progress, {
-          toValue: 1,
-          duration: motion.ambient,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: Platform.OS !== 'web',
-        }),
-        Animated.timing(progress, {
-          toValue: 0,
-          duration: motion.ambient,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: Platform.OS !== 'web',
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
+    if (reduceMotion) {
+      progress.setValue(0);
+      return;
+    }
+    const leg = (toValue: number, duration: number) =>
+      Animated.timing(progress, { toValue, duration, easing: Easing.linear, useNativeDriver: Platform.OS !== 'web' });
+    // Join the shared clock: finish the leg every other instance is on, then loop in step with them.
+    const at = driftAt(Date.now(), motion.ambient);
+    progress.setValue(at.value);
+    let stopped = false;
+    let current: Animated.CompositeAnimation = leg(at.rising ? 1 : 0, at.remainingMs);
+    current.start(({ finished }) => {
+      if (!finished || stopped) return;
+      current = Animated.loop(
+        Animated.sequence(at.rising ? [leg(0, motion.ambient), leg(1, motion.ambient)] : [leg(1, motion.ambient), leg(0, motion.ambient)]),
+      );
+      current.start();
+    });
+    return () => {
+      stopped = true;
+      current.stop();
+    };
   }, [progress, reduceMotion]);
 
-  const translateX = progress.interpolate({ inputRange: [0, 1], outputRange: [0, drift.x] });
-  const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [0, drift.y] });
+  const translateX = progress.interpolate({ inputRange: EASE_IN, outputRange: EASE_OUT.map((e) => e * drift.x) });
+  const translateY = progress.interpolate({ inputRange: EASE_IN, outputRange: EASE_OUT.map((e) => e * drift.y) });
 
   return (
     <Animated.View

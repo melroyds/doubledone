@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { dayPhase, PHASE_GRADIENT, PHASE_POOLS, phaseGreeting, poolLayout } from './phase';
+import { dayPhase, driftAt, PHASE_GRADIENT, PHASE_POOLS, phaseGreeting, poolLayout } from './phase';
 
 function at(h: number): Date {
   return new Date(2026, 5, 22, h, 0, 0);
@@ -39,6 +39,42 @@ describe('phaseGreeting', () => {
     expect(phaseGreeting(at(14))).toBe('Good afternoon. Just today.');
     expect(phaseGreeting(at(19))).toBe('Winding down. Just today.');
     expect(phaseGreeting(at(23))).toBe('Just today. The rest can wait.');
+  });
+});
+
+describe('driftAt (one clock for every LivingBackground)', () => {
+  const LEG = 50_000;
+
+  it('rises from 0 to 1 across the first leg, then falls back across the second', () => {
+    expect(driftAt(0, LEG)).toEqual({ value: 0, rising: true, remainingMs: LEG });
+    expect(driftAt(LEG / 4, LEG)).toEqual({ value: 0.25, rising: true, remainingMs: LEG * 0.75 });
+    expect(driftAt(LEG, LEG)).toEqual({ value: 1, rising: false, remainingMs: LEG });
+    expect(driftAt(LEG * 1.5, LEG)).toEqual({ value: 0.5, rising: false, remainingMs: LEG / 2 });
+  });
+
+  it('repeats every two legs, so a real timestamp lands mid-loop', () => {
+    const now = 1_790_000_123_456;
+    expect(driftAt(now, LEG)).toEqual(driftAt(now + LEG * 2, LEG));
+    const at = driftAt(now, LEG);
+    expect(at.value).toBeGreaterThanOrEqual(0);
+    expect(at.value).toBeLessThanOrEqual(1);
+    expect(at.remainingMs).toBeGreaterThan(0);
+    expect(at.remainingMs).toBeLessThanOrEqual(LEG);
+  });
+
+  it('lands exactly on the end of the current leg, where the steady loop takes over', () => {
+    for (const now of [1_790_000_200_000, 1_790_000_237_500, 12_345]) {
+      const at = driftAt(now, LEG);
+      const end = driftAt(now + at.remainingMs, LEG);
+      expect(end.value).toBe(at.rising ? 1 : 0);
+      expect(end.rising).toBe(!at.rising);
+    }
+  });
+
+  it('is continuous: a millisecond moves it by at most one millisecond of drift', () => {
+    for (const t of [1, LEG - 1, LEG + 1, LEG * 2 - 1]) {
+      expect(Math.abs(driftAt(t + 1, LEG).value - driftAt(t, LEG).value)).toBeLessThanOrEqual(1 / LEG + 1e-12);
+    }
   });
 });
 

@@ -61,6 +61,19 @@ export function poolLayout(width: number, height: number) {
   };
 }
 
+/** Where the light pools' drift loop stands at `nowMs`, read off the wall clock. Every LivingBackground
+ *  reads the same clock, so two of them (Today, and Just us fading in over it) draw their pools in the
+ *  SAME place and the fade shows one continuous sky. Each used to start its loop at zero on mount, so
+ *  the glow jumped as Just us faded in. The loop is a triangle wave: 0 to 1 over `legMs`, then back.
+ *  `remainingMs` is what is left of the current leg, so a fresh instance can finish it and then loop. */
+export function driftAt(nowMs: number, legMs: number): { value: number; rising: boolean; remainingMs: number } {
+  const period = legMs * 2;
+  const t = ((nowMs % period) + period) % period;
+  if (t < legMs) return { value: t / legMs, rising: true, remainingMs: legMs - t };
+  const u = t - legMs;
+  return { value: 1 - u / legMs, rising: false, remainingMs: legMs - u };
+}
+
 /** The greeting that drifts with the time of day, always ending on the spine. */
 export function phaseGreeting(date: Date): string {
   const h = date.getHours();

@@ -7,6 +7,7 @@ import { BackLink } from '@/components/BackLink';
 import { CaptureSheet, type CaptureSheetHandle, restingListPad, restingPanelHeight } from '@/components/CaptureSheet';
 import { CameraCapture } from '@/components/CameraCapture';
 import { DayHeading } from '@/components/DayHeading';
+import { LivingBackground } from '@/components/LivingBackground';
 import { MenuPill } from '@/components/MenuPill';
 import { DebugPanel } from '@/components/DebugPanel';
 import { CadenceSheet } from '@/components/CadenceSheet';
@@ -753,6 +754,9 @@ export default function OursListScreen() {
 
   return (
     <View style={styles.screen}>
+      {/* The live list is Today's other half (the heading flips between them, with a fade), so it sits on
+          Today's own sky. An archived list keeps the plain room background, like the other rooms. */}
+      {tabbed ? <LivingBackground /> : null}
       <ScrollView
         ref={scrollRef}
         style={styles.scroll}
@@ -765,7 +769,9 @@ export default function OursListScreen() {
         contentContainerStyle={[
           styles.content,
           {
-            paddingTop: insets.top + spacing.four,
+            // Tabbed, the heading must sit exactly where Today's does, or the words jump as you flip
+            // between them (Melroy, 2026-09-30). Today uses spacing.seven; an archived list is a room.
+            paddingTop: insets.top + (tabbed ? spacing.seven : spacing.four),
             paddingBottom: frozen ? spacing.six : sheetOpen ? restingPanelHeight(winH) + 8 : restingListPad(insets.bottom),
           },
         ]}
