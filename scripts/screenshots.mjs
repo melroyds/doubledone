@@ -406,6 +406,9 @@ async function run() {
         // Today v3's headline: the floating + and the panel it raises, with a few lines typed in.
         { name: 'capture', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Drink a glass of water', pill: 'Call the plumber\nWater the fern\nPick up the dry cleaning' },
         { name: 'today-dark', route: '/today', tasks: TODAY_TASKS, theme: 'dark', waitText: 'Drink a glass of water', scrollEnd: true },
+        // The Menu ('The rest of the house'), for design reviews: where Settings and Premium sit on it.
+        { name: 'menu-light', route: '/rooms', tasks: TODAY_TASKS, theme: 'light', waitText: 'The rest of the house' },
+        { name: 'menu-dark', route: '/rooms', tasks: TODAY_TASKS, theme: 'dark', waitText: 'The rest of the house' },
         { name: 'lookback-light', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'light', waitText: 'Water the plants' },
         { name: 'lookback-dark', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'dark', waitText: 'Water the plants' },
         { name: 'scrapbook-light', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'light', testid: 'scrapbook-card', waitText: 'Scrapbook' },
