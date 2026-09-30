@@ -112,3 +112,33 @@ describe('readEntitlement and the source helpers', () => {
     expect(['', 'amazon', 'PLAY_STORE', null, undefined, 1].some(isEntitlementSource)).toBe(false);
   });
 });
+
+describe('writeEntitlement: only a real sale takes a premium row from another store (review 2026-09-30)', () => {
+  it('keeps a foreign write that is premium ON but winding down (cancelled, cancelling, or in dunning)', async () => {
+    for (const over of [
+      { status: 'canceled', cancelAtPeriodEnd: true },
+      { status: 'active', cancelAtPeriodEnd: true }, // a Stripe cancel_at update, a reconcile already set to end
+      { status: 'past_due', cancelAtPeriodEnd: false }, // a billing issue
+    ]) {
+      const db = await sqliteD1();
+      await writeEntitlement(db, on('google'), NOW);
+      expect(await writeEntitlement(db, on('stripe', over), NOW), JSON.stringify(over)).toBe(false);
+      expect((await readEntitlement(db, UID)).source).toBe('google');
+    }
+  });
+
+  it('lets a foreign trialing sale take the row, and the same store always write its own wind-down', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, on('google'), NOW);
+    expect(await writeEntitlement(db, on('stripe', { status: 'trialing' }), NOW)).toBe(true);
+    expect(await writeEntitlement(db, on('stripe', { status: 'canceled', cancelAtPeriodEnd: true }), NOW)).toBe(true);
+    expect(await readEntitlement(db, UID)).toMatchObject({ source: 'stripe', status: 'canceled', cancelAtPeriodEnd: true });
+  });
+
+  it('lets any write land on a row that is not premium (a lapsed Stripe row, an Apple cancel with access left)', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, off('stripe', 'canceled'), NOW);
+    expect(await writeEntitlement(db, on('apple', { status: 'canceled', cancelAtPeriodEnd: true }), NOW)).toBe(true);
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, source: 'apple' });
+  });
+});

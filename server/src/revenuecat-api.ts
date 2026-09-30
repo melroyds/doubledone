@@ -32,6 +32,9 @@ export type ReconcileEnv = {
   RC_SECRET_KEY?: string;
   /** The same named sandbox allowlist the webhook reads (review and tester accounts only). */
   SANDBOX_GRANT_UIDS?: string;
+  /** The per-user limiter account deletion uses. Reconcile spends the same RevenueCat key, so it is
+   *  limited too, under its own key prefix, or a scripted caller could starve deletions of it. */
+  BILLING_LIMITER?: { limit(o: { key: string }): Promise<{ success: boolean }> };
 };
 
 /**
@@ -142,6 +145,9 @@ export async function handleAppleReconcile(
 
   const userId = await verifySub(token, env.SUPABASE_URL);
   if (!userId) return json({ error: 'unauthorized' }, 401);
+  if (env.BILLING_LIMITER && !(await env.BILLING_LIMITER.limit({ key: `reconcile:${userId}` })).success) {
+    return json({ error: 'rate_limited' }, 429);
+  }
 
   let body: unknown;
   try {

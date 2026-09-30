@@ -15,7 +15,8 @@ import { timingSafeEqual } from './stripe';
 export type RcEnv = {
   DB?: D1LikeDatabase;
   // The shared secret configured as the webhook's Authorization header value in the RevenueCat
-  // dashboard. RevenueCat has no HMAC signature, so this constant IS the auth. Make it long.
+  // dashboard. This constant IS the auth today. Make it long. (RevenueCat now also offers an HMAC
+  // signature, X-RevenueCat-Webhook-Signature; verifying it is parked in the Backlog as hardening.)
   RC_WEBHOOK_AUTH?: string;
   // The owner-alert path (same binding the monitor + Stripe money alerts use). Optional.
   SEND_EMAIL?: { send(message: unknown): Promise<unknown> };
@@ -76,6 +77,24 @@ export function sandboxAllowlist(raw: string | undefined): Set<string> {
 // a real lapse land while still refusing one that overtook a renewal by days.
 export const EXPIRY_SKEW_MS = 60_000;
 
+/**
+ * When a premium-ON event that is NOT a sale (a cancel with access left, a billing issue) stops being
+ * true: the grace period's end if the event names one, else the paid period's end. Such an event that
+ * arrives after that moment is stale, and must write nothing: RevenueCat can deliver BILLING_ISSUE,
+ * CANCELLATION and EXPIRATION out of order, and retries a failed delivery minutes later, so a late one
+ * would otherwise switch Premium back on after the EXPIRATION, with no event ever coming to end it.
+ */
+function notSaleEndsAt(e: { grace_period_expiration_at_ms?: unknown; expiration_at_ms?: unknown }): number | null {
+  const grace = typeof e.grace_period_expiration_at_ms === 'number' && Number.isFinite(e.grace_period_expiration_at_ms) ? e.grace_period_expiration_at_ms : null;
+  if (grace != null) return grace;
+  return typeof e.expiration_at_ms === 'number' && Number.isFinite(e.expiration_at_ms) ? e.expiration_at_ms : null;
+}
+
+/** The premium-ON events that are not sales, which the staleness rule above applies to. */
+function isNotSaleOn(type: string, cancelReason: unknown): boolean {
+  return type === 'BILLING_ISSUE' || (type === 'CANCELLATION' && cancelReason !== 'CUSTOMER_SUPPORT');
+}
+
 // Grants: premium on, auto-renew implied on. status 'active', period end refreshed from the event.
 const GRANT_TYPES = new Set(['INITIAL_PURCHASE', 'RENEWAL', 'UNCANCELLATION', 'PRODUCT_CHANGE', 'SUBSCRIPTION_EXTENDED', 'TEMPORARY_ENTITLEMENT_GRANT']);
 
@@ -94,7 +113,7 @@ export function entitlementFromRcEvent(event: unknown, nowMs: number): Entitleme
     entitlement_ids?: unknown;
     expiration_at_ms?: unknown;
     cancel_reason?: unknown;
-    expiration_reason?: unknown;
+    grace_period_expiration_at_ms?: unknown;
     store?: unknown;
   };
   const type = typeof e.type === 'string' ? e.type : '';
@@ -113,6 +132,12 @@ export function entitlementFromRcEvent(event: unknown, nowMs: number): Entitleme
   const expMs = typeof e.expiration_at_ms === 'number' ? e.expiration_at_ms : null;
   const periodEndSec = expMs != null ? Math.floor(expMs / 1000) : null;
   const base = { userId, customerId: null, source };
+
+  // A late cancel or billing issue, arriving after the moment it describes has passed, writes nothing.
+  if (isNotSaleOn(type, e.cancel_reason)) {
+    const endsAt = notSaleEndsAt(e);
+    if (endsAt != null && endsAt <= nowMs) return null;
+  }
 
   if (GRANT_TYPES.has(type)) {
     return { ...base, premium: true, status: 'active', currentPeriodEnd: periodEndSec, cancelAtPeriodEnd: false };
@@ -146,12 +171,10 @@ export function entitlementFromRcEvent(event: unknown, nowMs: number): Entitleme
     // guarantee ordering, so an EXPIRATION overtaking a RENEWAL must not revoke a live subscriber.
     // Only revoke once the expiration is actually in the past (give or take EXPIRY_SKEW_MS).
     if (expMs != null && expMs > nowMs + EXPIRY_SKEW_MS) return null;
-    // A lapse because the card kept failing is ON HOLD, not over: the store is still retrying, and on
-    // Play the person can fix it and keep going. It must read differently from a real end, because a
-    // second purchase on top of a held subscription is a double charge (the checkout guard refuses it).
-    if (e.expiration_reason === 'BILLING_ERROR') {
-      return { ...base, premium: false, status: 'on_hold', currentPeriodEnd: null, cancelAtPeriodEnd: false };
-    }
+    // No separate "on hold" state yet, on purpose. A first cut wrote one for a billing-error lapse and
+    // review found it never cleared: nothing moves a row out of it, so an iPhone subscriber whose card
+    // failed could never subscribe on the web again. When Google's account hold is observed on a real
+    // licence tester (PREM-59), hold can come back as something read against a stored deadline.
     return { ...base, premium: false, status: 'expired', currentPeriodEnd: null, cancelAtPeriodEnd: false };
   }
   // TEST, SUBSCRIPTION_PAUSED, TRANSFER (handled in the route), and anything new: no write.
@@ -199,7 +222,8 @@ export type RcOutcome =
   | 'sandbox'
   | 'sandbox-allowlisted'
   | 'other-store'
-  | 'cross-store-kept'
+  | 'stale-on'
+  | 'kept'
   | 'no-op';
 
 /** One row of the delivery log. A named allowlist: everything here is deliberate, and anything not
@@ -259,15 +283,19 @@ export function rcEventRow(event: unknown, outcome: RcOutcome): RcEventRow {
 
 /**
  * The reason `entitlementFromRcEvent` returned null, mirroring its precedence EXACTLY (user first,
- * then the entitlement id, then the store, then the stale-EXPIRATION guard, then simply a type we do
- * not act on). Kept beside it so the two cannot drift; a test asserts the mirror over the fixtures.
+ * then the entitlement id, then the store, then a stale non-sale ON event, then the stale-EXPIRATION
+ * guard, then simply a type we do not act on). Kept beside it so the two cannot drift; a test asserts the mirror over the fixtures.
  */
 export function rcIgnoreOutcome(event: unknown, nowMs: number): RcOutcome {
-  const e = (event ?? {}) as { type?: unknown; entitlement_ids?: unknown; expiration_at_ms?: unknown; store?: unknown };
+  const e = (event ?? {}) as { type?: unknown; entitlement_ids?: unknown; expiration_at_ms?: unknown; store?: unknown; cancel_reason?: unknown; grace_period_expiration_at_ms?: unknown };
   if (!appUserIdFromRcEvent(event)) return 'unresolved-user';
   const ids = Array.isArray(e.entitlement_ids) ? e.entitlement_ids : [];
   if (!ids.includes(ENTITLEMENT)) return 'other-entitlement';
   if (!sourceForStore(e.store)) return 'other-store';
+  if (typeof e.type === 'string' && isNotSaleOn(e.type, e.cancel_reason)) {
+    const endsAt = notSaleEndsAt(e);
+    if (endsAt != null && endsAt <= nowMs) return 'stale-on';
+  }
   if (e.type === 'EXPIRATION') {
     const expMs = num(e.expiration_at_ms);
     if (expMs != null && expMs > nowMs + EXPIRY_SKEW_MS) return 'stale-expiration';
@@ -381,10 +409,10 @@ export async function handleRcWebhook(request: Request, env: RcEnv, nowISO: stri
   }
   const written = await writeEntitlement(env.DB, ent, nowISO);
   // AFTER the write, never before, so `applied = 1` can never claim something that did not happen.
-  // `false` is the cross-store guard at work: this store tried to switch off a premium another store
-  // sold, and the row was kept. Handled, so it is still marked processed; the log says why.
+  // `false` is writeEntitlement's cross-store guard at work: another store sold the live premium, and
+  // this store may not end it or take it over. Handled, so it is still marked processed.
   const kept = written === false;
-  await logRcEvent(env.DB, rcEventRow(event, kept ? 'cross-store-kept' : allowlisted ? 'sandbox-allowlisted' : 'applied'), nowISO);
+  await logRcEvent(env.DB, rcEventRow(event, kept ? 'kept' : allowlisted ? 'sandbox-allowlisted' : 'applied'), nowISO);
   if (eventId) {
     try {
       await env.DB.prepare('INSERT OR IGNORE INTO processed_events (event_id, created_at) VALUES (?1, ?2)').bind(eventId, nowISO).run();

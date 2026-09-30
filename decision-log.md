@@ -8570,14 +8570,20 @@ changes six things (the full plan is `docs/path-a-runbook.md`):
   event's `store` (`PLAY_STORE` is google, a missing store is Apple as always), and the reconcile route
   reads it off RevenueCat's own subscription row. PROMOTIONAL, STRIPE, RC_BILLING and every other store
   are logged and never written (`other-store`). Until now all of them were silently written as Apple.
-- **One store can never switch off another.** `writeEntitlement` refuses a premium-OFF write that comes
-  from a different store than the one holding a live premium (a WHERE on the upsert, proved in real SQLite
-  against `schema.sql`). A Refund-and-revoke on an old Google order can no longer end a paying Stripe
-  member's access, and a late Stripe event cannot end a Google one. A premium-ON write always lands and
-  takes the source over: erring towards access is the safe way to be wrong. Logged as `cross-store-kept`.
+- **Only the store that last SOLD the premium can end it.** While the row is premium, a write from a
+  DIFFERENT store lands only if it is a real sale (premium on, active or trialing, renewing). A store
+  winding down (a cancel with access left, a billing issue, a Stripe cancel_at update, a reconcile already
+  set to end) can no longer take the row over, so its later expiry cannot end what another store still
+  sells: a Refund-and-revoke on an old Google order no longer ends a paying Stripe member. A WHERE on the
+  upsert, proved in real SQLite against `schema.sql`. Logged as `kept`. It does NOT solve two genuinely
+  live stores for one person, which resolve to whichever sold last (Backlog: a row per store).
 - **A failed card is not a person leaving.** A CANCELLATION for `BILLING_ERROR` is now `past_due` with
-  premium ON (it used to read "Premium until {date}" to someone whose card merely bounced), and an
-  EXPIRATION for `BILLING_ERROR` is `on_hold`, not `expired`. This fixes live iOS too.
+  premium ON (it used to read "Premium until {date}" to someone whose card merely bounced). This fixes
+  live iOS too.
+- **A late cancel or billing issue never switches Premium back on.** RevenueCat can deliver BILLING_ISSUE,
+  CANCELLATION and EXPIRATION out of order and retries a failed delivery minutes later, so a late one used
+  to re-grant Premium after the EXPIRATION, with no event ever coming to end it (pre-existing on main). Now
+  one whose grace period (or, without one, paid period) has already ended writes nothing (`stale-on`).
 - **A minute of clock skew** on a revoking EXPIRATION, which was otherwise refused forever as "stale" if
   RevenueCat's clock ran a few seconds ahead of ours.
 - **A named sandbox allowlist,** `SANDBOX_GRANT_UIDS` (a Worker secret, Melroy's to set). Sandbox
@@ -8603,6 +8609,22 @@ renaming `/apple/reconcile` (live iOS clients call it); keeping allowlisted test
 the Analytics Centre counts (a handful of known rows, parked as Tier 3 rather than threading the list
 through every metric).
 
-**Open before deploy:** a read-only D1 check for existing PROMOTIONAL rows in `rc_events`, because a
-promotional grant written before today can no longer be revoked by the webhook. It needs `wrangler login`
-with D1 access, or Melroy runs one query in the dashboard.
+**Hardened by review** (8 agents across money, the live clients, RevenueCat's documented semantics and
+security; every finding independently verified). Taken: the takeover rule and the stale-event rule above;
+account deletion now also cancels a Play subscription on HOLD (a billing issue in the last 60 days, whose
+expiry is already past but which Google can still recover and charge) and a refunded one that has not
+ended, and treats a refused second cancel on a held, already-off subscription as done so a retry cannot
+wedge for 60 days; the checkout guard now answers 503 on a failed read instead of selling; reconcile is
+rate-limited per user under the deletion limiter (it spends the same RevenueCat key).
+**Pulled back, deliberately:** the first cut's `on_hold` state. Nothing ever moved a row out of it, so an
+iPhone subscriber whose card failed could never subscribe on the web again (a regression on live web).
+Hold comes back only once Google's account hold is observed on a real licence tester (PREM-59), as a
+deadline read at request time. Also removed before commit: a "renewal guard" against an old EXPIRATION
+retried after a RENEWAL, because comparing its expiry with the row's period would also keep a real EARLY
+revoke (a refund). It needs the event's own timestamp; parked.
+
+**Open before deploy:** (1) a read-only D1 check for PROMOTIONAL rows in `rc_events`, AND a look in the
+RevenueCat dashboard for any active promotional grant: one written before today can no longer be revoked
+by the webhook, so revoke it in RevenueCat BEFORE this deploys (never map promotional revokes to Apple,
+which would let them end a real Apple subscriber). (2) `SANDBOX_GRANT_UIDS` lists only the purchase review
+account and the licence tester, never `appreview@`, which is comped and needs nothing.

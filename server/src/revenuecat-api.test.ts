@@ -228,3 +228,18 @@ describe('Path A: reconcile reads which store sold it', () => {
     expect(grantFromSubscriber(body, UID, NOW_MS, true)).toMatchObject({ source: 'google' });
   });
 });
+
+describe('Path A review: reconcile is rate-limited per user', () => {
+  it('429s before any RevenueCat call once the limiter says no', async () => {
+    let called = false;
+    const doFetch = (async () => {
+      called = true;
+      return new Response('{}', { status: 200 });
+    }) as unknown as typeof fetch;
+    const req = new Request('https://w/apple/reconcile', { method: 'POST', headers: { Authorization: 'Bearer tok' } });
+    const env = { DB: fakeDb(), SUPABASE_URL: 'https://proj.supabase.co', RC_SECRET_KEY: 'rc-test', BILLING_LIMITER: { limit: async () => ({ success: false }) } };
+    const res = await handleAppleReconcile(req, env, {}, '2026-09-30T00:00:00Z', NOW_MS, async () => UID, doFetch);
+    expect(res.status).toBe(429);
+    expect(called).toBe(false);
+  });
+});

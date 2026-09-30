@@ -490,10 +490,11 @@ describe('Path A: a failed card is not a person leaving', () => {
     expect(entitlementFromRcEvent(rcEvent({ type: 'CANCELLATION', cancel_reason: 'CUSTOMER_SUPPORT' }), NOW_MS)).toMatchObject({ premium: false, status: 'canceled' });
   });
 
-  it('EXPIRATION for a BILLING_ERROR is on_hold (premium off), a real end is still expired', () => {
+  it('an EXPIRATION is expired whatever its reason: no on_hold state yet (it never cleared, review 2026-09-30)', () => {
     const past = NOW_MS - HOUR_MS;
-    expect(entitlementFromRcEvent(rcEvent({ type: 'EXPIRATION', expiration_reason: 'BILLING_ERROR', expiration_at_ms: past }), NOW_MS)).toMatchObject({ premium: false, status: 'on_hold' });
-    expect(entitlementFromRcEvent(rcEvent({ type: 'EXPIRATION', expiration_reason: 'UNSUBSCRIBE', expiration_at_ms: past }), NOW_MS)).toMatchObject({ premium: false, status: 'expired' });
+    for (const reason of ['BILLING_ERROR', 'UNSUBSCRIBE', undefined]) {
+      expect(entitlementFromRcEvent(rcEvent({ type: 'EXPIRATION', expiration_reason: reason, expiration_at_ms: past }), NOW_MS), String(reason)).toMatchObject({ premium: false, status: 'expired' });
+    }
   });
 });
 
@@ -548,7 +549,7 @@ describe('Path A: the named sandbox allowlist', () => {
   it('counts sandbox-allowlisted as applied, and the new ignore outcomes as not', () => {
     expect(rcEventRow(rcEvent(), 'sandbox-allowlisted').applied).toBe(1);
     expect(rcEventRow(rcEvent(), 'other-store').applied).toBe(0);
-    expect(rcEventRow(rcEvent(), 'cross-store-kept').applied).toBe(0);
+    expect(rcEventRow(rcEvent(), 'kept').applied).toBe(0);
   });
 });
 
@@ -562,7 +563,7 @@ describe('Path A: one store can never switch off another, seen from the webhook 
     const res = await handleRcWebhook(rawReq({ event: evt }), env(db), SQL_NOW, NOW_MS);
     expect(await res.json()).toEqual({ received: true, kept: true });
     expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, source: 'stripe', customerId: 'cus_1' });
-    expect(db.raw.prepare('SELECT outcome, applied, store FROM rc_events').get()).toMatchObject({ outcome: 'cross-store-kept', applied: 0, store: 'PLAY_STORE' });
+    expect(db.raw.prepare('SELECT outcome, applied, store FROM rc_events').get()).toMatchObject({ outcome: 'kept', applied: 0, store: 'PLAY_STORE' });
     expect(db.raw.prepare("SELECT 1 AS hit FROM processed_events WHERE event_id = 'rc:rc-play-exp'").get()).toBeTruthy();
   });
 
@@ -573,5 +574,79 @@ describe('Path A: one store can never switch off another, seen from the webhook 
     const res = await handleRcWebhook(rawReq({ event: rcEvent({ id: 'end', type: 'EXPIRATION', store: 'PLAY_STORE', expiration_at_ms: NOW_MS - HOUR_MS }) }), env(db), SQL_NOW, NOW_MS);
     expect(await res.json()).toEqual({ received: true });
     expect(await readEntitlement(db, UID)).toMatchObject({ premium: false, status: 'expired', source: 'google' });
+  });
+});
+
+describe('Path A review: a late cancel or billing issue never switches Premium back on', () => {
+  const past = NOW_MS - HOUR_MS;
+  const future = NOW_MS + 5 * 24 * HOUR_MS;
+
+  it('drops a CANCELLATION or BILLING_ISSUE whose moment has passed, and names it stale-on', () => {
+    for (const over of [
+      { type: 'CANCELLATION', cancel_reason: 'BILLING_ERROR', expiration_at_ms: past },
+      { type: 'CANCELLATION', cancel_reason: 'UNSUBSCRIBE', expiration_at_ms: past },
+      { type: 'BILLING_ISSUE', expiration_at_ms: past },
+      { type: 'BILLING_ISSUE', expiration_at_ms: future, grace_period_expiration_at_ms: past },
+    ]) {
+      expect(entitlementFromRcEvent(rcEvent(over), NOW_MS), JSON.stringify(over)).toBeNull();
+      expect(rcIgnoreOutcome(rcEvent(over), NOW_MS), JSON.stringify(over)).toBe('stale-on');
+    }
+  });
+
+  it('still writes them while they are true: a grace period that has not ended keeps premium on', () => {
+    expect(entitlementFromRcEvent(rcEvent({ type: 'BILLING_ISSUE', expiration_at_ms: past, grace_period_expiration_at_ms: future }), NOW_MS)).toMatchObject({ premium: true, status: 'past_due' });
+    expect(entitlementFromRcEvent(rcEvent({ type: 'CANCELLATION', cancel_reason: 'UNSUBSCRIBE', expiration_at_ms: future }), NOW_MS)).toMatchObject({ premium: true, status: 'canceled', cancelAtPeriodEnd: true });
+    // No timestamps at all: behaves exactly as before.
+    expect(entitlementFromRcEvent(rcEvent({ type: 'BILLING_ISSUE', expiration_at_ms: undefined }), NOW_MS)).toMatchObject({ premium: true, status: 'past_due' });
+  });
+
+  it('never applies to a refund: a support cancel still revokes at once, however late', () => {
+    expect(entitlementFromRcEvent(rcEvent({ type: 'CANCELLATION', cancel_reason: 'CUSTOMER_SUPPORT', expiration_at_ms: past }), NOW_MS)).toMatchObject({ premium: false });
+  });
+
+  it('in every arrival order, an EXPIRATION that landed stays landed (real SQLite, the replayed race)', async () => {
+    const db = await sqliteD1();
+    const T = '2026-09-30T00:00:00.000Z';
+    await handleRcWebhook(rawReq({ event: rcEvent({ id: 'buy' }) }), env(db), T, NOW_MS);
+    await handleRcWebhook(rawReq({ event: rcEvent({ id: 'exp', type: 'EXPIRATION', expiration_reason: 'BILLING_ERROR', expiration_at_ms: past }) }), env(db), T, NOW_MS);
+    // the retried CANCELLATION arrives minutes later, after the EXPIRATION
+    await handleRcWebhook(rawReq({ event: rcEvent({ id: 'late', type: 'CANCELLATION', cancel_reason: 'BILLING_ERROR', expiration_at_ms: past }) }), env(db), T, NOW_MS);
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: false, status: 'expired' });
+  });
+});
+
+describe('Path A review: only a real sale takes a row over from another store (real SQLite)', () => {
+  const T = '2026-09-30T00:00:00.000Z';
+  const stripeLive = { userId: UID, premium: true, status: 'active', currentPeriodEnd: 1_900_000_000, cancelAtPeriodEnd: false, customerId: 'cus_1', source: 'stripe' as const };
+
+  it('a web subscriber who turns off a doubled Apple plan keeps Premium when the Apple one ends', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, stripeLive, T);
+    const cancel = await handleRcWebhook(rawReq({ event: rcEvent({ id: 'c', type: 'CANCELLATION', cancel_reason: 'UNSUBSCRIBE', store: 'APP_STORE' }) }), env(db), T, NOW_MS);
+    expect(await cancel.json()).toEqual({ received: true, kept: true }); // the winding-down store did not take the row
+    const end = await handleRcWebhook(rawReq({ event: rcEvent({ id: 'e', type: 'EXPIRATION', store: 'APP_STORE', expiration_at_ms: NOW_MS - HOUR_MS }) }), env(db), T, NOW_MS);
+    expect(await end.json()).toEqual({ received: true, kept: true });
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, status: 'active', source: 'stripe' });
+  });
+
+  it('a Play billing issue cannot take a live Stripe row over either', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, stripeLive, T);
+    await handleRcWebhook(rawReq({ event: rcEvent({ id: 'b', type: 'BILLING_ISSUE', store: 'PLAY_STORE' }) }), env(db), T, NOW_MS);
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, status: 'active', source: 'stripe' });
+  });
+
+  it('a real sale from another store still takes it over (the store that last SOLD owns the row)', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, stripeLive, T);
+    await handleRcWebhook(rawReq({ event: rcEvent({ id: 'buy', store: 'PLAY_STORE' }) }), env(db), T, NOW_MS);
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, source: 'google' });
+  });
+
+  it("the row's own store may still wind it down", async () => {
+    const db = await sqliteD1();
+    await handleRcWebhook(rawReq({ event: rcEvent({ id: 'buy', store: 'PLAY_STORE' }) }), env(db), T, NOW_MS);
+    await handleRcWebhook(rawReq({ event: rcEvent({ id: 'c', type: 'CANCELLATION', cancel_reason: 'UNSUBSCRIBE', store: 'PLAY_STORE' }) }), env(db), T, NOW_MS);
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, status: 'canceled', cancelAtPeriodEnd: true, source: 'google' });
   });
 });

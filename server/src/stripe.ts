@@ -399,18 +399,20 @@ export async function handleCheckout(
   // of ever buying. Keying on customerId ALONE would have broken those last two.
   // Since Path A (2026-09-30) the guard knows every store. A live Apple or Google subscription has no
   // Stripe customer at all, so the old customer-keyed check waved its owner straight into a second,
-  // Stripe subscription. And a payment failing anywhere (past_due or unpaid at Stripe, a store's
-  // grace period, a Play account hold) is a subscription still alive and retrying, whichever store.
+  // Stripe subscription. And a payment failing anywhere (past_due or unpaid at Stripe, a store's grace
+  // period) is a subscription still alive and retrying, whichever store.
+  // A read that FAILS now refuses too (503): a failed lookup read as permission is how a second
+  // subscription gets sold, and losing one sale during a blip is cheaper than a refund.
   if (env.DB) {
     try {
       const existing = await readEntitlement(env.DB, sub);
-      const dunning = existing.status === 'past_due' || existing.status === 'unpaid' || existing.status === 'on_hold';
+      const dunning = existing.status === 'past_due' || existing.status === 'unpaid';
       const storeSold = existing.source === 'apple' || existing.source === 'google';
       if ((existing.premium || dunning) && (existing.customerId || storeSold)) {
         return new Response(JSON.stringify({ error: dunning ? 'billing_issue' : 'already_subscribed' }), { status: 409, headers: { ...JSON_HEADERS, ...cors } });
       }
     } catch {
-      // a transient read must never block a legitimate new checkout; fall through and create the session
+      return new Response(JSON.stringify({ error: 'unavailable' }), { status: 503, headers: { ...JSON_HEADERS, ...cors } });
     }
   }
   let email: string | undefined;
@@ -502,7 +504,8 @@ export async function handleCloseBilling(
     if (await cancelSubscriptionNow(env, id)) cancelled += 1;
     else failed = true; // keep going: stop as much billing as we can, then say it was not all
   }
-  // Then Play, whatever Stripe answered, so as much billing as possible stops on this attempt.
+  // Then Play, whatever the Stripe cancels answered, so as much billing as possible stops on this attempt.
+  // (A Stripe LOOKUP that failed has already answered 502 above: nothing is deleted, and a retry runs all.)
   const play = await cancelPlayRenewals(env, sub, Date.now());
   if (play === null) failed = true;
   else cancelled += play;

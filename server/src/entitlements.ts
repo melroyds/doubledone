@@ -35,13 +35,22 @@ export type Entitlement = {
  * Upsert an entitlement. `started_at` (tenure) is set once, on first premium grant, and preserved
  * thereafter so a lapse never resets the loyalty clock. `source` records which biller wrote it.
  *
- * THE CROSS-STORE GUARD (Path A, 2026-09-30). One row holds one premium, whichever store sold it, and
- * with three stores an unconditional write lets any of them switch off another's live subscription: a
- * Refund-and-revoke on an old Google order would end a paying Stripe member's access, and a late Stripe
- * event would end a live Google one. So a write that turns premium OFF lands only when the row is not
- * premium, or when the row's own source is the one writing. A write that turns premium ON always lands
- * and takes the source over, because erring towards access is the safe way to be wrong about money
- * someone has paid. A pre-2026-07 row with a null source is Stripe's.
+ * THE CROSS-STORE GUARD (Path A, 2026-09-30, tightened by review the same day). One row holds one
+ * premium, whichever store last SOLD it, and with three stores an unconditional write let any of them
+ * switch off another's live subscription (a Refund-and-revoke on an old Google order ending a paying
+ * Stripe member's access). So, while the row is premium, a write from a DIFFERENT store lands only if it
+ * is a real sale: premium on, status active or trialing, and renewing. A store winding down (a cancel
+ * with access left, a billing issue, a Stripe cancel_at update, a reconcile of a subscription already
+ * set to end) cannot take the row over, so its later expiry cannot end what another store still sells.
+ * The row's own store may always write, and a row that is not premium takes any write. A pre-2026-07 row
+ * with a null source is Stripe's.
+ *
+ * What it does NOT solve: two genuinely live stores for one person resolve to whichever SOLD last. The
+ * durable answer is a row per (user, store) with premium = any live one, parked in the Backlog.
+ *
+ * NOT guarded yet: an old EXPIRATION retried after a RENEWAL landed. Comparing its expiry with the row's
+ * period would also keep a real EARLY revoke (a refund), so it needs the event's own timestamp against
+ * the renewal's. Parked in the Backlog with that design.
  *
  * Returns true when the row was written, false when the guard kept it, and null when the driver does
  * not report a change count (the in-memory test doubles), which callers treat as written.
@@ -60,7 +69,11 @@ export async function writeEntitlement(db: D1LikeDatabase, ent: Entitlement, now
          stripe_customer_id = COALESCE(?7, entitlements.stripe_customer_id),
          source = ?8,
          updated_at = ?9
-       WHERE excluded.premium = 1 OR entitlements.premium = 0 OR COALESCE(entitlements.source, 'stripe') = excluded.source`,
+       WHERE (
+           entitlements.premium = 0
+           OR COALESCE(entitlements.source, 'stripe') = excluded.source
+           OR (excluded.premium = 1 AND excluded.status IN ('active', 'trialing') AND excluded.cancel_at_period_end = 0)
+         )`,
     )
     .bind(ent.userId, ent.premium ? 1 : 0, ent.status, ent.currentPeriodEnd, ent.cancelAtPeriodEnd ? 1 : 0, ent.premium ? nowISO : null, ent.customerId, ent.source, nowISO)
     .run();

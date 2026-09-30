@@ -19,7 +19,7 @@ type FakeSub = { id: string; status: string; customer: string; userId: string };
 type Call = { method: string; url: string; auth: string | null; body: string | null };
 
 /** An in-memory Stripe: the list, search, retrieve and cancel endpoints, over a mutable set of subs. */
-type FakeRc = { subscriptions?: Record<string, unknown>; getStatus?: number; refuseCancel?: string[] };
+type FakeRc = { subscriptions?: Record<string, unknown>; getStatus?: number; refuseCancel?: string[]; refuseStatus?: number };
 
 function fakeStripe(subs: FakeSub[], opts: { fail?: 'list' | 'search'; hasMore?: 'list' | 'search'; refuseCancel?: string[]; missingCustomer?: boolean; rc?: FakeRc } = {}) {
   const calls: Call[] = [];
@@ -38,7 +38,7 @@ function fakeStripe(subs: FakeSub[], opts: { fail?: 'list' | 'search'; hasMore?:
       }
       const cancel = /^\/v1\/subscribers\/[^/]+\/subscriptions\/([^/]+)\/cancel$/.exec(url.pathname);
       if (method === 'POST' && cancel) {
-        return rc.refuseCancel?.includes(decodeURIComponent(cancel[1])) ? json({ message: 'nope' }, 500) : json({ subscriber: {} });
+        return rc.refuseCancel?.includes(decodeURIComponent(cancel[1])) ? json({ message: 'nope' }, rc.refuseStatus ?? 500) : json({ subscriber: {} });
       }
     }
     const path = url.pathname.replace(/^\/v1/, '');
@@ -375,19 +375,55 @@ describe('close-billing: Google Play renewals (Path A)', () => {
     expect(stripe.deletes()).toEqual(['sub_1']);
   });
 
-  it('skips a Play subscription that is over, already not renewing, or refunded, and other stores', async () => {
+  it('skips a Play subscription that is over or already not renewing, and other stores', async () => {
     const stripe = fakeStripe([], {
       rc: {
         subscriptions: {
-          a: play({ expires_date: PAST }),
-          b: play({ unsubscribe_detected_at: PAST }),
-          c: play({ refunded_at: PAST }),
+          a: play({ expires_date: PAST, store_transaction_id: 'GPA.over' }),
+          b: play({ unsubscribe_detected_at: PAST, store_transaction_id: 'GPA.off' }),
           d: { store: 'app_store', expires_date: FUTURE, store_transaction_id: '1000000000' },
         },
       },
     });
     const res = await handleCloseBilling(post(tokenFor(USER)), env(dbWith(null, { source: 'google' }), RC), cors, trust);
     expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ cancelled: 0 });
+    expect(stripe.rcCalls().filter((c) => c.method === 'POST')).toEqual([]);
+  });
+
+  it('still cancels a REFUNDED subscription that has not ended (a refund alone can leave it renewing)', async () => {
+    const stripe = fakeStripe([], { rc: { subscriptions: { premium: play({ refunded_at: PAST, store_transaction_id: 'GPA.refunded' }) } } });
+    const res = await handleCloseBilling(post(tokenFor(USER)), env(dbWith(null, { source: 'google' }), RC), cors, trust);
+    expect(await res.json()).toEqual({ cancelled: 1 });
+    expect(stripe.rcCalls().some((c) => c.url.endsWith('/subscriptions/GPA.refunded/cancel'))).toBe(true);
+  });
+
+  it('cancels a HELD subscription (a billing issue in the last 60 days), whose expiry is already past', async () => {
+    const recent = new Date(Date.now() - 10 * 24 * 3_600_000).toISOString();
+    const stripe = fakeStripe([], { rc: { subscriptions: { premium: play({ expires_date: PAST, billing_issues_detected_at: recent, store_transaction_id: 'GPA.held' }) } } });
+    const res = await handleCloseBilling(post(tokenFor(USER)), env(dbWith(null, { source: 'google' }), RC), cors, trust);
+    expect(await res.json()).toEqual({ cancelled: 1 });
+    expect(stripe.rcCalls().some((c) => c.url.endsWith('/subscriptions/GPA.held/cancel'))).toBe(true);
+  });
+
+  it('treats a refused second cancel on a held, already-off subscription as done, not a wedge', async () => {
+    const recent = new Date(Date.now() - 3 * 24 * 3_600_000).toISOString();
+    const sub = play({ expires_date: PAST, billing_issues_detected_at: recent, unsubscribe_detected_at: recent, store_transaction_id: 'GPA.heldoff' });
+    fakeStripe([], { rc: { subscriptions: { premium: sub }, refuseCancel: ['GPA.heldoff'] } });
+    // the double refuses with a 500, which is still a failure; a 4xx refusal is "nothing left to stop"
+    const failing = await handleCloseBilling(post(tokenFor(USER)), env(dbWith(null, { source: 'google' }), RC), cors, trust);
+    expect(failing.status).toBe(502);
+    vi.unstubAllGlobals();
+    fakeStripe([], { rc: { subscriptions: { premium: sub }, refuseCancel: ['GPA.heldoff'], refuseStatus: 400 } });
+    const res = await handleCloseBilling(post(tokenFor(USER)), env(dbWith(null, { source: 'google' }), RC), cors, trust);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ cancelled: 0 });
+  });
+
+  it('lets a billing issue older than 60 days count as over', async () => {
+    const old = new Date(Date.now() - 70 * 24 * 3_600_000).toISOString();
+    const stripe = fakeStripe([], { rc: { subscriptions: { premium: play({ expires_date: PAST, billing_issues_detected_at: old }) } } });
+    const res = await handleCloseBilling(post(tokenFor(USER)), env(dbWith(null, { source: 'google' }), RC), cors, trust);
     expect(await res.json()).toEqual({ cancelled: 0 });
     expect(stripe.rcCalls().filter((c) => c.method === 'POST')).toEqual([]);
   });

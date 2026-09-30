@@ -35,29 +35,43 @@ export async function mayHavePlay(db: D1LikeDatabase | undefined, userId: string
   return !known;
 }
 
+// Google's account hold lasts up to 60 days, and during it the subscription's expiry is a PAST
+// timestamp even though fixing the card brings it back and resumes charging.
+const HELD_WINDOW_MS = 60 * 24 * 3_600_000;
+
+export type PlayRenewal = { id: string; mayAlreadyBeOff: boolean };
+
 /**
- * The Play subscriptions in a v1 subscriber body that can still renew, as their store transaction ids
- * (the GPA.… order ids the cancel takes). Skips a subscription that is over, one whose renewal is
- * already off (`unsubscribe_detected_at`, so a retry after a failed delete cannot wedge on Google
- * refusing a second cancel), and a refunded one. FAILS CLOSED: a body with no subscriber, or a
- * renewing row with no id to cancel it by, answers null, and the caller then deletes nothing.
+ * The Play subscriptions in a v1 subscriber body that can still charge, as their store transaction ids
+ * (the GPA.… order ids the cancel takes). A subscription with a billing issue in the last 60 days is
+ * HELD (grace or account hold): it can recover and charge, whatever its expiry says, so it is cancelled
+ * too. Otherwise a subscription that is over, or whose renewal is already off, is skipped.
+ * A refund alone does NOT skip it, because a refunded subscription can still be set to renew.
+ * `mayAlreadyBeOff` marks a held row whose renewal may already be off (a billing-issue cancel sets
+ * `unsubscribe_detected_at`, and so does a person cancelling), so a refusal to cancel it again is not
+ * a failure: without that, a retry after a failed delete would wedge on it for 60 days.
+ * FAILS CLOSED: a body with no subscriber, or a live row with no id, answers null.
  */
-export function renewingPlaySubscriptions(body: unknown, nowMs: number): string[] | null {
+export function renewingPlaySubscriptions(body: unknown, nowMs: number): PlayRenewal[] | null {
   const subscriber = (body as { subscriber?: unknown } | null)?.subscriber;
   if (!subscriber || typeof subscriber !== 'object') return null;
   const subs = (subscriber as { subscriptions?: unknown }).subscriptions;
   if (subs == null) return [];
   if (typeof subs !== 'object') return null;
-  const out: string[] = [];
+  const out: PlayRenewal[] = [];
   for (const raw of Object.values(subs as Record<string, unknown>)) {
-    const r = (raw ?? {}) as { store?: unknown; expires_date?: unknown; unsubscribe_detected_at?: unknown; refunded_at?: unknown; store_transaction_id?: unknown };
+    const r = (raw ?? {}) as { store?: unknown; expires_date?: unknown; unsubscribe_detected_at?: unknown; billing_issues_detected_at?: unknown; store_transaction_id?: unknown };
     if (r.store !== 'play_store') continue;
     const exp = typeof r.expires_date === 'string' ? Date.parse(r.expires_date) : NaN;
-    if (Number.isFinite(exp) && exp <= nowMs) continue; // over: nothing left to renew
-    if (typeof r.unsubscribe_detected_at === 'string' && r.unsubscribe_detected_at !== '') continue; // already not renewing
-    if (typeof r.refunded_at === 'string' && r.refunded_at !== '') continue; // refunded: not renewing
+    const unsubscribed = typeof r.unsubscribe_detected_at === 'string' && r.unsubscribe_detected_at !== '';
+    const issueAt = typeof r.billing_issues_detected_at === 'string' ? Date.parse(r.billing_issues_detected_at) : NaN;
+    const held = Number.isFinite(issueAt) && nowMs - issueAt <= HELD_WINDOW_MS;
+    if (!held) {
+      if (Number.isFinite(exp) && exp <= nowMs) continue; // over: nothing left to charge
+      if (unsubscribed) continue; // renewal already off
+    }
     if (typeof r.store_transaction_id !== 'string' || r.store_transaction_id === '') return null; // live, and we cannot name it
-    out.push(r.store_transaction_id);
+    out.push({ id: r.store_transaction_id, mayAlreadyBeOff: held && unsubscribed });
   }
   return out;
 }
@@ -75,7 +89,8 @@ export async function cancelPlayRenewals(env: PlayCancelEnv, userId: string, now
   try {
     const { url, init } = buildSubscriberRequest(userId, env.RC_SECRET_KEY);
     const res = await doFetch(url, init);
-    if (res.status === 404) return 0; // RevenueCat has never heard of them: nothing to renew
+    // Defensive only: the v1 GET creates a customer for an unknown id rather than 404ing.
+    if (res.status === 404) return 0;
     if (!res.ok) return null;
     body = await res.json();
   } catch {
@@ -85,12 +100,14 @@ export async function cancelPlayRenewals(env: PlayCancelEnv, userId: string, now
   if (!ids) return null;
   let cancelled = 0;
   let failed = false;
-  for (const id of ids) {
+  for (const renewal of ids) {
     try {
-      const { url, init } = buildPlayCancelRequest(userId, id, env.RC_SECRET_KEY);
+      const { url, init } = buildPlayCancelRequest(userId, renewal.id, env.RC_SECRET_KEY);
       const res = await doFetch(url, init);
       if (res.ok) cancelled += 1;
-      else failed = true;
+      // A held subscription whose renewal is already off can be refused a second cancel. That refusal
+      // (a 4xx) means there is nothing left to stop, not a failure. A 5xx is still a failure.
+      else if (!(renewal.mayAlreadyBeOff && res.status >= 400 && res.status < 500)) failed = true;
     } catch {
       failed = true;
     }
