@@ -8628,3 +8628,19 @@ RevenueCat dashboard for any active promotional grant: one written before today 
 by the webhook, so revoke it in RevenueCat BEFORE this deploys (never map promotional revokes to Apple,
 which would let them end a real Apple subscriber). (2) `SANDBOX_GRANT_UIDS` lists only the purchase review
 account and the licence tester, never `appreview@`, which is comped and needs nothing.
+
+## 2026-09-30: Path A slice 2, the web knows a Google subscriber (not deployed)
+
+**Decided:** the client reads a `google` entitlement source, and "Manage subscription" routes through
+one pure, tested decision (`manageRoute` in `lib/premium-ui.ts`): each store's subscription opens that
+store's own screen where it can (Apple's sheet on an iPhone, the Play Store on Android once slice 3 lands)
+and is named, with no link, everywhere else. A Google subscriber on the web now reads that Google handles
+it and where to find it in the Play Store, in all five languages. Before this, the client folded `google`
+into "no source", read that as Stripe, opened a portal that found no customer, and told a paying person
+"Your Premium is on us".
+
+**Decided against:** a link to the Play Store from the web (it opens nothing useful off a phone, and the
+line names the exact path); changing `loadEntitlement`'s fold-to-free now (the guard that needs "could not
+check" is the Android buy guard in slice 3, so the split lands there with its only caller).
+
+**Reaches people:** the web on the next deploy of this slice, iPhones on the next iOS build.

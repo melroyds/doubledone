@@ -68,3 +68,23 @@ export function trialSlot(s: { signedIn: boolean; iapAvailable: boolean }): Tria
   if (!s.signedIn) return 'hidden';
   return s.iapAvailable ? 'separated' : 'inline';
 }
+
+/** Where "Manage subscription" goes, by the store that sold it and the platform this is running on. */
+export type ManageRoute =
+  | 'apple-sheet' // on an iPhone: Apple's own Manage Subscriptions sheet
+  | 'apple-elsewhere' // an Apple subscription seen anywhere else: say where it lives, no link
+  | 'google-play' // on Android: the Play Store's subscriptions page
+  | 'google-elsewhere' // a Google subscription seen anywhere else: say where it lives, no link
+  | 'stripe-portal'; // everything Stripe (and a pre-2026-07 row, which is always Stripe)
+
+/**
+ * Which way Manage goes. Each store's subscription can only be managed in that store's own screen, so
+ * the button opens it where it CAN open and says where it lives everywhere else. Until Path A, a Google
+ * subscriber seen on the web fell through to Stripe's portal, which found no customer and answered
+ * "Your Premium is on us": false, to someone who pays. `platform` is Platform.OS.
+ */
+export function manageRoute(source: 'stripe' | 'apple' | 'google' | null, platform: string): ManageRoute {
+  if (source === 'apple') return platform === 'ios' ? 'apple-sheet' : 'apple-elsewhere';
+  if (source === 'google') return platform === 'android' ? 'google-play' : 'google-elsewhere';
+  return 'stripe-portal';
+}

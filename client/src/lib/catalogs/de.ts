@@ -456,6 +456,7 @@ export const de: Catalog = {
   },
   premium: {
     appleManageElsewhere: 'Dieses Abo wurde auf einem iPhone oder iPad gekauft, deshalb verwaltet Apple es. Öffne auf dem Gerät die Einstellungen, tippe auf deinen Namen und dann auf Abonnements.',
+    googleManageElsewhere: 'Dieses Abo wurde über Google Play gekauft, deshalb verwaltet Google es. Öffne auf deinem Android-Handy den Play Store, tippe auf dein Profilbild, dann auf Zahlungen und Abos und dann auf Abos.',
     applePerMonth: '{price} / Monat',
     applePerYear: '{price} / Jahr',
     appleRenewalTerms: 'Das Abo verlängert sich von selbst, bis du kündigst. Kündigen kannst du jederzeit in deinen Apple-ID-Einstellungen, bis einen Tag vor der Verlängerung.',

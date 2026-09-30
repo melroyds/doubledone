@@ -456,6 +456,7 @@ export const en = {
   },
   premium: {
     appleManageElsewhere: 'This subscription was bought on an iPhone or iPad, so Apple handles it. Open Settings on that device, tap your name, then Subscriptions.',
+    googleManageElsewhere: 'This subscription was bought through Google Play, so Google handles it. On your Android phone, open the Play Store, tap your profile picture, then Payments and subscriptions, then Subscriptions.',
     applePerMonth: '{price} / month',
     applePerYear: '{price} / year',
     appleRenewalTerms: 'It renews on its own until you cancel it. You can cancel any time in your Apple ID settings, up to a day before it renews.',

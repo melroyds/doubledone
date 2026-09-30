@@ -452,6 +452,7 @@ export const it: Catalog = {
   },
   premium: {
     appleManageElsewhere: 'Questo abbonamento è stato acquistato su iPhone o iPad, quindi lo gestisce Apple. Apri Impostazioni su quel dispositivo, tocca il tuo nome e poi Abbonamenti.',
+    googleManageElsewhere: 'Questo abbonamento è stato acquistato su Google Play, quindi lo gestisce Google. Sul tuo telefono Android, apri il Play Store, tocca la tua immagine del profilo, poi Pagamenti e abbonamenti e poi Abbonamenti.',
     applePerMonth: '{price} / mese',
     applePerYear: '{price} / anno',
     appleRenewalTerms: 'Si rinnova da solo finché non lo annulli. Puoi annullarlo quando vuoi dalle impostazioni del tuo ID Apple, fino a un giorno prima del rinnovo.',
