@@ -8558,3 +8558,51 @@ every French string now carries the no-break space before : ? ! ; (a guard test 
 **Decided against:** naming the website to BUY on Android (still parked); keeping "Try Premium" on Android
 (it matches the Subscriptions policy's own example of trial wording that hides a charge, even though ours
 never charges).
+
+## 2026-09-30: Path A slice 1, the server learns Google Play (not deployed)
+
+**Decided:** Melroy green-lit Path A on 2026-09-27, overriding its Backlog trigger ("I need to be
+elegant"), so the Android app will sell Premium through Google Play Billing via RevenueCat. This first
+slice is the server only, on the `premium` branch, backward-compatible, and deploys only on his OK. It
+changes six things (the full plan is `docs/path-a-runbook.md`):
+
+- **A third source, `google`.** The entitlement row records which store sold it. The webhook reads the
+  event's `store` (`PLAY_STORE` is google, a missing store is Apple as always), and the reconcile route
+  reads it off RevenueCat's own subscription row. PROMOTIONAL, STRIPE, RC_BILLING and every other store
+  are logged and never written (`other-store`). Until now all of them were silently written as Apple.
+- **One store can never switch off another.** `writeEntitlement` refuses a premium-OFF write that comes
+  from a different store than the one holding a live premium (a WHERE on the upsert, proved in real SQLite
+  against `schema.sql`). A Refund-and-revoke on an old Google order can no longer end a paying Stripe
+  member's access, and a late Stripe event cannot end a Google one. A premium-ON write always lands and
+  takes the source over: erring towards access is the safe way to be wrong. Logged as `cross-store-kept`.
+- **A failed card is not a person leaving.** A CANCELLATION for `BILLING_ERROR` is now `past_due` with
+  premium ON (it used to read "Premium until {date}" to someone whose card merely bounced), and an
+  EXPIRATION for `BILLING_ERROR` is `on_hold`, not `expired`. This fixes live iOS too.
+- **A minute of clock skew** on a revoking EXPIRATION, which was otherwise refused forever as "stale" if
+  RevenueCat's clock ran a few seconds ahead of ours.
+- **A named sandbox allowlist,** `SANDBOX_GRANT_UIDS` (a Worker secret, Melroy's to set). Sandbox
+  purchases are still refused, except for the review and tester accounts on it. This CORRECTS the
+  2026-08-19 line "TestFlight testers do NOT lose anything": true for what the device gates, wrong for
+  what the server gates. The paid AI routes read only D1, so a reviewer who bought would find Scan
+  refusing them. Logged as `sandbox-allowlisted`.
+- **Deleting an account turns off Play renewal,** through RevenueCat's v1 CANCEL (access to the period end,
+  no refund; never `/revoke`, which refunds). Only for someone the row or the delivery log ties to Play,
+  because RevenueCat's lookup CREATES a customer for an unknown id. If neither can be read, it asks anyway.
+  Any failure answers 502 and the app deletes nothing.
+
+Also: the checkout guard refuses a live Apple or Google subscriber (they have no Stripe customer, so the
+old guard waved them into a second subscription) and a payment failing at ANY store; `/entitlement`
+answers 503 on a D1 throw instead of a FREE the buy guard would read as permission. Every shipped client
+already folds a non-2xx into free, so live apps look the same.
+
+**Decided against:** trusting the webhook's `product_id` to route stores (the `store` field is the fact);
+granting promotional rows (this route GRANTS premium, so an unknown store means no); calling `/revoke`
+anywhere; calling RevenueCat for every deletion (it would create customers for people who never used it);
+failing open when D1 is down (a deleted account that keeps charging is worse than a refused deletion);
+renaming `/apple/reconcile` (live iOS clients call it); keeping allowlisted testers out of the pulse and
+the Analytics Centre counts (a handful of known rows, parked as Tier 3 rather than threading the list
+through every metric).
+
+**Open before deploy:** a read-only D1 check for existing PROMOTIONAL rows in `rc_events`, because a
+promotional grant written before today can no longer be revoked by the webhook. It needs `wrangler login`
+with D1 access, or Melroy runs one query in the dashboard.

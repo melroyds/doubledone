@@ -1,12 +1,14 @@
-// The RevenueCat webhook: Apple IAP purchases write the SAME D1 entitlements row that Stripe does,
-// so premium is decided in one place regardless of which store sold it. Stripe stays the source of
-// truth for pricing and refunds; this only proxies Apple's subscription lifecycle into our store.
+// The RevenueCat webhook: Apple IAP and (since Path A) Google Play Billing purchases write the SAME
+// D1 entitlements row that Stripe does, so premium is decided in one place regardless of which store
+// sold it. This only proxies each store's subscription lifecycle into ours. Every event says which
+// store it came from (`store`), and the row records it, so a later event from one store can never
+// switch off a subscription another store sold (see writeEntitlement's cross-store guard).
 //
 // Pure pieces (auth check, user resolution, the event -> entitlement map) are exported and heavily
 // unit-tested, because one of them (CANCELLATION) is a piece of billing logic that is obvious to
 // get wrong and costs a paying customer their access if you do.
 
-import { type D1LikeDatabase, type Entitlement, writeEntitlement } from './entitlements';
+import { type D1LikeDatabase, type Entitlement, type EntitlementSource, writeEntitlement } from './entitlements';
 import { buildOwnerEmail } from './monitor';
 import { timingSafeEqual } from './stripe';
 
@@ -18,6 +20,9 @@ export type RcEnv = {
   // The owner-alert path (same binding the monitor + Stripe money alerts use). Optional.
   SEND_EMAIL?: { send(message: unknown): Promise<unknown> };
   FEEDBACK_TO?: string;
+  // The Supabase user ids whose SANDBOX purchases may still be written (the review accounts and the
+  // owner's license tester), comma separated. Everyone else's sandbox purchase is refused, as before.
+  SANDBOX_GRANT_UIDS?: string;
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -45,6 +50,32 @@ export function appUserIdFromRcEvent(event: unknown): string | null {
   return null;
 }
 
+/**
+ * Which of our billing sources a RevenueCat `store` value belongs to, or null for a store we never
+ * write. A MISSING store maps to apple on purpose: every event before Play Billing was Apple's, and a
+ * delivery that omits the field must behave exactly as it always has. PROMOTIONAL (dashboard grants),
+ * STRIPE and RC_BILLING (RevenueCat's own checkouts, which we do not use), TEST_STORE, AMAZON and
+ * anything new are logged and never written: until 2026-09-30 they were all silently written as Apple.
+ */
+export function sourceForStore(store: unknown): Exclude<EntitlementSource, 'stripe'> | null {
+  if (store === undefined || store === null || store === '') return 'apple';
+  if (store === 'APP_STORE' || store === 'MAC_APP_STORE') return 'apple';
+  if (store === 'PLAY_STORE') return 'google';
+  return null;
+}
+
+/** Parse SANDBOX_GRANT_UIDS into a set of lowercased UUIDs; anything else in the list is ignored. */
+export function sandboxAllowlist(raw: string | undefined): Set<string> {
+  const out = new Set<string>();
+  for (const part of (raw ?? '').split(/[\s,]+/)) if (UUID_RE.test(part)) out.add(part.toLowerCase());
+  return out;
+}
+
+// A revoking EXPIRATION a few seconds AHEAD of this Worker's clock used to be refused as "stale"
+// forever (RevenueCat stamps the expiry, we compare against our own now). A minute of tolerance lets
+// a real lapse land while still refusing one that overtook a renewal by days.
+export const EXPIRY_SKEW_MS = 60_000;
+
 // Grants: premium on, auto-renew implied on. status 'active', period end refreshed from the event.
 const GRANT_TYPES = new Set(['INITIAL_PURCHASE', 'RENEWAL', 'UNCANCELLATION', 'PRODUCT_CHANGE', 'SUBSCRIPTION_EXTENDED', 'TEMPORARY_ENTITLEMENT_GRANT']);
 
@@ -63,6 +94,8 @@ export function entitlementFromRcEvent(event: unknown, nowMs: number): Entitleme
     entitlement_ids?: unknown;
     expiration_at_ms?: unknown;
     cancel_reason?: unknown;
+    expiration_reason?: unknown;
+    store?: unknown;
   };
   const type = typeof e.type === 'string' ? e.type : '';
   const userId = appUserIdFromRcEvent(event);
@@ -73,9 +106,13 @@ export function entitlementFromRcEvent(event: unknown, nowMs: number): Entitleme
   const ids = Array.isArray(e.entitlement_ids) ? e.entitlement_ids : [];
   if (!ids.includes(ENTITLEMENT)) return null;
 
+  // The store that sold it. One we do not sell through writes nothing (see sourceForStore).
+  const source = sourceForStore(e.store);
+  if (!source) return null;
+
   const expMs = typeof e.expiration_at_ms === 'number' ? e.expiration_at_ms : null;
   const periodEndSec = expMs != null ? Math.floor(expMs / 1000) : null;
-  const base = { userId, customerId: null, source: 'apple' as const };
+  const base = { userId, customerId: null, source };
 
   if (GRANT_TYPES.has(type)) {
     return { ...base, premium: true, status: 'active', currentPeriodEnd: periodEndSec, cancelAtPeriodEnd: false };
@@ -85,6 +122,12 @@ export function entitlementFromRcEvent(event: unknown, nowMs: number): Entitleme
     return { ...base, premium: true, status: 'active', currentPeriodEnd: periodEndSec, cancelAtPeriodEnd: true };
   }
   if (type === 'CANCELLATION') {
+    // A card that FAILED is not a person leaving. Until 2026-09-30 this fell through to "auto-renew
+    // off", so someone whose payment merely bounced was told "Premium until {date}", and the lapse that
+    // followed looked exactly like a real cancel. It is the grace period: premium stays on, past_due.
+    if (e.cancel_reason === 'BILLING_ERROR') {
+      return { ...base, premium: true, status: 'past_due', currentPeriodEnd: null, cancelAtPeriodEnd: false };
+    }
     // A support-issued cancel is a REFUND, so revoke now. Any other reason is "auto-renew off",
     // which keeps access to the end of the paid period (exactly Stripe's cancel_at_period_end).
     if (e.cancel_reason === 'CUSTOMER_SUPPORT') {
@@ -101,8 +144,14 @@ export function entitlementFromRcEvent(event: unknown, nowMs: number): Entitleme
   if (type === 'EXPIRATION') {
     // The real loss of access. Guard against out-of-order delivery: RevenueCat retries and does not
     // guarantee ordering, so an EXPIRATION overtaking a RENEWAL must not revoke a live subscriber.
-    // Only revoke once the expiration is actually in the past.
-    if (expMs != null && expMs > nowMs) return null;
+    // Only revoke once the expiration is actually in the past (give or take EXPIRY_SKEW_MS).
+    if (expMs != null && expMs > nowMs + EXPIRY_SKEW_MS) return null;
+    // A lapse because the card kept failing is ON HOLD, not over: the store is still retrying, and on
+    // Play the person can fix it and keep going. It must read differently from a real end, because a
+    // second purchase on top of a held subscription is a double charge (the checkout guard refuses it).
+    if (e.expiration_reason === 'BILLING_ERROR') {
+      return { ...base, premium: false, status: 'on_hold', currentPeriodEnd: null, cancelAtPeriodEnd: false };
+    }
     return { ...base, premium: false, status: 'expired', currentPeriodEnd: null, cancelAtPeriodEnd: false };
   }
   // TEST, SUBSCRIPTION_PAUSED, TRANSFER (handled in the route), and anything new: no write.
@@ -122,9 +171,11 @@ export function entitlementFromRcEvent(event: unknown, nowMs: number): Entitleme
  * than the stray test row this guard exists to prevent. Absent `environment`, behaviour is exactly
  * what it was before this guard existed.
  *
- * TestFlight testers do NOT lose anything: RevenueCat still grants the entitlement on-device, so
- * `localPremium()` reads true and the provider merges it over the server's answer. What changes is
- * only that the test purchase stops being written to the store of record.
+ * CORRECTED 2026-09-30: this used to say testers "do NOT lose anything", because RevenueCat still
+ * grants the entitlement on-device and the provider merges it over the server's answer. That holds for
+ * everything the DEVICE gates, and is wrong for everything the SERVER gates: the paid AI routes
+ * (Scan, Plan my day, Chart a course) read only D1, so a sandbox buyer is refused there. That is why
+ * the handler has a named allowlist (SANDBOX_GRANT_UIDS) for the review and tester accounts.
  */
 export function isSandboxEvent(event: unknown): boolean {
   const env = (event as { environment?: unknown } | null)?.environment;
@@ -146,6 +197,9 @@ export type RcOutcome =
   | 'other-entitlement'
   | 'stale-expiration'
   | 'sandbox'
+  | 'sandbox-allowlisted'
+  | 'other-store'
+  | 'cross-store-kept'
   | 'no-op';
 
 /** One row of the delivery log. A named allowlist: everything here is deliberate, and anything not
@@ -196,7 +250,8 @@ export function rcEventRow(event: unknown, outcome: RcOutcome): RcEventRow {
     // Three-valued on purpose: missing stays NULL. "We were not told" and "it was not a conversion"
     // are different billing answers, and collapsing them to 0 is how a log starts lying.
     isTrialConversion: typeof e.is_trial_conversion === 'boolean' ? (e.is_trial_conversion ? 1 : 0) : null,
-    applied: outcome === 'applied' ? 1 : 0,
+    // An allowlisted sandbox purchase IS written, so it counts as applied; its outcome says why.
+    applied: outcome === 'applied' || outcome === 'sandbox-allowlisted' ? 1 : 0,
     outcome,
     eventTimestampMs: num(e.event_timestamp_ms),
   };
@@ -204,17 +259,18 @@ export function rcEventRow(event: unknown, outcome: RcOutcome): RcEventRow {
 
 /**
  * The reason `entitlementFromRcEvent` returned null, mirroring its precedence EXACTLY (user first,
- * then the entitlement id, then the stale-EXPIRATION guard, then simply a type we do not act on).
- * Kept beside it so the two cannot drift; a test asserts the mirror over the shared fixtures.
+ * then the entitlement id, then the store, then the stale-EXPIRATION guard, then simply a type we do
+ * not act on). Kept beside it so the two cannot drift; a test asserts the mirror over the fixtures.
  */
 export function rcIgnoreOutcome(event: unknown, nowMs: number): RcOutcome {
-  const e = (event ?? {}) as { type?: unknown; entitlement_ids?: unknown; expiration_at_ms?: unknown };
+  const e = (event ?? {}) as { type?: unknown; entitlement_ids?: unknown; expiration_at_ms?: unknown; store?: unknown };
   if (!appUserIdFromRcEvent(event)) return 'unresolved-user';
   const ids = Array.isArray(e.entitlement_ids) ? e.entitlement_ids : [];
   if (!ids.includes(ENTITLEMENT)) return 'other-entitlement';
+  if (!sourceForStore(e.store)) return 'other-store';
   if (e.type === 'EXPIRATION') {
     const expMs = num(e.expiration_at_ms);
-    if (expMs != null && expMs > nowMs) return 'stale-expiration';
+    if (expMs != null && expMs > nowMs + EXPIRY_SKEW_MS) return 'stale-expiration';
   }
   return 'no-op';
 }
@@ -285,11 +341,19 @@ export async function handleRcWebhook(request: Request, env: RcEnv, nowISO: stri
     return new Response(JSON.stringify({ received: true, transfer: true }), { headers: { 'content-type': 'application/json' } });
   }
 
-  // Sandbox and TestFlight deliveries are acknowledged and logged, never applied. See
-  // isSandboxEvent for why this fails open on a missing environment.
+  // Sandbox, TestFlight and Play license-tester deliveries are acknowledged and logged, never
+  // applied, EXCEPT for the few named accounts in SANDBOX_GRANT_UIDS. Those exist because a sandbox
+  // purchase unlocks the device but not the server: the paid AI routes read only this table, so a
+  // store reviewer who just bought would find Scan and Plan my day refusing them. See isSandboxEvent
+  // for why this fails open on a missing environment.
+  let allowlisted = false;
   if (isSandboxEvent(event)) {
-    await logRcEvent(env.DB, rcEventRow(event, 'sandbox'), nowISO);
-    return new Response(JSON.stringify({ received: true, sandbox: true }), { headers: { 'content-type': 'application/json' } });
+    const uid = appUserIdFromRcEvent(event);
+    if (!uid || !sandboxAllowlist(env.SANDBOX_GRANT_UIDS).has(uid.toLowerCase())) {
+      await logRcEvent(env.DB, rcEventRow(event, 'sandbox'), nowISO);
+      return new Response(JSON.stringify({ received: true, sandbox: true }), { headers: { 'content-type': 'application/json' } });
+    }
+    allowlisted = true;
   }
 
   const ent = entitlementFromRcEvent(event, nowMs);
@@ -315,9 +379,12 @@ export async function handleRcWebhook(request: Request, env: RcEnv, nowISO: stri
       // fail open: proceed to write
     }
   }
-  await writeEntitlement(env.DB, ent, nowISO);
+  const written = await writeEntitlement(env.DB, ent, nowISO);
   // AFTER the write, never before, so `applied = 1` can never claim something that did not happen.
-  await logRcEvent(env.DB, rcEventRow(event, 'applied'), nowISO);
+  // `false` is the cross-store guard at work: this store tried to switch off a premium another store
+  // sold, and the row was kept. Handled, so it is still marked processed; the log says why.
+  const kept = written === false;
+  await logRcEvent(env.DB, rcEventRow(event, kept ? 'cross-store-kept' : allowlisted ? 'sandbox-allowlisted' : 'applied'), nowISO);
   if (eventId) {
     try {
       await env.DB.prepare('INSERT OR IGNORE INTO processed_events (event_id, created_at) VALUES (?1, ?2)').bind(eventId, nowISO).run();
@@ -325,5 +392,5 @@ export async function handleRcWebhook(request: Request, env: RcEnv, nowISO: stri
       // best-effort: a missed dedup insert only risks a harmless idempotent re-write
     }
   }
-  return new Response(JSON.stringify({ received: true }), { headers: { 'content-type': 'application/json' } });
+  return new Response(JSON.stringify(kept ? { received: true, kept: true } : { received: true }), { headers: { 'content-type': 'application/json' } });
 }

@@ -14,6 +14,7 @@ import { isCompEmail } from './comp';
 import { type D1LikeDatabase, type Entitlement, type EntitlementView, readEntitlement, writeEntitlement } from './entitlements';
 import { decodeJwtEmail } from './mcp';
 import { buildOwnerEmail } from './monitor';
+import { cancelPlayRenewals } from './play-cancel';
 import { activeTrial } from './trials';
 import { defaultVerifySub, type SubVerifier } from './verify';
 
@@ -347,6 +348,8 @@ type FullEnv = StripeEnv & {
   // Per-USER limit on /account/close-billing (keyed on the verified sub, so a carrier NAT never locks out
   // real people). Optional, so tests and local dev without the binding simply skip it.
   BILLING_LIMITER?: { limit(o: { key: string }): Promise<{ success: boolean }> };
+  // The RevenueCat v1 secret key, which account deletion uses to turn off Google Play renewals.
+  RC_SECRET_KEY?: string;
 };
 
 /** Email the owner via the proven send_email path (same as /feedback + the monitor). */
@@ -394,11 +397,16 @@ export async function handleCheckout(
   // no longer exists and the portal would have nothing to restart; and an abandoned checkout
   // (incomplete/incomplete_expired), which self-expires at Stripe and must not lock the user out
   // of ever buying. Keying on customerId ALONE would have broken those last two.
+  // Since Path A (2026-09-30) the guard knows every store. A live Apple or Google subscription has no
+  // Stripe customer at all, so the old customer-keyed check waved its owner straight into a second,
+  // Stripe subscription. And a payment failing anywhere (past_due or unpaid at Stripe, a store's
+  // grace period, a Play account hold) is a subscription still alive and retrying, whichever store.
   if (env.DB) {
     try {
       const existing = await readEntitlement(env.DB, sub);
-      const dunning = existing.status === 'past_due' || existing.status === 'unpaid';
-      if (existing.customerId && (existing.premium || dunning)) {
+      const dunning = existing.status === 'past_due' || existing.status === 'unpaid' || existing.status === 'on_hold';
+      const storeSold = existing.source === 'apple' || existing.source === 'google';
+      if ((existing.premium || dunning) && (existing.customerId || storeSold)) {
         return new Response(JSON.stringify({ error: dunning ? 'billing_issue' : 'already_subscribed' }), { status: 409, headers: { ...JSON_HEADERS, ...cors } });
       }
     } catch {
@@ -451,8 +459,10 @@ export async function handlePortal(
  *
  * Fails closed and claims nothing it did not do: a Stripe lookup it cannot trust in full, or any cancel
  * that did not land, answers 502 (after still trying every other cancel), and the app then deletes
- * nothing. The Stripe customer and its invoices stay. Apple billing is out of reach: the app tells an
- * Apple subscriber to cancel in their iPhone's Settings before they confirm.
+ * nothing. The Stripe customer and its invoices stay. Google Play renewals are turned off too, through
+ * RevenueCat (play-cancel.ts), only for someone who ever bought on Play; access runs to the period end
+ * and nothing is refunded. Apple billing is out of reach: the app tells an Apple subscriber to cancel
+ * in their iPhone's Settings before they confirm.
  */
 export async function handleCloseBilling(
   request: Request,
@@ -492,6 +502,10 @@ export async function handleCloseBilling(
     if (await cancelSubscriptionNow(env, id)) cancelled += 1;
     else failed = true; // keep going: stop as much billing as we can, then say it was not all
   }
+  // Then Play, whatever Stripe answered, so as much billing as possible stops on this attempt.
+  const play = await cancelPlayRenewals(env, sub, Date.now());
+  if (play === null) failed = true;
+  else cancelled += play;
   if (failed) return new Response(JSON.stringify({ error: 'close_billing_failed' }), { status: 502, headers: { ...JSON_HEADERS, ...cors } });
   return new Response(JSON.stringify({ cancelled }), { headers: { ...JSON_HEADERS, ...cors } });
 }
@@ -602,16 +616,16 @@ export async function handleEntitlement(
       headers: { ...JSON_HEADERS, ...cors },
     });
   }
-  // A transient D1 throw must not hard-500 the Premium/Settings screen (it would brush the never-alarm
-  // spine). This is the cosmetic client flag, not the money gate (requirePremium stays fail-closed), so a
-  // store error reports the calm FREE shape rather than an error.
+  // A transient D1 throw answers 503, and says only that it could not check. Until 2026-09-30 it
+  // answered 200 with the FREE shape, which the client could not tell apart from "you are free", so the
+  // buy guard read a failed lookup as permission to sell a second subscription. Every shipped client
+  // already folds any non-2xx into its calm free display (client/src/lib/stripe.ts loadEntitlement), so
+  // live apps look exactly as before, while the new ones can refuse to open a checkout on "unknown".
   let view: EntitlementView;
   try {
     view = await readEntitlement(env.DB, sub);
   } catch {
-    return new Response(JSON.stringify({ premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null, source: null }), {
-      headers: { ...JSON_HEADERS, ...cors },
-    });
+    return new Response(JSON.stringify({ error: 'unavailable' }), { status: 503, headers: { ...JSON_HEADERS, ...cors } });
   }
   // A card-free trial also reports premium to the client (status 'trial') until it expires, with no Stripe
   // customer (so the manage portal correctly 404s and the UI can offer "keep Premium" instead of "manage").

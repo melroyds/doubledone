@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { D1LikeDatabase } from './entitlements';
-import { buildSubscriberRequest, grantFromSubscriber, handleAppleReconcile } from './revenuecat-api';
+import { buildSubscriberRequest, grantFromSubscriber, handleAppleReconcile, sourceForV1Store } from './revenuecat-api';
 
 const UID = '11111111-2222-3333-4444-555555555555';
 const NOW_MS = 1_800_000_000_000;
@@ -191,5 +191,40 @@ describe('handleAppleReconcile', () => {
     ]) {
       expect(res.headers.get('access-control-allow-origin')).toBe('https://doubledone.app');
     }
+  });
+});
+
+// ---- Path A (2026-09-30): the store comes off RevenueCat's own row.
+describe('Path A: reconcile reads which store sold it', () => {
+  it('maps the v1 store spellings, and grants nothing for promotional or anything unknown', () => {
+    expect(sourceForV1Store(undefined)).toBe('apple');
+    expect(sourceForV1Store('app_store')).toBe('apple');
+    expect(sourceForV1Store('mac_app_store')).toBe('apple');
+    expect(sourceForV1Store('play_store')).toBe('google');
+    for (const other of ['promotional', 'stripe', 'rc_billing', 'amazon', 'PLAY_STORE']) expect(sourceForV1Store(other), other).toBeNull();
+  });
+
+  it('grants a Play subscription as google, and an App Store one as apple (unchanged)', () => {
+    expect(grantFromSubscriber(subscriber({ sub: { store: 'play_store' } }), UID, NOW_MS)).toMatchObject({ source: 'google', premium: true });
+    expect(grantFromSubscriber(subscriber({ sub: { store: 'app_store' } }), UID, NOW_MS)).toMatchObject({ source: 'apple' });
+    expect(grantFromSubscriber(subscriber(), UID, NOW_MS)).toMatchObject({ source: 'apple' }); // no store field: as before
+  });
+
+  it('grants nothing from a promotional row (this route grants premium, so unknown means no)', () => {
+    expect(grantFromSubscriber(subscriber({ sub: { store: 'promotional' } }), UID, NOW_MS)).toBeNull();
+  });
+
+  it('finds a Google base plan row under either key RevenueCat uses', () => {
+    const exp = new Date(NOW_MS + 30 * 24 * HOUR_MS).toISOString();
+    for (const key of ['premium:monthly', 'premium']) {
+      const body = { subscriber: { entitlements: { premium: { expires_date: exp, product_identifier: 'premium:monthly' } }, subscriptions: { [key]: { store: 'play_store', is_sandbox: false } } } };
+      expect(grantFromSubscriber(body, UID, NOW_MS), key).toMatchObject({ source: 'google' });
+    }
+  });
+
+  it('grants a sandbox row only for the named allowlist', () => {
+    const body = subscriber({ sub: { store: 'play_store', is_sandbox: true } });
+    expect(grantFromSubscriber(body, UID, NOW_MS)).toBeNull();
+    expect(grantFromSubscriber(body, UID, NOW_MS, true)).toMatchObject({ source: 'google' });
   });
 });

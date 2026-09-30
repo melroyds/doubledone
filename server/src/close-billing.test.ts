@@ -19,14 +19,28 @@ type FakeSub = { id: string; status: string; customer: string; userId: string };
 type Call = { method: string; url: string; auth: string | null; body: string | null };
 
 /** An in-memory Stripe: the list, search, retrieve and cancel endpoints, over a mutable set of subs. */
-function fakeStripe(subs: FakeSub[], opts: { fail?: 'list' | 'search'; hasMore?: 'list' | 'search'; refuseCancel?: string[]; missingCustomer?: boolean } = {}) {
+type FakeRc = { subscriptions?: Record<string, unknown>; getStatus?: number; refuseCancel?: string[] };
+
+function fakeStripe(subs: FakeSub[], opts: { fail?: 'list' | 'search'; hasMore?: 'list' | 'search'; refuseCancel?: string[]; missingCustomer?: boolean; rc?: FakeRc } = {}) {
   const calls: Call[] = [];
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
   const view = (s: FakeSub) => ({ id: s.id, object: 'subscription', status: s.status, customer: s.customer, metadata: { user_id: s.userId } });
   const fetchStub = vi.fn(async (input: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => {
     const method = init?.method ?? 'GET';
-    calls.push({ method, url: input, auth: init?.headers?.authorization ?? null, body: init?.body ?? null });
+    calls.push({ method, url: input, auth: init?.headers?.authorization ?? init?.headers?.Authorization ?? null, body: init?.body ?? null });
     const url = new URL(input);
+    // RevenueCat v1 (Play renewals), only when a test asks for it; otherwise it falls to 'unexpected call'.
+    if (url.host === 'api.revenuecat.com' && opts.rc) {
+      const rc = opts.rc;
+      if (method === 'GET' && /^\/v1\/subscribers\/[^/]+$/.test(url.pathname)) {
+        if (rc.getStatus && rc.getStatus !== 200) return json({ message: 'rc down' }, rc.getStatus);
+        return json({ subscriber: { entitlements: {}, subscriptions: rc.subscriptions ?? {} } });
+      }
+      const cancel = /^\/v1\/subscribers\/[^/]+\/subscriptions\/([^/]+)\/cancel$/.exec(url.pathname);
+      if (method === 'POST' && cancel) {
+        return rc.refuseCancel?.includes(decodeURIComponent(cancel[1])) ? json({ message: 'nope' }, 500) : json({ subscriber: {} });
+      }
+    }
     const path = url.pathname.replace(/^\/v1/, '');
     if (method === 'GET' && path === '/subscriptions') {
       if (opts.fail === 'list') return json({ error: { message: 'boom' } }, 500);
@@ -55,14 +69,21 @@ function fakeStripe(subs: FakeSub[], opts: { fail?: 'list' | 'search'; hasMore?:
     return json({ error: { message: 'unexpected call' } }, 500);
   });
   vi.stubGlobal('fetch', fetchStub);
-  return { calls, subs, fetchStub, deletes: () => calls.filter((c) => c.method === 'DELETE').map((c) => decodeURIComponent(new URL(c.url).pathname.split('/').pop() ?? '')) };
+  return {
+    calls,
+    subs,
+    fetchStub,
+    deletes: () => calls.filter((c) => c.method === 'DELETE').map((c) => decodeURIComponent(new URL(c.url).pathname.split('/').pop() ?? '')),
+    rcCalls: () => calls.filter((c) => new URL(c.url).host === 'api.revenuecat.com'),
+  };
 }
 
-/** A D1 holding one entitlements row (the customer the webhook last wrote), or throwing on read. */
-function dbWith(customerId: string | null, opts: { throws?: boolean } = {}): D1LikeDatabase & { reads: number } {
+/** A D1 holding one entitlements row (the customer the webhook last wrote), or throwing on read. The
+ *  Play-log query (rc_events) is answered separately: no Play delivery unless `playLog` says so. */
+function dbWith(customerId: string | null, opts: { throws?: boolean; source?: string; playLog?: boolean } = {}): D1LikeDatabase & { reads: number } {
   const db = {
     reads: 0,
-    prepare(_sql: string) {
+    prepare(sql: string) {
       const stmt = {
         bind() {
           return stmt;
@@ -70,8 +91,9 @@ function dbWith(customerId: string | null, opts: { throws?: boolean } = {}): D1L
         async first<T>() {
           db.reads += 1;
           if (opts.throws) throw new Error('d1 down');
-          if (!customerId) return null as T | null;
-          return { premium: 1, status: 'active', started_at: null, current_period_end: null, cancel_at_period_end: 0, stripe_customer_id: customerId, source: 'stripe' } as T;
+          if (sql.includes('rc_events')) return (opts.playLog ? { hit: 1 } : null) as T | null;
+          if (!customerId && !opts.source) return null as T | null;
+          return { premium: 1, status: 'active', started_at: null, current_period_end: null, cancel_at_period_end: 0, stripe_customer_id: customerId, source: opts.source ?? 'stripe' } as T;
         },
         async run() {
           throw new Error('close-billing must never write D1');
@@ -86,7 +108,8 @@ function dbWith(customerId: string | null, opts: { throws?: boolean } = {}): D1L
   return db as unknown as D1LikeDatabase & { reads: number };
 }
 
-const env = (db?: D1LikeDatabase) => ({ STRIPE_SECRET_KEY: SK, SUPABASE_URL: 'https://proj.supabase.co', DB: db });
+const env = (db?: D1LikeDatabase, extra: Record<string, string> = {}) => ({ STRIPE_SECRET_KEY: SK, SUPABASE_URL: 'https://proj.supabase.co', DB: db, ...extra });
+const RC = { RC_SECRET_KEY: 'rc-test-secret' }; // a dummy string, never a real sk_ key
 
 describe('POST /account/close-billing: who is asking', () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -177,14 +200,23 @@ describe('POST /account/close-billing: the verified path', () => {
   });
 
   it('still finds and cancels by user id when D1 has no row, is unbound, or throws', async () => {
-    for (const db of [dbWith(null), undefined, dbWith('cus_1', { throws: true })]) {
-      const stripe = fakeStripe([{ id: 'sub_1', status: 'active', customer: 'cus_1', userId: USER }]);
-      const res = await handleCloseBilling(post(tokenFor(USER)), env(db), cors, trust);
+    // A throwing D1 cannot say whether this person ever bought on Play, so RevenueCat is asked (the key
+    // is always set in production); it says no Play, and the Stripe cancel goes ahead exactly as before.
+    for (const [db, extra] of [[dbWith(null), {}], [undefined, {}], [dbWith('cus_1', { throws: true }), RC]] as const) {
+      const stripe = fakeStripe([{ id: 'sub_1', status: 'active', customer: 'cus_1', userId: USER }], { rc: {} });
+      const res = await handleCloseBilling(post(tokenFor(USER)), env(db, extra), cors, trust);
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ cancelled: 1 });
       expect(stripe.deletes()).toEqual(['sub_1']);
       vi.unstubAllGlobals();
     }
+  });
+
+  it('with D1 down AND no RevenueCat key, fails closed: it cannot tell and cannot check', async () => {
+    fakeStripe([{ id: 'sub_1', status: 'active', customer: 'cus_1', userId: USER }]);
+    const res = await handleCloseBilling(post(tokenFor(USER)), env(dbWith('cus_1', { throws: true })), cors, trust);
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: 'close_billing_failed' });
   });
 
   it('is idempotent: a second call finds nothing live and answers 0', async () => {
@@ -306,5 +338,87 @@ describe('close-billing: the review fixes', () => {
     expect(keys).toEqual([`close:${USER}`]);
     expect(stripe.calls).toHaveLength(0);
     expect(db.reads).toBe(0);
+  });
+});
+
+describe('close-billing: Google Play renewals (Path A)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const FUTURE = new Date(Date.now() + 20 * 24 * 3_600_000).toISOString();
+  const PAST = new Date(Date.now() - 24 * 3_600_000).toISOString();
+  const play = (over: Record<string, unknown> = {}) => ({ store: 'play_store', expires_date: FUTURE, unsubscribe_detected_at: null, refunded_at: null, store_transaction_id: 'GPA.1111-2222-3333-44444', ...over });
+
+  it('never calls RevenueCat for someone who never bought on Play', async () => {
+    const stripe = fakeStripe([{ id: 'sub_1', status: 'active', customer: 'cus_1', userId: USER }], { rc: {} });
+    const res = await handleCloseBilling(post(tokenFor(USER)), env(dbWith('cus_1'), RC), cors, trust);
+    expect(await res.json()).toEqual({ cancelled: 1 });
+    expect(stripe.rcCalls()).toEqual([]); // not even a lookup: the v1 GET would CREATE a customer
+  });
+
+  it('turns off a Google renewal through the v1 CANCEL (never /revoke), and counts it', async () => {
+    const stripe = fakeStripe([], { rc: { subscriptions: { premium: play() } } });
+    const res = await handleCloseBilling(post(tokenFor(USER)), env(dbWith(null, { source: 'google' }), RC), cors, trust);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ cancelled: 1 });
+    const rc = stripe.rcCalls();
+    expect(rc.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual([
+      `GET /v1/subscribers/${USER}`,
+      `POST /v1/subscribers/${USER}/subscriptions/GPA.1111-2222-3333-44444/cancel`,
+    ]);
+    expect(rc.some((c) => c.url.includes('/revoke'))).toBe(false);
+    expect(rc.every((c) => c.auth === 'Bearer rc-test-secret')).toBe(true);
+  });
+
+  it('asks RevenueCat when only the delivery log shows a Play purchase (the row says stripe)', async () => {
+    const stripe = fakeStripe([{ id: 'sub_1', status: 'active', customer: 'cus_1', userId: USER }], { rc: { subscriptions: { premium: play() } } });
+    const res = await handleCloseBilling(post(tokenFor(USER)), env(dbWith('cus_1', { playLog: true }), RC), cors, trust);
+    expect(await res.json()).toEqual({ cancelled: 2 }); // the Stripe sub AND the Play renewal
+    expect(stripe.deletes()).toEqual(['sub_1']);
+  });
+
+  it('skips a Play subscription that is over, already not renewing, or refunded, and other stores', async () => {
+    const stripe = fakeStripe([], {
+      rc: {
+        subscriptions: {
+          a: play({ expires_date: PAST }),
+          b: play({ unsubscribe_detected_at: PAST }),
+          c: play({ refunded_at: PAST }),
+          d: { store: 'app_store', expires_date: FUTURE, store_transaction_id: '1000000000' },
+        },
+      },
+    });
+    const res = await handleCloseBilling(post(tokenFor(USER)), env(dbWith(null, { source: 'google' }), RC), cors, trust);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ cancelled: 0 });
+    expect(stripe.rcCalls().filter((c) => c.method === 'POST')).toEqual([]);
+  });
+
+  it('502s (and the app deletes nothing) when a Play subscriber cannot be reached', async () => {
+    const cases: [FakeRc, Record<string, string>][] = [
+      [{ subscriptions: { premium: play() } }, {}], // no key configured
+      [{ getStatus: 500 }, RC], // RevenueCat down
+      [{ subscriptions: { premium: play({ store_transaction_id: '' }) } }, RC], // renewing, and nothing to cancel it by
+      [{ subscriptions: { premium: play() }, refuseCancel: ['GPA.1111-2222-3333-44444'] }, RC], // the cancel did not land
+    ];
+    for (const [rc, extra] of cases) {
+      fakeStripe([], { rc });
+      const res = await handleCloseBilling(post(tokenFor(USER)), env(dbWith(null, { source: 'google' }), extra), cors, trust);
+      expect(res.status).toBe(502);
+      expect(await res.json()).toEqual({ error: 'close_billing_failed' });
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('still cancels Stripe when the Play side fails, then says it was not all', async () => {
+    const stripe = fakeStripe([{ id: 'sub_1', status: 'active', customer: 'cus_1', userId: USER }], { rc: { getStatus: 503 } });
+    const res = await handleCloseBilling(post(tokenFor(USER)), env(dbWith('cus_1', { source: 'google' }), RC), cors, trust);
+    expect(res.status).toBe(502);
+    expect(stripe.deletes()).toEqual(['sub_1']); // as much billing as possible stopped on this attempt
+  });
+
+  it('is idempotent across a retry: an already-cancelled renewal is not cancelled twice', async () => {
+    const stripe = fakeStripe([], { rc: { subscriptions: { premium: play({ unsubscribe_detected_at: new Date().toISOString() }) } } });
+    const res = await handleCloseBilling(post(tokenFor(USER)), env(dbWith(null, { source: 'google' }), RC), cors, trust);
+    expect(await res.json()).toEqual({ cancelled: 0 });
+    expect(stripe.rcCalls().map((c) => c.method)).toEqual(['GET']);
   });
 });
