@@ -632,7 +632,7 @@ export const es: Catalog = {
     oursNeedsSync: 'Una lista con una sola persona. Antes, inicia sesión.',
     premiumHintFreeAi: 'Álbum de recuerdos, más IA, tu color',
     premiumHintFreeNoAi: 'Tu tema de color, y más',
-    settingsHint: 'Para el tamaño del texto, las animaciones y el aspecto',
+    settingsHint: 'Para el tamaño del texto, el movimiento y el aspecto',
     repeatingHint: 'Para la basura, las facturas, las plantas',
     routinesHint: 'Para mañanas y noches que van solas',
   },

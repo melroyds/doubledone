@@ -64,6 +64,15 @@ function interpolate(template: string, params?: Record<string, string | number>)
 
 /** Translate a dotted key for a locale: the locale's catalog, else en, else the key itself. `{name}`
  *  placeholders interpolate from params (named, never positional, so word order is the translator's). */
+/**
+ * A string as a screen reader should get it. Soft hyphens (U+00AD) are for the EYE: they let a long German
+ * word break at a syllable at huge text sizes. Some screen readers (NVDA on the web, for one) speak or
+ * stumble on them, so every accessibility label built from a hyphenated catalogue string goes through here.
+ */
+export function spoken(s: string): string {
+  return s.replace(/\u00AD/g, '');
+}
+
 export function translate(loc: Locale, key: string, params?: Record<string, string | number>): string {
   const str = lookup(CATALOGS[loc], key) ?? lookup(CATALOGS.en, key) ?? key;
   return interpolate(str, params);

@@ -6,6 +6,7 @@
 // Built by joining the catalogue's own titles, never as a hand-written list per language, so a room that
 // is renamed in one place can never leave a stale word in the pill.
 
+import { spoken } from './i18n';
 import { t } from './i18n-active';
 
 export function menuPillLabel(opts: { ai: boolean; ours: boolean }): string {
@@ -19,5 +20,5 @@ export function menuPillLabel(opts: { ai: boolean; ours: boolean }): string {
     t('common.premium'),
   ];
   // Soft hyphens are for the eye (a long German word breaking at a syllable); a screen reader gets none.
-  return t('today.menuA11yList', { rooms: rooms.join(', ') }).replace(/\u00AD/g, '');
+  return spoken(t('today.menuA11yList', { rooms: rooms.join(', ') }));
 }

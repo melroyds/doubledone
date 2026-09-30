@@ -14,6 +14,7 @@ import { purgeScrapbookImages } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
 import { toISODate } from '@/lib/day';
 import { buildExport } from '@/lib/export';
+import { spoken } from '@/lib/i18n';
 import { t } from '@/lib/locale';
 import { SELLS_HERE } from '@/lib/storefront';
 import { usePremium } from '@/lib/premium-provider';
@@ -336,7 +337,7 @@ export default function SettingsScreen() {
         <RoomBackRow origin={origin} />
       </View>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <Text style={styles.title} accessibilityRole="header">
+        <Text style={styles.title} accessibilityRole="header" accessibilityLabel={spoken(t('settings.title'))} android_hyphenationFrequency="normal">
           {t('settings.title')}
         </Text>
         <Text style={styles.subtitle}>{t('settings.subtitle')}</Text>

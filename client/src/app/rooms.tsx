@@ -34,6 +34,7 @@ import repeatingArt from '../../assets/images/rooms/repeating.webp';
 import routinesArt from '../../assets/images/rooms/routines.webp';
 import { border, fonts, layout, PRESSED_OPACITY, spacing, type Theme } from '@/constants/theme';
 import { useSession } from '@/lib/auth';
+import { spoken } from '@/lib/i18n';
 import { t } from '@/lib/locale';
 import { SELLS_HERE } from '@/lib/storefront';
 import { usePremium } from '@/lib/premium-provider';
@@ -158,13 +159,17 @@ export default function RoomsScreen() {
   // Billing news, dates and management live on the Premium page, never here. The one exception is a
   // member on a build that sells nothing (Android, Path C), who keeps their line word for word.
   const premiumHint = premium && !SELLS_HERE ? t('settings.premiumCardActiveSub') : aiEnabled ? t('rooms.premiumHintFreeAi') : t('rooms.premiumHintFreeNoAi');
-  const gearSize = 18 * theme.scale; // 1.2 x the sign's 15pt label, so it grows with the text
+  // 1.2 x the sign's 15pt label, so it grows with the text: the app's size AND the phone's own text size,
+  // which RN Text follows by itself and an SVG does not.
+  const gearSize = 18 * theme.scale * fontScale;
 
-  // Spoken labels. Soft hyphens are for the eye (a long German word breaking at a syllable), so none is
-  // spoken. And react-native-web drops accessibilityHint, so on the web the hint rides in the label.
-  const say = (s: string) => s.replace(/\u00AD/g, '');
+  // Spoken labels. Soft hyphens are for the eye, so none is spoken (lib/i18n spoken). Each shelf row is
+  // named exactly like its door ("Settings", "Premium") with its line as the HINT, as the handoff asks: the
+  // two Settings doors share one name because they are one door. react-native-web drops accessibilityHint,
+  // so on the web the hint is wired with aria-describedby to the visible line instead.
+  const say = spoken;
   const settingsSpoken = say(t('settings.title'));
-  const withHint = (label: string, hint: string) => (Platform.OS === 'web' ? `${say(label)}. ${say(hint)}` : say(label));
+  const describedBy = (id: string) => (Platform.OS === 'web' ? ({ 'aria-describedby': id } as object) : null);
 
   const card = (room: Room, wide: boolean) => (
     <Pressable
@@ -179,7 +184,7 @@ export default function RoomsScreen() {
         <Image source={room.art} style={styles.artFill} resizeMode="cover" accessible={false} accessibilityIgnoresInvertColors />
       </View>
       <View style={styles.cardText}>
-        <Text style={wide ? styles.nameWide : styles.name}>
+        <Text style={wide ? styles.nameWide : styles.name} android_hyphenationFrequency="normal">
           {room.label}
           {room.premiumMark ? (
             <Text style={styles.premiumMark} accessible={false} importantForAccessibility="no">
@@ -187,7 +192,9 @@ export default function RoomsScreen() {
             </Text>
           ) : null}
         </Text>
-        <Text style={wide ? styles.hintWide : styles.hint}>{room.hint}</Text>
+        <Text style={wide ? styles.hintWide : styles.hint} android_hyphenationFrequency="normal">
+          {room.hint}
+        </Text>
       </View>
     </Pressable>
   );
@@ -227,7 +234,9 @@ export default function RoomsScreen() {
                 <Circle cx={12} cy={12} r={3.1} stroke={theme.colors.ink} strokeWidth={2} fill="none" />
               </Svg>
               </View>
-              <Text style={styles.signLabel}>{t('settings.title')}</Text>
+              <Text style={styles.signLabel} android_hyphenationFrequency="normal">
+                {t('settings.title')}
+              </Text>
             </Pressable>
           </View>
           <Text style={styles.title} accessibilityRole="header">
@@ -255,13 +264,18 @@ export default function RoomsScreen() {
             <Pressable
               onPress={() => openSettings('shelf')}
               accessibilityRole="button"
-              accessibilityLabel={withHint(t('settings.title'), t('rooms.settingsHint'))}
+              accessibilityLabel={settingsSpoken}
               accessibilityHint={say(t('rooms.settingsHint'))}
+              {...describedBy('menu-settings-hint')}
               style={({ pressed }) => [styles.shelfRow, pressed && styles.pressed]}
             >
               <View style={styles.shelfText}>
-                <Text style={styles.shelfLabel}>{t('settings.title')}</Text>
-                <Text style={styles.shelfHint}>{t('rooms.settingsHint')}</Text>
+                <Text style={styles.shelfLabel} android_hyphenationFrequency="normal">
+                  {t('settings.title')}
+                </Text>
+                <Text style={styles.shelfHint} nativeID="menu-settings-hint" android_hyphenationFrequency="normal">
+                  {t('rooms.settingsHint')}
+                </Text>
               </View>
               <Text style={[styles.chevron, largeText && styles.chevronTop]} accessible={false} importantForAccessibility="no">
                 ›
@@ -274,13 +288,18 @@ export default function RoomsScreen() {
                 router.push({ pathname: '/premium', params: { from: 'menu' } });
               }}
               accessibilityRole="button"
-              accessibilityLabel={withHint(t('common.premium'), premiumHint)}
+              accessibilityLabel={t('common.premium')}
               accessibilityHint={say(premiumHint)}
+              {...describedBy('menu-premium-hint')}
               style={({ pressed }) => [styles.shelfRow, pressed && styles.pressed]}
             >
               <View style={styles.shelfText}>
-                <Text style={styles.shelfLabel}>{t('common.premium')}</Text>
-                <Text style={styles.shelfHint}>{premiumHint}</Text>
+                <Text style={styles.shelfLabel} android_hyphenationFrequency="normal">
+                  {t('common.premium')}
+                </Text>
+                <Text style={styles.shelfHint} nativeID="menu-premium-hint" android_hyphenationFrequency="normal">
+                  {premiumHint}
+                </Text>
               </View>
               <Text style={[styles.chevron, largeText && styles.chevronTop]} accessible={false} importantForAccessibility="no">
                 ›
@@ -353,7 +372,7 @@ const makeStyles = (t: Theme) =>
     shelfLabel: { color: t.colors.ink, fontSize: 15 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     shelfHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body, marginTop: 2 },
     shelfGap: { height: spacing.five },
-    chevron: { color: t.colors.inkSoft, fontSize: 20 * t.scale, fontFamily: fonts.body },
+    chevron: { color: t.colors.inkSoft, fontSize: 20 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body },
     chevronTop: { alignSelf: 'flex-start' },
     pressed: { opacity: PRESSED_OPACITY },
     pressedCard: { opacity: 0.6 },

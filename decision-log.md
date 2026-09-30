@@ -8585,6 +8585,17 @@ recommended 1c, and it is built to that README:
 
 **Decided against** (the handoff's own list): moving Settings out of its corner; a Settings card among the
 rooms (a card without a picture reads as a failed image); a ✦, honey or gradient on the Premium row;
-Premium above the rooms; any pointer, tooltip or "new" dot. Also, the handoff's custom 2px ink focus ring.
+Premium above the rooms; any pointer, tooltip or "new" dot. Also, the handoff's custom 2px ink focus ring, by choice.
 The browser's own keyboard-only focus ring is already visible and in page order (checked with a real Tab
-walk), and a custom ring on RN-web cannot tell keyboard focus from a tap.
+walk). RN's `focused` style cannot tell a keyboard from a tap, so a custom ring would need a `:focus-visible`
+rule injected through `scripts/inject-web-meta.mjs`. Not needed now.
+
+**Hardened by review** (6 agents: fidelity, accessibility and the five languages, regressions; each finding
+verified). Taken: Android IGNORES soft hyphens unless hyphenation is switched on (RN defaults it off), so
+the Menu's texts and the Settings and room headings now set `android_hyphenationFrequency="normal"`; a
+pure `spoken()` strips soft hyphens from every label built from those strings, the headings included; each
+shelf row is named exactly like its door with its line as the hint (on the web through
+`aria-describedby`); the gear follows the phone's own text size, not only the app's; the chevron's line box
+matches the label's; Spanish and Italian say "movement", as their Settings row does, and Italian's welcome
+names the Repeating room by its title. The Android and iOS hyphenation reach phones only with the next
+native build.

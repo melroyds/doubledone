@@ -12,6 +12,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Image, Platform, Pressable, type StyleProp, StyleSheet, Text, type TextStyle, View } from 'react-native';
 
 import { fonts, layout, PRESSED_OPACITY, spacing, type Theme } from '@/constants/theme';
+import { spoken } from '@/lib/i18n';
 import { t } from '@/lib/locale';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
@@ -92,7 +93,7 @@ export function RoomHead({ art, title, hint }: { art?: number; title: string; hi
   return (
     <View>
       {art != null ? <RoomBand art={art} /> : null}
-      <Text ref={titleRef} style={styles.title} accessibilityRole="header">
+      <Text ref={titleRef} style={styles.title} accessibilityRole="header" accessibilityLabel={spoken(title)} android_hyphenationFrequency="normal">
         {title}
       </Text>
       <Text style={styles.hint}>{hint}</Text>
