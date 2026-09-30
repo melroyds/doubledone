@@ -2652,7 +2652,7 @@ export default function TodayScreen() {
 
         <View style={styles.topBar}>
           <Text style={styles.date}>{formatTodayLabel(today)}</Text>
-          <MenuPill onPress={openMenu} />
+          <MenuPill onPress={openMenu} ours={oursDest !== 'none'} />
         </View>
         {reentry && !isClosed && (
           <View style={styles.reentry}>

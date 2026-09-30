@@ -2,14 +2,16 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { border, fonts, PRESSED_OPACITY, radius, rgba, spacing, type Theme } from '@/constants/theme';
 import { t } from '@/lib/locale';
+import { menuPillLabel } from '@/lib/menu-a11y';
 import { useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 /**
  * The Menu pill: the same pill, in the same place, with the same label, on Today and on Ours (the Today
  * v3 handoff). It opens the contents page, "The rest of the house". Quiet drops the chrome and the dots
- * and keeps the word.
+ * and keeps the word. `ours`: whether the page it opens will show the Ours card, so the spoken label
+ * names exactly what is there (lib/menu-a11y).
  */
-export function MenuPill({ onPress }: { onPress: () => void }) {
+export function MenuPill({ onPress, ours = true }: { onPress: () => void; ours?: boolean }) {
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
   const aiEnabled = useSettings().settings.aiEnabled;
@@ -17,7 +19,7 @@ export function MenuPill({ onPress }: { onPress: () => void }) {
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={aiEnabled ? t('today.menuA11y') : t('today.menuNoAiA11y')}
+      accessibilityLabel={menuPillLabel({ ai: aiEnabled, ours })}
       hitSlop={8}
       style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
     >

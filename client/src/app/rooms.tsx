@@ -12,11 +12,20 @@
 //
 // What it must never become: no "new" dots or badges on rooms, no ordering by use, no coach marks, and
 // the pictures never change by time or by use. The same rooms in the same place, always.
+//
+// The doors that are not rooms (the Menu doors handoff, 1c, 2026-09-30). A real user could not find
+// Settings: a small grey word in the corner, while the pictures read as the whole menu and ended at a
+// fold that looked like the end of the page. So Settings keeps its corner but becomes a SIGN (a gear and
+// the word, in ink, never a pill, which would read as the Menu pill changing its word), and after the
+// last room a quiet SHELF lists Settings again with what it is for, then Premium with its line visible
+// for the first time. Nothing people learned moves; only weight changes. Premium stays below the fold
+// on purpose: findable for someone looking, never pushed.
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Animated, Easing, Image, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 import chartArt from '../../assets/images/rooms/chart.webp';
 import lookbackArt from '../../assets/images/rooms/lookback.webp';
@@ -77,6 +86,20 @@ export default function RoomsScreen() {
     return () => a.stop();
   }, [enter, theme.reduceMotion]);
 
+  // The press guard: for its first 300ms the page takes no presses, so a double-tap on the Menu pill
+  // (whose corner Settings now shares) cannot land on Settings during the fade. The same with reduced
+  // motion, and nothing dims or looks disabled while it runs.
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setArmed(true), 300);
+    return () => clearTimeout(id);
+  }, []);
+
+  function openSettings(door: 'sign' | 'shelf') {
+    track('rooms.opened', { room: 'settings', door });
+    router.push({ pathname: '/settings', params: { from: 'menu' } });
+  }
+
   // To TODAY, whatever is between: this page can be opened from the Ours room too, where a plain back
   // landed on Ours under a link that said Today. dismissTo pops to the nearest Today, or replaces this page
   // with one when there is none (a reload on /rooms).
@@ -127,13 +150,28 @@ export default function RoomsScreen() {
   // whole. "Large" is the app's own largest size OR the phone's font scale taking the text there (RN Text
   // scales with both). An odd card out takes the full row rather than sitting alone beside a gap.
   const oneColumn = theme.scale * fontScale >= scaleFor('large') || width < 330;
+  // The chevron top-aligns beside a label's first line once text is large, so a wrapped hint never runs under it.
+  const largeText = theme.scale * fontScale >= scaleFor('large');
+
+  // Premium's line names what Premium holds, so it is true in every state: it cannot pitch Premium to
+  // someone who pays, say "expired" to someone who left, or flash free copy at a member while loading.
+  // Billing news, dates and management live on the Premium page, never here. The one exception is a
+  // member on a build that sells nothing (Android, Path C), who keeps their line word for word.
+  const premiumHint = premium && !SELLS_HERE ? t('settings.premiumCardActiveSub') : aiEnabled ? t('rooms.premiumHintFreeAi') : t('rooms.premiumHintFreeNoAi');
+  const gearSize = 18 * theme.scale; // 1.2 x the sign's 15pt label, so it grows with the text
+
+  // Spoken labels. Soft hyphens are for the eye (a long German word breaking at a syllable), so none is
+  // spoken. And react-native-web drops accessibilityHint, so on the web the hint rides in the label.
+  const say = (s: string) => s.replace(/\u00AD/g, '');
+  const settingsSpoken = say(t('settings.title'));
+  const withHint = (label: string, hint: string) => (Platform.OS === 'web' ? `${say(label)}. ${say(hint)}` : say(label));
 
   const card = (room: Room, wide: boolean) => (
     <Pressable
       key={room.key}
       onPress={room.onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${room.label}${room.premiumMark ? `. ${t('common.premium')}` : ''}. ${room.hint}`}
+      accessibilityLabel={say(`${room.label}${room.premiumMark ? `. ${t('common.premium')}` : ''}. ${room.hint}`)}
       // While a finger is on it the whole card dims to 60%; no ripple, no scale, no haptic. It opens on lift.
       style={({ pressed }) => [wide ? styles.cardWide : styles.card, pressed && styles.pressedCard]}
     >
@@ -155,8 +193,8 @@ export default function RoomsScreen() {
   );
 
   return (
-    <View style={styles.screen}>
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.five, paddingBottom: insets.bottom + spacing.five }]}>
+    <View style={styles.screen} pointerEvents={armed ? 'auto' : 'none'}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.five, paddingBottom: insets.bottom + spacing.six }]}>
         <Animated.View
           style={{
             opacity: enter,
@@ -167,8 +205,29 @@ export default function RoomsScreen() {
             <Pressable onPress={backToToday} accessibilityRole="button" accessibilityLabel={t('rooms.backA11y')} hitSlop={8} style={({ pressed }) => [styles.topLink, pressed && styles.pressed]}>
               <Text style={styles.back}>‹ {t('common.today')}</Text>
             </Pressable>
-            <Pressable onPress={() => router.push({ pathname: '/settings', params: { from: 'menu' } })} accessibilityRole="button" accessibilityLabel={t('settings.title')} hitSlop={8} style={({ pressed }) => [styles.topLink, pressed && styles.pressed]}>
-              <Text style={styles.settings}>{t('settings.title')}</Text>
+            {/* The sign: a gear and the word, in ink. Never an outline, a fill or a pill, in any appearance. */}
+            <Pressable
+              onPress={() => openSettings('sign')}
+              accessibilityRole="button"
+              accessibilityLabel={settingsSpoken}
+              hitSlop={8}
+              style={({ pressed }) => [styles.sign, pressed && styles.pressed]}
+            >
+              {/* The gear is decoration: the word carries the meaning. Hidden from screen readers by a wrapping
+                  View, because react-native-svg passes accessibility props straight to the web's <svg>. */}
+              <View aria-hidden>
+              <Svg width={gearSize} height={gearSize} viewBox="0 0 24 24" fill="none">
+                <Path
+                  d="M10.21 4.82 L10.61 2.10 L13.39 2.10 L13.79 4.82 L15.81 5.66 L18.02 4.01 L19.99 5.98 L18.34 8.19 L19.18 10.21 L21.90 10.61 L21.90 13.39 L19.18 13.79 L18.34 15.81 L19.99 18.02 L18.02 19.99 L15.81 18.34 L13.79 19.18 L13.39 21.90 L10.61 21.90 L10.21 19.18 L8.19 18.34 L5.98 19.99 L4.01 18.02 L5.66 15.81 L4.82 13.79 L2.10 13.39 L2.10 10.61 L4.82 10.21 L5.66 8.19 L4.01 5.98 L5.98 4.01 L8.19 5.66 Z"
+                  stroke={theme.colors.ink}
+                  strokeWidth={2}
+                  strokeLinejoin="round"
+                  fill="none"
+                />
+                <Circle cx={12} cy={12} r={3.1} stroke={theme.colors.ink} strokeWidth={2} fill="none" />
+              </Svg>
+              </View>
+              <Text style={styles.signLabel}>{t('settings.title')}</Text>
             </Pressable>
           </View>
           <Text style={styles.title} accessibilityRole="header">
@@ -189,21 +248,45 @@ export default function RoomsScreen() {
             })}
           </View>
 
-          <Pressable
-            onPress={() => {
-              track('premium.menu_open');
-              router.push({ pathname: '/premium', params: { from: 'menu' } });
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={`${t('common.premium')}. ${premium ? (SELLS_HERE ? t('rooms.premiumHintSubscribed') : t('settings.premiumCardActiveSub')) : aiEnabled ? t('rooms.premiumHintFreeAi') : t('rooms.premiumHintFreeNoAi')}`}
-            hitSlop={6}
-            style={({ pressed }) => [styles.premiumRow, pressed && styles.pressed]}
-          >
-            <Text style={styles.premium}>{t('common.premium')}</Text>
-            <Text style={styles.premium} accessible={false} importantForAccessibility="no">
-              ›
-            </Text>
-          </Pressable>
+          {/* The shelf: straight after the last room, whatever the grid holds. Settings, then Premium, with 24
+              of space that does nothing between them (no hairline, and no hitSlop, so the rows never reach
+              into each other). Its neighbours never change: the last room above, the page's foot below. */}
+          <View style={styles.shelf}>
+            <Pressable
+              onPress={() => openSettings('shelf')}
+              accessibilityRole="button"
+              accessibilityLabel={withHint(t('settings.title'), t('rooms.settingsHint'))}
+              accessibilityHint={say(t('rooms.settingsHint'))}
+              style={({ pressed }) => [styles.shelfRow, pressed && styles.pressed]}
+            >
+              <View style={styles.shelfText}>
+                <Text style={styles.shelfLabel}>{t('settings.title')}</Text>
+                <Text style={styles.shelfHint}>{t('rooms.settingsHint')}</Text>
+              </View>
+              <Text style={[styles.chevron, largeText && styles.chevronTop]} accessible={false} importantForAccessibility="no">
+                ›
+              </Text>
+            </Pressable>
+            <View style={styles.shelfGap} />
+            <Pressable
+              onPress={() => {
+                track('premium.menu_open');
+                router.push({ pathname: '/premium', params: { from: 'menu' } });
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={withHint(t('common.premium'), premiumHint)}
+              accessibilityHint={say(premiumHint)}
+              style={({ pressed }) => [styles.shelfRow, pressed && styles.pressed]}
+            >
+              <View style={styles.shelfText}>
+                <Text style={styles.shelfLabel}>{t('common.premium')}</Text>
+                <Text style={styles.shelfHint}>{premiumHint}</Text>
+              </View>
+              <Text style={[styles.chevron, largeText && styles.chevronTop]} accessible={false} importantForAccessibility="no">
+                ›
+              </Text>
+            </Pressable>
+          </View>
         </Animated.View>
       </ScrollView>
     </View>
@@ -215,10 +298,13 @@ const makeStyles = (t: Theme) =>
     // Today is the one transparent screen (over its living background); every other page paints paper.
     screen: { flex: 1, backgroundColor: t.colors.bg },
     content: { paddingHorizontal: spacing.five, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
-    topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    // Wraps rather than truncating: when "‹ Today" and the sign do not fit on one line (German at the
+    // stress size), the sign drops to its own line and stays right, held there by marginLeft auto.
+    topRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: spacing.four, rowGap: spacing.one },
     topLink: { minHeight: 44, justifyContent: 'center' },
     back: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    settings: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+    sign: { minHeight: 44, marginLeft: 'auto', paddingHorizontal: spacing.one, flexDirection: 'row', alignItems: 'center', gap: spacing.two },
+    signLabel: { color: t.colors.ink, fontSize: 15 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body },
     title: { color: t.colors.ink, fontSize: 32 * t.scale, lineHeight: 36 * t.scale, fontFamily: fonts.sans, fontWeight: '500', marginTop: spacing.two },
     lead: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 21 * t.scale, fontFamily: fonts.body, marginTop: 6, marginBottom: spacing.four },
     // The cards: one surface, one hairline, the picture inset with its own soft corners.
@@ -255,18 +341,20 @@ const makeStyles = (t: Theme) =>
     // Two per row: each cell is half the row less half the gap, so the pair fills it exactly.
     cell: { width: '47.5%', flexGrow: 1 },
     cellWide: { width: '100%' },
-    // Premium, quiet at the foot: a hairline, the word and a chevron, never the gradient on the calmest page.
-    premiumRow: {
-      minHeight: 44,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginTop: spacing.three,
-      paddingHorizontal: 2,
-      borderTopWidth: border.hair,
-      borderTopColor: t.colors.line,
-    },
-    premium: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+    // The shelf: one quiet surface with the room cards' radius, no border, no shadow; in Quiet, no surface
+    // at all and the rows sit on paper. Never the gradient, never honey, on the calmest page.
+    shelf:
+      t.appearance === 'quiet'
+        ? { marginTop: spacing.six }
+        : { marginTop: spacing.six, backgroundColor: t.colors.surface, borderRadius: 18 },
+    // 13 lines the row text up with the room cards' text (1 border + spacing.two + a 4 text inset).
+    shelfRow: { minHeight: 56, paddingVertical: spacing.three, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: spacing.three },
+    shelfText: { flex: 1, minWidth: 0 },
+    shelfLabel: { color: t.colors.ink, fontSize: 15 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    shelfHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body, marginTop: 2 },
+    shelfGap: { height: spacing.five },
+    chevron: { color: t.colors.inkSoft, fontSize: 20 * t.scale, fontFamily: fonts.body },
+    chevronTop: { alignSelf: 'flex-start' },
     pressed: { opacity: PRESSED_OPACITY },
     pressedCard: { opacity: 0.6 },
   });

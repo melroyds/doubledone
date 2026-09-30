@@ -8558,3 +8558,33 @@ every French string now carries the no-break space before : ? ! ; (a guard test 
 **Decided against:** naming the website to BUY on Android (still parked); keeping "Try Premium" on Android
 (it matches the Subscriptions policy's own example of trial wording that hides a charge, even though ours
 never charges).
+
+## 2026-09-30: the Menu's missing doors, built (1c, the sign and the shelf)
+
+**Decided:** a real user could not find Settings: a small grey word in the Menu's corner, while the
+illustrated rooms read as the whole menu and ended at a fold that looked like the end of the page. Premium
+was a hairline row below that fold. Claude Design's handoff (`docs/design-source/menu-doors-handoff.md`)
+recommended 1c, and it is built to that README:
+- **The sign.** Settings keeps its corner, and becomes a gear plus the word, in ink. It is never a pill,
+  an outline or a fill, because in that corner a pill reads as the Menu pill changing its word.
+- **The shelf.** After the last room, whatever the grid holds, one quiet surface (paper in Quiet) lists
+  Settings with what it is for, then 24 of dead space, then Premium, whose line is visible for the first
+  time.
+- **One Premium line, true in every state.** It names what Premium holds, so it can never pitch Premium to
+  someone who pays, say "expired", or flash free copy while loading. Android members keep "Active. Every
+  extra is yours."
+- **A new lead,** "Everything else is here". The old "These are the other rooms" told the eye the pictures
+  were the whole set.
+- **The welcome now names Settings,** and says the + adds a task. It still said "the line at the bottom",
+  a relic of the docked capture.
+- **A 300ms press guard,** so a double tap on the Menu pill cannot land on Settings.
+- **The Menu pill's spoken label is built from the catalogue titles in page order,** Settings first. The old
+  hand-written labels put it last, in all five languages.
+- **Soft hyphens in the long German words,** so they break at a syllable at huge text sizes. Screen readers
+  never hear them.
+
+**Decided against** (the handoff's own list): moving Settings out of its corner; a Settings card among the
+rooms (a card without a picture reads as a failed image); a ✦, honey or gradient on the Premium row;
+Premium above the rooms; any pointer, tooltip or "new" dot. Also, the handoff's custom 2px ink focus ring.
+The browser's own keyboard-only focus ring is already visible and in page order (checked with a real Tab
+walk), and a custom ring on RN-web cannot tell keyboard focus from a tap.
