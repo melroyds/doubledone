@@ -153,3 +153,11 @@ export async function openAppleSubscriptions(): Promise<void> {
 // iOS resolves `@/lib/purchases` to THIS file, so re-export the compile-time flag as true here.
 export const IAP_AVAILABLE = true;
 export type { StoreOffer, BuyResult, RestoreResult } from './purchases';
+
+// Added with Path A (2026-10), additive only: nothing above this line changed, so the live iOS money path
+// is the same code. The shared seam names the store and opens its own subscription screen on every
+// platform; on iOS that is Apple and Apple's sheet.
+export const STORE_SOURCE: 'apple' | 'google' | null = 'apple';
+export async function openStoreSubscriptions(): Promise<void> {
+  return openAppleSubscriptions();
+}

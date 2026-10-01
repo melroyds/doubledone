@@ -2,8 +2,8 @@
 // authed with the user's Supabase token. The pure gating logic lives in
 // lib/entitlement; this is the thin network edge (a seam, like lib/ai).
 
-import { type Entitlement, FREE_ENTITLEMENT } from './entitlement';
-import { SELLS_HERE } from './storefront';
+import { type Entitlement, type EntitlementRead, FREE_ENTITLEMENT, readEntitlementReply } from './entitlement';
+import { STRIPE_HERE } from './storefront';
 import { authHeader } from './supabase';
 
 const API_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
@@ -16,9 +16,9 @@ export type CheckoutResult = { ok: true; url: string } | { ok: false; error: 'si
 
 /** Ask the Worker to create a Checkout Session for the chosen plan; returns its hosted URL to open. */
 export async function startCheckout(plan: 'monthly' | 'annual' = 'monthly'): Promise<CheckoutResult> {
-  // Android sells nothing (lib/storefront): no screen offers this there, and this seam refuses too, so a
-  // future call site can never reopen Stripe checkout from the Android app.
-  if (!SELLS_HERE) return { ok: false, error: 'failed' };
+  // Android sells only through Google Play (lib/storefront): no screen offers this there, and this seam
+  // refuses too, so a future call site can never reopen Stripe checkout from the Android app.
+  if (!STRIPE_HERE) return { ok: false, error: 'failed' };
   const auth = await authHeader();
   if (!auth) return { ok: false, error: 'sign_in' };
   try {
@@ -44,7 +44,7 @@ export async function startCheckout(plan: 'monthly' | 'annual' = 'monthly'): Pro
 
 /** Open the Stripe Billing Portal (manage / cancel the subscription). */
 export async function startPortal(): Promise<CheckoutResult> {
-  if (!SELLS_HERE) return { ok: false, error: 'failed' }; // the Stripe portal takes card changes: not from Android
+  if (!STRIPE_HERE) return { ok: false, error: 'failed' }; // the Stripe portal takes card changes: not from Android
   const auth = await authHeader();
   if (!auth) return { ok: false, error: 'sign_in' };
   try {
@@ -103,23 +103,35 @@ export async function reconcileApple(): Promise<boolean> {
   }
 }
 
-/** Read the current entitlement from the server (the source of truth). Defaults to free. */
-export async function loadEntitlement(): Promise<Entitlement> {
+/**
+ * Read the current entitlement from the server, and SAY whether the read worked. This is the one a
+ * purchase must use (lib/iap buyCheck): an unreadable entitlement refuses the charge, never reads as free.
+ * Signed out, there is nothing on the server to read, so FREE is the true answer and `signedIn` is false.
+ * The reply is parsed by the pure, tested readEntitlementReply.
+ */
+export async function loadEntitlementChecked(): Promise<EntitlementRead> {
   const auth = await authHeader();
-  if (!auth) return FREE_ENTITLEMENT;
+  if (!auth) return { ok: true, entitlement: FREE_ENTITLEMENT, signedIn: false };
   try {
     const res = await fetch(`${API_URL}/entitlement`, { headers: auth });
-    if (!res.ok) return FREE_ENTITLEMENT;
-    const v = (await res.json()) as Partial<Entitlement>;
-    return {
-      premium: Boolean(v.premium),
-      status: typeof v.status === 'string' ? v.status : null,
-      since: typeof v.since === 'string' ? v.since : null,
-      currentPeriodEnd: typeof v.currentPeriodEnd === 'number' ? v.currentPeriodEnd : null,
-      cancelAtPeriodEnd: Boolean(v.cancelAtPeriodEnd),
-      source: v.source === 'stripe' || v.source === 'apple' || v.source === 'google' ? v.source : null,
-    };
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      body = null;
+    }
+    return readEntitlementReply(res.status, body);
   } catch {
-    return FREE_ENTITLEMENT;
+    return { ok: false };
   }
+}
+
+/**
+ * Read the current entitlement for DISPLAY. A failed read shows the calm free state rather than an
+ * error, which is right for a screen and wrong for a charge: anything that spends money calls
+ * loadEntitlementChecked instead.
+ */
+export async function loadEntitlement(): Promise<Entitlement> {
+  const read = await loadEntitlementChecked();
+  return read.ok ? read.entitlement : FREE_ENTITLEMENT;
 }

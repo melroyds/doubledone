@@ -2,7 +2,7 @@
   "expo": {
     "name": "DoubleDone",
     "slug": "doubledone",
-    "version": "1.6.0",
+    "version": "1.7.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "doubledone",
@@ -67,6 +67,9 @@
             "NSExtensionActivationSupportsText": true,
             "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
             "NSExtensionActivationSupportsWebPageWithMaxCount": 1
+          },
+          "androidMainActivityAttributes": {
+            "android:launchMode": "singleTop"
           }
         }
       ],

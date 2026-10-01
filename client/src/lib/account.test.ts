@@ -1,7 +1,7 @@
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 
-import { billedByApple, closeBilling, deleteAccount } from './account';
+import { billedByStore, closeBilling, deleteAccount } from './account';
 import { type Entitlement, FREE_ENTITLEMENT } from './entitlement';
 
 // One shared order log, so "billing before the RPC" is asserted directly rather than inferred.
@@ -124,20 +124,42 @@ describe('closeBilling', () => {
   });
 });
 
-describe('billedByApple (the Apple line on the delete confirmation)', () => {
+describe('billedByStore (the store line on the delete confirmation)', () => {
   const ent = (e: Partial<Entitlement>): Entitlement => ({ ...FREE_ENTITLEMENT, ...e });
-  const cases: [string, Entitlement, boolean][] = [
-    ['an active Apple subscriber', ent({ premium: true, status: 'active', source: 'apple' }), true],
-    ['an Apple subscriber in billing retry (BILLING_ISSUE keeps premium on)', ent({ premium: true, status: 'past_due', source: 'apple' }), true],
-    ['an Apple subscriber with auto-renew off, still inside the period', ent({ premium: true, status: 'canceled', cancelAtPeriodEnd: true, source: 'apple' }), true],
-    ['an expired Apple row (nothing bills any more)', ent({ premium: false, status: 'expired', source: 'apple' }), false],
-    ['a Stripe subscriber (the Worker cancels that one)', ent({ premium: true, status: 'active', source: 'stripe' }), false],
-    ['an old Stripe row with no source', ent({ premium: true, status: 'active', source: null }), false],
-    ['a free account', FREE_ENTITLEMENT, false],
+  const cases: [string, Entitlement, 'apple' | 'google' | null][] = [
+    ['an active Apple subscriber', ent({ premium: true, status: 'active', source: 'apple' }), 'apple'],
+    ['an Apple subscriber in billing retry (BILLING_ISSUE keeps premium on)', ent({ premium: true, status: 'past_due', source: 'apple' }), 'apple'],
+    ['an Apple subscriber with auto-renew off, still inside the period', ent({ premium: true, status: 'canceled', cancelAtPeriodEnd: true, source: 'apple' }), 'apple'],
+    ['an expired Apple row (nothing bills any more)', ent({ premium: false, status: 'expired', source: 'apple' }), null],
+    ['an active Google Play subscriber (deleting turns its renewal off)', ent({ premium: true, status: 'active', source: 'google' }), 'google'],
+    ['a Google Play subscriber in its grace period', ent({ premium: true, status: 'past_due', source: 'google' }), 'google'],
+    ['an expired Google Play row', ent({ premium: false, status: 'expired', source: 'google' }), null],
+    ['a Stripe subscriber (the Worker cancels that one)', ent({ premium: true, status: 'active', source: 'stripe' }), null],
+    ['an old Stripe row with no source', ent({ premium: true, status: 'active', source: null }), null],
+    ['a free account', FREE_ENTITLEMENT, null],
   ];
   for (const [label, e, want] of cases) {
-    it(`${want ? 'shows' : 'hides'} it for ${label}`, () => {
-      expect(billedByApple(e)).toBe(want);
+    it(`answers ${want ?? 'nothing'} for ${label}`, () => {
+      expect(billedByStore(e)).toBe(want);
     });
   }
+});
+
+// The Play hint (the 2026-10-01 review): a webhook can lag a fresh Play purchase, and the server only asks
+// RevenueCat about Play for someone it has a Play record of.
+describe('closeBilling sends the Play hint only when asked', () => {
+  const ok = () => vi.fn(async () => new Response(JSON.stringify({ cancelled: 0 }), { status: 200 })) as unknown as typeof fetch & ReturnType<typeof vi.fn>;
+  const bodyOf = (f: ReturnType<typeof vi.fn>) => (f.mock.calls[0] as unknown as [string, RequestInit])[1].body;
+
+  it('sends an empty body by default, exactly as before', async () => {
+    const f = ok();
+    await closeBilling('t', f);
+    expect(bodyOf(f)).toBe('{}');
+  });
+
+  it('sends maybePlay when the device may know of a Play subscription', async () => {
+    const f = ok();
+    await closeBilling('t', f, { maybePlay: true });
+    expect(JSON.parse(String(bodyOf(f)))).toEqual({ maybePlay: true });
+  });
 });

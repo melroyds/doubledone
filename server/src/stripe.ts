@@ -453,6 +453,16 @@ export async function handlePortal(
   return new Response(JSON.stringify({ url }), { headers: { ...JSON_HEADERS, ...cors } });
 }
 
+/** The `maybePlay` hint from a close-billing body. Anything unreadable is simply no hint. */
+async function readMaybePlay(request: Request): Promise<boolean> {
+  try {
+    const body = (await request.json()) as { maybePlay?: unknown } | null;
+    return body?.maybePlay === true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * POST /account/close-billing, authed. Called by the app BEFORE it deletes the account, on every
  * platform (it cancels billing, it sells nothing, so Android's Path C allows it). Cancels every Stripe
@@ -506,7 +516,9 @@ export async function handleCloseBilling(
   }
   // Then Play, whatever the Stripe cancels answered, so as much billing as possible stops on this attempt.
   // (A Stripe LOOKUP that failed has already answered 502 above: nothing is deleted, and a retry runs all.)
-  const play = await cancelPlayRenewals(env, sub, Date.now());
+  // The body may carry the app's `maybePlay` hint (lib/account closeBilling): a webhook can lag a fresh Play
+  // purchase by minutes, and without the hint that person was told renewal was off while it was not.
+  const play = await cancelPlayRenewals(env, sub, Date.now(), fetch, await readMaybePlay(request));
   if (play === null) failed = true;
   else cancelled += play;
   if (failed) return new Response(JSON.stringify({ error: 'close_billing_failed' }), { status: 502, headers: { ...JSON_HEADERS, ...cors } });

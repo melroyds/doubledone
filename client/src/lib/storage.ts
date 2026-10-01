@@ -256,8 +256,8 @@ export async function loadHoldHintSeen(): Promise<boolean> {
 }
 
 /**
- * Whether this device knows the signed-in account has already had its free month. Android sells nothing
- * (lib/storefront), so there the free month is the only thing the Premium page offers, and once it is used
+ * Whether this device knows the signed-in account has already had its free month. In a build that sells
+ * nothing (lib/storefront SELLS_HERE false, the Path C rollback), the free month is the only thing the Premium page offers, and once it is used
  * its link can only ever answer "already had it". Keyed by user id, so a second account on the same phone
  * still sees its own offer. The server stays the judge (startTrial answers 'already'); this only stops the
  * page offering what it knows it will refuse. Best effort both ways.

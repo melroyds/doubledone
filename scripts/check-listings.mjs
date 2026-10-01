@@ -21,13 +21,15 @@
 //      free-forever promise turns a copy edit into a policy or promise problem. Each must still be
 //      findable in every full description.
 //
-//   4. NOTHING THAT SELLS (Path C, 2026-09-27). The Android app sells nothing. Play rejected 1.5.1 for
-//      showing an A$ price, and the Payments policy (section 4) names the store listing itself as a
-//      place an app must not lead users to another payment method. So no listing may carry a currency
-//      amount, a price per month or year, "Stripe", "web checkout", a "not Google Play" line, a call to
-//      buy or subscribe on the website, a Premium section, or a doubledone.app link other than the
-//      privacy policy. This check used to REQUIRE the price and the Stripe line. It now fails on them.
-//      The why is in docs/play-store-release.md 5d.
+//   4. NOTHING THAT SELLS ANYWHERE BUT GOOGLE PLAY (Path A, 2026-10; Path C before it). Play rejected 1.5.1
+//      for showing an A$ price, and the Payments policy (section 4) names the store listing itself as a
+//      place an app must not lead users to another payment method. Since Path A the app sells Premium
+//      through Google Play Billing, so a listing may now NAME Premium and what it holds. It still may
+//      not carry a currency amount or a price per month or year (Play shows its own, localised, beside
+//      the listing), "Stripe", "web checkout", a "not Google Play" line, a call to buy or subscribe on
+//      the website, or a doubledone.app link other than the privacy policy. Screenshots and the feature
+//      graphic cannot be read by this gate: keep prices out of those by hand. The why is in
+//      docs/play-store-release.md 5d.
 //
 // Run it after ANY edit to those docs, and before pasting anything into the Play Console:
 //   node scripts/check-listings.mjs
@@ -77,7 +79,7 @@ const PROTECTED = [
   ['the six-character code', /sechs|seis|six|sei\b/i],
 ];
 
-// What a Play listing must never say while the Android app sells nothing (Path C). Each is written to
+// What a Play listing must never say: no price of ours and no other biller (Path A; Path C before it). Each is written to
 // catch the lines that were really there (A$5, 5 $A, "a month", "im Monat", "al mes", "par mois",
 // "all'anno", "Stripe im Web", "pas par Google Play") and their obvious rewordings, in all five languages.
 const PERIOD = String.raw`(?:month|year|mo|yr|monat|jahr|mes|año|ano|mois|an|mese|anno)`;
@@ -102,7 +104,6 @@ const FORBIDDEN = [
   ['"web checkout"', /web[\s-]?checkout/i],
   ['a "not Google Play" line', /\b(?:not|nicht|no|pas|non)\b[^.\n]{0,25}Google\s?Play/i],
   ['a call to buy or subscribe on the website', new RegExp(CTA, 'i')],
-  ['a Premium section or a paid-only feature', /premium/i],
   ['a doubledone.app link other than the privacy policy', /doubledone\.app(?!\/privacy)/i],
 ];
 
@@ -158,7 +159,7 @@ function checkLength(loc, kind, { claimed, cap, text }) {
 function checkSells(loc, kind, text) {
   for (const [name, re] of FORBIDDEN) {
     const hit = text.match(re);
-    if (hit) fail(loc, `${kind} description contains ${name}: "${hit[0]}". The Android app sells nothing (Path C), and the listing must not point anywhere else to pay. See docs/play-store-release.md 5d.`);
+    if (hit) fail(loc, `${kind} description contains ${name}: "${hit[0]}". The Android app sells only through Google Play, which shows its own price, and the listing must not point anywhere else to pay. See docs/play-store-release.md 5d.`);
   }
 }
 
@@ -268,4 +269,4 @@ if (failures) {
   console.error(`✗ ${failures} problem${failures === 1 ? '' : 's'}. Do not paste into the Play Console until these are fixed.`);
   process.exit(1);
 }
-console.log('✓ every Play listing paste source is inside its caps, keeps its diacritics, carries every protected claim, and sells nothing.');
+console.log('✓ every Play listing paste source is inside its caps, keeps its diacritics, carries every protected claim, and names no price and no biller but Google Play.');

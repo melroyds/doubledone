@@ -22,6 +22,35 @@ export type Entitlement = {
 
 export const FREE_ENTITLEMENT: Entitlement = { premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, source: null };
 
+/**
+ * An entitlement read that says whether it WORKED. A failed read is not "free": reading it as free is
+ * calm for a screen and wrong for a charge (lib/iap buyCheck). `signedIn` is false when there was no
+ * session to send, so there is nothing on the server to read and FREE is the true answer.
+ */
+export type EntitlementRead = { ok: true; entitlement: Entitlement; signedIn: boolean } | { ok: false };
+
+/**
+ * The Worker's /entitlement reply, parsed. Only a 200 with a JSON object is an answer. Everything else,
+ * a 401, a 503 (the Worker could not read D1), a 5xx, a body that is not an object, reads as FAILED, so
+ * the caller can tell "you are free" from "we could not tell".
+ */
+export function readEntitlementReply(status: number, body: unknown): EntitlementRead {
+  if (status !== 200 || typeof body !== 'object' || body === null || Array.isArray(body)) return { ok: false };
+  const v = body as Partial<Record<keyof Entitlement, unknown>>;
+  return {
+    ok: true,
+    signedIn: true,
+    entitlement: {
+      premium: v.premium === true,
+      status: typeof v.status === 'string' ? v.status : null,
+      since: typeof v.since === 'string' ? v.since : null,
+      currentPeriodEnd: typeof v.currentPeriodEnd === 'number' && Number.isFinite(v.currentPeriodEnd) ? v.currentPeriodEnd : null,
+      cancelAtPeriodEnd: v.cancelAtPeriodEnd === true,
+      source: v.source === 'stripe' || v.source === 'apple' || v.source === 'google' ? v.source : null,
+    },
+  };
+}
+
 const WEEK_MS = 7 * 86_400_000;
 const MONTH_MS = 30 * 86_400_000;
 

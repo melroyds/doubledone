@@ -8,25 +8,34 @@
 
 export type PrimaryAction =
   | 'convert' // the trial's "Go Premium to keep it" (Stripe checkout; the server's guard allows a trial to convert)
-  | 'manage' // "Manage subscription": the Stripe portal, or Apple's sheet (manage() routes by source)
+  | 'manage' // "Manage subscription": the Stripe portal, Apple's sheet or the Play Store (manage() routes by source)
   | 'nothing' // premium with nothing to manage (comp/allowlisted: no Stripe customer, no portal exists): a calm line, no button
-  | 'none' // no control at all (iOS mid-trial: StoreKit refuses a second purchase while premium, and the trial never auto-charges)
-  | 'elsewhere'; // a plain line saying where it is managed, with no button or link (Android sells nothing, so it links to no billing)
+  | 'none' // no control at all (mid-trial in a store build: the store refuses a second purchase while premium, and the trial never auto-charges)
+  | 'elsewhere'; // a plain line saying where it is managed, with no button or link (on Android, a Stripe or Apple subscription)
 
 /**
  * Which primary control the PREMIUM (entitled) panel renders. `status` is the ENTITLEMENT status
  * from the server ('active' | 'trial' | 'comp' | 'canceled' | ...), never the URL param.
- * - trial: convert via Stripe where that works (the web); on iOS no control, the copy carries it.
+ * - trial: convert via Stripe where that works (the web); in a store build no control, the copy carries it.
  * - comp: nothing to manage, say so calmly (a Manage button here can only 404 the portal).
- * - everything else entitled: manage (portal or Apple's sheet).
- * - where this build sells nothing (Android, `sellsHere` false): the trial has no control (the "Free until"
- *   line carries it, as on iOS), comp keeps its calm line, and a paying member gets `elsewhere`, a plain line
- *   saying where it is managed. Never a Stripe portal or checkout there (Play's Payments policy).
+ * - where Stripe may not appear (Android, `stripeHere` false): only a GOOGLE subscription gets a Manage
+ *   button (it opens the Play Store). A Stripe or Apple one gets `elsewhere`, a plain line saying where it
+ *   is managed, with no link, because Play's Payments policy forbids leading anyone to another biller.
+ * - everything else entitled: manage (portal, Apple's sheet or the Play Store).
+ * - where this build sells nothing at all (`sellsHere` false, the Path C rollback): the trial has no
+ *   control, comp keeps its calm line, and a paying member gets `elsewhere`.
  */
-export function premiumPrimaryAction(status: string | null, iapAvailable: boolean, sellsHere = true): PrimaryAction {
+export function premiumPrimaryAction(
+  status: string | null,
+  iapAvailable: boolean,
+  sellsHere = true,
+  stripeHere = true,
+  source: 'stripe' | 'apple' | 'google' | null = null,
+): PrimaryAction {
   if (status === 'comp') return 'nothing';
   if (!sellsHere) return status === 'trial' ? 'none' : 'elsewhere';
-  if (status === 'trial') return iapAvailable ? 'none' : 'convert';
+  if (status === 'trial') return iapAvailable || !stripeHere ? 'none' : 'convert';
+  if (!stripeHere && source !== 'google') return 'elsewhere';
   return 'manage';
 }
 
@@ -88,3 +97,73 @@ export function manageRoute(source: 'stripe' | 'apple' | 'google' | null, platfo
   if (source === 'google') return platform === 'android' ? 'google-play' : 'google-elsewhere';
   return 'stripe-portal';
 }
+
+/**
+ * The catalogue keys for every store-dependent line on the paywall, chosen in ONE place so the choice is
+ * tested. `playCopy` is lib/storefront PLAY_COPY (Android).
+ *
+ * Why it is a function and not a scatter of ternaries in the screen: Android must never show or SPEAK a
+ * fixed price, a worked-out discount, a dollar word, or Apple's and Stripe's names (Play rejected 1.5.1
+ * for an A$ price; its Payments policy forbids another biller). premium-ui.test.ts reads every key this
+ * returns for Android in all five catalogues and fails on any of those. A new store line added here is
+ * covered by that test the moment it lands; one added straight into the screen is not.
+ *
+ * Prices are never in here. They come only from the store's own localised `priceString`, through the
+ * `{price}` keys (`perMonth`, `planMonthlyA11y`, ...).
+ */
+export function storeCopyKeys(playCopy: boolean) {
+  const shared = {
+    perMonth: 'premium.applePerMonth', // "{price} / month": the store's own string, so it is the same on both
+    perYear: 'premium.applePerYear',
+    planMonthly: 'premium.planMonthly',
+    planMonthlyA11y: 'premium.planMonthlyStoreA11y', // "Monthly, {price} a month"
+    planAnnualA11y: 'premium.planAnnualStoreA11y',
+    subscribeMonthlyA11y: 'premium.subscribeMonthlyStoreA11y',
+    subscribeAnnualA11y: 'premium.subscribeAnnualStoreA11y',
+    planAnnualNoPrice: 'premium.planAnnualPlain', // the spoken name before the store has answered with a price
+  } as const;
+  return playCopy
+    ? {
+        ...shared,
+        planAnnual: 'premium.planAnnualPlain', // no "save 17%": Play rounds each country's price on its own
+        unavailable: 'premium.iapUnavailableGoogle',
+        alreadyOwned: 'premium.purchaseAlreadyOwnedGoogle',
+        ownedElsewhere: 'premium.purchaseOwnedElsewhereGoogle',
+        notAllowed: 'premium.purchaseNotAllowedGoogle',
+        pending: 'premium.purchasePendingGoogle',
+        storeDown: 'premium.purchaseStoreDownGoogle',
+        couldNotFinish: 'premium.purchaseCouldNotFinishGoogle',
+        restoreNothing: 'premium.restoreNothingFoundGoogle',
+        renewsMonthly: 'premium.googleRenewsMonthly',
+        renewsAnnual: 'premium.googleRenewsAnnual',
+        storeNote: 'premium.googleStoreNote',
+        trialLink: 'premium.trialLinkPlain', // not "Try Premium free": that is Google's own violation example
+        trialLinkA11y: 'premium.trialLinkPlainA11y',
+        trialNoCard: 'premium.trialNoCardPlain',
+        trialUntil: 'premium.trialUntilPlain',
+        trialAlreadyUsed: 'premium.trialAlreadyUsedPlain',
+      }
+    : {
+        ...shared,
+        planAnnual: 'premium.planAnnual',
+        unavailable: 'premium.iapUnavailable',
+        alreadyOwned: 'premium.purchaseAlreadyOwned',
+        ownedElsewhere: 'premium.purchaseOwnedElsewhere',
+        notAllowed: 'premium.purchaseNotAllowed',
+        pending: 'premium.purchasePending',
+        storeDown: 'premium.purchaseStoreDown',
+        couldNotFinish: 'premium.purchaseCouldNotFinish',
+        restoreNothing: 'premium.restoreNothingFound',
+        renewsMonthly: 'premium.appleRenewalTerms',
+        renewsAnnual: 'premium.appleRenewalTerms',
+        storeNote: 'premium.appleStoreNote',
+        trialLink: 'premium.trialLink',
+        trialLinkA11y: 'premium.trialLinkA11y',
+        trialNoCard: 'premium.trialNoCard',
+        trialUntil: 'premium.trialUntil',
+        trialAlreadyUsed: 'premium.trialAlreadyUsed',
+      };
+}
+
+/** The keys storeCopyKeys returns, for one build. */
+export type StoreCopy = ReturnType<typeof storeCopyKeys>;

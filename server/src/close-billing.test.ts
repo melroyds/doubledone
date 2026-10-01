@@ -12,8 +12,8 @@ const USER = '5f0c1b9e-2d3a-4c5b-8e7f-0a1b2c3d4e5f';
 const cors = { 'Access-Control-Allow-Origin': 'https://doubledone.app' };
 const trust = async (token: string) => decodeJwtSub(token);
 const tokenFor = (sub: string) => `h.${btoa(JSON.stringify({ sub })).replace(/=/g, '')}.s`;
-const post = (token?: string) =>
-  new Request('https://w/account/close-billing', { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: '{}' });
+const post = (token?: string, body = '{}') =>
+  new Request('https://w/account/close-billing', { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body });
 
 type FakeSub = { id: string; status: string; customer: string; userId: string };
 type Call = { method: string; url: string; auth: string | null; body: string | null };
@@ -366,6 +366,27 @@ describe('close-billing: Google Play renewals (Path A)', () => {
     ]);
     expect(rc.some((c) => c.url.includes('/revoke'))).toBe(false);
     expect(rc.every((c) => c.auth === 'Bearer rc-test-secret')).toBe(true);
+  });
+
+  it('asks RevenueCat when the app says it may hold a Play subscription the server has no record of yet', async () => {
+    // a fresh purchase whose webhook is still on its way: no D1 row, nothing in the log
+    const stripe = fakeStripe([], { rc: { subscriptions: { premium: play() } } });
+    const res = await handleCloseBilling(post(tokenFor(USER), JSON.stringify({ maybePlay: true })), env(dbWith(null), RC), cors, trust);
+    expect(await res.json()).toEqual({ cancelled: 1 });
+    expect(stripe.rcCalls().map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual([
+      `GET /v1/subscribers/${USER}`,
+      `POST /v1/subscribers/${USER}/subscriptions/GPA.1111-2222-3333-44444/cancel`,
+    ]);
+  });
+
+  it('ignores a hint that is not exactly true, and a body that is not JSON', async () => {
+    for (const body of [JSON.stringify({ maybePlay: 'yes' }), JSON.stringify({ maybePlay: 1 }), 'not json', '']) {
+      const stripe = fakeStripe([], { rc: {} });
+      const res = await handleCloseBilling(post(tokenFor(USER), body), env(dbWith(null), RC), cors, trust);
+      expect(res.status).toBe(200);
+      expect(stripe.rcCalls()).toEqual([]);
+      vi.unstubAllGlobals();
+    }
   });
 
   it('asks RevenueCat when only the delivery log shows a Play purchase (the row says stripe)', async () => {

@@ -35,11 +35,14 @@ export default defineConfig({
         'src/lib/share-intent.web.ts',
         'src/lib/speech.ts',
         'src/lib/speech.web.ts',
-        // Apple IAP seam: purchases.ios.ts imports the RevenueCat native module and
-        // purchases.ts is its inert web/Android stub. All the logic is extracted to the
-        // pure, tested iap.ts. See the inverted-split note in purchases.ts.
+        // In-app purchase seams: purchases.ios.ts and purchases.android.ts import the
+        // RevenueCat native module and purchases.ts is their inert web stub. All the logic
+        // is extracted to the pure, tested iap.ts. See the inverted-split note in purchases.ts.
         'src/lib/purchases.ts',
         'src/lib/purchases.ios.ts',
+        'src/lib/purchases.android.ts',
+        // Types only: the platform-split contract is checked by tsc, and has no code to run.
+        'src/lib/platform-split.contract.ts',
       ],
       reporter: ['text-summary'],
       // Measured ~98% lines / ~95% branches on the logic; floor set below that

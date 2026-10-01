@@ -8559,7 +8559,7 @@ every French string now carries the no-break space before : ? ! ; (a guard test 
 (it matches the Subscriptions policy's own example of trial wording that hides a charge, even though ours
 never charges).
 
-## 2026-09-30: Path A slice 1, the server learns Google Play (not deployed)
+## 2026-09-30: Path A slice 1, the server learns Google Play (deployed 2026-10-01, Worker `fe14028b`)
 
 **Decided:** Melroy green-lit Path A on 2026-09-27, overriding its Backlog trigger ("I need to be
 elegant"), so the Android app will sell Premium through Google Play Billing via RevenueCat. This first
@@ -8629,7 +8629,7 @@ by the webhook, so revoke it in RevenueCat BEFORE this deploys (never map promot
 which would let them end a real Apple subscriber). (2) `SANDBOX_GRANT_UIDS` lists only the purchase review
 account and the licence tester, never `appreview@`, which is comped and needs nothing.
 
-## 2026-09-30: Path A slice 2, the web knows a Google subscriber (not deployed)
+## 2026-09-30: Path A slice 2, the web knows a Google subscriber (live 2026-10-01, main `eb40ff1`)
 
 **Decided:** the client reads a `google` entitlement source, and "Manage subscription" routes through
 one pure, tested decision (`manageRoute` in `lib/premium-ui.ts`): each store's subscription opens that
@@ -8684,3 +8684,111 @@ shelf row is named exactly like its door with its line as the hint (on the web t
 matches the label's; Spanish and Italian say "movement", as their Settings row does, and Italian's welcome
 names the Repeating room by its title. The Android and iOS hyphenation reach phones only with the next
 native build.
+
+## 2026-10-01: Path A slice 3, the Android app sells Premium through Google Play (built, not shipped)
+
+**Decided:** the Android build sells Premium through Google Play Billing, via RevenueCat, parity-priced at
+A$5 / A$50 and absorbing Google's cut. It stays on `premium` until the release steps (4 to 11 in
+BUILD-PLAN "Now and next"), and only the merge deploys anything. What changed, and why:
+
+- **Three compile-time switches instead of one** (`lib/storefront(.android).ts`). `SELLS_HERE` answered
+  "may this build sell" AND "may it show Stripe or a fixed A$", so flipping it alone would have brought
+  back the A$ text 1.5.1 was rejected for. Now: `SELLS_HERE` (true everywhere, and the one-line Path C
+  rollback: false in `storefront.android.ts`, one build), `STRIPE_HERE` (web and iOS: Stripe surfaces and
+  our own fixed figures) and `PLAY_COPY` (Android: Google's wording). The Path C branches are KEPT on
+  purpose, guarded by `SELLS_HERE`, because they are the rollback.
+- **`lib/purchases.android.ts`, a copy of the iOS glue with three differences**: it waits for configure
+  to finish (the iOS file returns early while configure is in flight, so an early sign-in skips logIn and
+  a purchase can land on an anonymous id the webhook drops); it refuses to sell without a signed-in uid;
+  and before any sheet opens it checks RevenueCat's app user id IS that uid (one logIn retry, then a calm
+  refusal) and that RevenueCat does not already see an active Premium on the account (which also catches
+  an Apple subscription on it).
+- **Android requires an account to buy** (`purchaseGate` `requireAccount`). Apple's 5.1.1 forces the
+  anonymous path on iOS; neither review found a Play equivalent, and an anonymous Android buyer who already
+  pays on the web would be one tap from a second charge.
+- **The buy guard fails closed** (`buyCheck`, `loadEntitlementChecked`, the pure `readEntitlementReply`).
+  An unreadable entitlement refuses the charge ("We couldn't check your account just now, so nothing was
+  started"), never reads as free. Display still folds a failed read into the calm free state. A failing
+  payment on an existing subscription (`past_due`, `unpaid`, and `on_hold` for the day the server writes
+  it) gets `fix_billing`: no buy button, ever. This is shared code, so iOS gets the same guard on its next
+  build.
+- **Every store-dependent line is chosen in one tested place** (`storeCopyKeys` in `lib/premium-ui.ts`),
+  and a test reads every Android key in all five catalogues and fails on a currency figure, a dollar word,
+  a percentage, Apple's or Stripe's name, or a "try free" pitch. Spoken prices come from the store's own
+  string (`{price}`), on iOS too, which retires "five dollars" for VoiceOver users outside Australia.
+- **Restore reads the code**: RevenueCat 7 and 13 are a new `owned_elsewhere` ("This Google account's
+  Premium belongs to a different DoubleDone account"), not a generic failure.
+- **Manage opens the Play Store** for a Google subscription (RevenueCat's management URL, or Google's own
+  subscriptions page). A Stripe or Apple subscription on Android gets a plain line saying where it lives,
+  never a link. `manageWhereBought` is now cancel-only with the support email first.
+- **The paywall carries Play's disclosure itself**, localised: "Charged to your Google Play account every
+  month (year) until you cancel. Cancel any time in the Play Store: ...", "Billed through your Google Play
+  account.", and a link to the Play Store's subscriptions. The free month keeps its own zone and its
+  `*Plain` wording ("Start a free month of Premium"), because "Try Premium free" is Google's own violation
+  example for a trial that is not a Play trial.
+- **A Google Play payment that is failing** shows a calm box on the Premium panel ("Google Play is retrying
+  it, and Premium stays on in the meantime"), because nobody in grace ever sees the free panel's dunning box.
+- **Deletion names the store**: `billedByApple` became `billedByStore`; a Google subscriber is told before
+  confirming that deleting turns its renewal off (the Worker's close-billing already cancels it).
+- **Build config**: the `expo.autolinking.android.exclude` of `react-native-purchases` is gone (that is
+  what puts Play Billing in the AAB), and `expo-share-intent`'s MainActivity is `singleTop`, not its
+  default `singleTask`, which RevenueCat warns can cancel a purchase when the buyer switches to a bank app.
+  Fallback, decided in advance: if PREM-57 fails, back to `singleTask`.
+- **A type contract** (`platform-split.contract.ts`): tsc reads only the base files, so a name missing from
+  `purchases.android.ts` would compile clean and be `undefined` on a phone. It now fails the typecheck
+  (proven by removing an export on purpose).
+- **Legal and help pages** (in-app Terms gets a Play branch with no figure of ours; Privacy, Terms and
+  Support on the web name Google Play; Privacy says RevenueCat starts at launch and that billing records
+  outlive a deleted account). The review relay accepts `appreview-buy@` (Play's second review account).
+  The listing gate may now let a listing NAME Premium, and still bans every price and biller.
+- **Version 1.7.0** on `premium` (What's New is content-keyed, so nothing pops up for it).
+
+**Hardened by review** (ten agents: money path, Play policy, web and iOS regressions, the Android code
+against the real SDK, the translations; each finding then attacked by a skeptic). Taken:
+- **CONFIRMED: every Android launch logged a signed-in buyer OUT of RevenueCat.** The session reads null
+  on the first render while it hydrates, and null meant "forget the purchaser". On iOS that was a no-op
+  only because configure had not finished; Android waits for configure, so it was a real logOut, and a
+  Play purchase RevenueCat synced in that window would have landed on an anonymous id our webhook drops.
+  `_layout.tsx` now forgets only a session KNOWN to be absent (`useSessionState().known`).
+- **CONFIRMED: iOS still said "Nothing was charged"** after errors that can follow a real Apple charge (a
+  receipt that failed to post). `purchaseCouldNotFinish` and `purchaseStoreDown` no longer promise it, in
+  all five languages, and a network error routes there deliberately.
+- **Account hold and billing retry** (plausible, money): the server reads them as `expired`, so Android
+  would have sold a second subscription to someone whose first one comes back when they fix their card,
+  including an Apple subscriber in Apple's 60-day retry. `heldSubscription` reads RevenueCat's own
+  CustomerInfo before any sheet: inactive, a billing issue in the last 60 days, and still set to renew
+  means "fix the payment, no need to buy again", naming the store that holds it. `willRenew`, not
+  `unsubscribeDetectedAt`, tells a hold from a subscription that is truly over (RevenueCat sets the
+  latter for billing-error cancels too).
+- **The device entitlement names the store that SOLD it** (plausible): RevenueCat entitlements are
+  cross-store, so an Apple subscriber on Android was stamped 'google', told deleting would stop their
+  billing (it cannot touch Apple) and sent to the wrong store by Manage. `localEntitlement` now carries
+  RevenueCat's `store`.
+- **Deleting right after buying** (plausible): the server asks RevenueCat about Play only for someone it
+  has a Play record of, and a webhook can lag. The app now sends a `maybePlay` hint on every Android
+  delete (and wherever the device shows a Google subscription), and the server treats it as "look".
+- **The review relay keeps one code per address** (plausible): one shared row would hand Apple's reviewer
+  the Play account's code whenever two reviews overlapped. Rows 1 and 2, one labelled line each, same URL.
+- Refuted and not taken: that the support page (now the Play listing's Website) is one tap from a buy
+  pointer. It names no price, and the web Terms' A$ figure is scoped "on our website".
+- The translations lens found nothing.
+The two server changes (the relay and the hint) need a Worker deploy before PREM-60 and the release.
+
+**Assumptions for Melroy to challenge:**
+- A **7-day refund through Google Play** in the Terms, mirroring the Stripe promise. Google also refunds
+  on request itself. Still a draft, waiting on a lawyer like the rest of the Terms.
+- `purchases.ios.ts` gained two ADDITIVE exports (`STORE_SOURCE`, `openStoreSubscriptions`) rather than
+  staying byte-identical, because the contract test needs every platform file to export the same names.
+  Nothing above them changed, and Path A still needs no iOS build.
+- iOS gets three improvements on its next build, by sharing the screen: the fail-closed read, `fix_billing`,
+  and store-price spoken labels. "Annual · save 17%" stays on iOS and the web.
+- A trial member mid-trial still cannot buy in a store build (open question 14), same as iOS.
+
+**Decided against:** one flag (the A$ comes back); a shared `purchases.native.ts` (touches the live iOS
+money path); a Play free trial, Pause and Resubscribe; anonymous purchases on Android; a "save 17%"
+worked out at runtime from the two store prices (Tier 4); the unlinked "Premium is available at
+doubledone.app" line (allowed only while an app sells nothing, so killed); removing the Path C branches
+(they are the rollback).
+
+**Reaches people:** nobody yet. The web on the merge (M17: only its Terms, Privacy and Support wording
+changes), Android with the 1.7.0 build, iOS's share of it with its next build.
