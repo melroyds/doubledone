@@ -452,6 +452,7 @@ export const es: Catalog = {
   },
   premium: {
     appleManageElsewhere: 'Esta suscripción se compró en un iPhone o iPad, así que la gestiona Apple. Abre Ajustes en ese dispositivo, toca tu nombre y luego Suscripciones.',
+    googleManageElsewhere: 'Esta suscripción se compró en Google Play, así que la gestiona Google. En tu móvil Android, abre Play Store, toca tu foto de perfil, luego Pagos y suscripciones y después Suscripciones.',
     applePerMonth: '{price} / mes',
     applePerYear: '{price} / año',
     appleRenewalTerms: 'Se renueva sola hasta que la canceles. Puedes cancelarla cuando quieras en los ajustes de tu ID de Apple, hasta un día antes de que se renueve.',

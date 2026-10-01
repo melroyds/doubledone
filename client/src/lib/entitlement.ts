@@ -14,10 +14,10 @@ export type Entitlement = {
   since: string | null; // ISO of the first premium grant (the tenure clock)
   currentPeriodEnd: number | null; // epoch seconds
   cancelAtPeriodEnd: boolean; // scheduled to cancel at the period end
-  // Which store sold it: 'apple' subscriptions are managed in Apple's settings, not Stripe's
-  // portal, so the "Manage subscription" control must route by this. null = a pre-2026-07 row
-  // (always Stripe).
-  source: 'stripe' | 'apple' | null;
+  // Which store sold it: 'apple' subscriptions are managed in Apple's settings and 'google' ones in
+  // the Play Store, never Stripe's portal, so the "Manage subscription" control must route by this.
+  // null = a pre-2026-07 row (always Stripe).
+  source: 'stripe' | 'apple' | 'google' | null;
 };
 
 export const FREE_ENTITLEMENT: Entitlement = { premium: false, status: null, since: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, source: null };

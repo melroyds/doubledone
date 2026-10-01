@@ -12,7 +12,7 @@ import { weeklyAllowance } from '@/lib/entitlement';
 import { purchaseGate } from '@/lib/iap';
 import { t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
-import { premiumPrimaryAction, showsCancelReassurance, trialSlot } from '@/lib/premium-ui';
+import { manageRoute, premiumPrimaryAction, showsCancelReassurance, trialSlot } from '@/lib/premium-ui';
 import { buy, IAP_AVAILABLE, loadOffers, openAppleSubscriptions, restore, type StoreOffer } from '@/lib/purchases';
 import { loadTrialUsed, saveTrialUsed } from '@/lib/storage';
 import { SELLS_HERE } from '@/lib/storefront';
@@ -273,15 +273,21 @@ export default function PremiumScreen() {
   async function manage() {
     if (busy || !SELLS_HERE) return;
     track('premium.manage_opened');
-    // An Apple subscription is managed in Apple's settings, never Stripe's portal.
-    if (effectiveEntitlement.source === 'apple') {
-      if (IAP_AVAILABLE) {
-        void openAppleSubscriptions(); // on the iPhone: opens Apple's Manage Subscriptions sheet
-      } else {
-        // an Apple subscriber looking at the web / Android app: no portal exists for them, so say
-        // where it lives rather than 404ing Stripe's portal (the bug the `source` column fixes)
-        setError(t('premium.appleManageElsewhere'));
-      }
+    // Each store's subscription is managed only in that store (lib/premium-ui manageRoute): opened where
+    // it can open, and named, with no link, everywhere else, rather than 404ing Stripe's portal.
+    const route = manageRoute(effectiveEntitlement.source, Platform.OS);
+    if (route === 'apple-sheet') {
+      if (IAP_AVAILABLE) void openAppleSubscriptions(); // Apple's own Manage Subscriptions sheet
+      else setError(t('premium.appleManageElsewhere'));
+      return;
+    }
+    if (route === 'apple-elsewhere') {
+      setError(t('premium.appleManageElsewhere'));
+      return;
+    }
+    if (route === 'google-elsewhere' || route === 'google-play') {
+      // google-play gets its own door when the Android app sells (Path A slice 3); until then, the line.
+      setError(t('premium.googleManageElsewhere'));
       return;
     }
     setBusy(true);

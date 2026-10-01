@@ -1,4 +1,6 @@
-// POST /apple/reconcile — attach an ANONYMOUS Apple purchase to the account that owns it.
+// POST /apple/reconcile: attach an ANONYMOUS store purchase to the account that owns it. The path says
+// Apple because that is where it began, and live iOS clients call it, so it keeps the name. Since Path A
+// it also answers for Google Play: it reads which store sold the subscription off RevenueCat's own row.
 //
 // WHY THIS EXISTS. App Review 5.1.1(v) forbids requiring registration before purchase, so iOS users
 // can and do buy while signed out. RevenueCat gives them an `$RCAnonymousID:` app_user_id, and
@@ -19,15 +21,34 @@
 // can therefore only ever reconcile themselves, and only into a purchase RevenueCat already agrees
 // is theirs. There is no request body at all.
 
-import { type D1LikeDatabase, type Entitlement, writeEntitlement } from './entitlements';
+import { type D1LikeDatabase, type Entitlement, type EntitlementSource, writeEntitlement } from './entitlements';
 import { defaultVerifySub, type SubVerifier } from './premium';
+import { sandboxAllowlist } from './revenuecat';
 
 export type ReconcileEnv = {
   DB?: D1LikeDatabase;
   SUPABASE_URL?: string;
   /** A RevenueCat **v1 secret** API key (`sk_…`). Server-only; never the public SDK key. */
   RC_SECRET_KEY?: string;
+  /** The same named sandbox allowlist the webhook reads (review and tester accounts only). */
+  SANDBOX_GRANT_UIDS?: string;
+  /** The per-user limiter account deletion uses. Reconcile spends the same RevenueCat key, so it is
+   *  limited too, under its own key prefix, or a scripted caller could starve deletions of it. */
+  BILLING_LIMITER?: { limit(o: { key: string }): Promise<{ success: boolean }> };
 };
+
+/**
+ * Which of our sources a v1 subscription row's `store` belongs to, or null for one we never grant from.
+ * The v1 body spells stores in lower case (`app_store`, `play_store`), unlike the webhook. A missing
+ * store is Apple, as it always was. `promotional` (a dashboard grant) and every other store grants
+ * nothing: this route GRANTS premium, so a store we do not sell through must mean no.
+ */
+export function sourceForV1Store(store: unknown): Exclude<EntitlementSource, 'stripe'> | null {
+  if (store === undefined || store === null || store === '') return 'apple';
+  if (store === 'app_store' || store === 'mac_app_store') return 'apple';
+  if (store === 'play_store') return 'google';
+  return null;
+}
 
 /** The RevenueCat entitlement id, mirroring revenuecat.ts and the client. */
 const ENTITLEMENT = 'premium';
@@ -37,20 +58,10 @@ const bearer = (request: Request): string => {
   return h.startsWith('Bearer ') ? h.slice(7) : '';
 };
 
-/**
- * The v1 subscriber lookup. Built as data so the request shape is a tested contract rather than
- * something only a live call can confirm.
- *
- * v1 and NOT v2 deliberately: `GET /v1/subscribers/{id}` returns `subscriptions` keyed by product
- * with a per-subscription `is_sandbox`, which the sandbox check below depends on. The v2 customer
- * endpoints need a project id, a different shape and pagination to answer the same question.
- */
-export function buildSubscriberRequest(userId: string, secret: string): { url: string; init: RequestInit } {
-  return {
-    url: `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(userId)}`,
-    init: { method: 'GET', headers: { Authorization: `Bearer ${secret}`, accept: 'application/json' } },
-  };
-}
+// The v1 subscriber lookup lives in rc-v1.ts (shared with account deletion); re-exported so the
+// existing tests and callers keep importing it from here.
+import { buildSubscriberRequest } from './rc-v1';
+export { buildSubscriberRequest };
 
 /**
  * Read a subscriber body into an entitlement, or null.
@@ -66,7 +77,7 @@ export function buildSubscriberRequest(userId: string, secret: string): { url: s
  * `product_identifier` would skip the check entirely and a TestFlight tester could reconcile
  * themselves a real Premium, which is precisely the hole the sandbox webhook guard just closed.
  */
-export function grantFromSubscriber(body: unknown, userId: string, nowMs: number): Entitlement | null {
+export function grantFromSubscriber(body: unknown, userId: string, nowMs: number, sandboxOk = false): Entitlement | null {
   const sub = (body as { subscriber?: Record<string, unknown> } | null)?.subscriber;
   if (!sub || typeof sub !== 'object') return null;
 
@@ -74,23 +85,29 @@ export function grantFromSubscriber(body: unknown, userId: string, nowMs: number
     | { expires_date?: unknown; product_identifier?: unknown }
     | undefined;
   if (!ent || typeof ent !== 'object') return null;
+  const subs = sub.subscriptions as Record<string, unknown> | undefined;
 
   const expMs = typeof ent.expires_date === 'string' ? Date.parse(ent.expires_date) : NaN;
   if (!Number.isFinite(expMs) || expMs <= nowMs) return null; // absent, unreadable, or already over
 
+  // The row is keyed by the entitlement's product id. For a Google base plan RevenueCat names the
+  // product `subscription:base_plan` in webhooks, while the v1 body may key the row by the bare
+  // subscription id (with the plan in `product_plan_identifier`), so both spellings are tried. Neither
+  // found still means no grant.
   const productId = typeof ent.product_identifier === 'string' ? ent.product_identifier : '';
-  const row = productId
-    ? ((sub.subscriptions as Record<string, unknown> | undefined)?.[productId] as
-        | { is_sandbox?: unknown; unsubscribe_detected_at?: unknown }
-        | undefined)
-    : undefined;
-  if (!row || typeof row !== 'object') return null; // cannot prove production -> do not grant
-  if (row.is_sandbox === true) return null; // TestFlight money is not money
+  const keys = productId ? [productId, productId.split(':')[0]] : [];
+  const row = keys.map((k) => subs?.[k]).find((r) => r && typeof r === 'object') as
+    | { is_sandbox?: unknown; unsubscribe_detected_at?: unknown; store?: unknown }
+    | undefined;
+  if (!row) return null; // cannot prove production -> do not grant
+  if (row.is_sandbox === true && !sandboxOk) return null; // test money is not money, bar the named few
+  const source = sourceForV1Store(row.store);
+  if (!source) return null; // promotional, or a store we never sell through
 
   return {
     userId,
-    customerId: null, // Apple rows never carry a Stripe customer; the portal correctly 404s
-    source: 'apple',
+    customerId: null, // store rows never carry a Stripe customer; the portal correctly 404s
+    source,
     premium: true,
     status: 'active',
     currentPeriodEnd: Math.floor(expMs / 1000),
@@ -128,6 +145,9 @@ export async function handleAppleReconcile(
 
   const userId = await verifySub(token, env.SUPABASE_URL);
   if (!userId) return json({ error: 'unauthorized' }, 401);
+  if (env.BILLING_LIMITER && !(await env.BILLING_LIMITER.limit({ key: `reconcile:${userId}` })).success) {
+    return json({ error: 'rate_limited' }, 429);
+  }
 
   let body: unknown;
   try {
@@ -143,7 +163,7 @@ export async function handleAppleReconcile(
     return json({ error: 'upstream' }, 502);
   }
 
-  const ent = grantFromSubscriber(body, userId, nowMs);
+  const ent = grantFromSubscriber(body, userId, nowMs, sandboxAllowlist(env.SANDBOX_GRANT_UIDS).has(userId.toLowerCase()));
   if (!ent) return json({ attached: false });
 
   try {

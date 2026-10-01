@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { premiumPrimaryAction, showsCancelReassurance, trialSlot } from './premium-ui';
+import { manageRoute, premiumPrimaryAction, showsCancelReassurance, trialSlot } from './premium-ui';
 
 // The full state -> control table for the entitled panel. Each row here is a cell that either
 // shipped wrong (trial, comp) or must never drift (the live Stripe path). See premium-ui.ts for
@@ -94,5 +94,25 @@ describe('showsCancelReassurance (never "if you cancel" to someone with nothing 
     expect(showsCancelReassurance('trial', false)).toBe(false);
     expect(showsCancelReassurance('comp', false)).toBe(false);
     expect(showsCancelReassurance('active', true)).toBe(false);
+  });
+});
+
+describe('manageRoute (Manage opens the store that sold it, or says where it lives)', () => {
+  it('opens Apple only on an iPhone, and says where it lives everywhere else', () => {
+    expect(manageRoute('apple', 'ios')).toBe('apple-sheet');
+    expect(manageRoute('apple', 'web')).toBe('apple-elsewhere');
+    expect(manageRoute('apple', 'android')).toBe('apple-elsewhere');
+  });
+
+  it('opens Play only on Android, and never sends a Google subscriber to the Stripe portal', () => {
+    expect(manageRoute('google', 'android')).toBe('google-play');
+    expect(manageRoute('google', 'web')).toBe('google-elsewhere');
+    expect(manageRoute('google', 'ios')).toBe('google-elsewhere');
+  });
+
+  it('sends Stripe, and a pre-2026-07 row, to the portal', () => {
+    expect(manageRoute('stripe', 'web')).toBe('stripe-portal');
+    expect(manageRoute(null, 'web')).toBe('stripe-portal');
+    expect(manageRoute(null, 'ios')).toBe('stripe-portal');
   });
 });

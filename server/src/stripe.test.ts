@@ -528,3 +528,76 @@ describe('PR A: the money routes verify the bearer', () => {
     expect(res.status).toBe(404);
   });
 });
+
+// ---- Path A (2026-09-30): the checkout guard knows every store; /entitlement says when it cannot check.
+describe('Path A: no second subscription through Stripe', () => {
+  const cors = { 'Access-Control-Allow-Origin': 'https://doubledone.app' };
+  const tokenFor = (sub: string) => `h.${btoa(JSON.stringify({ sub })).replace(/=/g, '')}.s`;
+  const req = () => new Request('https://w/checkout', { method: 'POST', headers: { Authorization: `Bearer ${tokenFor('u1')}` }, body: '{}' });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('refuses a live Apple or Google subscriber (they have no Stripe customer at all)', async () => {
+    for (const source of ['apple', 'google'] as const) {
+      const env = { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_123', DB: fakeDb() };
+      await writeEntitlement(env.DB, { userId: 'u1', premium: true, status: 'active', currentPeriodEnd: 123, cancelAtPeriodEnd: false, customerId: null, source }, '2026-09-30T00:00:00Z');
+      const res = await handleCheckout(req(), env, cors, trust);
+      expect(res.status, source).toBe(409);
+      expect(await res.json(), source).toEqual({ error: 'already_subscribed' });
+    }
+  });
+
+  it('refuses a payment failing at any store: past_due or unpaid', async () => {
+    // A store grace period keeps premium ON; a failing Stripe card has it off.
+    const cases: ['apple' | 'google' | 'stripe', string, boolean][] = [['apple', 'past_due', true], ['google', 'past_due', true], ['stripe', 'past_due', false], ['stripe', 'unpaid', false]];
+    for (const [source, status, premium] of cases) {
+      const env = { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_123', DB: fakeDb() };
+      await writeEntitlement(env.DB, { userId: 'u1', premium, status, currentPeriodEnd: 123, cancelAtPeriodEnd: false, customerId: source === 'stripe' ? 'cus_1' : null, source }, '2026-09-30T00:00:00Z');
+      const res = await handleCheckout(req(), env, cors, trust);
+      expect(res.status, `${source} ${status}`).toBe(409);
+      expect(await res.json(), `${source} ${status}`).toEqual({ error: 'billing_issue' });
+    }
+  });
+
+  it('still lets a LAPSED store subscriber buy on the web (an ended subscription blocks nothing)', async () => {
+    const env = { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_123', DB: fakeDb() };
+    await writeEntitlement(env.DB, { userId: 'u1', premium: false, status: 'expired', currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: null, source: 'google' }, '2026-09-30T00:00:00Z');
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ url: 'https://checkout.stripe.com/c/z' }), { status: 200 }));
+    expect((await handleCheckout(req(), env, cors, trust)).status).toBe(200);
+  });
+});
+
+describe('Path A: /entitlement says when it could not check', () => {
+  const cors = { 'Access-Control-Allow-Origin': 'https://doubledone.app' };
+  const tokenFor = (sub: string) => `h.${btoa(JSON.stringify({ sub })).replace(/=/g, '')}.s`;
+
+  it('answers 503 on a D1 throw instead of a FREE that the buy guard would read as permission', async () => {
+    const throwing = { prepare: () => ({ bind() { return this; }, run: async () => undefined, first: async () => { throw new Error('d1 down'); }, all: async () => ({ results: [] }) }) } as unknown as D1LikeDatabase;
+    const res = await handleEntitlement(new Request('https://w/entitlement', { headers: { Authorization: `Bearer ${tokenFor('u1')}` } }), { DB: throwing }, cors, trust);
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: 'unavailable' });
+  });
+
+  it('reads a google row back through the route as google', async () => {
+    const db = fakeDb();
+    await writeEntitlement(db, { userId: 'u1', premium: true, status: 'active', currentPeriodEnd: 123, cancelAtPeriodEnd: false, customerId: null, source: 'google' }, '2026-09-30T00:00:00Z');
+    const res = await handleEntitlement(new Request('https://w/entitlement', { headers: { Authorization: `Bearer ${tokenFor('u1')}` } }), { DB: db }, cors, trust);
+    expect(await res.json()).toMatchObject({ premium: true, source: 'google' });
+  });
+});
+
+describe('Path A review: the checkout guard fails closed', () => {
+  const cors = { 'Access-Control-Allow-Origin': 'https://doubledone.app' };
+  const tokenFor = (sub: string) => `h.${btoa(JSON.stringify({ sub })).replace(/=/g, '')}.s`;
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('answers 503 and opens no checkout when the entitlement cannot be read', async () => {
+    const opened = vi.fn(async () => new Response(JSON.stringify({ url: 'https://checkout.stripe.com/c/x' }), { status: 200 }));
+    vi.stubGlobal('fetch', opened);
+    const throwing = { prepare: () => ({ bind() { return this; }, run: async () => undefined, first: async () => { throw new Error('d1 down'); }, all: async () => ({ results: [] }) }) } as unknown as D1LikeDatabase;
+    const req = new Request('https://w/checkout', { method: 'POST', headers: { Authorization: `Bearer ${tokenFor('u1')}` }, body: '{}' });
+    const res = await handleCheckout(req, { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_123', DB: throwing }, cors, trust);
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: 'unavailable' });
+    expect(opened).not.toHaveBeenCalled();
+  });
+});

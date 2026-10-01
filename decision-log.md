@@ -8559,6 +8559,91 @@ every French string now carries the no-break space before : ? ! ; (a guard test 
 (it matches the Subscriptions policy's own example of trial wording that hides a charge, even though ours
 never charges).
 
+## 2026-09-30: Path A slice 1, the server learns Google Play (not deployed)
+
+**Decided:** Melroy green-lit Path A on 2026-09-27, overriding its Backlog trigger ("I need to be
+elegant"), so the Android app will sell Premium through Google Play Billing via RevenueCat. This first
+slice is the server only, on the `premium` branch, backward-compatible, and deploys only on his OK. It
+changes six things (the full plan is `docs/path-a-runbook.md`):
+
+- **A third source, `google`.** The entitlement row records which store sold it. The webhook reads the
+  event's `store` (`PLAY_STORE` is google, a missing store is Apple as always), and the reconcile route
+  reads it off RevenueCat's own subscription row. PROMOTIONAL, STRIPE, RC_BILLING and every other store
+  are logged and never written (`other-store`). Until now all of them were silently written as Apple.
+- **Only the store that last SOLD the premium can end it.** While the row is premium, a write from a
+  DIFFERENT store lands only if it is a real sale (premium on, active or trialing, renewing). A store
+  winding down (a cancel with access left, a billing issue, a Stripe cancel_at update, a reconcile already
+  set to end) can no longer take the row over, so its later expiry cannot end what another store still
+  sells: a Refund-and-revoke on an old Google order no longer ends a paying Stripe member. A WHERE on the
+  upsert, proved in real SQLite against `schema.sql`. Logged as `kept`. It does NOT solve two genuinely
+  live stores for one person, which resolve to whichever sold last (Backlog: a row per store).
+- **A failed card is not a person leaving.** A CANCELLATION for `BILLING_ERROR` is now `past_due` with
+  premium ON (it used to read "Premium until {date}" to someone whose card merely bounced). This fixes
+  live iOS too.
+- **A late cancel or billing issue never switches Premium back on.** RevenueCat can deliver BILLING_ISSUE,
+  CANCELLATION and EXPIRATION out of order and retries a failed delivery minutes later, so a late one used
+  to re-grant Premium after the EXPIRATION, with no event ever coming to end it (pre-existing on main). Now
+  one whose grace period (or, without one, paid period) has already ended writes nothing (`stale-on`).
+- **A minute of clock skew** on a revoking EXPIRATION, which was otherwise refused forever as "stale" if
+  RevenueCat's clock ran a few seconds ahead of ours.
+- **A named sandbox allowlist,** `SANDBOX_GRANT_UIDS` (a Worker secret, Melroy's to set). Sandbox
+  purchases are still refused, except for the review and tester accounts on it. This CORRECTS the
+  2026-08-19 line "TestFlight testers do NOT lose anything": true for what the device gates, wrong for
+  what the server gates. The paid AI routes read only D1, so a reviewer who bought would find Scan
+  refusing them. Logged as `sandbox-allowlisted`.
+- **Deleting an account turns off Play renewal,** through RevenueCat's v1 CANCEL (access to the period end,
+  no refund; never `/revoke`, which refunds). Only for someone the row or the delivery log ties to Play,
+  because RevenueCat's lookup CREATES a customer for an unknown id. If neither can be read, it asks anyway.
+  Any failure answers 502 and the app deletes nothing.
+
+Also: the checkout guard refuses a live Apple or Google subscriber (they have no Stripe customer, so the
+old guard waved them into a second subscription) and a payment failing at ANY store; `/entitlement`
+answers 503 on a D1 throw instead of a FREE the buy guard would read as permission. Every shipped client
+already folds a non-2xx into free, so live apps look the same.
+
+**Decided against:** trusting the webhook's `product_id` to route stores (the `store` field is the fact);
+granting promotional rows (this route GRANTS premium, so an unknown store means no); calling `/revoke`
+anywhere; calling RevenueCat for every deletion (it would create customers for people who never used it);
+failing open when D1 is down (a deleted account that keeps charging is worse than a refused deletion);
+renaming `/apple/reconcile` (live iOS clients call it); keeping allowlisted testers out of the pulse and
+the Analytics Centre counts (a handful of known rows, parked as Tier 3 rather than threading the list
+through every metric).
+
+**Hardened by review** (8 agents across money, the live clients, RevenueCat's documented semantics and
+security; every finding independently verified). Taken: the takeover rule and the stale-event rule above;
+account deletion now also cancels a Play subscription on HOLD (a billing issue in the last 60 days, whose
+expiry is already past but which Google can still recover and charge) and a refunded one that has not
+ended, and treats a refused second cancel on a held, already-off subscription as done so a retry cannot
+wedge for 60 days; the checkout guard now answers 503 on a failed read instead of selling; reconcile is
+rate-limited per user under the deletion limiter (it spends the same RevenueCat key).
+**Pulled back, deliberately:** the first cut's `on_hold` state. Nothing ever moved a row out of it, so an
+iPhone subscriber whose card failed could never subscribe on the web again (a regression on live web).
+Hold comes back only once Google's account hold is observed on a real licence tester (PREM-59), as a
+deadline read at request time. Also removed before commit: a "renewal guard" against an old EXPIRATION
+retried after a RENEWAL, because comparing its expiry with the row's period would also keep a real EARLY
+revoke (a refund). It needs the event's own timestamp; parked.
+
+**Open before deploy:** (1) a read-only D1 check for PROMOTIONAL rows in `rc_events`, AND a look in the
+RevenueCat dashboard for any active promotional grant: one written before today can no longer be revoked
+by the webhook, so revoke it in RevenueCat BEFORE this deploys (never map promotional revokes to Apple,
+which would let them end a real Apple subscriber). (2) `SANDBOX_GRANT_UIDS` lists only the purchase review
+account and the licence tester, never `appreview@`, which is comped and needs nothing.
+
+## 2026-09-30: Path A slice 2, the web knows a Google subscriber (not deployed)
+
+**Decided:** the client reads a `google` entitlement source, and "Manage subscription" routes through
+one pure, tested decision (`manageRoute` in `lib/premium-ui.ts`): each store's subscription opens that
+store's own screen where it can (Apple's sheet on an iPhone, the Play Store on Android once slice 3 lands)
+and is named, with no link, everywhere else. A Google subscriber on the web now reads that Google handles
+it and where to find it in the Play Store, in all five languages. Before this, the client folded `google`
+into "no source", read that as Stripe, opened a portal that found no customer, and told a paying person
+"Your Premium is on us".
+
+**Decided against:** a link to the Play Store from the web (it opens nothing useful off a phone, and the
+line names the exact path); changing `loadEntitlement`'s fold-to-free now (the guard that needs "could not
+check" is the Android buy guard in slice 3, so the split lands there with its only caller).
+
+**Reaches people:** the web on the next deploy of this slice, iPhones on the next iOS build.
 ## 2026-09-30: the Menu's missing doors, built (1c, the sign and the shelf)
 
 **Decided:** a real user could not find Settings: a small grey word in the Menu's corner, while the
