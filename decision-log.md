@@ -8774,6 +8774,8 @@ against the real SDK, the translations; each finding then attacked by a skeptic)
 - The translations lens found nothing.
 The two server changes (the relay and the hint) need a Worker deploy before PREM-60 and the release.
 
+**Melroy approved, 2026-10-03:** the 7-day refund through Google Play in the Terms, and the version 1.7.0.
+
 **Assumptions for Melroy to challenge:**
 - A **7-day refund through Google Play** in the Terms, mirroring the Stripe promise. Google also refunds
   on request itself. Still a draft, waiting on a lawyer like the rest of the Terms.
