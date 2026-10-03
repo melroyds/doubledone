@@ -166,10 +166,15 @@ export async function handleAppleReconcile(
   const ent = grantFromSubscriber(body, userId, nowMs, sandboxAllowlist(env.SANDBOX_GRANT_UIDS).has(userId.toLowerCase()));
   if (!ent) return json({ attached: false });
 
+  // ATTACH ONLY: a purchase the webhook never delivered (an anonymous Apple buyer who has just signed in,
+  // a missed Play delivery). An account that already has a live Premium row keeps it exactly as the webhook
+  // wrote it, because this view of RevenueCat cannot tell "active" from "in grace, payment failing".
+  let wrote: boolean | null;
   try {
-    await writeEntitlement(env.DB, ent, nowISO);
+    wrote = await writeEntitlement(env.DB, ent, nowISO, { attachOnly: true });
   } catch {
     return json({ error: 'upstream' }, 502); // could not persist: say so rather than claim success
   }
+  if (wrote === false) return json({ attached: false }); // already Premium: nothing to attach
   return json({ attached: true, currentPeriodEnd: ent.currentPeriodEnd });
 }

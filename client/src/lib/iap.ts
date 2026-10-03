@@ -1,9 +1,10 @@
-// The pure, testable heart of Apple IAP. NOTHING here imports react-native or the RevenueCat
-// SDK, so it runs under the existing node vitest with no RN transform. The glue that does touch
-// the SDK is the thin `purchases.ios.ts`, which hands its raw shapes to these functions. Keep it
-// that way: logic here, glue there.
+// The pure, testable heart of in-app purchases (Apple on iOS, Google Play on Android, both through
+// RevenueCat). NOTHING here imports react-native or the RevenueCat SDK, so it runs under the existing
+// node vitest with no RN transform. The glue that does touch the SDK is the thin `purchases.ios.ts`
+// and `purchases.android.ts`, which hand their raw shapes to these functions. Keep it that way:
+// logic here, glue there.
 
-import type { Entitlement } from './entitlement';
+import type { Entitlement, EntitlementRead } from './entitlement';
 import type { StoreOffer } from './purchases';
 
 // RevenueCat's package identifiers for the two packages in the 'default' offering.
@@ -18,10 +19,11 @@ const PKG_ANNUAL = '$rc_annual';
 // error or code past this seam.
 export type PurchaseOutcome =
   | 'cancelled' // the user backed out (or the Apple ID already owns it, which iOS reports the same way)
-  | 'pending' // Ask-to-Buy / SCA: NOT granted yet, unlocks itself when Apple approves
-  | 'already_owned' // this Apple ID already has it, offer Restore
-  | 'store_down' // the App Store is not answering
-  | 'not_allowed' // purchases disabled on the device (Screen Time, a restriction)
+  | 'pending' // Ask-to-Buy / SCA / a slow Play payment: NOT granted yet, unlocks itself once the store confirms
+  | 'already_owned' // this Apple ID or Google account already has it, offer Restore
+  | 'owned_elsewhere' // the store's purchase belongs to a DIFFERENT DoubleDone account (RevenueCat 7 or 13)
+  | 'store_down' // the store is not answering
+  | 'not_allowed' // purchases disabled on the device (Screen Time, Family Link, a restriction)
   | 'network' // no connection
   | 'failed'; // anything else
 
@@ -35,7 +37,9 @@ const ERR = {
   STORE_PROBLEM: '2',
   PURCHASE_NOT_ALLOWED: '3',
   PRODUCT_ALREADY_PURCHASED: '6',
+  RECEIPT_ALREADY_IN_USE: '7',
   NETWORK: '10',
+  RECEIPT_IN_USE_BY_OTHER_SUBSCRIBER: '13',
   PAYMENT_PENDING: '20',
 } as const;
 
@@ -55,6 +59,12 @@ export function purchaseOutcome(error: unknown): PurchaseOutcome {
       return 'pending';
     case ERR.PRODUCT_ALREADY_PURCHASED:
       return 'already_owned';
+    // The purchase exists, but RevenueCat keeps it with the account that made it (Restore Behaviour:
+    // keep with original App User ID). A calm "sign in with that account", never a generic failure,
+    // or an "already owned" purchase dead-ends at a Restore that cannot work.
+    case ERR.RECEIPT_ALREADY_IN_USE:
+    case ERR.RECEIPT_IN_USE_BY_OTHER_SUBSCRIBER:
+      return 'owned_elsewhere';
     case ERR.STORE_PROBLEM:
       return 'store_down';
     case ERR.PURCHASE_NOT_ALLOWED:
@@ -103,17 +113,57 @@ export function packagesToOffers(offerings: unknown): StoreOffer[] {
 // aliases the purchase onto their account and extends it to other devices. The double-charge
 // guard survives where it can be honest: a SIGNED-IN user's entitlement is still read before the
 // button goes live, and for anonymous users the paywall says in words what the wall used to.
-export type PurchaseGate = 'buy' | 'already_premium' | 'wait' | 'hidden';
+//
+// Google Play has no such rule, so Android REQUIRES an account to buy (`requireAccount`): signed out,
+// the button is a sign-in, never a purchase. And a subscription whose payment is failing is fixed,
+// never bought again (`fix_billing`): a second purchase would charge someone twice for one Premium.
+export type PurchaseGate = 'buy' | 'already_premium' | 'wait' | 'hidden' | 'sign_in' | 'fix_billing';
 export function purchaseGate(s: {
   iapAvailable: boolean;
   signedIn: boolean;
   loading: boolean;
   premium: boolean;
+  requireAccount?: boolean; // true on Android: no anonymous purchases
+  status?: string | null; // the entitlement status, for a payment that is failing
 }): PurchaseGate {
-  if (!s.iapAvailable) return 'hidden'; // the web sells via Stripe, Android sells nothing (lib/storefront); no store button
+  if (!s.iapAvailable) return 'hidden'; // the web sells via Stripe; no store button
+  if (s.requireAccount && !s.signedIn) return 'sign_in'; // Android: sign in first, so the purchase belongs to someone
   if (s.signedIn && s.loading) return 'wait'; // entitlement still resolving after sign-in: the double-charge window, button disabled
-  if (s.premium) return 'already_premium'; // already entitled (Stripe, Apple, trial, or comp): never charge again
-  return 'buy'; // signed-in and resolved, OR anonymous: Apple requires the anonymous path (5.1.1)
+  if (s.premium) return 'already_premium'; // already entitled (Stripe, Apple, Google, trial, or comp): never charge again
+  if (needsBillingFix(s.status)) return 'fix_billing'; // a payment is failing on an existing subscription: fix it, never buy twice
+  return 'buy'; // signed-in and resolved, OR anonymous on iOS: Apple requires the anonymous path (5.1.1)
+}
+
+/**
+ * A subscription that exists but whose payment is failing: Stripe's past_due and unpaid, and a store's
+ * account hold. The person has a subscription; what they need is to fix how they pay, so a buy button
+ * here can only make a second one. `on_hold` is not written by the server today (2026-10, slice 1
+ * pulled it because nothing ever cleared it), and is listed so the guard holds the day it is.
+ */
+export function needsBillingFix(status: string | null | undefined): boolean {
+  return status === 'past_due' || status === 'unpaid' || status === 'on_hold';
+}
+
+/** What a tap on the store's buy button may do, decided from a FRESH entitlement read. */
+export type BuyCheck = 'go' | 'already' | 'fix_billing' | 'cant_check';
+
+/**
+ * The last guard before a store sheet opens, and it FAILS CLOSED. The render-time gate above reads the
+ * provider, which folds a failed read into "free" so the app stays calm offline. That is the right
+ * default for reading and the wrong one for charging: a Stripe or Apple subscriber whose read failed
+ * would look free, and the button would take their money a second time. So the tap re-reads, and:
+ * - the read failed (offline, a 5xx, a 503 from a D1 hiccup): refuse, nothing is started;
+ * - signed in on this screen, but the read went out with no session: refuse the same way;
+ * - already Premium anywhere: no charge, the screen refreshes into the Premium panel;
+ * - a payment failing on an existing subscription: fix it, never a second subscription;
+ * - otherwise go.
+ */
+export function buyCheck(read: EntitlementRead, expectSignedIn: boolean): BuyCheck {
+  if (!read.ok) return 'cant_check';
+  if (expectSignedIn && !read.signedIn) return 'cant_check';
+  if (read.entitlement.premium) return 'already';
+  if (needsBillingFix(read.entitlement.status)) return 'fix_billing';
+  return 'go';
 }
 
 /**
@@ -130,21 +180,66 @@ export function purchaseGate(s: {
  * date degrades to null, which is exactly the old behaviour, never a crash and never a wrong date.
  * Returns null when the entitlement is not active, so the caller's merge stays "only ever ADDS".
  */
-export function localEntitlement(info: unknown): Pick<Entitlement, 'since' | 'currentPeriodEnd' | 'cancelAtPeriodEnd'> | null {
+export function localEntitlement(info: unknown): Pick<Entitlement, 'since' | 'currentPeriodEnd' | 'cancelAtPeriodEnd' | 'source'> | null {
   const active = (info as { entitlements?: { active?: Record<string, unknown> } } | null)?.entitlements?.active;
   const ent = active?.[ENTITLEMENT_ID] as
-    | { originalPurchaseDate?: unknown; expirationDate?: unknown; willRenew?: unknown }
+    | { originalPurchaseDate?: unknown; expirationDate?: unknown; willRenew?: unknown; store?: unknown }
     | undefined;
   if (!ent) return null;
   const iso = (v: unknown): string | null => (typeof v === 'string' && Number.isFinite(Date.parse(v)) ? v : null);
   const expires = iso(ent.expirationDate);
   return {
-    // The TENURE clock. Apple's originalPurchaseDate is the first purchase in the subscription's
-    // whole history, which is precisely what `since` means to weeklyAllowance.
+    // The TENURE clock. The store's originalPurchaseDate is the first purchase in the subscription's
+    // whole history (Apple and Google alike), which is precisely what `since` means to weeklyAllowance.
     since: iso(ent.originalPurchaseDate),
     currentPeriodEnd: expires ? Math.floor(Date.parse(expires) / 1000) : null,
     // A lifetime / non-expiring entitlement reports willRenew false with no expiry. That is not a
     // scheduled cancel, so only treat false as "cancelling" when there is a period to cancel AT.
     cancelAtPeriodEnd: ent.willRenew === false && expires !== null,
+    // The store that SOLD it, never the platform this runs on. RevenueCat entitlements are cross-store, so
+    // an Apple subscriber who signs in on Android has an active 'premium' here too, and stamping it
+    // 'google' told them deleting the account would stop their billing (it cannot touch Apple) and sent
+    // Manage to the wrong store (the 2026-10-01 review). PROMOTIONAL and anything unknown: no store.
+    source: storeOf(ent.store),
   };
+}
+
+/** RevenueCat's `store` as our entitlement source: Apple, Google Play, or no store we bill through. */
+export function storeOf(store: unknown): 'apple' | 'google' | null {
+  if (store === 'APP_STORE' || store === 'MAC_APP_STORE') return 'apple';
+  if (store === 'PLAY_STORE') return 'google';
+  return null;
+}
+
+// How long after a billing issue a subscription may still come back and charge: Apple's billing retry and
+// Google's grace plus account hold both top out at 60 days.
+const HELD_WINDOW_MS = 60 * 24 * 3_600_000;
+
+/**
+ * An APPLE subscription that is off only because a payment failed and is still in Apple's billing retry,
+ * seen from the Android app. Apple keeps retrying the card for up to 60 days and charges the moment it
+ * works, so selling a Google Play subscription now would charge the same person twice, in two stores. Our
+ * server reads it as 'expired' (slice 1 pulled 'on_hold' because nothing ever cleared it), so this reads
+ * the device's RevenueCat CustomerInfo before any store sheet opens.
+ *
+ * GOOGLE'S OWN HOLD IS DELIBERATELY NOT HELD. Device test 8d (2026-10-03) proved it in sandbox: buying again
+ * during a Google account hold REPLACES the held subscription (a new purchase token, one DoubleDone entry
+ * in the Play Store, nothing charged twice). It is Google's own recovery route, so blocking it would only
+ * strand someone whose quickest fix is the button in front of them. (The first version tried to hold it
+ * too and never could: a Google billing failure also arrives as a CANCELLATION, so RevenueCat stops
+ * reporting it as set to renew. The tests passed only because their fixture assumed otherwise.)
+ *
+ * Held = the 'premium' entitlement is from the App Store, inactive, a billing issue was detected in the
+ * last 60 days, and Apple still has it set to renew (Apple's renewal stays on through billing retry, and
+ * goes off when Apple gives up, which is when buying again is the right thing).
+ */
+export function heldSubscription(info: unknown, nowMs: number): { store: 'apple' } | null {
+  const all = (info as { entitlements?: { all?: Record<string, unknown> } } | null)?.entitlements?.all;
+  const ent = all?.[ENTITLEMENT_ID] as
+    | { isActive?: unknown; billingIssueDetectedAt?: unknown; willRenew?: unknown; store?: unknown }
+    | undefined;
+  if (!ent || storeOf(ent.store) !== 'apple' || ent.isActive === true || ent.willRenew !== true) return null;
+  const issue = typeof ent.billingIssueDetectedAt === 'string' ? Date.parse(ent.billingIssueDetectedAt) : Number.NaN;
+  if (!Number.isFinite(issue) || nowMs - issue > HELD_WINDOW_MS || issue - nowMs > HELD_WINDOW_MS) return null;
+  return { store: 'apple' };
 }

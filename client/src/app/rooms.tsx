@@ -157,7 +157,7 @@ export default function RoomsScreen() {
   // Premium's line names what Premium holds, so it is true in every state: it cannot pitch Premium to
   // someone who pays, say "expired" to someone who left, or flash free copy at a member while loading.
   // Billing news, dates and management live on the Premium page, never here. The one exception is a
-  // member on a build that sells nothing (Android, Path C), who keeps their line word for word.
+  // member on a build that sells nothing (the Path C rollback), who keeps their line word for word.
   const premiumHint = premium && !SELLS_HERE ? t('settings.premiumCardActiveSub') : aiEnabled ? t('rooms.premiumHintFreeAi') : t('rooms.premiumHintFreeNoAi');
   // 1.2 x the sign's 15pt label, so it grows with the text: the app's size AND the phone's own text size,
   // which RN Text follows by itself and an SVG does not.

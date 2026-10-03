@@ -14,6 +14,22 @@
 import { type D1LikeDatabase } from './entitlements';
 
 export const REVIEW_EMAIL = 'appreview@doubledone.app';
+// The second review account (Path A, 2026-10): Google Play's reviewer needs one that is NOT comped, so it
+// can reach Play's purchase screen (a comped account is already Premium and never sees it). Each address
+// keeps its OWN latest code (row 1 and row 2), and the page labels each with its address: one shared row
+// would hand Apple's reviewer a code meant for the other account whenever two reviews overlapped (the
+// 2026-10-01 review), and Supabase would rightly refuse it. Each address needs its own Cloudflare Email
+// Routing rule to this Worker, and deleting that rule is its kill switch.
+export const REVIEW_BUY_EMAIL = 'appreview-buy@doubledone.app';
+
+/** The review_otp row an address relays into: 2 for the purchase account, 1 for the original. */
+export function reviewSlot(to: string): 1 | 2 | null {
+  const t = to.toLowerCase();
+  if (t.includes(REVIEW_BUY_EMAIL)) return 2; // checked first, so the order of the addresses never matters
+  if (t.includes(REVIEW_EMAIL)) return 1;
+  return null;
+}
+const SLOT_EMAIL: Record<number, string> = { 1: REVIEW_EMAIL, 2: REVIEW_BUY_EMAIL };
 
 // Extract the one-time code from a Supabase sign-in email. The default template carries a
 // 6-digit token; prefer a 6-digit run near the words "code" or "token" (so a year or an address
@@ -103,31 +119,41 @@ async function ensureTable(db: D1LikeDatabase): Promise<void> {
   await db.prepare('CREATE TABLE IF NOT EXISTS review_otp (id integer primary key, code text not null, updated_at text not null)').bind().run();
 }
 
-/** Store the latest code (a single-row upsert; only ever one current code). */
-export async function storeReviewCode(db: D1LikeDatabase, code: string, nowISO: string): Promise<void> {
+/** Store an address's latest code (one row per review address, each a single-row upsert). */
+export async function storeReviewCode(db: D1LikeDatabase, code: string, nowISO: string, slot: 1 | 2 = 1): Promise<void> {
   await ensureTable(db);
   await db
-    .prepare('INSERT INTO review_otp (id, code, updated_at) VALUES (1, ?1, ?2) ON CONFLICT(id) DO UPDATE SET code = ?1, updated_at = ?2')
-    .bind(code, nowISO)
+    .prepare('INSERT INTO review_otp (id, code, updated_at) VALUES (?3, ?1, ?2) ON CONFLICT(id) DO UPDATE SET code = ?1, updated_at = ?2')
+    .bind(code, nowISO, slot)
     .run();
 }
 
 const FRESH_MS = 60 * 60 * 1000; // Supabase's own OTP validity; a staler code is useless anyway
 
-/** GET /review-code: the latest relayed code as a tiny plain page a reviewer can read in Safari.
- *  404 when no fresh code exists (nothing arrived yet, or the email route has been removed). */
+/** GET /review-code: each review address's latest fresh code, labelled with the address, as a tiny plain
+ *  page a reviewer can read in Safari. 404 when no fresh code exists (nothing arrived yet, or the email
+ *  routes have been removed). */
 export async function handleReviewCode(db: D1LikeDatabase | undefined, nowMs: number): Promise<Response> {
   if (!db) return new Response('not configured', { status: 503 });
   try {
     await ensureTable(db);
-    const row = await db.prepare('SELECT code, updated_at FROM review_otp WHERE id = 1').bind().first<{ code: string; updated_at: string }>();
-    if (!row) return new Response('No code yet. In the app, enter the review email and tap the send button, then refresh this page.', { status: 404 });
-    const age = nowMs - Date.parse(row.updated_at);
-    if (!(age >= 0 && age < FRESH_MS)) {
+    const { results } = await db
+      .prepare('SELECT id, code, updated_at FROM review_otp WHERE id IN (1, 2) ORDER BY id')
+      .bind()
+      .all<{ id: number; code: string; updated_at: string }>();
+    const rows = results ?? [];
+    if (!rows.length) return new Response('No code yet. In the app, enter the review email and tap the send button, then refresh this page.', { status: 404 });
+    const fresh = rows
+      .map((row) => ({ row, age: nowMs - Date.parse(row.updated_at) }))
+      .filter(({ age }) => age >= 0 && age < FRESH_MS);
+    if (!fresh.length) {
       return new Response('The last code has expired. In the app, tap the send button again, then refresh this page.', { status: 404 });
     }
-    const mins = Math.max(0, Math.floor(age / 60_000));
-    return new Response(`DoubleDone App Review sign-in code: ${row.code}\n(sent ${mins} minute${mins === 1 ? '' : 's'} ago; codes expire after an hour)`, {
+    const lines = fresh.map(({ row, age }) => {
+      const mins = Math.max(0, Math.floor(age / 60_000));
+      return `${SLOT_EMAIL[row.id] ?? 'review account'}: ${row.code} (sent ${mins} minute${mins === 1 ? '' : 's'} ago)`;
+    });
+    return new Response(`DoubleDone App Review sign-in code. Use the line for the email you entered.\n${lines.join('\n')}\n(codes expire after an hour)`, {
       headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
     });
   } catch {
@@ -143,13 +169,14 @@ export async function handleReviewEmail(
   nowISO: string,
 ): Promise<void> {
   if (!db) return;
-  if (!message.to.toLowerCase().includes(REVIEW_EMAIL)) return;
+  const slot = reviewSlot(message.to);
+  if (!slot) return;
   try {
     // The whole message (an OTP email is a few KB); cap the read defensively at 256 KB.
     if (message.rawSize > 256 * 1024) return;
     const raw = await new Response(message.raw).text();
     const code = extractOtpCode(emailBodyText(raw)); // the decoded body only, never the headers
-    if (code) await storeReviewCode(db, code, nowISO);
+    if (code) await storeReviewCode(db, code, nowISO, slot);
   } catch {
     // best effort: a failed relay just means the reviewer taps "send code" again
   }

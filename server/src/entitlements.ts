@@ -55,7 +55,23 @@ export type Entitlement = {
  * Returns true when the row was written, false when the guard kept it, and null when the driver does
  * not report a change count (the in-memory test doubles), which callers treat as written.
  */
-export async function writeEntitlement(db: D1LikeDatabase, ent: Entitlement, nowISO: string): Promise<boolean | null> {
+/**
+ * `attachOnly` (the sign-in reconcile, revenuecat-api.ts): write ONLY where the account has no Premium row
+ * yet, or a lapsed one. It never restates a live Premium row, because RevenueCat's subscriber view cannot
+ * say "payment failing": a subscription in Google's grace period reads there as plainly active, and the
+ * reconcile used to overwrite the webhook's `past_due` with `active` on every app start, hiding the "fix
+ * your payment" box (found in device test 8d, 2026-10-03). The webhook is the source of truth for a live
+ * subscription's state; the reconcile only fills in a purchase the webhook never delivered. Checked inside
+ * the same statement, so a webhook landing mid-reconcile can never be overwritten either.
+ */
+export async function writeEntitlement(db: D1LikeDatabase, ent: Entitlement, nowISO: string, opts: { attachOnly?: boolean } = {}): Promise<boolean | null> {
+  const guard = opts.attachOnly
+    ? `WHERE entitlements.premium = 0`
+    : `WHERE (
+           entitlements.premium = 0
+           OR COALESCE(entitlements.source, 'stripe') = excluded.source
+           OR (excluded.premium = 1 AND excluded.status IN ('active', 'trialing') AND excluded.cancel_at_period_end = 0)
+         )`;
   const res = await db
     .prepare(
       `INSERT INTO entitlements (user_id, premium, status, current_period_end, cancel_at_period_end, started_at, stripe_customer_id, source, updated_at)
@@ -69,11 +85,7 @@ export async function writeEntitlement(db: D1LikeDatabase, ent: Entitlement, now
          stripe_customer_id = COALESCE(?7, entitlements.stripe_customer_id),
          source = ?8,
          updated_at = ?9
-       WHERE (
-           entitlements.premium = 0
-           OR COALESCE(entitlements.source, 'stripe') = excluded.source
-           OR (excluded.premium = 1 AND excluded.status IN ('active', 'trialing') AND excluded.cancel_at_period_end = 0)
-         )`,
+       ${guard}`,
     )
     .bind(ent.userId, ent.premium ? 1 : 0, ent.status, ent.currentPeriodEnd, ent.cancelAtPeriodEnd ? 1 : 0, ent.premium ? nowISO : null, ent.customerId, ent.source, nowISO)
     .run();

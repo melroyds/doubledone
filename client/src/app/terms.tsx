@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
 import { fonts, spacing, type Theme } from '@/constants/theme';
-import { SELLS_HERE } from '@/lib/storefront';
+import { PLAY_COPY, SELLS_HERE } from '@/lib/storefront';
 import { useThemedStyles } from '@/lib/theme-provider';
 
 // The plain-English terms of service, also the public terms URL (doubledone.app/terms)
@@ -24,7 +24,7 @@ export default function TermsScreen() {
         <BackLink fallback="/settings" />
 
         <Text style={styles.title}>Terms</Text>
-        <Text style={styles.updated}>Last updated 27 September 2026.</Text>
+        <Text style={styles.updated}>Last updated 1 October 2026.</Text>
 
         <Text style={styles.lead}>
           These are the plain terms for using DoubleDone. No wall of legalese, just what you can expect from us and what
@@ -44,17 +44,34 @@ export default function TermsScreen() {
           cannot promise it will never be down.
         </Section>
 
-        {/* Android sells nothing (lib/storefront, Path C), so its terms carry no price and point to no
-            billing page: what is true for someone who already has Premium, and the free month. */}
-        {SELLS_HERE ? (
+        {/* Three versions, one per storefront (lib/storefront). Android sells only through Google Play, so
+            its terms carry no figure of ours: the price is Play's own, in the buyer's currency, shown before
+            they buy. Its Stripe and Apple lines say only how to CANCEL, never how to buy (Play's Payments
+            policy). The third is the Path C rollback, for a build that sells nothing. */}
+        {SELLS_HERE && PLAY_COPY ? (
           <Section styles={styles} heading="Premium and billing">
-            Premium is optional. It costs A$5 per month or A$50 per year, and it renews automatically until you
-            cancel. Each account can have one free 30-day trial, with no card required. Where you bought it decides who handles the
-            billing. If you subscribed on our website, or in an earlier version of the Android app, payment is handled
-            by Stripe, and you can cancel any time in the Stripe billing portal, reachable from the app. Premium is
-            not sold in the current Android app. If you subscribed on an iPhone or iPad, payment is handled by Apple through your Apple ID, and you cancel it in
-            your Apple ID subscription settings, not in the app. Either way you keep Premium until the end of the
-            period you have already paid for, and we will give reasonable notice of any price change.
+            Premium is optional. In this app it is sold through Google Play. The price is shown in Google Play before
+            you buy, in your own currency, and it is charged to your Google Play account every month or every year,
+            depending on the plan you choose. It renews automatically until you cancel, and you can cancel any time in
+            the Play Store: tap your profile picture, then Payments and subscriptions, then Subscriptions. You keep
+            Premium until the end of the period you have already paid for. Each account can also have Premium free for
+            30 days, once, with no card and no charge. That month is not a subscription and never becomes one. If you
+            subscribed somewhere else, that store handles the billing. If Stripe bills you, email
+            support@doubledone.app and we will cancel it for you, or cancel it by signing in on the DoubleDone website
+            with the same email. If you subscribed on an iPhone or iPad, Apple handles it, and you cancel it in your
+            Apple ID subscription settings. We will give reasonable notice of any price change.
+          </Section>
+        ) : SELLS_HERE ? (
+          <Section styles={styles} heading="Premium and billing">
+            Premium is optional. On our website it costs A$5 per month or A$50 per year, and it renews automatically
+            until you cancel. Each account can have one free 30-day trial, with no card required. Where you bought it
+            decides who handles the billing. If you subscribed on our website, or in an earlier version of the Android
+            app, payment is handled by Stripe, and you can cancel any time in the Stripe billing portal, reachable from
+            the app. If you subscribed on an iPhone or iPad, payment is handled by Apple through your Apple ID, and you
+            cancel it in your Apple ID subscription settings, not in the app. In the Android app, Premium is sold
+            through Google Play, at the price Google Play shows before you buy, and you cancel it in the Play Store
+            under Payments and subscriptions. Whichever it is, you keep Premium until the end of the period you have
+            already paid for, and we will give reasonable notice of any price change.
           </Section>
         ) : (
           <Section styles={styles} heading="Premium and billing">
@@ -70,10 +87,10 @@ export default function TermsScreen() {
           </Section>
         )}
 
-        {/* One paragraph as one string (Section takes text): only its opening differs on Android, which
-            never took a Stripe payment in this version and so does not mention earlier Android ones. */}
+        {/* One paragraph as one string (Section takes text). Its opening differs by storefront: Android leads
+            with Google Play, the only store it sells through, and never mentions earlier Android versions. */}
         <Section styles={styles} heading="Refunds">
-          {`${SELLS_HERE ? 'If Stripe bills you (you subscribed on our website, or in an earlier version of the Android app) and Premium does not work as described' : 'If Stripe bills you for Premium and it does not work as described'}, email support@doubledone.app within 7 days of the charge and we will refund it in full, back through Stripe, usually within 5 to 10 business days. Outside that window we do not refund the current period once it has started, but you can cancel any time to stop future charges. If you subscribed on an iPhone or iPad, Apple handles the payment, so refunds are requested from Apple and are at the discretion of Apple, not ours, and we cannot issue them directly. In every case, none of this limits your rights under the Australian Consumer Law, which always apply.`}
+          {`${SELLS_HERE && PLAY_COPY ? 'If you subscribed in this app through Google Play and Premium does not work as described, email support@doubledone.app within 7 days of the charge and we will refund it in full, through Google Play. You can also ask Google Play for a refund yourself, under its own refund policy. If Stripe bills you for Premium and it does not work as described' : SELLS_HERE ? 'If Stripe bills you (you subscribed on our website, or in an earlier version of the Android app) and Premium does not work as described' : 'If Stripe bills you for Premium and it does not work as described'}, email support@doubledone.app within 7 days of the charge and we will refund it in full, back through Stripe, usually within 5 to 10 business days. Outside that window we do not refund the current period once it has started, but you can cancel any time to stop future charges. If you subscribed on an iPhone or iPad, Apple handles the payment, so refunds are requested from Apple and are at the discretion of Apple, not ours, and we cannot issue them directly.${SELLS_HERE && !PLAY_COPY ? ' If you subscribed in the Android app through Google Play, email us within 7 days of the charge and we will refund it through Google Play, or ask Google Play yourself.' : ''} In every case, none of this limits your rights under the Australian Consumer Law, which always apply.`}
         </Section>
 
         <Section styles={styles} heading="Your tasks are yours">

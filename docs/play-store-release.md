@@ -12,10 +12,16 @@
 > Section 5a below has been updated in place: after Play blocked `USE_EXACT_ALARM` on 2026-06-29, the app
 > now declares `SCHEDULE_EXACT_ALARM` alone (since versionCode 11).
 >
-> **Correction (2026-09-27), read before anything about Premium:** section 5d used to say the Stripe web
-> checkout was allowed on Android. It never was. Play rejected 1.5.1 on 2026-09-26, and the Android app is
-> now **consumption-only (Path C)**: it sells nothing and shows no price. Section 5d has the why, and
-> section 10 is the step-by-step resubmission run sheet.
+> **Path A (1.7.0, 2026-10), read before anything about Premium:** the Android app now SELLS Premium,
+> through Google Play Billing only (RevenueCat, prices from Play's own localised string). It still never
+> shows a price of ours, never Stripe and never a pointer to buy on the website. Section 11 is the Path A
+> release run sheet and supersedes the Path C answers in sections 1, 4, 5c, 5d, 7, 8 and 10 wherever they
+> disagree. The full plan, with every console step, is [path-a-runbook.md](path-a-runbook.md).
+>
+> **Correction (2026-09-27), kept for the record:** section 5d used to say the Stripe web checkout was
+> allowed on Android. It never was. Play rejected 1.5.1 on 2026-09-26, and 1.6.0 shipped **consumption-only
+> (Path C)**: it sold nothing and showed no price. Section 5d has the why, and section 10 is the Path C
+> resubmission run sheet. Both are history since Path A.
 
 A first-release guide for DoubleDone (Expo SDK 56 / EAS, Android package `app.doubledone`, currently
 v1.0.0). Researched and adversarially reviewed 2026-06-24. Work top to bottom. The handful of things most
@@ -49,8 +55,9 @@ never hand-edit the versionCode. The rest of this is mostly Play Console work an
 1. Sign in at https://play.google.com/console, accept the Developer Program policies, pay the $25, fill in
    your profile (website https://doubledone.app). Account verification can take 24-48h, so start here.
 2. **Create app**: name **DoubleDone**, default language English, app category **Productivity**, type
-   **Free**. Not a game, no ads. (The Android app sells nothing. Premium bought on the web or an iPhone
-   works in it after sign-in, see section 5d.)
+   **Free**. Not a game, no ads. (Free to install. Since 1.7.0 it sells an optional Premium subscription
+   through Google Play Billing, section 11. Premium bought on the web or an iPhone also works in it after
+   sign-in.)
 3. **Package name**: lock it to **app.doubledone**. It is immutable after the first release.
 4. **App signing** (Release > Setup): let Google manage the signing key. This is mandatory for new apps,
    do not upload your own keystore.
@@ -105,10 +112,12 @@ flag stale dates.
   [play-store-submission-pack.md](play-store-submission-pack.md), and the localised ones in
   [play-store-listings-localised.md](play-store-listings-localised.md)):
 
-> **Rule for every Play listing, in every language (Path C, 2026-09-27):** no price, no Premium section,
-> no list of paid-only features, no "billed through Stripe" or "not Google Play" line, and no call to buy
-> or subscribe on the website. Payments policy section 4 names the store listing itself as a place an app
-> must not lead users to another payment method. `node scripts/check-listings.mjs` fails on any of it.
+> **Rule for every Play listing, in every language (Path A, 2026-10; Path C before it):** no price or
+> currency (Play shows its own, localised), no "billed through Stripe" or "not Google Play" line, and no
+> call to buy or subscribe on the website. Naming Premium and what it holds is allowed since the app sells
+> it through Play. Payments policy section 4 names the store listing itself as a place an app must not lead
+> users to another payment method. `node scripts/check-listings.mjs` fails on any of it. No screenshot or
+> feature graphic may show a price either; the gate cannot read images, so check those by hand.
 
 ```
 DoubleDone is a calm, ADHD-friendly to-do app for people who get overwhelmed by ordinary
@@ -135,8 +144,8 @@ Read the plain-English privacy policy at doubledone.app/privacy.
 ```
 
 - **Graphics**: the feature graphic, screenshots, and icon from section 0.
-- **Content rating**: fill the questionnaire, answer No to all the sensitive-content questions, and No
-  to users buying digital goods in the app (the Android app sells nothing, see 5d). Expect a 3+ /
+- **Content rating**: fill the questionnaire, answer No to all the sensitive-content questions, and
+  **Yes** to users buying digital goods in the app (since 1.7.0, section 11). Expect a 3+ /
   Everyone rating. The shared-list (Ours) answers are in [ours-store-compliance.md](ours-store-compliance.md).
 - **Support email**: support@doubledone.app (monitored, see section 0).
 
@@ -207,11 +216,11 @@ doubledone.app/privacy** (do not invent retention periods, use whatever your pol
 2. **Email -> Supabase.** Collected only if the user turns on sync. For account/authentication.
 3. **Pseudonymous completion telemetry -> the Worker's D1.** No user id, IP, or task text. For improving
    the breakdown suggestions. Disclose per your policy's wording.
-4. **Payment info: Not collected, for the Android app (corrected 2026-09-27).** Premium is not sold in the
-   Android app (5d). Payments happen on the web (Stripe) or through Apple, outside this app, so the Android
-   Data Safety form declares **Financial info > Payment info: Not collected**. The privacy policy still
-   describes Stripe's payment events, because the web sells, and it should say plainly that those happen
-   on the website or through Apple, never in the Android app.
+4. **Payments (Path A, 1.7.0).** The Android app sells through Google Play Billing, so the form gains
+   the rows in section 11 step 3: **Financial info > Purchase history: Collected**, **Personal info >
+   User IDs**, and **Device or other IDs** (RevenueCat's install id, required, because RevenueCat starts at
+   launch for everyone). **Payment info stays Not collected**: Google takes the card, we never see it.
+   (Path C, 2026-09-27 to 1.7.0, declared no payment data at all, because nothing was sold.)
 
 Two things that must also match the policy: synced data is stored in **Supabase (Sydney, Australia)**, and the
 service sends the owner **system health alerts** (counts and error strings only, no personal data, no task
@@ -220,7 +229,10 @@ text) per the policy's "Keeping the service running" section.
 Declare **no ads, no third-party analytics/trackers, no advertising ID**. Do not declare camera, location,
 contacts, etc. (DoubleDone uses none).
 
-### 5d. BLOCKER: the Android app sells nothing (Path C, corrected 2026-09-27)
+### 5d. HISTORY: the Android app sold nothing (Path C, 2026-09-27 to 1.7.0)
+
+*Superseded by Path A (section 11): the app now sells through Google Play Billing. Kept because its one
+lesson still binds: never Stripe, never a price of ours, never a pointer to the website on Android.*
 
 **What this section used to say was wrong.** It said the external Stripe web checkout was allowed on
 Android and planned a reviewer reply defending it. Neither was ever true, and that reply must **never be
@@ -308,8 +320,8 @@ block in `eas.json`, and run `eas submit --platform android --latest`.
 - [ ] https://doubledone.app/privacy loads 200 in incognito with the full policy text (see section 3).
 - [ ] Privacy policy "Last updated" date is current, its content matches the Data Safety form, and `privacy.html` matches the in-app `privacy.tsx`.
 - [ ] Terms of Service live at https://doubledone.app/terms.
-- [ ] Stripe in LIVE mode: live keys + live price ids on the Worker, the webhook registered for the live endpoint, one real test purchase verified. (This is the WEB's checkout. The Android app sells nothing, 5d.)
-- [ ] The Android build shows no price, no purchase control and no buy-elsewhere line anywhere, and `node scripts/check-listings.mjs` passes on every listing paste source (5d, section 10).
+- [ ] Stripe in LIVE mode: live keys + live price ids on the Worker, the webhook registered for the live endpoint, one real test purchase verified. (This is the WEB's checkout. Android sells only through Google Play, section 11.)
+- [ ] The Android build shows only Google Play's own prices, no figure of ours, no Stripe and no buy-elsewhere line anywhere, and `node scripts/check-listings.mjs` passes on every listing paste source (section 11).
 - [ ] Control centre armed: SEND_EMAIL / FEEDBACK_TO / HEARTBEAT_URL set, the cron active, the first heartbeat + pulse seen.
 - [ ] https://api.doubledone.app is live (the reviewer's device will call it for AI features). Check `/health`.
 - [ ] No secrets in the client bundle (all keys live on the Worker; gitleaks already guards this).
@@ -332,7 +344,7 @@ block in `eas.json`, and run `eas submit --platform android --latest`.
 | Privacy policy unreachable | The SPA served only a JS shell to the crawler | Serve a static/prerendered /privacy page (section 3) |
 | Data Safety mismatch | Form contradicts the policy | Align the policy and the form word for word |
 | "Requires sign-in" | Reviewer could not use it without an account | It is offline-first, verify on a clean device + the "Works offline" line is in the listing |
-| Payments / Subscriptions policy (this rejected 1.5.1 on 2026-09-26) | The app showed an A$ price and sold Premium through a Stripe link-out. Payments policy sections 2 and 4 forbid both on Android, and section 4 bans pointing to another payment method from the listing too | Never argue that Stripe is allowed, and never appeal. Ship the consumption-only build (5d, Path C) with scrubbed listings, then follow the run sheet (section 10). Play Billing is the later fix |
+| Payments / Subscriptions policy (this rejected 1.5.1 on 2026-09-26) | The app showed an A$ price and sold Premium through a Stripe link-out. Payments policy sections 2 and 4 forbid both on Android, and section 4 bans pointing to another payment method from the listing too | Never argue that Stripe is allowed, and never appeal. 1.6.0 shipped consumption-only (Path C, section 10). 1.7.0 sells through Play Billing (Path A, section 11). If Path A is rejected: fix, run the full policy sweep again, resubmit. Two Payments or Subscriptions rejections in a month is the pattern that ends in suspension |
 
 ---
 
@@ -544,3 +556,93 @@ from Play, then check:
 
 Once the release is live at 100%, bump `android` in `client/public/version.json` by hand (it is only
 ever bumped once a store release is genuinely live).
+
+---
+
+## 11. Path A release run sheet (1.7.0, Android sells through Google Play)
+
+The console steps are numbered as in [path-a-runbook.md](path-a-runbook.md) (M10 to M17). This section is
+the part that changes the Play Console's App content answers. Do them **in one batch with the 1.7.0
+release**, never before: until it is live, 1.6.0 still sells nothing and the old answers are the true ones.
+
+### 1. App access: two sets of sign-in details
+
+**Monitor and improve > App content > App access > Manage**. Play allows up to five sets. Each set's
+"Any other information" field caps at 500 characters.
+
+**Set 1** (`appreview@`, comped, every feature open), 427 characters:
+
+```
+Passwordless sign-in (email + one-time code):
+1. On Today, tap "Sync and sharing".
+2. Enter appreview@doubledone.app and tap "Email me a code".
+3. In any browser, open https://api.doubledone.app/review-code for the latest 6-digit code.
+4. Type it into the app.
+Codes last an hour. If none shows, tap send again and refresh the page.
+This account has Premium on, so every feature is open. To test buying, use the second account.
+```
+
+**Set 2** (`appreview-buy@`, NOT comped, on `SANDBOX_GRANT_UIDS`), 398 characters:
+
+```
+Passwordless sign-in (email + one-time code):
+1. On Today, tap "Sync and sharing".
+2. Enter appreview-buy@doubledone.app and tap "Email me a code".
+3. In any browser, open https://api.doubledone.app/review-code for the latest 6-digit code.
+4. Type it into the app.
+This account has no Premium. Open Menu, then Premium, and tap Go Premium (not the free month) to reach Google Play's purchase screen.
+```
+
+Before saving set 2: deploy the Worker carrying slice 3 (the relay learns the second address there), create
+the account in Supabase (sign in once with it), add its id to the `SANDBOX_GRANT_UIDS` Worker secret, make
+sure it is NOT on `COMP_EMAILS`, and add a Cloudflare Email Routing rule sending
+`appreview-buy@doubledone.app` to the `doubledone-ai` Worker. Each address keeps its own latest code, and
+the review-code page prints each fresh one on its own line, labelled with its address, so two reviews at
+once never hand anyone the other account's code. PREM-60 proves the whole path.
+
+### 2. Content rating
+
+**Users can buy digital goods: Yes.** Every other answer in section 10 step 5 stays exactly as it is.
+
+### 3. Data safety
+
+| Data type | Collected | Shared | Required? | Purposes |
+|---|---|---|---|---|
+| Financial info > Purchase history | Yes | No | Required | App functionality, Account management |
+| Personal info > User IDs | Yes | No | Optional | Account management, App functionality |
+| Device or other IDs | Yes (RevenueCat's install id) | No | **Required** | App functionality |
+| Financial info > Payment info | No | n/a | n/a | n/a |
+
+Device or other IDs is required because RevenueCat is configured at launch for every user, not only buyers.
+User IDs, because the account id goes to RevenueCat on every sign-in. Payment info stays No: Google takes
+the card. The privacy policy (1 October 2026) says all of this, and that billing records outlive a deleted
+account.
+
+### 4. Store settings: the Website field is now required to be the support page
+
+**Grow users > Store presence > Store settings**: the Website field must be `https://doubledone.app/support`,
+not the root. The root opens the web app, whose Premium screen sells through Stripe, and an app that sells
+through Play must not lead anyone there. The support page names Google Play for Android subscribers and
+carries no price.
+
+### 5. Store listing
+
+It may now name Premium and what it holds. It still carries no price, no currency, no Stripe and no
+"buy on the website" line in any language, and no screenshot or feature graphic shows a price. Run
+`node scripts/check-listings.mjs` after any edit.
+
+### 6. Managed publishing, then a staged rollout
+
+Turn on **Managed publishing** before submitting, so an approval does not go live until Melroy says. Promote
+the tested internal AAB to production at **100%** (Melroy's call, 2026-10-03: with about 43 Android installs a
+20% stage is roughly 8 people and tells us nothing, and the money path was proven end to end that day with a
+real purchase and refund). A 100% release cannot be halted, so the nets are the kill switch below and a fix
+build. Release notes go in the six locale
+tags (en-AU, de-DE, es-419, es-ES, fr-FR, it-IT). Once it is live, bump `android` to `1.7.0` in
+`client/public/version.json` by hand.
+
+### 7. If it goes wrong after release
+
+Halt the staged rollout. The kill switch for new purchases is deactivating both base plans in Play Console,
+and the app then shows its calm "Google Play is not answering" state. The real rollback is a Path C build at
+a higher versionCode: `SELLS_HERE = false` in `client/src/lib/storefront.android.ts`, one Android build.

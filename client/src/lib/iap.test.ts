@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { weeklyAllowance } from './entitlement';
-import { localEntitlement, packagesToOffers, purchaseGate, purchaseOutcome } from './iap';
+import { FREE_ENTITLEMENT, type Entitlement } from './entitlement';
+import { buyCheck, heldSubscription, localEntitlement, needsBillingFix, packagesToOffers, purchaseGate, purchaseOutcome, storeOf } from './iap';
 
 describe('purchaseOutcome (thrown SDK purchase error -> one calm outcome)', () => {
   it('reads userCancelled first, before any code', () => {
@@ -17,6 +18,13 @@ describe('purchaseOutcome (thrown SDK purchase error -> one calm outcome)', () =
     expect(purchaseOutcome({ code: '2' })).toBe('store_down'); // STORE_PROBLEM
     expect(purchaseOutcome({ code: '3' })).toBe('not_allowed'); // PURCHASE_NOT_ALLOWED
     expect(purchaseOutcome({ code: '10' })).toBe('network'); // NETWORK
+  });
+
+  it('reads a purchase that belongs to ANOTHER DoubleDone account as owned_elsewhere, not a failure (7 and 13)', () => {
+    expect(purchaseOutcome({ code: '7' })).toBe('owned_elsewhere'); // RECEIPT_ALREADY_IN_USE
+    expect(purchaseOutcome({ code: '13' })).toBe('owned_elsewhere'); // RECEIPT_IN_USE_BY_OTHER_SUBSCRIBER
+    // and an explicit cancel still wins over either
+    expect(purchaseOutcome({ userCancelled: true, code: '7' })).toBe('cancelled');
   });
 
   it('the pending vs granted line is the one that must never blur', () => {
@@ -98,7 +106,7 @@ describe('packagesToOffers (RevenueCat offering -> paywall offers)', () => {
 describe('purchaseGate (the double-charge guard)', () => {
   const base = { iapAvailable: true, signedIn: true, loading: false, premium: false };
 
-  it('hides the store button when IAP is unavailable (web + Android)', () => {
+  it('hides the store button when IAP is unavailable (the web)', () => {
     expect(purchaseGate({ ...base, iapAvailable: false })).toBe('hidden');
     // hidden wins even if other flags would say buy
     expect(purchaseGate({ iapAvailable: false, signedIn: false, loading: true, premium: true })).toBe('hidden');
@@ -159,6 +167,7 @@ describe('localEntitlement', () => {
       since: '2026-02-09T05:22:00Z',
       currentPeriodEnd: Math.floor(Date.parse('2026-09-09T05:22:00Z') / 1000),
       cancelAtPeriodEnd: false,
+      source: null, // this fixture names no store; the store tests below cover it
     });
   });
 
@@ -198,5 +207,155 @@ describe('localEntitlement', () => {
     const lifetime = localEntitlement(info({ willRenew: false, expirationDate: null }));
     expect(lifetime?.cancelAtPeriodEnd).toBe(false);
     expect(lifetime?.currentPeriodEnd).toBeNull();
+  });
+});
+
+// Android (Path A, 2026-10). Google Play has no rule like Apple's 5.1.1, so Android sells only to a
+// signed-in account, and nobody whose existing subscription has a payment failing is offered a second one.
+describe('purchaseGate on Android (an account first, and a failing payment is fixed, never rebought)', () => {
+  const android = { iapAvailable: true, signedIn: true, loading: false, premium: false, requireAccount: true };
+
+  it('signed out, the button is a sign-in, never a purchase', () => {
+    expect(purchaseGate({ ...android, signedIn: false })).toBe('sign_in');
+    // even while loading, or with a device that thinks it is premium: there is no anonymous purchase here
+    expect(purchaseGate({ ...android, signedIn: false, loading: true })).toBe('sign_in');
+    expect(purchaseGate({ ...android, signedIn: false, premium: true })).toBe('sign_in');
+  });
+
+  it('keeps every iOS answer for a signed-in Android user', () => {
+    expect(purchaseGate(android)).toBe('buy');
+    expect(purchaseGate({ ...android, loading: true })).toBe('wait');
+    expect(purchaseGate({ ...android, premium: true })).toBe('already_premium');
+  });
+
+  it('a failing payment on an existing subscription is fixed, never bought again', () => {
+    for (const status of ['past_due', 'unpaid', 'on_hold']) {
+      expect(purchaseGate({ ...android, status })).toBe('fix_billing');
+      // the same on iOS: a Stripe subscriber in dunning must not buy through Apple either
+      expect(purchaseGate({ ...android, requireAccount: false, status })).toBe('fix_billing');
+    }
+  });
+
+  it('the wait window still comes before the billing answer, so a stale status never shows a button mid-read', () => {
+    expect(purchaseGate({ ...android, loading: true, status: 'past_due' })).toBe('wait');
+  });
+
+  it('an ended or cancelled subscription can buy again', () => {
+    for (const status of ['expired', 'canceled', null]) expect(purchaseGate({ ...android, status })).toBe('buy');
+  });
+
+  it('iOS still lets an anonymous user buy (App Review 5.1.1)', () => {
+    expect(purchaseGate({ ...android, requireAccount: false, signedIn: false })).toBe('buy');
+  });
+});
+
+describe('needsBillingFix', () => {
+  it('is the payment-failing statuses and nothing else', () => {
+    expect(['past_due', 'unpaid', 'on_hold'].every(needsBillingFix)).toBe(true);
+    for (const s of ['active', 'trialing', 'trial', 'comp', 'canceled', 'expired', null, undefined, '']) expect(needsBillingFix(s)).toBe(false);
+  });
+});
+
+// The last guard before a store sheet opens. It FAILS CLOSED: a read that did not work is never "free".
+describe('buyCheck (the fresh read before any charge)', () => {
+  const ent = (e: Partial<Entitlement>): Entitlement => ({ ...FREE_ENTITLEMENT, ...e });
+  const ok = (e: Partial<Entitlement> = {}, signedIn = true) => ({ ok: true as const, entitlement: ent(e), signedIn });
+
+  it('refuses when the entitlement could not be read (offline, a 5xx, the 503 a D1 hiccup returns)', () => {
+    expect(buyCheck({ ok: false }, true)).toBe('cant_check');
+    expect(buyCheck({ ok: false }, false)).toBe('cant_check');
+  });
+
+  it('refuses when the screen is signed in but the read went out with no session', () => {
+    expect(buyCheck(ok({}, false), true)).toBe('cant_check');
+  });
+
+  it('lets an anonymous iOS buyer through: there is no server entitlement to read', () => {
+    expect(buyCheck(ok({}, false), false)).toBe('go');
+  });
+
+  it('never charges someone already Premium, from any store', () => {
+    for (const source of ['stripe', 'apple', 'google', null] as const) {
+      expect(buyCheck(ok({ premium: true, status: 'active', source }), true)).toBe('already');
+    }
+    expect(buyCheck(ok({ premium: true, status: 'trial' }), true)).toBe('already');
+    expect(buyCheck(ok({ premium: true, status: 'comp' }), true)).toBe('already');
+  });
+
+  it('sends a failing payment to be fixed, never to a second subscription', () => {
+    expect(buyCheck(ok({ premium: false, status: 'past_due', source: 'stripe' }), true)).toBe('fix_billing');
+    expect(buyCheck(ok({ premium: false, status: 'unpaid', source: 'stripe' }), true)).toBe('fix_billing');
+  });
+
+  it('goes for a genuinely free, readable, signed-in account', () => {
+    expect(buyCheck(ok(), true)).toBe('go');
+    expect(buyCheck(ok({ premium: false, status: 'expired', source: 'google' }), true)).toBe('go');
+  });
+});
+
+// The device entitlement names the store that SOLD it (the 2026-10-01 review): RevenueCat entitlements are
+// cross-store, so an Apple subscription shows on Android, and stamping it 'google' told an Apple subscriber
+// that deleting their account would stop their billing.
+describe('the device entitlement carries its real store', () => {
+  const active = (store: unknown) => ({
+    entitlements: { active: { premium: { originalPurchaseDate: '2026-01-01T00:00:00Z', expirationDate: '2026-11-01T00:00:00Z', willRenew: true, store } } },
+  });
+
+  it('maps RevenueCat stores to ours, and anything else to no store', () => {
+    expect(storeOf('APP_STORE')).toBe('apple');
+    expect(storeOf('MAC_APP_STORE')).toBe('apple');
+    expect(storeOf('PLAY_STORE')).toBe('google');
+    for (const s of ['PROMOTIONAL', 'STRIPE', 'RC_BILLING', 'AMAZON', 'TEST_STORE', undefined, null, 7]) expect(storeOf(s)).toBeNull();
+  });
+
+  it('an Apple subscription read on Android is Apple, a Play one is Google, a promotional grant is neither', () => {
+    expect(localEntitlement(active('APP_STORE'))?.source).toBe('apple');
+    expect(localEntitlement(active('PLAY_STORE'))?.source).toBe('google');
+    expect(localEntitlement(active('PROMOTIONAL'))?.source).toBeNull();
+  });
+});
+
+// Apple's billing retry seen on Android (the 2026-10-01 review, narrowed by device test 8d on 2026-10-03):
+// the server reads it as 'expired', so the device's own CustomerInfo keeps a Google Play buy button from
+// selling a second subscription while Apple still retries the card. Google's own hold is NOT held: buying
+// again replaces the held Google subscription, proven in sandbox.
+describe('heldSubscription (an Apple subscription in billing retry, seen from Android)', () => {
+  const NOW = Date.parse('2026-10-01T00:00:00Z');
+  const DAY = 86_400_000;
+  const info = (premium: Record<string, unknown> | undefined) => ({ entitlements: { all: premium ? { premium } : {} } });
+  const held = (over: Record<string, unknown> = {}) =>
+    info({ isActive: false, willRenew: true, billingIssueDetectedAt: new Date(NOW - 10 * DAY).toISOString(), store: 'APP_STORE', ...over });
+
+  it('sees an Apple subscription in billing retry', () => {
+    expect(heldSubscription(held(), NOW)).toEqual({ store: 'apple' });
+    expect(heldSubscription(held({ store: 'MAC_APP_STORE' }), NOW)).toEqual({ store: 'apple' });
+  });
+
+  it("never holds Google's own account hold: buying again replaces it (device test 8d), whatever RevenueCat reports", () => {
+    // exactly what RevenueCat showed in 8d: inactive, a billing issue, and NOT renewing (the billing cancel)
+    expect(heldSubscription(held({ store: 'PLAY_STORE', willRenew: false }), NOW)).toBeNull();
+    // and even if it ever did report renewing, a Google hold is still not refused
+    expect(heldSubscription(held({ store: 'PLAY_STORE', willRenew: true }), NOW)).toBeNull();
+    expect(heldSubscription(held({ store: 'PROMOTIONAL' }), NOW)).toBeNull();
+  });
+
+  it('is not held once Apple has given up (it no longer renews), so buying again is allowed', () => {
+    expect(heldSubscription(held({ willRenew: false }), NOW)).toBeNull();
+  });
+
+  it('is not held when active (grace: Premium is still on, and the active check answers first)', () => {
+    expect(heldSubscription(held({ isActive: true }), NOW)).toBeNull();
+  });
+
+  it('is not held with no billing issue, or one older than 60 days', () => {
+    expect(heldSubscription(held({ billingIssueDetectedAt: null }), NOW)).toBeNull();
+    expect(heldSubscription(held({ billingIssueDetectedAt: new Date(NOW - 61 * DAY).toISOString() }), NOW)).toBeNull();
+    expect(heldSubscription(held({ billingIssueDetectedAt: 'not a date' }), NOW)).toBeNull();
+  });
+
+  it('is not held with no premium entitlement at all, or an unreadable CustomerInfo', () => {
+    expect(heldSubscription(info(undefined), NOW)).toBeNull();
+    expect(heldSubscription(null, NOW)).toBeNull();
+    expect(heldSubscription({}, NOW)).toBeNull();
   });
 });

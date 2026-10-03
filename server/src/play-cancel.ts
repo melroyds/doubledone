@@ -16,7 +16,12 @@ export type PlayCancelEnv = { DB?: D1LikeDatabase; RC_SECRET_KEY?: string };
  * If NEITHER can be read, the answer is yes. A deleted account that keeps charging is far worse than
  * one extra lookup.
  */
-export async function mayHavePlay(db: D1LikeDatabase | undefined, userId: string): Promise<boolean> {
+export async function mayHavePlay(db: D1LikeDatabase | undefined, userId: string, hint = false): Promise<boolean> {
+  // The app's own word that this account may hold a Play subscription we have not heard about yet (it is
+  // signing out of an Android build, or its device shows a Google Play purchase whose webhook is still on
+  // its way). It only ever makes us look harder: the lookup is for an id the app has already given to
+  // RevenueCat, so it creates nobody, and a person can only ask about themselves (the token is verified).
+  if (hint) return true;
   if (!db) return false; // no store at all (tests, local dev): nothing was ever recorded to find
   let known = false;
   try {
@@ -82,8 +87,8 @@ export function renewingPlaySubscriptions(body: unknown, nowMs: number): PlayRen
  * when it could not be done in full: then the caller answers 502 and the app deletes nothing.
  * Keeps going past a failed cancel, so as much renewal as possible stops, then still says null.
  */
-export async function cancelPlayRenewals(env: PlayCancelEnv, userId: string, nowMs: number, doFetch: typeof fetch = fetch): Promise<number | null> {
-  if (!(await mayHavePlay(env.DB, userId))) return 0;
+export async function cancelPlayRenewals(env: PlayCancelEnv, userId: string, nowMs: number, doFetch: typeof fetch = fetch, hint = false): Promise<number | null> {
+  if (!(await mayHavePlay(env.DB, userId, hint))) return 0;
   if (!env.RC_SECRET_KEY) return null; // a Play subscriber, and no way to reach their billing: say so
   let body: unknown;
   try {

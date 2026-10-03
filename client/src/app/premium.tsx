@@ -9,14 +9,14 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { useSession } from '@/lib/auth';
 import { weeklyAllowance } from '@/lib/entitlement';
-import { purchaseGate } from '@/lib/iap';
+import { buyCheck, needsBillingFix, purchaseGate } from '@/lib/iap';
 import { t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
-import { manageRoute, premiumPrimaryAction, showsCancelReassurance, trialSlot } from '@/lib/premium-ui';
-import { buy, IAP_AVAILABLE, loadOffers, openAppleSubscriptions, restore, type StoreOffer } from '@/lib/purchases';
+import { manageRoute, premiumPrimaryAction, showsCancelReassurance, storeCopyKeys, trialSlot } from '@/lib/premium-ui';
+import { buy, IAP_AVAILABLE, loadOffers, openStoreSubscriptions, restore, STORE_SOURCE, type StoreOffer } from '@/lib/purchases';
 import { loadTrialUsed, saveTrialUsed } from '@/lib/storage';
-import { SELLS_HERE } from '@/lib/storefront';
-import { loadEntitlement, startCheckout, startPortal, startTrial } from '@/lib/stripe';
+import { PLAY_COPY, SELLS_HERE, STRIPE_HERE } from '@/lib/storefront';
+import { loadEntitlementChecked, startCheckout, startPortal, startTrial } from '@/lib/stripe';
 import { track } from '@/lib/telemetry';
 import { useThemedStyles } from '@/lib/theme-provider';
 
@@ -30,10 +30,21 @@ function formatPeriod(epochSec: number | null): string | null {
   }
 }
 
+// The store's buy button shows only where this build sells at all. SELLS_HERE is true everywhere since Path A;
+// reading it here too is what makes `SELLS_HERE = false` in storefront.android.ts a one-line Path C rollback.
+const IAP = IAP_AVAILABLE && SELLS_HERE;
+// The catalogue keys for every store-dependent line, chosen in one tested place (lib/premium-ui): Google
+// Play's wording on Android, Apple's elsewhere. Never a fixed price, a discount or a dollar word on Android.
+const COPY = storeCopyKeys(PLAY_COPY);
+// Android sells only to a signed-in account, checked against RevenueCat before any charge (lib/iap
+// purchaseGate, lib/purchases.android.ts). iOS must allow an anonymous purchase (App Review 5.1.1).
+const REQUIRE_ACCOUNT = STORE_SOURCE === 'google';
+
 // The Premium surface. Calm, never a hard wall: the free monthly keepsake is always
 // honoured, and Premium is framed as "keep every week", not "unlock or lose". The
 // server is the source of truth for premium status; this screen only reads it and
-// starts Checkout. Returns from Stripe with ?status=success|cancelled.
+// starts a purchase: Stripe Checkout on the web (returns with ?status=success|cancelled),
+// the App Store on iOS, Google Play on Android.
 export default function PremiumScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -65,11 +76,11 @@ export default function PremiumScreen() {
   const allowance = weeklyAllowance(effectiveEntitlement.since, now);
   const periodLabel = formatPeriod(effectiveEntitlement.currentPeriodEnd);
 
-  // --- Apple IAP (iOS only). Every line below is inert on web + Android: IAP_AVAILABLE is a
-  // compile-time false there (it comes from lib/purchases.ts, not lib/purchases.ios.ts), so the
-  // Stripe path this screen has always run is untouched by construction. Declared HERE, above the
-  // focus effect that fills it, because that effect calls setOffers. ---
-  const [offers, setOffers] = useState<StoreOffer[]>([]); // from the StoreKit offering; empty off iOS
+  // --- In-app purchases (Apple on iOS, Google Play on Android). Every line below is inert on the web:
+  // IAP_AVAILABLE is a compile-time false there (it comes from lib/purchases.ts, not a platform file), so
+  // the Stripe path the web has always run is untouched by construction. Declared HERE, above the focus
+  // effect that fills it, because that effect calls setOffers. ---
+  const [offers, setOffers] = useState<StoreOffer[]>([]); // from the store's offering; empty on the web
   const [restoreMsg, setRestoreMsg] = useState<string | null>(null); // the honest, visible outcome of a Restore tap
 
   // Re-check the entitlement when the screen gains focus, e.g. after returning from checkout.
@@ -80,8 +91,8 @@ export default function PremiumScreen() {
       // Re-read the store prices too, not just the entitlement. buy() fetches the offering AGAIN at
       // tap time, so a price read once on mount can drift from the price actually charged (a store
       // price change, or a storefront that resolved late). Refreshing here keeps the number on
-      // screen and the number on Apple's sheet the same read. No-op off iOS.
-      if (IAP_AVAILABLE) void loadOffers().then(setOffers);
+      // screen and the number on the store's sheet the same read. No-op on the web.
+      if (IAP) void loadOffers().then(setOffers);
     }, [status, refresh]),
   );
 
@@ -95,20 +106,45 @@ export default function PremiumScreen() {
   // Offers are loaded in the focus effect above (not once on mount), so the displayed price is a
   // fresh read every time the screen is seen.
   const offer = offers.find((o) => o.plan === plan);
+  // What a screen reader hears for each plan and for the buy button. In a store build it is the store's
+  // own price string, the same one on screen, never our "five dollars" (a spoken A$ figure is still an A$
+  // figure to Play, and wrong for anyone outside Australia). Before the store answers, just the plan's name.
+  // On the web, our own price, which is the price Stripe charges.
+  function planA11y(p: 'monthly' | 'annual'): string {
+    if (!IAP) return p === 'annual' ? t('premium.planAnnualA11y') : t('premium.planMonthlyA11y');
+    const o = offers.find((x) => x.plan === p);
+    if (!o) return p === 'annual' ? t(COPY.planAnnualNoPrice) : t(COPY.planMonthly);
+    return t(p === 'annual' ? COPY.planAnnualA11y : COPY.planMonthlyA11y, { price: o.priceString });
+  }
+  function subscribeA11y(p: 'monthly' | 'annual'): string {
+    if (!IAP) return p === 'annual' ? t('premium.subscribeAnnualA11y') : t('premium.subscribeMonthlyA11y');
+    const o = offers.find((x) => x.plan === p);
+    if (!o) return t('premium.goPremium');
+    return t(p === 'annual' ? COPY.subscribeAnnualA11y : COPY.subscribeMonthlyA11y, { price: o.priceString });
+  }
   // Which primary control the entitled panel shows. Pure and tested (lib/premium-ui): trial
-  // converts where Stripe can (the web), comp gets a calm no-portal line, everyone else manages.
-  // Android sells nothing (lib/storefront, Path C): no price, no toggle, no Go Premium, no Stripe link.
-  const primaryAction = premiumPrimaryAction(effectiveEntitlement.status, IAP_AVAILABLE, SELLS_HERE);
-  // The ?status= a Stripe checkout returns with. Android never starts one, so it never reads one either.
+  // converts where Stripe can (the web), comp gets a calm no-portal line, everyone else manages. On
+  // Android only a Google Play subscription gets a button (it opens the Play Store); a Stripe or Apple
+  // one gets a plain line, never a link to another biller (Play's Payments policy).
+  const primaryAction = premiumPrimaryAction(effectiveEntitlement.status, IAP, SELLS_HERE, STRIPE_HERE, effectiveEntitlement.source);
+  // The ?status= a Stripe checkout returns with, which a store purchase also sets to reuse the "setting up"
+  // poll. A build that sells nothing (the Path C rollback) never starts either, so it never reads one.
   const payStatus = SELLS_HERE ? status : undefined;
-  // What the primary CTA should do, given sign-in + entitlement state. On web/Android this is
+  // What the store's buy button should do, given sign-in + entitlement state. On the web this is
   // always 'hidden' (IAP off), so the existing Stripe CTA renders instead.
-  const gate = purchaseGate({ iapAvailable: IAP_AVAILABLE, signedIn: Boolean(session), loading, premium });
-  // Where the free month goes. Pure and tested (lib/premium-ui): on iOS it moves out from under
-  // the buy button rather than disappearing.
-  const slot = trialSlot({ signedIn: Boolean(session), iapAvailable: IAP_AVAILABLE });
-  // Android sells nothing, so the free month is the one thing this page offers there, and once this account
-  // has used it the link could only ever answer "already had it". Remembered per account (lib/storage), it
+  const gate = purchaseGate({
+    iapAvailable: IAP,
+    signedIn: Boolean(session),
+    loading,
+    premium,
+    requireAccount: REQUIRE_ACCOUNT,
+    status: effectiveEntitlement.status,
+  });
+  // Where the free month goes. Pure and tested (lib/premium-ui): in a store build it moves out from
+  // under the buy button rather than disappearing.
+  const slot = trialSlot({ signedIn: Boolean(session), iapAvailable: IAP });
+  // In a build that sells nothing (the Path C rollback), the free month is the one thing this page offers, and
+  // once this account has used it the link could only ever answer "already had it". Remembered per account (lib/storage), it
   // stops being offered: our own rule is never a control whose only outcome is a no. Web and iOS unchanged.
   const uid = session?.user?.id ?? null;
   const [trialUsed, setTrialUsed] = useState(false);
@@ -127,8 +163,8 @@ export default function PremiumScreen() {
     if (!SELLS_HERE && uid && effectiveEntitlement.status === 'trial') void saveTrialUsed(uid);
   }, [uid, effectiveEntitlement.status]);
   // A member whose payment is failing is not offered a free month right under the notice that their
-  // subscription is paused (confusing, and the server would refuse it anyway).
-  const dunning = effectiveEntitlement.status === 'past_due' || effectiveEntitlement.status === 'unpaid';
+  // subscription is paused (confusing, and the server would refuse it anyway). lib/iap needsBillingFix.
+  const dunning = needsBillingFix(effectiveEntitlement.status);
   const offerTrial = slot === 'inline' && (SELLS_HERE || !trialUsed) && !dunning;
   useEffect(() => {
     if (payStatus !== 'success' || premium) return;
@@ -144,47 +180,95 @@ export default function PremiumScreen() {
     return () => clearInterval(timer);
   }, [payStatus, premium, refresh]);
 
-  // iOS purchase via StoreKit (RevenueCat). The RevenueCat webhook flips D1, then the existing
-  // success-poll below picks it up. The DOUBLE-CHARGE GUARD is the fresh entitlement read right
-  // before buy(): a user who bought on the web (Stripe) then opens iOS reads as free from an
-  // anonymous client, and Apple cannot know about that Stripe sub. The provider's refresh() does
-  // not block the UI, so we re-read HERE, synchronously in this flow, before any charge.
-  async function subscribeApple() {
+  // What to say to someone whose existing subscription has a payment failing, by who bills it. Google Play
+  // retries on its own and the fix lives in the Play Store. A Stripe one is fixed in the portal where Stripe
+  // may appear, and by writing to us where it may not (Android).
+  function fixBillingLine(source: 'stripe' | 'apple' | 'google' | null): string {
+    if (source === 'google') return t('premium.googlePaymentAttention');
+    return STRIPE_HERE ? t('premium.errorBillingIssue') : t('premium.paymentAttentionPlain');
+  }
+
+  // A purchase through the store (RevenueCat: StoreKit on iOS, Play Billing on Android). The RevenueCat
+  // webhook flips D1, then the existing success-poll below picks it up. The DOUBLE-CHARGE GUARD is the
+  // fresh entitlement read right before buy(): a user who bought on the web (Stripe) and opens the app
+  // reads as free until the server answers, and the store cannot know about that Stripe sub. The
+  // provider's refresh() does not block the UI, so we re-read HERE, in this flow, before any charge, and
+  // the read FAILS CLOSED (lib/iap buyCheck): if it cannot be read, nothing is started.
+  async function subscribeStore() {
     const offer = offers.find((o) => o.plan === plan);
     if (!offer) {
-      setError(t('premium.iapUnavailable'));
+      setError(t(COPY.unavailable));
       return;
     }
-    const fresh = await loadEntitlement();
-    if (fresh.premium) {
-      refresh(); // already entitled (Stripe, trial, comp): never charge a second time
+    const read = await loadEntitlementChecked();
+    const check = buyCheck(read, Boolean(session));
+    if (check === 'cant_check') {
+      setError(t('premium.buyCouldNotCheck'));
       return;
     }
-    track('premium.checkout_started', { plan, store: 'apple' });
-    const res = await buy(offer.packageId);
+    if (check === 'already') {
+      refresh(); // already entitled (Stripe, Apple, Google, trial, comp): never charge a second time
+      return;
+    }
+    if (check === 'fix_billing') {
+      refresh();
+      setError(fixBillingLine(read.ok ? read.entitlement.source : null));
+      return;
+    }
+    track('premium.checkout_started', { plan, store: STORE_SOURCE ?? 'none' });
+    const res = await buy(offer.packageId, uid);
     if (res.ok) {
       router.setParams({ status: 'success' }); // reuse the existing "setting up" poll for the webhook lag
       refresh();
       return;
     }
-    // A cancel shows nothing at all (the user backed out). Everything else gets a calm, specific line.
+    // A cancel shows nothing at all (the user backed out). Everything else gets a calm, specific line,
+    // in the words of the store this build buys through.
     switch (res.code) {
       case 'cancelled':
         break;
       case 'pending':
-        setError(t('premium.purchasePending'));
+        setError(t(COPY.pending));
         break;
       case 'already_owned':
-        setError(t('premium.purchaseAlreadyOwned'));
+        setError(t(COPY.alreadyOwned));
+        break;
+      case 'owned_elsewhere':
+        setError(t(COPY.ownedElsewhere));
         break;
       case 'not_allowed':
-        setError(t('premium.purchaseNotAllowed'));
+        setError(t(COPY.notAllowed));
         break;
       case 'store_down':
-        setError(t('premium.purchaseStoreDown'));
+        setError(t(COPY.storeDown));
+        break;
+      case 'unavailable':
+        setError(t(COPY.unavailable));
+        break;
+      case 'sign_in':
+        setError(t('premium.errorCheckoutSignIn'));
+        break;
+      case 'identity':
+        setError(t('premium.purchaseIdentity'));
+        break;
+      case 'fix_billing':
+        // Android: an Apple subscription still in Apple's billing retry, which our server reads as ended.
+        // Apple charges the moment the card works, so a Google Play one now would charge twice. (Google's own
+        // hold is never refused: buying again replaces it. purchaseHeldGoogle stays for that day's fallback.)
+        setError(res.heldBy === 'apple' ? t('premium.purchaseHeldApple') : res.heldBy === 'google' ? t('premium.purchaseHeldGoogle') : t('premium.paymentAttentionPlain'));
+        break;
+      case 'network':
+        // after the store took a payment, a network failure is the commonest way this ends: never "nothing was charged"
+        setError(t(COPY.couldNotFinish));
+        break;
+      case 'already_premium':
+        // the store already sees Premium on this account (a webhook still on its way, or an Apple
+        // subscription on it): no charge, and the screen re-reads
+        refresh();
+        setError(t('premium.purchaseAlreadyActive'));
         break;
       default:
-        setError(t('premium.purchaseCouldNotFinish'));
+        setError(t(COPY.couldNotFinish));
     }
   }
 
@@ -192,8 +276,8 @@ export default function PremiumScreen() {
     if (busy || !SELLS_HERE) return;
     setBusy(true);
     setError(null);
-    if (IAP_AVAILABLE) {
-      await subscribeApple();
+    if (IAP) {
+      await subscribeStore();
       setBusy(false);
       return;
     }
@@ -220,24 +304,29 @@ export default function PremiumScreen() {
     }
   }
 
-  // Restore a purchase already made on this Apple ID. No sign-in required (App Review 5.1.1,
-  // same rule as Buy): the receipt lives with the Apple ID, and since the provider now merges
-  // the DEVICE's entitlement (localPremium), an anonymous restore genuinely unlocks Premium
-  // here and now; signing in later carries it to other devices via the RevenueCat alias.
-  // Always shows a visible, honest outcome (Apple rejects a Restore that appears to do nothing).
+  // Restore a purchase already made on this Apple ID or Google account. On iOS no sign-in is required
+  // (App Review 5.1.1, same rule as Buy): the receipt lives with the Apple ID, and since the provider
+  // merges the DEVICE's entitlement (localPremium), an anonymous restore genuinely unlocks Premium here
+  // and now. On Android it needs the account it will belong to, so the link shows only when signed in.
+  // Always shows a visible, honest outcome (a store rejects a Restore that appears to do nothing), and it
+  // reads the code: a purchase that belongs to another DoubleDone account says so, rather than "failed".
   async function restorePurchases() {
     if (busy) return;
     setBusy(true);
     setError(null);
     setRestoreMsg(t('premium.restoring'));
     track('premium.restore_tapped');
-    const res = await restore();
+    const res = await restore(uid);
     setBusy(false);
     if (res.ok && res.premium) {
       setRestoreMsg(t('premium.restoreRestored'));
       refresh();
     } else if (res.ok) {
-      setRestoreMsg(t('premium.restoreNothingFound'));
+      setRestoreMsg(t(COPY.restoreNothing));
+    } else if (res.code === 'owned_elsewhere') {
+      setRestoreMsg(t(COPY.ownedElsewhere));
+    } else if (res.code === 'identity') {
+      setRestoreMsg(t('premium.purchaseIdentity'));
     } else {
       setRestoreMsg(t('premium.restoreFailed'));
     }
@@ -258,7 +347,7 @@ export default function PremiumScreen() {
       return;
     }
     if (res.result === 'already') {
-      setTrialNote(SELLS_HERE ? t('premium.trialAlreadyUsed') : t('premium.trialAlreadyUsedPlain'));
+      setTrialNote(SELLS_HERE ? t(COPY.trialAlreadyUsed) : t('premium.trialAlreadyUsedPlain'));
       if (!SELLS_HERE && uid) {
         void saveTrialUsed(uid);
         setTrialUsed(true); // the link goes; its answer stays on screen for this visit
@@ -277,7 +366,7 @@ export default function PremiumScreen() {
     // it can open, and named, with no link, everywhere else, rather than 404ing Stripe's portal.
     const route = manageRoute(effectiveEntitlement.source, Platform.OS);
     if (route === 'apple-sheet') {
-      if (IAP_AVAILABLE) void openAppleSubscriptions(); // Apple's own Manage Subscriptions sheet
+      if (IAP) void openStoreSubscriptions(); // Apple's own Manage Subscriptions sheet
       else setError(t('premium.appleManageElsewhere'));
       return;
     }
@@ -285,8 +374,13 @@ export default function PremiumScreen() {
       setError(t('premium.appleManageElsewhere'));
       return;
     }
-    if (route === 'google-elsewhere' || route === 'google-play') {
-      // google-play gets its own door when the Android app sells (Path A slice 3); until then, the line.
+    if (route === 'google-play') {
+      // The Play Store's own subscription screen, where Google lets them change or cancel it. It opens
+      // even if the store SDK never configured, from Google's own page for this app.
+      void openStoreSubscriptions();
+      return;
+    }
+    if (route === 'google-elsewhere') {
       setError(t('premium.googleManageElsewhere'));
       return;
     }
@@ -342,11 +436,19 @@ export default function PremiumScreen() {
                   : t('premium.unlockedBodyFull', { allowance })}
             </Text>
             {effectiveEntitlement.status === 'trial' && periodLabel ? (
-              <Text style={styles.subStatus}>{SELLS_HERE ? t('premium.trialUntil', { periodLabel }) : t('premium.trialUntilPlain', { periodLabel })}</Text>
+              <Text style={styles.subStatus}>{SELLS_HERE ? t(COPY.trialUntil, { periodLabel }) : t('premium.trialUntilPlain', { periodLabel })}</Text>
             ) : effectiveEntitlement.cancelAtPeriodEnd && periodLabel ? (
               <Text style={styles.subStatus}>{t('premium.premiumUntil', { periodLabel })}</Text>
             ) : periodLabel ? (
               <Text style={styles.subStatus}>{t('premium.renews', { periodLabel })}</Text>
+            ) : null}
+            {/* A Google Play payment that has not gone through: Premium stays on while Google retries (the
+                server keeps it on through the grace period), and the fix is in the Play Store. Said here,
+                because nobody in that state ever sees the free panel's dunning box. */}
+            {effectiveEntitlement.source === 'google' && needsBillingFix(effectiveEntitlement.status) ? (
+              <View style={styles.attentionBox}>
+                <Text style={styles.attentionText}>{t('premium.googlePaymentAttention')}</Text>
+              </View>
             ) : null}
             <Text style={styles.foot}>
               {showsCancelReassurance(effectiveEntitlement.status, effectiveEntitlement.cancelAtPeriodEnd)
@@ -396,10 +498,13 @@ export default function PremiumScreen() {
               // exists. Never render a Manage button whose only outcome is a 404: say so calmly.
               <Text style={styles.subStatus}>{t('premium.nothingToManage')}</Text>
             ) : primaryAction === 'elsewhere' ? (
-              // Android sells nothing, so it links to no billing either: a plain line saying where it lives.
-              // Already set to end (the "Premium until" line says when): nothing left to manage, so nothing.
+              // On Android, a subscription another biller owns: a plain line saying where it lives, never a
+              // link (Play's Payments policy). Already set to end (the "Premium until" line says when):
+              // nothing left to manage, so nothing. A Google one only lands here in the Path C rollback.
               effectiveEntitlement.source === 'apple' ? (
                 <Text style={styles.subStatus}>{t('premium.appleManageElsewhere')}</Text>
+              ) : effectiveEntitlement.source === 'google' ? (
+                <Text style={styles.subStatus}>{t('premium.googleManageElsewhere')}</Text>
               ) : effectiveEntitlement.cancelAtPeriodEnd ? null : (
                 <Text style={styles.subStatus}>{t('premium.manageWhereBought')}</Text>
               )
@@ -444,9 +549,9 @@ export default function PremiumScreen() {
                 would have NO path to fix their card from here (the server now refuses them a
                 second checkout, correctly). The fix lives in the portal; manage() routes there
                 for a Stripe source, and the customer id exists in this state so it opens. */}
-            {effectiveEntitlement.status === 'past_due' || effectiveEntitlement.status === 'unpaid' ? (
+            {dunning ? (
               <View style={styles.attentionBox}>
-                {SELLS_HERE ? (
+                {STRIPE_HERE ? (
                   <>
                     <Text style={styles.attentionText}>{t('premium.paymentAttention')}</Text>
                     <Pressable onPress={manage} disabled={busy} accessibilityRole="button" accessibilityLabel={t('premium.paymentAttentionLinkA11y')} hitSlop={6}>
@@ -454,7 +559,7 @@ export default function PremiumScreen() {
                     </Pressable>
                   </>
                 ) : (
-                  // Android: the same news, and a person to write to, but no link to a card form.
+                  // Android: the same news, and a person to write to, but no link to Stripe's card form.
                   <Text style={styles.attentionText}>{t('premium.paymentAttentionPlain')}</Text>
                 )}
               </View>
@@ -502,8 +607,8 @@ export default function PremiumScreen() {
 
             {/* The plans are information, so a signed-out visitor sees them too (the flow audit:
                 the page ended at "A$5 / month" and never mentioned annual existed). Only the
-                checkout itself needs a session. None of it on Android, which sells nothing: a
-                price, a discount or a spoken dollar amount is exactly what Play rejected. */}
+                purchase itself needs a session. None of it in a build that sells nothing (the Path C
+                rollback): a price, a discount or a spoken dollar amount is exactly what Play rejected. */}
             {SELLS_HERE ? (
             <>
             <View style={styles.planToggle}>
@@ -511,30 +616,31 @@ export default function PremiumScreen() {
                   onPress={() => setPlan('monthly')}
                   accessibilityRole="button"
                   aria-selected={plan === 'monthly'}
-                  accessibilityLabel={t('premium.planMonthlyA11y')}
+                  accessibilityLabel={planA11y('monthly')}
                   style={[styles.planPill, plan === 'monthly' && styles.planPillOn]}
                 >
-                  <Text style={[styles.planPillText, plan === 'monthly' && styles.planPillTextOn]}>{t('premium.planMonthly')}</Text>
+                  <Text style={[styles.planPillText, plan === 'monthly' && styles.planPillTextOn]}>{t(COPY.planMonthly)}</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => setPlan('annual')}
                   accessibilityRole="button"
                   aria-selected={plan === 'annual'}
-                  accessibilityLabel={t('premium.planAnnualA11y')}
+                  accessibilityLabel={planA11y('annual')}
                   style={[styles.planPill, plan === 'annual' && styles.planPillOn]}
                 >
-                  <Text style={[styles.planPillText, plan === 'annual' && styles.planPillTextOn]}>{t('premium.planAnnual')}</Text>
+                  <Text style={[styles.planPillText, plan === 'annual' && styles.planPillTextOn]}>{t(COPY.planAnnual)}</Text>
                 </Pressable>
             </View>
-            {/* On iOS the price MUST come from StoreKit, so it is currency-correct for the viewer's
-                storefront (A$5.00 on the Australian one, converted elsewhere). Off iOS, the catalog price. */}
+            {/* In a store build the price MUST come from the store, so it is currency-correct for the
+                viewer's country (A$5.00 in Australia, Play's or Apple's own price elsewhere). The annual
+                plan is shown as a yearly price, never dressed up as a monthly one. On the web, our own. */}
             <Text style={styles.price}>
-              {IAP_AVAILABLE
+              {IAP
                 ? offer
                   ? plan === 'annual'
-                    ? t('premium.applePerYear', { price: offer.priceString })
-                    : t('premium.applePerMonth', { price: offer.priceString })
-                  : t('premium.iapUnavailable')
+                    ? t(COPY.perYear, { price: offer.priceString })
+                    : t(COPY.perMonth, { price: offer.priceString })
+                  : t(COPY.unavailable)
                 : plan === 'annual'
                   ? t('premium.priceAnnual')
                   : t('premium.priceMonthly')}
@@ -544,19 +650,27 @@ export default function PremiumScreen() {
 
             {/* The buy button never requires an account on iOS (App Review 5.1.1(v), 2026-07-28:
                 forced registration before a non-account IAP was rejected). 'buy' and 'wait' both
-                render the purchase button (wait = the signed-in double-charge window, disabled);
-                the Stripe platforms keep their sign-in-first flow, which Apple has no say over
-                and Stripe genuinely needs (the subscription attaches to the account). */}
+                render the purchase button (wait = the signed-in double-charge window, disabled).
+                Android requires an account ('sign_in'), and a failing payment on an existing
+                subscription shows no buy button at all ('fix_billing': the box above says what to
+                do). The web keeps its sign-in-first Stripe flow, which Stripe genuinely needs. */}
             {gate === 'buy' || gate === 'wait' ? (
               <PrimaryButton
                 label={busy ? t('premium.openingCheckout') : t('premium.goPremium')}
                 onPress={subscribe}
                 disabled={busy || gate === 'wait' || !offer}
-                accessibilityLabel={plan === 'annual' ? t('premium.subscribeAnnualA11y') : t('premium.subscribeMonthlyA11y')}
+                accessibilityLabel={subscribeA11y(plan)}
                 style={styles.ctaSpace}
               />
-            ) : !SELLS_HERE ? (
-              // Android sells nothing: no buy button. Signed out, the one thing to take is the free month,
+            ) : gate === 'sign_in' ? (
+              <PrimaryButton
+                label={t('premium.signInToGoPremium')}
+                onPress={() => router.push('/sign-in')}
+                accessibilityLabel={t('premium.signInToGoPremium')}
+                style={styles.ctaSpace}
+              />
+            ) : gate === 'fix_billing' ? null : !SELLS_HERE ? (
+              // A build that sells nothing (the Path C rollback): no buy button. Signed out, the one thing to take is the free month,
               // which needs an account; the foot line tells an existing member they get theirs by signing in
               // too. Signed in, the free month sits below and there is nothing to buy.
               session ? null : (
@@ -572,7 +686,7 @@ export default function PremiumScreen() {
                 label={busy ? t('premium.openingCheckout') : t('premium.goPremium')}
                 onPress={subscribe}
                 disabled={busy}
-                accessibilityLabel={plan === 'annual' ? t('premium.subscribeAnnualA11y') : t('premium.subscribeMonthlyA11y')}
+                accessibilityLabel={subscribeA11y(plan)}
                 style={styles.ctaSpace}
               />
             ) : (
@@ -602,26 +716,37 @@ export default function PremiumScreen() {
             {/* Signed-out on iOS gets Apple's suggested explanation instead of the account
                 pitch: no account is needed, signing in extends Premium to other devices, and
                 an existing web subscriber is pointed to sign in BEFORE buying (the double-charge
-                guard as information, now that 5.1.1 forbids it as a wall). */}
+                guard as information, now that 5.1.1 forbids it as a wall). Android needs the
+                account, so it gets the account line. */}
             <Text style={styles.foot}>
               {session
                 ? SELLS_HERE
                   ? t('premium.footSignedIn')
                   : t('premium.footPlain')
-                : IAP_AVAILABLE
-                  ? t('premium.footAnonymousIap')
+                : IAP
+                  ? REQUIRE_ACCOUNT
+                    ? t('premium.footSignedOut')
+                    : t('premium.footAnonymousIap')
                   : SELLS_HERE
                     ? t('premium.footSignedOut')
                     : t('premium.footSignedOutPlain')}
             </Text>
 
-            {IAP_AVAILABLE ? (
-              // Apple's App Store requires the paywall itself to carry: how it renews, and functional
-              // Terms + Privacy links (Schedule 2 §3.8(b)). Price + period are shown above from StoreKit.
-              // A visible Restore is here too (Apple rejects a paywall with no restore path). No Stripe.
+            {IAP ? (
+              // Both stores want the paywall itself to carry how it renews and how to cancel, and Apple
+              // wants functional Terms + Privacy links (Schedule 2 §3.8(b)). Price + period are shown above,
+              // from the store. Google's line says "charged every month (or year)" and names Google Play, on
+              // this localised screen, because the Terms page is English only. A visible Restore is here too
+              // (Apple rejects a paywall with no restore path). No Stripe, ever, in this block.
               <>
-                <Text style={styles.foot}>{t('premium.appleRenewalTerms')}</Text>
-                <Text style={styles.foot}>{t('premium.appleStoreNote')}</Text>
+                <Text style={styles.foot}>{t(plan === 'annual' ? COPY.renewsAnnual : COPY.renewsMonthly)}</Text>
+                <Text style={styles.foot}>{t(COPY.storeNote)}</Text>
+                {PLAY_COPY ? (
+                  // Google Play's own subscriptions screen, where a subscription is managed or cancelled.
+                  <Pressable onPress={() => void openStoreSubscriptions()} accessibilityRole="button" accessibilityLabel={t('premium.googleSubscriptionsLinkA11y')} hitSlop={6}>
+                    <Text style={styles.legalLink}>{t('premium.googleSubscriptionsLink')}</Text>
+                  </Pressable>
+                ) : null}
                 <View style={styles.legalRow}>
                   <Pressable onPress={() => router.push('/terms')} accessibilityRole="button" accessibilityLabel={t('premium.termsLinkA11y')} hitSlop={6}>
                     <Text style={styles.legalLink}>{t('premium.termsLink')}</Text>
@@ -631,16 +756,20 @@ export default function PremiumScreen() {
                     <Text style={styles.legalLink}>{t('premium.privacyLink')}</Text>
                   </Pressable>
                 </View>
-                <Pressable
-                  onPress={restorePurchases}
-                  disabled={busy}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('premium.restorePurchasesA11y')}
-                  hitSlop={6}
-                  style={styles.restoreLink}
-                >
-                  <Text style={styles.restoreLinkText}>{t('premium.restorePurchases')}</Text>
-                </Pressable>
+                {/* On Android a restore needs the account it will belong to, so signed out it is not
+                    offered: a control whose only outcome is "sign in first" is not a control. */}
+                {REQUIRE_ACCOUNT && !session ? null : (
+                  <Pressable
+                    onPress={restorePurchases}
+                    disabled={busy}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('premium.restorePurchasesA11y')}
+                    hitSlop={6}
+                    style={styles.restoreLink}
+                  >
+                    <Text style={styles.restoreLinkText}>{t('premium.restorePurchases')}</Text>
+                  </Pressable>
+                )}
                 {restoreMsg ? <Text style={styles.trialNoteText}>{restoreMsg}</Text> : null}
                 {/* The free month, in its OWN zone rather than twelve pixels under a button that
                     takes real money. Same offer, same tap, just not sitting where a thumb reaching
@@ -651,17 +780,17 @@ export default function PremiumScreen() {
                       onPress={startFreeTrial}
                       disabled={busy}
                       accessibilityRole="button"
-                      accessibilityLabel={t('premium.trialLinkA11y')}
+                      accessibilityLabel={t(COPY.trialLinkA11y)}
                       hitSlop={6}
                     >
-                      <Text style={styles.trialLinkText}>{t('premium.trialLink')}</Text>
+                      <Text style={styles.trialLinkText}>{t(COPY.trialLink)}</Text>
                     </Pressable>
-                    <Text style={styles.foot}>{t('premium.trialNoCard')}</Text>
+                    <Text style={styles.foot}>{t(COPY.trialNoCard)}</Text>
                     {trialNote ? <Text style={styles.trialNoteText}>{trialNote}</Text> : null}
                   </View>
                 )}
               </>
-            ) : SELLS_HERE ? (
+            ) : SELLS_HERE && STRIPE_HERE ? (
               <Pressable
                 onPress={() => router.push('/terms')}
                 accessibilityRole="button"

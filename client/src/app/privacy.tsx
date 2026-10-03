@@ -22,7 +22,7 @@ export default function PrivacyScreen() {
         <BackLink fallback="/settings" />
 
         <Text style={styles.title}>Privacy</Text>
-        <Text style={styles.updated}>Last updated 1 August 2026.</Text>
+        <Text style={styles.updated}>Last updated 1 October 2026.</Text>
 
         <Text style={styles.lead}>
           DoubleDone is built to need almost nothing from you. It runs on your device, and only three things ever leave
@@ -89,14 +89,18 @@ export default function PrivacyScreen() {
         </Section>
 
         <Section styles={styles} heading="Payment events">
-          Payments for Premium are processed by Stripe (on our website) or by Apple (on iPhone and iPad),
-          never by us. We never see or store your card details. On iPhone and iPad we use RevenueCat, a subscription
-          service based in the United States, to confirm with Apple that a purchase is genuine. It receives the purchase
-          receipt, your DoubleDone account id, and an identifier for your device, so your subscription can follow your
-          account across your devices. When something happens on your subscription, a payment succeeding or failing, a
+          Payments for Premium are processed by Stripe (on our website), by Apple (on iPhone and iPad) or by Google
+          Play (in the Android app), never by us. We never see or store your card details. In the iPhone, iPad and
+          Android apps we use RevenueCat, a subscription service based in the United States, to confirm with Apple or
+          Google Play that a purchase is genuine. RevenueCat starts when the app opens, so it receives an identifier
+          for your device even if you never buy anything. When you sign in it also receives your DoubleDone account
+          id, and when you buy, the store&apos;s record of the purchase, so your subscription can follow your account
+          across your devices. When something happens on your subscription, a payment succeeding or failing, a
           refund, a cancellation, or a renewal, we keep a record against your account: whether Premium is on, its
-          status, when the current period ends, whether it is set to stop, when you first subscribed, and which store it
-          came from. That is what keeps your Premium status correct. We never sell or share it.
+          status, when the current period ends, whether it is set to stop, when you first subscribed, and which store
+          it came from, along with the store&apos;s own notice of what happened. That is what keeps your Premium status
+          correct. We never sell or share it. If you delete your account, these billing records, and RevenueCat&apos;s
+          record of the purchase, are kept for as long as tax law and refunds need them. They hold nothing you wrote.
         </Section>
 
         <Section styles={styles} heading="Connecting an AI assistant">
@@ -125,7 +129,8 @@ export default function PrivacyScreen() {
         <Section styles={styles} heading="Your control">
           Work entirely offline and anonymous if you like. Sign out whenever you want, which stops syncing. You can
           export all your data as a file at any time. And if you sync, you can permanently delete your account and
-          everything synced to it from Settings.
+          everything synced to it from Settings. The one thing kept is a billing record, if you ever subscribed (see
+          Payment events).
         </Section>
 
         <Section styles={styles} heading="Your privacy under Australian law">

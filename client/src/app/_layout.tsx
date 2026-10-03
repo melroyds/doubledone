@@ -14,7 +14,7 @@ import { useEffect } from 'react';
 import { Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { useSession } from '@/lib/auth';
+import { useSessionState } from '@/lib/auth';
 import { setInbound } from '@/lib/inbound';
 import { t } from '@/lib/locale';
 import { PremiumProvider } from '@/lib/premium-provider';
@@ -69,20 +69,28 @@ function routeQuickAction(action: QuickActions.Action) {
 function RootStack() {
   const theme = useTheme();
   const isDark = theme.scheme === 'dark';
-  const session = useSession();
+  const { session, known: sessionKnown } = useSessionState();
 
   // Catch a share from another app (text or a URL) and queue it for Today's capture box.
   useShareInbound();
 
-  // Apple IAP (iOS only). Both calls are compile-time no-ops on web + Android: they come from
-  // lib/purchases.ts (the inert stub), not lib/purchases.ios.ts, so the native module is never in
-  // those bundles. configure once, early; then attach the RevenueCat customer to the signed-in
-  // Supabase id so a purchase belongs to the account. We deliberately do NOT configure a web
-  // RevenueCat app (web sells via Stripe), so there is nothing to "fix" here for web.
+  // In-app purchases (Apple on iOS, Google Play on Android, both through RevenueCat). Both calls are
+  // compile-time no-ops on the web: they come from lib/purchases.ts (the inert stub), so the native
+  // module is never in that bundle. configure once, early; then attach the RevenueCat customer to the
+  // signed-in Supabase id so a purchase belongs to the account. We deliberately do NOT configure a web
+  // RevenueCat app (web sells via Stripe), so there is nothing to "fix" here for web. On Android the
+  // identify waits for configure to finish (lib/purchases.android.ts), and buying checks it again.
   useEffect(() => {
     void configurePurchases();
   }, []);
   useEffect(() => {
+    // Wait until the session is KNOWN. On the first render a signed-in person reads as null while the
+    // session hydrates, and "null" here used to mean "forget the purchaser". On iOS that was a no-op only
+    // because configure had not finished yet; on Android, which waits for configure, it was a real
+    // RevenueCat logOut on every launch, swapping the account for a fresh anonymous id until sign-in
+    // caught up. A Play purchase RevenueCat synced inside that window would have landed on the anonymous
+    // id, which our webhook drops (the 2026-10-01 review). So: forget only a session known to be absent.
+    if (!sessionKnown) return;
     const id = session?.user?.id;
     if (!id) {
       void forgetPurchaser();
@@ -91,12 +99,13 @@ function RootStack() {
     // ORDER MATTERS. identifyPurchaser calls Purchases.logIn, which is what puts this Supabase id in
     // RevenueCat's alias group. Only after that can the server ask RevenueCat about the id and find
     // an anonymous purchase to attach, so the reconcile has to await the identify rather than race
-    // it. iOS only: off iOS there is no logIn, so there is never an alias and the call could only
-    // ever answer "nothing", which is not worth a request on every sign-in.
+    // it. Store builds only: on the web there is no logIn, so there is never an alias and the call could
+    // only ever answer "nothing", which is not worth a request on every sign-in. Android keeps it as the
+    // safety net for a missed webhook (the server reads the store and grants only a real one).
     void identifyPurchaser(id).then(() => {
       if (IAP_AVAILABLE) void reconcileApple();
     });
-  }, [session?.user?.id]);
+  }, [sessionKnown, session?.user?.id]);
 
   // The nudge resilience sweep (native): once per app open, quietly re-schedule every
   // active Rhythm, checklist nudge, and the daily reminder from their stored config.

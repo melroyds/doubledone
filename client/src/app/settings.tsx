@@ -9,7 +9,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { RoomBackRow, useRoomOrigin } from '@/components/RoomTop';
 import { Segmented } from '@/components/Segmented';
 import { border, fonts, layout, PREMIUM_GRADIENT, PREMIUM_GRADIENT_LOCATIONS, PRESSED_OPACITY, radius, spacing, THEME_PRESETS, type Theme } from '@/constants/theme';
-import { billedByApple, deleteAccount } from '@/lib/account';
+import { billedByStore, deleteAccount } from '@/lib/account';
 import { purgeScrapbookImages } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
 import { toISODate } from '@/lib/day';
@@ -18,6 +18,7 @@ import { spoken } from '@/lib/i18n';
 import { t } from '@/lib/locale';
 import { SELLS_HERE } from '@/lib/storefront';
 import { usePremium } from '@/lib/premium-provider';
+import { STORE_SOURCE } from '@/lib/purchases';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { clampHour, formatReminderHour, reminderReasonLine } from '@/lib/reminders-types';
 import { type Appearance, type FinishedTasks, type MotionPref, type TextSize, THEME_NAMES, type ThemePref } from '@/lib/settings';
@@ -204,7 +205,9 @@ export default function SettingsScreen() {
     if (!supabase || deleting) return;
     setDeleting(true);
     setDeleteError(null);
-    const res = await deleteAccount(supabase);
+    // On Android, or for anyone the device knows a Google Play subscription for, ask the server to look at
+    // Play even if it has no record of one yet (a webhook can lag a purchase by minutes).
+    const res = await deleteAccount(supabase, fetch, { maybePlay: STORE_SOURCE === 'google' || billedByStore(entitlement) === 'google' });
     if (!res.ok) {
       setDeleteError(
         res.error === 'billing'
@@ -212,7 +215,9 @@ export default function SettingsScreen() {
           : res.error === 'sign_in'
             ? t('settings.deleteSignIn')
             : res.cancelled > 0
-              ? t('settings.deleteAfterBilling')
+              ? billedByStore(entitlement) === 'google'
+                ? t('settings.deleteAfterBillingGoogle')
+                : t('settings.deleteAfterBilling')
               : t('settings.deleteError'),
       );
       // Billing may have stopped even when the delete did not happen (a cancel that landed before a lost
@@ -659,9 +664,14 @@ export default function SettingsScreen() {
                 <View style={[styles.row, styles.confirmStack]}>
                   <Text style={[styles.linkLabel, styles.dangerText]}>{t('settings.deleteAccountLink')}</Text>
                   <Text style={styles.confirmText}>{t('settings.deleteConfirmBody')}</Text>
-                  {/* Apple billing is out of our reach, so an Apple subscriber is told BEFORE they confirm.
-                      Plain text on every platform, never a link: it asks nothing and sells nothing. */}
-                  {billedByApple(entitlement) ? <Text style={styles.confirmText}>{t('settings.deleteAppleNote')}</Text> : null}
+                  {/* Apple billing is out of our reach, so an Apple subscriber is told BEFORE they confirm. A
+                      Google Play subscriber is told that deleting turns its renewal off. Plain text on every
+                      platform, never a link: it asks nothing and sells nothing. */}
+                  {billedByStore(entitlement) === 'apple' ? (
+                    <Text style={styles.confirmText}>{t('settings.deleteAppleNote')}</Text>
+                  ) : billedByStore(entitlement) === 'google' ? (
+                    <Text style={styles.confirmText}>{t('settings.deleteGoogleNote')}</Text>
+                  ) : null}
                   <View style={styles.confirmRow}>
                     <Pressable
                       onPress={() => setConfirming(false)}

@@ -50,23 +50,25 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
   const [devOverride, setDevOverrideState] = useState<DevPremium>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Load (and reload on refresh) the server entitlement, merged with the DEVICE's Apple
-  // entitlement. The local read matters for exactly one person: an ANONYMOUS iOS purchaser
-  // (App Review 5.1.1 requires that path), who has no server row until they sign in and the
-  // RevenueCat alias lands. The server stays the source of truth whenever it says premium;
-  // the local read only ever ADDS premium (source 'apple'), never removes it. On web and
-  // Android localPremium is a compile-time false, so this is exactly the old load there.
+  // Load (and reload on refresh) the server entitlement, merged with the DEVICE's store
+  // entitlement. The local read matters most for an ANONYMOUS iOS purchaser (App Review 5.1.1
+  // requires that path), who has no server row until they sign in and the RevenueCat alias
+  // lands, and on Android it bridges the moments between a purchase and its webhook. The server
+  // stays the source of truth whenever it says premium; the local read only ever ADDS premium,
+  // never removes it, and carries the store that SOLD it (RevenueCat's own `store`, never the
+  // platform: an Apple subscription shows on Android too), so Manage and the delete note name the
+  // right store. On the web localPremium is a compile-time null, so this is exactly the old load there.
   // `loading` starts true and flips false after the first load; a refresh does not
   // re-toggle it, so a re-fetch never blanks the UI.
   useEffect(() => {
     let active = true;
-    void Promise.all([loadEntitlement(), localPremium()]).then(([e, appleLocal]) => {
+    void Promise.all([loadEntitlement(), localPremium()]).then(([e, storeLocal]) => {
       if (!active) return;
       // Merge the device's FIELDS, not just its yes. Spreading only `e` (the FREE entitlement here)
       // left `since` null, and weeklyAllowance(null) is 1 keepsake a week where a signed-in
       // subscriber gets 4: same money, a quarter of the product. `currentPeriodEnd` was null too,
       // so we never told an anonymous buyer when they would next be charged.
-      setEntitlement(!e.premium && appleLocal ? { ...e, ...appleLocal, premium: true, status: 'active', source: 'apple' } : e);
+      setEntitlement(!e.premium && storeLocal ? { ...e, ...storeLocal, premium: true, status: 'active' } : e);
       setLoading(false);
     });
     return () => {

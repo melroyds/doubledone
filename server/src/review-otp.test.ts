@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { D1LikeDatabase } from './entitlements';
-import { emailBodyText, extractOtpCode, handleReviewCode, handleReviewEmail, REVIEW_EMAIL, storeReviewCode } from './review-otp';
+import { emailBodyText, extractOtpCode, handleReviewCode, handleReviewEmail, REVIEW_BUY_EMAIL, REVIEW_EMAIL, reviewSlot, storeReviewCode } from './review-otp';
 
 const NOW = Date.parse('2026-07-19T10:00:00Z');
 
@@ -18,13 +18,13 @@ function fakeDb(): D1LikeDatabase & { rows: Map<number, { code: string; updated_
         },
         async run() {
           if (sql.startsWith('CREATE TABLE')) return;
-          rows.set(1, { code: args[0] as string, updated_at: args[1] as string });
+          rows.set((args[2] as number | undefined) ?? 1, { code: args[0] as string, updated_at: args[1] as string });
         },
         async first<T>() {
           return (rows.get(1) ?? null) as T | null;
         },
         async all<T>() {
-          return { results: [...rows.values()] as T[] };
+          return { results: [...rows.entries()].sort(([a], [b]) => a - b).map(([id, r]) => ({ id, ...r })) as T[] };
         },
       };
       return stmt;
@@ -103,6 +103,50 @@ describe('handleReviewEmail', () => {
     const db = fakeDb();
     await handleReviewEmail({ to: REVIEW_EMAIL, raw: asStream('Your code: 482913'), rawSize: 20 }, db, new Date(NOW).toISOString());
     expect(db.rows.get(1)?.code).toBe('482913');
+  });
+
+  it('relays a code addressed to the second, purchase review account (Play review set 2) into its OWN row', async () => {
+    const db = fakeDb();
+    await handleReviewEmail({ to: REVIEW_BUY_EMAIL, raw: asStream('Your code: 615204'), rawSize: 20 }, db, new Date(NOW).toISOString());
+    expect(db.rows.get(2)?.code).toBe('615204');
+    expect(db.rows.has(1)).toBe(false); // never over the original account's code
+  });
+
+  it('matches the review addresses whatever their case', async () => {
+    const db = fakeDb();
+    await handleReviewEmail({ to: 'AppReview-Buy@DoubleDone.app', raw: asStream('Your code: 615204'), rawSize: 20 }, db, new Date(NOW).toISOString());
+    expect(db.rows.get(2)?.code).toBe('615204');
+  });
+
+  it('keeps both accounts readable when two reviews overlap, each labelled with its address', async () => {
+    const db = fakeDb();
+    await handleReviewEmail({ to: REVIEW_EMAIL, raw: asStream('Your code: 482913'), rawSize: 20 }, db, new Date(NOW - 3 * 60_000).toISOString());
+    await handleReviewEmail({ to: REVIEW_BUY_EMAIL, raw: asStream('Your code: 615204'), rawSize: 20 }, db, new Date(NOW - 60_000).toISOString());
+    const res = await handleReviewCode(db, NOW);
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain(`${REVIEW_EMAIL}: 482913 (sent 3 minutes ago)`);
+    expect(body).toContain(`${REVIEW_BUY_EMAIL}: 615204 (sent 1 minute ago)`);
+  });
+
+  it('shows only the fresh codes, and 404s with the calm line when none is fresh', async () => {
+    const db = fakeDb();
+    await storeReviewCode(db, '482913', new Date(NOW - 61 * 60_000).toISOString(), 1);
+    await storeReviewCode(db, '615204', new Date(NOW - 2 * 60_000).toISOString(), 2);
+    const body = await (await handleReviewCode(db, NOW)).text();
+    expect(body).toContain('615204');
+    expect(body).not.toContain('482913');
+    const stale = fakeDb();
+    await storeReviewCode(stale, '615204', new Date(NOW - 90 * 60_000).toISOString(), 2);
+    const res = await handleReviewCode(stale, NOW);
+    expect(res.status).toBe(404);
+    expect(await res.text()).toContain('expired');
+  });
+
+  it('routes each address to its slot, and anything else nowhere', () => {
+    expect(reviewSlot(REVIEW_EMAIL)).toBe(1);
+    expect(reviewSlot(REVIEW_BUY_EMAIL)).toBe(2);
+    expect(reviewSlot('someone@doubledone.app')).toBeNull();
   });
 
   it('ignores mail for any other address', async () => {
