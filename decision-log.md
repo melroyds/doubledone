@@ -8816,3 +8816,12 @@ subscription still in Apple's billing retry, seen on Android, is the one real cr
 v32 already behaves this way (by accident), so no rebuild is needed for it; the explicit version rides
 the next Android build. **Decided against:** a time-boxed Google hold block (it would strand someone whose
 subscription had truly ended, and protects against nothing).
+
+**Device test 8g (2026-10-03): `singleTop` broke sharing, so MainActivity is back to `singleTask`.** With
+`singleTop`, every share from Chrome opened a NEW DoubleDone inside Chrome's task: copies piled up in recents
+and a second or third share misbehaved. That is why `expo-share-intent` forces `singleTask`. **Decided:** the
+fallback decided in advance, `singleTask`, accepting RevenueCat's warning that a purchase detouring through a
+bank app can come back as "cancelled" in the sheet. Money is safe either way: Google completes the payment,
+the real-time notification reaches our webhook, and Premium appears a moment later. **Decided against:** a
+share-intent trampoline activity that forwards to a `singleTop` MainActivity (native plugin work and a new
+risk on the money path, to save a rare, self-healing "cancelled" sheet). One more Android build carries it.
