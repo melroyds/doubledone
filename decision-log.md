@@ -8825,3 +8825,13 @@ bank app can come back as "cancelled" in the sheet. Money is safe either way: Go
 the real-time notification reaches our webhook, and Premium appears a moment later. **Decided against:** a
 share-intent trampoline activity that forwards to a `singleTop` MainActivity (native plugin work and a new
 risk on the money path, to save a rare, self-healing "cancelled" sheet). One more Android build carries it.
+
+**Step 8 finished on 2026-10-03, and the release goes to 100%, not 20%.** The real-money run passed: a
+PRODUCTION Play purchase of A$5.00 wrote a `google` row, the web named Google as the biller, and a Play
+Console refund-and-revoke switched Premium off in seconds. It arrives as EXPIRATION then CANCELLATION one
+second apart (the runbook's open question 7), and the slice 1 stale-on guard correctly refused the late
+CANCELLATION, which would otherwise have handed back Premium that had just been refunded. **Decided
+(Melroy):** promote to production at 100% rather than the planned 20% stage, because with about 43 Android
+installs a stage is roughly 8 people and proves nothing a full release would not. **Accepted:** a 100%
+release cannot be halted, so the nets are deactivating both base plans (stops new purchases at once) and
+a fix build. Managed publishing stays on, so approval and going live remain separate decisions.

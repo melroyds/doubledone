@@ -634,7 +634,10 @@ It may now name Premium and what it holds. It still carries no price, no currenc
 ### 6. Managed publishing, then a staged rollout
 
 Turn on **Managed publishing** before submitting, so an approval does not go live until Melroy says. Promote
-the tested internal AAB to production as a **staged rollout at 20%**. Release notes go in the six locale
+the tested internal AAB to production at **100%** (Melroy's call, 2026-10-03: with about 43 Android installs a
+20% stage is roughly 8 people and tells us nothing, and the money path was proven end to end that day with a
+real purchase and refund). A 100% release cannot be halted, so the nets are the kill switch below and a fix
+build. Release notes go in the six locale
 tags (en-AU, de-DE, es-419, es-ES, fr-FR, it-IT). Once it is live, bump `android` to `1.7.0` in
 `client/public/version.json` by hand.
 
