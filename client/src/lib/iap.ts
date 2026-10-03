@@ -216,25 +216,30 @@ export function storeOf(store: unknown): 'apple' | 'google' | null {
 const HELD_WINDOW_MS = 60 * 24 * 3_600_000;
 
 /**
- * A subscription that is OFF only because a payment failed, and can still come back and charge: Google's
- * account hold, or Apple's billing retry after its grace. Our server reads it as 'expired' (slice 1 pulled
- * 'on_hold' because nothing ever cleared it), so without this a buy button would sell a SECOND
- * subscription to someone whose first one recovers, and charges again, the moment they fix their card.
- * Read from the device's RevenueCat CustomerInfo, before any store sheet opens.
+ * An APPLE subscription that is off only because a payment failed and is still in Apple's billing retry,
+ * seen from the Android app. Apple keeps retrying the card for up to 60 days and charges the moment it
+ * works, so selling a Google Play subscription now would charge the same person twice, in two stores. Our
+ * server reads it as 'expired' (slice 1 pulled 'on_hold' because nothing ever cleared it), so this reads
+ * the device's RevenueCat CustomerInfo before any store sheet opens.
  *
- * Held = the 'premium' entitlement is inactive, a billing issue was detected in the last 60 days, and it is
- * still set to renew. `willRenew` is what tells a hold from a subscription that is truly over: once the
- * store gives up, it stops renewing, and buying again is the right thing. (`unsubscribeDetectedAt` is NOT
- * used: RevenueCat sets it for a billing-error cancellation too, exactly the case this exists for.)
- * Returns which store holds it, or null when nothing is held.
+ * GOOGLE'S OWN HOLD IS DELIBERATELY NOT HELD. Device test 8d (2026-10-03) proved it in sandbox: buying again
+ * during a Google account hold REPLACES the held subscription (a new purchase token, one DoubleDone entry
+ * in the Play Store, nothing charged twice). It is Google's own recovery route, so blocking it would only
+ * strand someone whose quickest fix is the button in front of them. (The first version tried to hold it
+ * too and never could: a Google billing failure also arrives as a CANCELLATION, so RevenueCat stops
+ * reporting it as set to renew. The tests passed only because their fixture assumed otherwise.)
+ *
+ * Held = the 'premium' entitlement is from the App Store, inactive, a billing issue was detected in the
+ * last 60 days, and Apple still has it set to renew (Apple's renewal stays on through billing retry, and
+ * goes off when Apple gives up, which is when buying again is the right thing).
  */
-export function heldSubscription(info: unknown, nowMs: number): { store: 'apple' | 'google' | null } | null {
+export function heldSubscription(info: unknown, nowMs: number): { store: 'apple' } | null {
   const all = (info as { entitlements?: { all?: Record<string, unknown> } } | null)?.entitlements?.all;
   const ent = all?.[ENTITLEMENT_ID] as
     | { isActive?: unknown; billingIssueDetectedAt?: unknown; willRenew?: unknown; store?: unknown }
     | undefined;
-  if (!ent || ent.isActive === true || ent.willRenew !== true) return null;
+  if (!ent || storeOf(ent.store) !== 'apple' || ent.isActive === true || ent.willRenew !== true) return null;
   const issue = typeof ent.billingIssueDetectedAt === 'string' ? Date.parse(ent.billingIssueDetectedAt) : Number.NaN;
   if (!Number.isFinite(issue) || nowMs - issue > HELD_WINDOW_MS || issue - nowMs > HELD_WINDOW_MS) return null;
-  return { store: storeOf(ent.store) };
+  return { store: 'apple' };
 }

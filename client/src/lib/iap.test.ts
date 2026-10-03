@@ -315,25 +315,32 @@ describe('the device entitlement carries its real store', () => {
   });
 });
 
-// Account hold and billing retry (the 2026-10-01 review): the server reads them as 'expired', so the
-// device's own CustomerInfo is what keeps a buy button from selling a second subscription.
-describe('heldSubscription (off only because a payment failed, and can still come back)', () => {
+// Apple's billing retry seen on Android (the 2026-10-01 review, narrowed by device test 8d on 2026-10-03):
+// the server reads it as 'expired', so the device's own CustomerInfo keeps a Google Play buy button from
+// selling a second subscription while Apple still retries the card. Google's own hold is NOT held: buying
+// again replaces the held Google subscription, proven in sandbox.
+describe('heldSubscription (an Apple subscription in billing retry, seen from Android)', () => {
   const NOW = Date.parse('2026-10-01T00:00:00Z');
   const DAY = 86_400_000;
   const info = (premium: Record<string, unknown> | undefined) => ({ entitlements: { all: premium ? { premium } : {} } });
   const held = (over: Record<string, unknown> = {}) =>
-    info({ isActive: false, willRenew: true, billingIssueDetectedAt: new Date(NOW - 10 * DAY).toISOString(), store: 'PLAY_STORE', ...over });
+    info({ isActive: false, willRenew: true, billingIssueDetectedAt: new Date(NOW - 10 * DAY).toISOString(), store: 'APP_STORE', ...over });
 
-  it('sees a Google account hold, and an Apple billing retry, with the store that holds it', () => {
-    expect(heldSubscription(held(), NOW)).toEqual({ store: 'google' });
-    expect(heldSubscription(held({ store: 'APP_STORE' }), NOW)).toEqual({ store: 'apple' });
-    expect(heldSubscription(held({ store: 'PROMOTIONAL' }), NOW)).toEqual({ store: null });
+  it('sees an Apple subscription in billing retry', () => {
+    expect(heldSubscription(held(), NOW)).toEqual({ store: 'apple' });
+    expect(heldSubscription(held({ store: 'MAC_APP_STORE' }), NOW)).toEqual({ store: 'apple' });
   });
 
-  it('is not held once the store has given up (it no longer renews), so buying again is allowed', () => {
+  it("never holds Google's own account hold: buying again replaces it (device test 8d), whatever RevenueCat reports", () => {
+    // exactly what RevenueCat showed in 8d: inactive, a billing issue, and NOT renewing (the billing cancel)
+    expect(heldSubscription(held({ store: 'PLAY_STORE', willRenew: false }), NOW)).toBeNull();
+    // and even if it ever did report renewing, a Google hold is still not refused
+    expect(heldSubscription(held({ store: 'PLAY_STORE', willRenew: true }), NOW)).toBeNull();
+    expect(heldSubscription(held({ store: 'PROMOTIONAL' }), NOW)).toBeNull();
+  });
+
+  it('is not held once Apple has given up (it no longer renews), so buying again is allowed', () => {
     expect(heldSubscription(held({ willRenew: false }), NOW)).toBeNull();
-    // and unsubscribeDetectedAt is NOT the test: a billing-error cancel sets it on exactly these subscriptions
-    expect(heldSubscription(held({ unsubscribeDetectedAt: new Date(NOW - 5 * DAY).toISOString() }), NOW)).toEqual({ store: 'google' });
   });
 
   it('is not held when active (grace: Premium is still on, and the active check answers first)', () => {

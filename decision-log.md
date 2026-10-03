@@ -8804,3 +8804,15 @@ condition inside the same statement): it writes where there is no row or a lapse
 a live Premium row, whose state belongs to the webhook. **Decided against:** teaching the reconcile to read
 `billing_issues_detected_at` and write `past_due` itself (a second, weaker copy of the webhook's state
 machine). Proven by a mutation check: with the guard off, exactly the grace-period tests fail.
+
+**Also from device test 8d (2026-10-03): Google's own account hold is NOT a double-charge risk, so the app
+no longer pretends to guard it.** In sandbox, buying again during a Google account hold REPLACED the held
+subscription: a new purchase token in `rc_events`, one DoubleDone entry in the Play Store, nothing charged
+twice. It is Google's own recovery route. The hold guard built on 2026-10-01 never fired for Google anyway
+(a Google billing failure also arrives as a CANCELLATION, so RevenueCat stops reporting it as renewing),
+and its tests passed only because their fixture assumed otherwise: a test that checks the code against
+my belief, not against the store. **Decided:** `heldSubscription` is Apple-only, by design: an Apple
+subscription still in Apple's billing retry, seen on Android, is the one real cross-store double charge.
+v32 already behaves this way (by accident), so no rebuild is needed for it; the explicit version rides
+the next Android build. **Decided against:** a time-boxed Google hold block (it would strand someone whose
+subscription had truly ended, and protects against nothing).

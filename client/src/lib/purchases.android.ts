@@ -131,8 +131,8 @@ export async function buy(packageId: string, uid?: string | null): Promise<BuyRe
   if (!(await identified(uid))) return { ok: false, code: 'identity' };
   // The store's own view of this account, before any sheet opens. Our server said "not Premium" a moment
   // ago, but a webhook can lag a purchase and an Apple subscription on the same account lives here too.
-  // And a subscription that is off only because a payment failed (Google's account hold, Apple's billing
-  // retry) is fixed, never bought again: it comes back and charges the moment the card is fixed.
+  // And an Apple subscription still in Apple's billing retry is fixed, never bought again here: Apple charges
+  // the moment the card works. (Google's own hold is not refused: buying again replaces the held one.)
   try {
     const info = await Purchases.getCustomerInfo();
     if (typeof info.entitlements.active[ENTITLEMENT] !== 'undefined') return { ok: false, code: 'already_premium' };

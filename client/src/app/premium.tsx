@@ -252,9 +252,10 @@ export default function PremiumScreen() {
         setError(t('premium.purchaseIdentity'));
         break;
       case 'fix_billing':
-        // Android: a subscription in account hold or billing retry, which our server reads as ended. It
-        // comes back by itself once the card is fixed, so a second one would charge twice.
-        setError(res.heldBy === 'google' ? t('premium.purchaseHeldGoogle') : res.heldBy === 'apple' ? t('premium.purchaseHeldApple') : t('premium.paymentAttentionPlain'));
+        // Android: an Apple subscription still in Apple's billing retry, which our server reads as ended.
+        // Apple charges the moment the card works, so a Google Play one now would charge twice. (Google's own
+        // hold is never refused: buying again replaces it. purchaseHeldGoogle stays for that day's fallback.)
+        setError(res.heldBy === 'apple' ? t('premium.purchaseHeldApple') : res.heldBy === 'google' ? t('premium.purchaseHeldGoogle') : t('premium.paymentAttentionPlain'));
         break;
       case 'network':
         // after the store took a payment, a network failure is the commonest way this ends: never "nothing was charged"
