@@ -8794,3 +8794,13 @@ doubledone.app" line (allowed only while an app sells nothing, so killed); remov
 
 **Reaches people:** nobody yet. The web on the merge (M17: only its Terms, Privacy and Support wording
 changes), Android with the 1.7.0 build, iOS's share of it with its next build.
+
+**Found in device test 8d (2026-10-03): the sign-in reconcile restated a live grace-period row.** RevenueCat's
+v1 subscriber view reports a Google subscription in its grace period as plainly active, and
+`/apple/reconcile` wrote `status: 'active'` over the webhook's `past_due` on every app start, so the "fix
+your payment" box vanished the moment the person reopened the app (Premium itself stayed correctly on,
+and nothing was charged). **Decided:** the reconcile ATTACHES ONLY (`writeEntitlement` `attachOnly`, the
+condition inside the same statement): it writes where there is no row or a lapsed one, and never restates
+a live Premium row, whose state belongs to the webhook. **Decided against:** teaching the reconcile to read
+`billing_issues_detected_at` and write `past_due` itself (a second, weaker copy of the webhook's state
+machine). Proven by a mutation check: with the guard off, exactly the grace-period tests fail.

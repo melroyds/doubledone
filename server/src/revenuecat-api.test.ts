@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import type { D1LikeDatabase } from './entitlements';
+import { readEntitlement, writeEntitlement } from './entitlements';
 import { buildSubscriberRequest, grantFromSubscriber, handleAppleReconcile, sourceForV1Store } from './revenuecat-api';
+import { sqliteD1 } from './sqlite-d1.test-helper';
 
 const UID = '11111111-2222-3333-4444-555555555555';
 const NOW_MS = 1_800_000_000_000;
@@ -241,5 +243,25 @@ describe('Path A review: reconcile is rate-limited per user', () => {
     const res = await handleAppleReconcile(req, env, {}, '2026-09-30T00:00:00Z', NOW_MS, async () => UID, doFetch);
     expect(res.status).toBe(429);
     expect(called).toBe(false);
+  });
+});
+
+// Device test 8d (2026-10-03), end to end in real SQLite: a Google subscription in its grace period reads
+// as plainly active in RevenueCat's subscriber view, and the sign-in reconcile used to overwrite the
+// webhook's past_due with it on every app start, hiding the "fix your payment" box.
+describe('handleAppleReconcile attaches only', () => {
+  it('leaves a live past_due row alone and answers attached: false', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, { userId: UID, customerId: null, source: 'apple', premium: true, status: 'past_due', currentPeriodEnd: 1_799_000_000, cancelAtPeriodEnd: true }, 'webhook');
+    const res = await handleAppleReconcile(req(), envOf(db), {}, 'reconcile', NOW_MS, ok, fetchJson(subscriber()));
+    expect(await res.json()).toEqual({ attached: false });
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, status: 'past_due', cancelAtPeriodEnd: true });
+  });
+
+  it('still attaches a purchase the webhook never delivered (no row)', async () => {
+    const db = await sqliteD1();
+    const res = await handleAppleReconcile(req(), envOf(db), {}, 'reconcile', NOW_MS, ok, fetchJson(subscriber()));
+    expect(await res.json()).toMatchObject({ attached: true });
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, status: 'active', source: 'apple' });
   });
 });

@@ -142,3 +142,45 @@ describe('writeEntitlement: only a real sale takes a premium row from another st
     expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, source: 'apple' });
   });
 });
+
+// Device test 8d (2026-10-03): the sign-in reconcile restated a grace-period row as 'active' on every app
+// start, which hid the "fix your payment" box. attachOnly writes only where there is no live Premium row.
+describe('writeEntitlement attachOnly: the reconcile never restates a live row', () => {
+  const g = (over: Partial<Parameters<typeof writeEntitlement>[1]> = {}) => ({
+    userId: 'u1', customerId: null, source: 'google' as const, premium: true, status: 'active', currentPeriodEnd: 1_800_000_000, cancelAtPeriodEnd: false, ...over,
+  });
+
+  it('attaches when there is no row at all', async () => {
+    const db = await sqliteD1();
+    expect(await writeEntitlement(db, g(), 'now', { attachOnly: true })).toBe(true);
+    expect((await readEntitlement(db, 'u1')).premium).toBe(true);
+  });
+
+  it('attaches over a lapsed row (premium off)', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, g({ premium: false, status: 'expired' }), 't1');
+    expect(await writeEntitlement(db, g(), 't2', { attachOnly: true })).toBe(true);
+    expect(await readEntitlement(db, 'u1')).toMatchObject({ premium: true, status: 'active' });
+  });
+
+  it('leaves a live grace-period row exactly as the webhook wrote it', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, g({ status: 'past_due', cancelAtPeriodEnd: true, currentPeriodEnd: 1_700_000_000 }), 't1');
+    expect(await writeEntitlement(db, g({ status: 'active', currentPeriodEnd: 1_800_000_000 }), 't2', { attachOnly: true })).toBe(false);
+    expect(await readEntitlement(db, 'u1')).toMatchObject({ premium: true, status: 'past_due', cancelAtPeriodEnd: true, currentPeriodEnd: 1_700_000_000 });
+  });
+
+  it('never takes a live row from another store either', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, g({ source: 'stripe', status: 'active' }), 't1');
+    expect(await writeEntitlement(db, g({ source: 'google' }), 't2', { attachOnly: true })).toBe(false);
+    expect((await readEntitlement(db, 'u1')).source).toBe('stripe');
+  });
+
+  it('leaves the webhook path exactly as it was (a same-store write still lands)', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, g({ status: 'active' }), 't1');
+    expect(await writeEntitlement(db, g({ status: 'past_due' }), 't2')).toBe(true);
+    expect((await readEntitlement(db, 'u1')).status).toBe('past_due');
+  });
+});
