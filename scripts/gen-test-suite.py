@@ -717,7 +717,7 @@ CASES = [
     # --- Accessibility --------------------------------------------------------
     ("I18N-02", "Languages", "P2", "German is a supported language on the phones",
      "PREREQ: a store build made after 2026-10-05 (it is native config, so web and older builds cannot show it). Set the phone's language to German, open DoubleDone. On iOS also open Settings -> DoubleDone -> Language.",
-     "The app is in German throughout. iOS lists Deutsch beside English, Italiano, Español and Français in the app's own language setting, and choosing it switches the app. On Android 13+ the per-app language list offers Deutsch too.", "Both"),
+     "The app is in German throughout (it already was: the app follows the phone's language). New with this build: iOS lists Deutsch beside English, Italiano, Español and Français in the app's own language setting, and choosing it switches the app; Android 13+ app languages offer Deutsch too; and once the build is live, the App Store page's Languages line includes German.", "Both"),
     ("A11Y-01", "Accessibility", "P2", "Screen reader (TalkBack)",
      "Enable TalkBack, navigate Today and capture.",
      "Controls are labelled. Dates read in a friendly way.", "Android"),

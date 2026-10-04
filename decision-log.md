@@ -9198,8 +9198,13 @@ the stamp writes, so it can never be behind itself; the fallback is only a last 
 production export (it embeds 1.8.0); a warm dev server can serve a stale manifest, so a dev server is not
 the place to judge it (CLAUDE.md gotcha).
 
-**2. German was missing from the phones' supported languages** (`supportedLocales` in app.json listed en,
-it, es, fr). **Decided:** add `de`. Native config, so it reaches phones with the next store build (I18N-02).
+**2. German was missing from the phones' per-app language list** (`supportedLocales` in app.json listed en,
+it, es, fr). **Decided:** add `de`. Corrected the same day: the app ITSELF was never in English on a German
+phone, because `lib/locale.ts` reads `getLocales()`, which is the device's own language list
+(`Locale.preferredLanguages`), not this setting. What the setting drives is the per-app language picker (iOS
+Settings > DoubleDone > Language, Android 13+ app languages) and the localisations the iOS build declares,
+which the App Store page's Languages line is read from. Native config, so it arrives with the next store
+build (I18N-02).
 
 **3. Anyone with a keepsake image's address could delete it** (`POST /scrapbook/purge` took no sign-in,
 and the images are publicly readable by address). **Decided:** a signed-in person's keepsake is now tagged
