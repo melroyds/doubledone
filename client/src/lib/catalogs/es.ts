@@ -278,6 +278,7 @@ export const es: Catalog = {
     editTitleA11y: 'Editar el título y dónde lo dejaste: {title}',
     lineA11y: 'Dónde lo dejaste: {line}. {date}.',
     hintA11y: 'Editar.',
+    addA11y: 'Anotar dónde lo dejaste',
     parentPrefix: '{bigTitle}:',
     parentLineA11y: '{bigTitle}. Dónde lo dejaste: {line}. {date}.',
   },

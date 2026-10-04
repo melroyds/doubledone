@@ -278,6 +278,7 @@ export const it: Catalog = {
     editTitleA11y: 'Modifica il titolo e a che punto eri: {title}',
     lineA11y: 'A che punto eri: {line}. {date}.',
     hintA11y: 'Modifica.',
+    addA11y: 'Annota a che punto eri',
     parentPrefix: '{bigTitle}:',
     parentLineA11y: '{bigTitle}. A che punto eri: {line}. {date}.',
   },

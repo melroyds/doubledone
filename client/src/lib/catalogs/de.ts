@@ -282,6 +282,7 @@ export const de: Catalog = {
     editTitleA11y: 'Titel und Notiz bearbeiten: {title}',
     lineA11y: 'Wo du stehengeblieben bist: {line}. {date}.',
     hintA11y: 'Bearbeiten.',
+    addA11y: 'Notieren, wo du stehengeblieben bist',
     parentPrefix: '{bigTitle}:',
     parentLineA11y: '{bigTitle}. Wo du stehengeblieben bist: {line}. {date}.',
   },

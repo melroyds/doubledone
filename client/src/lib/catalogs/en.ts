@@ -282,6 +282,7 @@ export const en = {
     editTitleA11y: 'Edit the title and where you left off: {title}',
     lineA11y: 'Where you left off: {line}. {date}.',
     hintA11y: 'Edit it.',
+    addA11y: 'Add where you left off',
     parentPrefix: '{bigTitle}:',
     parentLineA11y: '{bigTitle}. Where you left off: {line}. {date}.',
   },

@@ -677,8 +677,9 @@ export function TaskRow({
           </View>
         )}
 
-        {/* "Where you left off": the line under the title, only when there is one (an empty card says
-            nothing). Content, not an action: the only thing it does is open the same editor on the line. */}
+        {/* "Where you left off": the line under the title. With a line, the line; without one, the field at rest
+            (Melroy, 2026-10-05: hidden behind the title it was not discoverable). Either way the only thing it
+            does is open the same editor on the line. */}
         {showLeftOff && editingTitle == null && leftOff ? (
           <Pressable
             onPress={() => openEditor('line')}
@@ -699,6 +700,22 @@ export function TaskRow({
                 {leftOff.text}
               </Text>
               <Text style={styles.leftOffDate}>{fmt.writtenOn(leftOff.writtenOn)}</Text>
+            </View>
+          </Pressable>
+        ) : eligible && editingTitle == null ? (
+          <Pressable
+            onPress={() => openEditor('line')}
+            style={({ pressed }) => [styles.leftOffLine, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel={t('leftOff.addA11y')}
+          >
+            <View style={styles.leftOffFieldMark}>
+              <LeftOffMark color={theme.colors.inkSoft} size={16 * theme.scale} />
+            </View>
+            <View style={[styles.leftOffColumn, styles.leftOffEmpty]}>
+              <Text style={styles.leftOffPrompt} numberOfLines={2}>
+                {t('leftOff.placeholder')}
+              </Text>
             </View>
           </Pressable>
         ) : null}
@@ -1240,6 +1257,16 @@ const makeStyles = (t: Theme) => {
     // that wraps keeps its mark beside its first words. The field's own top padding moves its first line down.
     leftOffLineMark: { height: 21 * t.scale, justifyContent: 'center' },
     leftOffFieldMark: { height: 21 * t.scale, marginTop: spacing.one, justifyContent: 'center' },
+    // The empty line looks like the field at rest, so the tap that opens the editor changes nothing but the
+    // cursor: a hairline under it (Standard), or the filled slip Quiet's editor uses, where inkSoft on
+    // surface still clears 4.5:1 (on Quiet's wash it would not).
+    leftOffEmpty: {
+      paddingVertical: spacing.one,
+      ...(t.appearance === 'quiet'
+        ? { backgroundColor: t.colors.surface, borderRadius: radius.sm, paddingHorizontal: spacing.three }
+        : { borderBottomWidth: border.hair, borderColor: t.colors.line }),
+    },
+    leftOffPrompt: { fontFamily: fonts.body, fontSize: 15 * t.scale, lineHeight: 21 * t.scale, color: t.colors.inkSoft },
     leftOffWords: { fontFamily: fonts.body, fontSize: 15 * t.scale, lineHeight: 21 * t.scale, color: t.appearance === 'quiet' ? t.colors.ink : t.colors.inkSoft },
     leftOffDate: { ...t.type.caption, color: t.appearance === 'quiet' ? t.colors.ink : t.colors.inkSoft },
     leftOffFieldRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.two, paddingHorizontal: spacing.two, marginTop: spacing.three - spacing.half },
