@@ -1,165 +1,230 @@
 # DoubleDone, a case study
 
-*How a calm to-do app for ADHD brains got scoped, sequenced, and deliberately held back. Written for anyone who wants to see the product thinking, not just the code. The contemporaneous version lives in [`decision-log.md`](../decision-log.md); this is the narrative.*
+*How a calm daily to-do app for ADHD, autistic and OCD minds was scoped, shipped to the web, the App Store and Google Play, turned into a small business, and deliberately held back. Written for anyone who wants the product thinking, not just the code. The contemporaneous record is [`decision-log.md`](../decision-log.md), the live plan is [`BUILD-PLAN.md`](../BUILD-PLAN.md) and the spec is [`product-spec.md`](product-spec.md). This page is the narrative. Where a claim matters, it links to the decision or the file behind it.*
 
 ---
 
-## The pivot: choosing the right thing to build
+## At a glance
 
-The planned next portfolio piece was SubToll, a subscription-audit tool. It was shelved before a line was written, for two reasons that are really one reason.
+- **What it is.** A calm daily to-do app. The home screen is Today, sized to be doable.
+- **Who it is for.** People with ADHD, autism, the AuDHD overlap, OCD and chronic overwhelm.
+- **Where it runs.** [doubledone.app](https://doubledone.app), the App Store and Google Play, all from one Expo codebase, with a Cloudflare Worker for AI and billing and optional Supabase sync.
+- **Where it is now.** 1.7.0 is live on both stores. 1.8.0 (iOS build 41, Android versionCode 35) is with the stores as of 2026-10-05. The web runs `main`, so it already carries 1.8.0.
+- **The business.** Freemium, with paying subscribers. Premium sells through Stripe on the web, Apple in-app purchase on iOS and Google Play Billing on Android, the last two through RevenueCat.
+- **Who built it.** Melroy D'Souza, solo, in Melbourne.
 
-- **Motivation is the binding constraint** for solo nights-and-weekends work, and SubToll never had it. DoubleDone did: the founder runs his life off to-do lists and has ADHD-shaped work patterns. He is the user, he will dogfood it daily, and he will not lose interest.
-- **Monetisation followed from that.** "Find your forgotten subscriptions" is a one-shot value prop with no reason to keep paying. A daily to-do app you actually open is intrinsically subscription-shaped. The thing SubToll could never manufacture, DoubleDone has by nature.
+## Why this, and not the planned thing
 
-The lesson banked: pick the project you will still want to open in week six, because that is also the project users will.
+DoubleDone replaced a planned project, SubToll, a subscription-audit tool, before a line of SubToll was written. There were two reasons, and they turned out to be one.
 
-## The spine
+- **Motivation is the binding constraint** on solo nights-and-weekends work, and SubToll never had it. DoubleDone did. Melroy built it out of care for people he works with, has managed and is friends with who have ADHD and OCD. He does not have ADHD himself. The founder-market fit is proximity and close-up empathy, not lived experience, and it is why the product is organised around how these people get stuck rather than around a feature list.
+- **Monetisation followed from that.** "Find your forgotten subscriptions" is a one-shot value with no reason to keep paying. A daily app that people actually open is subscription-shaped by nature.
 
-**Today is finite and achievable.** The home screen is Today, sized to be doable, and every feature exists to protect it from the overwhelm of the full list. This single sentence is the product's spine, and it is the tie-breaker for every scope decision. When a feature would turn Today into an everything-bucket, it loses, no matter how good it is. (Custom lists, for example, are designed to live *outside* Today for exactly this reason.)
+The day-one reasoning still holds: pick the project you will still want to open in week six, because week six is also the bar for the people who use it. ([founding entry](../decision-log.md#2026-06-17-project-founded))
 
 ## The audience, and why generic apps fail them
 
-DoubleDone is for ADHD, autism, the AuDHD overlap, OCD, and chronic overwhelm. Neurotypical productivity apps optimise for capture and structure and reward you with streaks. For this audience those patterns backfire on predictable failure modes:
+Mainstream productivity apps optimise for capture and structure, then reward you with streaks. For this audience those patterns backfire on predictable failure modes:
 
-- **Task-initiation paralysis**, the dreaded task is too big to begin.
-- **Time blindness**, "today" silently fills past what a day holds.
-- **The discounting reflex**, the brain throws away everything already done.
-- **Rejection-sensitive dysphoria**, guilt mechanics (overdue-red, nags, broken streaks) repel rather than motivate.
+- **Task-initiation paralysis.** The dreaded task is too big to begin.
+- **Time blindness.** "Today" quietly fills past what a day can hold.
+- **The discounting reflex.** The brain throws away everything already done and reports that you did nothing.
+- **Rejection-sensitive dysphoria.** Guilt mechanics (overdue red, nags, broken streaks) repel rather than motivate.
 
-Designing *around these specific failures*, rather than bolting "ADHD" onto a generic app, is the whole product. The calm, predictable, never-shame surface also fits the autistic side, where dopamine-streak apps actively repel.
+Designing around these specific failures, rather than adding "ADHD" to a generic app, is the whole product. The calm, predictable, never-pressure surface also fits the autistic side of the audience, where dopamine-streak apps actively repel, and it matters for the demand avoidance that is common in AuDHD. ([`product-spec.md`](product-spec.md))
+
+## The spine
+
+**Today is finite and achievable.** The home screen is Today, sized to be doable, and every feature exists to protect it from the overwhelm of the full list. That one sentence is the tie-breaker for every scope call. When a feature would turn Today into an everything-bucket, it loses, however good it is.
+
+Two examples of the spine doing its job:
+
+- **Ours, the shared list, lives beside Today, not on it.** It has its own tab in the heading. A shared row arrives on your Today by itself only when someone gives it a day or a rhythm, anything else waits on the shared list until you bring it over, and the tab shows a small "!" when your person changed something, never a count.
+- **Today's tools sit in one constant frame.** Plan my day, Focus, Lighten today, Settle and Close the day always sit in the same order (with AI switched off, Plan my day and Lighten today are simply absent), with one "Right now" suggestion picked by the hour the screen opened. A tool that does not apply yet stays in its place at low contrast with a plain hint, so nothing moves under a thumb. ([`day-tools.ts`](../client/src/lib/day-tools.ts))
 
 ## The one rule that cannot break
 
-**Never shame the backlog.** Celebrate closing a task; never punish one for existing. With rejection-sensitive dysphoria, a guilt-based app is not under-motivating, it is actively harmful, and users leave. This rule is load-bearing and it shows up everywhere:
+**Never shame the backlog.** Celebrate closing a task, never punish one for existing. For a reader with rejection-sensitive dysphoria, a guilt-based app is not under-motivating, it is harmful, and people leave. ([the rule, as founded](../decision-log.md#the-one-rule-that-cannot-break))
 
-- No overdue-red, no nagging. Undone work just rolls forward, quietly.
-- "Close the day" is a gentle wrap, not a scorecard: it shows what you finished and reassures that nothing is lost.
-- The Lookback exists to answer the discounting reflex with evidence: *here is everything you actually finished, the old dreaded things included.* It is the emotional payoff, deliberately not a stats dashboard.
+It is load-bearing, and it shows up in the code rather than in a style guide:
 
-When a design choice and this rule conflicted, the rule won.
+- **No overdue state.** An undone one-off due today or earlier simply shows on Today. Nothing turns red. ([`today.ts`](../client/src/lib/today.ts))
+- **Close the day** shows what you finished, offers "Anything else you did?", then rests: "You've closed today." Reopening is one tap.
+- **The Calendar** (called the Lookback inside the code) answers the discounting reflex with evidence: everything you actually finished, the old dreaded things included. It is deliberately not a stats dashboard.
+- **Celebration is warmth, never points.** Affirmation lines on a tick, and a bloom when a whole broken-down task finishes, sized by how long it waited and how hard it was. No streaks, no scores. ([`reward.ts`](../client/src/lib/reward.ts), [`celebrate.ts`](../client/src/lib/celebrate.ts))
+- **Nothing to break.** Routines tick per day and yesterday falls away. Rhythms (gentle recurring nudges such as water or meds) store no count and no history at all.
+- **Coming back is welcomed.** After four or more days away, Today opens with a welcome back, not a pile. ([decision](../decision-log.md#2026-06-20-shame-free-re-entry-a-welcome-back-not-a-guilt-pile))
+- **On a shared list, a tick records a time, never a person.** There is no `done_by` column, and the schema says there never will be. ([`ours.sql`](../supabase/ours.sql))
+
+The rule's hardest test came from a user, who asked for more constant, more forceful reminders. Their own word for it was a contract. **Hold me to it** answers that without breaking the rule, because shame is judgement about the past and force is delivery intensity about the future, chosen per task by the person. On the phone apps: one contract at a time, a fixed and readable ladder (30 minutes, 90 minutes, 3 hours, 6 hours, then 09:30 daily), quiet hours from 21:30 to 08:30, the same calm words every time, and "Let it go" in one tap with no confirm. Relentless about the thing, kind about the person. ([decision](../decision-log.md#2026-08-22-hold-me-to-it-force-without-shame), [`hold.ts`](../client/src/lib/hold.ts))
 
 ## The core loop
 
-Brain-dump → AI triage → break the dreaded thing down → work a small day → strategise if it is over-full → close the day → see what you finished. Two design calls define its feel:
+Brain-dump, sort it, break the dreaded thing down, work a small day, lighten it if it is over-full, close the day, then see what you finished.
 
-- **Propose-then-accept for anything that rearranges your day.** Strategise (re-spread an over-full day) and the Break-it-down review both *propose* and wait for a tap. The AI never silently reorganises your list. Control matters most exactly where the AI is most useful.
-- **Capture is the deliberate exception.** Triage ("Sort for me") applies its result directly, no review step, because the capture surface must be the lowest-friction thing in the app. A review step there would fight the one moment that has to be effortless.
+- **Capture** is a floating + that raises a panel without popping the keyboard. One line per thing. One door sets When (today, tomorrow or a date), Repeating (daily, weekly on chosen days, every few days, monthly) or Steps. With AI on, **Sort for me** files a dump between today and later and flags what needs breaking down, **Tidy this into tasks** splits a run-on ramble, and **Scan** (Premium) reads a photo of a list. Text shared from any app lands in the box for you to confirm. Nothing is ever auto-added.
+- **Break it down** turns a dreaded task into three short questions (by when, gradual or all at once, and one smart clarifier), then a plan you can edit before accepting. A big, long-horizon task returns a roadmap of phases. Only phase one is broken into steps now, and each later phase waits in Later, broken down when you reach it. The original task is kept as a silent parent, so you hold one small step at a time and finishing the steps finishes the real thing.
+- **Make it tiny** shrinks a stuck task to a two-minute version. The real task comes back once the tiny step is done.
+- **Focus** ("Just this one") shows one task, keeps the screen awake, and steps through parts one at a time.
+- **Lighten today** proposes moving some of an over-full day to later days. **Plan my day** (Premium) proposes an order after asking about your energy and the kind of day it is.
+- **Where you left off** (1.8.0) lets any of your one-off tasks carry one short line for next time, such as "Called them, ring back Thursday", stamped with the day you wrote it. It is free, and it syncs only to your own account. It is never sent to an AI feature or a shared list, and never returned by the REST API or MCP. ([`leftoff.ts`](../client/src/lib/leftoff.ts), [decision](../decision-log.md#2026-10-04-where-you-left-off-built-one-free-line-per-task))
 
-**Break it down** is the clearest expression of the spine. A dreaded task becomes a short interview (a due date, a pace, one smart clarifier), then a plan you accept. For a big, long-horizon task it returns a *roadmap of phases*: only phase one is broken into steps now, and each later phase waits in Later as a dated milestone, broken down when you reach it. The deadline is honoured without ever dumping forty tasks onto today. And the break-down no longer flattens the task: the original is kept as a silent background parent, so you hold one small step at a time while the app quietly tracks the whole, and finishing the steps completes the dreaded thing itself.
+The AI can be switched off entirely in Settings, and the app is whole without it. That choice is offered during onboarding, so an AI-wary person never has it pushed at them. ([decision](../decision-log.md#2026-06-28-ai-optional-the-app-whole-without-it-for-the-ai-wary))
 
 ## The moat
 
-Per-user history is switching cost. The real moat is a **cross-user completion-data flywheel**: log the decomposition the AI offered and whether its steps actually got finished, by people who struggle to finish, so Break-it-down improves for everyone as it scales. A funded competitor cannot buy that dataset.
+Per-user history is switching cost. The real moat is a **cross-user completion-data flywheel**: log the breakdown the AI offered and whether its steps actually got finished, by people who struggle to finish, so Break it down can improve for everyone as it scales. A funded competitor cannot buy that dataset. ([founding entry](../decision-log.md#the-moat-designed-for-instrumented-from-day-one))
 
-The decision that makes it legible as intelligence is **day-one instrumentation**: every AI call is captured from the first feature, before there is any data to use. The privacy tension (this audience distrusts data collection) is resolved by architecture, not policy: the telemetry is **pseudonymous** (no user identity) and lives in a store with **no public write path** (a Worker-bound database, so it cannot be written or read through any public API), and the posture is aggregate, anonymise, never sell. The user-facing payoff ("people usually finish this in about three days") is deliberately deferred until there is enough honest volume to mean it. Both halves of that loop are now wired: the decomposition we offered, and an anonymised signal of whether its steps actually got completed, which the silent-parent chain sharpens from "the steps were ticked" to "the dreaded thing actually got done".
+What makes it legible as a strategy rather than a slide is **day-one instrumentation**. The AI-call log was built on 2026-06-18, the day after the project was founded, long before there was any data to use. How it works now:
 
-## Trade-offs worth seeing
+- **The offered half.** The Worker logs every AI call to a Cloudflare D1 database with no public write path: endpoint, model, the input it was given, the JSON it returned, tokens and latency. It holds no user id and no IP. It does keep the task text that was typed, and the privacy policy says so. A few routes keep only counts (Scan never stores the image or its titles). ([`telemetry.ts`](../server/src/telemetry.ts), [`schema.sql`](../server/d1/schema.sql), [why D1](../decision-log.md#2026-06-20-the-moats-telemetry-store-moved-to-cloudflare-d1-no-public-write-path))
+- **The completion half.** The client mints a random id for each breakdown and sends it with the plan request. When a step is finished, the app sends only `{id, steps_total, days_elapsed}`, no text and no identity, and the two halves join on that id. ([`outcome.ts`](../client/src/lib/outcome.ts), [decision](../decision-log.md#2026-06-21-the-moats-completion-half-the-outcome-flywheel-server))
+- **Feature usage** is a short, closed list. The app may send 20 named events, and the Worker keeps only the 26 names on its own allowlist, as one counter per name per day. The only detail kept is folded into a name, such as which of three rough stages a hold reached. No task text, ids or user id, and nothing from a development build. ([`telemetry.ts`](../client/src/lib/telemetry.ts), [`events.ts`](../server/src/events.ts), [the telemetry review](../decision-log.md#2026-10-04-the-telemetry-review-built-every-track-call-decided-three-new-counts-and-a-counter-instead-of-a-row-per-event))
 
-- **Tiered AI for cost.** Haiku on the cheap, friction-free paths (triage, the clarifying questions); Sonnet where reasoning matters (planning, decomposition, re-spreading). Forced tool-use with enum-constrained schemas and defensive parsing keeps a malformed model response from ever crashing a screen. A $25/mo cap bounds spend.
-- **Date maths on-device, not in the model.** The AI orders the steps; the client computes the dates. Deterministic, cheap, and untestable in the model is now testable in pure code.
-- **Re-decompose later phases instead of storing them.** Phased breakdown keeps only phase one's steps; later phases are re-broken-down when reached. No stale pre-generated steps, and no data-model migration. The reusable Break-it-down flow *is* the recursion.
-- **Local-first, anonymous-first.** The entire app works with no account. Sync is opt-in, the only PII is an email, and row-level security isolates every user. Privacy is the architecture, not a paragraph.
-- **Remove friction, never add a setting.** Light-first, no theme toggle to forget, defaults that just work. A Settings page is on the backlog, and its own entry argues with the spine before allowing itself in.
+The privacy tension (this audience distrusts data collection) is resolved by architecture, not by a paragraph: pseudonymous by design, aggregate, never sold.
+
+**The honest part.** The pace line at the end of a breakdown ("Usually about 6 days, at a gentle pace. No rush.") is computed from the plan itself, clamped to between 1 and 14 days. It is not crowd data, because claiming "people like you took X days" before there is enough volume would be a fabricated statistic. The surface is built so the real number can replace the heuristic with no UI change. ([`estimate.ts`](../client/src/lib/estimate.ts), [decision](../decision-log.md#2026-06-19-the-moat-made-visible-a-calm-pace-estimate))
+
+## What shipped, and when
+
+| Date | Milestone |
+|---|---|
+| 2026-06-17 | Project founded. The spine, the moat and the one rule written down first. |
+| 2026-06-18 | First builds on the web and a sideloaded Android APK. The AI backend is a Cloudflare Worker, not the planned Render service. |
+| 2026-06-20 to 21 | The MCP server, then the public REST API. The moat's telemetry moves to D1 and the completion half goes live. |
+| 2026-06-23 | The web app is live for real users. |
+| 2026-06-26 | Live Stripe, the night DoubleDone started taking real money. |
+| 2026-06-28 | AI becomes optional, and the app stays whole without it. |
+| 2026-07-04 | Every screen in four languages. German follows as the fifth on 2026-08-08. |
+| 2026-07-07 | MCP grows to nine tools and gains OAuth 2.1, so hosted assistants connect by pasting a URL. |
+| 2026-07-15 to 18 | Apple in-app purchase decided, then built. |
+| 2026-07-31 | Live worldwide on the App Store (v1.0, build 13) and Google Play production (versionCode 20). |
+| 2026-08-13 to 16 | Ours, the shared list for two people, opens to every signed-in user. |
+| 2026-08-30 to 31 | 1.5.0 with Hold me to it, live on all three. |
+| 2026-09-27 | Today v3 on the web, Quiet made free, deleting an account now stops billing first, and the Android app stops selling (Path C, shipped in 1.6.0). |
+| 2026-10-03 | Android 1.7.0 sells Premium through Google Play Billing, at 100%. iOS 1.7.0 follows on 2026-10-04. |
+| 2026-10-04 to 05 | Where you left off, live on the web. 1.8.0 goes to the stores. |
+
+Behind those dates: 1,918 automated tests (1,230 client, 688 server) and a manual launch gate of 477 cases, [`docs/qa/e2e-test-suite.md`](qa/e2e-test-suite.md), both counted on 2026-10-05.
+
+## Decisions worth seeing
+
+A handful of the strongest calls, each with the trail behind it.
+
+### Local-first, anonymous-first
+
+The whole app works with no account. Tasks live on the device first, and sync is opt-in through a passwordless email code. An account needs nothing but an email address, and row-level security isolates every user's rows. Merging is last-write-wins on each task's `updatedAt`, with soft-delete tombstones, so an anonymous list moves up to a new account on first sign-in with no special casing. There are no analytics, crash-reporting or ad SDKs. The only billing SDK is RevenueCat, in the native apps.
+
+- **Decided against:** a three-way merge, field-level merging and realtime sync. Last-write-wins is the right complexity for one person across their own devices.
+- **Trade-off accepted:** sync runs when Today opens and on sign-in, not continuously, so a change made by an agent appears on the next sync rather than live in an open app.
+- **Trail:** [privacy posture](../decision-log.md#2026-06-18-privacy-and-security-posture-formalised), [the merge engine](../decision-log.md#2026-06-18-cloud-sync-part-2-the-pure-merge-engine), [`sync-merge.ts`](../client/src/lib/sync-merge.ts).
+
+### Propose-only AI
+
+The AI never silently reorganises anyone's list. Lighten today, Break it down, Plan my day, Chart a course and energy matching all propose and wait for a yes. After a paying tester pointed out that all-or-nothing reviews force restarts when the AI nearly gets it right, the review gained its missing middle: propose, edit, accept. The same rule reaches agents. The MCP `break_down` tool returns steps and adds nothing until the person says so in the chat.
+
+- **The deliberate exception:** Sort for me applies its result directly, because the person asked for it with one tap and capture must stay the lowest-friction moment in the app.
+- **Trail:** [Lighten today, propose then accept](../decision-log.md#2026-06-18-f-strategise-part-2-the-client-ui-propose-then-accept), [propose, edit, accept](../decision-log.md#2026-07-04-propose---edit---accept-ai-suggested-steps-are-now-editable-tester-wave-slice-2-tester-refinements), [MCP stays propose-only](../decision-log.md#2026-07-07-mcp-tools-expansion-3-tools-to-9-capture-look-ahead-manage-break-down-deep-research).
+
+### Premium on three storefronts, one entitlement
+
+Web subscribers pay through Stripe. On iOS, the standing plan was to hide every purchase path to avoid Apple's cut. Melroy reversed it with one line: "15% of 0 is 0." A hidden path converts nobody, so the cut is the price of a revenue line that did not exist. iOS sold from its first release, parity-priced, absorbing the cut. Every storefront writes the same single entitlement row per person on the Worker, with a `source` column, and the Supabase user id is the RevenueCat app user id, so one subscription follows a person across all three platforms. Apple's review then rejected a sign-in wall before purchase, so iOS now allows an anonymous purchase and attaches it to an account at sign-in.
+
+- **Decided against:** making RevenueCat the source of truth (it would rewrite a live Stripe path for nothing) and hand-rolling receipt validation.
+- **Trail:** [Apple IAP from v1](../decision-log.md#2026-07-15-apple-iap-from-ios-v1-reversing-the-hide-everything-path), [the App Review rejection](../decision-log.md#2026-07-28-app-review-rejection-the-sign-in-wall-before-apple-iap-comes-down-511v), [`entitlements.ts`](../server/src/entitlements.ts).
+
+### Google Play: Path C first, then Path A
+
+Play rejected Android 1.5.1 for showing a fixed A$ price to a reviewer abroad. A policy sweep against Google's own pages then found the deeper problem: the Android app's link out to Stripe had never been allowed. There were two real fixes. Path A was Play Billing through RevenueCat, the right end state at a week or two of work. Path C was to sell nothing on Android, a few days. Melroy shipped C first to get the new design out, with A parked and a trigger set. Then he built A. Android 1.7.0 sells through Play, parity-priced, with prices shown only from the store's own price string and no figure of ours anywhere in the Android build.
+
+- **How:** three compile-time switches, set per platform in [`storefront.ts`](../client/src/lib/storefront.ts) and [`storefront.android.ts`](../client/src/lib/storefront.android.ts), so the Android rules live in the Android build alone. Path C's branches are kept on purpose, because flipping one switch back to false is the pre-decided rollback.
+- **Android requires an account to buy,** unlike iOS, because an anonymous buyer who already pays on the web would be one tap from a second charge.
+- **Trail:** [Path C](../decision-log.md#2026-09-27-path-c-the-android-app-sells-nothing-google-plays-payments-and-subscriptions-policies), [Path A, slice 3](../decision-log.md#2026-10-01-path-a-slice-3-the-android-app-sells-premium-through-google-play-built-not-shipped), [`path-a-runbook.md`](path-a-runbook.md).
+
+### Quiet, made free
+
+The Quiet interface strips the screen to calm text on paper, with the same layout and the same features. It launched as Premium, paired with the colour themes as the personalisation layer. That pairing put Quiet on the wrong side of its own line. For this audience a less cluttered screen is an access need, in the same family as text size and reduced motion, and charging for relief sits badly with the spine. The gate also hid a trap: a member whose Premium or trial ended while on Quiet could not even tap back to Standard. Quiet became free on every platform. The six other colour themes stay Premium, because they really are an extra, and Dusk, the default, is always free, so nobody can get stuck.
+
+- **Trail:** [Quiet is free for everyone](../decision-log.md#2026-09-27-quiet-is-free-for-everyone).
+
+### Ours, built narrow
+
+The shared list is for exactly two people: one live list at a time, an invite code tied to the partner's email that lasts a day, and nothing on the list that says who did what. The schema already allowed one person to hold several lists. The interface ships one, because several would turn the quiet door on Today into a directory of other people's screens. Groups of three or more were declined, because groups invite the roles and pressure the one rule exists to refuse.
+
+- **Trail:** [one person, many people](../decision-log.md#2026-08-09-one-person-many-people-the-schema-already-allowed-it-the-ui-ships-one), [the features review](ours-features-review.md).
+
+### Deleting an account stops billing first
+
+Deleting an account used to remove only the login, so a Stripe subscription could keep charging someone who had no account left to cancel it from. Now the app first asks the Worker to cancel every chargeable subscription, and turn off a Google Play renewal, and deletes nothing unless the reply proves it worked. Apple billing cannot be cancelled from a server, so Apple subscribers are told plainly before they confirm.
+
+- **Trail:** [deleting an account stops Stripe billing first](../decision-log.md#2026-09-27-deleting-an-account-stops-stripe-billing-first), [`account.ts`](../client/src/lib/account.ts).
 
 ## The discipline of stopping
 
-The hardest part of a solo build is not adding things. The backlog is kept live, every item carries a **trigger** for when it earns its place, and just as importantly the decision-log records what was decided **against** and why. That trail is the product-management artifact: it shows sequencing, restraint, and a founder who can be watched saying no to their own good ideas.
+The hardest part of a solo build is not adding things. Every parked item carries a **trigger** for when it earns its place, and the decision log records what was decided **against** and why. That trail is the product-management artefact. Some of the best calls in it are things that were not built:
 
-The same discipline applies to the project itself: once the core loop is feature-complete and demoable, the leverage moves from *more features* to *legibility, polish, and reach*. Knowing where that line is, and choosing to stop building and go ship the story, is part of the craft.
+- **"Sit with me" was designed and then killed.** The build plan called it the most differentiated thing left. Thirteen agents designed it. Written out as plain user flows, it turned out to be doors to actions already one tap away on the held card, plus one new door that drafted a message to a friend: a share sheet with a caring label. Melroy read the flows and asked: "how does it help the person?" Demoted to Tier 4, with the design kept, because the reasoning for stopping was worth more than the design. ([decision](../decision-log.md#2026-07-25-sit-with-me-is-not-built-and-the-reason-is-that-it-was-a-menu-of-things-the-app-already-did))
+- **A usage cap that existed only in the planning documents was deleted, not built.** The plan carried a fair-use cap of about ten breakdowns a month as policy, so the next job was to build the meter. Checking first found it in no user-facing copy, no Terms and no code. Building it would have meant introducing a new restriction on a live product, for an audience where a takeaway lands hard. Scripted abuse was already covered by rate limits and body caps. ([decision](../decision-log.md#2026-07-25-there-is-no-break-it-down-cap-and-now-there-is-no-claim-of-one-either))
+- **Two requested Ours features were refused.** "Both people must agree it is done" turns inaction into a veto, and for a rejection-sensitive reader the ambiguity of silence is the harm. Server-coordinated reminders were refused in favour of each person setting their own existing reminder on the row, because sync already is the coordination. Refusing them also exposed a real bug: un-ticking a repeating shared task was impossible, which the passing tests had never asked about. ([decision](../decision-log.md#2026-08-09-two-features-refused-and-one-and-a-bug-found-by-refusing-them))
+- **Readings are decided before the data arrives.** "+ I also did that" stays if it is used at least three times in a 21-day window and goes if not, with the window's start, end and query written down in advance. Where you left off opens its Tier 2 only if saves happen on most days four weeks after the store build. Nobody gets to decide on a mood. ([the telemetry review](../decision-log.md#2026-10-04-the-telemetry-review-built-every-track-call-decided-three-new-counts-and-a-counter-instead-of-a-row-per-event))
+- **Done is not held hostage to undone.** Hold me to it shipped as its own release instead of riding with finished money fixes for paying customers. ([decision](../decision-log.md#2026-08-22-hold-me-to-it-force-without-shame))
 
-## The redesign: when polish becomes the work
-
-The first version earned an honest complaint from its own founder: Today had become cluttered. Not broken, *cluttered*, the way any screen does when feature after feature lands as "one more link in the row" and nobody steps back. That is the failure mode of shipping fast and solo: each addition is locally reasonable, and the sum is a junk drawer.
-
-So the whole UI took a system-pass redesign, and the first call was scope. Of seven surfaces, only Today genuinely needed rebuilding; the other five (the Lookback, Break-it-down, Premium, Settings, the Repeating drawer) were already close to the calm target and took small refinements or none at all. Auditing each screen against the spec *before* touching it is the discipline of stopping pointed at a redesign: "redesign everything" was really "rebuild one, refine a few, leave the rest." Tearing up what already works is its own kind of overwork.
-
-Today's rebuild folded a row of five flat actions into the screen itself: "Focus on one thing" promoted to a calm entry, off-list logging tucked beneath the list, and a single tap-and-hold gesture that replaced *both* a per-task menu and a separate multi-select button. One gesture, one clear set of actions, instead of a drawer of links.
-
-The redesign also surfaced the one thing a feature-complete app still lacked: a front door. New users arrived mid-stream. The fix is a guided first-run that onboards by *doing*, your first brain-dump runs through the real triage, so the first thing you see is the product working, a doable Today, not a tutorial wall or an empty void. It is the spine delivered as a first impression. And because the lovely part is the guided capture rather than a recap, it was made replayable and non-destructive from Settings, not locked to install day.
-
-## Going deep: from one feature each to a system
-
-The first cut mapped one feature to each failure mode, and that clean one-to-one was the right MVP. It was also, on reflection, too thin for the hardest of them. Task initiation is where this audience loses the most days, and a single Break-it-down does not cover the moment when even the first step is too much, or the moment when a dreaded task keeps looming because you can still see the whole of it.
-
-So the product went *deep* on the failure modes rather than wide on new ones. Founder-market-fit is exactly the ability to feel where the thin spots are:
-
-- **Crossing the start line** got two more answers. Break-it-down stopped flattening the task: the original is kept as a silent background parent, so you only ever hold one small pebble and the boulder never looms, yet finishing the pebbles still finishes the real thing. And "Make it tiny" shrinks a stuck task to a literal two-minute version, because sometimes the work is just getting unstuck.
-- **The day itself** got gentler. A one-tap "low day" recalibrates Today to a smaller target when you have less to give, and a quiet evening wind-down invites you to close the day instead of nagging you about it.
-- **The OCD and perfectionism overlap**, which the product had always named in its audience but never actually served, finally got a feature. "Done is done" reassures that a finished task is filed and you can stop checking, a calm, consistent line that meets the checking loop without feeding it.
-- **Structure without a streak.** Routines are a calm morning or evening checklist that keeps no streak and no history, so there is nothing to break. It is the one piece of this seam most apps get wrong, and getting it right is the entire point.
-
-This is the move from "a calm to-do app with some ADHD touches" to a system organised around how these brains actually fail. It is also the part hardest to copy: a competitor can clone a screen in a weekend, but not the accumulated judgment about which thin spot to deepen next.
+The same discipline applies to redesigns. The first system pass, in June, found that only Today needed rebuilding, so "redesign everything" became "rebuild one, refine a few, leave the rest". Today v3, in September, was built from a design handoff on its own branch and preview URL, because a merge to `main` is the web deploy.
 
 ## The platform surface: one engine, two front doors
 
-A calm consumer app did not have to have a developer surface at all. Building one, and building it with restraint, is the platform-thinking signal. DoubleDone exposes a user's own tasks two ways on a single Cloudflare Worker, both bearer-authed with the user's own Supabase token and scoped entirely by row-level security, so the server holds no elevated key:
+A calm consumer app did not have to have a developer surface. Building one with restraint is the platform signal. DoubleDone exposes a person's own tasks two ways on one Cloudflare Worker, both acting only with that person's own Supabase token under row-level security, so the server holds no elevated key.
 
-- **A public REST API** (OpenAPI 3.1, version 1.1.0, at `/api/v1` with a browsable Swagger UI at `/api/v1/docs`): a token-authenticated CRUD-plus-query surface over a user's tasks. Create a task that lands on today or takes a future due day or a repeat cadence (but never both dated and recurring), patch any field, and read three ways, a substring search, a look-ahead window, or the app's own Today view.
-- **An MCP server** for AI agents (nine tools), so an agent can add, list, complete, update, delete, and *break down* a task, with a `search` / `fetch` pair that implements the OpenAI Deep Research connector contract, putting a user's own task history within reach of a research agent. Two auth paths by design, a pasted token for local tools and OAuth 2.1 with S256 PKCE for the hosted assistants, with an immediate Disconnect kill switch and the rotating refresh token encrypted at rest.
+- **A public REST API** (OpenAPI 3.1, version 1.2.3, at `/api/v1`, with a browsable Swagger UI at `/api/v1/docs`). Create, read, update and soft-delete tasks, with three read modes: a substring search, a look-ahead of 1 to 30 days, and the app's own Today. A task can have a date or a repeat, never both. ([`docs/api.md`](api.md))
+- **An MCP server** for AI agents, with nine tools: add, list today, list upcoming, complete, update, delete, a propose-only `break_down`, and a `search` and `fetch` pair that follows the OpenAI Deep Research connector contract. There are two ways in: a pasted token for local tools such as Claude Code, Claude Desktop and Cursor, and OAuth 2.1 with S256 PKCE for hosted assistants such as claude.ai and ChatGPT. The rotating refresh token is held encrypted, and Settings has an immediate Disconnect. ([`docs/mcp.md`](mcp.md))
 
-The call worth seeing is that **both surfaces share the same recurrence engine** (`buildRecurrence`). A repeating task made by an agent, by the REST API, or in the app is byte-for-byte the same shape, so the three doors never drift. And the division of labour is deliberate: the **AI actions (Break-it-down, the propose-only decomposition) are MCP-only**, because an agent asks for a yes before anything lands, while the REST API stays pure CRUD-plus-query. The intelligence lives where the consent loop lives; the plumbing stays boring on purpose.
+The calls worth seeing:
 
-## Going live: the rigour that is not features
+- **One recurrence engine.** Both surfaces share `buildRecurrence`, so a repeating task made by an agent, by the API or in the app has the same shape. Completing a repeating task from either surface ticks one day and never closes the series, the same rule as the app. ([`cadence.ts`](../server/src/cadence.ts), [decision](../decision-log.md#2026-09-25-a-repeat-is-ticked-for-today-never-closed-on-both-public-surfaces-api-audit-prs-b-and-c))
+- **Intelligence lives where consent lives.** The AI action is MCP-only, because a chat can ask for a yes before anything lands. The REST API stays plain CRUD plus query on purpose.
+- **Every bearer is verified before it can touch money, paid AI or a person's data.** Signature, issuer and expiry are checked against Supabase's published keys. ([`verify.ts`](../server/src/verify.ts), [decision](../decision-log.md#2026-09-25-the-bearer-is-verified-before-money-ai-spend-and-both-public-surfaces-api-audit-pr-a))
 
-Feature-complete is not launch-ready, and the gap between them is what separates a finished prototype from a business. The last stretch was almost entirely rigour, not new features.
+## Going commercial: the rigour that is not features
 
-- **Monetisation, built so the server never trusts the client.** Premium is a Stripe subscription (A$5/mo or A$50/yr) with a 30-day card-free trial. The client never decides its own premium status: a signature-verified, idempotent webhook writes an entitlement to the database, and a server guard re-checks it on every paid call. The free tier stays genuinely good on purpose, because for an RSD-prone audience a crippled free tier reads as bait-and-switch.
-- **Hardening the money path before it saw volume.** A per-IP backstop so a script cannot drain the shared image budget, a double-subscription guard so a user cannot double-charge themselves, and the webhook taught to alert on disputes, refunds, and failed payments. None of it can crash a request; all of it fails open or defensive.
-- **Instrumenting operations before scale, not after an incident.** A launch control centre watches spend against a hard cap, error rates, and abuse, hourly, and emails only on a breach, with a daily pulse and a dead-man's-switch so silence provably means healthy. A solo founder cannot watch a dashboard, so the system has to tap the shoulder. The sharpest call, the alarm-on-the-alarm, came from designing it across four independent expert lenses rather than one.
-- **Measure the claim, then make it.** When the design system claimed AA contrast, the honest move was to compute the ratios and put the numbers in a test, not to assert it in a doc. A contrast sweep deepened a handful of tokens until the claim was true, then proved it.
-- **A real front door.** The marketing landing was redesigned to be calm and editorial rather than loud, empathy first, showing the product rather than shouting a headline, and rebuilt on the live theme so it follows light and dark for free.
+Feature-complete is not launch-ready. Much of the work between the two was rigour.
 
-**The proof.** Going commercial closed the loop the whole thesis rested on: this audience does pay for a tool that respects how their brains work. There are real paying subscribers, the completion-data flywheel is live and logging what a competitor cannot buy, and the control centre's daily digest now tracks the things that actually matter, activation, spend, and the first signs of whether people stay. The week-six bar is still the bar, but for the first time there is a real curve forming against it, not a hypothesis.
+- **The server never trusts the client about money.** Premium status comes from the Worker's entitlement row, which only the server writes: from verified webhooks (a Stripe signature, and for RevenueCat a shared secret plus an optional HMAC signature), and from its own lookup at RevenueCat that attaches an anonymous Apple purchase after sign-in. The client asserts nothing. Sandbox purchases are refused, except for a few named review and test accounts. Guards on event order and on which subscription a delivery belongs to stop a late or stray event from overwriting a live one. ([`stripe.ts`](../server/src/stripe.ts), [`revenuecat.ts`](../server/src/revenuecat.ts), [the RevenueCat fixes](../decision-log.md#2026-10-04-three-revenuecat-money-path-fixes-overdue-the-day-after-play-went-live))
+- **Display fails soft, charging fails closed.** If the entitlement cannot be read, the screen shows the calm free state, but a purchase is refused rather than risking a second charge. Checkout answers "already subscribed" instead of selling twice, and the Premium AI routes refuse when they cannot check.
+- **The free tier is good on purpose.** The whole daily loop, Break it down, Make it tiny, Lighten today, Sort for me, Combine, the Calendar, Routines, Rhythms, Ours, Settle, Quiet, 15 energy picks a month and a monthly scrapbook are free. For this audience a crippled free tier reads as bait and switch. Premium adds Scan, Pin, the colour themes, Chart a course, Plan my day, Your patterns, unlimited energy matching and a weekly scrapbook, with a card-free 30-day trial. On the web that is A$5 a month or A$50 a year. In the apps, the store shows its own local price. ([`docs/premium.md`](premium.md))
+- **Operations before scale.** An hourly check emails the founder only when something crosses a line: AI spend at half the US$25 monthly budget or projected over it, error rates, volume and scrapbook abuse. It sends a short daily pulse, and it is built to ping an outside dead-man's switch every hour, so a monitor that has stopped is noticed too. It alerts rather than cutting anyone off. A solo founder cannot watch a dashboard, so the system has to tap the shoulder. ([`monitor.ts`](../server/src/monitor.ts), [`docs/operations.md`](operations.md))
+- **Measure the claim, then make it.** When the theme file claimed WCAG AA contrast, every value was computed rather than judged by eye, and the tokens that fell short were changed until the claim was true.
 
-## The second wave: what is paid, what is free, and why
+## Field testing on real hands
 
-After going commercial, the feature work resumed, and the sorting of paid-versus-free became product thinking in its own right. Four features shipped in the 2026-07-10 to 2026-07-11 window, and the line between them is deliberate:
+The gap between "verified on the web" and "works in a hand" has been the story of every release. The founder tests on his own phones and the people around him test on theirs, and the bugs they report are real even after weeks of browser checks.
 
-- **The Quiet interface (launched premium, free since 2026-09-27)** is a borderless appearance where nothing shouts, same layout, same features, calm text on paper. It launched as premium on the argument that personalisation is the paid lane and the calm baseline stays free. That argument put Quiet on the wrong side of its own line. For the sensory side of this audience a less cluttered screen is not personal taste, it is part of the calm baseline, an access need like text size and motion. The gate also hid a trap: it checked every tap, so a subscriber whose Premium or trial ended while on Quiet could not even switch back to Standard. So it was made free, and the colour themes, where Dusk is always free and nobody can get stuck, stayed paid. Two judgment calls from the build are worth keeping. When the design spec's literal measurements would have made switching appearance reflow the whole list, the spec's own first principle ("switching never moves anything, predictability matters for this audience") won over its numbers. And when the day's-weight gauge vanished as "chrome", the founder's own testing brought it back whisper-thin: it is information, not decoration, and a calm interface must not get calmer by knowing less.
-- **Energy matching (freemium, 15 picks a month)** answers the moment when the list is doable and you still cannot choose: one question ("What fits right now?"), one AI pick, propose-only, opening Focus mode on it. It lives inside Focus because choosing what to focus on is the moment the question makes sense; it started as another Today button and device testing moved it. The meter is the honest part: at roughly a fifth of a cent per pick, 15-free-then-paid is conversion psychology, not cost recovery. The reminders at 10 and 5 picks left are calm counts, never a nag, and a failed call never spends a use.
-- **Rhythms (free, permanently)** are gentle recurring self-care nudges, water around every couple of hours, meds at 8:00 and 20:30, asked for by a real user, the founder's wife. They are free for the same reason the reminder-time picker is: interoception support is accessibility, not upsell, and a self-care nudge behind a paywall would poison the never-shame promise. The rule is structural here, not editorial: the data shape has no field that could hold a streak or a count, so the shame mechanic is not merely avoided, it is unwritable.
-- **Share-to-capture (free)** puts DoubleDone on the system share sheet, Android and installed web alike. The design work was subtraction: a browser shares a quoted title plus a highlight-fragment URL, and what lands in the capture is one clean line, words kept, links dropped, because capture is the one surface that must never make the user tidy up after their tools. Nothing auto-adds; the box opens seeded and you confirm.
+- **Diagnosis by reading, not guessing.** A share that seemed dead was proved by an adb capture to arrive and then be lost to a mount-order race. Nudges that never came ended in the notification library's own Android source: without one permission, every alarm had been silently downgraded to an inexact one that the OS defers. The fix took the honest lane, the user-granted "Alarms & reminders" permission, over an auto-granted one Play reserves for alarm clocks and calendars. ([decision](../decision-log.md#2026-07-12-a5-escalation-exact-alarms-schedule_exact_alarm-the-real-reason-nudges-only-fired-on-app-open))
+- **Even our own instruments follow the rule.** The reminder health line once read "Set on this phone: 39". That was the developer debugging in front of the user, and it became one calm sentence: "Next nudge around 3:00 pm."
+- **Reversing well.** The scrapbook share launched image-only, so no task-derived words would leave the device as a surprise. Testing showed a bare image is half a keepsake. The caption is now baked into the image's pixels, so the share is still exactly one file the person has seen in full. The principle stayed and the mechanism changed. ([decision](../decision-log.md#2026-07-12-the-keepsake-becomes-a-page-caption-baked-into-the-shared-image-reversing-image-only-no-text))
 
-## Launch week: the founder as field tester
+## Honest lessons
 
-The gap between "verified on web" and "works in a hand" was launch week's whole story. The founder sideloaded the release candidate, walked it on his own phone and his wife's, and reported symptoms the way a user would: shares that vanished, nudges that never came, rows clipped after toggling a setting, a keepsake that refused to share. Every one had passed weeks of web verification, and every one was real.
-
-Two things about the loop mattered more than the individual fixes. First, diagnosis by reading, not guessing: an adb capture proved a "dead" share was actually arriving and being consumed a tenth of a second after boot (a mount-order race then lost it), and the nudge mystery ended in the notification library's own Android source, where the silent failure lives. Second, the loop is the argument for dogfooding on real hardware: the web preview runs a different JavaScript engine, never detaches screens, and forgives data shapes the native path chokes on, so for a whole class of bug it is a witness that always says yes.
-
-## The reliability saga: keeping a promise the OS wants to break
-
-A rhythm is a promise: "I'll tap your shoulder around every 90 minutes." Launch week showed Android quietly breaking it, on both test phones, and the fix arc is the judgment on display.
-
-**Act one** was product-shaped: nudges were being delivered onto a low-importance notification channel and sitting unread in the tray. A rhythm is a nudge the user explicitly asked for, so it earned a heads-up channel of its own. **Act two** was defensive: a quiet app-open sweep that re-arms everything from stored config, and a health line so the two remaining failure modes, scheduling broke versus the OS is holding them, can be told apart at a glance. **Act three** was the root cause, found by reading the notification library's Android source rather than guessing: without a permission the app had never declared, every nudge since launch had been silently downgraded to an inexact alarm that the OS defers until the app next wakes. The fix took the honest lane, the user-granted "Alarms & reminders" permission with a calm in-app door, over an auto-granted alternative that Play reserves for alarm clocks and calendars, because mislabeling the app to gain a permission is trust debt this product cannot carry.
-
-Two details frame the saga. The escalation was pre-decided: when act two shipped, the log already recorded exact alarms as the documented fallback if reliability still disappointed, so the stressful call was made before the disappointing retest arrived, not during it. And the saga ended with a subtraction: the health line's diagnostic count ("Set on this phone: 39") was the developer debugging in front of the user, overwhelming for exactly the audience the app protects, and it was cut to one calm sentence, "Next nudge around 3:00 pm." The never-overwhelm rule applies to our own instruments too.
-
-## Reversing well: two walked-back decisions
-
-Late change is a skill, and the release week held two reversals, both principled rather than reactive.
-
-- **The keepsake became a page.** The scrapbook share had launched image-only, no caption, because silently attaching task-derived words as share text would be a surprise. Device testing surfaced the other half of the truth: a bare image with no context is half a keepsake. The reversal honours the original concern with a better mechanism: the caption is baked into the image's pixels, a cream band with a quiet wordmark, so the share is still exactly one file the user has seen in full before sending. The deciding fact was empirical, receiving apps freely strip attached text, and nobody can strip pixels. The principle survived; only the mechanism changed.
-- **Scrapbooks went cross-device.** Sync had been consciously parked when a keepsake meant half a megabyte of image data. By release week the premise had expired, a keepsake had become a few text fields around a hosted image URL, and the founder hit the gap himself, keepsakes made on his phone missing on web. The call was to fix it before the release rather than after, because shipping a known cross-device gap into a store build buys a support burden with a long tail. A parked decision is only as good as its premise, and re-checking the premise is part of owning the park.
-
-## The freeze: versionCode 11
-
-The release cut is where the discipline of stopping meets shipping. On 2026-07-12, versionCode 11 was cut from a named commit, device-verified on the matching APK first, code-frozen under the git tag `android-v11`, and web deployed from the same code, so every surface tells one story and "what is in the store build" is a lookup, not a memory. The Play release note is the product spine in store-listing form: "Keepsakes now follow your account across devices, and they share as a proper page with their caption on the picture. Rhythms can nudge every 30 or 90 minutes and arrive on time once 'Alarms & reminders' is allowed. Plus calmer details and small fixes throughout." Calm, concrete, nothing over-promised.
+- **Documents drift, and the code is the record.** Early status lines in the README, the commercialisation doc and the build plan called the Android versionCode 11 build "live on Google Play" when it had only reached closed testing. The Apple in-app purchase reversal lived for two days in a working note while the build plan still prescribed the opposite. The Break it down cap above existed only in the plans. Each surfaced only when someone checked the code or the store console instead of the document. ([the IAP entry](../decision-log.md#2026-07-15-apple-iap-from-ios-v1-reversing-the-hide-everything-path))
+- **The web preview is a witness that always says yes.** Two Android builds crashed at launch on real devices because Android's JavaScript engine lacks parts of `Intl` that every browser has. Sharing text into the app on an iPhone had never worked, because the share extension's default rule accepted only links, and it was found only on 2026-09-25, the first time anyone shared text from an iPhone. Both had passed every browser check. ([decision](../decision-log.md#2026-09-25-ios-share-never-worked-and-it-was-one-missing-rule))
+- **Read the store's policy before its reviewer reads it for you.** Both store rejections were right. Apple's was chiefly a sign-in wall before purchase. Google's surfaced a link to Stripe that had never been allowed. A policy sweep against the primary source belongs before the first release, not after a rejection.
+- **Money bugs are silent.** A subscriber's question about an Apple charge took a full day and two outside dashboards to answer. The charge was correct, but our own data could not show it. Following the question turned up sandbox purchases writing the production entitlements table, and an anonymous Apple buyer who existed nowhere in our database for ten days. Every RevenueCat delivery is now logged with its outcome. ([sandbox](../decision-log.md#2026-08-19-sandbox-purchases-were-writing-the-production-entitlements-table), [the missing customer](../decision-log.md#2026-08-19-a-paying-customer-who-existed-nowhere-in-our-data))
+- **Row-level security is not the whole front door.** An API audit on 2026-09-25 found the agent path and the billing routes decoding the token and trusting it without verifying it. Row-level security kept everyone's data safe throughout, but a forged token could reach another person's billing portal and drive the agent break-down spender. Verification moved in front of the billing routes, both public surfaces and the agent spender the same day.
+- **The moat has to be tested like a feature.** The completion half was quietly undercounting. Two causes were found and fixed on 2026-10-04: only a tick on a row reported a step's outcome (a step finished in Focus or in bulk reported nothing), and the second sync after a breakdown wiped the id that links each step to its plan. A drift test now fails unless every task field is either synced or deliberately kept on the device. The completion rate is re-read only after the fix has been live on all three surfaces for a month. ([decision](../decision-log.md#2026-10-04-every-way-of-finishing-walks-up-stuck-big-tasks-are-repaired-sync-keeps-what-the-server-cannot-store-and-combine-never-loses-a-task))
+- **The growth problem is reach, not design.** Three weeks after Hold me to it shipped, its telemetry showed it had been tried once. The feature was not the problem. Too few people knew the app existed. That moved the next effort from building to outreach.
 
 ## What this is meant to show
 
 A product manager who:
 
-- picks the right thing to build (founder-market fit, intrinsic monetisation) and can say why the alternatives lost;
-- designs from a population's real failure modes, not a feature list;
-- goes *deep* on those failure modes rather than wide on new ones, and can tell which thin spot to deepen next;
-- holds one non-negotiable rule and lets it override good ideas;
-- builds a defensible data moat and resolves its privacy tension by architecture;
-- and keeps a reasoning trail honest enough to reconstruct every call, including the roads not taken;
-- knows when polish is the highest-leverage work, scoping a redesign by auditing each surface rather than rebuilding on reflex;
-- thinks in platforms as well as screens, giving a consumer app a restrained developer surface (REST and MCP at parity on one engine, reaching AI research agents) without letting it bloat the product;
-- and takes a product the last mile from feature-complete to commercially live, hardening the money paths and instrumenting operations before they meet real volume, then proving the thesis with real paying users;
-- and field-tests the release on real devices before freezing it, chasing a reliability promise to its OS-level root cause and reversing two of their own earlier calls cleanly on the way, the principle kept, the mechanism changed.
+- picks the right thing to build, from founder-market fit grounded in care for real people, and can say why the alternative lost
+- designs from a population's real failure modes, not a feature list, and goes deep on them rather than wide
+- holds one non-negotiable rule and lets it override good ideas, including the founder's own
+- builds a defensible data moat, resolves its privacy tension by architecture, and refuses to fake its payoff before the data is real
+- takes a product from feature-complete to commercially live on three storefronts, through app-store rejections and a payments-policy pivot, without breaking the platforms that already pay
+- gives a consumer app a restrained developer surface, REST and MCP at parity on one engine, without letting it bloat the product
+- pre-decides the stressful readings and rollbacks before they arrive
+- keeps a reasoning trail honest enough to reconstruct every call, the roads not taken and the mistakes included.
 
 ## Status
 
-**Live and commercial, frozen for the Play release as versionCode 11 (2026-07-12, tag `android-v11`).** The core loop shipped on web ([doubledone.app](https://doubledone.app)) and Android, then a full design pass and a marketing landing, a guided replayable first-run, and a deep ADHD product seam (the silent-parent chain, Make-it-tiny, the low-capacity day, the wind-down, never-streak Routines, OCD reassurance), beside a dual developer surface (a public REST API and an agent MCP server at parity, sharing one recurrence engine, with a Deep Research connector). Then the commercial half: Stripe Premium live with real subscribers (the 30-day trial, the annual plan), the money-path hardening, and the launch control centre. The full i18n sweep (four languages, every screen, the per-app language picker) shipped 2026-07-04, and the July wave, the Quiet interface and colour themes (premium), energy matching (freemium), Rhythms with the exact-alarm reliability arc (free), share-to-capture, cross-device keepsakes and big marks, and the keepsake-as-a-page share, is what versionCode 11 froze. In flight: the Play release rollout, with iOS held behind the Premium in-app-purchase decision. The full sequence and the parked-with-triggers backlog are in [`BUILD-PLAN.md`](../BUILD-PLAN.md).
+**Live and commercial on the web, the App Store and Google Play.** 1.7.0 is live on both stores, and Premium sells through Stripe on the web, Apple on iOS and Google Play on Android. 1.8.0, carrying Where you left off and a set of fixes to how broken-down and tiny tasks finish, is with the stores as of 2026-10-05: iOS build 41 for App Review, and Android versionCode 35 for closed testing first, then Production. The web at [doubledone.app](https://doubledone.app) runs `main` and already has it. The full sequence and the parked-with-triggers backlog are in [`BUILD-PLAN.md`](../BUILD-PLAN.md).

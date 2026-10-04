@@ -19,8 +19,8 @@ wastes an afternoon.
 
 ## When to run
 
-- **Before a launch** — the app-ready gate: the Tier-1 set, minimum.
-- **Before a redesign or rebuild** — audit before you rebuild (PLAYBOOK §1). Refine what is close,
+- **Before a launch**: the app-ready gate, the Tier-1 set at minimum.
+- **Before a redesign or rebuild**: audit before you rebuild (PLAYBOOK §1). Refine what is close,
   rebuild only what is genuinely broken.
 - **As a periodic health check** on a live app.
 
@@ -43,26 +43,26 @@ the case-study lifts it most for the least effort.
 
 ## The suite
 
-### Tier 1 — the app-ready gate (run before any launch)
-- **0. Secret + PII scan** — hardcoded keys, tokens, emails in source and git history.
-- **1. Completeness (inverse-lens)** — what the product should surface, sell, or explain but does not.
-- **2. Robustness + security (7-lens)** — data loss, auth, PII, cost, integrity, concurrency.
-- **3. Accessibility** — touch targets, AA contrast (incl. dark), screen-reader, reduced motion.
-- **4. Copy / microcopy (7-lens)** — voice, naming, leaked error strings, a terminology glossary.
-- **5. The case-study / story** — is the narrative sharp, honest, and what a hiring PM probes.
+### Tier 1: the app-ready gate (run before any launch)
+- **0. Secret + PII scan**: hardcoded keys, tokens, emails in source and git history.
+- **1. Completeness (inverse-lens)**: what the product should surface, sell, or explain but does not.
+- **2. Robustness + security (7-lens)**: data loss, auth, PII, cost, integrity, concurrency.
+- **3. Accessibility**: touch targets, AA contrast (incl. dark), screen-reader, reduced motion.
+- **4. Copy / microcopy (7-lens)**: voice, naming, leaked error strings, a terminology glossary.
+- **5. The case-study / story**: is the narrative sharp, honest, and what a hiring PM probes.
 
-### Tier 2 — run when it applies
-- **6. Design / UI drift (8-lens)** — for anything visual: token drift, dark-mode contrast, duplication.
-- **7. Translation review** — for anything localized: are the locales natural or machine-translated.
+### Tier 2: run when it applies
+- **6. Design / UI drift (8-lens)**: for anything visual, covering token drift, dark-mode contrast and duplication.
+- **7. Translation review**: for anything localised, checking whether the locales read as natural or machine-translated.
 
-### Tier 3 — optional rigor
-- **8. Cost across scales** — unit economics at 100 / 1k / 10k / 100k users.
-- **9. Testing posture + manual E2E suite** — risk-targeted strategy plus a manual launch gate.
+### Tier 3: optional rigor
+- **8. Cost across scales**: unit economics at 100 / 1k / 10k / 100k users.
+- **9. Testing posture + manual E2E suite**: risk-targeted strategy plus a manual launch gate.
 
-### Commercial tier — run only if you take money
-- **10. Commercialisation** — pricing, the free-to-paid funnel, churn, GTM.
-- **11. Store-readiness** — Play / App Store: data-safety form, current policy, listing, timeline.
-- **12. The control centre** — spend / error / abuse monitoring, a daily pulse, money-event alerts.
+### Commercial tier: run only if you take money
+- **10. Commercialisation**: pricing, the free-to-paid funnel, churn, GTM.
+- **11. Store-readiness**: Play and the App Store, covering the data-safety form, current policy, listing and timeline.
+- **12. The control centre**: spend / error / abuse monitoring, a daily pulse, money-event alerts.
 
 ---
 

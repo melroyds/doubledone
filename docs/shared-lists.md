@@ -1,9 +1,19 @@
 # Ours: the shared partner list
 
-*Architecture v2, 2026-08-09. NOT BUILT. The v1 draft was attacked by a six-lens adversarial
+*Architecture v2, 2026-08-09, written before the build. The v1 draft was attacked by a six-lens adversarial
 panel (81 findings, 62 confirmed, 88 agents); the argument is kept verbatim in
 [`shared-lists-review.md`](shared-lists-review.md), this is the decision. Melroy's naming
-decision from the same evening is folded in. Nothing here is committed to code.*
+decision from the same evening is folded in.*
+
+> **Status, 5 October 2026: built and live.** Ours shipped in 1.3.0 (August 2026) and is open to
+> every signed-in user. This page is kept as the design record. The schema as built is
+> [`supabase/ours.sql`](../supabase/ours.sql) and the files beside it, and it differs from the
+> text below in three places. Your copy of a shared row links back through one column,
+> `tasks.shared_ref` (`pairId/sharedTaskId`, [`supabase/tasks-shared-ref.sql`](../supabase/tasks-shared-ref.sql)).
+> `ours.sql` still adds `shared_id` and `shared_pair_id`, but nothing writes them. A repeat's ticks
+> live in `shared_tasks.completions`, a per-date record of ticks and un-ticks, not a
+> `completed_dates` set. And a shared row can now carry a day (`due`,
+> [`supabase/ours-due.sql`](../supabase/ours-due.sql)).
 
 **The panel's own headline, worth keeping at the top:** the bones survived, and the one
 load-bearing decision (separate tables, never a `space_id` on `tasks`) survived everything.
