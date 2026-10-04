@@ -96,15 +96,114 @@ describe('combineTasks', () => {
   });
 
   it('Case D: tombstones every parent emptied across different decompositions', () => {
+    // openParent: false marks them as known breakdowns (Break it down writes it since 2026-10-04). A
+    // one-child parent with NO flag could be a tiny step's real task, which comes back instead (below).
     const tasks = [
-      mk({ id: 'p1', silentParent: true }),
+      mk({ id: 'p1', silentParent: true, openParent: false }),
       mk({ id: 'a1', parentId: 'p1' }),
-      mk({ id: 'p2', silentParent: true }),
+      mk({ id: 'p2', silentParent: true, openParent: false }),
       mk({ id: 'b1', parentId: 'p2' }),
     ];
     const { next } = combineTasks(tasks, ['a1', 'b1'], 'Umbrella', NOW, 'u1');
     expect(next.find((t) => t.id === 'p1')?.deletedAt).toBe(NOW);
     expect(next.find((t) => t.id === 'p2')?.deletedAt).toBe(NOW);
+  });
+
+  // 2026-10-04: combining a tiny step deleted the real task behind it (its OPEN parent). The pebble was
+  // scaffolding, so emptying it brings the real task back instead, and it is never tombstoned.
+  it('brings a tiny step\'s real task back instead of deleting it', () => {
+    const tasks = [
+      mk({ id: 'real', silentParent: true, openParent: true }),
+      mk({ id: 'pebble', parentId: 'real', parentTitle: 'real' }),
+      mk({ id: 'other' }),
+    ];
+    const { next } = combineTasks(tasks, ['pebble', 'other'], 'Both', 100, 'u');
+    const real = next.find((t) => t.id === 'real');
+    expect(real?.deletedAt).toBeUndefined();
+    expect(real?.silentParent).toBe(false);
+    expect(real?.updatedAt).toBe(100);
+    expect(next.find((t) => t.id === 'pebble')?.deletedAt).toBe(100);
+  });
+
+  it('tidies away a parent whose only other step is already done (it hid for good before)', () => {
+    const tasks = [
+      mk({ id: 'big', silentParent: true }),
+      mk({ id: 's1', parentId: 'big', done: true, completedAt: 5 }),
+      mk({ id: 's2', parentId: 'big' }),
+      mk({ id: 's3', parentId: 'big' }),
+    ];
+    const { next } = combineTasks(tasks, ['s2', 's3'], 'Rest', 100, 'u');
+    expect(next.find((t) => t.id === 'big')?.deletedAt).toBe(100);
+    expect(next.find((t) => t.id === 's1')).toMatchObject({ done: true, completedAt: 5 }); // still in the Lookback
+    expect(next.find((t) => t.id === 's1')?.deletedAt).toBeUndefined();
+  });
+
+  // The review's catches (2026-10-04): the done-step rule must never touch a parent already finished or
+  // already back on Today, and a nested chain must not strand its root.
+  it('never touches a parent that is already finished, or already back on Today', () => {
+    const finished = [
+      mk({ id: 'big', done: true, completedAt: 9 }),
+      mk({ id: 's1', parentId: 'big', done: true }),
+      mk({ id: 's2', parentId: 'big', done: true }),
+      mk({ id: 's3', parentId: 'big' }), // a mis-tap untick
+      mk({ id: 'o' }),
+    ];
+    expect(combineTasks(finished, ['s3', 'o'], 'U', 100, 'u').next.find((t) => t.id === 'big')).toMatchObject({ done: true, completedAt: 9 });
+    expect(combineTasks(finished, ['s3', 'o'], 'U', 100, 'u').next.find((t) => t.id === 'big')?.deletedAt).toBeUndefined();
+    const visible = [mk({ id: 'big' }), mk({ id: 's1', parentId: 'big' }), mk({ id: 'o' })];
+    expect(combineTasks(visible, ['s1', 'o'], 'U', 100, 'u').next.find((t) => t.id === 'big')?.deletedAt).toBeUndefined();
+  });
+
+  it('walks up a nested chain: an emptied milestone takes its emptied root with it', () => {
+    const tasks = [
+      mk({ id: 'root', silentParent: true, openParent: false }),
+      mk({ id: 'mile', parentId: 'root', silentParent: true, openParent: false }),
+      mk({ id: 'm2', parentId: 'root', done: true }),
+      mk({ id: 's1', parentId: 'mile' }),
+      mk({ id: 's2', parentId: 'mile' }),
+    ];
+    const { next } = combineTasks(tasks, ['s1', 's2'], 'U', 100, 'u');
+    expect(next.find((t) => t.id === 'mile')?.deletedAt).toBe(100);
+    expect(next.find((t) => t.id === 'root')?.deletedAt).toBe(100);
+  });
+
+  it('brings back a parent with no tiny flag whose only child ever was the folded one (never a loss)', () => {
+    const tasks = [mk({ id: 'maybeTiny', silentParent: true }), mk({ id: 'only', parentId: 'maybeTiny' }), mk({ id: 'o' })];
+    const r = combineTasks(tasks, ['only', 'o'], 'U', 100, 'u');
+    expect(r.next.find((t) => t.id === 'maybeTiny')).toMatchObject({ silentParent: false });
+    expect(r.next.find((t) => t.id === 'maybeTiny')?.deletedAt).toBeUndefined();
+    expect(r.broughtBack).toEqual(['maybeTiny']);
+  });
+
+  // The re-verify's catch: a task made tiny twice has a retired first pebble. Counting it made the
+  // real task look like a two-step breakdown on any device without the flag, and Combine deleted it.
+  it('brings back a twice-tiny real task whatever its flag says', () => {
+    for (const openParent of [true, undefined]) {
+      const tasks = [
+        mk({ id: 'real', silentParent: true, openParent }),
+        mk({ id: 'p1', parentId: 'real', done: true, completedAt: 100, createdAt: 50, deletedAt: 100 }),
+        mk({ id: 'p2', parentId: 'real', createdAt: 200 }),
+        mk({ id: 'o' }),
+      ];
+      const r = combineTasks(tasks, ['p2', 'o'], 'U', 300, 'u');
+      expect(r.next.find((t) => t.id === 'real')?.deletedAt).toBeUndefined();
+      expect(r.next.find((t) => t.id === 'real')?.silentParent).toBe(false);
+      expect(r.broughtBack).toEqual(['real']);
+    }
+  });
+
+  it('re-checks a parent skipped earlier once a later fold empties it', () => {
+    // Selection order puts the root's own step before the milestone's steps.
+    const tasks = [
+      mk({ id: 'root', silentParent: true, openParent: false }),
+      mk({ id: 'S', parentId: 'root' }),
+      mk({ id: 'M', parentId: 'root', silentParent: true, openParent: false }),
+      mk({ id: 'M1', parentId: 'M' }),
+      mk({ id: 'M2', parentId: 'M' }),
+    ];
+    const { next } = combineTasks(tasks, ['S', 'M1', 'M2'], 'U', 100, 'u');
+    expect(next.find((t) => t.id === 'M')?.deletedAt).toBe(100);
+    expect(next.find((t) => t.id === 'root')?.deletedAt).toBe(100);
   });
 
   it('places the umbrella on Today when any selected task is undated', () => {

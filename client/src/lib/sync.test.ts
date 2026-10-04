@@ -2,7 +2,7 @@ import { type SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
 
 import { type Recurrence } from './recurrence';
-import { isAccountGone, localBelongsToAnother, rowToTask, syncOnce, taskToRow, type TaskRow } from './sync';
+import { isAccountGone, localBelongsToAnother, pullRemote, rowToTask, syncOnce, taskToRow, type TaskRow } from './sync';
 import { type Task } from './tasks';
 
 describe('localBelongsToAnother', () => {
@@ -163,19 +163,53 @@ describe('taskToRow / rowToTask', () => {
 });
 
 describe('syncOnce', () => {
-  function fakeClient(remote: TaskRow[]) {
+  // A fake of the keyset-paged read (select, order by id, limit, gt) over `remote`, plus upsert.
+  function fakeClient(remote: TaskRow[], pageCap = Infinity) {
     const upserts: TaskRow[][] = [];
+    const pages: number[] = [];
+    const query = () => {
+      let after: string | null = null;
+      let limit = Infinity;
+      const q = {
+        order: () => q,
+        limit: (n: number) => {
+          limit = n;
+          return q;
+        },
+        gt: (_col: string, v: string) => {
+          after = v;
+          return q;
+        },
+        then: (resolve: (r: { data: TaskRow[]; error: null }) => void) => {
+          const sorted = [...remote].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+          const rows = sorted.filter((r) => after === null || r.id > after).slice(0, Math.min(limit, pageCap));
+          pages.push(rows.length);
+          resolve({ data: rows, error: null });
+        },
+      };
+      return q;
+    };
     const client = {
       from: () => ({
-        select: async () => ({ data: remote, error: null }),
+        select: () => query(),
         upsert: async (rows: TaskRow[]) => {
           upserts.push(rows);
           return { error: null };
         },
       }),
     } as unknown as SupabaseClient;
-    return { client, upserts };
+    return { client, upserts, pages };
   }
+
+  it('pages the pull past the server cap, ending on an empty page (2026-10-04)', async () => {
+    const remote = Array.from({ length: 1203 }, (_, i) => taskToRow({ id: `t${String(i).padStart(5, '0')}`, title: 'x', done: false, createdAt: 1, updatedAt: 1 }, 'u'));
+    // The server clips any one read at 1000 rows, as PostgREST's max-rows does.
+    const { client, pages } = fakeClient(remote, 1000);
+    const pulled = await pullRemote(client);
+    expect(pulled).toHaveLength(1203);
+    expect(new Set(pulled.map((t) => t.id)).size).toBe(1203);
+    expect(pages).toEqual([500, 500, 203, 0]);
+  });
 
   it('migrates a local-only list into an empty account (pushes all, returns merged)', async () => {
     const local: Task[] = [

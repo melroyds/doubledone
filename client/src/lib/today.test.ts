@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { type Recurrence } from './recurrence';
-import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, holdSecond, isDoneOn, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, type Scheduled, upcomingTasks, tuckFinished } from './today';
+import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, healStuckParents, holdSecond, isDoneOn, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, settleCompletions, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, type Scheduled, upcomingTasks, tuckFinished } from './today';
 
 const today = new Date(2026, 5, 17);
 const iso = '2026-06-17';
@@ -391,6 +391,13 @@ describe('completeAncestors (Cluster B chain)', () => {
     expect(completeAncestors([mk('a', undefined, true)], 'a', today, 100).completed).toEqual([]);
   });
 
+  it('stops below an ancestor already back on Today (it is finished by its own tick)', () => {
+    const tasks = [mk('root', undefined, false, false), mk('mile', 'root', false, true), mk('s1', 'mile', true)];
+    const { tasks: next, completed } = completeAncestors(tasks, 's1', today, 100);
+    expect(completed.map((t) => t.id)).toEqual(['mile']);
+    expect(next.find((t) => t.id === 'root')?.done).toBe(false);
+  });
+
   it('never auto-completes an open (tiny-version) parent', () => {
     const tasks = [{ ...mk('p', undefined, false, true), openParent: true }, mk('c', 'p', true)];
     expect(completeAncestors(tasks, 'c', today, 100).completed).toEqual([]);
@@ -414,6 +421,314 @@ describe('completeAncestors (Cluster B chain)', () => {
   it('resurfaceOpenParent ignores a non-open (exhaustive) parent and a parentless task', () => {
     expect(resurfaceOpenParent([mk('p', undefined, false, true), mk('c', 'p', true)], 'c', 100).parentTitle).toBeNull();
     expect(resurfaceOpenParent([mk('a', undefined, true)], 'a', 100).parentTitle).toBeNull();
+  });
+
+  it('dates the finished parents to the step\'s own completion when told to', () => {
+    const tasks = [mk('p', undefined, false, true), mk('c', 'p', true)];
+    const parent = completeAncestors(tasks, 'c', today, 100, 40).tasks.find((t) => t.id === 'p');
+    expect(parent?.completedAt).toBe(40);
+    expect(parent?.updatedAt).toBe(100); // the sync stamp is still now
+  });
+});
+
+// Every way a task gets finished goes through settleCompletions (2026-10-04). Until then only the row tick
+// walked up, so the last step done in Focus, in bulk or on a stepped task left the big task hidden for good.
+describe('settleCompletions (one parent walk for every completion path)', () => {
+  type T = { id: string; title: string; parentId?: string; done: boolean; updatedAt: number; silentParent?: boolean; completedAt?: number | null; openParent?: boolean; deletedAt?: number | null };
+  const t = (id: string, parentId?: string, over: Partial<T> = {}): T => ({ id, title: id, parentId, done: false, updatedAt: 0, ...over });
+  // A breakdown made on this build: Break it down writes openParent: false, so its finish is never in doubt.
+  const big = (over: Partial<T> = {}) => t('big', undefined, { silentParent: true, openParent: false, ...over });
+
+  it('finishes the big task when the last step is done, and names it for the bloom', () => {
+    const tasks = [big(), t('s1', 'big', { done: true, completedAt: 50 }), t('s2', 'big', { done: true, completedAt: 60 })];
+    const r = settleCompletions(tasks, ['s2'], today, 100);
+    const parent = r.tasks.find((x) => x.id === 'big');
+    expect(parent).toMatchObject({ done: true, silentParent: false, completedAt: 60 }); // the step's own completion
+    expect(r.whole?.id).toBe('big');
+    expect(r.wholeDepth).toBe(1);
+    expect(r.parentBack).toBeNull();
+  });
+
+  it('a bulk Done of every step finishes the big task once', () => {
+    const tasks = [big(), t('s1', 'big', { done: true }), t('s2', 'big', { done: true })];
+    const r = settleCompletions(tasks, ['s1', 's2'], today, 100);
+    expect(r.tasks.filter((x) => x.id === 'big' && x.done)).toHaveLength(1);
+    expect(r.wholes).toHaveLength(1);
+  });
+
+  it('reports every whole task a bulk Done finishes, not only the last', () => {
+    const tasks = [
+      t('a', undefined, { silentParent: true, openParent: false }), t('a1', 'a', { done: true }), t('a2', 'a', { done: true }),
+      t('b', undefined, { silentParent: true, openParent: false }), t('b1', 'b', { done: true }), t('b2', 'b', { done: true }),
+    ];
+    const r = settleCompletions(tasks, ['a2', 'b2'], today, 100);
+    expect(r.wholes.map((w) => w.task.id)).toEqual(['a', 'b']);
+    expect(r.whole?.id).toBe('b');
+  });
+
+  it('a tiny step brings its real task back and retires the pebble', () => {
+    const tasks = [t('real', undefined, { silentParent: true, openParent: true }), t('pebble', 'real', { done: true })];
+    const r = settleCompletions(tasks, ['pebble'], today, 100);
+    expect(r.tasks.find((x) => x.id === 'real')).toMatchObject({ silentParent: false, done: false });
+    expect(r.tasks.find((x) => x.id === 'pebble')?.deletedAt).toBe(100);
+    expect(r.parentBack).toBe('real');
+    expect(r.whole).toBeNull();
+  });
+
+  // The review's catch: a tiny step's real task whose flag a sync wiped (or that came from another device,
+  // which never receives it) looks exactly like a one-step breakdown. Finishing it on a guess put a task the
+  // user never finished in the Lookback, with a bloom.
+  it('brings back, never finishes, a one-step parent whose tiny flag is unknown', () => {
+    const tasks = [t('real', undefined, { silentParent: true }), t('pebble', 'real', { done: true, completedAt: 50 })];
+    const r = settleCompletions(tasks, ['pebble'], today, 100);
+    expect(r.tasks.find((x) => x.id === 'real')).toMatchObject({ done: false, silentParent: false });
+    expect(r.tasks.find((x) => x.id === 'pebble')).toMatchObject({ done: true, completedAt: 50 }); // kept, still in the Lookback
+    expect(r.tasks.find((x) => x.id === 'pebble')?.deletedAt).toBeUndefined();
+    expect(r.whole).toBeNull();
+    expect(r.parentBack).toBe('real');
+  });
+
+  it('still finishes a known one-step breakdown (openParent false), bloom and all', () => {
+    const tasks = [big(), t('only', 'big', { done: true, completedAt: 50 })];
+    expect(settleCompletions(tasks, ['only'], today, 100).whole?.id).toBe('big');
+  });
+
+  // A once-tiny task broken down carried its stale flag, so every real step behaved as a tiny step (retired
+  // on its tick, the task never finished). Two or more live children mean a decomposition.
+  it('treats a stale tiny flag on a real decomposition as the decomposition it is', () => {
+    const tasks = [t('real', undefined, { silentParent: true, openParent: true }), t('s1', 'real', { done: true }), t('s2', 'real')];
+    const r = settleCompletions(tasks, ['s1'], today, 100);
+    expect(r.tasks.find((x) => x.id === 's1')?.deletedAt).toBeUndefined(); // a real completion, never retired
+    expect(r.tasks.find((x) => x.id === 'real')).toMatchObject({ openParent: false, silentParent: true, done: false });
+    const r2 = settleCompletions(r.tasks.map((x) => (x.id === 's2' ? { ...x, done: true } : x)), ['s2'], today, 200);
+    expect(r2.whole?.id).toBe('real');
+  });
+
+  // The re-verify's catch: an unknown-flag task brought back keeps its first, finished pebble live (it may be
+  // a real step). Made tiny again, it then had two live children, read as a breakdown, and the second
+  // pebble's tick FINISHED the real task. A child done before the newest existed belongs to an earlier round.
+  it('never finishes a task made tiny twice, flag known or not', () => {
+    for (const openParent of [true, undefined]) {
+      const tasks = [
+        t('real', undefined, { silentParent: true, openParent }),
+        { ...t('p1', 'real', { done: true, completedAt: 100 }), createdAt: 50 },
+        { ...t('p2', 'real', { done: true, completedAt: 300 }), createdAt: 200 },
+      ];
+      const r = settleCompletions(tasks, ['p2'], today, 400);
+      expect(r.whole).toBeNull();
+      expect(r.tasks.find((x) => x.id === 'real')).toMatchObject({ done: false, silentParent: false });
+      expect(r.tasks.find((x) => x.id === 'p1')?.deletedAt).toBeUndefined(); // never retired on a guess
+    }
+  });
+
+  it('never finishes a parent already back on Today by re-ticking its step', () => {
+    const tasks = [t('real', undefined, { silentParent: false }), t('only', 'real', { done: true, completedAt: 50 })];
+    const r = settleCompletions(tasks, ['only'], today, 100);
+    expect(r.whole).toBeNull();
+    expect(r.tasks.find((x) => x.id === 'real')?.done).toBe(false);
+  });
+
+  it('brings back a tiny real task above a pebble that was itself broken down', () => {
+    const tasks = [
+      t('root', undefined, { silentParent: true, openParent: true }),
+      t('pebble', 'root', { silentParent: true, openParent: false }),
+      t('a', 'pebble', { done: true }),
+      t('b', 'pebble', { done: true }),
+    ];
+    const r = settleCompletions(tasks, ['b'], today, 100);
+    expect(r.tasks.find((x) => x.id === 'pebble')).toMatchObject({ done: true }); // the pebble's whole: a finished task
+    expect(r.tasks.find((x) => x.id === 'pebble')?.deletedAt).toBeUndefined(); // of record, never retired
+    expect(r.tasks.find((x) => x.id === 'root')).toMatchObject({ silentParent: false, done: false });
+    expect(r.backs.map((b) => b.title)).toEqual(['root']);
+  });
+
+  it('says which kind came back: a tiny task, or one whose kind is unknown', () => {
+    const tiny = settleCompletions([t('r', undefined, { silentParent: true, openParent: true }), t('p', 'r', { done: true })], ['p'], today, 9);
+    expect(tiny.parentBackTiny).toBe(true);
+    const unknown = settleCompletions([t('r', undefined, { silentParent: true }), t('p', 'r', { done: true })], ['p'], today, 9);
+    expect(unknown.parentBackTiny).toBe(false);
+  });
+
+  it('ignores an id that is not done, has no parent, or has gone', () => {
+    const tasks = [big(), t('s1', 'big'), t('loose', undefined, { done: true }), t('gone', 'big', { done: true, deletedAt: 5 })];
+    const r = settleCompletions(tasks, ['s1', 'loose', 'gone', 'missing'], today, 100);
+    expect(r.tasks).toEqual(tasks);
+    expect(r.whole).toBeNull();
+  });
+});
+
+// The repair for parents already stuck (2026-10-04): steps finished in Focus before the fix, or on another
+// device, through the API or by an agent, none of which walk a parent.
+describe('healStuckParents', () => {
+  type T = { id: string; title: string; parentId?: string; done: boolean; createdAt?: number; updatedAt: number; silentParent?: boolean; completedAt?: number | null; openParent?: boolean; deletedAt?: number | null; combinedFrom?: { id: string; title: string }[] };
+  const t = (id: string, parentId?: string, over: Partial<T> = {}): T => ({ id, title: id, parentId, done: false, createdAt: 0, updatedAt: 10, ...over });
+  const NOW = 1_000_000;
+
+  it('finishes a hidden big task whose steps are all done, dated to its last step, stamped from its own row', () => {
+    const tasks = [t('big', undefined, { silentParent: true }), t('s1', 'big', { done: true, completedAt: 30 }), t('s2', 'big', { done: true, completedAt: 70 })];
+    expect(healStuckParents(tasks, NOW).find((x) => x.id === 'big')).toMatchObject({ done: true, completedAt: 70, silentParent: false, updatedAt: 11 });
+  });
+
+  // The review's catch: stamping `now` let a stale device's repair beat a real edit made since elsewhere.
+  // Stamped from the row (+1), the repair beats only the copy it was derived from.
+  it('never stamps the clock: two devices repairing the same state write identical rows', () => {
+    const tasks = [t('big', undefined, { silentParent: true }), t('s1', 'big', { done: true, completedAt: 30 }), t('s2', 'big', { done: true, completedAt: 70 })];
+    expect(healStuckParents(tasks, NOW)).toEqual(healStuckParents(tasks, NOW + 99_999));
+  });
+
+  it('walks up a chain: a finished milestone finishes its root', () => {
+    const tasks = [
+      t('root', undefined, { silentParent: true }),
+      t('m1', 'root', { silentParent: true }),
+      t('m2', 'root', { done: true, completedAt: 10 }),
+      t('s1', 'm1', { done: true, completedAt: 20 }),
+      t('s2', 'm1', { done: true, completedAt: 15 }),
+    ];
+    const out = healStuckParents(tasks, NOW);
+    expect(out.find((x) => x.id === 'm1')).toMatchObject({ done: true, completedAt: 20 });
+    expect(out.find((x) => x.id === 'root')).toMatchObject({ done: true, completedAt: 20 });
+  });
+
+  it('brings back, open, a task with a single finished step: it may be a tiny step whose flag a sync wiped', () => {
+    const tasks = [t('maybeTiny', undefined, { silentParent: true }), t('only', 'maybeTiny', { done: true, completedAt: 30 })];
+    expect(healStuckParents(tasks, NOW).find((x) => x.id === 'maybeTiny')).toMatchObject({ done: false, silentParent: false });
+  });
+
+  it('brings back a task whose steps were all removed, open, never lost', () => {
+    const tasks = [t('big', undefined, { silentParent: true }), t('s1', 'big', { deletedAt: 9 }), t('s2', 'big', { deletedAt: 9 })];
+    expect(healStuckParents(tasks, NOW).find((x) => x.id === 'big')).toMatchObject({ done: false, silentParent: false });
+  });
+
+  it('waits out the Undo window: a step removed seconds ago leaves its parent alone', () => {
+    const tasks = [t('big', undefined, { silentParent: true }), t('s1', 'big', { done: true, completedAt: 5 }), t('s2', 'big', { done: true, completedAt: 6 }), t('s3', 'big', { deletedAt: NOW - 2000 })];
+    expect(healStuckParents(tasks, NOW)).toBe(tasks);
+    expect(healStuckParents(tasks, NOW + 10_000).find((x) => x.id === 'big')?.done).toBe(true);
+  });
+
+  it('brings back the real task behind a tiny step that was done or removed, retiring a spent pebble', () => {
+    const spent = [t('real', undefined, { silentParent: true, openParent: true }), t('pebble', 'real', { done: true, completedAt: 40 })];
+    const a = healStuckParents(spent, NOW);
+    expect(a.find((x) => x.id === 'real')).toMatchObject({ silentParent: false, done: false });
+    expect(a.find((x) => x.id === 'pebble')?.deletedAt).toBe(40);
+    const removed = [t('real', undefined, { silentParent: true, openParent: true }), t('pebble', 'real', { deletedAt: 9 })];
+    expect(healStuckParents(removed, NOW).find((x) => x.id === 'real')?.silentParent).toBe(false);
+  });
+
+  it('clears a stale tiny flag on a decomposition and finishes it, keeping every step', () => {
+    const tasks = [t('real', undefined, { silentParent: true, openParent: true }), t('s1', 'real', { done: true, completedAt: 30 }), t('s2', 'real', { done: true, completedAt: 40 })];
+    const out = healStuckParents(tasks, NOW);
+    expect(out.find((x) => x.id === 'real')).toMatchObject({ done: true, completedAt: 40, openParent: false });
+    expect(out.filter((x) => x.parentId === 'real' && x.deletedAt != null)).toEqual([]);
+  });
+
+  it('leaves alone a parent still waiting on a step, an open tiny step, and a parent with no steps yet', () => {
+    const tasks = [
+      t('a', undefined, { silentParent: true }),
+      t('a1', 'a', { done: true }),
+      t('a2', 'a'),
+      t('b', undefined, { silentParent: true, openParent: true }),
+      t('b1', 'b'),
+      t('c', undefined, { silentParent: true }), // its steps may not have synced yet
+    ];
+    expect(healStuckParents(tasks, NOW)).toBe(tasks); // the SAME array: nothing to commit
+  });
+
+  it('tidies away, never finishes, a parent whose remaining steps went into a combined task', () => {
+    const tasks = [
+      t('big', undefined, { silentParent: true }),
+      t('s1', 'big', { done: true, completedAt: 5 }),
+      t('s2', 'big', { done: true, completedAt: 6 }),
+      t('s3', 'big', { deletedAt: 50 }),
+      t('umbrella', undefined, { createdAt: 50, combinedFrom: [{ id: 's3', title: 's3' }] }),
+    ];
+    expect(healStuckParents(tasks, NOW).find((x) => x.id === 'big')).toMatchObject({ deletedAt: 50, done: false });
+  });
+
+  // combinedFrom is device-local (and a pre-fix sync wiped it), so a folded step is also known by its
+  // tombstone matching the umbrella's createdAt, which both sync.
+  it('recognises a folded step without the umbrella\'s record, by the matching tombstone', () => {
+    const tasks = [
+      t('big', undefined, { silentParent: true }),
+      t('s1', 'big', { done: true, completedAt: 5 }),
+      t('s2', 'big', { done: true, completedAt: 6 }),
+      t('s3', 'big', { deletedAt: 50 }),
+      t('umbrella', undefined, { createdAt: 50 }),
+    ];
+    expect(healStuckParents(tasks, NOW).find((x) => x.id === 'big')).toMatchObject({ deletedAt: 50, done: false });
+  });
+
+  it('finishes, not tidies, when a step was finished after the fold (the work was done, not moved)', () => {
+    const tasks = [
+      t('big', undefined, { silentParent: true }),
+      t('s1', 'big', { done: true, completedAt: 5 }),
+      t('s2', 'big', { done: true, completedAt: 80 }),
+      t('s3', 'big', { deletedAt: 50 }),
+      t('umbrella', undefined, { createdAt: 50, combinedFrom: [{ id: 's3', title: 's3' }] }),
+    ];
+    expect(healStuckParents(tasks, NOW).find((x) => x.id === 'big')).toMatchObject({ done: true, completedAt: 80 });
+  });
+
+  it('brings back the real task Combine wrongly deleted with its tiny step, and only that one', () => {
+    const wronged = [
+      t('real', undefined, { silentParent: true, openParent: true, deletedAt: 50 }),
+      t('pebble', 'real', { deletedAt: 50 }),
+      t('umbrella', undefined, { createdAt: 50, combinedFrom: [{ id: 'pebble', title: 'pebble' }] }),
+    ];
+    expect(healStuckParents(wronged, NOW).find((x) => x.id === 'real')).toMatchObject({ deletedAt: null, silentParent: false });
+    // Removed by the user AFTER the combine (a different tombstone): stays removed.
+    const removedLater = wronged.map((x) => (x.id === 'real' ? { ...x, deletedAt: 80 } : x));
+    expect(healStuckParents(removedLater, NOW).find((x) => x.id === 'real')?.deletedAt).toBe(80);
+    // Folded on purpose (it is in the umbrella's record itself): stays folded.
+    const foldedOnPurpose = wronged.map((x) => (x.id === 'umbrella' ? { ...x, combinedFrom: [{ id: 'pebble', title: 'p' }, { id: 'real', title: 'r' }] } : x));
+    expect(healStuckParents(foldedOnPurpose, NOW).find((x) => x.id === 'real')?.deletedAt).toBe(50);
+  });
+
+  it('never finishes a task made tiny twice whose second pebble was done elsewhere', () => {
+    const tasks = [
+      t('real', undefined, { silentParent: true }),
+      t('p1', 'real', { done: true, completedAt: 100, createdAt: 50 }),
+      t('p2', 'real', { done: true, completedAt: 300, createdAt: 200 }),
+    ];
+    expect(healStuckParents(tasks, NOW).find((x) => x.id === 'real')).toMatchObject({ done: false, silentParent: false });
+  });
+
+  it('leaves a parent alone while the screen still offers Undo on its step, whatever the clock says', () => {
+    const tasks = [t('big', undefined, { silentParent: true }), t('s1', 'big', { done: true, completedAt: 5 }), t('s2', 'big', { done: true, completedAt: 6 }), t('s3', 'big', { deletedAt: NOW - 60_000 })];
+    expect(healStuckParents(tasks, NOW, new Set(['s3']))).toBe(tasks);
+    // A tombstone a few seconds in the FUTURE (a fast clock) is still inside the window.
+    const future = tasks.map((x) => (x.id === 's3' ? { ...x, deletedAt: NOW + 2000 } : x));
+    expect(healStuckParents(future, NOW)).toBe(future);
+  });
+
+  it('matches a folded step to its umbrella in whole milliseconds (a fractional local stamp)', () => {
+    const T = 1_759_000_000_000.5;
+    const tasks = [
+      t('big', undefined, { silentParent: true }),
+      t('s1', 'big', { done: true, completedAt: 5 }),
+      t('s2', 'big', { done: true, completedAt: 6 }),
+      t('s3', 'big', { deletedAt: T }),
+      t('umbrella', undefined, { createdAt: Math.trunc(T) }), // the server's copy, whole ms
+    ];
+    expect(healStuckParents(tasks, NOW).find((x) => x.id === 'big')?.done).toBe(false);
+    expect(healStuckParents(tasks, NOW).find((x) => x.id === 'big')?.deletedAt).toBe(T);
+  });
+
+  it('follows an umbrella that was itself combined again', () => {
+    const tasks = [
+      t('big', undefined, { silentParent: true }),
+      t('s1', 'big', { done: true, completedAt: 5 }),
+      t('s2', 'big', { done: true, completedAt: 6 }),
+      t('s3', 'big', { deletedAt: 50 }),
+      t('u1', undefined, { createdAt: 50, deletedAt: 70, combinedFrom: [{ id: 's3', title: 's3' }] }),
+      t('u2', undefined, { createdAt: 70, combinedFrom: [{ id: 'u1', title: 'u1' }] }),
+    ];
+    expect(healStuckParents(tasks, NOW).find((x) => x.id === 'big')).toMatchObject({ done: false, deletedAt: 50 });
+  });
+
+  it('is idempotent: a second run changes nothing', () => {
+    const tasks = [t('big', undefined, { silentParent: true }), t('s1', 'big', { done: true, completedAt: 30 }), t('s2', 'big', { done: true, completedAt: 40 })];
+    const once = healStuckParents(tasks, NOW);
+    expect(healStuckParents(once, NOW + 5)).toBe(once);
   });
 });
 

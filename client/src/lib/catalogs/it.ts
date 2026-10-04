@@ -1125,6 +1125,8 @@ export const it: Catalog = {
     tinyError: 'Non sono riuscito a rimpicciolirla. Riprova.',
     tinyMade: 'Resa minuscola. Solo questa.',
     tinyParentBackAffirm: 'Hai iniziato, ed era la parte difficile. {parentTitle} ti aspetta quando te la senti.',
+    realTaskBackAffirm: '{parentTitle} è di nuovo qui.',
+    combinedBackAffirm: 'Unite in una sola: {title}. Anche {parentTitle} è di nuovo qui.',
     tinyShrinking: 'La sto rimpicciolendo…',
     tinyStepEyebrow: 'Un passo minuscolo verso · {parent}',
     tinyStepRowLabel: '{title}, un passo minuscolo verso {parent}',

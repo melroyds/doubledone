@@ -88,7 +88,7 @@ import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
 import { useReducedMotion, useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { usePremium } from '@/lib/premium-provider';
-import { applyManualOrder, completeAncestors, deferTo, hasActiveTinyChild, holdSecond, isDoneOn, isRecurring, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, tuckFinished, upcomingTasks } from '@/lib/today';
+import { applyManualOrder, deferTo, hasActiveTinyChild, healStuckParents, holdSecond, isDoneOn, isRecurring, pinFirst, renameTask, setBig, setPin, setSequence, settleCompletions, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, tuckFinished, UNDO_REMOVE_MS, upcomingTasks } from '@/lib/today';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
@@ -502,6 +502,8 @@ export default function TodayScreen() {
   const [updateMentionedAt, setUpdateMentionedAt] = useState<number | null>(null);
   const updateWorthMentioning = updateStatusNow ? shouldMention(updateStatusNow, updateMentionedAt, nowMs()) : false;
   const tasksRef = useRef<Task[]>(tasks);
+  // The ids whose Remove can still be undone, for the parent repair to leave alone (healStuckParents).
+  const undoRemovedRef = useRef<string[] | null>(null);
   const reduced = useReducedMotion();
   // The close-the-day card's gentle entrance (0 = below + transparent, 1 = settled).
   // useState, not useRef: reading a ref in render trips the React Compiler lint.
@@ -565,8 +567,10 @@ export default function TodayScreen() {
       void loadTasks().then((stored) => {
         if (!active) return;
         // Clear nudges whose time has already passed so a fired (or moot) reminder does not
-        // leave a stale bell on the row, then persist if anything was swept.
-        const swept = sweepElapsedNudges(stored, nowMs());
+        // leave a stale bell on the row, and repair any big task left stuck behind its finished or
+        // removed steps (healStuckParents: a step finished on another device, by an agent, or in Focus
+        // before 2026-10-04 never walked up), then persist if anything changed.
+        const swept = healStuckParents(sweepElapsedNudges(stored, nowMs()), nowMs(), new Set(undoRemovedRef.current ?? []));
         setTasks(swept);
         if (swept !== stored) void saveTasks(swept);
         setLoaded(true);
@@ -776,7 +780,7 @@ export default function TodayScreen() {
       // over in the room, a task added by the widget, an agent's write over MCP. The sweep is only
       // entitled to drop stale nudges, never to decide what the whole list is.
       void loadTasks().then(async (stored) => {
-        const swept = sweepElapsedNudges(stored, nowMs());
+        const swept = healStuckParents(sweepElapsedNudges(stored, nowMs()), nowMs(), new Set(undoRemovedRef.current ?? []));
         setTasks(swept);
         if (swept !== stored) await saveTasks(swept);
         // A WARM RESUME IS A VISIT. `visit` was bumped only by useFocusEffect, which a resume does
@@ -830,7 +834,16 @@ export default function TodayScreen() {
         // runs its own loadTasks/saveTasks against this same store, and a tombstone it wrote while
         // this request was in flight was simply erased: the retired copy came back to life and its
         // rest-note sat underneath it, describing a row that was visibly still there.
-        const { merged: settled } = mergeTasks(await loadTasks(), merged);
+        // Then repair any big task the pull left stuck (a step finished on another device or by an agent),
+        // and cancel the reminder on any task another device finished or removed: the carry now keeps the
+        // reminder's id through a sync (it used to vanish, so it could never be cancelled), so this is
+        // where it gets cancelled. clearNudgeIfAny touches only local-only fields, so nothing is re-pushed.
+        const healed = healStuckParents(mergeTasks(await loadTasks(), merged).merged, nowMs(), new Set(undoRemovedRef.current ?? []));
+        // A reminder is for a task still open on Today: done (a repeat for today too), removed, skipped or
+        // moved off today elsewhere, it is moot. A task merely gone hidden keeps it, as a local breakdown does.
+        const day = new Date();
+        const stillOpenToday = new Set(tasksForToday(healed, day).filter((x) => !isDoneOn(x, day)).map((x) => x.id));
+        const settled = healed.map((x) => (x.nudgeId && !x.silentParent && !stillOpenToday.has(x.id) ? clearNudgeIfAny(x) : x));
         setTasks(settled);
         void saveTasks(settled);
         void saveSyncedOwner(uid);
@@ -1104,8 +1117,12 @@ export default function TodayScreen() {
   function offerUndoRemove(ids: string[]) {
     if (ids.length === 0) return;
     setUndoRemoved(ids);
+    undoRemovedRef.current = ids;
     if (undoRemoveTimer.current) clearTimeout(undoRemoveTimer.current);
-    undoRemoveTimer.current = setTimeout(() => setUndoRemoved(null), 6000);
+    undoRemoveTimer.current = setTimeout(() => {
+      setUndoRemoved(null);
+      undoRemovedRef.current = null;
+    }, UNDO_REMOVE_MS);
   }
   function undoRemove() {
     if (!undoRemoved) return;
@@ -1121,6 +1138,7 @@ export default function TodayScreen() {
     );
     track('task.remove.undone', { count: undoRemoved.length });
     setUndoRemoved(null);
+    undoRemovedRef.current = null;
   }
 
   // Push a one-off to tomorrow: a calm "not today" that moves a single task
@@ -1140,6 +1158,8 @@ export default function TodayScreen() {
     setDoneOnId(null);
     if (id == null) return;
     const now = nowMs();
+    // Not a completion: "Done on…" is offered only on a task that is already done, and just re-dates it.
+    // (So it stays out of finishTasks, which would report the step's outcome a second time.)
     commit(tasks.map((x) => (x.id === id ? clearNudgeIfAny(completeOnDay(x, iso, now)) : x)));
     track('task.done_earlier', { daysBack: daysBetween(fromISODate(iso), today) });
     affirm(t('today.doneOnAffirm', { day: friendlyDate(iso, today) }));
@@ -1149,15 +1169,24 @@ export default function TodayScreen() {
   // the same done/completedAt path, then the next unfinished one surfaces on its own.
   function focusComplete(id: string) {
     const now = nowMs();
-    commit(
+    const finished = finishTasks(
       tasks.map((t) => {
         if (t.id !== id) return t;
         const slices = t.slices ? { total: t.slices.total, done: t.slices.total } : t.slices;
         return clearNudgeIfAny({ ...t, done: true, completedAt: now, updatedAt: now, ...(slices ? { slices } : {}) });
       }),
+      [id],
     );
+    commit(finished.tasks);
     track('focus.completed');
     setFocusPick(null); // back to "Which one?" so the next can be chosen, or the calm empty state
+    // The last step of a broken-down task finished here finishes the whole task, and the bloom IS that
+    // moment. It is drawn on Today, which Focus covers, so Focus steps aside for it. (A tiny step's real
+    // task coming back needs no line here: Focus's own "Which one?" now offers it.)
+    if (finished.bloom) {
+      setFocusOpen(false);
+      setBloom(finished.bloom);
+    }
   }
 
   function openFocus() {
@@ -1368,16 +1397,22 @@ export default function TodayScreen() {
     if (selected.length === 0) return;
     const now = nowMs();
     const set = new Set(selected);
-    commit(
+    const newlyDone = tasks.filter((t) => set.has(t.id) && !isDoneOn(t, today)).map((t) => t.id);
+    const finished = finishTasks(
       tasks.map((t) => {
         if (!set.has(t.id) || isDoneOn(t, today)) return t;
         const toggled = { ...toggleDoneOn(t, today), updatedAt: now };
         if (!isRecurring(toggled)) toggled.completedAt = toggled.done ? now : null;
-        return toggled;
+        // A reminder on a task just finished is moot, as on every other way of finishing.
+        return clearNudgeIfAny(toggled);
       }),
+      newlyDone,
     );
+    commit(finished.tasks);
     track('bulk.completed', { count: selected.length });
-    doneAffirm();
+    if (finished.bloom) setBloom(finished.bloom);
+    else if (finished.backLine) affirm(finished.backLine);
+    else doneAffirm();
     exitSelect();
   }
   function bulkRemove() {
@@ -1464,10 +1499,13 @@ export default function TodayScreen() {
   function combineAccept() {
     const title = combineTitle.trim();
     if (!title || beingCombined.length < 2) return;
-    const { next } = combineTasks(tasks, beingCombined, title, nowMs(), makeId());
+    const { next, broughtBack } = combineTasks(tasks, beingCombined, title, nowMs(), makeId());
     commit(next);
     track('combine.created', { count: beingCombined.length });
-    affirm(t('today.combinedAffirm', { title }));
+    // A tiny step folded in brings its real task back beside the umbrella (never deleted), so say why it
+    // appeared rather than leave a surprise row.
+    if (broughtBack.length > 0) affirm(t('today.combinedBackAffirm', { title, parentTitle: broughtBack[broughtBack.length - 1] }));
+    else affirm(t('today.combinedAffirm', { title }));
     setCombineOpen(false);
     setCombineTitle('');
     setBeingCombined([]);
@@ -1942,6 +1980,46 @@ export default function TodayScreen() {
     }, 60);
   }
 
+  // Everything finishing a task sets in motion, shared by EVERY way a task gets finished: the row tick, Done
+  // in Focus, a bulk Done, the last part of a stepped task, and a resize of the parts that completes one.
+  // ("Done on…" is not one: it only re-dates a task already done.) Until 2026-10-04 only the row tick did any
+  // of it, so the last step of a broken-down task finished anywhere else left the big task hidden for good,
+  // a "· Ours" copy finished in Focus or in bulk never closed the shared row, and only a ticked step ever
+  // reported its outcome. `ids` are tasks already marked done in `next`; the caller commits and plays the
+  // moment.
+  function finishTasks(next: Task[], ids: string[]): { tasks: Task[]; bloom: BloomData | null; backLine: string | null } {
+    const now = nowMs();
+    for (const id of ids) {
+      const finished = next.find((t) => t.id === id);
+      if (!finished || !isDoneOn(finished, today)) continue;
+      // Your tick closes both.
+      if (finished.sharedRef) void mirrorTickToShared(finished.sharedRef, true);
+      // The moat's completion half: a finished breakdown step reports an anonymised outcome (id + timing
+      // only), so "how long this takes" becomes real data over time, timed to the step's own completion.
+      if (finished.decompositionId) {
+        const outcome = buildOutcome(finished, finished.completedAt ?? now);
+        if (outcome) void reportOutcome(outcome);
+      }
+    }
+    // Cluster B: completing a child may finish its silent parent (decompose, exhaustive), or bring back its
+    // open parent (tiny-version, partial pebbles), retiring the spent pebble. Either is the real task. Each
+    // one is counted, so a bulk Done across two broken-down tasks counts two, not one.
+    const settled = settleCompletions(next, ids, today, now);
+    for (let i = 0; i < settled.backs.length; i += 1) track('tiny.stepDone');
+    for (const w of settled.wholes) track('parent.completed', { depth: w.depth });
+    let bloom: BloomData | null = null;
+    if (settled.whole) {
+      const whole = settled.whole; // the topmost finished task of the last chain: the whole thing
+      const stepCount = settled.tasks.filter((t) => t.parentId === whole.id && !t.deletedAt).length;
+      const tier = celebrationTier({ bigWin: isBigWin(whole), lingerDays: ageInDays(whole), stepMinutes: whole.complexity ?? 0 });
+      bloom = { title: whole.title, context: finishContext({ lingerDays: ageInDays(whole), stepCount }), tier: tier.tier, durationMs: tier.durationMs };
+    }
+    // A tiny step's real task gets the "you started" line; one brought back because its kind is unknown gets
+    // the plain one (the user may have just done its last step, not its first).
+    const backLine = settled.parentBack == null ? null : settled.parentBackTiny ? t('today.tinyParentBackAffirm', { parentTitle: settled.parentBack }) : t('today.realTaskBackAffirm', { parentTitle: settled.parentBack });
+    return { tasks: settled.tasks, bloom, backLine };
+  }
+
   function toggle(id: string) {
     const next = tasks.map((t) => {
       if (t.id !== id) return t;
@@ -1953,46 +2031,20 @@ export default function TodayScreen() {
     });
     const justToggled = next.find((t) => t.id === id);
     const done = justToggled ? isDoneOn(justToggled, today) : false;
-    // Your tick closes both. Un-ticking re-opens both, for the same reason it does on Ours: on a
-    // list two people keep, a tick you cannot take back is a tick you hesitate over.
-    if (justToggled?.sharedRef) void mirrorTickToShared(justToggled.sharedRef, done);
+    // Un-ticking re-opens both, for the same reason it does on Ours: on a list two people keep, a tick
+    // you cannot take back is a tick you hesitate over. (The tick itself closes both in finishTasks.)
+    if (!done && justToggled?.sharedRef) void mirrorTickToShared(justToggled.sharedRef, false);
     // The moat starts at the call site: log the outcome, not just "done".
     track('task.toggled', { done });
     if (done && rows.some((r) => r.id === id)) beginTuck(id);
     if (!done && settling.includes(id)) endTuck(id);
     if (!done && tuckedRows.some((r) => r.id === id)) sayUntucked(tuckedRows.length === 1);
-    // The moat's completion half: a finished breakdown step reports an anonymised
-    // outcome (id + timing only), so "how long this takes" becomes real data over time.
-    if (justToggled && justToggled.decompositionId && isDoneOn(justToggled, today)) {
-      const outcome = buildOutcome(justToggled, nowMs());
-      if (outcome) void reportOutcome(outcome);
-    }
-    // Cluster B: completing a child may finish its silent parent (decompose, exhaustive),
-    // or resurface its open parent (tiny-version, partial pebbles). Either is the real task.
-    let finalTasks = next;
-    let parentBack: string | null = null;
-    let bloomData: BloomData | null = null;
-    if (done && justToggled?.parentId) {
-      const parent = next.find((t) => t.id === justToggled.parentId);
-      if (parent?.openParent) {
-        // a tiny-version pebble done: bring the real task back (it never auto-completes) and
-        // retire the spent pebble, so pebbles never pile up however often it is shrunk
-        const { tasks: resurfaced, parentTitle } = resurfaceOpenParent(next, id, nowMs());
-        finalTasks = resurfaced;
-        parentBack = parentTitle;
-        track('tiny.stepDone');
-      } else {
-        const { tasks: walked, completed } = completeAncestors(next, id, today, nowMs());
-        finalTasks = walked;
-        if (completed.length > 0) {
-          const whole = completed[completed.length - 1]; // the topmost finished task: the whole thing
-          const stepCount = finalTasks.filter((t) => t.parentId === whole.id && !t.deletedAt).length;
-          const tier = celebrationTier({ bigWin: isBigWin(whole), lingerDays: ageInDays(whole), stepMinutes: whole.complexity ?? 0 });
-          bloomData = { title: whole.title, context: finishContext({ lingerDays: ageInDays(whole), stepCount }), tier: tier.tier, durationMs: tier.durationMs };
-          track('parent.completed', { depth: completed.length });
-        }
-      }
-    }
+    // A tick goes through the same finish as every other way of finishing: the shared row, the outcome
+    // report, and the parent walk (the silent parent finished, or the tiny step's real task back).
+    const finished = done ? finishTasks(next, [id]) : null;
+    const finalTasks = finished ? finished.tasks : next;
+    const backLine = finished ? finished.backLine : null;
+    const bloomData = finished ? finished.bloom : null;
     const todays = tasksForToday(finalTasks, today);
     const cleared = todays.length > 0 && todays.every((t) => isDoneOn(t, today));
     if (cleared) {
@@ -2006,8 +2058,8 @@ export default function TodayScreen() {
     if (bloomData) {
       setBloom(bloomData);
     } else {
-      if (parentBack) {
-        affirm(t('today.tinyParentBackAffirm', { parentTitle: parentBack }));
+      if (backLine) {
+        affirm(backLine);
       } else if (done && !cleared) {
         doneAffirm(); // a rotating completion line (carries the old "good enough" release)
       }
@@ -2203,13 +2255,29 @@ export default function TodayScreen() {
   function confirmSliceEdit() {
     const id = sliceEditId;
     if (id == null) return;
-    const wasSliced = tasks.find((t) => t.id === id)?.slices != null;
-    commit(tasks.map((t) => (t.id === id ? { ...setSliceTotal(t, sliceEditCount), updatedAt: nowMs() } : t)));
+    const before = tasks.find((t) => t.id === id);
+    const wasSliced = before?.slices != null;
+    const now = nowMs();
+    const next = tasks.map((t) => {
+      if (t.id !== id) return t;
+      const resized: Task = { ...setSliceTotal(t, sliceEditCount), updatedAt: now };
+      // Shrinking the parts to what is already done finishes the task: date it, so it lands on a day.
+      if (resized.done && !t.done) return clearNudgeIfAny({ ...resized, completedAt: now });
+      return resized;
+    });
+    const finishedNow = Boolean(before && !before.done && next.find((t) => t.id === id)?.done);
+    const finished = finishedNow ? finishTasks(next, [id]) : null;
+    commit(finished ? finished.tasks : next);
     track(wasSliced ? 'slices.resized' : 'slices.defined', { total: sliceEditCount });
+    if (finishedNow) track('slices.progressed', { done: sliceEditCount, total: sliceEditCount, complete: true });
     setSliceEditOpen(false);
     setSliceEditId(null);
     dismissActions();
-    affirm(t('today.slicesSetAffirm', { count: sliceEditCount }));
+    // One moment, never two: the bloom IS a whole-task finish; otherwise the line that fits what happened.
+    if (finished?.bloom) setBloom(finished.bloom);
+    else if (finished?.backLine) affirm(finished.backLine);
+    else if (finishedNow) doneAffirm();
+    else affirm(t('today.slicesSetAffirm', { count: sliceEditCount }));
   }
   // Drop the parts, back to one whole task (keeps whatever done state it had).
   function makeWhole() {
@@ -2249,10 +2317,17 @@ export default function TodayScreen() {
     if (!after?.done && before?.done && settling.includes(id)) endTuck(id);
     if (after?.done && !before?.done) {
       if (rows.some((r) => r.id === id)) beginTuck(id);
-      const todays = tasksForToday(next, today);
+      // The last part done finishes the task, so it goes through the same finish as a tick (a stepped
+      // step of a broken-down task strands its big task otherwise).
+      const finished = finishTasks(next.map((t) => (t.id === id ? clearNudgeIfAny(t) : t)), [id]);
+      const todays = tasksForToday(finished.tasks, today);
       if (todays.length > 0 && todays.every((t) => isDoneOn(t, today))) {
         track('day.cleared', { count: todays.length });
       }
+      commit(finished.tasks);
+      if (finished.bloom) setBloom(finished.bloom);
+      else if (finished.backLine) affirm(finished.backLine);
+      return;
     }
     commit(next);
   }
@@ -2357,10 +2432,11 @@ export default function TodayScreen() {
       ...link,
       ...(p.date ? { due: p.date } : {}),
     }));
-    // The parent is hidden from Today / Later and completed + celebrated when its children finish.
+    // The parent is hidden from Today / Later and completed + celebrated when its children finish. openParent
+    // off, as in the manual breakdown: a once-tiny task's flag would turn these steps into tiny steps.
     const withParent: Task[] = bdParentId
-      ? tasks.map((t) => (t.id === bdParentId ? { ...t, silentParent: true, complexity: totalMinutes, updatedAt: now } : t))
-      : [...tasks, { id: parentId, title: bdTask, done: false, createdAt: now, updatedAt: now, silentParent: true, complexity: totalMinutes }];
+      ? tasks.map((t) => (t.id === bdParentId ? { ...t, silentParent: true, openParent: false, complexity: totalMinutes, updatedAt: now } : t))
+      : [...tasks, { id: parentId, title: bdTask, done: false, createdAt: now, updatedAt: now, silentParent: true, openParent: false, complexity: totalMinutes }];
     commit([...withParent, ...stepTasks, ...phaseTasks]);
     stepsLanded(reduced); // the dreaded task just got smaller
     // The moat: how many of the offered steps the user kept, and how many phases.
@@ -2423,7 +2499,9 @@ export default function TodayScreen() {
     }));
     // The real task goes silent (hidden, auto-completes + blooms when every step is done), exactly as an
     // AI breakdown does, so the parent/child model is identical with AI on or off.
-    const withParent = tasks.map((t) => (t.id === parent.id ? { ...t, silentParent: true, updatedAt: now } : t));
+    // openParent off: a task once made tiny and since come back still carries the flag, which would make
+    // every real step here behave as a tiny step (the first one ticked brings the task back and is retired).
+    const withParent = tasks.map((t) => (t.id === parent.id ? { ...t, silentParent: true, openParent: false, updatedAt: now } : t));
     commit([...withParent, ...stepTasks]);
     track('breakdown.manual', { added: lines.length });
     closeManualBreakdown();

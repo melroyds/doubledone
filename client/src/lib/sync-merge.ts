@@ -5,6 +5,35 @@
 
 import { type Task } from './tasks';
 
+/**
+ * The Task fields the server never stores (TaskRow has no column for them), so the copy on THIS device is
+ * their only truth. A row pulled from the server cannot carry them, so whenever the remote copy wins (it is
+ * newer, or the timestamps TIE, which is every sync after a push), reconcileConflict carries each one from
+ * the local copy instead of letting it vanish.
+ *
+ * Until 2026-10-04 only manualOrder was carried, so the SECOND sync after any of these was set silently
+ * wiped it on a single device: Make it tiny's real task lost openParent (ticking the tiny step then
+ * completed the real task instead of bringing it back) and its step lost parentTitle (its eyebrow went); a
+ * broken-down step lost decompositionId (its completion outcome stopped reaching the moat); a reminder lost
+ * nudgeAt / nudgeId (the bell went and it could no longer be cancelled, so it fired on a finished task);
+ * suggestBreakdown and combinedFrom went too.
+ *
+ * sync-merge.test.ts fails unless every Task key is either synced by taskToRow or listed here. A field
+ * that GAINS a column must leave this list in the same commit, or the carry would overwrite the synced
+ * value with this device's copy. (Another device still never receives these. That needs the columns.)
+ */
+export const LOCAL_ONLY_FIELDS = [
+  'manualOrder',
+  'openParent',
+  'parentTitle',
+  'decompositionId',
+  'decompositionSteps',
+  'suggestBreakdown',
+  'combinedFrom',
+  'nudgeAt',
+  'nudgeId',
+] as const satisfies readonly (keyof Task)[];
+
 export type MergeResult = {
   merged: Task[]; // the reconciled set to persist locally (includes tombstones)
   toPush: Task[]; // the subset the server is missing or has an older copy of
@@ -59,9 +88,9 @@ export function mergeTasks(local: Task[], remote: Task[]): MergeResult {
 
 // Reconcile a task present on both sides. The LWW winner is the base, but the synced completion data is made
 // monotonic so a tick or progress made on one device is never erased by a newer unrelated edit on another:
-// completedDates is unioned (grow-only) and slices.done takes the max. The local-only field manualOrder
-// (never sent to the server) is carried from the local copy instead of being dropped when the remote row
-// wins. This is the never-lose-a-task, never-shame-by-disappearance guarantee, made real in sync.
+// completedDates is unioned (grow-only) and slices.done takes the max. The local-only fields (never sent
+// to the server, LOCAL_ONLY_FIELDS) are carried from the local copy instead of being dropped when the
+// remote row wins. This is the never-lose-a-task, never-shame-by-disappearance guarantee, made real in sync.
 function reconcileConflict(l: Task, r: Task): Task {
   const out: Task = rank(l.updatedAt) > rank(r.updatedAt) ? { ...l } : { ...r };
 
@@ -86,10 +115,22 @@ function reconcileConflict(l: Task, r: Task): Task {
   // Finite equality, not rank equality: two corrupt (non-finite) stamps must not fake a tie.
   if (Number.isFinite(l.updatedAt) && l.updatedAt === r.updatedAt && (l.big || r.big)) out.big = true;
 
-  if (l.manualOrder != null) out.manualOrder = l.manualOrder;
-  else delete out.manualOrder;
+  for (const key of LOCAL_ONLY_FIELDS) carryLocal(out, l, key);
+  // The one exception, openParent: it means something only within ONE hidden episode. When a strictly newer
+  // remote has hidden a task this device last saw visible, another device started a new episode (most
+  // likely Break it down on a once-tiny task), so this device's flag is stale. Carried, it would make every
+  // real step behave as a tiny step on the next tick (retired, the task never finished). Dropped, the task is
+  // a decomposition, which is what it most likely now is.
+  if (rank(r.updatedAt) > rank(l.updatedAt) && r.silentParent && !l.silentParent) delete out.openParent;
 
   return out;
+}
+
+/** One local-only field from the local copy onto the reconciled task: kept when local has it, absent when
+ *  local has none (so a carry never invents a key). */
+function carryLocal<K extends (typeof LOCAL_ONLY_FIELDS)[number]>(out: Task, l: Task, key: K): void {
+  if (l[key] != null) out[key] = l[key];
+  else delete out[key];
 }
 
 /** LWW rank of an updatedAt: a non-finite value (a corrupt remote row that parsed to NaN, say)

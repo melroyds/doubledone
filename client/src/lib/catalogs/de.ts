@@ -1120,6 +1120,8 @@ export const de: Catalog = {
     tinyError: 'Das ließ sich gerade nicht winzig machen. Versuch es noch mal.',
     tinyMade: 'Winzig gemacht. Nur dieser eine Schritt.',
     tinyParentBackAffirm: 'Du hast angefangen, das ist der schwere Teil. {parentTitle} ist wieder da, wenn du so weit bist.',
+    realTaskBackAffirm: '{parentTitle} ist wieder da.',
+    combinedBackAffirm: 'Zusammengelegt zu einer: {title}. {parentTitle} ist auch wieder da.',
     tinyShrinking: 'Wird winzig…',
     tinyStepEyebrow: 'Ein winziger Schritt Richtung · {parent}',
     tinyStepRowLabel: '{title}, ein winziger Schritt Richtung {parent}',
