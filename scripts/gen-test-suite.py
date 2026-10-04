@@ -266,6 +266,9 @@ CASES = [
     ("SB-09", "Scrapbook", "P2", "Keepsakes follow the account across devices",
      "Signed in on two devices (e.g. Android + web). Make a keepsake on device 1, then open the app on device 2 (Today first, then the Calendar). Remake the same week's keepsake on device 2 and check device 1 after its next open. Prerequisite: an account signed in on both.",
      "The keepsake appears on device 2's Calendar for its week (sync runs on app open; the Calendar shows it on next visit). A remade week's newer keepsake replaces the older one everywhere, never duplicates. Legacy device-local keepsakes (made before cloud persistence, stored as raw image data) deliberately do NOT sync and stay only where they were made. Signing into a DIFFERENT account never migrates the previous account's keepsakes up (the cross-account guard). A scrapbook sync failure is silent and never breaks task sync or shows an error.", "Both"),
+    ("SB-10", "Scrapbook", "P3", "Nobody else can delete your keepsake picture",
+     "Signed in as account A, make a keepsake and copy its picture address. Signed in as account B, POST {\"keys\":[\"<A's id>.jpg\"]} to https://api.doubledone.app/scrapbook/purge with B's token (copied as in MCP-00), and once with no token at all.",
+     "Both calls answer {\"ok\":true,\"deleted\":0,\"refused\":1} and A's picture still loads. Only A's own token, or A's account deletion, removes it. A keepsake made while signed out keeps the old rule: its unguessable address is what deletes it.", "Desktop"),
     ("HLD-06", "Hold me to it", "P1", "The fold is four rows, More says nothing, and the door owns Steps",
      "Hold an ordinary one-off task (with an Ours pair active, on a phone). Read the CLOSED card's More row, then open the fold and count. Then tap Break it down and read the QUESTIONS page's foot before answering anything. Then, on a task already split into steps, tap the '2 / 5' beside the card title, and inside the editor look for Undo.",
      "The closed More row is BARE: the word More and a caret, no preview of action names (the old roll-call line made the closed card read as a control panel; a screen reader hears the row count spoken, 'More. 4 quieter actions.', which is never shown visually). The fold holds exactly four rows in fixed order: Share to Ours, Remind me, Hold me to it, Pin last with the honey mark. Steps and Undo-a-step are GONE from the fold: the decomposition door owns that job now. ALL THREE breakdown surfaces carry one quiet 'Count it in parts instead' under a hairline (only when breaking down an existing task), which opens the steps editor: the AI QUESTIONS page (page one, at the bottom above the AI disclosure; added 2026-08-30 after Melroy found the door only on page two, which cost a Claude proposal call to walk past), the AI proposal page, and the manual editor. Taking the questions-page door closes the flow with NO proposal call spent. The '2 / 5' count beside the card title is itself the direct route into that editor. Inside the editor the live count shows with 'Undo a step' beside it, rendered only when a step can actually be undone.", "Both"),
@@ -585,6 +588,9 @@ CASES = [
      "Before confirming, one extra plain line: 'Your Premium is billed through Google Play. Deleting your account turns off its renewal, so you won't be charged again.' The delete goes through as in DEL-01. In the Play Store the subscription shows as cancelled (no renewal date, it ends at the period end) rather than active. If the delete itself fails after billing closed, the line reads 'Your Google Play renewal is off, so you won't be charged again, but the account could not be deleted just now. Please try again.' An Apple subscriber deleting on Android sees the APPLE line instead (cancel it on the iPhone), never the Google one. Unit-tested, check here if you can: the app tells the server to look at Play on every Android delete, so a purchase whose webhook has not arrived yet is still turned off.", "Android"),
 
     # --- MCP server -----------------------------------------------------------
+    ("DEL-08", "Account deletion", "P1", "Deletion also removes your keepsake pictures and any AI connector",
+     "PREREQ: a signed-in throwaway account with a scrapbook keepsake made on THIS build or later (Premium), and an AI connector connected by URL (MCP-07). Note the keepsake picture's address (it ends /scrapbook-img/<id>.jpg). Settings -> Delete account and data -> confirm.",
+     "The account and its data go as in DEL-01. Then: the keepsake picture's address no longer loads (404), and the connector's next tool call fails and asks to sign in again (its custody was deleted, as Disconnect AI connectors does). Older keepsakes, made before this build, are removed the same way.", "Both"),
     ("MCP-00", "MCP", "P1", "PREREQ: copy your token",
      "Sign in, Settings -> AI -> open the 'AI agent access (MCP)' row -> Copy my token.",
      "Token copied (web) / shown selectable. Server URL visible.", "Both"),
@@ -709,6 +715,9 @@ CASES = [
      "The whole UI renders in that language: screens, buttons, hints, errors, notification copy, and screen-reader labels. Dates and times follow the region's convention (24-hour clock and day-month order where the locale uses them). Task titles the user typed stay exactly as typed (user data never translates), the brand stays 'DoubleDone', and legal pages stay English. Any missing string falls back to English, never a blank. An English device sees the app unchanged.", "Both"),
 
     # --- Accessibility --------------------------------------------------------
+    ("I18N-02", "Languages", "P2", "German is a supported language on the phones",
+     "PREREQ: a store build made after 2026-10-05 (it is native config, so web and older builds cannot show it). Set the phone's language to German, open DoubleDone. On iOS also open Settings -> DoubleDone -> Language.",
+     "The app is in German throughout. iOS lists Deutsch beside English, Italiano, Español and Français in the app's own language setting, and choosing it switches the app. On Android 13+ the per-app language list offers Deutsch too.", "Both"),
     ("A11Y-01", "Accessibility", "P2", "Screen reader (TalkBack)",
      "Enable TalkBack, navigate Today and capture.",
      "Controls are labelled. Dates read in a friendly way.", "Android"),
@@ -1503,6 +1512,9 @@ CASES = [
     ("UPD-05", "Updates", "P2", "The goodnight mention is rare, and framed for the other person",
      "Clear the day with a build two minor versions behind, and reach the rested screen.",
      "At most ONE offer shows. If it is the update one it reads 'The newer one can read everything your person sets, rhythms included.' 'Not now' dismisses it and it does not return for a fortnight. It never displaces the reminder, widget or scrapbook offer.", "Both"),
+    ("UPD-06", "Updates", "P1", "The web never says it is behind itself",
+     "Right after a web deploy (or on any ordinary day), open Settings on doubledone.app in a fresh tab. Read the version line at the foot of Settings.",
+     "It reads v<the app.json version> (web), for example v1.8.0 (web), never v1.2.0, and there is NO 'A newer version is ready' line (UPD-02 covers the case where the web really is behind). Fixed 2026-10-05: the web used to fall back to 1.2.0 and nag forever.", "Web"),
     ("OUR-12", "Ours", "P3", "Unnamed lists read in each person's language",
      "Create a list WITHOUT naming it. Set the two accounts' devices to different languages (e.g. English and Italian).",
      "Each person sees the app's own word for a shared list in their own language, not the other person's.", "Both"),

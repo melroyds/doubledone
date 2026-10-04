@@ -9187,3 +9187,36 @@ step that was itself broken down finished its real task with a bloom); the held 
 press guard; leaving Focus clears the slip's focused ring on native; and every list that arrives from
 outside a tap (sync, heal, the shared settle) now goes through `adoptTasks`, so a tap before React renders
 it rebases onto it.
+
+## 2026-10-05: four code problems the documentation review found, fixed
+
+**1. The web always said "A newer version is ready".** The web has no native app version, so Settings and
+Today fell back to a hard-coded `1.2.0`, compared it with version.json's `web` (stamped from app.json at
+build) and nagged every web visitor for good; Settings read "v1.2.0 (web)". **Decided:** the web reads
+app.json's own version (`runningVersion` in `lib/updates.ts`, from `Constants.expoConfig`), the very value
+the stamp writes, so it can never be behind itself; the fallback is only a last resort. Checked in a
+production export (it embeds 1.8.0); a warm dev server can serve a stale manifest, so a dev server is not
+the place to judge it (CLAUDE.md gotcha).
+
+**2. German was missing from the phones' supported languages** (`supportedLocales` in app.json listed en,
+it, es, fr). **Decided:** add `de`. Native config, so it reaches phones with the next store build (I18N-02).
+
+**3. Anyone with a keepsake image's address could delete it** (`POST /scrapbook/purge` took no sign-in,
+and the images are publicly readable by address). **Decided:** a signed-in person's keepsake is now tagged
+with their verified user id at upload, the app sends its token on both calls, and account deletion captures
+the token BEFORE deleting (deleteAccount signs out at its end; a deleted user's token still verifies until it
+expires). The refusal itself (a tagged image only for its owner) is built and tested but **staged behind the
+Worker var `SCRAPBOOK_PURGE_ENFORCE`, off by default.** **Decided against** switching it on now (the review):
+store builds older than this purge with no token, after the account is gone, so an account deleted from such
+a phone, or during a verifier blip, would leave its tagged keepsakes in R2 for good. That trades a minor
+theoretical hole (an unguessable key is the only way in) for a real erasure gap. The app also retries a purge
+once when anything was refused. The trigger to switch it on is in the Backlog.
+
+**4. Account deletion left the AI-connector records behind** (the D1 `mcp_grants` custody: an encrypted
+refresh token and the sign-in email). **Decided:** deletion now calls the existing `/mcp/disconnect` kill
+switch with the token captured before the delete. And the review found the kill switch itself never revoked
+the OAuth library's own grant records (served before the provider, so its helpers were never in scope), so a
+disconnected account's grants, whose props carry the email, stayed in KV for at least the refresh TTL. It now
+builds the helpers with `getOAuthApi` from the same options and revokes them, best effort. The free-trial
+record (`trials`: an internal id and two dates, no email, no task data) stays, so a trial is used once; the
+privacy policy does not yet say so, and its new wording waits for Melroy's confirmation (BUILD-PLAN).

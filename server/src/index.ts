@@ -31,6 +31,7 @@ import { handleRcWebhook } from './revenuecat';
 import { handleAppleReconcile } from './revenuecat-api';
 import { handleReviewCode, handleReviewEmail } from './review-otp';
 import { handleCheckout, handleCloseBilling, handleEntitlement, handlePortal, handleWebhook } from './stripe';
+import { handleScrapbookPurge, type ScrapbookBucket, scrapbookOwner } from './scrapbook-purge';
 import { type D1LikeDatabase, extractUsage, logAiCall, logOutcome } from './telemetry';
 import { buildTriageRequest, parseTriageResponse, TRIAGE_MODEL } from './triage';
 
@@ -48,10 +49,8 @@ interface AiBinding {
 
 // R2 bucket binding (see wrangler.jsonc), typed locally so we do not depend on a
 // specific @cloudflare/workers-types version. Holds the scrapbook keepsake images.
-interface R2Binding {
-  put(key: string, value: ArrayBuffer | Uint8Array, options?: { httpMetadata?: { contentType?: string } }): Promise<unknown>;
+interface R2Binding extends ScrapbookBucket {
   get(key: string): Promise<{ body: ReadableStream; httpMetadata?: { contentType?: string } } | null>;
-  delete(key: string): Promise<unknown>;
 }
 
 // Cloudflare Email Routing send_email binding (see wrangler.jsonc), typed locally so we
@@ -75,6 +74,9 @@ export interface Env {
   AI?: AiBinding;
   // R2 bucket holding the scrapbook keepsake images (off the localStorage quota).
   SCRAPBOOKS?: R2Binding;
+  // "on" makes /scrapbook/purge refuse a tagged keepsake to anyone but its verified owner (scrapbook-purge.ts).
+  // Unset (the default) keeps the old key-is-the-capability rule while older store builds are still out.
+  SCRAPBOOK_PURGE_ENFORCE?: string;
   // D1 store (Worker-bound): the moat's telemetry (pseudonymous) plus the
   // entitlements table (user-keyed) the Stripe webhook writes.
   DB?: D1LikeDatabase;
@@ -219,30 +221,10 @@ const router = {
       return Response.json({ ok: true, hasKey: Boolean(env.ANTHROPIC_API_KEY) }, { headers: cors });
     }
 
-    // Delete a user's own scrapbook images from R2 on account deletion. Keyed by the
-    // unguessable UUIDs the client holds locally, so a caller can only purge images it
-    // already knows the keys to (its own). Best-effort; an unknown key is a no-op.
+    // Delete a user's own scrapbook images from R2 on account deletion. A tagged image only for its verified
+    // owner; an untagged (older or anonymous) one by its unguessable key, as before (scrapbook-purge.ts).
     if (pathname === '/scrapbook/purge' && request.method === 'POST') {
-      if (!env.SCRAPBOOKS) return Response.json({ ok: true, deleted: 0 }, { headers: cors });
-      let keys: string[] = [];
-      try {
-        const body = (await request.json()) as { keys?: unknown };
-        if (Array.isArray(body.keys)) {
-          keys = body.keys.filter((k): k is string => typeof k === 'string' && k.length > 0).slice(0, 200);
-        }
-      } catch {
-        return Response.json({ error: 'bad request' }, { status: 400, headers: cors });
-      }
-      let deleted = 0;
-      for (const key of keys) {
-        try {
-          await env.SCRAPBOOKS.delete(key);
-          deleted += 1;
-        } catch {
-          // best effort; keep going
-        }
-      }
-      return Response.json({ ok: true, deleted }, { headers: cors });
+      return handleScrapbookPurge(request, env, cors);
     }
     // Public read for a scrapbook keepsake image stored in R2. Not origin-gated (the
     // <Image> tag loads it cross-origin), read-only, and the key is an unguessable
@@ -1165,7 +1147,13 @@ const router = {
           try {
             const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
             const key = `${crypto.randomUUID()}.jpg`;
-            await env.SCRAPBOOKS.put(key, bytes, { httpMetadata: { contentType: 'image/jpeg' } });
+            // A signed-in person's keepsake is tagged with their verified id, so only they can purge it
+            // (scrapbook-purge.ts). Signed out, it stays untagged, as every keepsake before 2026-10-05 is.
+            const owner = await scrapbookOwner(request, env.SUPABASE_URL);
+            await env.SCRAPBOOKS.put(key, bytes, {
+              httpMetadata: { contentType: 'image/jpeg' },
+              ...(owner ? { customMetadata: { owner } } : {}),
+            });
             image = `${new URL(request.url).origin}/scrapbook-img/${key}`;
           } catch {
             // keep the data-URL fallback

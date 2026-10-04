@@ -28,6 +28,7 @@ import {
   type Energy,
   matchEnergy,
   plan as planBreakdown,
+  dropAiConnectors,
   purgeScrapbookImages,
   reportOutcome,
   sequence,
@@ -55,11 +56,12 @@ import { dayCleared, dayClosed, stepsLanded, taskDone } from '@/lib/haptics';
 import { subscribeInbound, takeInbound } from '@/lib/inbound';
 import { aiLanguage, fmt, t } from '@/lib/locale';
 import * as Application from 'expo-application';
+import Constants from 'expo-constants';
 
 import { isOursOpen, loadMyPairs, syncClock } from '@/lib/ours-api';
 import { rememberOursName } from '@/lib/ours-name';
 import { checkForUpdate, currentPlatform } from '@/lib/update-check';
-import { FALLBACK_VERSION, shouldMention, type UpdateStatus, updateUrl } from '@/lib/updates';
+import { runningVersion, shouldMention, type UpdateStatus, updateUrl } from '@/lib/updates';
 import { makeSharedRef, parseSharedRef, removedOrigins, sharedRestNotes } from '@/lib/ours-bridge';
 import { changedSinceLooked, isSharedDoneOn, setSharedDone, type SharedTask } from '@/lib/ours-merge';
 import { isUnreadableRepeat, cadenceLine, sharedDueOn, syncPairOnce, willTrim } from '@/lib/ours-sync';
@@ -77,7 +79,7 @@ import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHold, loadHoldHintSe
 import { restedOffer } from '@/lib/offers';
 import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/plan-day';
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
-import { isSyncConfigured, supabase } from '@/lib/supabase';
+import { authHeader, isSyncConfigured, supabase } from '@/lib/supabase';
 import { clearNudgeIfAny, writeTasks } from '@/lib/task-writes';
 import { mirrorTickToShared as mirrorSharedTick } from '@/lib/ours-tick';
 import { syncScrapbooks } from '@/lib/scrapbook-sync';
@@ -670,7 +672,7 @@ export default function TodayScreen() {
       void loadDayEnergy(toISODate(today)).then((rec) => {
         if (active && rec) setDayEnergySel(rec.level);
       });
-      void checkForUpdate(Application.nativeApplicationVersion ?? FALLBACK_VERSION).then((status) => {
+      void checkForUpdate(runningVersion(Application.nativeApplicationVersion, Constants.expoConfig?.version)).then((status) => {
         if (active) setUpdateStatusNow(status);
       });
       void loadUpdateMentioned().then((at) => {
@@ -920,7 +922,11 @@ export default function TodayScreen() {
           // data (tasks, scrapbooks, routines, per-day state) is wiped; only display prefs stay.
           if (!active) return;
           adoptTasks([]);
-          void purgeScrapbookImages((await loadScrapbooks()).map((b) => b.image));
+          // The token first, before the sign-out below can clear it: a tagged keepsake is purged only for its
+          // verified owner, and a deleted account's token still verifies until it expires.
+          const purgeAuth = await authHeader();
+          void purgeScrapbookImages((await loadScrapbooks()).map((b) => b.image), purgeAuth);
+          void dropAiConnectors(purgeAuth);
           void wipeLocalData();
           void client.auth.signOut();
           track('sync.account_gone');

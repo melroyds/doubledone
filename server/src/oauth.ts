@@ -18,8 +18,10 @@
 import {
   type AuthRequest,
   type ClientInfo,
+  getOAuthApi,
   type OAuthHelpers,
   OAuthProvider,
+  type OAuthProviderOptions,
 } from '@cloudflare/workers-oauth-provider';
 
 import { decryptSecret, deleteGrant, deleteGrantsForUser, encryptSecret, getAccessToken, type GrantsEnv, jwtExp, putGrant } from './mcp-grants';
@@ -577,7 +579,7 @@ const authorizeHandler = {
 // with its token validation + the RFC 9728 401 challenge, and hands /authorize to the
 // handler above. S256-only PKCE: OAuth 2.1 discourages plain, and every target
 // connector (claude.ai, Cowork, ChatGPT) speaks S256.
-const provider = new OAuthProvider<OAuthEnv>({
+const PROVIDER_OPTIONS: OAuthProviderOptions<OAuthEnv> = {
   apiRoute: '/mcp',
   apiHandler: mcpApiHandler,
   defaultHandler: authorizeHandler,
@@ -588,7 +590,8 @@ const provider = new OAuthProvider<OAuthEnv>({
   allowImplicitFlow: false,
   allowPlainPKCE: false,
   resourceMetadata: { resource_name: 'DoubleDone' },
-});
+};
+const provider = new OAuthProvider<OAuthEnv>(PROVIDER_OPTIONS);
 
 /** The single entry point index.ts routes OAuth paths and non-legacy /mcp traffic to.
  *  Also folds RFC 8414's path-inserted form (/.well-known/oauth-authorization-server/mcp,
@@ -631,27 +634,27 @@ export async function handleMcpDisconnect(request: Request, env: OAuthEnv, cors:
   // The guaranteed half: sever the token bridge immediately.
   const removed = await deleteGrantsForUser(env, userId);
 
-  // Best-effort provider-side cleanup, only if the library helpers are in scope (they are
-  // injected on provider-routed requests; absent here, the custody delete above is already
-  // sufficient to cut off access). Never let a revoke hiccup fail the disconnect.
-  const helpers = env.OAUTH_PROVIDER;
-  if (helpers) {
-    try {
-      let cursor: string | undefined;
-      do {
-        const pageResult = await helpers.listUserGrants(userId, { cursor });
-        for (const g of pageResult.items) {
-          try {
-            await helpers.revokeGrant(g.id, userId);
-          } catch {
-            // best effort per grant
-          }
+  // Best-effort provider-side cleanup: revoke the library's own grant records too. This route is served
+  // BEFORE provider.fetch, so the helpers are never injected here; until 2026-10-05 that meant the
+  // revoke below never ran, and a disconnected (or deleted) account's grants, whose props carry the
+  // sign-in email, stayed in OAUTH_KV for at least the refresh TTL. getOAuthApi builds the same helpers
+  // from the same options. The custody delete above is what cuts access; never let this fail the call.
+  try {
+    const helpers = env.OAUTH_PROVIDER ?? getOAuthApi(PROVIDER_OPTIONS, env);
+    let cursor: string | undefined;
+    do {
+      const pageResult = await helpers.listUserGrants(userId, { cursor });
+      for (const g of pageResult.items) {
+        try {
+          await helpers.revokeGrant(g.id, userId);
+        } catch {
+          // best effort per grant
         }
-        cursor = pageResult.cursor;
-      } while (cursor);
-    } catch {
-      // best effort: custody is already gone, which is what severs access
-    }
+      }
+      cursor = pageResult.cursor;
+    } while (cursor);
+  } catch {
+    // best effort: custody is already gone, which is what severs access
   }
 
   return json(200, { ok: true, disconnected: removed });

@@ -2,7 +2,7 @@
 
 *A calm, ADHD-friendly daily to-do app that makes today feel finite and achievable, and quietly remembers everything you actually got done.*
 
-> Live at doubledone.app, web and an installable Android app from one codebase, with real Stripe subscribers since 2026-06-26. Sibling in posture to Chronoloria, which is the grand, narrative, "turn your week into a story" version. DoubleDone is the deliberately un-grand one: get the dishes started, see what you did, feel okay.
+> Live at doubledone.app, on the App Store and on Google Play, all from one codebase, with real paying subscribers since 2026-06-26 (Stripe on the web, Apple in-app purchase on iOS, Google Play Billing on Android). Sibling in posture to Chronoloria, which is the grand, narrative, "turn your week into a story" version. DoubleDone is the deliberately un-grand one: get the dishes started, see what you did, feel okay.
 
 ---
 
@@ -139,8 +139,8 @@ Two loops.
 
 Live and real: Stripe subscriptions have been charging actual money since 2026-06-26.
 
-- **Free:** the whole core loop. Today, capture in every form (typed, spoken, shared-in), Routines and Rhythms, the full Lookback calendar and celebration, a generous AI allowance (about ten Break-it-downs a month, sized to never bite on a crisis day), one scrapbook keepsake a month, and 15 energy-matching picks a month. Enough to prove it fits your brain, because this audience will not pay before they trust it.
-- **Paid, A$5/month or A$50/year:** the unlimited AI suite (decomposition and hydration, Strategise, Chart a course, Plan my day, scanning a photographed list, energy matching without limits), richer Lookback insights with a warm weekly reflection, and weekly scrapbook keepsakes that grow with tenure, never a streak.
+- **Free:** the whole core loop. Today, capture in every form (typed, spoken, shared-in), Routines and Rhythms, the full Lookback calendar and celebration, Break it down with no monthly cap, one scrapbook keepsake a month, and 15 energy-matching picks a month. Enough to prove it fits your brain, because this audience will not pay before they trust it.
+- **Paid, A$5/month or A$50/year on the web (the App Store and Google Play show their own local price):** the paid AI suite (Chart a course, Plan my day, scanning a photographed list, energy matching without limits. Break it down and Strategise stay free), richer Lookback insights with a warm weekly reflection, and weekly scrapbook keepsakes that grow with tenure, never a streak.
 - **The honest paywall:** the AI features cost real tokens. You gate the thing that genuinely costs money, not an arbitrary wall. Reads as fair, which matters doubly for an audience sensitive to feeling exploited. The wall is never at friction (Sort, Break-it-down, and Close-the-day stay free) and never at the moment of relief, and data export and the public API/MCP are never gated, because trust is the product.
 - **Personalisation, the second paid layer:** Pin the day's one thing (2026-06-25) and seven calm colour themes (2026-06-27), with Dusk always free. It gates polish, never capability and never calm. The Quiet interface (2026-07-10), a borderless appearance that strips the decorative chrome so DoubleDone reads as calm text on paper, same layout, same features, same warmth, launched in this layer and was made free on 2026-09-27. The original case was that Quiet gates comfort, not capability. That was the wrong line to draw for this audience: for the sensory side, chrome is noise, so a calmer screen is an access need, the same principle that keeps theme, text size and motion free.
 - **What stays free on principle:** Rhythms. Self-care nudges are accessibility, and they never appear behind the premium framing.
@@ -163,7 +163,7 @@ Two hard rules from this:
 ## What it is not
 
 - Not a project manager (no dependencies, assignees, Gantt)
-- Not a team tool (single-user, or it is fighting Asana)
+- Not a team tool (single-user, or it is fighting Asana. Ours, one list shared by exactly two people, is as far as it goes)
 - Not a calendar replacement (it reads your day, it does not run your meetings)
 - Not a habit tracker that shames (streaks break gently, never a guilt mechanic)
 - Not grand or mythical (that is Chronoloria; DoubleDone is calm and grounded on purpose)
@@ -173,10 +173,10 @@ Two hard rules from this:
 
 ## Stack
 
-- **Client:** React Native + Expo, one codebase to native Android (the daily-habit differentiator) and web (the demoable surface). Carried from Chronoloria.
-- **Backend:** small AI service holding the Anthropic key, a Cloudflare Worker at api.doubledone.app (the original Render plan was superseded before launch). Never call Claude from the client. The scrapbook's image pipeline runs on Workers AI, so keepsakes never touch the Anthropic budget.
+- **Client:** React Native + Expo, one codebase to native Android (the daily-habit differentiator), iOS and web (the demoable surface). Carried from Chronoloria.
+- **Backend:** small AI service holding the Anthropic key, a Cloudflare Worker at api.doubledone.app (the original Render plan was superseded before launch). Never call Claude from the client. The scrapbook's image runs on Workers AI, and since August 2026 one small Claude Haiku call writes its scene (Workers AI is the fallback).
 - **Data + auth:** Supabase (Postgres + Auth + Row Level Security). Postgres suits the Lookback, delta, and flywheel queries; RLS gives privacy by architecture.
-- **AI, tiered for cost:** Haiku for cheap frequent triage and the energy-matching pick, Sonnet for decomposition and Strategise, Opus for the premium Lookback narrative moments.
+- **AI, tiered for cost:** Haiku for cheap frequent triage and the energy-matching pick, Sonnet for decomposition, Strategise, Chart a course, Plan my day and the premium weekly reflection. No Opus model is used.
 - **Local-first, anonymous-first:** every feature works without an account; cloud is opt-in durability. Sync now carries the whole record, tasks, the "a lot" marks, and scrapbook keepsakes (the marks and keepsakes joined 2026-07-12), so signing in on a second device brings your history with you.
 - **Harness:** the golden-path playbook. Tier 0 to start (single main, Inspector + gitleaks + CI badge, risk-targeted tests, telemetry before traffic, cost alarm, journal from day one).
 
@@ -200,7 +200,7 @@ In rough priority order:
 
 ## Open questions
 
-- The App Store path. The codebase is iOS-ready (the platform seams are split), but Premium runs on Stripe, so an in-app-purchase strategy decision is needed before any App Store release. Decided before an iOS build, not urgent.
+- None on the platform side. The App Store path was decided on 2026-07-15 (Apple in-app purchase from the first iOS release, through RevenueCat), and DoubleDone has been on the App Store since 2026-07-31.
 
 **Resolved since v1 of this spec:**
 
