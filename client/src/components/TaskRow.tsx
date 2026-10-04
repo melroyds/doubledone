@@ -222,6 +222,24 @@ export function TaskRow({
     animation.start();
     return () => animation.stop();
   }, [washed, justAdded, reducedMotion, washFade]);
+  // The fold-open ratio (card.more / card.opened, the 2026-10-04 telemetry review). An open is counted
+  // HERE, by the card, and only for an open card that HAS a More fold: the exact condition the open
+  // branch below renders More under. So both counts cover the same cards on every surface (Today, Later,
+  // the From-Ours strip; never the Ours list, whose rows have no fold). The fold counts once per open.
+  const foldable = Boolean(onPin && !recurring) || Boolean(onNudge) || Boolean(onShareToOurs) || Boolean(onHold);
+  const openWithFold = Boolean(confirming) && !selecting && !done && foldable;
+  const moreCounted = useRef(false);
+  const firstRun = useRef(true);
+  useEffect(() => {
+    const mounting = firstRun.current;
+    firstRun.current = false;
+    if (!openWithFold) return;
+    // A row that MOUNTS with its card already open (Today remounts on an appearance switch) is the
+    // same open, not a new one: neither it nor its fold is counted again. A hold always targets a
+    // row that is already on screen, so a real open is never a mount.
+    moreCounted.current = mounting;
+    if (!mounting) track('card.opened');
+  }, [openWithFold]);
   const [wasConfirming, setWasConfirming] = useState(confirming);
   if (wasConfirming !== confirming) {
     setWasConfirming(confirming);
@@ -423,7 +441,7 @@ export function TaskRow({
 
     // An open task: the v2 card ("Four species, four grammars"). The More preview names its
     // everyday contents; Pin deliberately stays out of it (premium recedes, never advertises).
-    const hasMore = canPin || Boolean(onNudge) || Boolean(onShareToOurs) || Boolean(onHold);
+    const hasMore = foldable; // canPin || onNudge || onShareToOurs || onHold, shared with card.opened above
     // The fold's row count, SPOKEN to screen readers and never shown: the sighted card says just
     // "More" (the handoff's verdict: bare, no preview, no hint). The old roll-call line printed
     // action names on the closed card, which made it read as a control panel.
@@ -610,9 +628,13 @@ export function TaskRow({
           <>
             <Pressable
               onPress={() => {
-                // Counted on OPEN only: "how often does the fold hide something people need" is
-                // the number every future held-card redesign argues from.
-                if (!moreOpen) track('card.more');
+                // Counted on OPEN only, and once per card open (toggling it shut and open again is
+                // still one): "how often does the fold hide something people need" is the number
+                // every future held-card redesign argues from, so it must be a true fraction.
+                if (!moreOpen && !moreCounted.current) {
+                  moreCounted.current = true;
+                  track('card.more');
+                }
                 setMoreOpen(!moreOpen);
               }}
               style={styles.actionRow}

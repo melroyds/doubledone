@@ -200,19 +200,19 @@ export async function handleAnalytics(request: Request, env: AnalyticsEnv, nowMs
     .bind(cutoff28)
     .first<{ n: number; recent: number }>();
 
-  // The app-event beacon (app_events, the room's usage). Defensive: the table may not
+  // The app-event beacon (app_event_counts, one counter per day per name). Defensive: the table may not
   // exist yet on a Worker deployed before the schema was applied, and a missing count
   // must never 500 the whole page.
   let settle: { n: number; recent: number } | null = null;
   let appEvents28d: AppEventRow[] = [];
   try {
     settle = await env.DB.prepare(
-      "SELECT COUNT(*) AS n, SUM(CASE WHEN created_at >= ?1 THEN 1 ELSE 0 END) AS recent FROM app_events WHERE event = 'settle.opened'",
+      "SELECT COALESCE(SUM(n), 0) AS n, COALESCE(SUM(CASE WHEN day >= ?1 THEN n ELSE 0 END), 0) AS recent FROM app_event_counts WHERE event = 'settle.opened'",
     )
       .bind(cutoff28)
       .first<{ n: number; recent: number }>();
     appEvents28d = (
-      await env.DB.prepare('SELECT event, COUNT(*) AS n FROM app_events WHERE created_at >= ?1 GROUP BY 1 ORDER BY n DESC')
+      await env.DB.prepare('SELECT event, SUM(n) AS n FROM app_event_counts WHERE day >= ?1 GROUP BY 1 ORDER BY n DESC')
         .bind(cutoff28)
         .all<AppEventRow>()
     ).results;

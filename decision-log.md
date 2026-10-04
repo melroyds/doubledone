@@ -8875,3 +8875,109 @@ carry an old subscription's time onto a new one).
 
 **Deploy order, which cannot be reversed:** both `ALTER TABLE entitlements ADD COLUMN`s on the live D1, read
 back, THEN the Worker. The other order breaks every entitlement write, Stripe's included.
+
+## 2026-10-04: the telemetry review, built: every track() call decided, three new counts, and a counter instead of a row per event
+
+**Why.** "+ I also did that" was about to be removed on taste: its `offplan.logged` never left the device, so
+there was no data either way. The review (queued by Melroy 2026-10-03, run 2026-10-04 with an adversarial
+challenge) listed all 160 `track()` calls against both allowlists and the policy. Melroy approved it with the
+challenge's corrections.
+
+**Decided:**
+- **Three new counts, bare names.** `offplan.logged` ("+ I also did that"), only until its verdict.
+  `card.opened`, card.more's denominator, fired by TaskRow ITSELF and only for an open card that HAS a More
+  fold, the exact condition More renders under. So both counts cover the same cards on every surface (Today,
+  Later, the From-Ours strip; never the Ours list, which has no fold; never a done card). The Settings doors:
+  `rooms.opened` leaves the device for Settings only and the Worker folds it to `menu.settings.sign` or
+  `menu.settings.shelf`, dropping every other room.
+- **`card.more` counts once per card open** (a ref reset on each open), so the ratio is a true fraction.
+  Toggling the fold five times was five; now it is one. Checked in the web preview.
+- **`hold.opened` retired**, not renamed: it missed the From-Ours strip and counted foldless cards.
+- **The wire carries only what the policy says.** `beaconRequest` strips every prop except `settle.guide`
+  (on), `hold.completed` / `hold.released` (step) and `rooms.opened` (room, door). Until now nudge.set sent its
+  preset, bulk.big its count, task.reordered its direction and slices.defined its total. The Worker dropped them,
+  but they left the phone. Older store builds keep sending them until they update, and the Worker still drops them.
+- **A daily counter, not a row per event.** `app_event_counts (day, event, n)`, WITHOUT ROWID, bumped by an
+  upsert. The old `app_events` had an autoincrement id, so rows kept global order and consecutive rows (open a
+  card, open its fold, set a reminder) read back as one person's session, finer than the policy's "the name and
+  the day". The old rows are folded in by `server/d1/migrate-app-event-counts.sql`, then the table is dropped.
+  The Analytics Centre and the hourly health check read SUM(n).
+- **Dead calls removed:** `decomposition.offered` (ai_calls already holds the whole offered plan) and
+  `estimate.shown` (it re-fired on every day-count change, counting renders). `theme.locked` became
+  `premium.gate_hit { reason: 'theme' }`, inside the gate taxonomy. The Goodnight note's track became
+  `closeday.noted`, LOCAL, so it cannot inflate the "+ I also did that" verdict.
+- **Every other call stays on the device**, decided by name: `done_line.toggled`, `slices.progressed`,
+  `bulk.completed`, `bulk.removed`, `task.remove.undone`, `premium.menu_open` (the funnel stays local), and
+  `tiny.stepDone` / `parent.completed`, which are completion signals that belong to the `/outcome` undercount
+  fix (Backlog), not to a beacon. `breakdown.added` stays local and its conditional beacon is dropped: at two or
+  three breakdowns a month a three-week window yields about two rows, which is noise.
+- **Both privacy pages** name every count, say the hold's step is kept as one of three rough stages, say
+  "+ I also did that" is counted only until it is decided, and say what is kept is how many times each feature
+  was used on each day. Dated 4 October 2026.
+- **TEL-01 runs locally** (a release web export against `wrangler dev` and its local D1), never production.
+
+**Pre-decided readings, so nobody decides them on a mood:**
+- **"+ I also did that": keep at 3 or more uses, remove below 3,** over a 21-day window. START is the first FULL
+  UTC day on which both the Worker and a client carrying the name are live, END is START plus 21 days, and the
+  query bounds both: `SELECT SUM(n) FROM app_event_counts WHERE event = 'offplan.logged' AND day >= 'START' AND
+  day < 'END'`. **3, not 5,** because the case for keeping it is "one person using it weekly", which is about 3 in
+  3 weeks. A bar of 5 would remove a feature with one weekly user about four times in five (Poisson, rate 3).
+  - **The clock is asymmetric.** A web-only count can SAVE it early (3 or more is final). It cannot kill it:
+    "remove" needs 3 full weeks in which a store build carrying the name was on at least half of active devices
+    (Play Console statistics by app version, App Store Connect analytics by version). **Sunset:** if no carrying
+    store build is live within 8 weeks of the web start, keep the button and retire the count.
+  - **Founder taps:** Melroy does not use "+ I also did that" on any production install (doubledone.app, a store
+    build, TestFlight, the Play internal track) during the window. If he does, he writes it down and subtracts it.
+    No smoke-test POSTs to production `/event`: one fake row is a third of the bar.
+  - **No rescue:** it is judged where it sits, not moved, restyled or announced mid-trial.
+  - **Quiet-traffic guard, once only:** over the names that existed in both windows (everything except
+    `card.opened`, `offplan.logged` and `menu.settings.*`), if the window's total is under half the 21 days before
+    it, extend the window once by 3 weeks.
+  - **Pipe check:** zero `card.opened` in the same window means the beacon path is broken, so the trial is void,
+    not failed.
+  - **Removal scope:** the + button and its one-line input. The Goodnight note stays, so logging what you did
+    off-list survives (removing the button loses little, not nothing: the note is one line, offered only at close).
+  - **Either verdict retires the count** in the same commit: off `BEACON_EVENTS`, `APP_EVENTS`, both pinned tests
+    and both privacy pages. A count that has answered its question is collection with no purpose. The bar of 3 is
+    not a rule for other features.
+- **`card.more` / `card.opened`:** read 4 weeks after the carrying builds are on at least half of active devices
+  on all three surfaces, or after 100 card opens, whichever is later (older builds send card.more without
+  card.opened, which inflates the ratio until adoption). **25% or more:** the fold hides something people need.
+  If the most-used fold tool is `nudge.set` or `hold.started`, SWAP it with the less-used of Make it tiny and
+  Mark as a lot (the leads are frozen at four, so never an addition). If it is `task.pinned`, no change (Pin
+  recedes by design). **10% or less:** the fold is right, the card is left alone. In between: no change. Any
+  held-card redesign argues from this number or does not start. `bulk.big` also counts the multi-select bar and
+  un-marking, so it overstates Mark as a lot, and Share to Ours has no count.
+- **The Settings doors:** read at 4 weeks with the same adoption gate. **Shelf 50% or more** of Settings opens:
+  people still miss the corner sign, so reopen the sign's design. **Shelf 10% or less:** the sign works, and the
+  shelf's Settings line can be considered for folding at the next Menu pass. In between: no change.
+
+**Decided against:** renaming `hold.opened` to `card.opened` (it counted different cards from card.more); a
+`card.opened` on the Ours list (no fold can open there); keeping per-row `app_events` and rewording the policy
+to admit row order (the counter makes the policy true instead); bucketing the hold step on the device (store
+builds already out send the raw step, so the Worker must fold it anyway, and the policy now says so plainly);
+the 5-use bar (it contradicted its own reason); a count-based `breakdown.added` beacon (noise at this traffic);
+`iap.offers_empty` now (parked, it needs its own policy clause).
+
+**Hardened by two adversarial reviews before commit** (client counting; D1 and privacy). No blockers. Fixed:
+- **A card that mounts already open no longer counts again.** Closing the day left a held card open under the
+  close, so reopening the day (or the next morning) remounted it open and counted a second open, and an
+  appearance switch remounts Today the same way. Closing the day now closes any open card (which also ends the
+  card reappearing open by itself), and TaskRow skips its mount run: a hold always targets a row already on screen.
+- **The deploy branch is named** (main; premium only after main is merged into it), because deploying the old
+  Worker and then dropping `app_events` would have lost every count silently, with no alarm for zero volume.
+- **The fold's re-run is a no-op** (it skips when the old table's earliest day is already counted), its check
+  holds under live traffic, and the DROP waits for proof that the old Worker has stopped writing AND the new one
+  is counting.
+- **The policy says what it does not cover:** older store builds still attach a small detail to a few counts
+  (the Worker discards it), and the hosting provider keeps short-lived backups (D1 Time Travel, up to 30 days) and
+  request logs (up to a week), so "nothing finer" is true of the live table, not of the platform. The lead
+  sentence no longer claims "only three things" leave the device (a purchase's RevenueCat identifier does too).
+
+**Found and NOT fixed here (Backlog):** the privacy page has no section for web reminders (the push
+subscription the Worker keeps) or for the feedback note (emailed to the support inbox). Both predate this work
+and are legal-adjacent, so they go to Melroy rather than into a telemetry commit.
+
+**Deploy order, which cannot be reversed once the old table is dropped:** schema (adds the counter table), then
+the Worker, then the one-off fold run ONCE with a read-back, then the drop, then the web push. The native half
+waits for a store build, on Melroy's ask.
