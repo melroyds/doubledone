@@ -1125,6 +1125,8 @@ export const fr: Catalog = {
     tinyError: "Pas réussi à réduire ça pour l'instant. Réessaie.",
     tinyMade: 'Voilà un petit bout. Juste celui-ci.',
     tinyParentBackAffirm: "Tu as commencé, c'était le plus dur. {parentTitle} revient quand tu le sens.",
+    realTaskBackAffirm: '{parentTitle} est de retour.',
+    combinedBackAffirm: 'Regroupées en une seule : {title}. {parentTitle} est de retour aussi.',
     tinyShrinking: 'Je réduis…',
     tinyStepEyebrow: 'Un petit bout · {parent}',
     tinyStepRowLabel: '{title}, un petit bout de {parent}',

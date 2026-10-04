@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { mergeTasks } from './sync-merge';
+import { rowToTask, taskToRow } from './sync';
+import { LOCAL_ONLY_FIELDS, mergeTasks } from './sync-merge';
 import { type Task } from './tasks';
 
 // createdAt defaults to 0 so merged sorts deterministically by id (the tiebreak),
@@ -112,6 +113,56 @@ describe('mergeTasks', () => {
     expect(res.merged).toHaveLength(1);
     expect(res.merged[0].title).toBe('good local'); // the corrupt row did NOT win
     expect(ids(res.toPush)).toEqual(['x']); // local won, so push so the server is corrected
+  });
+
+  // 2026-10-04: only manualOrder was carried, so the second sync after Make it tiny (a timestamp TIE) wiped
+  // openParent and ticking the tiny step then COMPLETED the real task; a reminder lost its id and fired on a
+  // finished task; a broken-down step lost decompositionId and stopped reporting its outcome.
+  it('carries every local-only field when the remote copy wins on a tie (the second sync)', () => {
+    const local = [
+      task('real', 10, { silentParent: true, openParent: true }),
+      task('pebble', 10, { parentId: 'real', parentTitle: 'Clean the garage', decompositionId: 'd1', decompositionSteps: 3, nudgeAt: 99, nudgeId: 'n1', suggestBreakdown: true, combinedFrom: [{ id: 'a', title: 'A' }] }),
+    ];
+    // What the server sends back: the same rows, without any field it has no column for.
+    const remote = local.map((t) => rowToTask(taskToRow(t, 'u')));
+    const res = mergeTasks(local, remote);
+    expect(res.merged.find((t) => t.id === 'real')?.openParent).toBe(true);
+    const pebble = res.merged.find((t) => t.id === 'pebble');
+    expect(pebble).toMatchObject({ parentTitle: 'Clean the garage', decompositionId: 'd1', decompositionSteps: 3, nudgeAt: 99, nudgeId: 'n1', suggestBreakdown: true });
+    expect(pebble?.combinedFrom).toEqual([{ id: 'a', title: 'A' }]);
+    expect(res.toPush).toEqual([]); // local-only fields never make a push
+  });
+
+  it('drops a stale tiny flag when another device has since hidden the task again (a new episode)', () => {
+    // This device: the task came back from its tiny step (visible, flag still true). Another device then broke
+    // it down (hidden again, newer). Carrying the flag would turn the new real steps into tiny steps.
+    const local = [task('r', 10, { openParent: true })];
+    const remote = [task('r', 20, { silentParent: true })];
+    expect(mergeTasks(local, remote).merged[0]).not.toHaveProperty('openParent');
+    // Within one episode (a tie, or a newer remote while it stayed hidden) the flag is kept.
+    expect(mergeTasks([task('r', 10, { silentParent: true, openParent: true })], [task('r', 20, { silentParent: true })]).merged[0].openParent).toBe(true);
+  });
+
+  it('never invents a local-only key the local copy does not have', () => {
+    const res = mergeTasks([task('x', 10)], [task('x', 20, { title: 'remote' })]);
+    for (const key of LOCAL_ONLY_FIELDS) expect(res.merged[0]).not.toHaveProperty(key);
+  });
+
+  // The drift guard: every Task key is either synced (it survives taskToRow -> rowToTask) or listed as
+  // local-only, never both and never neither. A new Task field fails this until it is placed.
+  it('every Task field is either synced or carried as local-only', () => {
+    const full: Required<Task> = {
+      id: 'f', title: 'f', done: true, createdAt: 1, updatedAt: 2, deletedAt: 3, completedAt: 4, complexity: 5,
+      due: '2026-10-04', recurrence: { kind: 'daily' }, completedDates: ['2026-10-04'], skippedDates: ['2026-10-03'],
+      slices: { total: 2, done: 1 }, suggestBreakdown: true, decompositionId: 'd', decompositionSteps: 2, parentId: 'p',
+      parentTitle: 'P', silentParent: true, openParent: true, combinedFrom: [{ id: 'c', title: 'C' }], nudgeAt: 6,
+      nudgeId: 'n', pinnedAt: 7, manualOrder: 8, sharedRef: 'pair/row', big: true,
+    };
+    const synced = new Set(Object.keys(rowToTask(taskToRow(full, 'u'))));
+    const localOnly = new Set<string>(LOCAL_ONLY_FIELDS);
+    for (const key of Object.keys(full)) {
+      expect({ key, placed: synced.has(key) !== localOnly.has(key) }).toEqual({ key, placed: true });
+    }
   });
 
   it('preserves local-only manualOrder when the remote row wins', () => {

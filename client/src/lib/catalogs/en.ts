@@ -1130,6 +1130,8 @@ export const en = {
     tinyError: "Couldn't shrink that just now. Try again.",
     tinyMade: 'Made it tiny. Just this one.',
     tinyParentBackAffirm: "You started, that's the hard part. {parentTitle} is back when you're ready.",
+    realTaskBackAffirm: "{parentTitle} is back on Today.",
+    combinedBackAffirm: "Combined into one: {title}. {parentTitle} is back on Today too.",
     tinyShrinking: 'Shrinking it…',
     tinyStepEyebrow: 'A tiny step toward · {parent}',
     tinyStepRowLabel: '{title}, a tiny step toward {parent}',

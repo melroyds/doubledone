@@ -137,3 +137,13 @@ describe('a reading is only believed if its round trip was short', () => {
     expect(clockSkewMs()).toBe(3_000 - 750);
   });
 });
+
+// 2026-10-04: an odd round trip put the midpoint on a .5, so every minted stamp carried a fraction the server
+// cannot store (it keeps whole ms), and that row ranked "newer" than its synced copy forever.
+describe('the correction is whole milliseconds', () => {
+  it('rounds a half-millisecond midpoint', () => {
+    expect(applyServerTime(2_000_000_000_000, 1_999_999_000_000, 1_999_999_000_001)).toBe(true);
+    expect(Number.isInteger(clockSkewMs())).toBe(true);
+    resetClockSkew();
+  });
+});

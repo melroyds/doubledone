@@ -1125,6 +1125,8 @@ export const es: Catalog = {
     tinyError: 'No pude encogerla ahora mismo. Prueba otra vez.',
     tinyMade: 'Ya es mínima. Solo esto.',
     tinyParentBackAffirm: 'Empezaste, y esa es la parte difícil. {parentTitle} te espera para cuando quieras.',
+    realTaskBackAffirm: '{parentTitle} está de vuelta.',
+    combinedBackAffirm: 'Combinadas en una: {title}. {parentTitle} también está de vuelta.',
     tinyShrinking: 'Encogiéndola…',
     tinyStepEyebrow: 'Un paso mínimo hacia · {parent}',
     tinyStepRowLabel: '{title}, un paso mínimo hacia {parent}',

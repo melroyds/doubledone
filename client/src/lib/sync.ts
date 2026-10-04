@@ -101,11 +101,30 @@ function finiteOr(value: number, fallback: number): number {
   return Number.isFinite(value) ? value : fallback;
 }
 
-/** Pull every row the signed-in user can see (RLS-scoped), tombstones included. */
+/** Rows per page of the pull. Under PostgREST's max-rows cap, so a page is never silently clipped. */
+export const PULL_PAGE_SIZE = 500;
+
+/**
+ * Pull every row the signed-in user can see (RLS-scoped), tombstones included. Keyset-paged on `id`, the
+ * way pullPair is (2026-10-04): one unpaged select('*') is silently truncated by PostgREST at the
+ * project's max-rows, and `tasks` only grows (tombstones are never pruned). Past that cap a new device got a
+ * partial list, an existing one read every row outside the page as "added offline" and pushed it, which
+ * could undo another device's deletion, and the parent repair (healStuckParents) would have judged a big
+ * task by a page that was missing some of its steps. Terminates on an EMPTY page, never a short one.
+ */
 export async function pullRemote(client: SupabaseClient): Promise<Task[]> {
-  const { data, error } = await client.from(TABLE).select('*');
-  if (error) throw error;
-  return ((data ?? []) as TaskRow[]).map(rowToTask);
+  const out: Task[] = [];
+  let after: string | null = null;
+  for (;;) {
+    let q = client.from(TABLE).select('*').order('id', { ascending: true }).limit(PULL_PAGE_SIZE);
+    if (after !== null) q = q.gt('id', after);
+    const { data, error } = await q;
+    if (error) throw error;
+    const rows = (data ?? []) as TaskRow[];
+    if (rows.length === 0) return out;
+    out.push(...rows.map(rowToTask));
+    after = rows[rows.length - 1].id;
+  }
 }
 
 /** Upsert the given tasks (the merge engine's toPush) by primary key. */

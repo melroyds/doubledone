@@ -9018,3 +9018,80 @@ task as that task comes back, newest line winning as in Combine. Decided against
 
 **Still the rule:** test first. The build and the data-model change wait for the 8-person replies on
 Sunday 11 October.
+
+## 2026-10-04: every way of finishing walks up, stuck big tasks are repaired, sync keeps what the server cannot store, and Combine never loses a task
+
+**Why.** The notes-prompt check found three live bugs in the broken-down and tiny-step paths, and fixing them
+properly turned up their whole family. Melroy: "Fix the bugs." All of it is client-only (no migration).
+
+**Decided:**
+- **One finish for every way a task gets finished** (`finishTasks` in today.tsx, `settleCompletions` in
+  lib/today.ts): the row tick, Done in Focus, a bulk Done, the last part of a stepped task, and a resize of the
+  parts that completes one. Each now mirrors a "· Ours" copy to the shared row, reports a breakdown step's
+  outcome, and walks up to the parent. Until now only the row tick did, so a last step finished anywhere else
+  hid the big task for good (never done, never in the Lookback), a tiny step done in Focus never brought its
+  task back, an Ours copy finished in Focus never closed the shared row, and only ticked steps reported their
+  outcome (part of the /outcome undercount). Focus steps aside when a whole task finishes so the bloom is seen.
+  Bulk Done now cancels reminders like every other finish. A resize that completes a task now dates it.
+  "Done on..." is deliberately NOT routed: it only re-dates a task already done (routing it double-reported).
+- **Never finish a big task on a guess.** A parent counts as tiny only while it has one live child (the one
+  pebble Make it tiny allows); two or more means a stale flag on a decomposition, which is cleared. A parent
+  whose tiny flag is UNKNOWN (made before this build, or on another device, which never receives the flag)
+  with exactly one live step is brought back open, not finished, because a tiny step's real task whose flag
+  a sync wiped looks identical. Break it down (AI, manual and at capture) now writes `openParent: false`, so
+  every breakdown made from here on finishes with its bloom.
+- **A repair for big tasks already stuck** (`healStuckParents`), on Today's open, a warm resume and after a
+  sync: 2+ live steps all done finishes it, dated to the last step; one finished step, or every step removed,
+  brings it back open; a tiny step's real task comes back once its pebble is done; Combine's leftovers are
+  tidied away only where nothing was open when they were folded (known by combinedFrom, or by the folded
+  step's tombstone matching the umbrella's createdAt, which both sync); a tiny real task that Combine wrongly
+  deleted comes back (device-local). Every write is stamped from the row it repairs (+1), never the clock, so
+  it beats only the stale copy it came from and loses to any real edit since, and two devices converge on the
+  same result. Nothing whose step is still inside Remove's 6-second Undo is touched (the screen's own Undo
+  list, with the clock as a backstop).
+- **Sync keeps every field the server has no column for** (`LOCAL_ONLY_FIELDS` in sync-merge.ts):
+  manualOrder, openParent, parentTitle, decompositionId, decompositionSteps, suggestBreakdown, combinedFrom,
+  nudgeAt, nudgeId. Only manualOrder was carried, so the SECOND sync after any of them was set wiped it: a
+  tiny step's tick then COMPLETED the real task, a reminder could no longer be cancelled and fired on a
+  finished task, and a breakdown step's outcome stopped (very likely the /outcome undercount). A drift test
+  fails unless every Task key is synced or listed. One exception: when a newer remote has hidden a task this
+  device last saw visible, openParent is dropped (a new episode elsewhere, most likely a breakdown). After a
+  sync, a reminder on a task another device finished or removed is cancelled.
+- **The pull is keyset-paged** like pullPair. One unpaged read was clipped at PostgREST's max-rows: past it a
+  new device got a partial list and an existing one could push back a row another device had deleted.
+- **Combine:** a hidden, unfinished parent with no OPEN step left is tidied away (a done step no longer keeps
+  it hidden for good); a parent already finished or already back on Today is never touched; nested chains
+  walk up; a tiny step's real task (or a flagless parent whose only child ever was the folded one) comes
+  back beside the umbrella, never deleted, with the "X is back" line.
+
+**This supersedes** the 2026-06-24 Combine lines "a parent emptied of ALL its children is tombstoned" and
+"decompositions are single-level", and the 2026-06-22 "openParent persists" (Break it down now clears it).
+
+**Decided against:** finishing an ambiguous one-step parent (the cost accepted instead: a breakdown made
+before this build or synced from another device, with only one step left in its round, including one the
+user trimmed to a single step, comes back open with a plain "X is back on Today" line and needs one more
+tick, with no bloom); stamping the repair with the clock (a stale device's repair beat real edits elsewhere); making tiny
+steps ineligible for Combine (silent, surprising); settling at the end of the Undo window (the next open
+repairs it); shipping the `open_parent` / `parent_title` / `combined_from` columns now. **Those columns are the
+durable fix** for everything device-local here (another device never learns a task was made tiny, so there
+its tiny step's tick brings the real task back, safely, but cannot retire the pebble or show the "tiny step
+toward" eyebrow): an additive Supabase migration, applied live BEFORE any build writes them, then removed from
+LOCAL_ONLY_FIELDS. Parked for the notes build, which adds a column anyway.
+
+**Hardened by two rounds of adversarial review** (three mapping readers; then four reviewers, each finding
+attacked by a skeptic who reproduced it in scratch tests). Five majors were confirmed and fixed: the clock
+stamp overriding newer edits; a stale tiny flag carried across a breakdown made elsewhere (real steps would
+have been deleted on tick); a false finish of a wiped-flag tiny task on the live path; a false finish of a
+partly combined parent; and Combine removing an already finished parent.
+
+**A third round re-attacked the fixes** and confirmed all five, then found two new majors the round-2 rules
+created, both fixed with one rule, `currentRound`: a parent's children are judged by the current round only
+(a child finished before the newest one existed belongs to an earlier round). Without it, a task made tiny
+twice on a device without the flag was FINISHED by the second shrink's tick, and Combine deleted its real
+task by counting the first, retired pebble. Also fixed in that round: the walk never finishes a parent already
+back on Today; an ancestor above a broken-down tiny step gets the same call; a brought-back task gets an
+honest line (new strings `realTaskBackAffirm` and `combinedBackAffirm`, all five languages) instead of "You
+started", which was false for a task never started; the Undo guard reads the screen's own Undo list; the
+clock correction is whole milliseconds (an odd round trip put every stamp on a .5 the server cannot store, so
+those rows were re-pushed on every sync, forever, pre-existing); Combine's nested walk re-checks a parent it
+skipped earlier; a reminder is cancelled after a sync whenever its task is no longer open on Today.

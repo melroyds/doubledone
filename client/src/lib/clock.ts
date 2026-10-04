@@ -57,7 +57,11 @@ export function applyServerTime(serverTime: string | number | null | undefined, 
   if (server < PLAUSIBLE_MIN || server > PLAUSIBLE_MAX) return false;
 
   const midpoint = deviceBefore + (deviceAfter - deviceBefore) / 2;
-  const next = server - midpoint;
+  // Whole milliseconds (2026-10-04): an odd round trip put the midpoint on a .5, so every stamp nowMs()
+  // minted carried a fraction the server cannot store (it keeps whole ms). That copy then ranked "newer"
+  // than the server's forever, so the row was re-pushed on every sync, and a stamp could not be matched
+  // against its synced twin.
+  const next = Math.round(server - midpoint);
   if (!Number.isFinite(next)) return false;
 
   skewMs = next;
