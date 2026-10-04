@@ -1,14 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { border, cardShadow, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
-import { t } from '@/lib/locale';
+import { forSpeech, LEFT_OFF_MAX } from '@/lib/leftoff';
+import { fmt, t } from '@/lib/locale';
 import { formatNudgeTime } from '@/lib/nudge';
-import { type Slices } from '@/lib/tasks';
+import { type LeftOff, type Slices } from '@/lib/tasks';
+
+import { PRESS_NOW, PRESS_SETTLE_MS } from './press-now';
 import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 import { CheckCircle } from './CheckCircle';
+import { Mark } from './Mark';
 import { MarqueeText } from './MarqueeText';
 import { track } from '@/lib/telemetry';
 
@@ -51,6 +55,8 @@ type Props = {
   onHold?: () => void; // held-state: "Hold me to it" — start/release the ONE persistent-reminder contract (native only; the caller gates it)
   held?: boolean; // this row carries the live contract: a quiet flag on the row, and the fold's label flips to "Let it go"
   onRename?: (title: string) => void; // held-state: tap the card's title to edit it in place (trim/no-op rules live in lib/today renameTask)
+  leftOff?: LeftOff | null; // "Where you left off" (2026-10-04): this task's own line. The caller passes it only for a task that may carry one
+  onSaveEdit?: (title: string, line: string, announce: boolean) => void; // present = this task may carry a line: the editor gains the second field and saves title AND line as ONE write (two would clobber); `announce` = "Noted." may play
   onSteps?: () => void; // held-state: open the "track in steps" editor (split or re-size)
   onMoveTo?: () => void; // held-state: move this one task to a day of its own
   onDoneOn?: () => void; // held-state, DONE tasks only: attribute the finish to the earlier day it happened
@@ -91,6 +97,16 @@ function PinMark({ color, size }: { color: string; size: number }) {
 // slice, a slim sage bar fills toward done, a quiet "n / N" count, and a small −
 // to step back a mistaken tap. Finishing the last slice completes it exactly like
 // any task (the caller stamps it), so the celebration is unchanged.
+/** The row's "Where you left off" mark: the dog-ear, hidden from screen readers (the label says ", has a
+ *  note"). Never animated, and identical at any age. */
+function LeftOffMark({ color, size }: { color: string; size: number }) {
+  return (
+    <View accessible={false} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden aria-hidden>
+      <Mark name="leftOff" size={size} color={color} />
+    </View>
+  );
+}
+
 export function TaskRow({
   title,
   done,
@@ -128,6 +144,8 @@ export function TaskRow({
   onHold,
   held,
   onRename,
+  leftOff,
+  onSaveEdit,
   onSteps,
   onMoveTo,
   onDoneOn,
@@ -153,6 +171,30 @@ export function TaskRow({
   // pattern, not an effect, so a half-typed draft or an opened drawer never survives a reopen and the
   // React Compiler stays happy).
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
+  // "Where you left off" (2026-10-04): the line is edited in the same editor as the title, as a second
+  // field under it. Present only for a task that may carry one (the caller passes onSaveEdit).
+  const [editingLine, setEditingLine] = useState<string | null>(null);
+  const [focusedField, setFocusedField] = useState<'title' | 'line' | null>(null);
+  const [openOn, setOpenOn] = useState<'title' | 'line'>('title');
+  const titleRef = useRef<TextInput>(null);
+  const lineRef = useRef<TextInput>(null);
+  // Each opening of the editor is a session; a blur that lands after its session already saved does
+  // nothing, so one edit can never save twice (or play "Noted." after an action took over).
+  const editSession = useRef(0);
+  const savedSession = useRef(-1);
+  // Set when a press on a card action begins: the blur that press causes saves silently.
+  const pressingAction = useRef(false);
+  // The open editor's words, mirrored from its fields as they change, so a save from a timer, an effect or
+  // a press always writes what is on screen, never a render's stale copy.
+  const draft = useRef({ open: false, title: '', line: '' });
+  const onSaveEditLatest = useRef(onSaveEdit);
+  const onRenameLatest = useRef(onRename);
+  useEffect(() => {
+    onSaveEditLatest.current = onSaveEdit;
+    onRenameLatest.current = onRename;
+  });
+  const eligible = Boolean(onSaveEdit);
+  const showLeftOff = eligible && Boolean(leftOff?.text) && !done;
   const [moreOpen, setMoreOpen] = useState(false);
   // The held card can open TALLER than the space beneath it: hold a low task and More +
   // Close land below the fold, which reads as "the card has a flat edge" (Melroy's
@@ -245,12 +287,99 @@ export function TaskRow({
     setWasConfirming(confirming);
     if (!confirming) {
       setEditingTitle(null);
+      setEditingLine(null);
+      setFocusedField(null);
       setMoreOpen(false);
     }
   }
-  function saveTitle() {
-    if (editingTitle != null && onRename) onRename(editingTitle);
+  // The card closing while its editor is open (another row tapped, the list tapped on native, where the field
+  // keeps focus) saves what was typed, silently: the next card's own feedback takes over. The render-phase
+  // reset above has already shut the editor; the words are in `draft`.
+  useEffect(() => {
+    if (confirming) return;
+    const d = draft.current;
+    if (!d.open) return;
+    d.open = false;
+    if (savedSession.current === editSession.current) return;
+    savedSession.current = editSession.current;
+    if (onSaveEditLatest.current) onSaveEditLatest.current(d.title, d.line, false);
+    else onRenameLatest.current?.(d.title);
+  }, [confirming]);
+  // Open the editor on the title or on the line: tap the thing to change the thing.
+  function openEditor(on: 'title' | 'line') {
+    editSession.current += 1;
+    pressingAction.current = false;
+    draft.current = { open: true, title, line: eligible ? (leftOff?.text ?? '') : '' };
+    setOpenOn(on);
+    setEditingTitle(title);
+    setEditingLine(eligible ? (leftOff?.text ?? '') : null);
+    // Set here, not only in onFocus: on the web an autoFocus'd field never fires onFocus, so the focused
+    // field would show at rest and the cursor would sit at the start.
+    setFocusedField(on);
+    if (on === 'line') {
+      // Tapping the line opens it with the cursor at the END (the handoff). After the commit that mounts
+      // and focuses the field; a browser, and Android, can otherwise leave it at the start.
+      const n = (leftOff?.text ?? '').length;
+      setTimeout(() => {
+        const field = lineRef.current;
+        if (!field) return;
+        if (Platform.OS === 'web') (field as unknown as HTMLTextAreaElement).setSelectionRange?.(n, n);
+        else field.setSelection(n, n);
+      }, 0);
+    }
+  }
+  // Save what the editor holds and close it, title and line in ONE write. `announce` says whether
+  // "Noted." may play: yes when the editor closes by itself, no when another action caused the save.
+  function flushEdit(announce: boolean) {
+    const d = draft.current;
+    if (!d.open || savedSession.current === editSession.current) return;
+    d.open = false;
+    savedSession.current = editSession.current;
+    if (onSaveEditLatest.current) onSaveEditLatest.current(d.title, d.line, announce);
+    else onRenameLatest.current?.(d.title);
     setEditingTitle(null);
+    setEditingLine(null);
+    setFocusedField(null);
+  }
+  function saveTitle() {
+    flushEdit(true);
+  }
+  // A blur that only moved focus between the two fields keeps the editor open. setTimeout, not
+  // requestAnimationFrame: the headless preview throttles rAF, and both settle after the next focus.
+  function onFieldBlur() {
+    setFocusedField(null);
+    // Read the press mark NOW as well as later: the press that caused this blur set it before the blur, and
+    // act() clears it again, which a slow timer could otherwise see first.
+    const pressingAtBlur = pressingAction.current;
+    setTimeout(() => {
+      if (titleRef.current?.isFocused() || lineRef.current?.isFocused()) return;
+      // A card action is being pressed: it saves first, silently (act), or releasePress does if the press
+      // never lands. Saving here would collapse the editor under the finger and could swallow the click.
+      if (pressingAtBlur || pressingAction.current) return;
+      flushEdit(true);
+    }, 0);
+  }
+  // Every card action first saves an open editor, silently: its own feedback takes over. onPressIn marks
+  // the press before the field's blur (each action spreads PRESS_NOW: the web otherwise starts a press
+  // 50ms after the pointer goes down, AFTER the blur). Wired straight onto each action (not through a
+  // props helper called in render), so the compiler can see they only run on a press.
+  function markPress() {
+    pressingAction.current = true;
+  }
+  // A press that never lands (the finger slid off) clears the mark, and saves an editor it left without
+  // focus, as a tap outside would. onPress has already run by now when the press did land (PRESS_SETTLE_MS).
+  function releasePress() {
+    setTimeout(() => {
+      if (!pressingAction.current) return;
+      pressingAction.current = false;
+      if (titleRef.current?.isFocused() || lineRef.current?.isFocused()) return;
+      flushEdit(true);
+    }, PRESS_SETTLE_MS);
+  }
+  function act(fn: () => void) {
+    flushEdit(false);
+    pressingAction.current = false;
+    fn();
   }
   // The default + suggest rows share an accessibility label that names the pin and the big mark, so a
   // screen reader hears "marked as a big task" as validation (suppressed in select mode, like the marks).
@@ -259,6 +388,7 @@ export function TaskRow({
   const rowLabel =
     (pinned ? t('today.rowLabelPinned', { title }) : title) +
     (big ? t('today.rowLabelBigSuffix') : '') +
+    (showLeftOff ? t('leftOff.rowSuffixA11y') : '') +
     (recurring ? t('today.rowLabelRepeatingSuffix') : '') +
     (nudgeAt ? t('today.rowLabelReminderSuffix', { time: formatNudgeTime(nudgeAt) }) : '') +
     (held ? t('today.rowLabelHeldSuffix') : '') +
@@ -325,6 +455,7 @@ export function TaskRow({
               must keep showing which ones already are (the 2026-09-21 flow audit). */}
           {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
+          {showLeftOff ? <LeftOffMark color={theme.colors.inkSoft} size={16 * theme.scale} /> : null}
           {recurring && <Text style={styles.repeatMark}>↻</Text>}
           {/* The contract mark: a plain accent DOT, not a glyph. The first device pass shipped a
               flag character the iOS font quietly did not draw, which is the one failure mode a
@@ -362,11 +493,11 @@ export function TaskRow({
     const skips = recurring && !removesWholeSeries;
     const terminalRow = (
       <View style={styles.terminalRow}>
-        <Pressable onPress={onKeep} accessibilityRole="button" accessibilityLabel={t('common.close')} hitSlop={{ top: 12, bottom: 12 }}>
+        <Pressable onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onKeep && (() => act(onKeep))} accessibilityRole="button" accessibilityLabel={t('common.close')} hitSlop={{ top: 12, bottom: 12 }}>
           <Text style={styles.close}>{t('common.close')}</Text>
         </Pressable>
         {onSelectMore && (
-          <Pressable onPress={onSelectMore} accessibilityRole="button" accessibilityLabel={t('today.selectMoreA11y')} hitSlop={{ top: 12, bottom: 12 }}>
+          <Pressable onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onSelectMore && (() => act(onSelectMore))} accessibilityRole="button" accessibilityLabel={t('today.selectMoreA11y')} hitSlop={{ top: 12, bottom: 12 }}>
             <Text style={styles.selectMore}>{t('today.selectMore')}</Text>
           </Pressable>
         )}
@@ -374,7 +505,7 @@ export function TaskRow({
             used to render anyway: a live-looking Remove that did nothing at all. */}
         {onRemove && (
         <Pressable
-          onPress={onRemove}
+          onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onRemove && (() => act(onRemove))}
           accessibilityRole="button"
           accessibilityLabel={skips ? t('repeat.skipTodayA11y', { title }) : recurring ? t('repeat.removeSeriesA11y', { title }) : t('today.removeTaskLabel', { title })}
           hitSlop={{ top: 12, bottom: 12 }}
@@ -420,7 +551,7 @@ export function TaskRow({
               marked as done." */}
           {recurring && onRepeat && (
             <Pressable
-              onPress={onRepeat}
+              onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onRepeat && (() => act(onRepeat))}
               style={styles.actionRow}
               accessibilityRole="button"
               accessibilityLabel={repeatValue ? t('ours.whenA11y', { value: repeatValue }) : t('ours.repeat')}
@@ -449,25 +580,67 @@ export function TaskRow({
     return (
       <Animated.View ref={cardRef} style={[styles.row, styles.confirmRow, styles.confirmColumn, riseStyle]}>
         {editingTitle != null && onRename ? (
-          <TextInput
-            value={editingTitle}
-            onChangeText={setEditingTitle}
-            onSubmitEditing={saveTitle}
-            onBlur={saveTitle}
-            autoFocus
-            returnKeyType="done"
-            style={[styles.confirmTitle, styles.confirmTitleInput]}
-            accessibilityLabel={t('today.editTitleInputA11y')}
-          />
+          <>
+            <TextInput
+              ref={titleRef}
+              value={editingTitle}
+              onChangeText={(text) => {
+                setEditingTitle(text);
+                draft.current.title = text;
+              }}
+              // With a second field, return moves to it; without one it saves, as it always did.
+              onSubmitEditing={eligible ? () => lineRef.current?.focus() : saveTitle}
+              blurOnSubmit={!eligible}
+              submitBehavior={eligible ? 'submit' : 'blurAndSubmit'}
+              onFocus={() => setFocusedField('title')}
+              onBlur={eligible ? onFieldBlur : saveTitle}
+              autoFocus={!eligible || openOn === 'title'}
+              returnKeyType={eligible ? 'next' : 'done'}
+              hitSlop={{ top: 6 }}
+              style={[
+                styles.confirmTitle,
+                styles.confirmTitleInput,
+                // Only the focused field looks focused: the one change the second field forces on rename.
+                eligible && (focusedField === 'title' ? styles.fieldFocused : styles.fieldRest),
+              ]}
+              accessibilityLabel={t('today.editTitleInputA11y')}
+            />
+            {eligible && (
+              <View style={styles.leftOffFieldRow}>
+                <LeftOffMark color={theme.colors.inkSoft} size={16 * theme.scale} />
+                <TextInput
+                  ref={lineRef}
+                  value={editingLine ?? ''}
+                  onChangeText={(text) => {
+                    const line = text.replace(/[\r\n\t]+/g, ' ');
+                    setEditingLine(line);
+                    draft.current.line = line;
+                  }}
+                  multiline
+                  maxLength={LEFT_OFF_MAX}
+                  blurOnSubmit
+                  submitBehavior="blurAndSubmit"
+                  returnKeyType="done"
+                  onFocus={() => setFocusedField('line')}
+                  onBlur={onFieldBlur}
+                  autoFocus={openOn === 'line'}
+                  placeholder={t('leftOff.placeholder')}
+                  placeholderTextColor={theme.colors.inkSoft}
+                  accessibilityLabel={t('leftOff.label')}
+                  style={[styles.leftOffInput, focusedField === 'line' ? styles.fieldFocused : styles.fieldRest]}
+                />
+              </View>
+            )}
+          </>
         ) : (
           // The title is the edit control: tap the thing to change the thing, no extra button on an
           // already-full card. The faint underline is the whole affordance; onRename absent leaves it plain.
           <View style={styles.titleLine}>
             <Pressable
-              onPress={onRename ? () => setEditingTitle(title) : undefined}
+              onPress={onRename ? () => openEditor('title') : undefined}
               disabled={!onRename}
               accessibilityRole={onRename ? 'button' : undefined}
-              accessibilityLabel={onRename ? t('today.editTitleA11y', { title }) : undefined}
+              accessibilityLabel={onRename ? t(eligible ? 'leftOff.editTitleA11y' : 'today.editTitleA11y', { title }) : undefined}
               hitSlop={{ top: 8, bottom: 8 }}
               style={styles.titleGrow}
             >
@@ -480,7 +653,7 @@ export function TaskRow({
                 one affordance, no new row (the handoff's accepted pushback). */}
             {slices && (
               <Pressable
-                onPress={onSteps}
+                onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onSteps && (() => act(onSteps))}
                 disabled={!onSteps}
                 accessibilityRole={onSteps ? 'button' : undefined}
                 accessibilityLabel={onSteps ? t('today.changeStepsA11y') : undefined}
@@ -494,6 +667,30 @@ export function TaskRow({
           </View>
         )}
 
+        {/* "Where you left off": the line under the title, only when there is one (an empty card says
+            nothing). Content, not an action: the only thing it does is open the same editor on the line. */}
+        {showLeftOff && editingTitle == null && leftOff ? (
+          <Pressable
+            onPress={() => openEditor('line')}
+            style={({ pressed }) => [styles.leftOffLine, pressed && styles.pressed]}
+            accessibilityRole="button"
+            // react-native-web drops accessibilityHint, so on the web the hint rides in the label.
+            accessibilityLabel={
+              t('leftOff.lineA11y', { line: forSpeech(leftOff.text), date: fmt.writtenOnSpoken(leftOff.writtenOn) }) +
+              (Platform.OS === 'web' ? ` ${t('leftOff.hintA11y')}` : '')
+            }
+            accessibilityHint={t('leftOff.hintA11y')}
+          >
+            <LeftOffMark color={theme.colors.inkSoft} size={16 * theme.scale} />
+            <View style={styles.leftOffColumn}>
+              <Text style={styles.leftOffWords} numberOfLines={2} ellipsizeMode="tail">
+                {leftOff.text}
+              </Text>
+              <Text style={styles.leftOffDate}>{fmt.writtenOn(leftOff.writtenOn)}</Text>
+            </View>
+          </Pressable>
+        ) : null}
+
         {/* The shared card's hero, in the seat Break it down holds on a personal one: the only action
             that moves anything between the two lists, and the design's answer to "nothing crosses
             without a person choosing it". Inert once the copy exists, so a second tap cannot make a
@@ -505,7 +702,7 @@ export function TaskRow({
             </View>
           ) : (
             <Pressable
-              onPress={onBring}
+              onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onBring && (() => act(onBring))}
               style={[styles.actionRow, styles.heroRow]}
               accessibilityRole="button"
               accessibilityLabel={bringLabel ?? t('ours.bring')}
@@ -521,7 +718,7 @@ export function TaskRow({
 
         {onRepeat && (
           <Pressable
-            onPress={onRepeat}
+            onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onRepeat && (() => act(onRepeat))}
             style={styles.actionRow}
             accessibilityRole="button"
             accessibilityLabel={repeatValue ? t('ours.whenA11y', { value: repeatValue }) : t('ours.repeat')}
@@ -542,7 +739,7 @@ export function TaskRow({
         {/* Lead actions: the helpers you reach for when stuck. Break it down is the tinted hero. */}
         {canBreakdown && (
           <Pressable
-            onPress={onBreakdown}
+            onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onBreakdown && (() => act(onBreakdown))}
             style={[styles.actionRow, styles.heroRow]}
             accessibilityRole="button"
             accessibilityLabel={t('breakdown.breakDownTaskLabel', { title })}
@@ -554,7 +751,7 @@ export function TaskRow({
         )}
         {canTiny && (
           <Pressable
-            onPress={onMakeTiny}
+            onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onMakeTiny && (() => act(onMakeTiny))}
             style={styles.actionRow}
             accessibilityRole="button"
             accessibilityLabel={t('today.makeTinyLabel', { title })}
@@ -566,7 +763,7 @@ export function TaskRow({
         )}
         {canMoveTo && (
           <Pressable
-            onPress={onMoveTo}
+            onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onMoveTo && (() => act(onMoveTo))}
             style={styles.actionRow}
             accessibilityRole="button"
             accessibilityLabel={t('today.moveSelectedA11y')}
@@ -577,7 +774,7 @@ export function TaskRow({
         )}
         {onBig && (
           <Pressable
-            onPress={onBig}
+            onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onBig && (() => act(onBig))}
             style={[styles.actionRow, big && styles.actionRowActive]}
             accessibilityRole="button"
             accessibilityLabel={big ? t('today.unmarkBigOneA11y') : t('today.markBigOneA11y')}
@@ -600,7 +797,7 @@ export function TaskRow({
         {(onMoveUp || onMoveDown) && (
         <View style={styles.rail}>
           <Pressable
-            onPress={onMoveUp}
+            onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onMoveUp && (() => act(onMoveUp))}
             disabled={!onMoveUp}
             style={styles.railCell}
             accessibilityRole="button"
@@ -611,7 +808,7 @@ export function TaskRow({
           </Pressable>
           <View style={styles.railDivider} />
           <Pressable
-            onPress={onMoveDown}
+            onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onMoveDown && (() => act(onMoveDown))}
             disabled={!onMoveDown}
             style={styles.railCell}
             accessibilityRole="button"
@@ -627,16 +824,23 @@ export function TaskRow({
         {hasMore && (
           <>
             <Pressable
-              onPress={() => {
-                // Counted on OPEN only, and once per card open (toggling it shut and open again is
-                // still one): "how often does the fold hide something people need" is the number
-                // every future held-card redesign argues from, so it must be a true fraction.
-                if (!moreOpen && !moreCounted.current) {
-                  moreCounted.current = true;
-                  track('card.more');
-                }
-                setMoreOpen(!moreOpen);
-              }}
+              // In the press guard like every card action: an open editor saves silently first, and the
+              // press is known before the field's blur, so the editor never collapses under the pointer.
+              onPressIn={markPress}
+              onPressOut={releasePress}
+              {...PRESS_NOW}
+              onPress={() =>
+                act(() => {
+                  // Counted on OPEN only, and once per card open (toggling it shut and open again is
+                  // still one): "how often does the fold hide something people need" is the number
+                  // every future held-card redesign argues from, so it must be a true fraction.
+                  if (!moreOpen && !moreCounted.current) {
+                    moreCounted.current = true;
+                    track('card.more');
+                  }
+                  setMoreOpen(!moreOpen);
+                })
+              }
               style={styles.actionRow}
               accessibilityRole="button"
               aria-expanded={moreOpen}
@@ -661,7 +865,7 @@ export function TaskRow({
                     rendered when a live list exists, which the caller decides. */}
                 {onShareToOurs && (
                   <Pressable
-                    onPress={onShareToOurs}
+                    onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onShareToOurs && (() => act(onShareToOurs))}
                     style={[styles.actionRow, styles.moreItem]}
                     accessibilityRole="button"
                     accessibilityLabel={t('ours.shareTo')}
@@ -672,7 +876,7 @@ export function TaskRow({
                 )}
                 {onNudge && (
                   <Pressable
-                    onPress={onNudge}
+                    onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onNudge && (() => act(onNudge))}
                     style={[styles.actionRow, styles.moreItem]}
                     accessibilityRole="button"
                     accessibilityLabel={t('reminders.remindMeA11y')}
@@ -683,7 +887,7 @@ export function TaskRow({
                 )}
                 {onHold && (
                   <Pressable
-                    onPress={onHold}
+                    onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onHold && (() => act(onHold))}
                     style={[styles.actionRow, styles.moreItem]}
                     accessibilityRole="button"
                     accessibilityLabel={held ? t('today.holdLetGoA11y', { title }) : t('today.holdMeToItA11y', { title })}
@@ -699,7 +903,7 @@ export function TaskRow({
                 )}
                 {canPin && (
                   <Pressable
-                    onPress={onPin}
+                    onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onPin && (() => act(onPin))}
                     style={[styles.actionRow, styles.moreItem]}
                     accessibilityRole="button"
                     accessibilityLabel={pinned ? t('today.unpinA11y') : t('today.pinA11y')}
@@ -746,13 +950,14 @@ export function TaskRow({
         accessibilityLabel={
           (complete
             ? t('today.sliceRowLabelComplete', { title, done: slices.done, total: slices.total })
-            : t('today.sliceRowLabelInProgress', { title, done: slices.done, total: slices.total })) + (justAdded ? `, ${t('today.justAdded')}` : '')
+            : t(showLeftOff ? 'leftOff.sliceRowInProgressA11y' : 'today.sliceRowLabelInProgress', { title, done: slices.done, total: slices.total })) + (justAdded ? `, ${t('today.justAdded')}` : '')
         }
       >
         <Animated.View pointerEvents="none" style={[styles.washLayer, { opacity: washFade }]} />
         <View style={styles.sliceTop}>
           <CheckCircle done={complete} />
           <MarqueeText text={title} style={[styles.text, complete && styles.textDone]} />
+          {showLeftOff && !complete ? <LeftOffMark color={theme.colors.inkSoft} size={16 * theme.scale} /> : null}
           {justAdded ? <Text style={styles.justAddedMark} accessible={false} importantForAccessibility="no">{t('today.justAdded')}</Text> : null}
           <Text style={styles.sliceCount}>
             {slices.done} / {slices.total}
@@ -789,13 +994,14 @@ export function TaskRow({
           <CheckCircle done={done} />
           {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
+          {showLeftOff ? <LeftOffMark color={theme.colors.inkSoft} size={16 * theme.scale} /> : null}
           {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
           {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
           {pinned ? <View accessible={false} importantForAccessibility="no"><PinMark color={theme.colors.accent} size={16 * theme.scale} /></View> : null}
         </Pressable>
         {onBreakdown && (
           <Pressable
-            onPress={onBreakdown}
+            onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onBreakdown && (() => act(onBreakdown))}
             accessibilityRole="button"
             accessibilityLabel={t('breakdown.breakDownTaskLabel', { title })}
             hitSlop={6}
@@ -824,10 +1030,11 @@ export function TaskRow({
           style={({ pressed }) => [styles.tinyMain, pressed && styles.pressed]}
           accessibilityRole="checkbox"
           aria-checked={done}
-          accessibilityLabel={t('today.tinyStepRowLabel', { title, parent: tinyParent })}
+          accessibilityLabel={t(showLeftOff ? 'leftOff.tinyStepRowA11y' : 'today.tinyStepRowLabel', { title, parent: tinyParent })}
         >
           <CheckCircle done={done} />
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
+          {showLeftOff ? <LeftOffMark color={theme.colors.inkSoft} size={16 * theme.scale} /> : null}
         </Pressable>
       </View>
     );
@@ -853,6 +1060,7 @@ export function TaskRow({
           <CheckCircle done={done} dim={Boolean(inert)} />
           {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
+          {showLeftOff ? <LeftOffMark color={theme.colors.inkSoft} size={16 * theme.scale} /> : null}
           {origin ? <Text style={styles.originMark} accessible={false} importantForAccessibility="no">{origin}</Text> : null}
           {nudgeAt ? <Text style={styles.nudgeMark} accessible={false} importantForAccessibility="no">{formatNudgeTime(nudgeAt)}</Text> : null}
           {recurring && <Text style={styles.repeatMark} accessible={false} importantForAccessibility="no">↻</Text>}
@@ -886,6 +1094,7 @@ export function TaskRow({
         <CheckCircle done={done} dim={Boolean(inert)} />
         {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
         <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
+          {showLeftOff ? <LeftOffMark color={theme.colors.inkSoft} size={16 * theme.scale} /> : null}
         {/* Your copy is marked, the shared row is NOT. Any marker over there would be attribution
             through the side door: "somebody pulled this" is one inference from "somebody". */}
         {origin ? <Text style={styles.originMark} accessible={false} importantForAccessibility="no">{origin}</Text> : null}
@@ -1001,10 +1210,38 @@ const makeStyles = (t: Theme) => {
     // The tappable-title affordance: a faint dotted-feeling underline in soft ink, calm enough to
     // never shout, present enough that "this is editable" is discoverable.
     confirmTitleEditable: { textDecorationLine: 'underline', textDecorationColor: t.colors.inkFaint },
-    confirmTitleInput: { paddingVertical: 0, borderBottomWidth: border.hair, borderColor: t.colors.accent },
+    confirmTitleInput: {
+      paddingVertical: 0,
+      borderBottomWidth: border.hair,
+      borderColor: t.colors.accent,
+      // The browser's own focus box drew round the title (visible in the rename screenshots); the underline is the focus.
+      ...(Platform.OS === 'web' ? { outlineStyle: 'solid' as const, outlineWidth: 0 } : null),
+    },
     doneTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, paddingHorizontal: spacing.two, paddingBottom: spacing.one },
     doneCheck: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     titleLine: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.two },
+    // "Where you left off" (2026-10-04, the handoff's L1 and E1). Faint by size, regular weight and its place
+    // under a 22pt serif, never by a colour that fails: inkSoft on the card face, ink on the Quiet wash.
+    leftOffLine: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.two, paddingHorizontal: spacing.two, minHeight: 44, paddingTop: spacing.one, marginBottom: spacing.one },
+    leftOffColumn: { flex: 1, minWidth: 0, gap: spacing.half },
+    leftOffWords: { fontFamily: fonts.body, fontSize: 15 * t.scale, lineHeight: 21 * t.scale, color: t.appearance === 'quiet' ? t.colors.ink : t.colors.inkSoft },
+    leftOffDate: { ...t.type.caption, color: t.appearance === 'quiet' ? t.colors.ink : t.colors.inkSoft },
+    leftOffFieldRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.two, paddingHorizontal: spacing.two, marginTop: spacing.three - spacing.half },
+    leftOffInput: {
+      flex: 1,
+      minWidth: 0,
+      minHeight: 44,
+      fontFamily: fonts.body,
+      fontSize: 15 * t.scale,
+      lineHeight: 21 * t.scale,
+      color: t.colors.ink,
+      paddingVertical: spacing.one,
+      // Quiet cannot say "field" with an outline, so the line is a slip on `surface` there.
+      ...(t.appearance === 'quiet' ? { backgroundColor: t.colors.surface, borderRadius: radius.sm, paddingHorizontal: spacing.three } : null),
+      ...(Platform.OS === 'web' ? { outlineStyle: 'solid' as const, outlineWidth: 0 } : null),
+    },
+    fieldRest: t.appearance === 'quiet' ? { borderWidth: 0 } : { borderBottomWidth: border.hair, borderColor: t.colors.line },
+    fieldFocused: t.appearance === 'quiet' ? { borderWidth: border.thin, borderColor: t.colors.accent } : { borderBottomWidth: border.thin, borderColor: t.colors.accent },
     titleGrow: { flexShrink: 1 },
     titleCount: { ...t.type.label, color: t.colors.inkSoft, paddingTop: 2 },
     titleCountLive: { color: t.colors.accent },

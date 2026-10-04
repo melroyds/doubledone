@@ -51,6 +51,13 @@ describe('parseAppEvent (the closed allowlist)', () => {
     expect(parseAppEvent({ name: 'card.everything' })).toBeNull();
   });
 
+  it('passes the "Where you left off" counts through bare, and nothing that could carry a word', () => {
+    expect(parseAppEvent({ name: 'leftoff.saved.card' })).toBe('leftoff.saved.card');
+    expect(parseAppEvent({ name: 'leftoff.saved.focus', props: { text: 'ring back' } })).toBe('leftoff.saved.focus');
+    expect(parseAppEvent({ name: 'leftoff.cleared' })).toBe('leftoff.cleared');
+    expect(parseAppEvent({ name: 'leftoff.text' })).toBeNull();
+  });
+
   it('passes the 2026-10-04 names through bare: card.opened and offplan.logged', () => {
     expect(parseAppEvent({ name: 'card.opened' })).toBe('card.opened');
     expect(parseAppEvent({ name: 'offplan.logged' })).toBe('offplan.logged');

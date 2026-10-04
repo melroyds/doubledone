@@ -24,15 +24,20 @@ import { type Task } from './tasks';
  */
 export const LOCAL_ONLY_FIELDS = [
   'manualOrder',
-  'openParent',
-  'parentTitle',
   'decompositionId',
   'decompositionSteps',
   'suggestBreakdown',
-  'combinedFrom',
   'nudgeAt',
   'nudgeId',
 ] as const satisfies readonly (keyof Task)[];
+
+/**
+ * Fields that GAINED a column on 2026-10-04 (openParent, parentTitle, combinedFrom, beside the new leftOff):
+ * plain last-write-wins from now on, plus the pre-column seed `big` got. On a timestamp TIE the two rows are
+ * the same logical version, so a value held only locally is from before the column existed: it is kept and
+ * pushed, so the first sync after the migration SEEDS the server instead of erasing the device's copy.
+ */
+export const SEEDED_FIELDS = ['openParent', 'parentTitle', 'combinedFrom'] as const satisfies readonly (keyof Task)[];
 
 export type MergeResult = {
   merged: Task[]; // the reconciled set to persist locally (includes tombstones)
@@ -70,7 +75,8 @@ export function mergeTasks(local: Task[], remote: Task[]): MergeResult {
       const grewBeyondRemote =
         (reconciled.completedDates?.length ?? 0) > (r.completedDates?.length ?? 0) ||
         (reconciled.slices?.done ?? 0) > (r.slices?.done ?? 0) ||
-        (reconciled.big === true && r.big !== true);
+        (reconciled.big === true && r.big !== true) ||
+        SEEDED_FIELDS.some((key) => reconciled[key] != null && r[key] == null);
       if (localNewer || grewBeyondRemote) toPush.push(reconciled);
     } else if (l) {
       merged.push(l);
@@ -116,14 +122,16 @@ function reconcileConflict(l: Task, r: Task): Task {
   if (Number.isFinite(l.updatedAt) && l.updatedAt === r.updatedAt && (l.big || r.big)) out.big = true;
 
   for (const key of LOCAL_ONLY_FIELDS) carryLocal(out, l, key);
-  // The one exception, openParent: it means something only within ONE hidden episode. When a strictly newer
-  // remote has hidden a task this device last saw visible, another device started a new episode (most
-  // likely Break it down on a once-tiny task), so this device's flag is stale. Carried, it would make every
-  // real step behave as a tiny step on the next tick (retired, the task never finished). Dropped, the task is
-  // a decomposition, which is what it most likely now is.
-  if (rank(r.updatedAt) > rank(l.updatedAt) && r.silentParent && !l.silentParent) delete out.openParent;
+  if (Number.isFinite(l.updatedAt) && l.updatedAt === r.updatedAt) {
+    for (const key of SEEDED_FIELDS) if (l[key] != null && r[key] == null) seedFromLocal(out, l, key);
+  }
 
   return out;
+}
+
+/** A pre-column value from the local copy onto a tied reconciliation (see SEEDED_FIELDS). */
+function seedFromLocal<K extends (typeof SEEDED_FIELDS)[number]>(out: Task, l: Task, key: K): void {
+  out[key] = l[key];
 }
 
 /** One local-only field from the local copy onto the reconciled task: kept when local has it, absent when

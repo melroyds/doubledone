@@ -87,6 +87,8 @@ The wall of awful, met two ways. The shared idea: the app holds the thread so th
 - **Break it down (the silent-parent chain).** Bite the Elephant no longer flattens a task into loose steps that lose the real goal. The original becomes the silent parent, and the atomic steps chain back to it. Finish the steps in any order, on any day, and when the last one is done the real task completes itself and lands in the Lookback with "You finished X. The whole thing." The payoff lands on the mountain, not the pebble.
 - **Make it tiny.** When even a full breakdown is too much, one tap returns a single two-minute starter ("Do my taxes" becomes "Find last year's tax file and open it"). A tiny version is a partial pebble, not the whole task, so finishing it does not pretend the dreaded thing is done. Instead the real task quietly resurfaces with "Started. X is here when you're ready." You keep going on momentum, make it tiny again, or close the day. The dreaded thing is never lost and never shamed.
 
+- **Where you left off.** One free line per task, for the version of you who comes back to it: "Called, ref 4471, ring back Thu." It sits under the title on the held card and in Focus, with the calendar day it was written (never "3 days ago", which measures how long the task has sat). A small dog-ear on the Today row says a line is there, and nothing else does. One line, overwritten, never a history. A broken-down task's line shows on each of its steps in Focus, so the handhold stays in sight on exactly the dreaded tasks it is for.
+
 ### C. Honouring the day (time blindness, gentle structure)
 
 Two bookends, and a mid-day companion, that respect the day's real shape without adding a single setting.
@@ -165,6 +167,7 @@ Two hard rules from this:
 - Not a calendar replacement (it reads your day, it does not run your meetings)
 - Not a habit tracker that shames (streaks break gently, never a guilt mechanic)
 - Not grand or mythical (that is Chronoloria; DoubleDone is calm and grounded on purpose)
+- Not a notes app (one line per task to come back to, never pages, folders or a log to keep up)
 
 ---
 

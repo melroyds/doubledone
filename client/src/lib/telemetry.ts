@@ -42,6 +42,11 @@ export const BEACON_EVENTS = new Set([
   'card.opened',
   'offplan.logged',
   'rooms.opened',
+  // "Where you left off" (2026-10-04): bare names, never a word of the line. The evidence for a free
+  // feature shipped without a user test, read by the rule in the decision log.
+  'leftoff.saved.card',
+  'leftoff.saved.focus',
+  'leftoff.cleared',
 ]);
 
 // What may ride WITH a beacon, per name. Everything else is stripped HERE, on the device, so the

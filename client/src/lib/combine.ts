@@ -9,6 +9,7 @@
 // umbrella is an ordinary visible task: it completes like any other, with no bloom.
 
 import { type Task } from './tasks';
+import { newerLeftOff, newestLeftOff } from './leftoff';
 import { currentRound, isRecurring } from './today';
 
 /**
@@ -93,6 +94,8 @@ export function combineTasks(
   // its own parent checked in turn.
   let next = tombstoned;
   const broughtBack: string[] = [];
+  const foldedParents: Task[] = []; // parents tidied away here: their line is a candidate for the umbrella's
+  const pebblesHome = new Set<string>(); // selected tiny steps whose real task came back: their line goes there
   const queue = selected.map((t) => t.parentId).filter((p): p is string => p != null);
   const seen = new Set<string>();
   while (queue.length > 0) {
@@ -106,14 +109,31 @@ export function combineTasks(
     if (children.some((c) => !c.deletedAt && !c.done)) continue;
     seen.add(id);
     const roundBefore = currentRound(tasks.filter((c) => c.parentId === id)).length;
-    if ((p.openParent && roundBefore < 2) || (p.openParent === undefined && roundBefore === 1)) {
-      next = next.map((t) => (t.id === id ? { ...t, silentParent: false, updatedAt: now } : t));
+    // Known tiny with fewer than two in its round, or anything else with exactly one: brought back, never
+    // deleted. A synced openParent false is not proof while older store builds are live (lib/today decide()).
+    if (p.openParent ? roundBefore < 2 : roundBefore === 1) {
+      // tiny:move: a folded tiny step's line goes home with its real task, not into the umbrella.
+      const pebbles = selected.filter((c) => c.parentId === id);
+      for (const c of pebbles) pebblesHome.add(c.id);
+      const line = newerLeftOff(p.leftOff, newestLeftOff(pebbles));
+      next = next.map((t) => {
+        if (t.id !== id) return t;
+        const back = { ...t, silentParent: false, updatedAt: now };
+        if (line) back.leftOff = line;
+        return back;
+      });
       broughtBack.push(p.title);
       continue;
     }
+    foldedParents.push(p);
     next = next.map((t) => (t.id === id ? { ...t, deletedAt: now, updatedAt: now } : t));
     if (p.parentId) queue.push(p.parentId);
   }
+
+  // The umbrella keeps the most recently written line of what it absorbed (decision 4), with its own day;
+  // text is never merged. A big task Combine tidied away is a candidate too, a tiny step gone home is not.
+  const line = newestLeftOff([...selected.filter((c) => !pebblesHome.has(c.id)), ...foldedParents]);
+  if (line) umbrella.leftOff = line;
 
   return { umbrella, next: [...next, umbrella], broughtBack };
 }

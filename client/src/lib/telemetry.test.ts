@@ -75,7 +75,7 @@ describe('the beacon (the few events that leave the device)', () => {
     expect(beaconRequest('task.toggled', { done: true })).toBeNull();
   });
 
-  it('the allowlist is exactly these seventeen (growing it is a deliberate act)', () => {
+  it('the allowlist is exactly these twenty (growing it is a deliberate act)', () => {
     // settle.* (2026-08), hold.* (2026-08-22), the held-card usage set (2026-08-22), and the
     // telemetry review's three (2026-10-04): each addition pairs with the Worker allowlist AND the
     // privacy policy in the same commit.
@@ -87,6 +87,9 @@ describe('the beacon (the few events that leave the device)', () => {
       'hold.completed',
       'hold.released',
       'hold.started',
+      'leftoff.cleared',
+      'leftoff.saved.card',
+      'leftoff.saved.focus',
       'nudge.set',
       'offplan.logged',
       'rooms.opened',

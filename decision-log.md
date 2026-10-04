@@ -9095,3 +9095,83 @@ started", which was false for a task never started; the Undo guard reads the scr
 clock correction is whole milliseconds (an odd round trip put every stamp on a .5 the server cannot store, so
 those rows were re-pushed on every sync, forever, pre-existing); Combine's nested walk re-checks a parent it
 skipped earlier; a reminder is cancelled after a sync whenever its task is no longer open on Today.
+
+## 2026-10-04: "Where you left off", built (one free line per task)
+
+**Decided:** build it now, without waiting for the 8-person replies booked for 11 October. Melroy's call
+("I'm offering people something optional for free. No core functionality is changing."), which overrides the
+test-first rule recorded in the entry above. It is free, it is opt-in by the act of typing, and an empty card
+is exactly as it was. Built to the Claude Design handoff (`docs/design-source/where-you-left-off/handoff/`,
+whose README is the contract): the dog-ear mark on the Today row, the line under the title on the held card,
+a second field in the title editor, and the slip in Focus, with the big task's line read-only on its steps.
+
+**The data model:** `leftOff: { text, writtenOn } | null` on a task. One line, overwritten, trimmed, pasted
+breaks become spaces, 280 characters, the local calendar day it was written. Eligible: personal one-offs,
+including steps, tiny steps, Later rows and your "· Ours" copy. Never shared rows or repeating tasks. Never
+sent to the AI, the REST API or MCP (the server names its columns; the AI calls project titles), never copied
+to a shared row (shared_tasks has no such column), in the export, gone with account deletion.
+
+**One migration, four columns** (`supabase/tasks-left-off.sql`): `left_off`, plus the three fields that were
+device-local until now, `open_parent`, `parent_title` and `combined_from`. They ride along because the
+three-bug fix needed them to travel: a tiny step ticked on another phone could not know it was tiny. Additive,
+nullable, RLS untouched, no CHECK constraints (one rejected row aborts a whole batch upsert; the app validates
+what it reads). It must be applied BEFORE this build ships, because the client sends every column on every
+upsert. Pre-column values are seeded from the device on a timestamp tie (`SEEDED_FIELDS` in sync-merge.ts),
+so nothing a device holds is lost on its first sync after the migration.
+
+**Decided against:** waiting for the replies (Melroy, above); CHECK constraints (above); relative dates
+("3 days ago" measures how long a task has sat, which is shame for this audience, and
+`Intl.RelativeTimeFormat` crashed two Android releases); a counter, warning or colour at 280; keeping a
+history of lines (Tier 3, never built); separate migrations per column (four pastes where one does, with the
+same safety); a props helper for the card actions (the React Compiler cannot see that its handlers only run on
+a press, so each action is wired directly).
+
+**My assumptions, Melroy to challenge:**
+1. **The year shows only when the line is from a different calendar year** (the handoff left it open). A line
+   from 30 Sept 2025 would otherwise read as this year. The format changes once, after a year, which is rare
+   for an open task and honest when it happens.
+2. **Combine:** a tiny step's real task that comes back takes its tiny step's line (tiny:move), and the
+   combined task takes the newest of the rest, including a big task whose last steps were folded away.
+3. **Any hidden task with ONE child in its round comes back when that child is ticked**, whatever its flag
+   says, and it takes the child's line. Widened by the review (below) from "flag unknown" to "not known
+   tiny": an older store build never writes `open_parent`, so a synced `false` is not proof. The cost: a
+   real one-step breakdown no longer finishes itself on the tick, the big task comes back and is ticked by
+   hand. Bringing back a task is recoverable; silently finishing one is not.
+4. **Telemetry: three bare names** (`leftoff.saved.card`, `leftoff.saved.focus`, `leftoff.cleared`), in both
+   allowlists and the privacy policy, never a word or a length. **The reading, pre-decided:** four weeks after
+   the store build, saves on fewer than a quarter of the days means it stays as it is and none of Tier 2 is
+   built; saves on most days opens Tier 2, starting with editing the big task's line from a step. Cleared
+   outnumbering saved is fine (people tidying), not a signal to remove.
+5. **Every write in one tap lands.** `commit()` now merges against the latest pending write (`rebaseOnLatest`),
+   because an open editor saves on blur and then the action the user pressed writes too, in the same tick. The
+   second write used to start from stale state and erase the first.
+6. **The keyboard plan, simplified from the handoff's §7:** iOS uses the list's own
+   `automaticallyAdjustKeyboardInsets` rather than measuring and scrolling by hand; Android pads the list and
+   Focus by the keyboard height; web relies on the existing resize. To be checked on a device (LEFT-10).
+7. **The field-to-field blur check uses `setTimeout(0)`, not `requestAnimationFrame`** as the handoff wrote,
+   because the preview throttles rAF and both settle after the next focus.
+8. **The four non-English catalogues are drafts** (the handoff's strings), pending native review like every
+   new string.
+
+**Tier 2, parked in the Backlog with the reading above as the trigger:** a Make-it-tiny parent's line in its
+resurfacing line; editing a big task's line from one of its steps; a finished task's line on its Calendar row.
+
+**Tightened by an adversarial review before commit** (four lenses, each finding put to a skeptic: 16 of 20
+claims confirmed, eight distinct bugs, all fixed): Done in Focus right after typing on a tiny step left the
+line on the retired step (Done now reasons from the list the slip just wrote); the slip's draft could write
+an old line over a newer one (a draft now remembers the line it started from, and only a changed one writes);
+the stale `open_parent=false` above; the card's editor lost its words when the card closed any other way (it
+now saves them, silently); on the web every press starts 50ms after the pointer goes down and `onPress`
+rides the browser's later `click`, so a card action or Done played "Noted." and could swallow the tap
+(`PRESS_NOW` / `PRESS_SETTLE_MS` in `components/press-now.ts`); a cancelled press left its flag set; Break it
+down right after a rename used the old title; and a tap just after a sync could rebase onto the list before
+it (the latest-list ref now catches up in a layout effect). **Accepted, not fixed:** an older build breaking
+down a task this build once made tiny leaves a stale `open_parent=true`; a ONE-step breakdown of that task
+then retires its step on the tick (two or more steps clear the flag). It needs an old build, a once-tiny
+task and a one-step breakdown together, and it goes away as old builds age out. **A second skeptic pass, on the fixes
+themselves** (8 of 8 claims confirmed, five distinct): the one-child rule had to reach Combine too (it would
+have DELETED the real task behind a stale-false tiny step) and the walk above the direct parent (a tiny
+step that was itself broken down finished its real task with a bloom); the held card's More joined the
+press guard; leaving Focus clears the slip's focused ring on native; and every list that arrives from
+outside a tap (sync, heal, the shared settle) now goes through `adoptTasks`, so a tap before React renders
+it rebases onto it.

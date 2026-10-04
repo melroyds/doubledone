@@ -143,6 +143,29 @@ export function formatRelativeDay(loc: string, date: Date, today: Date): string 
   return new Intl.DateTimeFormat(loc, { weekday: 'short', month: 'short', day: 'numeric' }).format(date);
 }
 
+/**
+ * The day a "Where you left off" line was written, from its 'YYYY-MM-DD': "Wed, 30 Sept" ('short', shown)
+ * or "Wednesday 30 September" ('long', spoken), per locale. ALWAYS the calendar date, never relative (no
+ * "today", "yesterday" or "ago": on an open task a relative date reads as how long it has sat, and
+ * RelativeTimeFormat crashed two Android releases). The year is added only when the line is from another
+ * calendar year than `now`, a calendar fact rather than a measure of time passing. '' for a malformed
+ * value, because DateTimeFormat throws on an invalid date and a synced line must never crash a card.
+ */
+export function formatWrittenOn(loc: string, iso: string, width: 'short' | 'long', now: Date = new Date()): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return '';
+  const date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12); // local noon, DST-safe
+  if (Number.isNaN(date.getTime()) || date.getDate() !== Number(m[3])) return '';
+  const opts: Intl.DateTimeFormatOptions =
+    width === 'short' ? { weekday: 'short', day: 'numeric', month: 'short' } : { weekday: 'long', day: 'numeric', month: 'long' };
+  if (date.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
+  try {
+    return new Intl.DateTimeFormat(loc, opts).format(date);
+  } catch {
+    return iso;
+  }
+}
+
 /** "27 June" style, per locale. Replaces the hardcoded MONTH_NAMES table. */
 export function formatMonthDay(loc: string, date: Date): string {
   return new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'long' }).format(date);

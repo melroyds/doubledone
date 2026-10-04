@@ -380,11 +380,21 @@ describe('completeAncestors (Cluster B chain)', () => {
   });
 
   it('cascades up: the last step finishes the milestone and then the root', () => {
-    const tasks = [mk('root', undefined, false, true), mk('mile', 'root', false, true), mk('s1', 'mile', true)];
+    const tasks = [mk('root', undefined, false, true), mk('m0', 'root', true), mk('mile', 'root', false, true), mk('s1', 'mile', true)];
     const { tasks: next, completed } = completeAncestors(tasks, 's1', today, 100);
     expect(next.find((t) => t.id === 'mile')?.done).toBe(true);
     expect(next.find((t) => t.id === 'root')?.done).toBe(true);
     expect(completed.map((t) => t.title)).toEqual(['mile', 'root']);
+  });
+
+  // The verify pass (2026-10-04): an ancestor ABOVE the direct parent with one child in its round may be a
+  // tiny step's real task an older build never flagged. The walk stops there instead of finishing it.
+  it('stops above the direct parent at an ancestor with a single child', () => {
+    const tasks = [mk('root', undefined, false, true), mk('mile', 'root', false, true), mk('s1', 'mile', true)];
+    const { tasks: next, completed } = completeAncestors(tasks, 's1', today, 100);
+    expect(next.find((t) => t.id === 'mile')?.done).toBe(true);
+    expect(next.find((t) => t.id === 'root')?.done).toBe(false);
+    expect(completed.map((t) => t.title)).toEqual(['mile']);
   });
 
   it('does nothing for a task with no parent', () => {
@@ -434,7 +444,7 @@ describe('completeAncestors (Cluster B chain)', () => {
 // Every way a task gets finished goes through settleCompletions (2026-10-04). Until then only the row tick
 // walked up, so the last step done in Focus, in bulk or on a stepped task left the big task hidden for good.
 describe('settleCompletions (one parent walk for every completion path)', () => {
-  type T = { id: string; title: string; parentId?: string; done: boolean; updatedAt: number; silentParent?: boolean; completedAt?: number | null; openParent?: boolean; deletedAt?: number | null };
+  type T = { id: string; title: string; parentId?: string; done: boolean; updatedAt: number; silentParent?: boolean; completedAt?: number | null; openParent?: boolean; deletedAt?: number | null; leftOff?: { text: string; writtenOn: string } | null };
   const t = (id: string, parentId?: string, over: Partial<T> = {}): T => ({ id, title: id, parentId, done: false, updatedAt: 0, ...over });
   // A breakdown made on this build: Break it down writes openParent: false, so its finish is never in doubt.
   const big = (over: Partial<T> = {}) => t('big', undefined, { silentParent: true, openParent: false, ...over });
@@ -488,9 +498,35 @@ describe('settleCompletions (one parent walk for every completion path)', () => 
     expect(r.parentBack).toBe('real');
   });
 
-  it('still finishes a known one-step breakdown (openParent false), bloom and all', () => {
-    const tasks = [big(), t('only', 'big', { done: true, completedAt: 50 })];
-    expect(settleCompletions(tasks, ['only'], today, 100).whole?.id).toBe('big');
+  // The 2026-10-04 review: a synced openParent false is not proof while older store builds are live (they
+  // never write the column, so a task broken down on a new build and later made tiny on an old one keeps a
+  // stale false). One child in the round therefore brings the task back, flag or not, never finishes it.
+  it('brings back a one-step round even when its flag says breakdown, and lends the line', () => {
+    const tasks = [big(), t('only', 'big', { done: true, completedAt: 50, leftOff: { text: 'rang them', writtenOn: '2026-10-04' } })];
+    const r = settleCompletions(tasks, ['only'], today, 100);
+    expect(r.whole).toBeNull();
+    expect(r.backs).toHaveLength(1);
+    expect(r.tasks.find((x) => x.id === 'big')).toMatchObject({ silentParent: false, done: false, leftOff: { text: 'rang them' } });
+    expect(r.tasks.find((x) => x.id === 'only')?.deletedAt).toBeUndefined(); // it may be a real step: kept
+  });
+
+  it('brings back a real task whose tiny step was broken down, flag unknown or stale', () => {
+    for (const openParent of [undefined, false]) {
+      const tasks = [
+        t('R', undefined, { silentParent: true, openParent }),
+        t('P', 'R', { silentParent: true, openParent: false }),
+        t('g1', 'P', { done: true, completedAt: 40 }),
+        t('g2', 'P', { done: true, completedAt: 50 }),
+      ];
+      const r = settleCompletions(tasks, ['g2'], today, 100);
+      expect(r.whole?.id).toBe('P');
+      expect(r.tasks.find((x) => x.id === 'R')).toMatchObject({ done: false, silentParent: false });
+    }
+  });
+
+  it('still finishes a known breakdown of two or more steps on its last tick', () => {
+    const tasks = [big(), t('s1', 'big', { done: true, completedAt: 40 }), t('s2', 'big', { done: true, completedAt: 50 })];
+    expect(settleCompletions(tasks, ['s2'], today, 100).whole?.id).toBe('big');
   });
 
   // A once-tiny task broken down carried its stale flag, so every real step behaved as a tiny step (retired

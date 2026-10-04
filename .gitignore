@@ -41,6 +41,8 @@ Thumbs.db
 # Design-handoff mockup HTML, kept local (~3MB, base64-laden, trips the secret scan).
 # The README + screenshots in this dir ARE committed as the build reference.
 docs/design/redesign/*.html
+# Same for the Claude Design boards that ride along with a handoff (the README beside it is the contract).
+docs/design-source/*/handoff/board.html
 
 # Local AI working doc, kept out of the public repo
 CLAUDE.md

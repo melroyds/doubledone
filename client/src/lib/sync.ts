@@ -2,7 +2,8 @@ import { type SupabaseClient } from '@supabase/supabase-js';
 
 import { type Recurrence } from './recurrence';
 import { mergeTasks } from './sync-merge';
-import { type Slices, type Task } from './tasks';
+import { cleanLeftOff } from './leftoff';
+import { type LeftOff, type Slices, type Task } from './tasks';
 
 // The Supabase seam for sync. The row <-> Task mapping is pure and unit-tested;
 // pull / push / syncOnce wrap the merge engine (sync-merge.ts) around the network.
@@ -33,6 +34,12 @@ export type TaskRow = {
   pinned_at: string | null;
   big: boolean | null;
   shared_ref: string | null;
+  // 2026-10-04 (supabase/tasks-left-off.sql). The first is the "Where you left off" line; the other three
+  // were device-local until then, which is why a tiny step on another device could not know what it was.
+  left_off: LeftOff | null;
+  open_parent: boolean | null;
+  parent_title: string | null;
+  combined_from: { id: string; title: string }[] | null;
 };
 
 /** Local Task -> remote row, stamped with the owner's id for RLS. Every field is emitted
@@ -60,6 +67,10 @@ export function taskToRow(task: Task, userId: string): TaskRow {
     pinned_at: task.pinnedAt ? new Date(task.pinnedAt).toISOString() : null,
     big: task.big ?? null,
     shared_ref: task.sharedRef ?? null,
+    left_off: task.leftOff ?? null,
+    open_parent: typeof task.openParent === 'boolean' ? task.openParent : null,
+    parent_title: task.parentTitle ?? null,
+    combined_from: task.combinedFrom ?? null,
   };
 }
 
@@ -93,7 +104,21 @@ export function rowToTask(row: TaskRow): Task {
   if (row.pinned_at != null) task.pinnedAt = finiteOr(Date.parse(row.pinned_at), createdAt);
   if (row.big) task.big = true;
   if (row.shared_ref != null) task.sharedRef = row.shared_ref;
+  // Validated, never trusted: a malformed jsonb from the server must not reach a render.
+  const leftOff = cleanLeftOff(row.left_off);
+  if (leftOff) task.leftOff = leftOff;
+  if (typeof row.open_parent === 'boolean') task.openParent = row.open_parent;
+  if (typeof row.parent_title === 'string') task.parentTitle = row.parent_title;
+  const combined = cleanCombinedFrom(row.combined_from);
+  if (combined) task.combinedFrom = combined;
   return task;
+}
+
+/** A well-formed Combine record ({ id, title }[]), or undefined. */
+function cleanCombinedFrom(value: unknown): { id: string; title: string }[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out = value.filter((c): c is { id: string; title: string } => typeof c === 'object' && c !== null && typeof (c as { id?: unknown }).id === 'string' && typeof (c as { title?: unknown }).title === 'string');
+  return out.length > 0 ? out.map((c) => ({ id: c.id, title: c.title })) : undefined;
 }
 
 /** A finite epoch-ms value, or the fallback when the parse produced NaN/Infinity. */

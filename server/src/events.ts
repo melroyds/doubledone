@@ -53,6 +53,10 @@ export const APP_EVENTS = new Set([
   // rooms.opened. Every other room is dropped.
   'menu.settings.sign',
   'menu.settings.shelf',
+  // "Where you left off" (2026-10-04): a line saved on the card or in Focus, or cleared. Names only.
+  'leftoff.saved.card',
+  'leftoff.saved.focus',
+  'leftoff.cleared',
 ]);
 
 /** Normalise a raw client body to a storable event name, or null to drop it.

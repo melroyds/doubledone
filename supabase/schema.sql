@@ -31,6 +31,10 @@ create table if not exists public.tasks (
   pinned_at timestamptz,          -- when this one-off was pinned as the day's ONE priority (premium); null = not pinned
   big boolean,                    -- user-marked "this one is a lot"; null/false = not big (LWW like any field)
   shared_ref text,                -- 'pairId/sharedTaskId' when this task is YOUR copy of a row on a shared list (Ours); null = an ordinary task
+  left_off jsonb,                 -- { text, writtenOn }: the owner's own "where you left off" line; null = none. Never selected by api.ts or mcp.ts
+  open_parent boolean,            -- true = a Make-it-tiny real task, false = a breakdown, null = unknown (made before 2026-10-04)
+  parent_title text,              -- a tiny step's real task's title (its "A tiny step toward" line)
+  combined_from jsonb,            -- what Combine folded into this task, { id, title }[]
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz          -- soft-delete tombstone; null = live
@@ -112,6 +116,15 @@ create index if not exists tasks_user_id_idx on public.tasks (user_id);
 --
 --   alter table public.tasks
 --   add column if not exists shared_ref text;
+--
+-- "Where you left off" and the three formerly device-local fields (2026-10-04; supabase/tasks-left-off.sql
+-- is the file to actually run, BEFORE the client that sends them ships). All additive and nullable, RLS
+-- untouched, no CHECK constraints (one rejected row aborts a batch upsert):
+--   alter table public.tasks
+--     add column if not exists left_off jsonb,       -- { text, writtenOn }: the owner's own line
+--     add column if not exists open_parent boolean,  -- true = a Make-it-tiny real task, false = a breakdown
+--     add column if not exists parent_title text,    -- a tiny step's real task's title
+--     add column if not exists combined_from jsonb;  -- what Combine folded in, { id, title }[]
 
 -- ---------------------------------------------------------------------------
 -- scrapbooks: cross-device keepsakes (added 2026-07-12). One row per user per

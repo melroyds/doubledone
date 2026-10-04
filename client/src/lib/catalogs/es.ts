@@ -267,6 +267,20 @@ export const es: Catalog = {
       lowLight: 'Un día de poca energía. Con un par de cosas es más que suficiente.',
     },
   },
+  // "Where you left off" (2026-10-04): one free line per task. Drafts beyond English, pending native review.
+  leftOff: {
+    label: 'Dónde lo dejaste',
+    placeholder: 'Dónde lo dejaste, para la próxima vez',
+    saved: 'Apuntado.',
+    rowSuffixA11y: ', con una nota',
+    sliceRowInProgressA11y: '{title}, {done} de {total} hechos, con una nota, toca para avanzar, mantén pulsado para ajustar',
+    tinyStepRowA11y: '{title}, un paso mínimo hacia {parent}, con una nota',
+    editTitleA11y: 'Editar el título y dónde lo dejaste: {title}',
+    lineA11y: 'Dónde lo dejaste: {line}. {date}.',
+    hintA11y: 'Editar.',
+    parentPrefix: '{bigTitle}:',
+    parentLineA11y: '{bigTitle}. Dónde lo dejaste: {line}. {date}.',
+  },
   lookback: {
     aBigOne: 'una grande',
     dayCellA11y: '{date}, {count} terminadas{bigPart}{schedPart}',

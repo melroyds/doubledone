@@ -1,6 +1,6 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, AccessibilityInfo, Animated, AppState, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Linking, AccessibilityInfo, Animated, AppState, Easing, Image, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -15,7 +15,9 @@ import { BreakdownReview, type ReviewPhase, type ReviewStep } from '@/components
 import { DatePicker } from '@/components/DatePicker';
 import { LivingBackground } from '@/components/LivingBackground';
 import { ModalCard } from '@/components/ModalCard';
+import { Mark } from '@/components/Mark';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { PRESS_NOW, PRESS_SETTLE_MS } from '@/components/press-now';
 import { RotatingPhrase } from '@/components/RotatingPhrase';
 import { TaskRow } from '@/components/TaskRow';
 import { border, cardShadow, fonts, layout, motion, PRESSED_OPACITY, radius, rgba, spacing, type Theme } from '@/constants/theme';
@@ -83,12 +85,13 @@ import { DebugPanel } from '@/components/DebugPanel';
 import { debugLog } from '@/lib/debug-log';
 import { mergeTasks } from '@/lib/sync-merge';
 import { isAccountGone, localBelongsToAnother, syncOnce } from '@/lib/sync';
-import { completeOnDay, makeId, nowMs, parseDump, sweepElapsedNudges, type Task, withMonotonicStamps } from '@/lib/tasks';
+import { forSpeech, LEFT_OFF_MAX } from '@/lib/leftoff';
+import { completeOnDay, makeId, nowMs, parseDump, rebaseOnLatest, sweepElapsedNudges, type Task, withMonotonicStamps } from '@/lib/tasks';
 import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
 import { useReducedMotion, useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { usePremium } from '@/lib/premium-provider';
-import { applyManualOrder, deferTo, hasActiveTinyChild, healStuckParents, holdSecond, isDoneOn, isRecurring, pinFirst, renameTask, setBig, setPin, setSequence, settleCompletions, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, tuckFinished, UNDO_REMOVE_MS, upcomingTasks } from '@/lib/today';
+import { applyManualOrder, deferTo, hasActiveTinyChild, healStuckParents, holdSecond, isDoneOn, isRecurring, pinFirst, renameTask, setBig, setLeftOff, setPin, setSequence, settleCompletions, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, tuckFinished, UNDO_REMOVE_MS, upcomingTasks } from '@/lib/today';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
@@ -348,6 +351,17 @@ export default function TodayScreen() {
   const [sliceEditCount, setSliceEditCount] = useState(MIN_SLICES);
   const [sliceEditId, setSliceEditId] = useState<string | null>(null); // captured so confirm/clear survive exitSelect
   const [focusOpen, setFocusOpen] = useState(false);
+  // "Where you left off" in Focus (2026-10-04): the slip's draft belongs to the task on screen.
+  // `base` is the saved line the draft started from: a draft still equal to it is clean, follows the saved line
+  // (a sync, the card), and is never written back over a newer one.
+  const [slipDraft, setSlipDraft] = useState<{ id: string; text: string; base: string } | null>(null);
+  const [slipFocused, setSlipFocused] = useState(false);
+  const slipRef = useRef<TextInput>(null);
+  const focusScrollRef = useRef<ScrollView>(null);
+  // Done, Choose another or Exit is being pressed: the slip's blur then saves silently (the screen moves on).
+  const slipLeaving = useRef(false);
+  const [focusKb, setFocusKb] = useState(0); // Android, which ignores resize: the keyboard's height while Focus is open
+  const [listKb, setListKb] = useState(0); // the same for Today's list, while a card's editor holds the keyboard
   const [focusPick, setFocusPick] = useState<string | null>(null);
   // Energy matching ("What fits right now?"): the one-question modal, its pick, and the
   // freemium meter's local use history (15 a month free; see lib/energy.ts).
@@ -365,6 +379,23 @@ export default function TodayScreen() {
   // The capture panel is up (the pill's sheet). While it is, the list leaves room above it, and a row it
   // just added keeps a soft tint until it closes.
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Android only (edge-to-edge ignores softwareKeyboardLayoutMode: resize, CLAUDE.md): give the keyboard's
+  // height back as room at the end of whichever scroller is in front, so the field can be scrolled into view.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const show = Keyboard.addListener('keyboardDidShow', (e) => {
+      if (focusOpen) setFocusKb(e.endCoordinates.height);
+      else if (!sheetOpen) setListKb(e.endCoordinates.height);
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      setFocusKb(0);
+      setListKb(0);
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [focusOpen, sheetOpen]);
   const [justAdded, setJustAdded] = useState<string[]>([]);
   // Tuck: rows ticked a moment ago stay in place for a beat before they fold into "Done today"; whether
   // that line is open; and what it last said, for a screen reader on web (announce is a no-op there).
@@ -502,6 +533,7 @@ export default function TodayScreen() {
   const [updateMentionedAt, setUpdateMentionedAt] = useState<number | null>(null);
   const updateWorthMentioning = updateStatusNow ? shouldMention(updateStatusNow, updateMentionedAt, nowMs()) : false;
   const tasksRef = useRef<Task[]>(tasks);
+  const pendingTasks = useRef<Task[] | null>(null); // the list the last commit left, until it renders (commit)
   // The ids whose Remove can still be undone, for the parent repair to leave alone (healStuckParents).
   const undoRemovedRef = useRef<string[] | null>(null);
   const reduced = useReducedMotion();
@@ -546,7 +578,7 @@ export default function TodayScreen() {
     void settleSharedCopies(oursPairId, toISODate(new Date()), supabase, () => sharedWrites.current !== startedAt).then(async (res) => {
       if (!active || !res) return;
       setSharedTasks(res.shared);
-      if (res.settled) setTasks(res.settled.next);
+      if (res.settled) adoptTasks(res.settled.next);
       // Same inputs the room's wash uses, so the two can never disagree about what changed.
       const seen = (await loadOursSeen())[oursPairId] ?? 0;
       const mine = new Set(await loadOursMine(oursPairId));
@@ -571,7 +603,7 @@ export default function TodayScreen() {
         // removed steps (healStuckParents: a step finished on another device, by an agent, or in Focus
         // before 2026-10-04 never walked up), then persist if anything changed.
         const swept = healStuckParents(sweepElapsedNudges(stored, nowMs()), nowMs(), new Set(undoRemovedRef.current ?? []));
-        setTasks(swept);
+        adoptTasks(swept);
         if (swept !== stored) void saveTasks(swept);
         setLoaded(true);
       });
@@ -636,9 +668,12 @@ export default function TodayScreen() {
   );
 
   // Keep the latest tasks reachable from the sync effect without making it re-run
-  // on every edit (which would re-sync constantly).
-  useEffect(() => {
+  // on every edit (which would re-sync constantly). A LAYOUT effect, so it has caught up before the next
+  // tap can reach commit(): a passive one can run after paint, and a tap in that gap rebased onto the list
+  // before a sync's write and dropped it (the 2026-10-04 review).
+  useLayoutEffect(() => {
     tasksRef.current = tasks;
+    pendingTasks.current = null;
   }, [tasks]);
   useEffect(() => {
     settlingRef.current = settling;
@@ -781,7 +816,7 @@ export default function TodayScreen() {
       // entitled to drop stale nudges, never to decide what the whole list is.
       void loadTasks().then(async (stored) => {
         const swept = healStuckParents(sweepElapsedNudges(stored, nowMs()), nowMs(), new Set(undoRemovedRef.current ?? []));
-        setTasks(swept);
+        adoptTasks(swept);
         if (swept !== stored) await saveTasks(swept);
         // A WARM RESUME IS A VISIT. `visit` was bumped only by useFocusEffect, which a resume does
         // not re-fire (that is why this listener exists at all), so coming back to a Today already
@@ -821,7 +856,7 @@ export default function TodayScreen() {
       // and clear the visible list first. Anonymous local (no prior owner) still migrates.
       const foreign = localBelongsToAnother(await loadSyncedOwner(), uid);
       if (foreign) {
-        setTasks([]);
+        adoptTasks([]);
         void wipeLocalData();
       }
       try {
@@ -844,7 +879,7 @@ export default function TodayScreen() {
         const day = new Date();
         const stillOpenToday = new Set(tasksForToday(healed, day).filter((x) => !isDoneOn(x, day)).map((x) => x.id));
         const settled = healed.map((x) => (x.nudgeId && !x.silentParent && !stillOpenToday.has(x.id) ? clearNudgeIfAny(x) : x));
-        setTasks(settled);
+        adoptTasks(settled);
         void saveTasks(settled);
         void saveSyncedOwner(uid);
         // Keepsakes ride behind the task sync, best effort and internally caught, so a
@@ -861,7 +896,7 @@ export default function TodayScreen() {
           // and sign out, rather than keep showing a deleted account's data. Local-only
           // data (tasks, scrapbooks, routines, per-day state) is wiped; only display prefs stay.
           if (!active) return;
-          setTasks([]);
+          adoptTasks([]);
           void purgeScrapbookImages((await loadScrapbooks()).map((b) => b.image));
           void wipeLocalData();
           void client.auth.signOut();
@@ -1053,6 +1088,19 @@ export default function TodayScreen() {
   // Focus mode shows one unfinished one-off at a time (recurring habits are not the
   // wall-of-awful). The first not-yet-skipped one; completing or skipping advances it.
   const focusTask = focusOpen && focusPick ? (spreadable.find((t) => t.id === focusPick) ?? null) : null;
+  // A new task in Focus starts from its own saved line (the adjust-during-render pattern TaskRow uses), and a
+  // CLEAN draft follows the saved line when it changes underneath (a sync, the card) while the slip is idle.
+  const savedSlip = focusTask?.leftOff?.text ?? '';
+  if (
+    focusTask &&
+    (!slipDraft || slipDraft.id !== focusTask.id || (!slipFocused && slipDraft.text === slipDraft.base && slipDraft.base !== savedSlip))
+  ) {
+    setSlipDraft({ id: focusTask.id, text: savedSlip, base: savedSlip });
+  }
+  // A step of a broken-down task shows its big task's line below its own slip, read-only (decision 2). From
+  // the synced parent row, never the step's copy of its title. A tiny step is unchanged.
+  const focusParent = focusTask?.parentId ? tasks.find((p) => p.id === focusTask.parentId && !p.deletedAt) : undefined;
+  const parentLeftOff = focusParent && focusParent.openParent !== true ? focusParent.leftOff : undefined;
   const bigCount = spreadable.filter((t) => t.big).length;
   // The day's effective energy: the pill if touched today, else the legacy low-day flag (an
   // in-flight low day from before this build still reads as Low), else Normal.
@@ -1083,8 +1131,36 @@ export default function TodayScreen() {
   // Every change to the list: stamp (monotonic, so a local edit beats a synced copy), save, and keep the
   // widget in step. The body is lib/task-writes, shared with the Repeating room, so the two screens can
   // never write differently. `clearNudgeIfAny` comes from there too.
+  //
+  // Rebased onto the LATEST list (2026-10-04): a handler builds `next` from the render's `tasks`, so two
+  // writes in one tap (a line saved, then Remove or Move to) or a late blur from an older render rebuilt
+  // every row from a stale list and erased the other write. `pendingTasks` is what the last commit left,
+  // until React renders it; after that `tasksRef` is current.
+  // The list as it stands right now: the last commit's, until React renders it. A handler that saves, finishes
+  // or moves a line builds from this, so a write made earlier in the same tap (a line saved by the card or the
+  // slip, then the action) is part of what it reasons about, not merely merged back afterwards.
+  function currentTasks(): Task[] {
+    // tasksRef, not the render's `tasks`: a handler can run from an older render (a blur's timer), and the
+    // layout effect keeps tasksRef current after every render.
+    return pendingTasks.current ?? tasksRef.current;
+  }
+  // A card action runs right after the card's editor saved, in the same tap: read the task as it is NOW, so a
+  // rename just made is the title Break it down, Make it tiny or Share to Ours work from.
+  function fresh(task: Task): Task {
+    return currentTasks().find((x) => x.id === task.id) ?? task;
+  }
+  // A list that arrives from outside a tap (a sync, a heal on open, the shared settle, a widget write) goes
+  // through here, not a bare setTasks: until React renders it, `pendingTasks` is how a tap in that gap
+  // rebases onto it instead of the list before it, which would drop what just arrived (the verify pass).
+  function adoptTasks(list: Task[]) {
+    pendingTasks.current = list;
+    setTasks(list);
+  }
   function commit(next: Task[]) {
-    setTasks(writeTasks(next, tasks, closedDate));
+    const latest = pendingTasks.current ?? tasksRef.current;
+    const written = writeTasks(rebaseOnLatest(next, tasks, latest), latest, closedDate);
+    pendingTasks.current = written;
+    setTasks(written);
   }
 
   // Remove is scoped to what Today shows: Today manages days, the Repeating drawer
@@ -1169,8 +1245,10 @@ export default function TodayScreen() {
   // the same done/completedAt path, then the next unfinished one surfaces on its own.
   function focusComplete(id: string) {
     const now = nowMs();
+    // From currentTasks(), not the render's list: Done saves the slip first, in the same tap, and a tiny
+    // step's line must be ON the step when settleCompletions moves it onto the real task.
     const finished = finishTasks(
-      tasks.map((t) => {
+      currentTasks().map((t) => {
         if (t.id !== id) return t;
         const slices = t.slices ? { total: t.slices.total, done: t.slices.total } : t.slices;
         return clearNudgeIfAny({ ...t, done: true, completedAt: now, updatedAt: now, ...(slices ? { slices } : {}) });
@@ -1267,6 +1345,11 @@ export default function TodayScreen() {
   }, []);
 
   function closeFocus() {
+    saveSlip(false);
+    slipLeaving.current = false;
+    setSlipDraft(null);
+    // A slip unmounted while focused never gets its onBlur on native (the tap that left was a 'handled' one).
+    setSlipFocused(false);
     setFocusOpen(false);
     setFocusPick(null);
   }
@@ -1351,6 +1434,72 @@ export default function TodayScreen() {
   // Rename from the card's tappable title. Deliberately NOT act-and-dismiss: fixing a typo then
   // continuing to another action is the natural flow, and the changed title is its own feedback.
   // renameTask returns the same array on a no-op (empty / unchanged), so nothing commits or syncs.
+  // "Noted.", the one calm line for a saved "Where you left off", on the card and in Focus alike. Spoken as
+  // well as shown: affirm() alone is visual.
+  function sayNoted() {
+    const words = t('leftOff.saved');
+    affirm(words);
+    if (Platform.OS === 'web') setTuckSaid((prev) => ({ text: words, n: prev.n + 1 }));
+    else AccessibilityInfo.announceForAccessibility(words);
+  }
+  // The held card's editor saves title AND line as one write. "Noted." plays only when new words were saved
+  // and the editor closed by itself (`announce`); a clear, an unchanged line and a title-only rename are silent.
+  function saveEditRow(id: string, title: string, line: string, announce: boolean) {
+    const base = currentTasks();
+    const renamed = renameTask(base, id, title, nowMs());
+    const next = setLeftOff(renamed, id, line, toISODate(today), nowMs());
+    if (next === base) return;
+    commit(next);
+    if (renamed !== base) track('task.renamed');
+    const before = base.find((x) => x.id === id)?.leftOff?.text ?? '';
+    const after = next.find((x) => x.id === id)?.leftOff?.text ?? '';
+    if (after === before) return;
+    if (after) {
+      track('leftoff.saved.card');
+      if (announce) sayNoted();
+    } else {
+      track('leftoff.cleared');
+    }
+  }
+  // Focus's slip: the same write, from the slip's draft. Silent when Done, Choose another or Exit caused it.
+  function saveSlip(announce: boolean) {
+    if (!focusTask || !slipDraft || slipDraft.id !== focusTask.id) return;
+    // A draft nobody changed writes nothing, even when the saved line moved on underneath it.
+    if (slipDraft.text === slipDraft.base) return;
+    const base = currentTasks();
+    const next = setLeftOff(base, focusTask.id, slipDraft.text, toISODate(today), nowMs());
+    const written = slipDraft.text;
+    setSlipDraft((d) => (d && d.id === focusTask.id ? { ...d, base: written } : d));
+    if (next === base) return;
+    commit(next);
+    if (next.find((x) => x.id === focusTask.id)?.leftOff?.text) {
+      track('leftoff.saved.focus');
+      if (announce) sayNoted();
+    } else {
+      track('leftoff.cleared');
+    }
+  }
+  // A press on Done, Choose another or Exit that never lands (the finger slid off) clears the leaving mark,
+  // and saves a slip it left without focus, as a tap on empty paper would. onPress has run by now if it landed (PRESS_SETTLE_MS).
+  function releaseSlipPress() {
+    setTimeout(() => {
+      if (!slipLeaving.current) return;
+      slipLeaving.current = false;
+      if (slipRef.current?.isFocused()) return;
+      saveSlip(true);
+    }, PRESS_SETTLE_MS);
+  }
+  function onSlipBlur() {
+    setSlipFocused(false);
+    // Read the leaving mark NOW as well as later: the press that caused this blur set it before the blur, and
+    // its onPress clears it again, which a slow timer could otherwise see first and save loudly after Done.
+    const leavingAtBlur = slipLeaving.current;
+    setTimeout(() => {
+      if (leavingAtBlur || slipLeaving.current) return;
+      saveSlip(true);
+    }, 0);
+  }
+
   function renameRow(id: string, title: string) {
     const next = renameTask(tasks, id, title, nowMs());
     if (next !== tasks) {
@@ -2187,7 +2336,7 @@ export default function TodayScreen() {
     // resurrects on the next pull.
     const stamped = withMonotonicStamps(next, mineNow);
     await saveTasks(stamped);
-    setTasks(stamped);
+    adoptTasks(stamped);
     return copy;
   }
 
@@ -2220,7 +2369,7 @@ export default function TodayScreen() {
       };
       const next = withMonotonicStamps([...fresh, notice], fresh);
       await saveTasks(next);
-      if (active) setTasks(next);
+      if (active) adoptTasks(next);
     })();
     return () => {
       active = false;
@@ -2647,14 +2796,16 @@ export default function TodayScreen() {
       onMoveDown={canReorder(task, today) && task.id !== hold?.taskId && i >= reorderTopIdx && i < list.length - 1 ? () => moveRow(task.id, 1) : undefined}
       slices={task.slices ?? undefined}
       onAdvance={() => step(task.id, 1)}
-      onBreakdown={aiEnabled ? () => breakdownExisting(task.title, task.id) : () => openManualBreakdown(task.id, task.title)}
-      onMakeTiny={aiEnabled ? () => makeTiny(task.id, task.title) : undefined}
-      onBig={() => bigRow(task)}
-      onPin={() => pinRow(task)}
+      onBreakdown={aiEnabled ? () => breakdownExisting(fresh(task).title, task.id) : () => openManualBreakdown(task.id, fresh(task).title)}
+      onMakeTiny={aiEnabled ? () => makeTiny(task.id, fresh(task).title) : undefined}
+      onBig={() => bigRow(fresh(task))}
+      onPin={() => pinRow(fresh(task))}
       onSelectMore={() => selectFromRow(task.id)}
       onRename={(title) => renameRow(task.id, title)}
+      leftOff={isRecurring(task) ? undefined : task.leftOff}
+      onSaveEdit={isRecurring(task) || isDoneOn(task, today) ? undefined : (title, line, announce) => saveEditRow(task.id, title, line, announce)}
       onNudge={Platform.OS !== 'web' && !isDoneOn(task, today) ? () => openNudge(task.id) : undefined}
-      onHold={Platform.OS !== 'web' && (!isDoneOn(task, today) || hold?.taskId === task.id) ? () => tapHold(task) : undefined}
+      onHold={Platform.OS !== 'web' && (!isDoneOn(task, today) || hold?.taskId === task.id) ? () => tapHold(fresh(task)) : undefined}
       held={hold?.taskId === task.id}
       onHoldFocus={
         hold?.taskId === task.id
@@ -2675,7 +2826,7 @@ export default function TodayScreen() {
       /* Said in WORDS, not by a colour or a strikethrough, so a screen reader hears it
          too and nobody has to infer it from styling. */
       note={originGone.has(task.id) ? (oursName ? t('ours.noLongerOnNamed', { name: oursName }) : t('ours.noLongerOn')) : undefined}
-      onShareToOurs={oursPairId && !task.sharedRef && !sharedToOurs.has(task.id) && !isDoneOn(task, today) ? () => void shareToOurs(task) : undefined}
+      onShareToOurs={oursPairId && !task.sharedRef && !sharedToOurs.has(task.id) && !isDoneOn(task, today) ? () => void shareToOurs(fresh(task)) : undefined}
       pinDim={!premium && task.pinnedAt == null}
       suggestBreakdown={task.suggestBreakdown}
       selecting={selectMode}
@@ -2712,8 +2863,12 @@ export default function TodayScreen() {
         // rows it just added can scroll into view above it.
         contentContainerStyle={[
           styles.content,
-          { paddingTop: insets.top + spacing.seven, paddingBottom: sheetOpen ? restingPanelHeight(winH) + 8 : restingListPad(insets.bottom) },
+          { paddingTop: insets.top + spacing.seven, paddingBottom: sheetOpen ? restingPanelHeight(winH) + 8 : restingListPad(insets.bottom) + listKb },
         ]}
+        // iOS lifts the list above the keyboard on its own, so a card's editor low on the screen stays in
+        // reach (the "Where you left off" field made the card's editor taller). Android, which ignores
+        // resize, gets the keyboard's height as room at the end instead (listKb).
+        automaticallyAdjustKeyboardInsets
         keyboardShouldPersistTaps="handled"
         // Swipe anywhere on the page to put the keyboard away. The capture box is multiline, so
         // iOS's Return key inserts a newline instead of dismissing, which left the keyboard stuck
@@ -3164,16 +3319,18 @@ export default function TodayScreen() {
                   slices={task.slices ?? undefined}
                   onAdvance={() => step(task.id, 1)}
                   onRetreat={() => step(task.id, -1)}
-                  onBreakdown={aiEnabled ? () => breakdownExisting(task.title, task.id) : () => openManualBreakdown(task.id, task.title)}
-                  onMakeTiny={aiEnabled ? () => makeTiny(task.id, task.title) : undefined}
-                  onBig={() => bigRow(task)}
+                  onBreakdown={aiEnabled ? () => breakdownExisting(fresh(task).title, task.id) : () => openManualBreakdown(task.id, fresh(task).title)}
+                  onMakeTiny={aiEnabled ? () => makeTiny(task.id, fresh(task).title) : undefined}
+                  onBig={() => bigRow(fresh(task))}
                   onSelectMore={() => selectFromRow(task.id)}
                   onRename={(title) => renameRow(task.id, title)}
+                  leftOff={isRecurring(task) ? undefined : task.leftOff}
+                  onSaveEdit={isRecurring(task) || isDoneOn(task, today) ? undefined : (title, line, announce) => saveEditRow(task.id, title, line, announce)}
                   onSteps={!isRecurring(task) ? () => openSliceEdit(task.id) : undefined}
                   onMoveTo={!isRecurring(task) ? () => setMoveIds([task.id]) : undefined}
                   origin={task.sharedRef ? `· ${t('ours.defaultName')}` : undefined}
                   note={originGone.has(task.id) ? (oursName ? t('ours.noLongerOnNamed', { name: oursName }) : t('ours.noLongerOn')) : undefined}
-                  onShareToOurs={oursPairId && !task.sharedRef && !sharedToOurs.has(task.id) && !isDoneOn(task, today) ? () => void shareToOurs(task) : undefined}
+                  onShareToOurs={oursPairId && !task.sharedRef && !sharedToOurs.has(task.id) && !isDoneOn(task, today) ? () => void shareToOurs(fresh(task)) : undefined}
                   selecting={selectMode}
                   selected={selected.includes(task.id)}
                   onSelect={() => toggleSelect(task.id)}
@@ -3455,7 +3612,15 @@ export default function TodayScreen() {
               UNDERNEATH the scroll surface and every click landed on the scroller instead, so Focus
               could not be left by mouse at all (Melroy, on web, 2026-07-25). The fix that freed the
               clipped list buried the door; order plus zIndex now keeps the door on top. */}
-          <ScrollView contentContainerStyle={styles.focusScrollContent} showsVerticalScrollIndicator={false}>
+          <KeyboardAvoidingView style={styles.focusAvoid} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView
+            ref={focusScrollRef}
+            contentContainerStyle={[styles.focusScrollContent, focusKb > 0 ? { paddingBottom: focusKb + spacing.six } : null]}
+            showsVerticalScrollIndicator={false}
+            // A tap on Done or Choose another with the keyboard up acts at once; a tap on empty paper still
+            // closes the keyboard, which is the slip's own "save".
+            keyboardShouldPersistTaps="handled"
+          >
           {focusTask ? (
             <View style={styles.focusBody}>
               <Text style={styles.focusLabel}>{t('today.focusLabel')}</Text>
@@ -3465,9 +3630,77 @@ export default function TodayScreen() {
                   {t('today.focusStepOf', { step: Math.min(focusTask.slices.done + 1, focusTask.slices.total), total: focusTask.slices.total })}
                 </Text>
               ) : null}
+              {/* "Where you left off": the slip, the same quiet field on every visit (Focus is a writing door),
+                  never appearing or changing because of anything just done. The label shows once a line is saved. */}
+              <Pressable onPress={() => slipRef.current?.focus()} accessible={false} style={[styles.slip, slipFocused && styles.slipFocused]}>
+                {focusTask.leftOff ? (
+                  <View style={styles.slipLabelRow} accessible={false} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden aria-hidden>
+                    <Mark name="leftOff" size={14 * theme.scale} color={theme.colors.inkSoft} />
+                    <Text style={styles.slipLabel}>{t('leftOff.label')}</Text>
+                  </View>
+                ) : null}
+                <TextInput
+                  ref={slipRef}
+                  value={slipDraft?.id === focusTask.id ? slipDraft.text : (focusTask.leftOff?.text ?? '')}
+                  onChangeText={(text) =>
+                    setSlipDraft((d) => ({
+                      id: focusTask.id,
+                      text: text.replace(/[\r\n\t]+/g, ' '),
+                      base: d && d.id === focusTask.id ? d.base : (focusTask.leftOff?.text ?? ''),
+                    }))
+                  }
+                  multiline
+                  maxLength={LEFT_OFF_MAX}
+                  blurOnSubmit
+                  submitBehavior="blurAndSubmit"
+                  returnKeyType="done"
+                  onFocus={() => {
+                    slipLeaving.current = false;
+                    setSlipFocused(true);
+                    if (Platform.OS === 'android') setTimeout(() => focusScrollRef.current?.scrollToEnd({ animated: !reduced }), 120);
+                  }}
+                  onBlur={onSlipBlur}
+                  placeholder={t('leftOff.placeholder')}
+                  placeholderTextColor={theme.colors.inkSoft}
+                  accessibilityLabel={t('leftOff.label')}
+                  textAlign="center"
+                  style={styles.slipInput}
+                />
+                {focusTask.leftOff ? (
+                  <Text style={styles.slipDate} accessibilityLabel={fmt.writtenOnSpoken(focusTask.leftOff.writtenOn)}>
+                    {fmt.writtenOn(focusTask.leftOff.writtenOn)}
+                  </Text>
+                ) : null}
+              </Pressable>
+              {focusParent && parentLeftOff ? (
+                <View
+                  style={styles.parentLine}
+                  accessible
+                  accessibilityLabel={t('leftOff.parentLineA11y', { bigTitle: focusParent.title, line: forSpeech(parentLeftOff.text), date: fmt.writtenOnSpoken(parentLeftOff.writtenOn) })}
+                >
+                  <View style={styles.parentRule} />
+                  <Text style={styles.parentLineText}>
+                    <Text style={styles.parentLineTitle}>{t('leftOff.parentPrefix', { bigTitle: focusParent.title })}</Text> {parentLeftOff.text}
+                  </Text>
+                  <Text style={styles.parentLineDate}>{fmt.writtenOn(parentLeftOff.writtenOn)}</Text>
+                </View>
+              ) : null}
               <View style={styles.focusActions}>
                 <Pressable
-                  onPress={() => setFocusPick(null)}
+                  // PRESS_NOW: the web otherwise starts the press 50ms after pointer-down, after the slip's
+                  // blur, which would then save loudly ("Noted.") on a press that should be silent.
+                  {...PRESS_NOW}
+                  onPressIn={() => {
+                    slipLeaving.current = true;
+                  }}
+                  onPressOut={releaseSlipPress}
+                  onPress={() => {
+                    saveSlip(false);
+                    slipLeaving.current = false;
+                    setSlipDraft(null);
+                    setSlipFocused(false);
+                    setFocusPick(null);
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel={t('today.focusChooseAnother')}
                   hitSlop={8}
@@ -3477,7 +3710,18 @@ export default function TodayScreen() {
                 </Pressable>
                 <PrimaryButton
                   label={t('common.done')}
-                  onPress={() => focusComplete(focusTask.id)}
+                  pressNow
+                  onPressIn={() => {
+                    slipLeaving.current = true;
+                  }}
+                  onPressOut={releaseSlipPress}
+                  onPress={() => {
+                    saveSlip(false);
+                    slipLeaving.current = false;
+                    setSlipDraft(null);
+                    setSlipFocused(false);
+                    focusComplete(focusTask.id);
+                  }}
                   accessibilityLabel={t('today.focusDoneA11y', { title: focusTask.title })}
                 />
               </View>
@@ -3518,7 +3762,26 @@ export default function TodayScreen() {
             </View>
           )}
           </ScrollView>
+          </KeyboardAvoidingView>
+          {/* "Noted." inside Focus, at the height it holds on Today, never over the task and never taking a tap. */}
+          {affirmation ? (
+            <View style={[styles.floatNoteWrap, { bottom: restingListPad(insets.bottom) + 4 }]} pointerEvents="none">
+              <View style={styles.floatNote}>
+                <Text style={styles.affirmation}>{affirmation}</Text>
+              </View>
+            </View>
+          ) : null}
+          {Platform.OS === 'web' && (
+            <Text accessibilityLiveRegion="polite" style={styles.srOnly}>
+              {tuckSaid.text ? tuckSaid.text + (tuckSaid.n % 2 ? '\u00a0' : '') : ''}
+            </Text>
+          )}
           <Pressable
+            {...PRESS_NOW}
+            onPressIn={() => {
+              slipLeaving.current = true;
+            }}
+            onPressOut={releaseSlipPress}
             onPress={closeFocus}
             accessibilityRole="button"
             accessibilityLabel={t('today.focusExitA11y')}
@@ -4670,6 +4933,39 @@ const makeStyles = (t: Theme) =>
     // The screen is now just the backdrop; the centring and padding moved to the ScrollView's CONTENT
     // container (focusScrollContent) so a long list can scroll instead of being clipped at both ends.
     focusScreen: { flex: 1, backgroundColor: t.colors.bg },
+    focusAvoid: { flex: 1 },
+    // "Where you left off" in Focus (the handoff's F1, the slip): written on `surface`, where inkSoft clears
+    // 4.84:1 or better in all 14 palettes; the big task's line sits on bare paper in `ink`.
+    slip: {
+      alignSelf: 'stretch',
+      backgroundColor: t.colors.surface,
+      borderRadius: radius.md,
+      paddingVertical: spacing.three,
+      paddingHorizontal: spacing.four,
+      alignItems: 'center',
+      gap: spacing.one,
+      ...(t.appearance === 'quiet' ? null : { borderWidth: border.hair, borderColor: t.colors.line }),
+    },
+    slipFocused: { borderWidth: border.thin, borderColor: t.colors.accent },
+    slipLabelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.one },
+    slipLabel: { fontFamily: fonts.bodyBold, fontWeight: '600', fontSize: 13 * t.scale, lineHeight: 18 * t.scale, color: t.colors.inkSoft },
+    slipInput: {
+      alignSelf: 'stretch',
+      minHeight: 44,
+      paddingVertical: 0,
+      fontFamily: fonts.body,
+      fontSize: 17 * t.scale,
+      lineHeight: 24 * t.scale,
+      color: t.colors.ink,
+      textAlign: 'center',
+      ...(Platform.OS === 'web' ? { outlineStyle: 'solid' as const, outlineWidth: 0 } : null),
+    },
+    slipDate: { fontFamily: fonts.body, fontSize: 14 * t.scale, lineHeight: 19 * t.scale, color: t.colors.inkSoft },
+    parentLine: { alignSelf: 'stretch', alignItems: 'center', gap: spacing.one },
+    parentRule: { alignSelf: 'stretch', height: border.hair, backgroundColor: t.colors.line, marginBottom: spacing.two },
+    parentLineText: { fontFamily: fonts.body, fontSize: 15 * t.scale, lineHeight: 21 * t.scale, color: t.colors.ink, textAlign: 'center' },
+    parentLineTitle: { fontFamily: fonts.bodyBold, fontWeight: '600' },
+    parentLineDate: { fontFamily: fonts.body, fontSize: 13 * t.scale, lineHeight: 18 * t.scale, color: t.colors.ink },
     focusScrollContent: { flexGrow: 1, padding: spacing.six, justifyContent: 'center', alignItems: 'center' },
     // zIndex belts the sibling-order braces: this button must ALWAYS beat the scroller.
     focusExit: { position: 'absolute', top: spacing.seven, left: spacing.five, zIndex: 1 },
