@@ -278,6 +278,7 @@ export const fr: Catalog = {
     editTitleA11y: 'Modifier le titre et où tu en étais : {title}',
     lineA11y: 'Où tu en étais : {line}. {date}.',
     hintA11y: 'Modifier.',
+    addA11y: 'Noter où tu en étais',
     parentPrefix: '{bigTitle} :',
     parentLineA11y: '{bigTitle}. Où tu en étais : {line}. {date}.',
   },

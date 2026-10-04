@@ -9155,6 +9155,16 @@ a press, so each action is wired directly).
 8. **The four non-English catalogues are drafts** (the handoff's strings), pending native review like every
    new string.
 
+**Changed by Melroy on the first TestFlight build (2026-10-05): the empty line now shows on the held card.**
+"It's not obvious until I click the title that I can attach a note to it." So an eligible task with no line
+shows the field at rest under its title, on the held card ONLY (Today's rows are unchanged: no text, no
+empty line, the mark only where a line exists): the mark and the placeholder in inkSoft over a hairline, or
+Quiet's filled slip, where inkSoft on surface still clears 4.5:1. Tapping it opens the editor on the line.
+This reverses the handoff's "Anything on an empty card: no label, dot or hint" (section 12) and the
+"Decided" line "an empty card is unchanged". The cost, accepted: every held card on a task without a line
+is one 44pt row taller. Decided against: a one-time hint (it would teach once and then hide the feature
+again) and showing it on the Today rows (Melroy: "ONLY when you tap and hold").
+
 **Tier 2, parked in the Backlog with the reading above as the trigger:** a Make-it-tiny parent's line in its
 resurfacing line; editing a big task's line from one of its steps; a finished task's line on its Calendar row.
 
