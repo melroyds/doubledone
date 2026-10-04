@@ -4,18 +4,7 @@
 // imports { t, fmt } from here (lib modules) or from lib/locale (screens, which re-exports
 // these). Tests get the 'en' default, so English assertions hold without any mock.
 
-import {
-  formatMonthDay,
-  formatNumber,
-  formatRelativeDay,
-  formatTime,
-  formatWeekday,
-  ordinalDay as ordinalDayIn,
-  type Locale,
-  type PluralForms,
-  pluralize,
-  translate,
-} from './i18n';
+import { formatMonthDay, formatNumber, formatRelativeDay, formatTime, formatWeekday, formatWrittenOn, type Locale, ordinalDay as ordinalDayIn, type PluralForms, pluralize, translate } from './i18n';
 
 let active: Locale = 'en';
 // Formatting follows the device's FULL region tag (en-AU keeps "27 June", it-IT gets Italian
@@ -51,6 +40,8 @@ export function t(key: string, params?: Record<string, string | number>): string
 export const fmt = {
   relativeDay: (date: Date, today: Date): string => formatRelativeDay(activeFormat, date, today),
   monthDay: (date: Date): string => formatMonthDay(activeFormat, date),
+  writtenOn: (iso: string): string => formatWrittenOn(activeFormat, iso, 'short'),
+  writtenOnSpoken: (iso: string): string => formatWrittenOn(activeFormat, iso, 'long'),
   weekday: (date: Date, width?: 'short' | 'narrow'): string => formatWeekday(activeFormat, date, width),
   time: (date: Date): string => formatTime(activeFormat, date),
   number: (n: number): string => formatNumber(activeFormat, n),

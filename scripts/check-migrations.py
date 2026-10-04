@@ -64,6 +64,10 @@ CHECKS = [
     ('ours-due.sql', 'shared_tasks.due column', 'column', 'shared_tasks.due', None),
     ('ours-open.sql', 'ours_allowlist DROPPED', 'absent-table', 'ours_allowlist', None),
     ('ours-rename-self.sql', 'rename_self()', 'function', 'rename_self', {'p_pair': NIL, 'p_label': 'probe'}),
+    ('tasks-left-off.sql', 'tasks.left_off column', 'column', 'tasks.left_off', None),
+    ('tasks-left-off.sql', 'tasks.open_parent column', 'column', 'tasks.open_parent', None),
+    ('tasks-left-off.sql', 'tasks.parent_title column', 'column', 'tasks.parent_title', None),
+    ('tasks-left-off.sql', 'tasks.combined_from column', 'column', 'tasks.combined_from', None),
 ]
 
 # Controls, run first, so the output proves its own error codes rather than asking you to trust them.

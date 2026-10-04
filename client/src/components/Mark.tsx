@@ -3,11 +3,11 @@
 // replaced the raster emoji (the reminder bell, the Speak mic, the Scan camera): emoji rendered in
 // fixed multicolour, ignored t.colors, never dark-mode-adapted, and the bell leaned toward the alarm
 // cue the never-alarm brand forbids. Add a glyph by adding a case here; keep them single-weight,
-// rounded, on a 24 grid (Feather/Lucide lineage, MIT). Used by BrainDump's Speak / Scan buttons.
+// rounded, on a 24 grid (Feather/Lucide lineage, MIT). The leftOff glyph marks a task's "Where you left off" line.
 
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 
-export type MarkName = 'mic' | 'camera';
+export type MarkName = 'mic' | 'camera' | 'leftOff';
 
 type Props = {
   name: MarkName;
@@ -26,6 +26,14 @@ export function Mark({ name, size = 18, color = '#2B2722', strokeWidth = 2 }: Pr
           <Path d="M19 10v2a7 7 0 0 1-14 0v-2" {...stroke} />
           <Line x1="12" y1="19" x2="12" y2="23" {...stroke} />
           <Line x1="8" y1="23" x2="16" y2="23" {...stroke} />
+        </>
+      ) : name === 'leftOff' ? (
+        // "Where you left off" (2026-10-04): a page with its corner turned down and one line on it, the
+        // handoff's M1. A bookmark would read as "saved" (the pin's job), and Quiet has no card to fold.
+        <>
+          <Path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" {...stroke} />
+          <Path d="M14 3v3a2 2 0 0 0 2 2h3" {...stroke} />
+          <Path d="M9 14h6" {...stroke} />
         </>
       ) : (
         <>

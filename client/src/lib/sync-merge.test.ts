@@ -133,14 +133,19 @@ describe('mergeTasks', () => {
     expect(res.toPush).toEqual([]); // local-only fields never make a push
   });
 
-  it('drops a stale tiny flag when another device has since hidden the task again (a new episode)', () => {
-    // This device: the task came back from its tiny step (visible, flag still true). Another device then broke
-    // it down (hidden again, newer). Carrying the flag would turn the new real steps into tiny steps.
-    const local = [task('r', 10, { openParent: true })];
-    const remote = [task('r', 20, { silentParent: true })];
-    expect(mergeTasks(local, remote).merged[0]).not.toHaveProperty('openParent');
-    // Within one episode (a tie, or a newer remote while it stayed hidden) the flag is kept.
-    expect(mergeTasks([task('r', 10, { silentParent: true, openParent: true })], [task('r', 20, { silentParent: true })]).merged[0].openParent).toBe(true);
+  // 2026-10-04: openParent, parentTitle and combinedFrom gained columns. A value held only locally on a TIE is
+  // from before the column, so it is kept AND pushed: the first sync after the migration seeds the server.
+  it('seeds the server with a pre-column tiny flag on a tie, then syncs it by plain last-write-wins', () => {
+    const local = [task('real', 10, { silentParent: true, openParent: true }), task('peb', 10, { parentId: 'real', parentTitle: 'Clean the garage' })];
+    const remote = [task('real', 10, { silentParent: true }), task('peb', 10, { parentId: 'real' })]; // the column is still null
+    const res = mergeTasks(local, remote);
+    expect(res.merged.find((t) => t.id === 'real')?.openParent).toBe(true);
+    expect(res.merged.find((t) => t.id === 'peb')?.parentTitle).toBe('Clean the garage');
+    expect(ids(res.toPush).sort()).toEqual(['peb', 'real']); // pushed, so the server learns it
+    // Afterwards it is plain LWW: a newer remote's false (Break it down elsewhere) wins over a stale true.
+    expect(mergeTasks([task('r', 10, { openParent: true })], [task('r', 20, { silentParent: true, openParent: false })]).merged[0].openParent).toBe(false);
+    // And a tie where both sides agree pushes nothing.
+    expect(mergeTasks([task('r', 10, { openParent: true })], [task('r', 10, { openParent: true })]).toPush).toEqual([]);
   });
 
   it('never invents a local-only key the local copy does not have', () => {
@@ -156,7 +161,7 @@ describe('mergeTasks', () => {
       due: '2026-10-04', recurrence: { kind: 'daily' }, completedDates: ['2026-10-04'], skippedDates: ['2026-10-03'],
       slices: { total: 2, done: 1 }, suggestBreakdown: true, decompositionId: 'd', decompositionSteps: 2, parentId: 'p',
       parentTitle: 'P', silentParent: true, openParent: true, combinedFrom: [{ id: 'c', title: 'C' }], nudgeAt: 6,
-      nudgeId: 'n', pinnedAt: 7, manualOrder: 8, sharedRef: 'pair/row', big: true,
+      nudgeId: 'n', pinnedAt: 7, manualOrder: 8, sharedRef: 'pair/row', big: true, leftOff: { text: 'l', writtenOn: '2026-10-04' },
     };
     const synced = new Set(Object.keys(rowToTask(taskToRow(full, 'u'))));
     const localOnly = new Set<string>(LOCAL_ONLY_FIELDS);

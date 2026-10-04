@@ -3,9 +3,16 @@ import { ActivityIndicator, Pressable, type StyleProp, StyleSheet, Text, type Vi
 import { PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
+import { PRESS_NOW } from './press-now';
+
 type Props = {
   label: string;
   onPress: () => void;
+  /** Fires as the press begins, before a focused field's blur (Focus's slip uses it to save silently). */
+  onPressIn?: () => void;
+  onPressOut?: () => void;
+  /** Start the press on pointer-down, before a focused field's blur (the web's default is 50ms later). */
+  pressNow?: boolean;
   disabled?: boolean;
   loading?: boolean;
   pill?: boolean;
@@ -23,6 +30,9 @@ type Props = {
 export function PrimaryButton({
   label,
   onPress,
+  onPressIn,
+  onPressOut,
+  pressNow = false,
   disabled = false,
   loading = false,
   pill = false,
@@ -36,6 +46,9 @@ export function PrimaryButton({
   return (
     <Pressable
       onPress={onPress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      {...(pressNow ? PRESS_NOW : {})}
       disabled={isInert}
       accessibilityRole="button"
       testID={testID}

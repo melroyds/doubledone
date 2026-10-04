@@ -96,17 +96,34 @@ describe('combineTasks', () => {
   });
 
   it('Case D: tombstones every parent emptied across different decompositions', () => {
-    // openParent: false marks them as known breakdowns (Break it down writes it since 2026-10-04). A
-    // one-child parent with NO flag could be a tiny step's real task, which comes back instead (below).
+    // Two steps each: a real decomposition. A parent with ONE child in its round comes back instead, whatever
+    // its flag says (below), because it could be a tiny step's real task.
     const tasks = [
       mk({ id: 'p1', silentParent: true, openParent: false }),
       mk({ id: 'a1', parentId: 'p1' }),
+      mk({ id: 'a2', parentId: 'p1' }),
       mk({ id: 'p2', silentParent: true, openParent: false }),
       mk({ id: 'b1', parentId: 'p2' }),
+      mk({ id: 'b2', parentId: 'p2' }),
     ];
-    const { next } = combineTasks(tasks, ['a1', 'b1'], 'Umbrella', NOW, 'u1');
+    const { next } = combineTasks(tasks, ['a1', 'a2', 'b1', 'b2'], 'Umbrella', NOW, 'u1');
     expect(next.find((t) => t.id === 'p1')?.deletedAt).toBe(NOW);
     expect(next.find((t) => t.id === 'p2')?.deletedAt).toBe(NOW);
+  });
+
+  // The verify pass (2026-10-04): an older store build never writes open_parent, so a task broken down here
+  // and later made tiny there keeps a stale false. Combining its pebble must bring it back, never delete it.
+  it('brings back a one-child parent whose flag says breakdown (a stale false)', () => {
+    const tasks = [
+      mk({ id: 'real', silentParent: true, openParent: false }),
+      mk({ id: 'pebble', parentId: 'real', parentTitle: 'real' }),
+      mk({ id: 'other' }),
+    ];
+    const { next, broughtBack } = combineTasks(tasks, ['pebble', 'other'], 'Both', 100, 'u');
+    const real = next.find((t) => t.id === 'real');
+    expect(real?.deletedAt).toBeUndefined();
+    expect(real?.silentParent).toBe(false);
+    expect(broughtBack).toEqual(['real']);
   });
 
   // 2026-10-04: combining a tiny step deleted the real task behind it (its OPEN parent). The pebble was

@@ -271,6 +271,20 @@ export const en = {
       lowLight: 'A low day. A couple of things is plenty.',
     },
   },
+  // "Where you left off" (2026-10-04): one free line per task. Drafts beyond English, pending native review.
+  leftOff: {
+    label: 'Where you left off',
+    placeholder: 'Where you left off, for next time',
+    saved: 'Noted.',
+    rowSuffixA11y: ', has a note',
+    sliceRowInProgressA11y: '{title}, {done} of {total} done, has a note, tap to advance, hold to adjust',
+    tinyStepRowA11y: '{title}, a tiny step toward {parent}, has a note',
+    editTitleA11y: 'Edit the title and where you left off: {title}',
+    lineA11y: 'Where you left off: {line}. {date}.',
+    hintA11y: 'Edit it.',
+    parentPrefix: '{bigTitle}:',
+    parentLineA11y: '{bigTitle}. Where you left off: {line}. {date}.',
+  },
   lookback: {
     aBigOne: 'a big one',
     dayCellA11y: '{date}, {count} finished{bigPart}{schedPart}',

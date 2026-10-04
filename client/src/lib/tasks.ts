@@ -4,7 +4,11 @@
 // thin, untested SDK seam.
 
 import { correctedNow } from './clock';
+import { cleanLeftOff } from './leftoff';
 import { type Recurrence } from './recurrence';
+
+/** "Where you left off": the text and the calendar day ('YYYY-MM-DD', the device's local day) it was last written. */
+export type LeftOff = { text: string; writtenOn: string };
 
 // A task with parts: a thing done in N steps (10 TV episodes, a 3-step chore).
 // `done` is the slices completed (0..total); the task is finished exactly when
@@ -38,6 +42,7 @@ export type Task = {
   pinnedAt?: number; // epoch ms this task was pinned as the day's ONE priority (premium). The at-most-one invariant lives in the pin action, not here. A leaf field: never auto-cleared, so a pinned task that rolls forward unfinished just rolls. Floats to the top of Today via pinFirst.
   manualOrder?: number; // LOCAL-ONLY (premium "Plan my order"): a render-time sort slot, floated by applyManualOrder. NOT synced (deliberately absent from sync.ts taskToRow/rowToTask), so it persists on-device and survives sync (local wins), but cross-device order is a documented follow-up needing a remote column.
   sharedRef?: string; // 'pairId/sharedTaskId': this task is YOUR copy of a row on a shared list, brought over on purpose (see lib/ours-bridge). Drives the faint "· Ours" suffix, the tick that closes both, and the rest-note when it gets handled on Ours. SYNCED (the shared_ref column), so the bridge works on every device rather than only the phone that pulled it.
+  leftOff?: LeftOff | null; // "Where you left off": the user's own one line for coming back to this task, with the calendar day it was last written (lib/leftoff). Overwritten, never added to. One-off tasks only (a repeat keeps one hidden). SYNCED (the left_off column, 2026-10-04). Never sent to an AI feature, the REST API or MCP, never onto a shared list.
   big?: boolean; // user-marked "this one is a lot": weights the day's gauge (counts as BIG_WEIGHT normal tasks, with a floor so one lone big still reads at least "full") and the heavy-day signal, and makes finishing it a big-win (reward.isBigWin). A leaf field, never auto-cleared. SYNCED since 2026-07-12 (the `big` column + sync.ts mapping; plain LWW because setBig bumps updatedAt, plus a tie-seed in sync-merge for marks from the pre-column era).
 };
 
@@ -91,6 +96,9 @@ function withDefaults(t: Task): Task {
   const slices = cleanSlices((t as Record<string, unknown>).slices);
   if (slices) out.slices = slices;
   else delete out.slices;
+  const leftOff = cleanLeftOff((t as Record<string, unknown>).leftOff);
+  if (leftOff) out.leftOff = leftOff;
+  else delete out.leftOff;
   return out;
 }
 
@@ -222,4 +230,38 @@ export function makeId(): string {
  */
 export function nowMs(): number {
   return correctedNow(Date.now());
+}
+
+/**
+ * Two writes in one tap must not clobber each other (2026-10-04). Today's handlers compute their next list
+ * from the render's `tasks`, so a save followed by an action in the same tap (a line or a rename saved,
+ * then Remove, Move to or Break down) had the second write rebuild every row from the stale list, erasing
+ * the first. This rebases `next` (built from `base`) onto `latest` (what the earlier write left): a row
+ * this write did not touch takes its latest version; a row it did touch keeps this write's changes, field
+ * by field, over the latest version (a three-way merge per row); rows the earlier write added are kept.
+ * When nothing came in between (`latest === base`) it returns `next` unchanged. Pure.
+ */
+export function rebaseOnLatest(next: Task[], base: Task[], latest: Task[]): Task[] {
+  if (latest === base) return next;
+  const baseById = new Map(base.map((t) => [t.id, t]));
+  const latestById = new Map(latest.map((t) => [t.id, t]));
+  const out = next.map((t) => {
+    const was = baseById.get(t.id);
+    const now = latestById.get(t.id);
+    if (!was || !now) return t; // added by this write, or gone from the latest: this write decides
+    if (t === was) return now; // untouched here: the latest version wins
+    const merged: Record<string, unknown> = { ...now };
+    const keys = new Set([...Object.keys(t), ...Object.keys(was)]);
+    for (const key of keys) {
+      const mine = (t as Record<string, unknown>)[key];
+      const before = (was as Record<string, unknown>)[key];
+      if (mine === before) continue; // this write left it alone
+      if (mine === undefined && !(key in t)) delete merged[key];
+      else merged[key] = mine;
+    }
+    return merged as Task;
+  });
+  const nextIds = new Set(next.map((t) => t.id));
+  for (const t of latest) if (!nextIds.has(t.id) && !baseById.has(t.id)) out.push(t);
+  return out;
 }

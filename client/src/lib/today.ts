@@ -1,5 +1,7 @@
 import { addDaysISO, toISODate } from './day';
+import { newerLeftOff, normalizeLeftOffText } from './leftoff';
 import { isDueOn, type Recurrence } from './recurrence';
+import { type LeftOff } from './tasks';
 
 // What belongs on Today, and what "done" means once tasks can repeat.
 // Pure and tested; the screen just renders the result.
@@ -284,7 +286,36 @@ type Parentable = Scheduled & {
   createdAt?: number;
   updatedAt: number;
   openParent?: boolean; // a tiny-version parent: never auto-completed (its pebbles are partial)
+  leftOff?: LeftOff | null;
 };
+
+/**
+ * Write a task's "Where you left off" line, the way renameTask writes a title: the text is normalised
+ * (lib/leftoff), an unchanged line returns the SAME array (no commit, no sync, no "Noted."), a new one is
+ * stamped with today's calendar day and bumps updatedAt for last-write-wins, and an empty one clears the
+ * line (the key is deleted, as a cleared pin or big is). Only a live one-off takes a line: a repeat keeps
+ * any it had hidden and untouched. Pure.
+ */
+export function setLeftOff<T extends Scheduled & { id: string; updatedAt: number; leftOff?: LeftOff | null }>(
+  tasks: T[],
+  id: string,
+  raw: string,
+  todayIso: string,
+  now: number,
+): T[] {
+  const text = normalizeLeftOffText(raw);
+  let changed = false;
+  const next = tasks.map((t) => {
+    if (t.id !== id || t.deletedAt || isRecurring(t)) return t;
+    if (text === (t.leftOff?.text ?? '')) return t;
+    changed = true;
+    const out: T = { ...t, updatedAt: now };
+    if (text) out.leftOff = { text, writtenOn: todayIso };
+    else delete out.leftOff;
+    return out;
+  });
+  return changed ? next : tasks;
+}
 
 /**
  * A parent's children that belong to its CURRENT round: the live ones, less any finished before the newest
@@ -330,6 +361,10 @@ export function completeAncestors<T extends Parentable>(
     if (!parent || isDoneOn(parent, date) || parent.openParent || !parent.silentParent) break;
     const children = next.filter((t) => t.parentId === cursorId && !t.deletedAt);
     if (children.length === 0 || !children.every((c) => isDoneOn(c, date))) break;
+    // Above the direct parent, an ancestor with ONE child in its round is not known to be a breakdown (it may
+    // be a tiny step's real task whose flag an older build never wrote): stop, and settleCompletions' trailing
+    // call brings it back. The direct parent got that call before the walk began.
+    if (cursorId !== tasks.find((t) => t.id === completedId)?.parentId && currentRound(children).length < 2) break;
     next = next.map((t) => (t.id === cursorId ? { ...t, done: true, completedAt, silentParent: false, updatedAt: now } : t));
     completed.push(next.find((t) => t.id === cursorId)!);
     cursorId = parent.parentId;
@@ -362,8 +397,16 @@ export function resurfaceOpenParent<T extends Parentable>(
   if (!parentId) return { tasks, parentTitle: null };
   const parent = tasks.find((t) => t.id === parentId);
   if (!parent || !parent.openParent) return { tasks, parentTitle: null };
+  // tiny:move (2026-10-04): the spent pebble is retired, so any line written on it moves onto the real task
+  // as it comes back, the newer line winning (decision-log, "Where you left off").
+  const pebble = tasks.find((t) => t.id === completedId);
+  const moved = newerLeftOff(parent.leftOff, pebble?.leftOff);
   const next = tasks.map((t) => {
-    if (t.id === parentId) return { ...t, silentParent: false, updatedAt: now };
+    if (t.id === parentId) {
+      const back = { ...t, silentParent: false, updatedAt: now };
+      if (moved) back.leftOff = moved;
+      return back;
+    }
     if (t.id === completedId) return { ...t, deletedAt: now, updatedAt: now };
     return t;
   });
@@ -407,13 +450,21 @@ export function settleCompletions<T extends Parentable>(
   let next = tasks;
   const wholes: { task: T; depth: number }[] = [];
   const backs: { title: string; tiny: boolean }[] = [];
-  const bringBack = (id: string, title: string, tiny: boolean) => {
-    next = next.map((t) => (t.id === id ? { ...t, silentParent: false, updatedAt: now } : t));
+  const bringBack = (id: string, title: string, tiny: boolean, fromChild?: string) => {
+    // A child that stays (it may be a real step) lends its line to the task coming back, the newer winning.
+    const lent = fromChild ? next.find((t) => t.id === fromChild)?.leftOff : undefined;
+    next = next.map((t) => {
+      if (t.id !== id) return t;
+      const back = { ...t, silentParent: false, updatedAt: now };
+      const line = newerLeftOff(t.leftOff, lent);
+      if (line) back.leftOff = line;
+      return back;
+    });
     backs.push({ title, tiny });
   };
-  // The three-way call for a hidden parent whose child just finished: a tiny task's real task comes back, an
-  // unknown-flag parent with one child in its round comes back, anything else is walked up. Returns whether
-  // the walk should go on.
+  // The three-way call for a hidden parent whose child just finished: a tiny task's real task comes back, any
+  // other parent with one child in its round comes back, anything else is walked up. Returns whether the walk
+  // should go on.
   const decide = (parentId: string, childId: string): 'walk' | 'stop' => {
     const parent = next.find((t) => t.id === parentId);
     if (!parent || parent.deletedAt || isDoneOn(parent, date) || !parent.silentParent) return 'stop';
@@ -437,8 +488,12 @@ export function settleCompletions<T extends Parentable>(
       }
       return 'stop';
     }
-    if (parent.openParent === undefined && round.length === 1) {
-      bringBack(parentId, parent.title, false);
+    // Not known-tiny with ONE child in its round: brought back, never finished, whatever the flag says. A
+    // synced `false` is not proof while older store builds are live: they never write open_parent, so a task
+    // broken down here and later made tiny there keeps a stale false (the 2026-10-04 review). Bringing a task
+    // back is recoverable; finishing one the user never finished is not.
+    if (round.length === 1) {
+      bringBack(parentId, parent.title, false, childId);
       return 'stop';
     }
     return 'walk';
@@ -452,8 +507,9 @@ export function settleCompletions<T extends Parentable>(
     if (walked.completed.length === 0) continue;
     const top = walked.completed[walked.completed.length - 1];
     wholes.push({ task: top, depth: walked.completed.length });
-    // The walk stops below a tiny or unknown-flag ancestor (a tiny step that was itself broken down): give it
-    // the same call the direct parent got, so it comes back rather than staying hidden or being guessed done.
+    // The walk stops below a tiny ancestor, or one with a single child in its round (a tiny step that was itself
+    // broken down, flag known or not): give it the same call the direct parent got, so it comes back rather
+    // than staying hidden or being guessed done.
     if (top.parentId) decide(top.parentId, top.id);
   }
   const last = wholes.length > 0 ? wholes[wholes.length - 1] : null;
@@ -577,7 +633,13 @@ export function healStuckParents<T extends Parentable & { createdAt?: number; co
       // Back to Today, not done. For a tiny step's real task, its one spent pebble is retired (only a
       // childless one: a pebble that was itself broken down is a finished task of record).
       const pebble = stuck.openParent && round.length === 1 && round[0].done && !next.some((g) => g.parentId === round[0].id) ? round[0] : null;
-      set(stuck.id, (t) => ({ ...t, silentParent: false, updatedAt: bump(t) }));
+      const lent = round.length === 1 && round[0].done ? round[0].leftOff : undefined;
+      set(stuck.id, (t) => {
+        const back = { ...t, silentParent: false, updatedAt: bump(t) };
+        const line = newerLeftOff(t.leftOff, lent);
+        if (line) back.leftOff = line;
+        return back;
+      });
       if (pebble) set(pebble.id, (t) => ({ ...t, deletedAt: typeof t.completedAt === 'number' ? t.completedAt : bump(t), updatedAt: bump(t) }));
       continue;
     }
