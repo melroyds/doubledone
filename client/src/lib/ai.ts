@@ -399,9 +399,12 @@ export async function combine(titles: string[], language?: string): Promise<stri
 export type ScrapbookResult = { image: string; caption: string };
 
 export async function makeScrapbook(titles: string[]): Promise<ScrapbookResult> {
+  // Signed in, the token rides along so the Worker tags the keepsake as this person's: only they can then
+  // purge it (server/src/scrapbook-purge.ts). Signed out, the keepsake is made exactly as before.
+  const auth = await authHeader();
   const res = await fetch(`${AI_URL}/scrapbook`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...(auth ?? {}) },
     body: JSON.stringify({ titles }),
   });
   if (!res.ok) throw new Error(`scrapbook failed (${res.status})`);
@@ -410,10 +413,27 @@ export async function makeScrapbook(titles: string[]): Promise<ScrapbookResult> 
   return { image: data.image, caption: typeof data.caption === 'string' ? data.caption : '' };
 }
 
+export const PURGE_RETRY_MS = 1500;
+
+// On account deletion: delete the server's custody of any AI connector (MCP over OAuth) for this account,
+// the encrypted refresh token and the sign-in email it was kept with, through the same POST /mcp/disconnect
+// Settings' kill switch uses. `auth` is the token captured BEFORE the delete (it signs out at its end).
+// Best-effort and silent, like the image purge: cleanup must never block or undo a delete.
+export async function dropAiConnectors(auth: Record<string, string> | null): Promise<void> {
+  if (!auth) return;
+  try {
+    await fetch(`${AI_URL}/mcp/disconnect`, { method: 'POST', headers: auth });
+  } catch {
+    // best effort
+  }
+}
+
 // Delete a user's scrapbook keepsake images from R2 on account deletion. Takes the stored
 // image values, keeps only the R2-served ones (data: URLs are local-only and need no purge),
 // and asks the Worker to delete those keys. Best-effort: cleanup must never block a delete.
-export async function purgeScrapbookImages(imageValues: string[]): Promise<void> {
+// `auth` is the token captured BEFORE the account went (deleteAccount signs out at its end); a tagged
+// image is deleted only for its verified owner. Omitted, the current session's is used.
+export async function purgeScrapbookImages(imageValues: string[], auth?: Record<string, string> | null): Promise<void> {
   const keys = imageValues
     .map((v) => {
       const m = v.match(/\/scrapbook-img\/(.+)$/);
@@ -422,11 +442,21 @@ export async function purgeScrapbookImages(imageValues: string[]): Promise<void>
     .filter((k): k is string => k !== null);
   if (keys.length === 0) return;
   try {
-    await fetch(`${AI_URL}/scrapbook/purge`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ keys }),
-    });
+    const headers = auth === undefined ? await authHeader() : auth;
+    const send = () =>
+      fetch(`${AI_URL}/scrapbook/purge`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...(headers ?? {}) },
+        body: JSON.stringify({ keys }),
+      });
+    const res = await send();
+    // A refusal can be a verifier blip on the Worker (it reads every failure as "not you"): one retry with
+    // the same captured token, since the keys are wiped from this device straight after.
+    const reply = res.ok ? ((await res.json().catch(() => null)) as { refused?: unknown } | null) : null;
+    if (typeof reply?.refused === 'number' && reply.refused > 0) {
+      await new Promise((r) => setTimeout(r, PURGE_RETRY_MS));
+      await send();
+    }
   } catch {
     // best effort; the local data is wiped regardless
   }

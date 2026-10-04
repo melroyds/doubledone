@@ -1,4 +1,5 @@
 import * as Application from 'expo-application';
+import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -10,7 +11,7 @@ import { RoomBackRow, useRoomOrigin } from '@/components/RoomTop';
 import { Segmented } from '@/components/Segmented';
 import { border, fonts, layout, PREMIUM_GRADIENT, PREMIUM_GRADIENT_LOCATIONS, PRESSED_OPACITY, radius, spacing, THEME_PRESETS, type Theme } from '@/constants/theme';
 import { billedByStore, deleteAccount } from '@/lib/account';
-import { purgeScrapbookImages } from '@/lib/ai';
+import { dropAiConnectors, purgeScrapbookImages } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
 import { toISODate } from '@/lib/day';
 import { buildExport } from '@/lib/export';
@@ -23,9 +24,9 @@ import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { clampHour, formatReminderHour, reminderReasonLine } from '@/lib/reminders-types';
 import { type Appearance, type FinishedTasks, type MotionPref, type TextSize, THEME_NAMES, type ThemePref } from '@/lib/settings';
 import { loadLastSyncOk, loadReminderHour, loadReminderOn, loadScrapbooks, loadTasks, saveReminderHour, saveReminderOn, wipeLocalData } from '@/lib/storage';
-import { supabase } from '@/lib/supabase';
+import { authHeader, supabase } from '@/lib/supabase';
 import { checkForUpdate, currentPlatform } from '@/lib/update-check';
-import { FALLBACK_VERSION, type UpdateStatus, updateUrl } from '@/lib/updates';
+import { runningVersion, type UpdateStatus, updateUrl } from '@/lib/updates';
 import { track } from '@/lib/telemetry';
 import { useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
@@ -127,7 +128,7 @@ export default function SettingsScreen() {
       void loadLastSyncOk().then((v) => {
         if (active) setSyncOk(v);
       });
-      void checkForUpdate(Application.nativeApplicationVersion ?? FALLBACK_VERSION).then((status) => {
+      void checkForUpdate(runningVersion(Application.nativeApplicationVersion, Constants.expoConfig?.version)).then((status) => {
         if (active) setUpdate(status);
       });
       return () => {
@@ -207,6 +208,9 @@ export default function SettingsScreen() {
     setDeleteError(null);
     // On Android, or for anyone the device knows a Google Play subscription for, ask the server to look at
     // Play even if it has no record of one yet (a webhook can lag a purchase by minutes).
+    // The token is captured BEFORE the delete, which signs out at its end: the image purge that follows has to
+    // prove whose keepsakes they are (a deleted user's token still verifies until it expires).
+    const purgeAuth = await authHeader();
     const res = await deleteAccount(supabase, fetch, { maybePlay: STORE_SOURCE === 'google' || billedByStore(entitlement) === 'google' });
     if (!res.ok) {
       setDeleteError(
@@ -229,7 +233,8 @@ export default function SettingsScreen() {
     }
     track('account.deleted');
     const books = await loadScrapbooks();
-    await purgeScrapbookImages(books.map((b) => b.image)); // delete the R2 images first
+    // The R2 images and any AI connector's custody first, both with the token captured before the delete.
+    await Promise.all([purgeScrapbookImages(books.map((b) => b.image), purgeAuth), dropAiConnectors(purgeAuth)]);
     await wipeLocalData(); // leave nothing of the account on this device
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.location.assign('/'); // a clean reload to an empty, signed-out Today
@@ -804,7 +809,7 @@ export default function SettingsScreen() {
             they held. This one quiet line ends that class of ambiguity. Not a catalog string:
             it is an identifier, identical in every locale. */}
         <Text style={styles.footnote}>
-          {`v${Application.nativeApplicationVersion ?? FALLBACK_VERSION} (${Application.nativeBuildVersion ?? 'web'})`}
+          {`v${runningVersion(Application.nativeApplicationVersion, Constants.expoConfig?.version)} (${Application.nativeBuildVersion ?? 'web'})`}
           {update && !update.behind ? `  ·  ${t('updates.upToDate')}` : ''}
         </Text>
 

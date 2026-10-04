@@ -4,17 +4,21 @@ import {
   clarify,
   decompose,
   defaultQuestions,
+  dropAiConnectors,
+  makeScrapbook,
+  ocr,
   parsePlan,
   parsePlanResult,
   parseQuestions,
   parseSteps,
   parseTriage,
   plan,
-  strategise,
+  PURGE_RETRY_MS,
+  purgeScrapbookImages,
   split,
+  strategise,
   tiny,
   triage,
-  ocr,
 } from './ai';
 
 import { authHeader } from './supabase';
@@ -400,5 +404,98 @@ describe('ocr', () => {
       throw new Error('network');
     }));
     expect(await ocr('IMG')).toEqual([]);
+  });
+});
+
+// 2026-10-05: a signed-in keepsake is tagged with its owner, and only the owner can purge it, so both calls
+// carry the token when there is one (server/src/scrapbook-purge.ts).
+describe('scrapbook keepsake ownership', () => {
+  const IMAGE_ID = '0b9a7c3e-1f2d-4c5b-8a6e-9d0f1e2a3b4c.jpg';
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    authHeaderMock.mockReset();
+  });
+  const fetchOk = (body: unknown) =>
+    vi.fn(async (_url: string, _init: { headers: Record<string, string>; body: string }) => ({ ok: true, json: async () => body }) as unknown as Response);
+
+  it('makes a keepsake with the token when signed in, and without one when signed out', async () => {
+    authHeaderMock.mockResolvedValue({ Authorization: 'Bearer me' });
+    let f = fetchOk({ image: 'https://api.doubledone.app/scrapbook-img/' + IMAGE_ID, caption: 'c' });
+    vi.stubGlobal('fetch', f);
+    await makeScrapbook(['Did the thing']);
+    expect(f.mock.calls[0][1].headers.Authorization).toBe('Bearer me');
+    authHeaderMock.mockResolvedValue(null);
+    f = fetchOk({ image: 'data:image/jpeg;base64,AA', caption: '' });
+    vi.stubGlobal('fetch', f);
+    await makeScrapbook(['Did the thing']);
+    expect(f.mock.calls[0][1].headers.Authorization).toBeUndefined();
+  });
+
+  it('purges with the token captured before the delete, never asking the (signed-out) session', async () => {
+    authHeaderMock.mockResolvedValue(null); // the session is already gone
+    const f = fetchOk({ ok: true });
+    vi.stubGlobal('fetch', f);
+    await purgeScrapbookImages(['https://api.doubledone.app/scrapbook-img/' + IMAGE_ID, 'data:image/jpeg;base64,AA'], { Authorization: 'Bearer before' });
+    expect(f.mock.calls[0][1].headers.Authorization).toBe('Bearer before');
+    expect(JSON.parse(f.mock.calls[0][1].body)).toEqual({ keys: [IMAGE_ID] });
+    expect(authHeaderMock).not.toHaveBeenCalled();
+  });
+
+  it('retries once, with the same token, when the Worker refused anything (a verifier blip)', async () => {
+    vi.useFakeTimers();
+    try {
+      const f = vi
+        .fn(async (_url: string, _init: { headers: Record<string, string>; body: string }) => ({ ok: true, json: async () => ({ ok: true, deleted: 0, refused: 1 }) }) as unknown as Response)
+        .mockImplementationOnce(async () => ({ ok: true, json: async () => ({ ok: true, deleted: 0, refused: 1 }) }) as unknown as Response);
+      vi.stubGlobal('fetch', f);
+      const done = purgeScrapbookImages(['https://api.doubledone.app/scrapbook-img/' + IMAGE_ID], { Authorization: 'Bearer before' });
+      await vi.advanceTimersByTimeAsync(PURGE_RETRY_MS);
+      await done;
+      expect(f).toHaveBeenCalledTimes(2);
+      expect(f.mock.calls[1][1].headers.Authorization).toBe('Bearer before');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not retry when nothing was refused', async () => {
+    const f = fetchOk({ ok: true, deleted: 1, refused: 0 });
+    vi.stubGlobal('fetch', f);
+    await purgeScrapbookImages(['https://api.doubledone.app/scrapbook-img/' + IMAGE_ID], { Authorization: 'Bearer before' });
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to the current session when no token is handed in, and to none at all', async () => {
+    authHeaderMock.mockResolvedValue({ Authorization: 'Bearer now' });
+    let f = fetchOk({ ok: true });
+    vi.stubGlobal('fetch', f);
+    await purgeScrapbookImages(['https://api.doubledone.app/scrapbook-img/' + IMAGE_ID]);
+    expect(f.mock.calls[0][1].headers.Authorization).toBe('Bearer now');
+    f = fetchOk({ ok: true });
+    vi.stubGlobal('fetch', f);
+    await purgeScrapbookImages(['https://api.doubledone.app/scrapbook-img/' + IMAGE_ID], null);
+    expect(f.mock.calls[0][1].headers.Authorization).toBeUndefined();
+  });
+});
+
+describe('dropAiConnectors (account deletion)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('posts the kill switch with the token captured before the delete', async () => {
+    const f = vi.fn(async (_url: string, _init: { method: string; headers: Record<string, string> }) => ({ ok: true }) as unknown as Response);
+    vi.stubGlobal('fetch', f);
+    await dropAiConnectors({ Authorization: 'Bearer before' });
+    expect(f.mock.calls[0][0]).toContain('/mcp/disconnect');
+    expect(f.mock.calls[0][1]).toMatchObject({ method: 'POST', headers: { Authorization: 'Bearer before' } });
+  });
+
+  it('does nothing without a token, and never throws', async () => {
+    const f = vi.fn(async () => {
+      throw new Error('offline');
+    });
+    vi.stubGlobal('fetch', f);
+    await dropAiConnectors(null);
+    expect(f).not.toHaveBeenCalled();
+    await expect(dropAiConnectors({ Authorization: 'Bearer x' })).resolves.toBeUndefined();
   });
 });

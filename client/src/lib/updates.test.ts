@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { compareVersions, MENTION_GAP_MS, shouldMention, STORE_URLS, updateStatus, updateUrl } from './updates';
+import { compareVersions, FALLBACK_VERSION, MENTION_GAP_MS, runningVersion, shouldMention, STORE_URLS, updateStatus, updateUrl } from './updates';
 
 describe('compareVersions', () => {
   it('orders ordinary versions', () => {
@@ -109,5 +109,22 @@ describe('updateUrl', () => {
   it('uses the real store identifiers, not placeholders', () => {
     expect(STORE_URLS.ios).toContain('6790136615');
     expect(STORE_URLS.android).toContain('app.doubledone');
+  });
+});
+
+// 2026-10-05: the web has no native version, and fell through to FALLBACK_VERSION ('1.2.0'), so every web
+// visitor was told "A newer version is ready" for good. It now reads app.json's version, the one stamped
+// into version.json's web.
+describe('runningVersion', () => {
+  it("prefers the store build's own version, then app.json's, then the fallback", () => {
+    expect(runningVersion('1.8.0', '1.7.0')).toBe('1.8.0');
+    expect(runningVersion(null, '1.8.0')).toBe('1.8.0');
+    expect(runningVersion(undefined, undefined)).toBe(FALLBACK_VERSION);
+    expect(runningVersion('', '')).toBe(FALLBACK_VERSION);
+  });
+
+  it('never tells the web it is behind the version it was stamped with', () => {
+    const stamped = '1.8.0'; // scripts/stamp-version.mjs writes app.json's version into version.json's web
+    expect(updateStatus(runningVersion(null, stamped), stamped, 'web').behind).toBe(false);
   });
 });

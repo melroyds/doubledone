@@ -117,6 +117,17 @@ export const STORE_URLS = {
  */
 export const FALLBACK_VERSION = '1.2.0';
 
+/**
+ * The version this build is actually running. A store build reports its own (expo-application); the web
+ * has no native version at all, so it reads app.json's, which expo-constants embeds at build: the very value
+ * scripts/stamp-version.mjs stamps into version.json's `web`. Until 2026-10-05 the web fell straight through
+ * to FALLBACK_VERSION, so every web visitor was told "A newer version is ready" for good and Settings said
+ * v1.2.0 (the failure the note above warns about). FALLBACK_VERSION is now only the last resort.
+ */
+export function runningVersion(nativeVersion: string | null | undefined, configVersion: string | null | undefined): string {
+  return nativeVersion || configVersion || FALLBACK_VERSION;
+}
+
 export function updateUrl(platform: 'web' | 'ios' | 'android'): string | null {
   if (platform === 'ios') return STORE_URLS.ios;
   if (platform === 'android') return STORE_URLS.android;
