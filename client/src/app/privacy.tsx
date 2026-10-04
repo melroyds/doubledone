@@ -22,7 +22,7 @@ export default function PrivacyScreen() {
         <BackLink fallback="/settings" />
 
         <Text style={styles.title}>Privacy</Text>
-        <Text style={styles.updated}>Last updated 4 October 2026.</Text>
+        <Text style={styles.updated}>Last updated 5 October 2026.</Text>
 
         <Text style={styles.lead}>
           DoubleDone is built to need almost nothing from you. It runs on your device, and the main things that ever
@@ -119,8 +119,8 @@ export default function PrivacyScreen() {
           your tasks for you. This is off until you turn it on. Once you connect one, that assistant can read the tasks
           it asks for, and those tasks travel to whichever company runs it. To hold the connection open we store your
           email address and sign-in keys for your account: the long-lived key is encrypted, and a short-lived one
-          (about an hour) is kept as-is so you are not asked to reconnect constantly. You can cut the connection at any
-          time in Settings, and it stops working straight away.
+          (about an hour) is kept as-is so you are not asked to reconnect constantly. You can cut the connection at any time in Settings: it stops working straight away, and the email and
+          keys we held for it are deleted. Deleting your account does the same.
         </Section>
 
         <Section styles={styles} heading="Keeping the service running">
@@ -140,8 +140,9 @@ export default function PrivacyScreen() {
         <Section styles={styles} heading="Your control">
           Work entirely offline and anonymous if you like. Sign out whenever you want, which stops syncing. You can
           export all your data as a file at any time. And if you sync, you can permanently delete your account and
-          everything synced to it from Settings. The one thing kept is a billing record, if you ever subscribed (see
-          Payment events).
+          everything synced to it from Settings. Two small records are kept: a billing record, if you ever subscribed (see Payment events), and, if you
+          ever started the free trial, a note that you did (an internal number and two dates, nothing you
+          wrote), so a trial is used once.
         </Section>
 
         <Section styles={styles} heading="Your privacy under Australian law">
