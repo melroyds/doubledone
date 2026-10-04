@@ -7,8 +7,9 @@
 > for the step-by-step Play Console mechanics.
 >
 > **Release state (2026-07-12):** the current production AAB is **versionCode 11** (version name 1.0.0),
-> cut from commit `d983bbf`, code-frozen under the git tag `android-v11`, and **submitted and live on
-> Google Play the same day**. Web deploys from the same code.
+> cut from commit `d983bbf`, code-frozen under the git tag `android-v11`, and submitted to Google Play's
+> **closed testing** the same day. It never reached public production: the first public Android release was
+> versionCode 20 on 2026-07-31, and 1.7.0 (versionCode 33) is live as of 2026-10-05. Web deploys from `main`.
 > Section 5a below has been updated in place: after Play blocked `USE_EXACT_ALARM` on 2026-06-29, the app
 > now declares `SCHEDULE_EXACT_ALARM` alone (since versionCode 11).
 >
@@ -76,8 +77,8 @@ eas build --platform android --profile production
 - **Use the `preview` profile for throwaway test builds, not `production`.** Every `production` build bumps
   the remote versionCode, so testing on it would inflate your first release's versionCode (harmless to
   users, just untidy).
-- Version name stays 1.0.0 (set in `app.json`). For future releases bump it there (1.0.1, 1.1.0); the
-  versionCode auto-increments on its own.
+- The version name is `expo.version` in `app.json` (1.8.0 as of 2026-10-05). Bump it there for each
+  release, and the versionCode auto-increments on its own.
 - As of 2026-07-12 the production AAB is **versionCode 11**, cut from commit `d983bbf` and code-frozen
   under the git tag `android-v11`. To reproduce or inspect exactly what shipped, check out that tag.
 

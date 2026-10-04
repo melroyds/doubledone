@@ -19,13 +19,15 @@ Each fires to the `FEEDBACK_TO` inbox, de-duplicated so the same kind cannot rep
 | **Scrapbook budget** | global image generations today cross the daily guard | the Workers AI free-tier neuron budget is the wall the dollar query cannot see |
 | **Scrapbook abuse** | one source nears the per-IP 24h cap | a script trying to drain the shared image budget |
 | **Volume** | AI calls in an hour exceed the launch-normal ceiling | a surge (good) or an attack (bad); the endpoint mix tells you which |
+| **App events volume** | 2,000 or more feature-usage counts in one day | the `/event` beacon takes no token, so a flood is likely scripted and would poison the counts in `app_event_counts` |
 | **Stripe** | a dispute, refund, or failed payment arrives on the webhook | real-money events Stripe's dashboard no longer emails about |
+| **RevenueCat** | a delivery fails the HMAC signature check (at most one email per 6 hours), or a TRANSFER event arrives | a signing secret out of step with the dashboard, or a purchase moving between accounts, which writes nothing |
 
 The alert email is deliberately information-poor: counts, endpoints, error strings, and dollar amounts only. Never task text, never an IP, never a user id. An alert email is a new way data leaves the pseudonymous store, so it carries nothing identifying.
 
 ## The daily pulse
 
-Once a day (around 6am Melbourne) the cron emails a one-line summary: calls, errors, month-to-date spend, premium count, trials, new premium, scrapbooks, reminder subscriptions. It is not an alarm. Its job is the pulse, and its mere arrival is proof the cron and email path are alive.
+Once a day (20:00 UTC, so about 6am in Melbourne, or 7am during daylight saving) the cron emails a one-line summary: calls, errors, month-to-date spend, premium count, trials, new premium, scrapbooks, reminder subscriptions. It is not an alarm. Its job is the pulse, and its mere arrival is proof the cron and email path are alive.
 
 ## The dead-man's-switch
 
@@ -50,7 +52,7 @@ The D1 schema (the `alerts_sent` dedup table) is additive and safe. Key rotation
 
 ---
 
-*Everything above is the monitor. The notes below are the rest of the operator's picture, added after the 2026-07-12 release (versionCode 11).*
+*Everything above is the monitor. The notes below are the rest of the operator's picture, first added after the 2026-07-12 Android cut (versionCode 11, which went to closed testing only. The first public Android release was versionCode 20, on 2026-07-31).*
 
 ## Refunding a subscriber: refund AND cancel, always both
 
@@ -118,8 +120,8 @@ One accepted edge: deleting an account purges R2 objects from the deleting devic
 The process used for the 2026-07-12 Play release (versionCode 11), the template for the next one:
 
 1. **Device-verify on a matching preview APK first.** The AAB should carry only code a device pass has already proven (versionCode 11 was cut after the APK pass on the same JS).
-2. **Queue the production AAB**: `eas build -p android --profile production` from `client/`. EAS holds the version remotely (`appVersionSource: "remote"` plus `autoIncrement: true` in [`client/eas.json`](../client/eas.json)), so every production build bumps `versionCode` by itself and the repo never carries it.
-3. **Tag the frozen commit**: `git tag android-vN <commit>`, then push the tag. `android-v11` marks `d983bbf`, so a store bug can always be reproduced from exactly the code that shipped.
+2. **Queue the production AAB**: `npx --yes eas-cli build -p android --profile production --non-interactive` from `client/` (`eas-cli` is not a dependency of the repo, and plain `npx eas` fails because the package is named `eas-cli`). For iOS the same profile builds with `-p ios`, then `npx --yes eas-cli submit -p ios --latest` sends it to App Store Connect. EAS holds the version remotely (`appVersionSource: "remote"` plus `autoIncrement: true` in [`client/eas.json`](../client/eas.json)), so every production build bumps `versionCode` by itself and the repo never carries it.
+3. **Tag the frozen commit**: `git tag android-vN <commit>`, then push the tag. `android-v11` marks `d983bbf`, so a store bug can always be reproduced from exactly the code that shipped. (It is the only tag so far: later releases were not tagged.)
 4. **Align the version name at the cut** (decided 2026-07-12): set `expo.version` in [`client/app.json`](../client/app.json) to match the CHANGELOG heading before queueing the AAB. versionCode 11 shipped with the name lagging at 1.0.0 while the changelog read 1.2.0; from the next release the two move together.
 5. **Web ships from the same commit** (versionCode 11's web deploy came from `d983bbf` too), so the two surfaces never drift within a release.
 6. **Builds only on Melroy's explicit ask** (rule, 2026-07-12): never queue an EAS build (APK or AAB, any profile) on your own initiative, and ask before any cancel-and-requeue consolidation. EAS moved to a paid Expo subscription (US$19/month) in the week of this release; the ask-first rule stands regardless.
@@ -132,19 +134,23 @@ If the Play Console asks for the exact-alarm declaration, the answer is: **exact
 
 ## The Analytics Centre (added 2026-08-01)
 
-**`GET https://api.doubledone.app/admin/analytics?token=<ANALYTICS_TOKEN>`** — the owner's
+**`GET https://api.doubledone.app/admin/analytics?token=<ANALYTICS_TOKEN>`** is the owner's
 morning glance, bookmarkable on a phone. Token-gated (the `ANALYTICS_TOKEN` Worker secret,
 same shared-secret posture as the RevenueCat webhook), read-only, no-store, noindex,
-server-rendered from D1 with no client involvement. Four sections: **Money** (premium by
+server-rendered from D1 with no client involvement. Six sections: **Money** (premium by
 store/status + active trials), **AI spend** (month-to-date vs the cap, with the month-end
 projection and the 7-day endpoint mix), **The moat** (decompositions offered vs
-came-back-with-a-finished-step, median days to the first step), **Scrapbooks** (28-day count).
+came-back-with-a-finished-step, median days to the first step), **Scrapbooks** (all-time and
+28-day counts), **The room** (Settle opens, plus every feature-usage count over 28 days), and
+**AI calls by day** (28 days, with errors).
 
 Set or rotate the token (pick any long random string; it lives only in the Worker and your bookmark):
 
     npm exec -w server -- wrangler secret put ANALYTICS_TOKEN
 
 Unset, the page answers 503, never an open dashboard. Stripe and RevenueCat's own dashboards
-remain the deep-dive for money; Play Console and App Store Connect for installs. The parked
-next tier (a real sink for the client's console-only `track()` events, likely Workers
-Analytics Engine, counts-only and id-free) is a product decision recorded in the decision log.
+remain the deep-dive for money; Play Console and App Store Connect for installs. The client's
+`track()` calls stay on the device, except a closed list of twenty feature names, which post to
+`/event` and land in D1 `app_event_counts` as one counter per name per day
+([`client/src/lib/telemetry.ts`](../client/src/lib/telemetry.ts),
+[`server/src/events.ts`](../server/src/events.ts)).

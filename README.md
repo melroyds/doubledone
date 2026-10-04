@@ -2,267 +2,203 @@
 
 [![CI](https://github.com/melroyds/doubledone/actions/workflows/ci.yml/badge.svg)](https://github.com/melroyds/doubledone/actions/workflows/ci.yml)
 
-> A calm, ADHD-friendly daily to-do app. It takes the things you have been avoiding, breaks them into pieces small enough to actually start, shows you only what today needs, and at the end shows you everything you finished, so your brain cannot tell you that you did nothing.
+DoubleDone is a calm daily to-do app for people who find ordinary to-do apps overwhelming: people with ADHD, autism or both, people with OCD, and anyone living with chronic overwhelm. The home screen is Today, and Today is sized to be finishable. You empty your head into one box, the app helps you choose what belongs to today and start the thing you have been avoiding, and at the end it shows you everything you actually finished. One rule sits under every screen: **never shame the backlog**. Nothing turns red, nothing is "overdue", and an old task is celebrated when it closes, never punished for existing.
 
-**Status: live and commercial.** DoubleDone runs at [doubledone.app](https://doubledone.app) with real paying **Stripe** subscribers since June 2026, the Android production release (**versionCode 11**, cut 2026-07-12, tag `android-v11`) **live on Google Play**, and a launch **control centre** watching cost and health hourly. The free core loop: friction-free capture (type, **speak**, or **share text in from any app**), AI triage and phased **Break it down**, recurring tasks, slices, **Strategise**, the **Lookback**, close-the-day, reminders, calm **Rhythms** (gentle recurring self-care nudges that arrive on time via exact alarms), opt-in cloud sync, plus a task **MCP server** and a public **REST API + OpenAPI** for agents and developers. The deep ADHD seam on top: **Break it down keeps the real task** as a silent background parent so a dreaded thing gets finished without ever looming, **Make it tiny** shrinks a stuck task to a 2-minute start, **energy matching** picks the one task that fits what you have left, a one-tap **low-capacity day**, calm **Routines** with no streak to break, an evening **wind-down**, the borderless **Quiet interface**, and **Done is done** for the OCD side. **Premium** (A$5/mo or A$50/yr, a 30-day card-free trial) unlocks the AI **scrapbook** keepsake (a shareable page that follows your account), photo-to-tasks scan, richer AI, seven calm **colour themes**, and unlimited energy matching. The whole UI has had a calm **design pass**, the privacy policy and **Terms** are in, and new users get a guided, replayable **first-run**.
-**Live:** [doubledone.app](https://doubledone.app) (web, deployed from the same code as the Android release). Android installs today via a sideloaded EAS build while the Play release rolls out.
+## Status
+
+DoubleDone is live and has paying subscribers.
+
+| Where | State (5 October 2026) |
+|---|---|
+| Web | [doubledone.app](https://doubledone.app), deployed from `main` on every push. It already runs 1.8.0. |
+| [App Store](https://apps.apple.com/app/id6790136615) | 1.7.0 is live. 1.8.0 (build 41) is with App Review. |
+| [Google Play](https://play.google.com/store/apps/details?id=app.doubledone) | 1.7.0 is live. 1.8.0 (versionCode 35) goes through closed testing, then Production. |
+
+The daily loop is free. Premium is sold through each platform's own checkout: Stripe on the web, Apple in-app purchase on iOS and Google Play Billing on Android, with RevenueCat carrying the two store purchases to the server. 1.8.0 adds "Where you left off" and a round of finishing fixes ([release notes](docs/release-notes/1.8.0.md)).
 
 <p align="center">
-  <img src="docs/screenshots/today-light.png" alt="DoubleDone Today screen in the warm light theme" width="270" />
+  <img src="docs/play-store/phone/today-light.png" alt="Today: a short list, a gentle day gauge, an energy choice and one Right now tool" width="200" />
   &nbsp;
-  <img src="docs/screenshots/today-dark.png" alt="DoubleDone Today screen in the warm-charcoal dark theme" width="270" />
-</p>
-<p align="center"><em>Today, the home screen: one doable day. Light, and a dark that follows your device or your choice.</em></p>
-
-<p align="center">
-  <img src="docs/screenshots/lookback-light.png" alt="The Lookback: a calendar of everything finished, with completion dots" width="270" />
+  <img src="docs/play-store/phone/capture.png" alt="Capture: the Add to Today panel with three lines typed, Speak, Scan and Sort for me" width="200" />
   &nbsp;
-  <img src="docs/screenshots/scrapbook-light.png" alt="An AI scrapbook: a still-life keepsake of a finished week, with the tasks listed" width="232" />
-</p>
-<p align="center"><em>The Lookback, the payoff: a calendar of everything you actually finished. And the AI scrapbook, a still-life keepsake of the week whose objects evoke what you did, the finished tasks listed beneath.</em></p>
-
-<p align="center">
-  <img src="docs/screenshots/settings-light.png" alt="DoubleDone Settings in light" width="270" />
+  <img src="docs/play-store/phone/lookback-light.png" alt="The Calendar: a month of finished days, and the tasks finished today" width="200" />
   &nbsp;
-  <img src="docs/screenshots/settings-dark.png" alt="DoubleDone Settings in dark" width="270" />
+  <img src="docs/play-store/phone/ours-room.png" alt="Ours: a shared list for two people beside Today" width="200" />
 </p>
-<p align="center"><em>Settings, in two calm bands, Comfort (theme, text size, motion) and Access &amp; data. Never an everything-dashboard.</em></p>
-
-<p align="center">
-  <img src="docs/screenshots/welcome.png" alt="The DoubleDone first-run welcome: a calm pitch, with Begin and Skip for now" width="270" />
-</p>
-<p align="center"><em>First run: a calm welcome that onboards by doing. Your first brain-dump becomes a doable Today. Replayable any time from Settings.</em></p>
-
----
-
-## The idea in one line
-
-Today is finite and achievable. The home screen is Today, sized to be doable, and the app's whole job is to keep it that way when life pushes back.
-
-## Why it exists
-
-Most productivity apps are built for neurotypical optimisation: more capture, more structure, streaks, points. For an ADHD, autistic, or chronically-overwhelmed brain those patterns backfire. The real failure modes are different:
-
-- **Task-initiation paralysis**, the dreaded task is too big to start.
-- **Time blindness**, "today" quietly fills with more than a day holds.
-- **The discounting reflex**, the brain throws away everything you already did and says you did nothing.
-- **Rejection-sensitive dysphoria**, a guilt-based, overdue-red, nagging app is not motivating, it is repelling.
-
-DoubleDone is built around those, not around a feature checklist. The founder built it for the people he works with, has managed, and is close to who live this, out of proximity rather than a personal diagnosis. That close-up empathy is the main asset.
-
-## The core loop
-
-1. **Brain-dump** everything on your mind into one friction-free box, one line per thing.
-2. **AI triage** ("Sort for me") sorts the dump into today / later / break-it-down, so today stays small.
-3. **Break it down** hands a dreaded task to the AI and gets back a startable plan (see below).
-4. **Work the day**, a short, doable list. Tap to finish, with a soft sage check, never a shaming strike.
-5. **Strategise** when the day is over-full: the AI proposes a calmer spread across coming days, and you accept or decline.
-6. **Close the day** gently: what you finished, what rolls forward, zero guilt.
-7. **The Lookback** is the payoff: an interactive calendar of everything you actually finished, the old dreaded things included.
+<p align="center"><em>Today, capture, the Calendar of everything finished, and Ours, the list you share with one other person.</em></p>
 
 ## What it does
 
-**Capture & triage**
-- Friction-free brain-dump with calm scheduling chips (Today / Tomorrow / Daily / Weekly / Custom).
-- **Talk to capture** (web): speak your brain-dump and each natural pause becomes a task line. A run-on capture, spoken or typed, can be handed to a Haiku **"Tidy this into tasks"** that splits it into clean separate lines. Native uses the keyboard's own mic.
-- **Share into DoubleDone**: share text from any app, via the Android share sheet or the installed web app (a PWA share target), and it lands in the capture box as one calm line, the words kept, links and highlight fragments dropped. Nothing is ever auto-added; you confirm.
-- AI triage ("Sort for me", Haiku) sorts a multi-line dump into today / later / break-it-down and applies it directly, because capture must be the lowest-pressure surface in the app.
-- **First run**: a guided welcome runs your very first brain-dump through that same triage, so the first thing you see is a doable Today, not an empty void or a tutorial wall. Replayable any time from Settings.
+**The core loop**
 
-**Break it down (the phased planner)**
-- Two calm steps: first the AI asks **three qualifying questions** (a due date, gradual-vs-same-day pacing, and one task-specific clarifier), then it returns a plan you **review and accept** (untick any step before adding).
-- A real **date picker** that the AI **pre-fills** from a date it spots in your task ("by July 15 2026" → 15 July selected).
-- **Phased** for big, long-horizon tasks: the AI returns a roadmap of phases, only **phase one** is broken into steps now, and each later phase becomes a dated milestone in Later, broken down when you reach it. Today stays small while the deadline is honoured.
-- Steps are spread across the runway with the dates computed on-device (deterministic, no date maths in the model).
-- **The real task is never lost.** Breaking a task down no longer flattens it: the original becomes a silent background parent, hidden from Today, and the steps chain to it. Finish the steps in any order and the whole task completes on its own, into the Lookback, with "you finished the whole thing". You carry one pebble at a time, the app holds the boulder.
-- **Make it tiny** when even step one is too much: one tap asks a Haiku for the 2-minute version of a task ("Do my taxes" becomes "find last year's tax file and open it"). The real task waits quietly and resurfaces after the tiny start, so a pebble is progress, never a replacement.
+1. **Capture.** Tap the + and empty your head, one line per thing. Type it, speak it (on the web), share text in from another app, or photograph a written list (Premium).
+2. **Shape it.** "Sort for me" splits a brain dump into today, later and break-it-down. "Tidy this into tasks" turns one run-on line into separate tasks.
+3. **Start the hard one.** "Break it down" asks three short questions, then proposes steps you review before anything is added. The original task stays as a quiet parent and completes itself when its steps are done. "Make it tiny" offers a two-minute first step.
+4. **Work the day.** A gauge shows how full today is against the energy you chose. One "Right now" tool fits the hour, and the rest are a tap away: Plan my day, Focus on one thing (the "Just this one" view), Lighten today, Settle and Close the day.
+5. **Close the day.** A gentle wrap of what you finished, room to log anything else you did, and a place to set down thoughts for tomorrow. Unfinished things simply carry over.
+6. **Look back.** The Calendar shows every day's finished tasks, the long-dreaded ones included. It exists for the moment your brain says you did nothing.
 
-**Working the day**
-- **Slices**: track a task in parts (10 TV episodes, a 3-step chore) with a calm progress bar, no gamification.
-- **Recurring tasks** (daily / weekly / every-N) with a dedicated Repeating drawer, no streaks.
-- **Routines**: a calm morning or evening checklist of small steps you run as a ritual, on its own screen, with no streak to break and no habit-tracker guilt. Tick a step and it is done for today, and tomorrow it is simply fresh.
-- **Rhythms** (free): gentle recurring self-care nudges, some water every 2 hours, meds at 8 and 8, built as an extension of Routines. Cadence on a curated ladder from every 30 minutes to every 12 hours inside your active hours, or fixed clock times; one-tap presets plus a fully editable form; pause and resume. On Android 12+ they use exact alarms (a calm "Allow alarms & reminders" door) so a nudge arrives on time, and the screen keeps one calm health line: "Next nudge around {time}." No count, no streak, nothing to break, by data shape.
-- **Low-capacity day**: one tap tells the app today is a low day, and it recalibrates the weight gauge to a gentler target with permission to do little. Per-day, never a setting, and it never touches the backlog.
-- **Strategise** (Sonnet): re-spread an over-full day, always propose-then-accept.
-- **Energy matching** ("What fits right now?", freemium): inside Focus mode, one calm question about what you have left (running low / somewhere in between / feeling good) and a Haiku picks the one task from today that fits, with a short warm line and "Start with this". Propose-only, never a reorder. 15 free picks a calendar month with gentle reminders at 10 and 5 left; unlimited with Premium.
-- **Long titles just wrap** (up to three lines), never truncated and never scrolled. The scrolling marquee was retired 2026-06-24: motion this often motion-averse audience never asked for, and a recurring source of Android layout bugs.
-- **Tap-and-hold a task for its own actions**: hold a task and its actions appear in place, on the task, grouped by the question you are actually asking (not today? / too big? / does this matter?). Nothing else on the screen moves. "Select more" is the deliberate door into multi-select when you genuinely mean several, where the bar keeps the things that are honestly bulk: Done / Move to… / A lot / Combine / Remove.
+**Around it**
 
-**Built for the failure modes** (the product is organised around these, and the latest work deepened the answer to each)
-- **Task-initiation paralysis** is now answered four ways: **Break it down** turns a dreaded task into startable steps, **Make it tiny** returns a 2-minute version of the thing you cannot begin, **Focus mode** ("Just this one") hides everything else, and **energy matching** picks for you when the choosing itself is the wall. Break-it-down also keeps the original as a silent background parent, so you only ever hold one small pebble, never the whole boulder.
-- **Time blindness** is answered by the **weight-of-today** gauge, which keeps the day from silently overfilling, and the one-tap **low-capacity day**, which recalibrates Today to a gentler target when you have less to give.
-- **The discounting reflex** is answered by **"I also did that"** (log a win that was never on the list), the **Lookback** (a calendar of everything you actually finished), and the chain's payoff: finishing the small steps completes the whole dreaded task and says so, "you finished the whole thing".
-- **Rejection-sensitive dysphoria** is answered by the never-shame spine everywhere, **shame-free re-entry** after a gap, **Routines** that keep no streak to break, and an evening **wind-down** that invites you to close the day instead of nagging.
-- **OCD and the perfectionism overlap** get **"Done is done"**, a calm, consistent reassurance that a finished task is filed and you can stop checking.
+- **Repeats and steps.** Daily, chosen weekdays, every few days or monthly, managed in the Repeating room. Any task can be tracked in 2 to 50 parts.
+- **Held card.** Long-press a task to break it down, make it tiny, mark it as a lot, move it, back-date a finish, pin it (Premium), or leave yourself one line under **Where you left off**. On phones it also offers Remind me and **Hold me to it**: a few calm knocks through the day, then one each morning, until it is done or you let it go.
+- **What fits right now?** One question about how much you have left, and the AI picks one task to start with. Fifteen picks a month free, unlimited with Premium.
+- **Routines and Rhythms.** Calm checklists that reset each day, and gentle repeating nudges (water, meds, a stretch) on phones. No streaks and nothing to keep count of.
+- **Ours.** One shared list for you and one other person, joined by an invite code once you are both signed in. Anything given a day lands on both Todays. A tick records when, never who.
+- **Settle.** A breathing room with an optional guide. Never gated, never opened for you.
+- **Scrapbook.** An AI still-life keepsake of a finished week, shareable as one image. One a month free, weekly with Premium.
+- **Comfort.** Light and dark, text size, reduced motion, the borderless Quiet interface, and seven colour themes (Dusk is free, the other six are Premium). Five languages: English, German, Spanish, French and Italian, picked from the device.
+- **Phones and the web.** An optional daily reminder (phone notifications, or web push), an Android home-screen widget, launcher shortcuts, and share-in from the Android share sheet, the iOS share extension or the installed web app.
+- **AI off.** One switch in Settings removes every generative AI feature, and the app runs without it.
+- **Your data.** No account needed. Optional email-code sign-in syncs across devices. Export your tasks to JSON, or delete your account and data from Settings.
+- **For agents and developers.** An [MCP server](docs/mcp.md) with nine tools (OAuth 2.1 sign-in, or a pasted token) and a [REST API](docs/api.md) (OpenAPI 3.1, v1.2.3, with [Swagger UI](https://api.doubledone.app/api/v1/docs)). Both act only on your own tasks with your own token.
 
-**The payoff & retention**
-- **The Lookback**: a true Gregorian month calendar of what you finished each day, with a warmer mark for a "big win" (a long-dreaded or chunky task finally closed). The emotional core, not a stats page.
-- **Close the day**: a gentle wrap that rolls undone work forward with no guilt. In the evening a quiet **wind-down** line invites the ritual, never a notification and never a nag.
-- **Daily reminder** (opt-in, native): offers the day, never nags.
-- **The AI scrapbook**: turn a finished week into a calm still-life keepsake (Cloudflare Workers AI), the objects evoking what you actually did, with the week's finished tasks listed beneath. The first premium delight, on free-tier neurons (no Anthropic spend). Images persist on **Cloudflare R2** and are served by URL, so the keepsake survives a cache clear and stays off the device's storage quota.
-- **A keepsake shares as a page**: one jpeg with its caption and a small "DoubleDone · Week of {date}" line baked into the pixels, so a receiving app can never strip the context. Raw task titles still never leave the device, and it is never a link.
+**Premium** adds Scan, Pin, the colour themes, Chart a course (a goal turned into ordered steps), Plan my day, Your patterns, unlimited energy matching and weekly scrapbooks. A signed-in account can take one card-free month to try it. On the web Premium is A$5 a month or A$50 a year. The App Store and Google Play show their own local price. Break it down, Make it tiny, Lighten today, Sort for me, the Calendar, Routines, Rhythms, Ours, Settle and Quiet stay free.
 
-**Make it yours**
-- **The Quiet interface** (free for everyone since 2026-09-27, it launched as Premium): a borderless appearance where nothing looks like a button and the app reads as calm text on paper. Same layout, same features, covering the whole Today surface, and it derives from the active palette so it is correct on every theme.
-- **Seven calm colour themes** (premium, the "Dusk" family: Dusk free by default, plus Sage, Slate, Heather, Fog, Honey and Rose), each with tuned light and dark variants. One optional selector, never a settings panel.
+## How it is built
 
-**Cloud (opt-in)**
-- Passwordless **email-OTP** sign-in, last-write-wins sync, soft-delete tombstones, and automatic anonymous→account migration on first sign-in. Local-first throughout: nothing requires an account.
-- Sync carries the **"big" mark** and your **scrapbook keepsakes** too (per-week last-write-wins), so a new phone shows the same marks and the same weeks.
-- **Data export**: download your tasks and everything you finished as a JSON file (no account needed). Your stuff is yours.
-
-**Support**
-- **In-app feedback**: a calm box in Settings sends your note straight to the maker (no mail client, no account), so what's broken or what you love gets heard.
-
-**For AI agents and developers (AX + DX)**
-- An **MCP server** (`/mcp` on the Worker) gives AI agents **nine tools**: add, list-today, list-upcoming, complete, update and delete a task, **Break it down** (propose-only, nothing added without your yes, per-user hourly rate cap before any spend), plus `search` and `fetch` (the OpenAI Deep Research connector contract). Two auth paths chosen by the bearer shape: a pasted Supabase token (Claude Code / Desktop / Cursor) or **OAuth 2.1** sign-in-with-a-URL (claude.ai / Cowork / ChatGPT), S256 PKCE, the refresh token AES-GCM-encrypted at rest, an instant Disconnect kill switch. Everything runs under your own token and RLS, no elevated key. Guide in [`docs/mcp.md`](docs/mcp.md).
-- A public **REST API** (`/api/v1`, **OpenAPI 3.1**, version 1.1.0) with a browsable **Swagger UI** at [`/api/v1/docs`](https://api.doubledone.app/api/v1/docs) exposes token-authenticated CRUD-plus-query over your own tasks, under the same RLS and no elevated key. Create with a due day *or* a repeat rule (never both), `PATCH` any field, and read three ways: `q` substring search, an `upcoming` look-ahead window, or the app's `today` view. Reference in [`docs/api.md`](docs/api.md).
-- **One cadence engine, three surfaces.** The REST API, the MCP server and the app share the same repeat vocabulary and recurrence math (`buildRecurrence`), so a repeating task made by an agent, by a script, or in the app is indistinguishable in shape. Break-it-down and the AI actions are MCP-only by design; the REST API is CRUD + query. Malformed input is always a calm `400`, never a `500` or a leaked upstream status.
-
-**The moat (instrumented from day one)**
-- Every AI call is logged **pseudonymously** (no `user_id`) to a Worker-bound **Cloudflare D1** database with no public write path, so the decompositions and plans we offer can be tuned on what actually gets used. Built before there was data to use, on purpose.
-- **Both halves of the flywheel are now live.** We log the decomposition we offered *and* whether its steps actually got completed, and the silent-parent chain upgrades that signal from "the steps were ticked" to "the dreaded thing actually got done". Completion data, from people who struggle to complete, is the part a funded competitor cannot buy.
-
-## Architecture
+One Expo codebase builds the iOS app, the Android app and the web app. The list is kept on the device first, so the whole app works with no account. Supabase handles optional sign-in and sync, with row-level security on every table. A single Cloudflare Worker at `api.doubledone.app` is the only component that holds the Anthropic key. It serves the AI routes, billing and entitlements, web push, the MCP server and the REST API, and runs an hourly health check.
 
 ```mermaid
-flowchart TB
-    App["<b>Expo app</b> · React Native to Android + Web (one codebase, expo-router)<br/>Today · capture (type, speak, or share in) · Break it down · Make it tiny · Routines + Rhythms · Lookback · scrapbook<br/>AsyncStorage is the canonical local store, the whole app works with no account"]
-    App -->|"opt-in sync · passwordless email OTP"| SB["<b>Supabase</b><br/>Postgres + RLS (tasks)<br/>Auth (passwordless OTP)"]
-    App -->|"AI features"| W["<b>Cloudflare Worker</b> · doubledone-ai<br/>holds ANTHROPIC_API_KEY (secret)<br/>/clarify /plan /decompose /triage /strategise<br/>/split /tiny /energy (Haiku) · /scrapbook (Workers AI)<br/>/mcp (agents, AX) · public REST + OpenAPI (DX)<br/>web-push daily nudge (Cron)"]
-    W -->|"tasks via MCP and REST, under your own RLS"| SB
-    W -->|"telemetry + completion outcomes"| D1["<b>Cloudflare D1</b><br/>pseudonymous AI-call + completion log<br/>no public write path"]
-    W -->|"scrapbook images"| R2["<b>Cloudflare R2</b> · doubledone-scrapbooks<br/>keepsake images, served by URL"]
-    W -->|"AI"| AN["<b>Anthropic Claude</b> (tiered)<br/>Haiku · Sonnet"]
+flowchart LR
+    App["Expo app: iOS, Android, web"]
+    Local[("On-device store, local-first")]
+    SB["Supabase: email-code sign-in, Postgres with RLS"]
+    W["Cloudflare Worker: api.doubledone.app"]
+    AI["Anthropic Claude: Haiku 4.5, Sonnet 4.6"]
+    CF["D1, R2, KV and Workers AI"]
+    Pay["Stripe and RevenueCat (App Store, Google Play)"]
+    Agents["AI agents and scripts"]
+
+    App --> Local
+    App -->|"optional sync"| SB
+    App -->|"AI, billing, push"| W
+    W --> AI
+    W --> CF
+    W -->|"the user's own token, under RLS"| SB
+    Pay -->|"verified webhooks"| W
+    Agents -->|"MCP · REST API"| W
 ```
 
-*Web: Cloudflare Pages → [doubledone.app](https://doubledone.app) (auto-deploy on push). Android: Expo EAS. The client never holds the Anthropic key; the Worker does.*
+The web build is served by Cloudflare Pages, and the store builds come from EAS. The full picture, with every route, table and data flow, is in [docs/architecture.md](docs/architecture.md).
 
-The client never talks to Anthropic directly: the Worker is the only thing that holds the key. The Supabase publishable key is safe in the client; the `service_role` key is never used. The AI telemetry lives in a Worker-bound Cloudflare D1 database with no public write path and no user identity, so it cannot be written (or read) through any public API. The MCP server holds no elevated key either: it acts only with the user's own token, under the same RLS.
+## Tech stack
 
-## Stack
+| Layer | Choice |
+|---|---|
+| App | Expo SDK 56, React Native 0.85, React 19, expo-router, TypeScript |
+| Local store | AsyncStorage (localStorage on the web) |
+| Accounts and sync | Supabase Auth with a six-digit email code, Postgres with row-level security |
+| Server | One Cloudflare Worker, with `jose` for token verification and `@cloudflare/workers-oauth-provider` for MCP sign-in |
+| Server data | Cloudflare D1 (telemetry, outcomes, entitlements, push), R2 (keepsake images), KV (OAuth) |
+| AI | Anthropic Claude Haiku 4.5 and Sonnet 4.6, with forced tool use on every route that returns structured data. Workers AI draws the keepsake image (FLUX.1 schnell), with Llama 3.2 3B as a fallback scene writer. |
+| Payments | Stripe on the web. RevenueCat for Apple in-app purchase and Google Play Billing. |
+| Notifications | `expo-notifications` on phones, Web Push (VAPID) on the web |
+| Hosting and builds | Cloudflare Pages for the web. EAS Build for iOS and Android, EAS Submit for iOS. |
+| Quality | Vitest, ESLint, `tsc`, gitleaks, GitHub Actions |
 
-| Layer | Choice | Why |
-|---|---|---|
-| Client | React Native + Expo (SDK 56), expo-router | One codebase to native Android **and** web; native notifications for the retention loop |
-| Local store | AsyncStorage | Local-first, anonymous-first; the app is fully usable with no account |
-| Sync DB | Supabase Postgres + row-level security | Privacy by architecture (every row scoped to its owner); Postgres fits the Lookback and flywheel queries |
-| Auth | Supabase passwordless email OTP | No passwords stored; the lowest-friction account |
-| AI backend | Cloudflare Worker | Holds the Anthropic key server-side; cheap, global, fast cold starts |
-| AI models | Claude, tiered: Haiku (triage, clarify, split, tiny, ocr, energy) · Sonnet (plan, decompose, strategise, chart, sequence, lookback-summary) | Match model cost to task; stay under a hard $25/mo cap, watched hourly by the control centre |
-| AI contract | Forced tool-use + enum-constrained JSON schemas, defensive parsing | Reliable structured output; a malformed response never crashes a screen |
-| Moat telemetry | Cloudflare D1 (`ai_calls`), Worker-bound, no `user_id` | Pseudonymous capture of every AI call for the flywheel; no public write path |
-| Premium delight | Cloudflare Workers AI (scene → image) | The AI scrapbook, on free-tier neurons, no Anthropic spend |
-| Image storage | Cloudflare R2 (`doubledone-scrapbooks`) | Durable scrapbook keepsakes served by URL; the heavy image lives off the localStorage quota |
-| Agent + developer surface (AX + DX) | MCP server (`/mcp`, nine tools, JWT or OAuth 2.1) + a public REST API (`/api/v1`, OpenAPI 3.1 + Swagger UI), bearer-token | Agents and scripts drive tasks under the user's own RLS, no elevated key; both share the `buildRecurrence` cadence engine |
-| Tests | Vitest, co-located, risk-targeted | Logic + the AI request **contract** are tested (mock the SDK, assert the shape); no live AI calls in CI |
-| Quality gate | golden-path harness (pre-commit Inspector, gitleaks, CI) | The whole safety net for a solo build |
-| Hosting | Cloudflare Pages (web, auto-deploy) · Expo EAS (Android, on a paid Expo plan since July 2026) | SPA web output; the Play AAB plus a sideloadable APK |
+## Repository layout
 
-## Notable decisions
+```
+client/              Expo app: iOS, Android and web from one codebase
+  src/app/           expo-router screens (index is the web landing page, today is the home screen)
+  src/components/    UI pieces such as CaptureSheet, TaskRow, BreakdownReview and Bloom
+  src/lib/           pure logic with co-located tests, plus the platform-split files
+  src/lib/catalogs/  the five language catalogues
+  src/widget/        the Android home-screen widget
+  public/            static web files: privacy, terms, manifest, service worker, version.json
+server/              the Cloudflare Worker, doubledone-ai
+  src/               routes, AI prompts, billing, MCP, REST API and the monitor, tests beside each file
+  d1/                the D1 schema and its one-off migration
+  wrangler.jsonc     bindings, rate limits and the hourly cron
+supabase/            Postgres schema and RLS, the shared-list SQL, auth setup notes
+scripts/             screenshots, store assets, web meta, version stamp, migration check, test-suite generator
+docs/                product, architecture, API, MCP, operations, QA and store material
+patches/             a patch-package fix for expo-notifications
+.githooks/           the pre-commit Inspector and a commit-msg reminder
+.github/workflows/   CI and the web deploy
+```
 
-The full why-trail is in [`decision-log.md`](decision-log.md); the headline calls:
+## Running it locally
 
-- **Never shame the backlog.** Celebrate closing a task, never punish one for existing. With rejection-sensitive dysphoria, guilt mechanics are fatal. This is the one rule that cannot break, and it shapes every screen (no overdue-red, no nagging, undone work rolls forward quietly).
-- **Propose-then-accept for any AI that rearranges your day.** Strategise and the Break-it-down review never silently change your list; you always confirm.
-- **Capture is the exception:** triage applies directly with no review step, because the capture surface must be friction-free above all.
-- **The moat, instrumented from day one.** Log every AI call pseudonymously before there is any data to use, so the flywheel is real, not retrofitted.
-- **Phased breakdown over a flat dump.** A big task returns a roadmap; only phase one is broken into steps now; later phases are re-decomposed when reached rather than pre-generated and stored (no stale steps, no schema migration).
-- **Break-it-down keeps the real task, it never flattens it.** The original becomes a silent background parent and the steps chain to it, so finishing the steps finishes the whole task. The alternative, replacing the task with its steps, loses the dreaded thing the user actually has to finish, which is the exact trap this audience falls into.
-- **Routines and Rhythms keep no streak, by data shape.** A routine stores only each step's last-ticked date, and a Rhythm stores no count, no streak and no history at all, so there is nothing to break and nothing to feel guilty about. The never-shame rule is in the model, not just the copy.
-- **Exact alarms, the honest lane.** Nudges declare `SCHEDULE_EXACT_ALARM` with a calm user-granted "Allow alarms & reminders" door, never the auto-granted `USE_EXACT_ALARM` that Play policy reserves for alarm and calendar apps. A nudge you asked for should arrive on time, and the permission story should survive review.
-- **The keepsake's caption is pixels, not attached text.** The scrapbook share is exactly one jpeg with the caption baked in, because receiving apps freely drop attached share text but nobody can strip words that are part of the picture.
-- **Date maths on-device, not in the model.** The AI orders the steps; the client computes the dates. Deterministic and cheap.
-- **Privacy by architecture.** Local-first, anonymous-first; the only PII is an email, and only if you sync; RLS isolates every row; the AI key lives only in the Worker.
-- **Remove friction, never add a setting.** Light-first, no theme toggle to forget, defaults that just work. The retention bar is "is an ADHD person still opening this in week six".
+You need Node 22, the version CI uses (the repo itself pins none), and npm. [gitleaks](https://github.com/gitleaks/gitleaks) is optional but recommended, because the pre-commit Inspector runs it when it is installed. Python 3 is needed only for the scripts in `scripts/` that end in `.py`.
 
-## v2 roadmap (consciously parked)
-
-v1 is complete and live. These are deliberately deferred, each with a **trigger** for when it earns a place (the full list, with reasoning, is in [`BUILD-PLAN.md`](BUILD-PLAN.md)):
-
-- **Native sign-off for the translations.** The full UI sweep shipped 2026-07-04 (721 keys, every screen through the typed `t()` layer, region-aware dates, the Android 13+ per-app language picker), and the AI already answers in the user's language. Italian, Spanish and French ship as drafts behind per-key English fallback until each native review lands. *Trigger: each reviewer's availability.*
-- **"Other users took about X days" estimate**, the moat's user-facing payoff. Both halves of the flywheel are instrumented (the decomposition offered, and an anonymised completion ping); the surface stays an honest *derived* estimate until there's enough real cross-user volume. *Trigger: enough volume.*
-- **Web-push delivery for Rhythms.** Native local notifications with exact alarms are the launch mechanism; cross-device web-push delivery on the Worker's hourly cron is designed and parked. *Trigger: native Rhythms have real usage and web users ask.*
-- **Higher-tier planners beyond the current premium set**, scoped against the spine so they never turn Today into an everything-bucket. *Trigger: a real need the spine can absorb.*
-- **The Play Store rollout: DONE.** versionCode 11 submitted and live on Google Play (2026-07-12).
-- **iOS and the App Store.** The codebase is iOS-ready (platform-split seams throughout) and TestFlight groundwork has begun, but Premium sells via Stripe, so an App Store release waits on an In-App-Purchase strategy decision first. *Trigger: the Android launch lands; never both launches in flight at once.*
-
-*Graduated out as they shipped: the full UI design pass and the marketing landing, the guided first-run, the completion-telemetry flywheel, **Stripe Premium (live)** with the 30-day trial and the annual plan, the **launch control centre**, the **ADHD product seam** (Make-it-tiny, the silent-parent chain, the low-capacity day, the wind-down, Routines), **talk-to-capture**, the **public REST API**, the full **multi-language sweep** (2026-07-04), data export, in-app feedback, the privacy policy and **Terms**, AI-endpoint lockdown, and, in the 2026-07-12 release, **Rhythms** with minutes-granular cadence and exact-alarm delivery, the **Quiet interface**, **energy matching**, **share-to-capture**, the **keepsake page**, and **cross-device scrapbooks and big marks**. Items leave here as they land.*
-
-## Run it
+From the repo root (an npm workspaces monorepo, so one install covers `client/` and `server/`):
 
 ```bash
-npm install      # from the repo root; npm workspaces installs client/ too
-npm run dev      # Expo on web, opens at the printed localhost URL
-npm test         # vitest (logic + AI request-contract), non-interactive
-npm run typecheck && npm run lint
+npm install          # installs both workspaces and applies the patches
+npm run setup        # turns on the git hooks in .githooks/
+npm run dev          # the web app, at http://localhost:8081
+npm run android      # Expo on an Android emulator or device
 ```
 
-> Native Android: `npm run android` (needs Android Studio or a connected device). Config is via env; see [`.env.example`](.env.example). The app runs fully local with no keys set; Supabase keys enable sync, and the AI features call the deployed Worker.
+For iOS, run `npm --workspace client run ios` on a Mac.
 
-> Screenshots: `npm run shots` regenerates [`docs/screenshots/`](docs/screenshots) by driving the running dev server in headless Chrome and seeding each state via `localStorage` (deterministic, no clicking through flows). See [`scripts/screenshots.mjs`](scripts/screenshots.mjs); it uses the system Chrome (no browser download) and makes one free Workers-AI call for the scrapbook image (`AI_OFF=1` to skip it). Add a screen by adding a `SHOTS` entry.
+The same gates the Inspector and CI run, from the root:
 
-## Deploy it
+```bash
+npm test             # client, then server
+npm run typecheck    # client, then server
+npm run lint         # client
+npm run test:coverage
+```
 
-| Target | How |
+**Client config.** Copy [`.env.example`](.env.example) to `client/.env`. With nothing set, the app runs fully local with no account, and the AI features call the live Worker. The keys the code reads:
+
+- `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` turn on sign-in and sync.
+- `EXPO_PUBLIC_AI_URL` points at a different Worker (it defaults to `https://api.doubledone.app`).
+- `EXPO_PUBLIC_VAPID_KEY` overrides the web push public key.
+- `EXPO_PUBLIC_RC_IOS_KEY` and `EXPO_PUBLIC_RC_ANDROID_KEY` are the RevenueCat public SDK keys for the store builds.
+- `EXPO_PUBLIC_PREMIUM_DEV=true` shows the Settings Premium override in a preview build. Development builds always show it, and production never sets it.
+
+Every `EXPO_PUBLIC_` value is bundled into the app, so none of them is a secret. `EXPO_PUBLIC_APP_NAME`, `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` and `LOG_LEVEL` are in the example file but not read by the code today.
+
+**The Worker.** `npm run dev -w server` runs it with `wrangler dev`. Local secrets go in `server/.dev.vars`, which is gitignored, and Workers AI only runs with `--remote`. The core secrets are `ANTHROPIC_API_KEY`, `SUPABASE_URL` and `SUPABASE_ANON_KEY`. Billing uses `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RC_WEBHOOK_AUTH`, `RC_WEBHOOK_HMAC` and `RC_SECRET_KEY`. MCP sign-in uses `MCP_GRANT_KEY`, web push uses `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT`, and operations use `FEEDBACK_TO`, `HEARTBEAT_URL` and `ANALYTICS_TOKEN`. `COMP_EMAILS` and `SANDBOX_GRANT_UIDS` are optional allowlists (complimentary Premium, and test purchases that may grant it). Bindings, vars and rate limits live in [`server/wrangler.jsonc`](server/wrangler.jsonc). To point the app at a local Worker, set `EXPO_PUBLIC_AI_URL` to the address `wrangler dev` prints. The Worker accepts browser calls from `http://localhost:8081`.
+
+**Databases.** The D1 schema is [`server/d1/schema.sql`](server/d1/schema.sql), applied with `npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --file d1/schema.sql`. The Supabase files in [`supabase/`](supabase) are applied by hand in the SQL editor, and `python scripts/check-migrations.py` reports which of them are live without writing anything.
+
+## Testing and quality gates
+
+- **1,918 automated tests in 102 files**, all passing on 5 October 2026: 1,230 client tests in 65 files and 688 server tests in 37 files, run with Vitest. Client tests cover pure logic, and the AI request contract is tested against mocked calls, so CI never calls a live model.
+- **Coverage floors**, enforced in CI: 90% lines, functions and statements and 85% branches on `client/src/lib`, and 70% lines and statements, 85% functions and 73% branches on the server ([client config](client/vitest.config.ts), [server config](server/vitest.config.ts)).
+- **Typecheck is a hard gate** for both workspaces. [`platform-split.contract.ts`](client/src/lib/platform-split.contract.ts) fails it when an iOS or Android file drifts from its base, and [`schema-drift.test.ts`](client/src/lib/schema-drift.test.ts) keeps the SQL that lives in two files in step.
+- **The pre-commit Inspector** ([`.githooks/pre-commit`](.githooks/pre-commit)) runs lint, typecheck, the tests and a secret scan, plus gitleaks when it is installed. The house rule is never to skip it with `--no-verify`.
+- **CI** ([`ci.yml`](.github/workflows/ci.yml)) runs on every push and pull request to `main`: lint, typecheck, tests with coverage, a full-history gitleaks scan, and a web export that checks the injected page meta and the stamped version.
+- **A manual end-to-end suite of 477 cases** (225 P1, 212 P2, 40 P3) in [`docs/qa/`](docs/qa), generated from [`scripts/gen-test-suite.py`](scripts/gen-test-suite.py). The house rule is that every user-facing feature adds its cases there in the same commit.
+
+What is tested and why is in [docs/testing.md](docs/testing.md). The build discipline behind all this is in [PLAYBOOK.md](PLAYBOOK.md).
+
+## Releases
+
+- **Web.** Every push to `main` runs [`deploy-web.yml`](.github/workflows/deploy-web.yml): an Expo web export, the page meta injected by [`scripts/inject-web-meta.mjs`](scripts/inject-web-meta.mjs), the version stamped by [`scripts/stamp-version.mjs`](scripts/stamp-version.mjs), then a Cloudflare Pages deploy. The deploy does not wait for CI, so the local Inspector is the gate before a push.
+- **Stores.** EAS Build makes the iOS build and the Android app bundle from `client/` with the `production` profile in [`client/eas.json`](client/eas.json). EAS holds the build numbers and increments them. iOS goes through EAS Submit to TestFlight and App Review. The Android bundle is uploaded to a Play testing track first, then promoted to Production. Store notes for recent releases live in [`docs/release-notes/`](docs/release-notes).
+- **The update nudge** reads [`client/public/version.json`](client/public/version.json). The `web` value is stamped at deploy, so the committed one is a placeholder. The `ios` and `android` values are raised by hand once a release is live in that store.
+- **The Worker** is deployed by hand with `npx wrangler deploy` from `server/`, before any client that calls a new route.
+
+## Privacy and security
+
+DoubleDone is local-first and anonymous by default: with no account, your list lives on your device. Signing in (an email and a six-digit code, no password) turns on sync, and row-level security scopes every personal row to its owner and every shared list to its two members. AI features run only when you tap them, send only the text you chose, and can be switched off entirely. The Anthropic key never leaves the Worker. The Worker keeps a pseudonymous log of AI calls (the input text, with no user id or IP address), counts feature use as daily totals, and verifies each bearer token's signature before it acts on an account. The plain-English [privacy policy](https://doubledone.app/privacy) sets out what leaves the device and when, [SECURITY.md](SECURITY.md) explains how to report a vulnerability, and [docs/architecture.md](docs/architecture.md) has the detail.
+
+## Documentation
+
+| Document | What it covers |
 |---|---|
-| Web | `git push` → GitHub Actions builds and deploys to Cloudflare Pages ([doubledone.app](https://doubledone.app)) |
-| AI Worker | `npx wrangler deploy` from `server/` (holds the Anthropic key + Supabase telemetry config as Worker secrets) |
-| Android | `eas build -p android --profile production` for the Play AAB (versionCode 11 is the live cut); `--profile preview` for a sideloadable APK |
-| Supabase | schema-as-code in [`supabase/schema.sql`](supabase/schema.sql); migrations run in the SQL editor |
+| [docs/README.md](docs/README.md) | The index of everything in `docs/` |
+| [docs/architecture.md](docs/architecture.md) | The solution architecture: components, routes, data stores and flows |
+| [docs/api.md](docs/api.md) | The public REST API, `/api/v1`, with OpenAPI 3.1 and Swagger UI |
+| [docs/mcp.md](docs/mcp.md) | The MCP server: both sign-in paths, the nine tools, connecting an agent |
+| [docs/testing.md](docs/testing.md) | The testing strategy, the gates and the manual suite |
+| [docs/operations.md](docs/operations.md) | Running the live service: the monitor, billing runbooks, releases |
+| [docs/product-spec.md](docs/product-spec.md) | What DoubleDone is, who it is for, and why it is shaped this way |
+| [decision-log.md](decision-log.md) | The why-trail, including what was decided against |
+| [CHANGELOG.md](CHANGELOG.md) | Notable changes by release |
+| [SECURITY.md](SECURITY.md) | Reporting a vulnerability, and how data is protected |
+| [docs/qa/](docs/qa) | The manual end-to-end suite |
 
-## Files
+## Licence
 
-```
-client/                     Expo app (Android + web, one codebase)
-  src/app/                  expo-router screens
-    index.tsx               Today: the home screen + every flow's orchestration
-    welcome.tsx             the guided first-run (redirected to once; replayable from Settings)
-    lookback.tsx            the calendar payoff
-    routines.tsx            morning / evening checklists + Rhythms (never a streak)
-    repeating.tsx           the Repeating room: every repeating series, grouped by rhythm
-    sign-in.tsx             passwordless email-OTP sign-in
-  src/components/           CaptureSheet (the + pill and its panel) · BrainDump · TaskRow
-                            BreakdownQuestions · BreakdownReview · DatePicker · MarqueeText · CadenceSheet
-  src/lib/                  pure, unit-tested logic (+ co-located *.test.ts)
-    tasks · today · recurrence · slices · spread · calendar · reward · estimate
-    day · sync · sync-merge · storage · ai · telemetry · reminders · nudge · routines · supabase · auth
-    energy · inbound · share · scrapbook · scrapbook-sync
-  src/constants/theme.ts    the calm design tokens
-server/                     Cloudflare Worker (the only thing that holds the AI key)
-  src/index.ts              routes: /clarify /plan /decompose /triage /strategise /split /tiny /energy /scrapbook /mcp · public REST API (/api/v1) /health
-  src/{clarify,plan,decompose,triage,strategise,split,tiny,energy}.ts   per-route prompt + request/response shaping
-  src/scrapbook.ts          the Workers-AI still-life pipeline (the scrapbook)
-  src/mcp.ts                the task MCP server (bearer-token, proxies to Supabase under RLS)
-  src/{api,openapi}.ts      the public REST API + its OpenAPI spec (same token, same RLS)
-  src/telemetry.ts          pseudonymous AI-call logging → Cloudflare D1
-  d1/schema.sql             the D1 telemetry schema
-supabase/schema.sql         tasks + RLS (the ai_calls table is superseded by D1)
-docs/                       product-spec · case-study · testing · mcp · qa/ · lessons-for-next-project
-decision-log.md             the contemporaneous why-trail
-BUILD-PLAN.md               where we are, what is next, the triggered backlog
-PLAYBOOK.md                 the reusable build discipline (golden-path)
-```
+MIT. See [LICENSE](LICENSE). Copyright (c) 2026 Melroy D'Souza.
 
-## Further reading
+## Who built it
 
-| Doc | What it is |
-|---|---|
-| [`docs/case-study.md`](docs/case-study.md) | The PM narrative: the pivot, the spine, the moat, the never-shame calls, the discipline of stopping |
-| [`docs/build-journal.md`](docs/build-journal.md) | The engineering complement: stack rationale, architecture, the sync/AI/privacy mechanics, the testing and golden-path discipline, and the gotchas |
-| [Privacy policy](https://doubledone.app/privacy) · [Terms](https://doubledone.app/terms) | Plain-English: local-first, email is the only PII, AI egress and the control-centre alerts disclosed, nothing sold; plus the Terms of Service and refund policy. Both in-app via Settings |
-| [`docs/product-spec.md`](docs/product-spec.md) | The full v1 spec: spine, core loop, tiered features, the moat, monetisation |
-| [`docs/cost-analysis.md`](docs/cost-analysis.md) | What it costs to run, modelled at 100 / 1k / 10k / 100k users; where the money goes |
-| [`docs/commercialisation.md`](docs/commercialisation.md) | The commercial story: value prop, monetisation, unit economics, growth loops, success metrics |
-| [`docs/mcp.md`](docs/mcp.md) | The MCP server: endpoint, the two auth paths (JWT and OAuth 2.1), the nine tools, and connecting an agent |
-| [`docs/api.md`](docs/api.md) | The public REST API: `/api/v1`, the OpenAPI 3.1 spec + Swagger UI, token auth, and example calls |
-| [`docs/qa/`](docs/qa) | The end-to-end manual test suite (fillable `.xlsx` + readable `.md`) |
-| [`decision-log.md`](decision-log.md) | The why-trail, written as the work happened, including what was decided **against** |
-| [`BUILD-PLAN.md`](BUILD-PLAN.md) | Where we are, the staged sequence, and the triggered backlog |
-| [`docs/lessons-for-next-project.md`](docs/lessons-for-next-project.md) | Portable takeaways |
-| [`docs/testing.md`](docs/testing.md) | The risk-targeted testing strategy |
-| [`PLAYBOOK.md`](PLAYBOOK.md) · [`CLAUDE.md`](CLAUDE.md) | The build discipline, and working notes for any session touching this |
-
-## Provenance
-
-Built on the [golden-path](https://github.com/melroyds/golden-path) harness. Second portfolio piece, after [ParkProof](https://github.com/melroyds/parkproof). Chronoloria, its richer unpublished sibling, was the first cut of the same instinct; DoubleDone is the leaner, shipped version. Solo, by Melroy D'Souza, Melbourne, 2026. MIT licensed.
+DoubleDone is built and run by Melroy D'Souza in Melbourne. He does not have ADHD himself. He built it out of care for people he works with, has managed and is friends with who have ADHD and OCD, and that closeness shapes every calm, shame-free decision in it.

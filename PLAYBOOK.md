@@ -72,11 +72,11 @@ The layer most solo projects skip and regret. Don't rely on a careful brain; rel
 A test suite is a promise to future-you: *"if you change this, you'll be told if you broke
 something the user cares about."* More than that is overhead; less is theatre.
 
-- Test the **5–6 surfaces that would actually hurt a user**: time/date math (DST, midnight
+- Test the **5 or 6 surfaces that would actually hurt a user**: time/date math (DST, midnight
   wrap), storage/quota recovery, distance/geo, money math, the AI request contract.
 - **Co-locate tests** (`thing.ts` + `thing.test.ts`) so the test shows up in the same diff
   as the change.
-- ~100–150 cases across 5–6 files is the right size for an MVP. More is anti-portfolio.
+- About 100 to 150 cases across 5 or 6 files is the right size for an MVP. More is anti-portfolio.
 - **Don't** test component rendering, snapshots, trivial getters, or live API calls.
 - **A seeded state must satisfy every render gate, not just provide data.** When the app
   gains an app-level gate (onboarding, auth, a paywall), every screenshot/test fixture must
@@ -123,8 +123,8 @@ Treat the model like a structured-data API, and the system prompt like a contrac
 - **A rollback playbook in CLAUDE.md** `[1]`, symptom → first-check → fix, with exact revert
   commands and a list of what *can't* be rolled back. The first time you need it is the
   worst time to write it.
-- **Smoke-test the real production URL on a real device** before declaring launch done `[1]`
- , incognito, every user flow. localhost hides CORS, auth-callback, and cache bugs.
+- **Smoke-test the real production URL on a real device** before declaring launch done `[1]`:
+  incognito, every user flow. localhost hides CORS, auth-callback, and cache bugs.
 
 ## 6. Docs in three tiers `[0→1]`
 
@@ -181,13 +181,13 @@ down. Codified, stack-agnostic, in [AUDIT-SUITE.md](AUDIT-SUITE.md).
 [0] CI workflow green (even with one trivial test), badge in the README
 [0] gitleaks installed locally + the secret-scan CI job on
 [0] Telemetry log prefix decided (e.g. [app.event {}]) before the first feature
-[0] Risk list written: the 5–6 surfaces that hurt users if they break → one test file each
+[0] Risk list written: the 5 or 6 surfaces that hurt users if they break → one test file each
 [0] Budget/cost alarm set before any traffic
 [0] Build-journal Day-1 entry written the same day
 [1] Coverage gate on · multi-stage CI (build/security) · rollback playbook in CLAUDE.md
 [1] Feedback channel shipped BEFORE you announce
 [1] Pre-launch smoke test on the real prod URL, real device, incognito
-[1] App-ready audit suite run before launch (AUDIT-SUITE.md) — the Tier-1 set, minimum
+[1] App-ready audit suite run before launch (AUDIT-SUITE.md): the Tier-1 set, minimum
 [2] develop/feature branches · CONTRIBUTING · PR template · CHANGELOG · SECURITY.md
 ```
 
