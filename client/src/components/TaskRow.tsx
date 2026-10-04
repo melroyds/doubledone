@@ -57,6 +57,7 @@ type Props = {
   onRename?: (title: string) => void; // held-state: tap the card's title to edit it in place (trim/no-op rules live in lib/today renameTask)
   leftOff?: LeftOff | null; // "Where you left off" (2026-10-04): this task's own line. The caller passes it only for a task that may carry one
   onSaveEdit?: (title: string, line: string, announce: boolean) => void; // present = this task may carry a line: the editor gains the second field and saves title AND line as ONE write (two would clobber); `announce` = "Noted." may play
+  onEditorFocus?: (field: TextInput | null) => void; // the open editor took focus: the screen scrolls its line field above the keyboard (native)
   onSteps?: () => void; // held-state: open the "track in steps" editor (split or re-size)
   onMoveTo?: () => void; // held-state: move this one task to a day of its own
   onDoneOn?: () => void; // held-state, DONE tasks only: attribute the finish to the earlier day it happened
@@ -146,6 +147,7 @@ export function TaskRow({
   onRename,
   leftOff,
   onSaveEdit,
+  onEditorFocus,
   onSteps,
   onMoveTo,
   onDoneOn,
@@ -592,7 +594,10 @@ export function TaskRow({
               onSubmitEditing={eligible ? () => lineRef.current?.focus() : saveTitle}
               blurOnSubmit={!eligible}
               submitBehavior={eligible ? 'submit' : 'blurAndSubmit'}
-              onFocus={() => setFocusedField('title')}
+              onFocus={() => {
+                setFocusedField('title');
+                onEditorFocus?.(lineRef.current ?? titleRef.current);
+              }}
               onBlur={eligible ? onFieldBlur : saveTitle}
               autoFocus={!eligible || openOn === 'title'}
               returnKeyType={eligible ? 'next' : 'done'}
@@ -607,7 +612,9 @@ export function TaskRow({
             />
             {eligible && (
               <View style={styles.leftOffFieldRow}>
-                <LeftOffMark color={theme.colors.inkSoft} size={16 * theme.scale} />
+                <View style={styles.leftOffFieldMark}>
+                  <LeftOffMark color={theme.colors.inkSoft} size={16 * theme.scale} />
+                </View>
                 <TextInput
                   ref={lineRef}
                   value={editingLine ?? ''}
@@ -621,7 +628,10 @@ export function TaskRow({
                   blurOnSubmit
                   submitBehavior="blurAndSubmit"
                   returnKeyType="done"
-                  onFocus={() => setFocusedField('line')}
+                  onFocus={() => {
+                    setFocusedField('line');
+                    onEditorFocus?.(lineRef.current);
+                  }}
                   onBlur={onFieldBlur}
                   autoFocus={openOn === 'line'}
                   placeholder={t('leftOff.placeholder')}
@@ -681,7 +691,9 @@ export function TaskRow({
             }
             accessibilityHint={t('leftOff.hintA11y')}
           >
-            <LeftOffMark color={theme.colors.inkSoft} size={16 * theme.scale} />
+            <View style={styles.leftOffLineMark}>
+              <LeftOffMark color={theme.colors.inkSoft} size={16 * theme.scale} />
+            </View>
             <View style={styles.leftOffColumn}>
               <Text style={styles.leftOffWords} numberOfLines={2} ellipsizeMode="tail">
                 {leftOff.text}
@@ -1224,6 +1236,10 @@ const makeStyles = (t: Theme) => {
     // under a 22pt serif, never by a colour that fails: inkSoft on the card face, ink on the Quiet wash.
     leftOffLine: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.two, paddingHorizontal: spacing.two, minHeight: 44, paddingTop: spacing.one, marginBottom: spacing.one },
     leftOffColumn: { flex: 1, minWidth: 0, gap: spacing.half },
+    // The mark centres on the FIRST line of the words beside it (21 tall), not on the whole block, so a line
+    // that wraps keeps its mark beside its first words. The field's own top padding moves its first line down.
+    leftOffLineMark: { height: 21 * t.scale, justifyContent: 'center' },
+    leftOffFieldMark: { height: 21 * t.scale, marginTop: spacing.one, justifyContent: 'center' },
     leftOffWords: { fontFamily: fonts.body, fontSize: 15 * t.scale, lineHeight: 21 * t.scale, color: t.appearance === 'quiet' ? t.colors.ink : t.colors.inkSoft },
     leftOffDate: { ...t.type.caption, color: t.appearance === 'quiet' ? t.colors.ink : t.colors.inkSoft },
     leftOffFieldRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.two, paddingHorizontal: spacing.two, marginTop: spacing.three - spacing.half },
