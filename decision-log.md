@@ -9136,7 +9136,9 @@ a press, so each action is wired directly).
    says, and it takes the child's line. Widened by the review (below) from "flag unknown" to "not known
    tiny": an older store build never writes `open_parent`, so a synced `false` is not proof. The cost: a
    real one-step breakdown no longer finishes itself on the tick, the big task comes back and is ticked by
-   hand. Bringing back a task is recoverable; silently finishing one is not.
+   hand. Bringing back a task is recoverable; silently finishing one is not. **Confirmed by Melroy (same night,
+   "Keep it"):** the safe rule stays, and the revert to trusting a known breakdown is parked in the Backlog
+   with its trigger (1.8.0 live on both stores for 8 weeks, old installs nudged throughout).
 4. **Telemetry: three bare names** (`leftoff.saved.card`, `leftoff.saved.focus`, `leftoff.cleared`), in both
    allowlists and the privacy policy, never a word or a length. **The reading, pre-decided:** four weeks after
    the store build, saves on fewer than a quarter of the days means it stays as it is and none of Tier 2 is
