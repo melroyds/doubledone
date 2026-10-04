@@ -1273,9 +1273,11 @@ export default function TodayScreen() {
   // point: the page keeps its height, so it can never lurch back to the top the way the
   // old mode-flip did (that hid the day actions, shortened the page, and the ScrollView
   // clamped to 0). Bulk is a door you walk through, not a room you get thrown into.
+  // (Opening a card is counted by TaskRow itself as card.opened, and only when the card has a More
+  // fold, so the count shares card.more's condition on every surface. hold.opened, which counted here,
+  // missed the From-Ours strip and counted foldless cards: retired 2026-10-04.)
   function onRowLongPress(id: string) {
     setConfirmingId(id);
-    track('hold.opened');
   }
   // Reorder eligibility: an open, unpinned task (the pin owns the very top by other means).
   function canReorder(task: Task, day: Date): boolean {
@@ -1570,6 +1572,9 @@ export default function TodayScreen() {
   // Close the day: a calm wrap, not a mechanical reset. Undone tasks already roll
   // forward on their own, so this is purely the closing ritual.
   function openClose() {
+    // A held card left open would otherwise sit under the close and come back open when the day is
+    // reopened (or the next morning), as if by itself.
+    setConfirmingId(null);
     setClosing(true);
     track('day.closed', { finished: todayDone.length });
   }
@@ -2305,12 +2310,8 @@ export default function TodayScreen() {
       setBdSteps(firstSteps.map((s, i) => ({ title: s.title, minutes: s.minutes, date: stepDates[i] ?? null })));
       setBdPhases(phases.slice(1).map((p, i) => ({ title: p.title, date: phaseStarts[i + 1] ?? null })));
       setBdPhase('review');
-      track('decomposition.offered', {
-        steps: firstSteps.length,
-        phases: phases.length,
-        spread: answers.spread,
-        hasDueDate: answers.dueDate != null,
-      });
+      // (No decomposition.offered here since 2026-10-04: the Worker's ai_calls row already holds the
+      // whole offered plan, so a console copy answered nothing.)
     } catch {
       setBdPhase('questions'); // stay put; the user can retry or dismiss
       setBdError(aiErrorLine(t('breakdown.planError')));
@@ -3830,7 +3831,9 @@ export default function TodayScreen() {
                     const now = nowMs();
                     const did: Task = { id: makeId(), title: note, done: true, createdAt: now, updatedAt: now, completedAt: now };
                     commit([...tasks, did]);
-                    track('offplan.logged', { at: 'close' });
+                    // Its own LOCAL name since 2026-10-04: offplan.logged now leaves the device as the
+                    // "+ I also did that" count, and the Goodnight note must not inflate that verdict.
+                    track('closeday.noted');
                   }
                   setCloseNote('');
                   setClosing(false);

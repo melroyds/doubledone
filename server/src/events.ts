@@ -4,8 +4,9 @@
 // was invisible to the Analytics Centre until this pipe existed.
 //
 // The posture is the STRICTEST of the telemetry family: a closed allowlist of event
-// names is all that can ever be stored. No user_id, no IP, no free text, no props
-// beyond the one boolean folded into a name. Anything off the list is accepted and
+// names is all that can ever be stored, as one count per name per day. No user_id, no IP,
+// no free text, no props beyond the few folded into a name (the guide's on/off, the
+// hold's rough stage, which Settings door). Anything off the list is accepted and
 // dropped (a 200 with no write), so probing the endpoint teaches nothing and an
 // older server never errors a newer client. Deliberately NOT collected: settle.left
 // (leaving the room), because enter+leave timestamps at low traffic could be paired
@@ -43,6 +44,15 @@ export const APP_EVENTS = new Set([
   'nudge.set',
   'bulk.big',
   'card.more',
+  // The telemetry review (2026-10-04). card.opened is card.more's denominator, fired by the card
+  // itself and only when it HAS a More fold, so the two count the same cards on every surface.
+  'card.opened',
+  // "+ I also did that", counted only until its keep-or-remove verdict (decision-log 2026-10-04).
+  'offplan.logged',
+  // The Menu's two ways into Settings (the corner sign, the shelf's line), folded from
+  // rooms.opened. Every other room is dropped.
+  'menu.settings.sign',
+  'menu.settings.shelf',
 ]);
 
 /** Normalise a raw client body to a storable event name, or null to drop it.
@@ -63,16 +73,27 @@ export function parseAppEvent(raw: unknown): string | null {
     if (typeof step !== 'number' || !Number.isFinite(step)) return null;
     name = `${name}.${step <= 1 ? 'first' : step <= 4 ? 'ladder' : 'days'}`;
   }
+  if (name === 'rooms.opened') {
+    const p = body.props as { room?: unknown; door?: unknown } | null | undefined;
+    if (p?.room !== 'settings' || (p.door !== 'sign' && p.door !== 'shelf')) return null;
+    name = `menu.settings.${p.door}`;
+  }
   return APP_EVENTS.has(name) ? name : null;
 }
 
-/** The INSERT + ordered bind params for one app event. Pure and unit-tested (the
- *  params are the contract surface), like aiCallStatement / outcomeStatement. */
+/** The upsert + ordered bind params for one app event: one counter per day per name, bumped
+ *  in place. Pure and unit-tested (the params are the contract surface). A counter rather than
+ *  a row per event (2026-10-04): rows in insertion order would let consecutive events (open a
+ *  card, open its fold, set a reminder) be read back as one person's session, which is finer
+ *  than the policy's "the feature's name and the day". */
 export function eventStatement(event: string): { sql: string; params: unknown[] } {
-  return { sql: 'INSERT INTO app_events (event) VALUES (?)', params: [event] };
+  return {
+    sql: "INSERT INTO app_event_counts (day, event, n) VALUES (date('now'), ?1, 1) ON CONFLICT (day, event) DO UPDATE SET n = n + 1",
+    params: [event],
+  };
 }
 
-/** Fire-and-forget D1 insert. Never throws: telemetry must never break a user
+/** Fire-and-forget D1 upsert. Never throws: telemetry must never break a user
  *  request. Skips cleanly when no D1 binding is present (tests / local dev). */
 export async function logAppEvent(env: EventsEnv, event: string): Promise<void> {
   if (!env.DB) return;

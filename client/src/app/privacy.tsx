@@ -22,12 +22,13 @@ export default function PrivacyScreen() {
         <BackLink fallback="/settings" />
 
         <Text style={styles.title}>Privacy</Text>
-        <Text style={styles.updated}>Last updated 1 October 2026.</Text>
+        <Text style={styles.updated}>Last updated 4 October 2026.</Text>
 
         <Text style={styles.lead}>
-          DoubleDone is built to need almost nothing from you. It runs on your device, and only three things ever leave
-          it: your tasks if you choose to sync, the text or photo you choose to send to an AI feature, and a bare
-          feature-usage count when you open certain features. This is the plain version of what each of those means.
+          DoubleDone is built to need almost nothing from you. It runs on your device, and the main things that ever
+          leave it are your tasks if you choose to sync, the text or photo you choose to send to an AI feature, and a
+          bare feature-usage count when you use certain features. The rest, such as what a purchase needs, has its
+          own section below. This is the plain version of what each of those means.
         </Text>
 
         <Section styles={styles} heading="On your device by default">
@@ -80,11 +81,20 @@ export default function PrivacyScreen() {
         </View>
 
         <Section styles={styles} heading="Feature-usage counts">
-          When you open certain features, currently the Settle breathing room, the Hold-me-to-it reminder contract (started, finished, or let go, and roughly how far along it was), and which of the task card’s tools get used (the button’s name only, never the task), the app tells our server the
-          feature&apos;s name (and, for the breathing guide, whether you switched it on or off) so we can count how often
-          it helps. That is the whole message: no account, no name, nothing you typed, and never how long you stayed.
+          When you use certain features, the app tells our server the feature’s name so we can count how often it
+          helps. Right now those features are the Settle breathing room (and whether you switched its breathing guide on
+          or off), the Hold-me-to-it reminder contract (started, finished, or let go, and how far along it was, which we
+          keep only as one of three rough stages), holding a task to open its card, which task tools get used (on the
+          card, in the capture box, or when several tasks are selected, by the button’s name only, never the task),
+          which of the Menu’s two ways into Settings you used, and “I also did that”. We count “I also did that” only
+          until we have decided whether it earns its place on Today, then we stop. That is the whole message: no
+          account, no name, nothing you typed, and never how long you stayed. (Older versions of the app also attach a
+          small detail to a few of these, such as which reminder time you picked; the server throws it away unstored.)
           Like any internet request it arrives from your network address, but the address is never stored with the
-          count; what we keep is the feature&apos;s name and the day, nothing finer. The server accepts a short fixed
+          count; what we keep is how many times each feature was used on each day, nothing finer. Our hosting provider
+          keeps short-lived backups of that table (up to 30 days) and a log of each request, which can include when it
+          arrived and the network address it came from (up to a week), for recovery and fault-finding. We do not use
+          either to study how anyone uses the app. The server accepts a short fixed
           list of names and drops everything else.
         </Section>
 

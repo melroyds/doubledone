@@ -84,7 +84,7 @@ export type Metric = {
   topEndpointsLastHour: { endpoint: string; calls: number }[];
   scrapbookToday: number;
   scrapbookMaxPerIp: number;
-  appEventsToday: number; // beacon rows today (app_events); 0 when the table is absent
+  appEventsToday: number; // beacon events today (SUM of app_event_counts); 0 when the table is absent
 };
 
 export type Alarm = { kind: string; title: string; detail: string };
@@ -141,8 +141,8 @@ export function evaluateAlarms(m: Metric): Alarm[] {
       title: `${m.appEventsToday} app-event beacons today`,
       detail:
         `Far above launch-normal for the feature-usage beacon (guard at ${THRESHOLDS.appEventsPerDay}/day). ` +
-        `Likely scripted POSTs to /event: the rows are unattributable by design, so consider a time-window delete ` +
-        `of app_events for the spam period before trusting the Settle counts again.`,
+        `Likely scripted POSTs to /event: the counts are unattributable by design, so consider deleting ` +
+        `that day's app_event_counts rows before trusting the Settle counts again.`,
     });
   }
 
@@ -315,11 +315,11 @@ async function gatherMetrics(db: D1LikeDatabase, capUsd: number, now: Date): Pro
     .bind(now.getTime() - 86_400_000)
     .first<{ mx: number }>();
 
-  // The beacon's volume, defensively: app_events may not exist yet (deploy-before-
-  // schema), and its created_at is DAY-coarse by design, so date('now') is the day.
+  // The beacon's volume, defensively: app_event_counts may not exist yet (deploy-before-
+  // schema), and it is one counter per day per name, so today's total is a SUM.
   let appEventsToday = 0;
   try {
-    const ev = await db.prepare("SELECT COUNT(*) AS n FROM app_events WHERE created_at >= date('now')").first<{ n: number }>();
+    const ev = await db.prepare("SELECT COALESCE(SUM(n), 0) AS n FROM app_event_counts WHERE day >= date('now')").first<{ n: number }>();
     appEventsToday = Number(ev?.n ?? 0);
   } catch {
     // table absent: nothing to guard yet

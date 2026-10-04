@@ -83,22 +83,25 @@ create table if not exists push_subs (
 -- The app-event beacon: pseudonymous usage counts for features that never touch the
 -- Worker on their own (Settle first: the breathing room is pure client, so unlike the
 -- AI features it would otherwise be invisible to the Analytics Centre). The STRICTEST
--- shape in this file: an event name and a timestamp, nothing else -- no user_id, no
--- IP, no free text -- and the /event route only stores names on a closed allowlist
--- (server/src/events.ts), dropping everything else unwritten. The timestamp is
--- DAY-COARSE on purpose (date, not datetime): settle.left is not collected AND
--- settle.guide fires mid-session, so second-precision rows could still pair into
--- rough durations at low traffic (the adversarial review's catch, 2026-08-01);
--- a bare date closes that channel structurally, and the Analytics Centre only ever
--- reads day windows anyway. "Time is not a score" holds here too. Apply once
--- (idempotent):
+-- shape in this file: a day, an event name and a count, nothing else -- no user_id, no
+-- IP, no free text, no row per event -- and the /event route only stores names on a
+-- closed allowlist (server/src/events.ts), dropping everything else unwritten.
+-- DAY-COARSE on purpose (2026-08-01): settle.left is not collected AND settle.guide
+-- fires mid-session, so second-precision rows could still pair into rough durations at
+-- low traffic. A COUNTER on purpose (2026-10-04): the old one-row-per-event table
+-- (app_events, autoincrement id) kept global insertion order, so consecutive rows
+-- (open a card, open its fold, set a reminder) read back as one person's session.
+-- WITHOUT ROWID so not even a hidden rowid records which name was first each day.
+-- "Time is not a score" holds here too. Apply once (idempotent):
 --   npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --file d1/schema.sql
-create table if not exists app_events (
-  id integer primary key autoincrement,
+-- The old app_events rows were folded in by d1/migrate-app-event-counts.sql and the
+-- table dropped; nothing here recreates it.
+create table if not exists app_event_counts (
+  day text not null,               -- date('now'), UTC
   event text not null,             -- one of the closed allowlist, e.g. 'settle.opened'
-  created_at text not null default (date('now'))
-);
-create index if not exists app_events_event on app_events (event, created_at);
+  n integer not null,
+  primary key (day, event)
+) without rowid;
 
 -- Stripe webhook idempotency: the set of event ids already applied to entitlements, so an at-least-once
 -- redelivery (Stripe retries, occasional duplicates) is a no-op. Written ONLY by the verified webhook

@@ -491,7 +491,7 @@ export default function SettingsScreen() {
                         setSettings({ themePreset: name });
                         track('theme.set', { theme: name });
                       } else {
-                        track('theme.locked');
+                        track('premium.gate_hit', { reason: 'theme' });
                         router.push({ pathname: '/premium', params: { from: 'theme' } });
                       }
                     }}

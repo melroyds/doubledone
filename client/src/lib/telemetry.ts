@@ -35,7 +35,32 @@ export const BEACON_EVENTS = new Set([
   'nudge.set',
   'bulk.big',
   'card.more',
+  // The telemetry review (2026-10-04). card.opened is card.more's denominator (TaskRow fires it only
+  // for a card that HAS a More fold, so the two count the same cards). offplan.logged is "+ I also
+  // did that", counted only until its keep-or-remove verdict. rooms.opened leaves the device only
+  // for Settings, as which of the Menu's two doors was used; every other room stays local.
+  'card.opened',
+  'offplan.logged',
+  'rooms.opened',
 ]);
+
+// What may ride WITH a beacon, per name. Everything else is stripped HERE, on the device, so the
+// policy's "the feature's name" is true of the request itself and not only of what the Worker keeps
+// (until 2026-10-04, nudge.set sent its preset and bulk.big its count, which the Worker then dropped).
+const BEACON_PROPS: Record<string, readonly string[]> = {
+  'settle.guide': ['on'],
+  'hold.completed': ['step'],
+  'hold.released': ['step'],
+  'rooms.opened': ['room', 'door'],
+};
+
+function beaconProps(name: string, props?: Record<string, unknown>): Record<string, unknown> | undefined {
+  const keep = BEACON_PROPS[name];
+  if (!keep || !props) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const k of keep) if (k in props) out[k] = props[k];
+  return Object.keys(out).length > 0 ? out : undefined;
+}
 
 export type TelemetryEvent = {
   name: string;
@@ -61,6 +86,7 @@ export function formatEvent(event: TelemetryEvent): string {
  */
 export function beaconRequest(name: string, props?: Record<string, unknown>): { url: string; init: RequestInit } | null {
   if (!BEACON_EVENTS.has(name)) return null;
+  if (name === 'rooms.opened' && props?.room !== 'settings') return null;
   if (typeof __DEV__ !== 'undefined' && __DEV__) return null;
   const base = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
   return {
@@ -68,7 +94,7 @@ export function beaconRequest(name: string, props?: Record<string, unknown>): { 
     init: {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, props }),
+      body: JSON.stringify({ name, props: beaconProps(name, props) }),
       keepalive: true,
     },
   };

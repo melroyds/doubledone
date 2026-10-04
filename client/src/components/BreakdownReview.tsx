@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { CheckCircle } from '@/components/CheckCircle';
@@ -50,13 +50,6 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
   const phaseCount = phaseRemoved.filter((r) => !r).length;
   const count = selected.filter((on, i) => on && !removed[i]).length + phaseCount;
   const days = paceDays(steps, phaseCount);
-
-  // Moat surface: log that a pace estimate was shown, with its day count (pairs
-  // with the decomposition.offered + step-completion telemetry that will, at
-  // scale, turn this into a real anonymised cross-user estimate).
-  useEffect(() => {
-    track('estimate.shown', { days });
-  }, [days]);
 
   function toggle(i: number) {
     setSelected((prev) => prev.map((v, idx) => (idx === i ? !v : v)));

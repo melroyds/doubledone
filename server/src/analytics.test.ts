@@ -22,8 +22,8 @@ function makeDb() {
     if (sql.includes('SELECT COUNT(*) AS n FROM outcomes')) return { n: 9 };
     if (sql.includes('days_elapsed')) return { d: 2 };
     if (sql.includes('scrapbook_log')) return { n: 3 };
-    if (sql.includes("FROM app_events WHERE event = 'settle.opened'")) return { n: 21, recent: 8 };
-    if (sql.includes('FROM app_events')) return [{ event: 'settle.opened', n: 8 }];
+    if (sql.includes("FROM app_event_counts WHERE event = 'settle.opened'")) return { n: 21, recent: 8 };
+    if (sql.includes('FROM app_event_counts')) return [{ event: 'settle.opened', n: 8 }];
     return null;
   };
   return {
