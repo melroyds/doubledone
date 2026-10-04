@@ -52,14 +52,18 @@ create table if not exists entitlements (
   cancel_at_period_end integer not null default 0,  -- 0/1, scheduled to cancel at the period end
   started_at text,                      -- ISO, first premium grant (the tenure clock)
   stripe_customer_id text,              -- cus_..., needed to open the billing portal (Stripe rows only)
-  source text,                          -- 'stripe' | 'apple' | null; null = a pre-2026-07 row, always Stripe
-  updated_at text not null default (datetime('now'))
+  source text,                          -- 'stripe' | 'apple' | 'google' | null; null = a pre-2026-07 row, always Stripe
+  updated_at text not null default (datetime('now')),
+  rc_event_ms integer,                  -- event_timestamp_ms of the last RevenueCat event applied (an older one never overwrites it)
+  rc_txn text                           -- original_transaction_id of the store subscription behind the live premium
 );
 -- For a DB created before these columns existed, add them once (errors harmlessly if
 -- already present):
 --   ALTER TABLE entitlements ADD COLUMN stripe_customer_id text;
 --   ALTER TABLE entitlements ADD COLUMN cancel_at_period_end integer not null default 0;
 --   ALTER TABLE entitlements ADD COLUMN source text;   -- null = stripe (every pre-2026-07 row)
+--   ALTER TABLE entitlements ADD COLUMN rc_event_ms integer;   -- 2026-10-04, the event-order guard
+--   ALTER TABLE entitlements ADD COLUMN rc_txn text;           -- 2026-10-04, which subscription a revoke is about
 
 -- Web Push subscriptions (Phase 2 of reminders): the browser's PushSubscription plus the
 -- user's preferred LOCAL nudge hour and tz offset, so a daily "your today is here" nudge

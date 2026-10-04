@@ -184,3 +184,50 @@ describe('writeEntitlement attachOnly: the reconcile never restates a live row',
     expect((await readEntitlement(db, 'u1')).status).toBe('past_due');
   });
 });
+
+// 2026-10-04: the order and which-subscription guards, at the writer, in real SQLite.
+describe('writeEntitlement: order and which-subscription guards', () => {
+  const ent = (over: Partial<Parameters<typeof writeEntitlement>[1]> = {}) => ({
+    userId: 'u1', customerId: null, source: 'google' as const, premium: true, status: 'active', currentPeriodEnd: 1_800_000_000, cancelAtPeriodEnd: false, eventMs: 100, txn: 'GPA.X', ...over,
+  });
+
+  it('never lets an older event overwrite a newer one', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, ent({ eventMs: 200 }), 't1');
+    expect(await writeEntitlement(db, ent({ premium: false, status: 'expired', eventMs: 150 }), 't2')).toBe(false);
+    expect((await readEntitlement(db, 'u1')).premium).toBe(true);
+    expect(await writeEntitlement(db, ent({ premium: false, status: 'expired', eventMs: 250 }), 't3')).toBe(true);
+    expect((await readEntitlement(db, 'u1')).premium).toBe(false);
+  });
+
+  it('refuses any non-sale write about a different subscription while the row is premium', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, ent({ txn: 'GPA.Y', eventMs: 100 }), 't1');
+    for (const w of [
+      ent({ txn: 'GPA.X', premium: false, status: 'canceled', cancelAtPeriodEnd: true, eventMs: 300 }),
+      ent({ txn: 'GPA.X', premium: true, status: 'canceled', cancelAtPeriodEnd: true, eventMs: 300 }),
+      ent({ txn: 'GPA.X', premium: true, status: 'past_due', eventMs: 300 }),
+    ]) expect(await writeEntitlement(db, w, 't2')).toBe(false);
+    expect(await readEntitlement(db, 'u1')).toMatchObject({ premium: true, status: 'active', cancelAtPeriodEnd: false });
+  });
+
+  it('lets a fresh sale of a different subscription through, and records it as the live one', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, ent({ txn: 'GPA.X', status: 'past_due', eventMs: 100 }), 't1');
+    expect(await writeEntitlement(db, ent({ txn: 'GPA.Y', eventMs: 200 }), 't2')).toBe(true);
+    // a revoke for X is now refused, and for Y it lands
+    expect(await writeEntitlement(db, ent({ txn: 'GPA.X', premium: false, status: 'expired', eventMs: 300 }), 't3')).toBe(false);
+    expect(await writeEntitlement(db, ent({ txn: 'GPA.Y', premium: false, status: 'expired', eventMs: 300 }), 't4')).toBe(true);
+  });
+
+  it('leaves Stripe writes, the reconcile and old rows exactly as before (no event time, no txn)', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, ent({ source: 'stripe', eventMs: null, txn: null }), 't1');
+    expect(await writeEntitlement(db, ent({ source: 'stripe', premium: false, status: 'canceled', eventMs: null, txn: null }), 't2')).toBe(true);
+    const db2 = await sqliteD1();
+    await writeEntitlement(db2, ent({ eventMs: 500 }), 't1');
+    // a Stripe write carries no event time: the order guard stands aside, and the stored time is kept
+    expect(await writeEntitlement(db2, ent({ source: 'google', status: 'past_due', eventMs: null, txn: null }), 't2')).toBe(true);
+    expect(await writeEntitlement(db2, ent({ premium: false, status: 'expired', eventMs: 400 }), 't3')).toBe(false);
+  });
+});

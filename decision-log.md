@@ -8835,3 +8835,43 @@ CANCELLATION, which would otherwise have handed back Premium that had just been 
 installs a stage is roughly 8 people and proves nothing a full release would not. **Accepted:** a 100%
 release cannot be halted, so the nets are deactivating both base plans (stops new purchases at once) and
 a fix build. Managed publishing stays on, so approval and going live remain separate decisions.
+
+## 2026-10-04: three RevenueCat money-path fixes, overdue the day after Play went live
+
+**Why now.** Two of them were parked in the Path A carry-list with the trigger "before Play goes to
+production", and Play went live on 3 October. The notes-idea review caught it. The third was found on a
+real purchase the same day: a Play refund's CANCELLATION settled two hours after its EXPIRATION.
+
+**Decided:**
+- **An order guard.** Each `entitlements` row keeps `rc_event_ms`, the `event_timestamp_ms` of the last
+  RevenueCat event it applied (RevenueCat keeps it across retries). An older event writes nothing, so a
+  retried EXPIRATION can no longer switch off a payer whose RENEWAL already landed.
+- **A which-subscription guard.** The row keeps `rc_txn`, the `original_transaction_id` behind the live
+  premium. While the row is premium, a non-sale about a different subscription writes nothing, so a late
+  refund for an old subscription can no longer switch off a new one bought since.
+- **RevenueCat's HMAC signature** (`X-RevenueCat-Webhook-Signature`), verified ON TOP of the Authorization
+  header, active only once `RC_WEBHOOK_HMAC` is set. A failure after Authorization matched is treated as
+  our own misconfiguration: logged as `bad-signature` (with no event id, so a later success still logs as
+  applied), alerted to the owner at most every six hours, and answered with a distinct 401 body.
+- Refusals are logged as `stale-order` and `other-subscription`, beside the cross-store `kept`.
+- Google's informational PRODUCT_CHANGE is ignored (the INITIAL_PURCHASE or RENEWAL carries the change).
+
+**Hardened by an adversarial review before deploy** (three lenses, each finding attacked by a skeptic,
+both majors reproduced in real SQLite). My first version had two real bugs, both now tested:
+- **A reconcile after a lapse left the old subscription's id in place**, so every cancel, expiry and refund
+  of the real subscription was refused and Premium would never have ended. Now any write naming a
+  subscription records it, a premium write naming none (Stripe, the reconcile) clears it, and the reconcile
+  clears the clock too.
+- **One clock per row, not per subscription**: a delayed purchase of a NEW subscription was refused (and,
+  being "handled", never retried) when an old subscription's refund was stamped later. Now a fresh sale of a
+  different subscription may land on an OFF row whatever the clock. On a LIVE row there is no exception,
+  because a retried old sale must never take a live subscription over.
+
+**Decided against:** dropping the Authorization header once HMAC is on (two independent layers); accepting
+two signing secrets during a rotation (RevenueCat's five-minute first retry covers a prompt put); passing a
+transaction id from the reconcile (the v1 subscriber body gives Apple's LATEST transaction, not the
+original, and one wrong value would refuse every later revoke); taking the MAX of the two clocks (it would
+carry an old subscription's time onto a new one).
+
+**Deploy order, which cannot be reversed:** both `ALTER TABLE entitlements ADD COLUMN`s on the live D1, read
+back, THEN the Worker. The other order breaks every entitlement write, Stripe's included.

@@ -12,6 +12,7 @@ import {
   sandboxAllowlist,
   sourceForStore,
   verifyRcAuth,
+  verifyRcSignature,
 } from './revenuecat';
 import { readEntitlement, writeEntitlement } from './entitlements';
 import { sqliteD1 } from './sqlite-d1.test-helper';
@@ -648,5 +649,214 @@ describe('Path A review: only a real sale takes a row over from another store (r
     await handleRcWebhook(rawReq({ event: rcEvent({ id: 'buy', store: 'PLAY_STORE' }) }), env(db), T, NOW_MS);
     await handleRcWebhook(rawReq({ event: rcEvent({ id: 'c', type: 'CANCELLATION', cancel_reason: 'UNSUBSCRIBE', store: 'PLAY_STORE' }) }), env(db), T, NOW_MS);
     expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, status: 'canceled', cancelAtPeriodEnd: true, source: 'google' });
+  });
+});
+
+// ---- 2026-10-04: the three money-path fixes parked "before Play production" ----
+
+async function sign(secret: string, t: number, raw: string): Promise<string> {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${t}.${raw}`)));
+  return Array.from(mac, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+const T = Math.floor(NOW_MS / 1000);
+
+describe('verifyRcSignature (RevenueCat HMAC: t=<seconds>,v1=<hex> over "t.body")', () => {
+  const raw = JSON.stringify({ event: { id: 'x' } });
+
+  it('accepts a correct signature', async () => {
+    expect(await verifyRcSignature(raw, `t=${T},v1=${await sign('hmac', T, raw)}`, 'hmac', NOW_MS)).toBe(true);
+    // header parts in either order, spaces tolerated
+    expect(await verifyRcSignature(raw, `v1=${await sign('hmac', T, raw)}, t=${T}`, 'hmac', NOW_MS)).toBe(true);
+  });
+
+  it('refuses a wrong secret, a changed body, a changed timestamp', async () => {
+    expect(await verifyRcSignature(raw, `t=${T},v1=${await sign('other', T, raw)}`, 'hmac', NOW_MS)).toBe(false);
+    expect(await verifyRcSignature(raw + ' ', `t=${T},v1=${await sign('hmac', T, raw)}`, 'hmac', NOW_MS)).toBe(false);
+    expect(await verifyRcSignature(raw, `t=${T + 1},v1=${await sign('hmac', T, raw)}`, 'hmac', NOW_MS)).toBe(false);
+  });
+
+  it('refuses a replay outside five minutes, either way', async () => {
+    for (const t of [T - 301, T + 301]) expect(await verifyRcSignature(raw, `t=${t},v1=${await sign('hmac', t, raw)}`, 'hmac', NOW_MS)).toBe(false);
+    for (const t of [T - 299, T + 299]) expect(await verifyRcSignature(raw, `t=${t},v1=${await sign('hmac', t, raw)}`, 'hmac', NOW_MS)).toBe(true);
+  });
+
+  it('refuses a missing or malformed header, and never throws', async () => {
+    for (const h of [null, '', 't=abc,v1=00', `t=${T}`, 'v1=' + 'a'.repeat(64), `t=${T},v1=zz`]) expect(await verifyRcSignature(raw, h, 'hmac', NOW_MS)).toBe(false);
+    expect(await verifyRcSignature(raw, `t=${T},v1=${'a'.repeat(64)}`, '', NOW_MS)).toBe(false);
+  });
+});
+
+describe('handleRcWebhook with HMAC signing on', () => {
+  const signedReq = async (body: unknown, header?: (raw: string) => Promise<string | null>) => {
+    const raw = JSON.stringify(body);
+    const h = header ? await header(raw) : `t=${T},v1=${await sign('hmac', T, raw)}`;
+    const headers: Record<string, string> = { Authorization: 'secret', 'content-type': 'application/json' };
+    if (h) headers['X-RevenueCat-Webhook-Signature'] = h;
+    return new Request('https://api.doubledone.app/rc-webhook', { method: 'POST', headers, body: raw });
+  };
+  const hmacEnv = (db: D1LikeDatabase) => ({ DB: db, RC_WEBHOOK_AUTH: 'secret', RC_WEBHOOK_HMAC: 'hmac' });
+
+  it('applies a signed delivery', async () => {
+    const db = fakeDb();
+    const res = await handleRcWebhook(await signedReq({ event: rcEvent() }), hmacEnv(db), '2026-10-04T00:00:00Z', NOW_MS);
+    expect(res.status).toBe(200);
+    expect(db.rows.get(UID)).toMatchObject({ premium: 1 });
+  });
+
+  it('refuses an unsigned or wrongly signed delivery with 401, and writes nothing', async () => {
+    for (const header of [async () => null, async (raw: string) => `t=${T},v1=${await sign('nope', T, raw)}`]) {
+      const db = fakeDb();
+      const res = await handleRcWebhook(await signedReq({ event: rcEvent() }, header), hmacEnv(db), '2026-10-04T00:00:00Z', NOW_MS);
+      expect(res.status).toBe(401);
+      expect(db.rows.size).toBe(0);
+    }
+  });
+
+  it('still requires the Authorization header too', async () => {
+    const raw = JSON.stringify({ event: rcEvent() });
+    const req = new Request('https://api.doubledone.app/rc-webhook', { method: 'POST', headers: { Authorization: 'wrong', 'X-RevenueCat-Webhook-Signature': `t=${T},v1=${await sign('hmac', T, raw)}` }, body: raw });
+    expect((await handleRcWebhook(req, hmacEnv(fakeDb()), '2026-10-04T00:00:00Z', NOW_MS)).status).toBe(401);
+  });
+
+  it('with no HMAC secret set, behaves exactly as before (the Authorization header alone)', async () => {
+    const db = fakeDb();
+    const res = await handleRcWebhook(rawReq({ event: rcEvent() }), env(db), '2026-10-04T00:00:00Z', NOW_MS);
+    expect(res.status).toBe(200);
+    expect(db.rows.get(UID)).toMatchObject({ premium: 1 });
+  });
+});
+
+describe('entitlementFromRcEvent carries when it happened and which subscription', () => {
+  it('reads event_timestamp_ms and original_transaction_id', () => {
+    expect(entitlementFromRcEvent(rcEvent({ original_transaction_id: 'GPA.1' }), NOW_MS)).toMatchObject({ eventMs: NOW_MS, txn: 'GPA.1' });
+  });
+  it('leaves them null when absent or junk, so the guards stand aside', () => {
+    expect(entitlementFromRcEvent(rcEvent({ event_timestamp_ms: undefined, original_transaction_id: '' }), NOW_MS)).toMatchObject({ eventMs: null, txn: null });
+    expect(entitlementFromRcEvent(rcEvent({ event_timestamp_ms: 'soon', original_transaction_id: 7 }), NOW_MS)).toMatchObject({ eventMs: null, txn: null });
+  });
+});
+
+describe('the order and which-subscription guards, end to end (real SQLite)', () => {
+  const SQL_NOW = '2026-10-04T00:00:00.000Z';
+  const send = (db: D1LikeDatabase, over: Record<string, unknown>) =>
+    handleRcWebhook(rawReq({ event: rcEvent({ store: 'PLAY_STORE', original_transaction_id: 'GPA.X', ...over }) }), env(db), SQL_NOW, NOW_MS);
+
+  it('a retried EXPIRATION older than the RENEWAL that already landed keeps the payer on', async () => {
+    const db = await sqliteD1();
+    await send(db, { id: 'buy', event_timestamp_ms: NOW_MS - 40 * 24 * HOUR_MS, expiration_at_ms: NOW_MS - 10 * 24 * HOUR_MS });
+    await send(db, { id: 'renew', type: 'RENEWAL', event_timestamp_ms: NOW_MS - 10 * 24 * HOUR_MS, expiration_at_ms: NOW_MS + 20 * 24 * HOUR_MS });
+    // the period that ended 10 days ago, retried now: its expiration is in the past, so only the order guard catches it
+    const res = await send(db, { id: 'old-exp', type: 'EXPIRATION', event_timestamp_ms: NOW_MS - 10 * 24 * HOUR_MS - 60_000, expiration_at_ms: NOW_MS - 10 * 24 * HOUR_MS });
+    expect(await res.json()).toEqual({ received: true, kept: true });
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, status: 'active', source: 'google' });
+  });
+
+  it("a late refund for an OLD subscription never switches off the new one bought since", async () => {
+    const db = await sqliteD1();
+    await send(db, { id: 'buy-x', original_transaction_id: 'GPA.X', event_timestamp_ms: NOW_MS - 3 * HOUR_MS });
+    await send(db, { id: 'exp-x', type: 'EXPIRATION', original_transaction_id: 'GPA.X', event_timestamp_ms: NOW_MS - 2 * HOUR_MS, expiration_at_ms: NOW_MS - 2 * HOUR_MS });
+    await send(db, { id: 'buy-y', original_transaction_id: 'GPA.Y', event_timestamp_ms: NOW_MS - HOUR_MS });
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: true });
+    // two hours later, the refund for X settles (what a real Play refund did on 2026-10-03)
+    const res = await send(db, { id: 'refund-x', type: 'CANCELLATION', cancel_reason: 'CUSTOMER_SUPPORT', original_transaction_id: 'GPA.X', event_timestamp_ms: NOW_MS });
+    expect(await res.json()).toEqual({ received: true, kept: true });
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, status: 'active' });
+  });
+
+  it('a refund for the CURRENT subscription still switches it off', async () => {
+    const db = await sqliteD1();
+    await send(db, { id: 'buy', original_transaction_id: 'GPA.X', event_timestamp_ms: NOW_MS - HOUR_MS });
+    await send(db, { id: 'refund', type: 'CANCELLATION', cancel_reason: 'CUSTOMER_SUPPORT', original_transaction_id: 'GPA.X', event_timestamp_ms: NOW_MS });
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: false });
+  });
+
+  it('a fresh sale of a new subscription replaces the old one (Google account hold, replaced)', async () => {
+    const db = await sqliteD1();
+    await send(db, { id: 'buy-x', original_transaction_id: 'GPA.X', event_timestamp_ms: NOW_MS - 2 * HOUR_MS });
+    await send(db, { id: 'issue-x', type: 'BILLING_ISSUE', original_transaction_id: 'GPA.X', event_timestamp_ms: NOW_MS - HOUR_MS, grace_period_expiration_at_ms: NOW_MS + HOUR_MS });
+    await send(db, { id: 'buy-y', original_transaction_id: 'GPA.Y', event_timestamp_ms: NOW_MS });
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, status: 'active' });
+    // and the old one's expiry, arriving after, cannot touch it
+    const res = await send(db, { id: 'exp-x', type: 'EXPIRATION', original_transaction_id: 'GPA.X', event_timestamp_ms: NOW_MS + 1000, expiration_at_ms: NOW_MS - 1000 });
+    expect(await res.json()).toEqual({ received: true, kept: true });
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: true });
+  });
+
+  it('events without a timestamp or a transaction id behave exactly as before', async () => {
+    const db = await sqliteD1();
+    await send(db, { id: 'buy', original_transaction_id: undefined, event_timestamp_ms: undefined });
+    await send(db, { id: 'exp', type: 'EXPIRATION', original_transaction_id: undefined, event_timestamp_ms: undefined, expiration_at_ms: NOW_MS - HOUR_MS });
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: false, status: 'expired' });
+  });
+});
+
+// ---- 2026-10-04, round 2: the scenarios the adversarial review reproduced against round 1 ----
+describe('the review scenarios (real SQLite)', () => {
+  const SQL_NOW = '2026-10-04T00:00:00.000Z';
+  const send = (db: D1LikeDatabase, over: Record<string, unknown>) =>
+    handleRcWebhook(rawReq({ event: rcEvent({ store: 'PLAY_STORE', original_transaction_id: 'GPA.X', ...over }) }), env(db), SQL_NOW, NOW_MS);
+  const outcomes = (db: Awaited<ReturnType<typeof sqliteD1>>) => db.raw.prepare('SELECT outcome FROM rc_events ORDER BY id').all().map((r) => (r as { outcome: string }).outcome);
+
+  it('a reconcile after a lapse clears the old subscription, so the new one can still be cancelled and expire', async () => {
+    const db = await sqliteD1();
+    await send(db, { id: 'x-buy', event_timestamp_ms: NOW_MS - 5 * HOUR_MS });
+    await send(db, { id: 'x-exp', type: 'EXPIRATION', event_timestamp_ms: NOW_MS - 4 * HOUR_MS, expiration_at_ms: NOW_MS - 4 * HOUR_MS });
+    // an anonymous Apple purchase, attached at sign-in by the reconcile (no event time, no txn)
+    await writeEntitlement(db, { userId: UID, premium: true, status: 'active', currentPeriodEnd: Math.floor(NOW_MS / 1000) + 86_400 * 30, cancelAtPeriodEnd: false, customerId: null, source: 'apple' }, SQL_NOW, { attachOnly: true });
+    expect(db.raw.prepare('SELECT rc_txn, rc_event_ms FROM entitlements').get()).toMatchObject({ rc_txn: null, rc_event_ms: null });
+    const apple = (over: Record<string, unknown>) => handleRcWebhook(rawReq({ event: rcEvent({ store: 'APP_STORE', original_transaction_id: '2000000001', ...over }) }), env(db), SQL_NOW, NOW_MS);
+    expect(await (await apple({ id: 'a-cancel', type: 'CANCELLATION', cancel_reason: 'UNSUBSCRIBE', event_timestamp_ms: NOW_MS - 2 * HOUR_MS })).json()).toEqual({ received: true });
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, cancelAtPeriodEnd: true });
+    await apple({ id: 'a-exp', type: 'EXPIRATION', event_timestamp_ms: NOW_MS - HOUR_MS, expiration_at_ms: NOW_MS - HOUR_MS });
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: false, status: 'expired' });
+  });
+
+  it("a delayed purchase of a new subscription is never refused because an old one's refund was stamped later", async () => {
+    const db = await sqliteD1();
+    await send(db, { id: 'x-buy', event_timestamp_ms: NOW_MS - 5 * HOUR_MS });
+    await send(db, { id: 'x-exp', type: 'EXPIRATION', event_timestamp_ms: NOW_MS - 4 * HOUR_MS, expiration_at_ms: NOW_MS - 4 * HOUR_MS });
+    await send(db, { id: 'x-refund', type: 'CANCELLATION', cancel_reason: 'CUSTOMER_SUPPORT', event_timestamp_ms: NOW_MS - HOUR_MS });
+    // Y was bought at -3h but its first delivery failed; the retry arrives now
+    const res = await send(db, { id: 'y-buy', original_transaction_id: 'GPA.Y', event_timestamp_ms: NOW_MS - 3 * HOUR_MS });
+    expect(await res.json()).toEqual({ received: true });
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, status: 'active' });
+    // and Y's own later events still apply
+    await send(db, { id: 'y-exp', type: 'EXPIRATION', original_transaction_id: 'GPA.Y', event_timestamp_ms: NOW_MS, expiration_at_ms: NOW_MS - 1000 });
+    expect((await readEntitlement(db, UID)).premium).toBe(false);
+  });
+
+  it('a retried OLD sale can never take a live subscription over', async () => {
+    const db = await sqliteD1();
+    await send(db, { id: 'y-buy', original_transaction_id: 'GPA.Y', event_timestamp_ms: NOW_MS - HOUR_MS });
+    const res = await send(db, { id: 'x-buy-retry', original_transaction_id: 'GPA.X', event_timestamp_ms: NOW_MS - 5 * HOUR_MS });
+    expect(await res.json()).toEqual({ received: true, kept: true });
+    expect(db.raw.prepare('SELECT rc_txn FROM entitlements').get()).toMatchObject({ rc_txn: 'GPA.Y' });
+  });
+
+  it('the log says which guard kept a delivery', async () => {
+    const db = await sqliteD1();
+    await send(db, { id: 'y-buy', original_transaction_id: 'GPA.Y', event_timestamp_ms: NOW_MS - HOUR_MS });
+    await send(db, { id: 'old', type: 'CANCELLATION', cancel_reason: 'UNSUBSCRIBE', original_transaction_id: 'GPA.Y', event_timestamp_ms: NOW_MS - 2 * HOUR_MS, expiration_at_ms: NOW_MS + HOUR_MS });
+    await send(db, { id: 'other', type: 'CANCELLATION', cancel_reason: 'CUSTOMER_SUPPORT', original_transaction_id: 'GPA.X', event_timestamp_ms: NOW_MS });
+    expect(outcomes(db)).toEqual(['applied', 'stale-order', 'other-subscription']);
+  });
+
+  it("ignores Google's informational PRODUCT_CHANGE (the INITIAL_PURCHASE or RENEWAL carries the change)", async () => {
+    expect(entitlementFromRcEvent(rcEvent({ type: 'PRODUCT_CHANGE', store: 'PLAY_STORE' }), NOW_MS)).toBeNull();
+    expect(rcIgnoreOutcome(rcEvent({ type: 'PRODUCT_CHANGE', store: 'PLAY_STORE' }), NOW_MS)).toBe('no-op');
+    // Apple's still applies, as before
+    expect(entitlementFromRcEvent(rcEvent({ type: 'PRODUCT_CHANGE', store: 'APP_STORE' }), NOW_MS)).toMatchObject({ premium: true });
+  });
+
+  it('a bad signature is logged (with no event id) and answered with its own 401 body', async () => {
+    const db = await sqliteD1();
+    const raw = JSON.stringify({ event: rcEvent({ id: 'evt-sig' }) });
+    const req = new Request('https://api.doubledone.app/rc-webhook', { method: 'POST', headers: { Authorization: 'secret', 'X-RevenueCat-Webhook-Signature': `t=${T},v1=${'0'.repeat(64)}` }, body: raw });
+    const res = await handleRcWebhook(req, { DB: db, RC_WEBHOOK_AUTH: 'secret', RC_WEBHOOK_HMAC: 'hmac' }, SQL_NOW, NOW_MS);
+    expect(res.status).toBe(401);
+    expect(await res.text()).toBe('bad signature');
+    expect(db.raw.prepare('SELECT event_id, outcome, applied FROM rc_events').get()).toMatchObject({ event_id: null, outcome: 'bad-signature', applied: 0 });
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: false });
   });
 });
