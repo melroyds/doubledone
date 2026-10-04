@@ -2,7 +2,7 @@
 
 *For Claude Design. Written 2026-10-04. A task can now carry one line of the user's own words, the handhold for next time, with the day it was written. Almost everything about what it is has been decided. This round is about how it looks and feels on four surfaces that already exist, without adding a single action.*
 
-**Attached:** `held-card-light.png` and `held-card-dark.png` (a one-off task's card, open), `rename-light.png` and `rename-dark.png` (the same card with the title editor open, keyboard up, on a phone), `focus-light.png` and `focus-dark.png` (Focus on a plain one-off task), `focus-stepped-light.png` (Focus on a task tracked in steps, so "Step 2 of 5" shows), `today-rows-light.png` and `today-rows-dark.png` (Today with a pinned row, a "big" row, a reminder time, a repeating row and a held row in one frame), `held-card-quiet-light.png`, `held-card-quiet-dark.png`, `today-quiet-light.png` and `today-quiet-dark.png` (the same in Quiet), `affirm-light.png` (any confirmation floating above the capture pill, for example after Pin) and `german-glossary.md`. The screenshot harness makes only the light held card (as `held-card.png`) and a plain Today in light and dark, which has none of the pinned, "big", reminder or held rows. Everything else, including every Focus, rename, Quiet and dark held-card shot, is captured by hand. No German or stress-size shot exists, so both are described below.
+**Attached:** `held-card-light.png` and `held-card-dark.png` (a one-off task's card, open), `rename-light.png` and `rename-dark.png` (the same card with the title editor open), `focus-light.png` and `focus-dark.png` (Focus on a plain one-off task), `focus-stepped-light.png` (Focus on a task tracked in steps, so "Step 2 of 5" shows), `today-rows-light.png` and `today-rows-dark.png` (Today with a pinned row, a "big" row, a reminder time, a repeating row and a held row in one frame), `held-card-quiet-light.png`, `held-card-quiet-dark.png`, `today-quiet-light.png` and `today-quiet-dark.png` (the same in Quiet), `affirm-light.png` (any confirmation floating above the capture pill, for example after Pin) and `german-glossary.md`. All fourteen are captured from the web build at phone size (390x844 at 2x) with seeded tasks, so the rename shot is the web's field and shows no phone keyboard. The black box round its title is the browser's own focus outline, not the editor's design, which is the 1 hairline in `accent` under the title (see 3 below). No German or stress-size shot exists, so both are described below.
 
 ## The product
 
@@ -46,7 +46,7 @@ Every action row is at least 44 tall, padding 4 by 8, label 15/20 bold `ink`, su
 
 **Motion.** The card rises over 180ms with a 4 settle. The fold fades in over 160ms. Reduced motion is a designed state: a single 90ms dissolve, nothing moves.
 
-**The accretion rule** (decision log, 22 Aug 2026): the card's visible surface is frozen (title, hero, Make it tiny, Move to, Mark as a lot, rail, More, shelf). Every new action enters through the fold, and the fold holds four. The review's call is that showing the line under the title bends the frozen surface for **content, not an action**: words that belong to the task, and no new control, row or door. The editor's second field is part of the same bend, because it exists only while the title editor is open. The review was explicit that this bend is not a quiet exception. It stands on the founder's explicit yes, recorded in the decision log, so design on the assumption that it holds and stay strictly inside it. If your design needs the line anywhere but directly under the title, or needs anything on the card that acts, that is outside the bend: say so in the README rather than doing it.
+**The accretion rule** (decision log, 22 Aug 2026): the card's visible surface is frozen (title, hero, Make it tiny, Move to, Mark as a lot, rail, More, shelf). Every new action enters through the fold, and the fold holds four. The review's call is that showing the line under the title bends the frozen surface for **content, not an action**: words that belong to the task, and no new control, row or door. The editor's second field is part of the same bend, because it exists only while the title editor is open. The review was explicit that this bend is not a quiet exception. It stands on the founder's explicit yes, recorded in the decision log, so design on it (item 18) and stay strictly inside it. If your design needs the line anywhere but directly under the title, or needs anything on the card that acts, other than the line itself opening the same title editor (the title's own tap-to-edit precedent, tension 4), that is outside the bend: say so in the README rather than doing it.
 
 **The done card** is deliberately minimal: a tick and the title (not editable), "Done on…", the italic "Done is done." and the shelf.
 
@@ -94,19 +94,28 @@ These are the review's decisions, approved on 4 October. Design within them. If 
 2. **One line per task, overwritten, never added to.** Not a log, a trail or a history. No "Earlier", no "see all", no edit history, nothing that shows it changed.
 3. **Plain text, capped at about 280 characters.** The field just stops at the cap. No error and no counter. No formatting, title, checklist, tag, photo or voice memo.
 4. **One date: the calendar day the line was last written.** Absolute, no time of day. Never "ago", "today", "yesterday", "last updated", a duration or a count. **Never on the Today row.** The date and the mark look exactly the same whether the line was written today or two months ago: no fading, warming or any other treatment that changes with age.
-5. **Which tasks.** One-off personal tasks, including each step of a broken-down task and a tiny step, since each is an ordinary one-off. A task you break down keeps its own line on its silent parent, which Today hides until its last step completes it, so in this round that line is out of sight (showing it on the steps is Tier 2, below). A Make-it-tiny parent keeps its line and brings it back when it returns. **Never on Ours shared rows, repeating tasks, Routines or Rhythms.**
+5. **Which tasks.** One-off personal tasks, including each step of a broken-down task, a tiny step, and your "· Ours" copy (item 20), since each is an ordinary one-off. A task you break down keeps its own line on its silent parent, which Today hides until its last step completes it, so the line shows on each of its steps in Focus (item 19). A Make-it-tiny parent keeps its line and brings it back when it returns. **Never on Ours shared rows, repeating tasks, Routines or Rhythms.**
 6. **Written only in doors that already exist**: a second "Where you left off" field in the held card's title editor, and in Focus. No new action, no new card row, no fifth fold row.
 7. **Read** in Focus under the title, as "Where you left off: Called, ref 4471, ring back Thu · Wed, 30 Sept", and faintly under the title on the held card, **only when a line exists**.
-8. **On Today, one faint drawn SVG mark** on a row that has a line. No count, no text, no second line, no date. The row's spoken label gains ", has a note".
+8. **On Today, one faint drawn SVG mark** on an open one-off row that has a line of its own (never on a repeating row that keeps a hidden line, item 22, or a done row, item 23). No count, no text, no second line, no date. The row's spoken label gains ", has a note".
 9. **No prompt, ever.** Not after a tick, at Close the day, in Capture, on the bedtime prompt, or after Break it down or Make it tiny.
 10. **The placeholder** is "Where you left off, for next time". **On save**, the same calm line every time: "Noted." (in English).
 11. **No Setting** of any kind.
 12. **Never sent to any AI feature**, including Break it down, Make it tiny, Sort, Plan my day, What fits right now, Lighten, Combine's name suggestion, the weekly reflection and the scrapbook. No "use my note too" option anywhere. **Never on the REST API or MCP.**
-13. **Existing flows keep it.** Combine carries it onto the combined task. Break it down keeps it on the silent parent. Remove keeps it through Undo.
-14. **It never crosses to Ours, in either direction.** Share to Ours puts a copy of the task on the shared list without the line, and the line stays on your own task. "Bring to my Today" (in the room) and "Take this on today" (on Today's due-today strip) make your copy without one.
+13. **Existing flows keep it.** Combine carries the most recently written line onto the combined task (item 21). Break it down keeps it on the silent parent. Remove keeps it through Undo.
+14. **It never crosses to Ours, in either direction.** Share to Ours puts a copy of the task on the shared list without the line, and the line stays on your own task. "Bring to my Today" (in the room) and "Take this on today" (on Today's due-today strip) make your copy without one. You may then write your own line on that copy (item 20).
 15. **Export includes it. Account deletion removes it.**
 16. **Telemetry is event names only**, never a word of the text.
 17. **Nothing that gathers lines in one place**: no Notes room, timeline, list or Calendar dot. A line never exists without its task, and it goes when the task goes.
+
+**Six follow-up calls, settled by the founder on 4 October:**
+
+18. **The held card shows the line** under the title. This is the bend of the frozen card for content (see the accretion rule): the founder's explicit yes, recorded in the decision log.
+19. **A broken-down task's line shows on each of its steps, in Focus only.** It sits with the step, read-only, named by the big task's title (for example "Do the tax return: receipts are in the blue folder"), with its own date, and always below the step's own line or its empty field, so writing a step's line never moves the big task's. The two must read as two different things. This is not the gathering item 17 rules out: at most two lines, both belonging to the task in hand, never a list. Until Tier 2, nothing can edit or clear the big task's line while its steps are open; if that reads as a stale handhold in your design, say so in the README. It is not on the steps' Today rows (the mark means the row's own line), not on their held cards, and not editable from a step this round. A tiny step is unchanged.
+20. **Your "· Ours" copy can carry a line of its own**, private to you. It is a personal one-off, so it behaves like any other: the mark, the line on the card, the second field, Focus. The line never reaches the shared row or the other person, and a tick that closes both leaves it on your copy only. Every copy is a one-off, including one taken from a repeating shared row ("just today's one"), so it can carry a line like any other. The next time that row comes round, you bring a fresh copy, which starts with no line, and the old line stays on the finished copy.
+21. **Combine keeps the most recently written line**, with its own date, never the day of the combine. No merging of text. When a combine folds away every remaining step of a broken-down task, that big task's line is one of the candidates. The other lines leave with the tasks Combine folds away. Nothing about lines is shown or asked at the moment of combining.
+22. **A one-off with a line, later made repeating, keeps the line hidden**: no mark, no line, no field and never in Focus, as for any repeating task, but still in the export and never silently deleted. If it is ever made a one-off again, the line comes back unchanged, with its original date. Nothing in the app makes a one-off repeat, or a repeat a one-off: the rhythm is set at capture and the Repeating room cannot remove it. Only the REST API or an AI agent can, so draw no in-app path for this state.
+23. **Finished tasks are unchanged this round.** The done card and a done row look exactly as they do today. The line stays on the task, in the export, and comes back as it was if the task is un-ticked.
 
 ## The states
 
@@ -117,21 +126,22 @@ These are the review's decisions, approved on 4 October. Design within them. If 
 | A line at the 280 cap | the mark | yours to clamp, but the whole line must be readable somewhere | the full line | the full line |
 | A line written today | the mark | today's calendar date, never the word "today" | | same |
 | Pinned, held, "big", stepped, tiny step, "Looks big, break it down?" row | the mark joins the existing marks, pin still last. The stepped row and the tiny step carry no marks today, so the mark would be the first there | | | stepped: the line and "Step 2 of 5" together |
-| A step of a broken-down task | the step's own mark, if the step has its own line | its own line | its own second field | its own line. The parent's line is Tier 2, not this round |
+| A step of a broken-down task | the step's own mark, if the step has its own line | its own line | its own second field | its own line, and below it the big task's line, read-only, named by the big task's title (item 19) |
+| A step with no line of its own, whose big task has one | no mark | nothing new | the empty second field | the empty field with its placeholder, and the big task's line, read-only (item 19) |
 | A Make-it-tiny parent that comes back | its line comes back with it, unchanged | same | same | same |
 | Focus's "Which one?" list | | | | titles only, as today. No line, because a list of lines is the gathering the review ruled out |
-| Combine, when two or more of the chosen tasks have a line | not settled. Only one line can survive. Flag it, do not solve it | | | |
+| Combine, when two or more of the chosen tasks have a line | the combined task has the mark | the most recently written line, with its own date (item 21) | that line | that line |
 | A long title that marquees | the mark must survive it | | | |
 | A Later (future) row on Today | same row and card component, so treat it the same | same | same | never in Focus |
 | Repeating task | no mark | no line | no second field | never in Focus |
 | Ours shared row (the room and the "due today" strip) | no mark | no line | no second field, even though the room has the title editor | never in Focus |
-| Your "· Ours" copy (a personal task brought from the shared list) | not settled by the review. Draw no example | | | |
-| Done task | not settled. The done card has no editor and is minimal on purpose. Flag it, do not solve it, and draw the done card and a done row unchanged | | | never in Focus |
+| Your "· Ours" copy (a personal task brought from the shared list) | the mark joins "· Ours", if you wrote a line | its own line | its own second field | its own line (item 20) |
+| Done task | unchanged (item 23) | the done card exactly as today | none | never in Focus |
 | Select mode | yours to propose (the "big" chip stays in select mode because the bulk bar acts on it, nothing acts on the line) | | | |
 | Saving a changed line | | "Noted." | | "Noted.", somewhere visible inside Focus |
 | Renaming the title only | | silent, as today | | |
 | Clearing the line | the mark goes | the line goes | | back to the placeholder |
-| A one-off with a line later made repeating | not settled. Flag it, do not solve it | | | |
+| A one-off with a line later made repeating | no mark | no line | no second field | never in Focus. The line is kept, hidden, and still exported (item 22) |
 
 ## The tensions
 
@@ -189,7 +199,7 @@ The what is decided. The how is yours in four places. Explore at least two genui
 - **The editor.** One editor, two stacked fields, title then line. Or the line field under a hairline that only appears once the editor is open. Or anything better. Solve the blur, the return key and the save.
 - **The line on the card.** Where exactly under the title, the clamp, where the date sits, and whether tapping it opens the editor on the line.
 - **The mark.** The glyph (thin-line from the `Mark.tsx` family, or filled like the pin), its size, colour per appearance, and its place among the marks. A handhold, a bookmark, a folded corner, your call, but nothing that reads as "unread".
-- **Focus.** Where the line sits relative to the title and "Step 2 of 5", what the empty state looks like, how writing works in a centred layout with the keyboard up, and where "Noted." lands. Leave room for one more line later (below).
+- **Focus.** Where the line sits relative to the title and "Step 2 of 5", what the empty state looks like, how writing works in a centred layout with the keyboard up, and where "Noted." lands. On a step, lay out its own line and its big task's line so they read as two different things, and so the big task's line could become editable from the step later without a redesign.
 
 ## Screens to produce (390x844, Dusk light and dark, unless noted)
 
@@ -197,19 +207,20 @@ The what is decided. The how is yours in four places. Explore at least two genui
 2. The held card with a short line ("Called, ref 4471, ring back Thu") and its date.
 3. The held card with a line at the 280 cap.
 4. The title editor open: the empty second field with its placeholder, then filled. Keyboard up, on a row low in the list, at iOS (47 top, 34 bottom) and Android (status bar plus navigation bar) heights.
-5. Focus with a line. Focus on a stepped task with a line. Focus with no line (the placeholder). Focus editing the line, keyboard up.
+5. Focus with a line. Focus on a stepped task with a line. Focus with no line (the placeholder). Focus editing the line, keyboard up. Focus on a step of a broken-down task, with its own line and the big task's line, and again with only the big task's line.
 6. "Noted." on Today after saving from the card, and inside Focus.
-7. Today rows with the mark: plain, pinned, held, "big", stepped, a tiny step, the "break it down?" row and a long title that marquees, beside a repeating row with no mark.
+7. Today rows with the mark: plain, pinned, held, "big", stepped, a tiny step, the "break it down?" row and a long title that marquees, your "· Ours" copy with the mark, beside a repeating row with no mark.
 8. Quiet, light and dark: the row, the card with a line, the editor, Focus.
 9. Large text (1.18) at 390.
-10. The stress case (1.18 x 200%, German, 320 wide): the card with a line, the editor, Focus.
-11. French at the default size: the card with a line, the editor, Focus.
+10. The stress case (1.18 x 200%, German, 320 wide): the card with a line, the editor, Focus, including a step with its own line and the big task's line.
+11. French at the default size: the card with a line, the editor, Focus, including a step with its own line and the big task's line.
 12. One light theme where `inkFaint` is weakest (Slate or Rose), showing the line and the mark still pass.
 13. Press and web keyboard-focus states on every new control. Reduced motion.
+14. A done task that has a line: the done card and a done row, unchanged (item 23).
 
 ## Not this round, but leave room
 
-- **Tier 2, next.** A broken-down task's line (kept on its silent parent) shows on each of its steps in Focus, and in the Make-it-tiny resurfacing line ("You started, that's the hard part. {parentTitle} is back when you're ready."). A finished task's line shows on its Calendar row, finished tasks only. Focus must take one more line later without a redesign.
+- **Tier 2, next.** A Make-it-tiny parent's line in its resurfacing line ("You started, that's the hard part. {parentTitle} is back when you're ready."). Editing a big task's line from one of its steps (it must fit where its read-only line sits now, without a redesign). A finished task's line on its Calendar row, finished tasks only.
 - **Tier 3, parked behind evidence.** A dated trail, "Catch me up", an undated standing line on repeating tasks, an opt-in "Use my note too" in Break it down, REST and MCP exposure. Do not draw them and do not leave a hook for them, such as an "Earlier" link.
 
 ## Deliver
@@ -217,7 +228,7 @@ The what is decided. The how is yours in four places. Explore at least two genui
 A zip whose README is the contract:
 
 - layout and spacing on the live tokens by name (`spacing.*`, `radius.*`, `border.*`, `ink`, `inkSoft`, `inkFaint`, `accent`, `accentSoft`, `surfaceCard`, `line`, `quiet.*`, the type steps `subheading`, `label`, `caption`, `eyebrow`)
-- every new string in all five languages: the placeholder, the Focus label, "Noted.", ", has a note", the second field's spoken name, any changed title-button label, and how the line and date are spoken on the card and in Focus
+- every new string in all five languages: the placeholder, the Focus label, the big task's attribution on a step in Focus, "Noted.", ", has a note", the second field's spoken name, any changed title-button label, and how the line and date are spoken on the card and in Focus
 - the date rule with an example per locale, and why it never goes relative
 - the mark: its SVG path on a 24 grid, size, colour per appearance and scheme, and its place in the row's marks
 - the editor's behaviour: focus order between the fields, the return key, the save trigger, when "Noted." fires and when it stays silent, what clearing does, the cap
@@ -225,7 +236,7 @@ A zip whose README is the contract:
 - motion, with the reduced-motion variant
 - accessibility: focus order and spoken labels per state, announcements, and the contrast figure for every visible new string and the mark in all 14 palettes, both appearances
 - the field's code name (`leftOff` or similar, never `note`)
-- every state you were told to flag (the "· Ours" copy, the done card, a line on a task later made repeating, Combine with two lines), each with the question it raises and no answer drawn
+- the six follow-up calls (items 18 to 23), drawn where they have a frame (18, 19, 20, 23) and stated where they do not (21, 22), and any place where one of them breaks your design, with the question it raises
 - what was left out on purpose, and why
 
 ## What this is NOT
@@ -237,7 +248,7 @@ A zip whose README is the contract:
 - Not text on the Today row. No second line, no date and no count on the row, ever.
 - Not in Capture, Close the day, the bedtime prompt or after a tick. No prompt anywhere.
 - Not Premium. No ✦, no dimmed state, no paywall, nothing on the Premium page.
-- Not on Ours shared rows, repeating tasks, Routines or Rhythms.
+- Not on Ours shared rows, repeating tasks, Routines or Rhythms. (Your private "· Ours" copy is a personal task, so it may carry one, item 20.)
 - Not a Calendar, Lookback, Notes room or timeline surface.
 - Not AI. Nothing reads the line, and nothing offers to.
 - Not a Setting.

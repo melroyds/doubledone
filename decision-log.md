@@ -8981,3 +8981,39 @@ and are legal-adjacent, so they go to Melroy rather than into a telemetry commit
 **Deploy order, which cannot be reversed once the old table is dropped:** schema (adds the counter table), then
 the Worker, then the one-off fold run ONCE with a read-back, then the drop, then the web push. The native half
 waits for a store build, on Melroy's ask.
+
+## 2026-10-04: "Where you left off", the six follow-up calls, settled by Melroy
+
+**Decided** (Melroy confirmed all six of my picks, by name, on 4 October; the design prompt was updated to
+match and a follow-up went to Claude Design, which had the earlier version):
+1. **The held card shows the line under the title.** The bend of the frozen card (the accretion rule,
+   2026-08-22) for content, not an action: his explicit yes, which the review said it must stand on.
+2. **A broken-down task's line shows on each of its steps, in Focus only**, read-only, named by the big
+   task's title. Not on the steps' rows or cards, not editable from a step this round. Why: without it the
+   line goes out of sight on exactly the dreaded tasks it exists for. It moved up from Tier 2.
+3. **Your "· Ours" copy can carry its own line**, private. It is your row; nothing crosses to the shared
+   list, and a tick that closes both leaves the line on your copy only.
+4. **Combine keeps the most recently written line**, with its own date. No merging of text.
+5. **A one-off made repeating keeps its line, hidden**: still exported, back unchanged if it is ever a
+   one-off again. Never silently deleted.
+6. **Finished tasks are unchanged this round.**
+7. (The screenshots question is closed: all fourteen were captured from the web build.)
+
+**Decided against:** keeping a broken-down task's line out of sight until the end (it hides the handhold
+exactly when it is needed); no lines on the Ours copy (an arbitrary hole in "your one-off tasks"); keeping
+the first task's line on Combine (the newest is the one that describes where you actually left off);
+deleting the line when a task starts repeating (silently losing someone's words); showing the line on done
+tasks now (more surface before anyone has used the feature; the Calendar row stays Tier 2).
+
+**Tightened by a three-lens check (prompt, follow-up, code) before the follow-up went out:** a copy of a
+REPEATING shared row is a one-off too ("just today's one"), so it can carry a line (my first draft said it
+repeats; the code says otherwise); the big task's line always sits below the step's own line or empty field,
+so writing never moves it; the reserved "one more line" in Focus is now that line; the mark shows only where a
+line is shown; and nothing in the app turns a one-off into a repeat, so item 5 has no in-app path. **My
+assumption, Melroy to challenge:** when a combine folds away every remaining step of a broken-down task, the
+big task's line is one of the candidates for "newest wins". **Open, Melroy's call:** a line on a tiny step is
+deleted the moment the step is ticked (the spent pebble is tombstoned), so either a tiny step takes no line,
+or its line moves onto the real task when it comes back.
+
+**Still the rule:** test first. The build and the data-model change wait for the 8-person replies on
+Sunday 11 October.
