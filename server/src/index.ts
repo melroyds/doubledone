@@ -188,8 +188,9 @@ const router = {
       return handleWebhook(request, env, new Date().toISOString());
     }
 
-    // RevenueCat webhook (Apple IAP): also server-to-server, no Origin. The Authorization
-    // header (a shared secret) is the auth. Writes the same D1 entitlements row as Stripe.
+    // RevenueCat webhook (Apple and Google Play): also server-to-server, no Origin. The Authorization
+    // header (a shared secret) is the auth, plus RevenueCat's HMAC signature once RC_WEBHOOK_HMAC is
+    // set. Writes the same D1 entitlements row as Stripe.
     if (pathname === '/rc-webhook' && request.method === 'POST') {
       return handleRcWebhook(request, env, new Date().toISOString(), Date.now());
     }

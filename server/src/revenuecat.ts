@@ -9,15 +9,19 @@
 // get wrong and costs a paying customer their access if you do.
 
 import { type D1LikeDatabase, type Entitlement, type EntitlementSource, writeEntitlement } from './entitlements';
-import { buildOwnerEmail } from './monitor';
+import { buildOwnerEmail, lastAlert, recordAlert } from './monitor';
 import { timingSafeEqual } from './stripe';
 
 export type RcEnv = {
   DB?: D1LikeDatabase;
   // The shared secret configured as the webhook's Authorization header value in the RevenueCat
-  // dashboard. This constant IS the auth today. Make it long. (RevenueCat now also offers an HMAC
-  // signature, X-RevenueCat-Webhook-Signature; verifying it is parked in the Backlog as hardening.)
+  // dashboard. Always required. Make it long.
   RC_WEBHOOK_AUTH?: string;
+  // RevenueCat's HMAC signing secret (dashboard: the webhook's "HMAC webhook signing", shown once). When set,
+  // every delivery must ALSO carry a valid X-RevenueCat-Webhook-Signature (see verifyRcSignature). Unset,
+  // the Authorization header alone is the auth, exactly as before. Turn signing ON in RevenueCat FIRST, then
+  // set this secret: the other order would refuse every delivery until both match.
+  RC_WEBHOOK_HMAC?: string;
   // The owner-alert path (same binding the monitor + Stripe money alerts use). Optional.
   SEND_EMAIL?: { send(message: unknown): Promise<unknown> };
   FEEDBACK_TO?: string;
@@ -35,6 +39,37 @@ export function verifyRcAuth(request: Request, secret: string): boolean {
   if (!secret) return false;
   const got = request.headers.get('Authorization') ?? '';
   return timingSafeEqual(got, secret);
+}
+
+const SIGNATURE_TOLERANCE_S = 300; // RevenueCat's own recommendation: five minutes either way
+
+/**
+ * Verify RevenueCat's HMAC signature: header `t=<unix seconds>,v1=<hex>`, where v1 is HMAC-SHA256 of
+ * `<t>.<raw body>` under the signing secret. RevenueCat signs every attempt afresh (a retry gets a new `t`),
+ * so a timestamp outside five minutes is a replay, not a slow retry. Constant-time compare. Never throws.
+ */
+export async function verifyRcSignature(rawBody: string, header: string | null, secret: string, nowMs: number): Promise<boolean> {
+  if (!secret || !header) return false;
+  let t = '';
+  let v1 = '';
+  for (const part of header.split(',')) {
+    const i = part.indexOf('=');
+    if (i < 0) continue;
+    const k = part.slice(0, i).trim();
+    const v = part.slice(i + 1).trim();
+    if (k === 't') t = v;
+    else if (k === 'v1') v1 = v.toLowerCase();
+  }
+  if (!/^\d{1,12}$/.test(t) || !/^[0-9a-f]{64}$/.test(v1)) return false;
+  if (Math.abs(nowMs / 1000 - Number(t)) > SIGNATURE_TOLERANCE_S) return false;
+  try {
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${t}.${rawBody}`)));
+    const want = Array.from(mac, (b) => b.toString(16).padStart(2, '0')).join('');
+    return timingSafeEqual(v1, want);
+  } catch {
+    return false;
+  }
 }
 
 /** Resolve the Supabase user id an event belongs to, or null. The app_user_id if it is UUID-shaped;
@@ -115,6 +150,8 @@ export function entitlementFromRcEvent(event: unknown, nowMs: number): Entitleme
     cancel_reason?: unknown;
     grace_period_expiration_at_ms?: unknown;
     store?: unknown;
+    event_timestamp_ms?: unknown;
+    original_transaction_id?: unknown;
   };
   const type = typeof e.type === 'string' ? e.type : '';
   const userId = appUserIdFromRcEvent(event);
@@ -128,10 +165,18 @@ export function entitlementFromRcEvent(event: unknown, nowMs: number): Entitleme
   // The store that sold it. One we do not sell through writes nothing (see sourceForStore).
   const source = sourceForStore(e.store);
   if (!source) return null;
+  // Google's PRODUCT_CHANGE is informational (RevenueCat's own docs): it carries the REPLACED subscription,
+  // and the INITIAL_PURCHASE or RENEWAL is what takes effect. Applied as a grant it could hand the row back
+  // to the old subscription. Not reachable today (the app starts no Play plan change), so this is hardening.
+  if (type === 'PRODUCT_CHANGE' && source === 'google') return null;
 
   const expMs = typeof e.expiration_at_ms === 'number' ? e.expiration_at_ms : null;
   const periodEndSec = expMs != null ? Math.floor(expMs / 1000) : null;
-  const base = { userId, customerId: null, source };
+  // When the event happened (kept across retries) and which store subscription it is about, for the order
+  // and which-subscription guards in writeEntitlement. Either may be absent, and then that guard stands aside.
+  const eventMs = typeof e.event_timestamp_ms === 'number' && Number.isFinite(e.event_timestamp_ms) ? e.event_timestamp_ms : null;
+  const txn = typeof e.original_transaction_id === 'string' && e.original_transaction_id !== '' ? e.original_transaction_id : null;
+  const base = { userId, customerId: null, source, eventMs, txn };
 
   // A late cancel or billing issue, arriving after the moment it describes has passed, writes nothing.
   if (isNotSaleOn(type, e.cancel_reason)) {
@@ -223,7 +268,10 @@ export type RcOutcome =
   | 'sandbox-allowlisted'
   | 'other-store'
   | 'stale-on'
-  | 'kept'
+  | 'kept' // the cross-store guard: another store sold the live premium
+  | 'stale-order' // an event older than the last one applied to this account
+  | 'other-subscription' // a non-sale about a different store subscription than the live one
+  | 'bad-signature' // Authorization matched but the HMAC signature did not: a mismatched or rotated RC_WEBHOOK_HMAC
   | 'no-op';
 
 /** One row of the delivery log. A named allowlist: everything here is deliberate, and anything not
@@ -275,6 +323,7 @@ export function rcEventRow(event: unknown, outcome: RcOutcome): RcEventRow {
     // are different billing answers, and collapsing them to 0 is how a log starts lying.
     isTrialConversion: typeof e.is_trial_conversion === 'boolean' ? (e.is_trial_conversion ? 1 : 0) : null,
     // An allowlisted sandbox purchase IS written, so it counts as applied; its outcome says why.
+    // (A 'bad-signature' row never is.)
     applied: outcome === 'applied' || outcome === 'sandbox-allowlisted' ? 1 : 0,
     outcome,
     eventTimestampMs: num(e.event_timestamp_ms),
@@ -344,16 +393,65 @@ async function alertOwner(env: RcEnv, subject: string, body: string): Promise<vo
   await env.SEND_EMAIL.send(new EmailMessage(from, env.FEEDBACK_TO, raw));
 }
 
-/** POST /rc-webhook — RevenueCat calls this server-to-server. The Authorization header is the auth
- *  (no HMAC exists); the raw body carries the event. Same fail-open idempotency posture as the
- *  Stripe webhook, keyed in the `rc:` namespace so it can never collide with Stripe's evt_ ids. */
+/** Which guard kept a refused write, read once after it, in the same precedence the SQL uses. A race can only
+ *  mislabel the log row, never change the entitlement. Falls back to 'kept'. */
+async function whichGuard(db: D1LikeDatabase, ent: Entitlement): Promise<RcOutcome> {
+  try {
+    const row = await db.prepare('SELECT premium, rc_event_ms, rc_txn FROM entitlements WHERE user_id = ?1').bind(ent.userId).first<{ premium: number; rc_event_ms: number | null; rc_txn: string | null }>();
+    if (!row) return 'kept';
+    if (ent.eventMs != null && row.rc_event_ms != null && ent.eventMs < row.rc_event_ms) return 'stale-order';
+    if (row.premium === 1 && ent.txn != null && row.rc_txn != null && ent.txn !== row.rc_txn) return 'other-subscription';
+    return 'kept';
+  } catch {
+    return 'kept';
+  }
+}
+
+/** POST /rc-webhook: RevenueCat calls this server-to-server. The Authorization header is the auth, and
+ *  once RC_WEBHOOK_HMAC is set, RevenueCat's HMAC signature over the RAW body must verify too. Same
+ *  fail-open idempotency posture as the Stripe webhook, keyed in the `rc:` namespace so it can never
+ *  collide with Stripe's evt_ ids. */
 export async function handleRcWebhook(request: Request, env: RcEnv, nowISO: string, nowMs: number): Promise<Response> {
   if (!env.RC_WEBHOOK_AUTH || !env.DB) return new Response('not configured', { status: 503 });
   if (!verifyRcAuth(request, env.RC_WEBHOOK_AUTH)) return new Response('unauthorized', { status: 401 });
 
+  // The raw body, read once: the signature is over these exact bytes, so it is checked before parsing.
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return new Response('bad body', { status: 400 });
+  }
+  if (env.RC_WEBHOOK_HMAC && !(await verifyRcSignature(raw, request.headers.get('X-RevenueCat-Webhook-Signature'), env.RC_WEBHOOK_HMAC, nowMs))) {
+    // Authorization already matched, so this is almost certainly OUR misconfiguration (a rotated or
+    // mistyped signing secret), not an attacker, and every delivery is now refused. Say so loudly: a
+    // missed EXPIRATION or refund would otherwise leave a non-payer on Premium. The log row carries NO
+    // event id (rc_events.event_id is UNIQUE and logged with INSERT OR IGNORE, so the real id would hide
+    // the 'applied' row when a retry succeeds). The owner alert is held to one per six hours.
+    let parsed: unknown = null;
+    try {
+      parsed = (JSON.parse(raw) as { event?: unknown })?.event ?? null;
+    } catch {
+      parsed = null;
+    }
+    await logRcEvent(env.DB, { ...rcEventRow(parsed, 'bad-signature'), eventId: null }, nowISO);
+    try {
+      // only when an alert can actually go out, so the dedupe never records one that was not sent
+      if (!env.SEND_EMAIL || !env.FEEDBACK_TO) throw new Error('no alert path');
+      const last = await lastAlert(env.DB, 'rc-bad-signature');
+      if (last == null || nowMs - last > 6 * 3_600_000) {
+        await alertOwner(env, 'DoubleDone: RevenueCat webhooks are being refused (bad signature)', 'A RevenueCat delivery passed the Authorization check but failed the HMAC signature, so it was refused, and RevenueCat will keep retrying for about two and a half hours. The RC_WEBHOOK_HMAC Worker secret almost certainly does not match the signing secret in the RevenueCat dashboard (it was rotated, or mistyped). Fix: copy the current secret from RevenueCat (rotate it if it is no longer shown) and run npx wrangler secret put RC_WEBHOOK_HMAC, then Send test event. To fall back to the Authorization header alone: npx wrangler secret delete RC_WEBHOOK_HMAC.');
+        await recordAlert(env.DB, 'rc-bad-signature', nowMs);
+      }
+    } catch {
+      // the alert is best effort; the 401 below still stands
+    }
+    return new Response('bad signature', { status: 401 });
+  }
+
   let body: { event?: unknown };
   try {
-    body = (await request.json()) as { event?: unknown };
+    body = JSON.parse(raw) as { event?: unknown };
   } catch {
     return new Response('bad json', { status: 400 });
   }
@@ -409,10 +507,13 @@ export async function handleRcWebhook(request: Request, env: RcEnv, nowISO: stri
   }
   const written = await writeEntitlement(env.DB, ent, nowISO);
   // AFTER the write, never before, so `applied = 1` can never claim something that did not happen.
-  // `false` is writeEntitlement's cross-store guard at work: another store sold the live premium, and
-  // this store may not end it or take it over. Handled, so it is still marked processed.
+  // `false` means one of writeEntitlement's guards kept the row: the cross-store guard (another store sold
+  // the live premium), the order guard (an event older than the last one applied), or the which-subscription
+  // guard (a non-sale about a different subscription than the live one). Each is handled, never worth a
+  // retry, so it is still marked processed; the log says which, from one best-effort read after the write.
   const kept = written === false;
-  await logRcEvent(env.DB, rcEventRow(event, kept ? 'kept' : allowlisted ? 'sandbox-allowlisted' : 'applied'), nowISO);
+  const keptOutcome = kept ? await whichGuard(env.DB, ent) : null;
+  await logRcEvent(env.DB, rcEventRow(event, keptOutcome ?? (allowlisted ? 'sandbox-allowlisted' : 'applied')), nowISO);
   if (eventId) {
     try {
       await env.DB.prepare('INSERT OR IGNORE INTO processed_events (event_id, created_at) VALUES (?1, ?2)').bind(eventId, nowISO).run();

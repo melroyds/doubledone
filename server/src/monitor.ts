@@ -258,7 +258,7 @@ async function sendOwnerEmail(env: MonitorEnv, subject: string, body: string): P
 
 /** Most-recent send time for an alarm kind, or null. Fails OPEN (null) so a dedup-store
  *  error never suppresses a real alarm. */
-async function lastAlert(db: D1LikeDatabase, kind: string): Promise<number | null> {
+export async function lastAlert(db: D1LikeDatabase, kind: string): Promise<number | null> {
   try {
     const row = await db.prepare('SELECT MAX(created_at) AS last FROM alerts_sent WHERE kind = ?1').bind(kind).first<{ last: number | null }>();
     return typeof row?.last === 'number' ? row.last : null;
@@ -267,7 +267,7 @@ async function lastAlert(db: D1LikeDatabase, kind: string): Promise<number | nul
   }
 }
 
-async function recordAlert(db: D1LikeDatabase, kind: string, nowMs: number): Promise<void> {
+export async function recordAlert(db: D1LikeDatabase, kind: string, nowMs: number): Promise<void> {
   try {
     await db.prepare('INSERT INTO alerts_sent (kind, created_at) VALUES (?1, ?2)').bind(kind, nowMs).run();
   } catch {
