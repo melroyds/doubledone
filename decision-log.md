@@ -9011,9 +9011,10 @@ repeats; the code says otherwise); the big task's line always sits below the ste
 so writing never moves it; the reserved "one more line" in Focus is now that line; the mark shows only where a
 line is shown; and nothing in the app turns a one-off into a repeat, so item 5 has no in-app path. **My
 assumption, Melroy to challenge:** when a combine folds away every remaining step of a broken-down task, the
-big task's line is one of the candidates for "newest wins". **Open, Melroy's call:** a line on a tiny step is
-deleted the moment the step is ticked (the spent pebble is tombstoned), so either a tiny step takes no line,
-or its line moves onto the real task when it comes back.
+big task's line is one of the candidates for "newest wins". **Settled by Melroy ("tiny:move"):** a line on a tiny step
+would be deleted the moment the step is ticked (the spent pebble is tombstoned), so it MOVES onto the real
+task as that task comes back, newest line winning as in Combine. Decided against: tiny steps taking no line
+(the tiny step is exactly where the first handhold gets written).
 
 **Still the rule:** test first. The build and the data-model change wait for the 8-person replies on
 Sunday 11 October.
