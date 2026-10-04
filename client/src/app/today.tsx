@@ -376,6 +376,11 @@ export default function TodayScreen() {
   const { premium, loading: premiumLoading, entitlement } = usePremium(); // gates Pin; a dev override drives it locally
   const sheetRef = useRef<CaptureSheetHandle>(null);
   const listEndRef = useRef(0); // where today's rows end, in the scroll content (see revealListEnd)
+  // A card's editor near the bottom: the keyboard's top edge, the list's offset and the field waiting for
+  // the keyboard, so revealField can lift the line field above it (native; the web page resizes instead).
+  const listScrollY = useRef(0);
+  const keyboardTop = useRef<number | null>(null);
+  const pendingReveal = useRef<TextInput | null>(null);
   // The capture panel is up (the pill's sheet). While it is, the list leaves room above it, and a row it
   // just added keeps a soft tint until it closes.
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -396,6 +401,24 @@ export default function TodayScreen() {
       hide.remove();
     };
   }, [focusOpen, sheetOpen]);
+  // The keyboard's top edge for revealField. DidShow on both platforms: by then iOS has set the list's inset
+  // (automaticallyAdjustKeyboardInsets) and Android has added listKb, so the scroll has room to land.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const show = Keyboard.addListener('keyboardDidShow', (e) => {
+      keyboardTop.current = e.endCoordinates.screenY || winH - e.endCoordinates.height;
+      const field = pendingReveal.current;
+      if (field && !focusOpen && !sheetOpen) setTimeout(() => liftAboveKeyboard(field), Platform.OS === 'android' ? 80 : 0);
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      keyboardTop.current = null;
+      pendingReveal.current = null;
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  });
   const [justAdded, setJustAdded] = useState<string[]>([]);
   // Tuck: rows ticked a moment ago stay in place for a beat before they fold into "Done today"; whether
   // that line is open; and what it last said, for a screen reader on web (announce is a no-op there).
@@ -2711,6 +2734,25 @@ export default function TodayScreen() {
     if (schedule.mode === 'today') setTimeout(revealListEnd, 120);
   }
 
+  // The open card's line field, lifted above the keyboard (the handoff's keyboard plan; Melroy's iPhone,
+  // 2026-10-05: a task low on Today opened its editor with the line field under the keyboard). Only ever
+  // scrolls by the overlap, so a card already in view never moves. If the keyboard is not up yet, the field
+  // waits for it (keyboardDidShow, below).
+  function revealField(field: TextInput | null) {
+    if (Platform.OS === 'web' || !field) return;
+    pendingReveal.current = field;
+    if (keyboardTop.current != null) setTimeout(() => liftAboveKeyboard(field), 0);
+  }
+  function liftAboveKeyboard(field: TextInput) {
+    const top = keyboardTop.current;
+    if (top == null) return;
+    pendingReveal.current = null;
+    field.measureInWindow((_x, y, _w, h) => {
+      const overlap = y + h + spacing.four - top;
+      if (overlap > 0) scrollRef.current?.scrollTo({ y: listScrollY.current + overlap, animated: !reduced });
+    });
+  }
+
   // The last of today's rows, 12 above the panel's top edge. Read from the list's own layout, which has
   // re-measured by the time this runs (the new rows committed a render ago).
   function revealListEnd() {
@@ -2804,6 +2846,7 @@ export default function TodayScreen() {
       onRename={(title) => renameRow(task.id, title)}
       leftOff={isRecurring(task) ? undefined : task.leftOff}
       onSaveEdit={isRecurring(task) || isDoneOn(task, today) ? undefined : (title, line, announce) => saveEditRow(task.id, title, line, announce)}
+      onEditorFocus={revealField}
       onNudge={Platform.OS !== 'web' && !isDoneOn(task, today) ? () => openNudge(task.id) : undefined}
       onHold={Platform.OS !== 'web' && (!isDoneOn(task, today) || hold?.taskId === task.id) ? () => tapHold(fresh(task)) : undefined}
       held={hold?.taskId === task.id}
@@ -2870,6 +2913,10 @@ export default function TodayScreen() {
         // resize, gets the keyboard's height as room at the end instead (listKb).
         automaticallyAdjustKeyboardInsets
         keyboardShouldPersistTaps="handled"
+        onScroll={(e) => {
+          listScrollY.current = e.nativeEvent.contentOffset.y;
+        }}
+        scrollEventThrottle={32}
         // Swipe anywhere on the page to put the keyboard away. The capture box is multiline, so
         // iOS's Return key inserts a newline instead of dismissing, which left the keyboard stuck
         // unless you found bare background to tap (Melroy, iOS, 2026-07-15). This is the gesture
@@ -3326,6 +3373,7 @@ export default function TodayScreen() {
                   onRename={(title) => renameRow(task.id, title)}
                   leftOff={isRecurring(task) ? undefined : task.leftOff}
                   onSaveEdit={isRecurring(task) || isDoneOn(task, today) ? undefined : (title, line, announce) => saveEditRow(task.id, title, line, announce)}
+                  onEditorFocus={revealField}
                   onSteps={!isRecurring(task) ? () => openSliceEdit(task.id) : undefined}
                   onMoveTo={!isRecurring(task) ? () => setMoveIds([task.id]) : undefined}
                   origin={task.sharedRef ? `· ${t('ours.defaultName')}` : undefined}
