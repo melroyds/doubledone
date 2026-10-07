@@ -9225,3 +9225,12 @@ disconnected account's grants, whose props carry the email, stayed in KV for at 
 builds the helpers with `getOAuthApi` from the same options and revokes them, best effort. The free-trial
 record (`trials`: an internal id and two dates, no email, no task data) stays, so a trial is used once; the
 privacy policy does not yet say so, and its new wording waits for Melroy's confirmation (BUILD-PLAN).
+
+## 2026-10-07: the "Due today" Ours strip stays on Today (considered, kept)
+
+Melroy, optimising the UI: the Menu has the Ours room, so could the strip come off Today to cut clutter?
+**Decided:** leave it as is. **Decided against:** removing it (a shared chore due today would be visible
+only to whoever remembers to open the room, the failure the strip exists to prevent: "bin night should not
+require a trip to another room every Tuesday"), and shrinking it to a one-line link (less clutter, but it
+loses the tick from Today). It is already absent when nothing shared is due. Its ticks are not counted, so
+if this comes up again, count first (a bare-name beacon) and decide on the number.
