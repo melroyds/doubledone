@@ -159,7 +159,7 @@ The listing now names no price, no paid-only feature and no outside way to pay, 
 `node scripts/check-listings.mjs` fails if any of that comes back. That retires the rule above about
 diffing against the Premium wall: diff the FREE list against the app instead.*
 
-3,171 characters of 4,000.
+3,318 characters of 4,000. *2026-10-14: the not-a-medical-device line added (Google Play's Health apps policy asks for it in the description of any app touching wellbeing).*
 
 ```
 Today is finite and achievable.
@@ -203,6 +203,8 @@ PRIVATE BY DEFAULT
 - Export your data or delete your account any time.
 
 you're allowed to go slowly
+
+DoubleDone is not a medical device. It does not diagnose, treat, cure or prevent any condition, and it is not a substitute for professional care.
 
 Read the plain-English privacy policy at doubledone.app/privacy.
 ```
