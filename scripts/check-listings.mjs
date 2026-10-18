@@ -7,6 +7,9 @@
 // CI runs both modes on every push and pull request (.github/workflows/ci.yml, the listings job).
 // Run it after ANY edit to these docs, and before pasting anything into either console. Then print each field
 // from the gated file and diff what was sent (a hand-retyped Italian listing once went live with a typo).
+// After any change to THIS file, run its break test too, `python scripts/check-listings-break.py`, which breaks
+// each rule once in a temporary copy and fails unless the gate fails for that reason. Three rules here passed
+// everything until the 2026-10-19 build review proved it by hand; the break test keeps that proof.
 //
 // The paste sources, and nothing else (the retired Play docs carry a "do not paste" banner and are not read):
 //   docs/play-store-submission-pack.md      Play English (en-AU): title, short and full description
@@ -46,11 +49,14 @@
 //      (Android only), Speak (the web only: speech.ts is a stub on phones), the web or a browser, or Stripe.
 //
 //   6. THE CLAIMS THE CODE PROVED FALSE, banned by name so they cannot drift back: "heavier" (your person can
-//      give a shared row today's date), "colleagues" (friends, Melroy 2026-10-18), every "nothing leaves your
-//      device" variant in five languages (sync, Ours, a feedback note and the usage counts still run with AI
-//      off), "Private by default" (AI starts on), "third-party trackers" (RevenueCat gets an install id on
-//      Android), "Export your data" (it exports tasks and what you finished), seven themes as Premium (Dusk is
-//      free), a comparison nobody can check, and any accessibility claim, which nothing in the app has earned.
+//      give a shared row today's date), "colleagues" (friends, Melroy 2026-10-18), the "nothing leaves your
+//      device" family in five languages (sync, Ours, a feedback note and the usage counts still run with AI
+//      off: the wordings that were really there by name, and their common rewordings by pattern, "nothing ...
+//      leaves or is sent" and "never leaves your device or phone" in each language; a pattern is a net, not a
+//      proof, so a native read still reads for the idea), "Private by default" (AI starts on), "third-party
+//      trackers" (RevenueCat gets an install id on Android), "Export your data" (it exports tasks and what you
+//      finished), seven themes as Premium (Dusk is free), a comparison nobody can check, and any accessibility
+//      claim, which nothing in the app has earned.
 //
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -189,9 +195,39 @@ const BANNED = [
   ['"heavier" (your person can give a shared row a date, and it lands on your Today)', /heavier/i],
   ['"colleagues" (friends with ADHD and OCD, Melroy 2026-10-18)', /colleague/i],
   ['"nothing you type leaves" (sync, Ours, a feedback note and the usage counts still run with AI off)', /nothing you type (?:leaves|is sent)/i],
-  ['"nothing leaves your device"', /nothing leaves your device|nothing is sent anywhere|entirely on your device/i],
+  // The old wordings by name, then their rewordings by pattern: "nothing / no text / none of what you write", up to
+  // 40 characters, then "leaves / is sent / goes anywhere"; and "never / not / n't leave your (or the) device or phone".
+  [
+    '"nothing leaves your device", or a rewording of it',
+    /nothing leaves your device|nothing is sent anywhere|entirely on your device|\b(?:nothing|no text|none of (?:it|what you \w+))\b[^.\n]{0,40}\b(?:leaves?|is sent|goes anywhere)\b|(?:\bnever|\bnot|n['’]t) leaves? (?:your|the|this) (?:device|phone|iphone)\b/i,
+  ],
   ['"Private by default" (AI starts on; the phrase is kept for the AI-off screen only)', /private by default|Privat von Haus aus|Privado por defecto|Privé par défaut|Privata di default/i],
-  ['a translated "no text leaves your device" (still false: sync, Ours, a feedback note, the usage counts)', /verlässt (?:kein Text|nichts) (?:mehr )?dein Gerät|ese texto ya no sale|nada sale de tu dispositivo|rien de ce que tu écris ne (?:part|sort)|plus rien de ce que tu écris|niente di quello che scrivi esce/i],
+  // The same family in the four translations: the lines that were really there by name, then each language's own
+  // "nothing ... is sent / leaves" and "never leaves your device / phone", the rewordings a native read reaches for.
+  [
+    'a translated "no text leaves your device" (still false: sync, Ours, a feedback note, the usage counts)',
+    new RegExp(
+      [
+        // German, e.g. "dann wird nichts mehr irgendwohin geschickt" (play-store-listings-localised.md, 2026-08-16)
+        String.raw`verlässt (?:kein Text|nichts) (?:mehr )?dein Gerät`,
+        String.raw`\bnichts\b[^.\n]{0,40}(?:\bgeschickt|\bgesendet|\bverschickt|übertragen|\bverlässt)`,
+        String.raw`\bverlässt\s+(?:nichts|kein\w*)\b[^.\n]{0,30}\b(?:Gerät|Handy|Telefon|iPhone)`,
+        // Spanish
+        String.raw`ese texto ya no sale|nada sale de tu dispositivo`,
+        String.raw`\bnada\b[^.\n]{0,40}\b(?:sale|se envía|se envia|se manda)\b`,
+        String.raw`\b(?:no|nunca) salen? de tu (?:dispositivo|teléfono|móvil|celular|iPhone)`,
+        // French
+        String.raw`rien de ce que tu écris ne (?:part|sort)|plus rien de ce que tu écris`,
+        String.raw`\brien\b[^.\n]{0,40}(?:\bne (?:part|sort|quitte)\b|\bn['’]est (?:envoyé|transmis))`,
+        String.raw`\bne (?:quitte|sort) (?:jamais |pas )?(?:de )?(?:ton |l['’])(?:appareil|téléphone|iPhone)`,
+        // Italian
+        String.raw`niente di quello che scrivi esce`,
+        String.raw`\b(?:niente|nulla)\b[^.\n]{0,40}\b(?:esce|lascia|viene inviat\w*|viene mandat\w*)\b`,
+        String.raw`\bnon (?:esce|lascia) (?:mai )?(?:dal|il) (?:tuo )?(?:dispositivo|telefono|iPhone)`,
+      ].join('|'),
+      'i',
+    ),
+  ],
   ['"third-party trackers" (RevenueCat gets an install id on every Android phone)', /third-party trackers|Tracker von Dritten|rastreadores de terceros|traqueur tiers|tracciamento di terze parti/i],
   ['"Export your data" (it exports your tasks and what you finished, not everything)', /export your data|Deine Daten exportieren|Exporta tus datos|Exporte tes données|Esporta i tuoi dati/i],
   ['"unlike every shared list" (a comparison nobody can check)', /unlike every shared list/i],

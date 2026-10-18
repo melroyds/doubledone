@@ -10140,3 +10140,24 @@ the English App Store page was the one listing that never named the code, so it 
 re-measured after each change so only the rule under test can fail) removed the code from all ten texts and the
 diagnose sentence from six: the new gate fails all 17, the old one missed 16. Decided against: the bare-number
 check kept beside the phrase, which proves nothing once a number appears anywhere else in the text.
+
+**The "nothing leaves your device" ban catches the family, not one wording (finding 9).** The gate's header claimed
+it banned "every variant in five languages", and the rules were literals: "nothing leaves the device", "nothing
+leaves your phone", "your words never leave your device" and "nothing you write leaves your device" all passed, the
+overclaim that sat on both stores for two months. Now the old wordings stay banned by name, and their rewordings by
+pattern: in English, "nothing / no text / none of what you write" up to 40 characters before "leaves / is sent /
+goes anywhere", and "never / not / n't leave your (or the) device or phone"; in German, Spanish, French and Italian,
+each language's own "nothing ... is sent or leaves" and "never leaves your device or phone" (the German includes the
+recorded "nichts mehr irgendwohin geschickt"). The header now says what it does: a pattern is a net, not a proof,
+so the native read still reads for the idea. None of the patterns matches the current paste sources.
+
+**The break test is now in the repo: `scripts/check-listings-break.py`.** The slice 8 negative run and this
+review's probes were by-hand scratch runs nobody kept, which is how three rules could pass everything. The script
+copies the four paste sources to a temporary folder, makes one change at a time, re-measures every recorded count,
+and counts a case as caught only when the gate fails for the EXPECTED reason, because a probe that merely pushes a
+description past 4,000 characters proves nothing (the first scratch run here had four of those). Each probe
+replaces a sentence for the same reason. It holds the 17 protected-claim cases and 16 nothing-leaves probes (eight
+English, eight across the four translations, both stores): 33 of 33 caught; the gate before this commit let 15 of
+the 16 probes through. The gate's header says to run it after any change to the gate. Decided against: running it
+in CI. It shells out once per case and proves the gate, not the copy, so it belongs with gate edits, which are rare;
+CI keeps running the gate itself on every push.
