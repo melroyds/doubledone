@@ -10436,3 +10436,19 @@ Dark mode is unchanged, because the sky roles are inkSoft and the accent there. 
   pale kept a known AA failure for no look worth keeping. The parked rows entry now says the frame is done.
 - **Giving Quiet's frame back a card.** Quiet is borderless on purpose, and the roles exist so a surface change is
   never needed to fix a word.
+
+**The colour scan reads every mention of the accent (finding 2).** This corrects slice 4's guard. It matched only
+a line where `color:` and `colors.accent` sat together, so a colour that reached words through a variable passed:
+TaskRow's `heroText` held the accent for Break it down's words on main, and putting that line back passed the old
+scan. Slice 3 had fixed the site before the guard existed, so the guard's "failed 90 accent sites" proof never
+covered that shape. Now `colour-sites.test.ts` reads the accent the way it reads inkFaint, at every mention, and
+lets a mention off only when its own line assigns it to a fill or an edge (backgroundColor, borderColor, the four
+side borders, textDecorationColor, stopColor, shadowColor) or to a graphic's own prop (`color={` on a spinner or
+the drawn pin). Proved by putting main's `heroText` line back: the new scan fails on it. A small test pins how the
+reader classifies the shapes the screens use, ternaries included.
+
+**Decided against:**
+- **Following the variable to where it is used.** A file scan cannot trace data flow without a parser, and the
+  rule is simpler than the trace: the accent itself is a fill, so any other use names a text role or is listed.
+- **Reading a key from the line above** for a mention on a line of its own. It would let a multi-line ternary hide
+  a text use. Such a mention counts until it is listed or rewritten.
