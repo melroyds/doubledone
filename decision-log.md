@@ -10497,3 +10497,14 @@ says the welcome shows no price of ours, the Premium screen shows Apple's, and t
 
 **Decided against:** splitting `terms.tsx` into an iOS variant now. It is legal text, and every Terms change waits
 for Melroy's word. The draft of the fix stays in the Backlog item.
+
+**The release notes say "darker" of the light theme only (finding 6).** Every Apple block said grey and coloured
+words are darker "most of all in the light theme", and every Play block "across the app, most of all in the light
+theme", which tells a dark-mode reader their words got darker. In dark mode no token went darker: skyInk is
+inkSoft, accentText and skyAccent are the accent, and the only change there is inkFaint text lifting to inkSoft,
+which is lighter. Each opening now starts "In the light theme" in its own language, the Honey clause folds into
+that sentence, and the counts are re-measured (Apple 715 to 835, Play 390 to 482). The content checks re-ran clean.
+The notes were still waiting on their native read, so the new lines simply join it.
+
+**Decided against:** a sentence about dark mode's lighter grey. It is the smallest visible change in the batch,
+and the cap on Play's French leaves 18 characters.
