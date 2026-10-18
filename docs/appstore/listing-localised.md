@@ -153,7 +153,7 @@ lista,pendientes,todo,planificador,organizador,autismo,toc,neurodivergente,rutin
 Una lista de tareas serena para el TDAH, el autismo y el TOC. Solo hoy, en su justa medida, y nada está nunca atrasado. Todo el ciclo diario es gratis, para siempre.
 ```
 
-**Description** (3916 / 4000)
+**Description** (3981 / 4000)
 
 ```
 DoubleDone es una lista de tareas serena para adultos con TDAH, autismo, TOC y agobio.
@@ -191,7 +191,7 @@ DoubleDone Premium es una suscripción opcional de renovación automática, mens
 EN TU DISPOSITIVO POR DEFECTO
 - Tus tareas viven en tu dispositivo. No hace falta cuenta para usarla.
 - Sincronizar entre dispositivos es opcional, y solo pide un correo y un código de un solo uso.
-- Lo que eliges para una función de IA va a Claude, de Anthropic, y Anthropic no lo usa para entrenar sus modelos. Las imágenes del álbum se crean con modelos de IA de Cloudflare.
+- Lo que eliges para una función de IA va a Claude, de Anthropic, y Anthropic no lo usa para entrenar sus modelos. Las imágenes del álbum se crean con modelos de IA de Cloudflare. Guardamos una copia sin nombre ni cuenta para mejorar los pasos.
 - Sin anuncios. Sin identificadores publicitarios ni seguimiento entre apps. No se vende nada.
 
 tienes permiso para ir despacio

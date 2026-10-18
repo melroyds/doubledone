@@ -10107,3 +10107,13 @@ sign-in invite, five catalogues, a manual case) under the same trigger, the next
 against: building the signed-in variants on this branch. It is new copy in five languages for a replay path few
 people take, the native read is already the batch's long pole, and the first-run line, which everyone sees, is
 true as written.
+
+**Spanish says the same thing on both stores again (finding 6).** The Spanish App Store bullet, adapted from the
+Spanish Play text, had dropped its last sentence, "Guardamos una copia sin nombre ni cuenta para mejorar los
+pasos.", so the two stores told a Spanish reader different things about where an AI request goes. It is back,
+word for word (the description is now 3,981 of 4,000), and needs no new native read, because the Play text it
+comes from already had one. **Left for Melroy:** the English, German, French and Italian privacy lines on both
+stores name Anthropic as the only place AI text goes and leave out the copy we keep without a name, account or IP
+address (the privacy policy's "The AI features" section, and `faqAiA` on the landing page). They are not false
+about what Anthropic does, and every language agrees across its two stores, so adding `faqAiA`'s copy sentence to
+them is a copy call, not a fix, and it would need the native read for three languages.
