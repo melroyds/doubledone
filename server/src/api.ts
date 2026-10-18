@@ -46,6 +46,8 @@ import {
   type PartsChange,
   partsGuard,
   planFinish,
+  type RemovalAdvice,
+  removalAdvice,
   setTotal,
   type Slices,
   type StepSpec,
@@ -584,8 +586,23 @@ const STEPS_CONFLICTS: Record<'done' | 'repeats' | 'parts' | 'hidden', string> =
 };
 
 /** Why DELETE refuses a task waiting behind its steps: deleted alone, it would leave its steps listed with nothing
- *  left for them to close. Deleting the steps brings it back (the app's repair), and then it deletes as any task. */
+ *  left for them to close. Deleting the steps brings it back (the app's repair), and then it deletes as any task.
+ *  The 409 carries `stepIds`, every live step, done ones too. Two or more done steps left behind would make the
+ *  repair FINISH it instead (steps.ts removalAdvice), so then the message says to delete all of them. */
 const WAITING_DELETE = 'that task is waiting on its steps: delete its steps first, and the app brings it back on its next open';
+
+function waitingDelete(advice: RemovalAdvice): { error: string; stepIds: string[] } {
+  if (advice.kind === 'cleared') {
+    return { error: 'that task is waiting on its steps, and they are all deleted already: the app brings it back on its next open, after which it deletes like any task', stepIds: [] };
+  }
+  if (advice.kind === 'finishes') {
+    return {
+      error: `that task is waiting on its steps, and ${advice.done} of them are already done, so deleting only the open ones would mark it done: delete every task in stepIds, done ones too, and the app brings it back on its next open`,
+      stepIds: advice.ids,
+    };
+  }
+  return { error: WAITING_DELETE, stepIds: advice.ids };
+}
 
 /** The rows an insert or a write returned, by id, so the reply lists them in the order they were written. */
 function rowsById(rows: unknown): Map<string, Row> {
@@ -1038,8 +1055,8 @@ async function handleApiInner(request: Request, env: ApiEnv, verifySub: SubVerif
       return json({ error: 'not found' }, 404);
     }
     if (request.method === 'DELETE') {
-      // Read first, because a task waiting on its steps is a 409 (WAITING_DELETE). A step deletes alone, with no
-      // walk, the same as the app's Remove.
+      // Read first, because a task waiting on its steps is a 409 (waitingDelete), with its steps read to say how to
+      // delete it. A step deletes alone, with no walk, the same as the app's Remove.
       const st = getRequest(env, token, id);
       const sr = await fetch(st.url, st.init);
       if (!sr.ok) return upstream(sr);
@@ -1047,7 +1064,14 @@ async function handleApiInner(request: Request, env: ApiEnv, verifySub: SubVerif
       const row = Array.isArray(srows) && srows[0] && typeof srows[0] === 'object' ? (srows[0] as Row) : null;
       // Nothing live by that id (already deleted, or never there): a 204 as always, so a retried delete is harmless.
       if (!row) return new Response(null, { status: 204, headers: API_CORS });
-      if (row.silent_parent === true) return json({ error: WAITING_DELETE }, 409);
+      if (row.silent_parent === true) {
+        const kids = readRowsRequest(env, token, walkChildrenQuery(id));
+        const kr = await fetch(kids.url, kids.init);
+        if (!kr.ok) return upstream(kr);
+        const krows = (await kr.json()) as unknown;
+        const children = Array.isArray(krows) ? (krows.filter((r) => r !== null && typeof r === 'object') as WalkRow[]) : [];
+        return json(waitingDelete(removalAdvice(children, Date.now())), 409);
+      }
       const { url, init } = deleteRequest(env, token, id, new Date().toISOString(), { silent_parent: 'not.is.true' });
       const res = await fetch(url, init);
       if (!res.ok) return upstream(res);

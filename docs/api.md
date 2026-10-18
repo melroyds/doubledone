@@ -297,8 +297,10 @@ so list your tasks before you retry. The task's own title, due day and
 everything else about it are left as they were. Its `due` day stays, and the app's Calendar still
 shows it on that day, as it does for a task broken down in the app.
 
-**To undo a breakdown**, delete its steps. On its next open the app sees a big task with every step
-gone and brings it back to Today, open, as it was.
+**To undo a breakdown**, delete all its steps, done ones too. On its next open the app sees a big
+task with every step gone and brings it back to Today, open, as it was. Two or more done steps left
+behind would make the app finish it instead (see Deleting); a `DELETE` of the big task answers with
+the id of every step it still has.
 
 `POST /tasks` with `steps` does the same for a task that is not on your list yet, in a single
 write.
@@ -328,9 +330,12 @@ and to recognise a task folded by Combine). A removed task no longer appears in 
 `GET /tasks/{id}` answers `404`.
 
 A task waiting on its steps (`hidden: true`) is a `409`: deleted alone, it would leave its steps
-listed with nothing left to close. Delete its steps instead, and the app brings it back on its next
-open, after which it deletes like any task. Deleting a step deletes that step alone, the same as
-Remove in the app. A delete reads the task first, and if it changed between that read and the
+listed with nothing left to close. The `409` carries `stepIds`, the id of every step it still has,
+done ones too. Delete **all** of them, and the app brings it back on its next open, after which it
+deletes like any task. Leave two or more done steps behind and every step it has left is done, so
+the app's repair **finishes** it instead (it lands in Done today and the Lookback), and the message
+says so when that is the case. Deleting a step deletes that step alone, the same as Remove in the
+app. A delete reads the task first, and if it changed between that read and the
 write (deleted or broken down elsewhere), the answer is a `409`: read it again and retry.
 
 ---

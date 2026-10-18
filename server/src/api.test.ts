@@ -1132,12 +1132,35 @@ describe('linked steps over REST: steps on create, POST /tasks/{id}/steps, and t
 
   const del = (id: string) => handleApi(req('DELETE', `/api/v1/tasks/${id}`, { token }), env, trust);
 
-  it('DELETE of a task waiting on its steps is a 409 after one read, with no write', async () => {
-    const calls = sequence([row({ silent_parent: true })]);
+  it('DELETE of a task waiting on its steps is a 409 naming its live steps, after reading it and them, with no write', async () => {
+    const calls = sequence([row({ silent_parent: true })], [kid('s1', true), kid('s2', false), kid('s3', false, { deleted_at: at(40) })]);
     const res = await del('t1');
     expect(res.status).toBe(409);
-    expect(await errorOf(res)).toBe('that task is waiting on its steps: delete its steps first, and the app brings it back on its next open');
-    expect(calls).toHaveLength(1);
+    expect(await res.json()).toEqual({ error: 'that task is waiting on its steps: delete its steps first, and the app brings it back on its next open', stepIds: ['s1', 's2'] });
+    expect(calls.map((c) => c.init.method)).toEqual(['GET', 'GET']);
+    expect(paramsOf(calls[1])).toMatchObject({ parent_id: 'eq.t1' });
+  });
+
+  it('with two or more steps done, the DELETE 409 says to delete every one of them, done ones too', async () => {
+    sequence([row({ silent_parent: true })], [kid('s1', true), kid('s2', true), kid('s3', false)]);
+    const res = await del('t1');
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error:
+        'that task is waiting on its steps, and 2 of them are already done, so deleting only the open ones would mark it done: delete every task in stepIds, done ones too, and the app brings it back on its next open',
+      stepIds: ['s1', 's2', 's3'],
+    });
+  });
+
+  it('a task whose steps are all deleted already is a 409 that says it comes back, and a failed read of its steps is the upstream error', async () => {
+    sequence([row({ silent_parent: true })], [kid('s1', true, { deleted_at: at(40) })]);
+    let res = await del('t1');
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: expect.stringMatching(/all deleted already: the app brings it back/), stepIds: [] });
+    vi.unstubAllGlobals();
+    sequence([row({ silent_parent: true })], failWith(500));
+    res = await del('t1');
+    expect(res.status).toBe(502);
   });
 
   it('DELETE of any other task reads, then tombstones it pinned to a live task not waiting on its steps', async () => {
@@ -1180,7 +1203,10 @@ describe('linked steps over REST: steps on create, POST /tasks/{id}/steps, and t
     });
     const { Task, TaskInput, StepInput, StepsCreated } = spec.components.schemas;
     expect(Task.required).toEqual(expect.arrayContaining(['parentId', 'parentTitle', 'hidden']));
-    expect(spec.paths['/tasks/{id}'].delete.responses['409']).toEqual({ $ref: '#/components/responses/Conflict' });
+    // DELETE's 409 is its own, because a task waiting on its steps answers with their ids.
+    expect(spec.paths['/tasks/{id}'].delete.responses['409']).toMatchObject({
+      content: { 'application/json': { schema: { properties: { error: { type: 'string' }, stepIds: { type: 'array', items: { type: 'string' } } }, required: ['error'] } } },
+    });
     expect(TaskInput.properties).toHaveProperty('steps');
     expect(StepInput.required).toEqual(['title']);
     expect(Object.keys(StepInput.properties)).toEqual(['title', 'minutes', 'due']);

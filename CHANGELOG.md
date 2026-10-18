@@ -52,7 +52,9 @@ phones with the next store build. 1.8.0 is with the stores._
 - A task waiting on its steps (a broken-down or made-tiny task) can no longer be ticked directly through MCP or
   REST. Its steps close it.
 - Nor can it be removed on its own (MCP `delete_task` refuses it, REST `DELETE` is a `409`), which left its steps
-  on the list with nothing to close. Removing its steps brings it back, and then it removes like any task.
+  on the list with nothing to close. Removing all its steps brings it back, and then it removes like any task.
+  The refusal names every step when two or more are already done, because an agent sees only the open ones,
+  and leaving the done ones behind would make the app finish the big task instead (REST: `stepIds`).
 - **App:** a task in parts finished on one device (or by an agent) and edited on another before it synced came
   out of the merge at every part ticked but still open, and a tap at the last part does nothing, so it could never
   close. The merge now closes it, dated to when it was finished, and tells the server.

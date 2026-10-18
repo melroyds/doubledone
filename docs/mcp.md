@@ -144,7 +144,7 @@ curl -s https://api.doubledone.app/mcp \
 | `list_upcoming` | optional `days` (1 to 30, default 7) | Looks ahead over the coming days. Read-only. |
 | `complete_task` | `id`, plus an optional `day` and `count` | Ticks a task. A repeat is ticked for one day, a task in parts moves forward one part (or `count`), and the last step of a broken-down task closes the big task too. |
 | `update_task` | `id`, plus any of `title`, `due`, `repeat`, `parts`, `done` (with an optional `day`) | Changes a task. |
-| `delete_task` | `id` | Removes a task as a soft delete, never a hard one. A task waiting on its steps is refused: remove its steps. |
+| `delete_task` | `id` | Removes a task as a soft delete, never a hard one. A task waiting on its steps is refused: remove all its steps, done ones too (the refusal names them when that matters). |
 | `break_down` | `task`, plus an optional `context` and `steps` (2 to 10) | **Proposes** small steps for a dreaded task. Adds nothing. |
 | `add_steps` | `task_id` **or** `title`, plus `steps` (2 to 20, each a `title` with an optional `minutes` and `due`) | Writes the steps you said yes to, **linked**, as the app's Break it down does. |
 | `search` | `query` | Searches your open tasks (for ChatGPT Deep Research). Read-only. |
@@ -293,9 +293,18 @@ keep Undo on offer and to recognise a task folded by Combine.
 A task **waiting on its steps** (the big task of a breakdown, or a task made tiny) is not removed
 on its own: removed alone, it would leave its steps on the list with nothing left to close. The
 reply says ""Clear the garage" is waiting on its steps, so it can't be removed on its own. Remove
-its steps first ...", and nothing changes. Removing its steps brings it back to your Today on the
-app's next open (see the undo note under `add_steps`), and then it can be removed like any task.
-Removing a **step** removes that step alone, the same as Remove in the app.
+its steps first ...", and nothing changes. Removing **all** its steps, done ones too, brings it back
+to your Today on the app's next open (see the undo note under `add_steps`), and then it can be
+removed like any task.
+
+Done steps matter because an agent never sees them: `list_today`, `list_upcoming` and `search` show
+open tasks only. If two or more steps are left behind done, every step the big task has left is
+done, so the app's repair **finishes** it on its next open (into Done today and the Lookback) rather
+than bringing it back. So the refusal reads the steps first, and when that would happen it says so
+and names every one: "2 of its steps are already done, so removing only the open ones would mark it
+done. To remove it entirely, remove all of these, done ones too: [s1], [s2], [s3]. ..." With none
+or one done, removing the open ones brings it back as before. Removing a **step** removes that step
+alone, the same as Remove in the app.
 
 ### `break_down`
 
@@ -367,8 +376,11 @@ steps went in without the task being tucked away, so check `list_today` before y
 task's own title, due day, pin, "a lot" mark and "Where you left off" line are never touched. A step
 can itself be broken down later, which makes a chain, as in the app.
 
-**To undo a breakdown**, remove its steps with `delete_task`. On its next open the app sees a big
-task with every step gone and brings it back to your Today, open, as it was.
+**To undo a breakdown**, remove all its steps with `delete_task`, done ones too. On its next open
+the app sees a big task with every step gone and brings it back to your Today, open, as it was. Right
+after `add_steps` none is done, so the step ids in its reply are all of them. Later, steps already
+done are not on any list, and two or more of them left behind would make the app finish the big task
+instead; `delete_task` on the big task names every step when that is the case (see `delete_task`).
 
 ### The last step closes the big task
 

@@ -114,7 +114,7 @@ export const OPENAPI_SPEC = {
         summary: 'Break a task into linked steps',
         description:
           'Breaks a task already on your list into 2 to 20 linked steps, as the app\'s Break it down does. The steps are created, then the task is hidden behind them (`hidden: true`); ticking the last step closes it, here, over MCP or in the app. ' +
-          'A 409 if the task is done, repeats, is tracked in parts or is already waiting on its steps, or if it changed between our read and our write (then nothing is added). To undo a breakdown, delete its steps: the app brings the task back on its next open.',
+          'A 409 if the task is done, repeats, is tracked in parts or is already waiting on its steps, or if it changed between our read and our write (then nothing is added). To undo a breakdown, delete all its steps, done ones too: the app brings the task back on its next open.',
         operationId: 'addSteps',
         requestBody: {
           required: true,
@@ -185,13 +185,31 @@ export const OPENAPI_SPEC = {
         summary: 'Delete a task',
         description:
           'A soft delete: the task is tombstoned, the same way the app removes one, so the removal syncs to your devices. A 204 even when no task matches (already removed, or never there), so a repeated delete is harmless. ' +
-          'A task waiting on its steps (`hidden: true`) is a 409: delete its steps first, and the app brings it back on its next open, after which it deletes as any task does. Deleting a step deletes that step alone.',
+          'A task waiting on its steps (`hidden: true`) is a 409 whose `stepIds` lists every step it still has, done ones too. Delete ALL of them, and the app brings the task back on its next open, after which it deletes as any task does. Two or more done steps left behind would make the app mark it done instead, because every step it has left is done, and the message says so when that is the case. Deleting a step deletes that step alone.',
         operationId: 'deleteTask',
         responses: {
           '204': { description: 'Deleted (a soft delete; the row is tombstoned), or there was nothing to delete.' },
           '400': { $ref: '#/components/responses/BadRequest' },
           '401': { $ref: '#/components/responses/Unauthorized' },
-          '409': { $ref: '#/components/responses/Conflict' },
+          '409': {
+            description: 'The task is waiting on its steps (then `stepIds` is there), or it changed between our read and our write, so read it again before retrying.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    error: { type: 'string' },
+                    stepIds: {
+                      type: 'array',
+                      items: { type: 'string' },
+                      description: 'For a task waiting on its steps: the id of every step it still has, done ones too. Delete all of them to bring it back.',
+                    },
+                  },
+                  required: ['error'],
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -366,7 +384,7 @@ export const OPENAPI_SPEC = {
       Unauthorized: { description: 'Missing, expired, forged or otherwise invalid token. The token is verified before any call, so re-copy it from the app.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
       NotFound: { description: 'No such task.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
       Conflict: {
-        description: 'The task as it stands does not allow this change (for example, lowering partsDone, a repeat on a task in parts, steps for a task already done, or deleting a task waiting on its steps), or it changed between our read and our write. The message says which. Read the task again before retrying.',
+        description: 'The task as it stands does not allow this change (for example, lowering partsDone, a repeat on a task in parts, or steps for a task already done), or it changed between our read and our write. The message says which. Read the task again before retrying.',
         content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
       },
       InternalError: { description: 'Something went wrong on our side (always JSON, always with CORS). Retry in a moment.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },

@@ -1670,21 +1670,48 @@ describe('linked steps: add_steps writes a breakdown, and the last step closes t
 
   // --- delete_task -------------------------------------------------------------------------------------------
 
-  it('delete_task refuses a task waiting on its steps, with one read and no write, and says how to remove it', async () => {
+  it('delete_task refuses a task waiting on its steps, reading it and its steps and writing nothing, and says how to remove it', async () => {
     const cases: [object, string][] = [
       [state({ silent_parent: true }), '"Clear the garage"'],
       [state({ silent_parent: true, title: null }), 'That task'],
     ];
     for (const [hidden, name] of cases) {
-      const calls = sequence([hidden]);
+      // One step done at most: removing the open ones brings it back, as the line says.
+      const calls = sequence([hidden], [kid('s1', true), kid('s2', false), kid('s3', false)]);
       const r = await callTool('delete_task', { id: 't1' });
       expect(r.result.isError).toBe(true);
       expect(text(r)).toBe(
         `${name} is waiting on its steps, so it can't be removed on its own. Remove its steps first (list_today and list_upcoming mark them toward it), and the app brings it back on its next open.`,
       );
-      expect(calls).toHaveLength(1);
+      expect(calls.map((c) => c.init.method)).toEqual(['GET', 'GET']);
+      expect(paramsOf(calls[1])).toMatchObject({ parent_id: 'eq.t1' });
+      expect(paramsOf(calls[1]).select.split(',')).not.toContain('left_off');
       vi.unstubAllGlobals();
     }
+  });
+
+  it('with two or more steps done, delete_task names every step, done ones too, because removing only the open ones would finish it', async () => {
+    const calls = sequence([state({ silent_parent: true })], [kid('s1', true), kid('s2', true), kid('s3', false), kid('s4', false, { deleted_at: at(40) })]);
+    const r = await callTool('delete_task', { id: 't1' });
+    expect(r.result.isError).toBe(true);
+    expect(text(r)).toBe(
+      `"Clear the garage" is waiting on its steps, so it can't be removed on its own. 2 of its steps are already done, so removing only the open ones would mark it done. ` +
+        'To remove it entirely, remove all of these, done ones too: [s1], [s2], [s3]. The app then brings it back on its next open, and it can be removed like any task.',
+    );
+    expect(calls.filter((c) => c.init.method !== 'GET')).toHaveLength(0);
+  });
+
+  it('a task whose steps are all removed already says the app brings it back, and a failed read of its steps says nothing false', async () => {
+    sequence([state({ silent_parent: true })], [kid('s1', true, { deleted_at: at(40) }), kid('s2', false, { deleted_at: at(40) })]);
+    expect(text(await callTool('delete_task', { id: 't1' }))).toBe(
+      `"Clear the garage" is waiting on its steps, so it can't be removed on its own. Its steps are all removed already, so the app brings it back on its next open, and then it can be removed like any task.`,
+    );
+    vi.unstubAllGlobals();
+    sequence([state({ silent_parent: true })], failWith(500));
+    expect(text(await callTool('delete_task', { id: 't1' }))).toBe('Could not remove it just now. Try again.');
+    vi.unstubAllGlobals();
+    sequence([state({ silent_parent: true })], failWith(401));
+    expect(text(await callTool('delete_task', { id: 't1' }))).toBe(TOKEN_EXPIRED);
   });
 
   it('delete_task on any other task reads, then tombstones it pinned to a live task not waiting on its steps', async () => {

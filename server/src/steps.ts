@@ -412,6 +412,28 @@ export function judgeLevel(parent: WalkRow | null, children: WalkRow[], day: str
   return { kind: 'finish' };
 }
 
+/** What removing a big task's steps would leave the app's repair (client/src/lib/today.ts healStuckParents) to do, for
+ *  the refusal when a task waiting on its steps is asked to be removed on its own. An agent sees only OPEN steps (every
+ *  list reads `done=is.false`), so "remove its steps" means the open ones, and the done ones stay:
+ *  - `open`: none or one of its live steps is done, so removing the open ones brings it back to Today, as promised;
+ *  - `cleared`: it has no live steps left, so the repair brings it back on its own;
+ *  - `finishes`: two or more done steps would still make its round, and the repair FINISHES a hidden task whose live
+ *    steps are all done, the opposite of removing it. `ids` is every live step, done ones too: removing all of them
+ *    is the way to bring it back.
+ *  `children` is the walk's read of them (walkChildrenQuery), removed ones included. A big task that never had a step
+ *  reads `open`: the repair never touches one, but nothing writes one either. */
+export type RemovalAdvice = { kind: 'open'; ids: string[] } | { kind: 'cleared' } | { kind: 'finishes'; done: number; ids: string[] };
+
+export function removalAdvice(children: WalkRow[], nowMs: number): RemovalAdvice {
+  const live = children.filter((c) => c.deleted_at == null);
+  const ids = live.flatMap((c) => (typeof c.id === 'string' && c.id ? [c.id] : []));
+  if (live.length === 0 && children.length > 0) return { kind: 'cleared' };
+  const done = live.filter((c) => c.done === true);
+  // What is left once the open ones go: the repair's own round over exactly those.
+  if (currentRound(done.map((c) => roundChild(c, nowMs))).length >= 2) return { kind: 'finishes', done: done.length, ids };
+  return { kind: 'open', ids };
+}
+
 /** The walk's reads and its one kind of write, supplied by the surface (mcp.ts, api.ts) so this file stays free of
  *  fetch. `read` answers null when a read failed. `finish` sends one guarded PATCH and answers the row written,
  *  'miss' when the guard matched nothing, or null when the write failed. */

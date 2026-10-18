@@ -67,6 +67,8 @@ import {
   partsPatch,
   type PartsChange,
   planFinish,
+  type RemovalAdvice,
+  removalAdvice,
   setTotal,
   type Slices,
   stepIds,
@@ -222,7 +224,7 @@ export const TOOLS = [
   {
     name: 'delete_task',
     description:
-      "Remove one of the user's tasks. It is tombstoned (recoverable), never hard-deleted. A task waiting on its steps (one broken down with add_steps) is not removed on its own: remove its steps first, and the app brings it back to the list.",
+      "Remove one of the user's tasks. It is tombstoned (recoverable), never hard-deleted. A task waiting on its steps (one broken down with add_steps) is not removed on its own: remove ALL its steps first, done ones too (the refusal names them when some are done, since lists show open tasks only), and the app brings it back to the list.",
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string', description: 'The task id to remove.' } },
@@ -891,9 +893,18 @@ function waitingOnSteps(row: TaskState): string {
 
 /** Why delete_task refuses a task hidden behind its steps: removed alone, it would leave its steps on the list with
  *  nothing left for them to close, and it is not on any list for the agent to see what went. Removing the steps
- *  instead brings it back (the app's repair, on its next open), and then it can be removed as any task is. */
-function waitingToRemove(row: TaskState): string {
-  return `${quoted(row, 'That task')} is waiting on its steps, so it can't be removed on its own. Remove its steps first (list_today and list_upcoming mark them toward it), and the app brings it back on its next open.`;
+ *  instead brings it back (the app's repair, on its next open), and then it can be removed as any task is. Unless
+ *  two or more of them are done (steps.ts removalAdvice): the agent only ever sees the open ones, and the done ones
+ *  left behind would make the repair FINISH it, the opposite of what was asked. Then the reply names every live
+ *  step, done ones included, so the agent can remove all of them. */
+function waitingToRemove(row: TaskState, advice: RemovalAdvice): string {
+  const head = `${quoted(row, 'That task')} is waiting on its steps, so it can't be removed on its own.`;
+  if (advice.kind === 'cleared') return `${head} Its steps are all removed already, so the app brings it back on its next open, and then it can be removed like any task.`;
+  if (advice.kind === 'finishes') {
+    const ids = advice.ids.map((id) => `[${id}]`).join(', ');
+    return `${head} ${advice.done} of its steps are already done, so removing only the open ones would mark it done. To remove it entirely, remove all of these, done ones too: ${ids}. The app then brings it back on its next open, and it can be removed like any task.`;
+  }
+  return `${head} Remove its steps first (list_today and list_upcoming mark them toward it), and the app brings it back on its next open.`;
 }
 
 /** The reply to a parts tick: how many it ticked, and what is left or that it is done. */
@@ -1417,11 +1428,19 @@ async function runTool(env: McpEnv, token: string, sub: string, name: string, ar
     const taskId = typeof args.id === 'string' ? args.id.trim() : '';
     if (!taskId) return toolText('A task id is required.', true);
     const transient = 'Could not remove it just now. Try again.';
-    // Read first, because a task waiting on its steps is refused (waitingToRemove). A step is removed alone, with no
-    // walk, the same as the app's Remove: the repair sorts its big task out on the next open.
+    // Read first, because a task waiting on its steps is refused (waitingToRemove), with its steps read to say how to
+    // remove it. A step is removed alone, with no walk, the same as the app's Remove: the repair sorts its big task
+    // out on the next open.
     const read = await readTaskState(env, token, taskId, transient);
     if ('fail' in read) return read.fail;
-    if (read.row.silent_parent === true) return toolText(waitingToRemove(read.row), true);
+    if (read.row.silent_parent === true) {
+      const kids = readRowsRequest(env, token, walkChildrenQuery(taskId));
+      const kr = await fetch(kids.url, kids.init);
+      if (!kr.ok) return upstreamFailure(kr, transient);
+      const rows = (await kr.json()) as unknown;
+      const children = Array.isArray(rows) ? (rows.filter((r) => r !== null && typeof r === 'object') as WalkRow[]) : [];
+      return toolText(waitingToRemove(read.row, removalAdvice(children, Date.parse(now))), true);
+    }
     const { url, init } = deleteTaskRequest(env, token, taskId, now, { silent_parent: 'not.is.true' });
     const res = await fetch(url, init);
     if (!res.ok) return upstreamFailure(res, transient);

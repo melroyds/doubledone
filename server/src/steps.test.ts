@@ -19,6 +19,7 @@ import {
   partsGuard,
   partsPatch,
   planFinish,
+  removalAdvice,
   setTotal,
   splitStepTitle,
   stepIds,
@@ -406,6 +407,44 @@ describe('judgeLevel: the one rule', () => {
     const pebble = kid('k', true, { created_at: '2026-10-18T00:00:00.000Z', completed_at: '2026-10-18T00:10:00.000Z' });
     const step = kid('s', true, { created_at: '2026-10-18T00:20:00.000Z', completed_at: '2026-10-18T01:00:00.000Z' });
     expect(judgeLevel(P({ open_parent: null }), [pebble, step], day, 0)).toEqual({ kind: 'app', title: 'Clear the garage' });
+  });
+});
+
+describe("removalAdvice: what removing a big task's open steps would leave the repair to do", () => {
+  const kid = (id: string, done: boolean, extra: WalkRow = {}): WalkRow => ({
+    id,
+    done,
+    parent_id: 'P',
+    created_at: '2026-10-18T00:00:00.000Z',
+    completed_at: done ? '2026-10-18T01:00:00.000Z' : null,
+    deleted_at: null,
+    ...extra,
+  });
+  const gone = { deleted_at: '2026-10-18T02:00:00.000Z' };
+
+  it('none or one done step: removing the open ones brings it back, and every live step is named', () => {
+    expect(removalAdvice([kid('a', false), kid('b', false)], 0)).toEqual({ kind: 'open', ids: ['a', 'b'] });
+    expect(removalAdvice([kid('a', true), kid('b', false), kid('c', false, gone)], 0)).toEqual({ kind: 'open', ids: ['a', 'b'] });
+  });
+
+  it('two or more done steps would make the repair finish it: every live step is named, done ones first as stored', () => {
+    expect(removalAdvice([kid('a', true), kid('b', true), kid('c', false), kid('d', false), kid('e', true, gone)], 0)).toEqual({
+      kind: 'finishes',
+      done: 2,
+      ids: ['a', 'b', 'c', 'd'],
+    });
+  });
+
+  it("an earlier round's finished pebble does not count toward the round the repair judges", () => {
+    const pebble = kid('k', true, { created_at: '2026-10-18T00:00:00.000Z', completed_at: '2026-10-18T00:10:00.000Z' });
+    const step = kid('s', true, { created_at: '2026-10-18T00:20:00.000Z', completed_at: '2026-10-18T01:00:00.000Z' });
+    expect(removalAdvice([pebble, step, kid('t', false, { created_at: '2026-10-18T00:20:00.000Z' })], 0)).toEqual({ kind: 'open', ids: ['k', 's', 't'] });
+  });
+
+  it('every step already removed: the repair brings it back by itself', () => {
+    expect(removalAdvice([kid('a', true, gone), kid('b', false, gone)], 0)).toEqual({ kind: 'cleared' });
+    // A big task that never had a step is not "cleared": the repair never touches one.
+    expect(removalAdvice([], 0)).toEqual({ kind: 'open', ids: [] });
   });
 });
 
