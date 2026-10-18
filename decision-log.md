@@ -9500,7 +9500,12 @@ more children in its current round, and every live child is done on the day. The
 the step's own (so the whole thing lands on the step's day in the Lookback) and `silent_parent: false`, guarded on
 `done=is.false`, `silent_parent=is.true`, `open_parent=not.is.true`. It never writes `open_parent`, `left_off` or
 `shared_ref`. Every other case is left to the app's repair (`healStuckParents`, in 1.8.0, live on both stores), which
-reaches the same end state on the next open.
+reaches the same end state on done, hidden and deleted on the next open. **[Corrected 2026-10-18, after the review
+of the build: the same end state on those three, not on `open_parent`.]** A stale tiny flag on a task with steps
+still open is cleared by the app's own tick of one of its steps (`decide()` clears it on any tick once the round has
+two or more), never by an agent's, because the server never writes it, and the repair leaves a task with an open step
+alone. Both paths agree again at the last step. Cosmetic: the open steps keep the "a tiny step toward" eyebrow until
+then. The fixture has the case and pins what each path leaves (`openParentDiffers`).
 - **Why finish-only:** bringing a task back, retiring a spent pebble and the repair's bring-back all MOVE the child's
   "Where you left off" line onto the parent, and the server never reads or writes `left_off`, a documented privacy
   line. Retiring a pebble without moving its line would lose the person's words.
@@ -9511,7 +9516,7 @@ reaches the same end state on the next open.
 - **A round of none at the direct parent** (only reachable with clock skew) is left to the repair, which brings it
   back where the in-app tick would finish it. The safe direction, accepted.
 - **Ported, not imported, and proven:** `currentRound` and `isDoneOn` exactly, with the client's own timestamp parse.
-  `server/src/settle-cases.json` holds 15 cases, run by the server against `planFinish` and by
+  `server/src/settle-cases.json` holds 16 cases, run by the server against `planFinish` and by
   `client/src/lib/settle-parity.test.ts` (a test-only client file) against the real `settleCompletions` and
   `healStuckParents`, asserting (a) the server never finishes what the app would not, (b) the server's finishes then
   the repair reach the end state, and (c) the app alone reaches the same one. (b) with (c) is the proof that leaving a

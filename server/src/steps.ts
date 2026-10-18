@@ -394,7 +394,10 @@ export type LevelVerdict =
 /** The ONE rule, the same at every level: finish a parent only when it is hidden, open, not removed, not a made-tiny
  *  task, has two or more children in its round, and every live child is done on `day`. Each finish is one the app's
  *  own settleCompletions would make, and every case left alone is one its healStuckParents finishes or brings back
- *  on the next open, to the same end state (settle-cases.json holds the proof, run on both sides). */
+ *  on the next open, to the same end state on done, hidden and deleted (settle-cases.json holds the proof, run on
+ *  both sides). The one field the paths can differ on is `open_parent`: a stale tiny flag on a task with steps still
+ *  open is cleared by the app's own tick of a step, never by this one, because the server never writes it, and the
+ *  two agree again at the last step. Cosmetic (the open steps keep the app's "a tiny step toward" eyebrow). */
 export function judgeLevel(parent: WalkRow | null, children: WalkRow[], day: string, nowMs: number): LevelVerdict {
   if (!parent || parent.deleted_at != null || isDoneOn(parent, day) || parent.silent_parent !== true) return { kind: 'gone' };
   const title = typeof parent.title === 'string' ? parent.title : null;

@@ -3,6 +3,7 @@
     "Shared cases for what ticking a step does to its big task. Each holds the tasks just AFTER the tick (the ticked step is already done), the ticked step's id, the big tasks the SERVER finishes (server/src/steps.ts planFinish), and the end state after the app has run its own repair.",
     "Read by two tests: server/src/steps.test.ts runs planFinish over them and checks serverFinishes exactly; client/src/lib/settle-parity.test.ts runs the app's settleCompletions and healStuckParents and checks (a) the server never finishes what the app would not, (b) the server's finishes followed by the app's repair reach endState, and (c) the app on its own reaches endState too. (b) with (c) is the proof that leaving a case to the app loses nothing.",
     "Times are epoch ms (small numbers on purpose, the dates do not matter, only the order). Each task field is the client's name: id, title, done, createdAt, completedAt, deletedAt, parentId, parentTitle, silentParent, openParent, recurrence, completedDates, combinedFrom. endState lists done, silentParent, openParent (true, false or null for unknown) and deleted, plus completedAt for a big task that finishes.",
+    "The two paths agree on done, hidden and deleted in every case. They can differ on openParent alone: a stale tiny flag on a task with steps still open is cleared by the app's own tick of one of its steps (decide()), never by an agent's tick, because the server never writes open_parent. Both paths agree again at the last step. Where that is the case, endState leaves openParent out for that task, openParentDiffers pins what each path leaves (server: an agent's tick then the repair; app: the app alone), and the case's note says why.",
     "Not here on purpose: a round of NONE at the direct parent (reachable only with clock skew). The app's own tick would finish it, the server leaves it, and the repair brings it back, the safe direction (design doc, section 1c)."
   ],
   "day": "2026-10-18",
@@ -76,6 +77,23 @@
       "serverFinishes": [],
       "endState": {
         "P": { "done": true, "silentParent": false, "openParent": false, "deleted": false, "completedAt": 5000 }
+      }
+    },
+    {
+      "name": "a stale tiny flag with steps still open: nothing finishes, and only the app's tick clears the flag",
+      "note": "The app's decide() clears openParent on any tick of a step once the round has two or more, even with steps open. The agent's tick writes nothing, and the repair leaves a task with an open step alone, so the server path keeps the flag. So openParent is left out of P's endState, and openParentDiffers pins what each path leaves. Cosmetic: the open steps keep the 'a tiny step toward' eyebrow until the last step, where the two paths meet again (the stale-flag case above).",
+      "tasks": [
+        { "id": "P", "title": "Do the tax", "silentParent": true, "openParent": true, "createdAt": 1000 },
+        { "id": "s1", "parentId": "P", "done": true, "createdAt": 1001, "completedAt": 4000 },
+        { "id": "s2", "parentId": "P", "done": true, "createdAt": 1002, "completedAt": 5000 },
+        { "id": "s3", "parentId": "P", "createdAt": 1003 }
+      ],
+      "completed": "s2",
+      "serverFinishes": [],
+      "openParentDiffers": { "P": { "server": true, "app": false } },
+      "endState": {
+        "P": { "done": false, "silentParent": true, "deleted": false },
+        "s3": { "done": false, "silentParent": false, "openParent": null, "deleted": false }
       }
     },
     {
