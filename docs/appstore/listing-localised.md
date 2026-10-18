@@ -42,6 +42,15 @@ ear hears "tu (ne) veux plus", you no longer want it. Italian: "Per molti" for "
 a reader the writer has ADHD two paragraphs before the founder line says he built it for friends who do, and "La
 spunta di uno dei due vale per entrambi", because the feminine "La" could only point back to the list.
 
+**After the native read (2026-10-19, the colour and copy review):** the French Ours line "L'un ou l'autre la coche,
+elle est faite pour les deux." had the slip the Spanish and Italian readers fixed. The nearest feminine nouns
+before "la coche" are "la tienne" (ta journée) and "la liste", so it read as one of you ticking your day, or the
+list. It is now "La coche de l'un ou de l'autre vaut pour les deux.", the Italian fix's shape and 5 characters
+shorter, which this page needed at 3999 / 4000. The Play listing takes the same line. The French reader passed the
+old sentence, so this one goes back to them before paste day. If they confirm it, the app's own `sharedLead2` in
+`client/src/lib/catalogs/fr.ts` has the same construction ("L'un ou l'autre la coche, et elle est faite pour les
+deux.") and takes the same fix, so the app and its store pages say it the same way.
+
 The keywords follow the English rules: no word repeats the name or subtitle, no spaces, no competitor names, no
 clinical words. Apple searches the name, subtitle and keyword field only, never the description.
 
@@ -247,7 +256,7 @@ todo,to-do,planificateur,agenda,organisation,autisme,toc,neuroatypique,routine,r
 Une liste de tâches calme pour le TDAH, l'autisme et les TOC. Juste aujourd'hui, et rien n'est jamais en retard. Toute la boucle quotidienne est gratuite, pour de bon.
 ```
 
-**Description** (3999 / 4000)
+**Description** (3994 / 4000)
 
 ```
 DoubleDone est une liste de tâches calme pour les adultes concernés par le TDAH, l'autisme, les TOC ou le trop-plein.
@@ -271,7 +280,7 @@ LE CŒUR CALME, GRATUIT POUR TOUJOURS
 - Un album souvenir IA gratuit par mois, une image de ce que tu termines.
 
 NOTRE LISTE : PARTAGÉE AVEC UNE SEULE AUTRE PERSONNE
-Gratuite. Rien n'y dit qui a fait quoi, et rien ne compte ni ne compare, cela ne peut donc pas devenir un tableau de scores. Ce qui a son propre jour, les poubelles le mardi, arrive dans vos deux Aujourd'hui ce jour-là. Le reste attend sur la liste, ta journée reste la tienne. L'un ou l'autre la coche, elle est faite pour les deux. Ça commence par un code de six caractères, que tu lis à ta personne. Notre liste demande seulement la connexion par e-mail.
+Gratuite. Rien n'y dit qui a fait quoi, et rien ne compte ni ne compare, cela ne peut donc pas devenir un tableau de scores. Ce qui a son propre jour, les poubelles le mardi, arrive dans vos deux Aujourd'hui ce jour-là. Le reste attend sur la liste, ta journée reste la tienne. La coche de l'un ou de l'autre vaut pour les deux. Ça commence par un code de six caractères, que tu lis à ta personne. Notre liste demande seulement la connexion par e-mail.
 
 UNE IA QUI AIDE, ENTIÈREMENT OPTIONNELLE
 L'IA est active par défaut : elle trie ce que tu déposes. Elle n'envoie que ce sur quoi tu l'utilises. Un seul geste dans les Réglages la désactive, et l'appli continue de fonctionner.

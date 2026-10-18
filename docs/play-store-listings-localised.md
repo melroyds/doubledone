@@ -283,7 +283,7 @@ DoubleDone : liste de tâches
 Pour le TDAH et la surcharge. Juste aujourd'hui. Rien n'est jamais en retard.
 ```
 
-**Full description** (3955 / 4000)
+**Full description** (3950 / 4000)
 
 ```
 Aujourd'hui a une fin, et tu peux y arriver.
@@ -312,7 +312,7 @@ LE CŒUR CALME, GRATUIT POUR TOUJOURS
 NOTRE LISTE : PARTAGÉE AVEC UNE SEULE AUTRE PERSONNE
 Gratuite. Rien n'y dit qui a fait quoi, et rien ne compte ni ne compare, cela ne peut donc pas devenir un tableau de scores.
 
-Ce qui a son propre jour, les poubelles le mardi, arrive dans vos deux Aujourd'hui ce jour-là. Le reste attend sur la liste, ta journée reste la tienne. L'un ou l'autre la coche, elle est faite pour les deux.
+Ce qui a son propre jour, les poubelles le mardi, arrive dans vos deux Aujourd'hui ce jour-là. Le reste attend sur la liste, ta journée reste la tienne. La coche de l'un ou de l'autre vaut pour les deux.
 
 Ça commence par un code de six caractères, que tu lis à ta personne. Pas de fil d'actualité, personne ne peut te joindre ici sans ce code. Vous partez quand vous voulez, sans raison à donner. Notre liste demande seulement la connexion par e-mail.
 
@@ -349,6 +349,8 @@ La politique de confidentialité, en clair : doubledone.app/privacy.
 **2026-10-19, later (Melroy's call):** the Claude bullet ends with `faqAiA`'s kept-copy sentence, "On garde une copie, sans ton nom ni ton compte, pour améliorer la façon dont les tâches sont décomposées.", as the privacy policy and the Spanish listing already said. It fits without a cut here. The App Store's French made room with two deletions: the breakdown example in its AI paragraph, and "quand aujourd'hui fait du bruit" after Settle. Full description now 3952 characters.
 
 **2026-10-19 (the native French read):** the Premium heading is "PREMIUM, SI UN JOUR TU EN VEUX PLUS". Without the "en", a French ear hears the spoken "tu (ne) veux plus", you no longer want it, and "en vouloir plus" is the idiom for wanting more. The App Store's French takes the same fix. Full description now 3955 characters.
+
+**2026-10-19 (the colour and copy review, after the native read):** "L'un ou l'autre la coche, elle est faite pour les deux." is "La coche de l'un ou de l'autre vaut pour les deux." The nearest feminine nouns before "la coche" are "la tienne" (ta journée) and "la liste", so it read as one of you ticking your day, or the list: the slip the Spanish and Italian readers fixed in their own Ours lines. The new line is the Italian fix's shape ("La spunta di uno dei due vale per entrambi"). The App Store's French takes the same fix. It goes back to the French reader before paste day, since they passed the old one. Full description now 3950 characters.
 
 4029 to 3853 characters, verified in Python (UTF-8, trailing newline excluded), so 97 under the 3950 target and 147 under Google's cap. Every cut was a repeat, never a fact, and no bullet was lost: the adjective and clause layer alone freed enough room, so both bullets I first removed (Regrouper, Silencieuse) went back in.
 

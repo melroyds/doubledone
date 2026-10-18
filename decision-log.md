@@ -10515,3 +10515,17 @@ VoiceOver an Options action on every task", and DEP-05 diffed What's New only. S
 the reviewer about a feature that does not work. The A11Y-07 row now names the notes, a line under the table says
 what their paragraph becomes and that the count drops from 2646 to 2594, DEP-05 diffs the notes too, and step
 (14) in BUILD-PLAN pastes them after the cut table.
+
+**The French Ours line loses its stray "la" on both stores (finding 8).** "L'un ou l'autre la coche, elle est faite
+pour les deux." has the slip the native read fixed in Spanish and Italian: the nearest feminine nouns before "la
+coche" are "la tienne" (ta journée) and "la liste", so it reads as one of you ticking your day, or the list. Both
+French listings now say "La coche de l'un ou de l'autre vaut pour les deux.", the Italian fix's shape and 5
+characters shorter, which the App Store's French needed at 3999 / 4000 (now 3994, Play 3950). The gate passes on
+both stores. The French reader passed the old sentence, so the new one goes back to them before paste day
+(BUILD-PLAN says so beside the pending native read).
+
+**Decided against:**
+- **"L'un ou l'autre coche une tâche, ..."** It names the task, but adds 7 characters and breaks the App Store's
+  4000 cap.
+- **Changing the app's French `sharedLead2` in the same commit.** It has the same construction, but the French
+  reader approved it as written, and the app's line should follow their word on the new one, not run ahead of it.
