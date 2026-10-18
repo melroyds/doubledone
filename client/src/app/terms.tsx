@@ -24,7 +24,7 @@ export default function TermsScreen() {
         <BackLink fallback="/settings" />
 
         <Text style={styles.title}>Terms</Text>
-        <Text style={styles.updated}>Last updated 1 October 2026.</Text>
+        <Text style={styles.updated}>Last updated 19 October 2026.</Text>
 
         <Text style={styles.lead}>
           These are the plain terms for using DoubleDone. No wall of legalese, just what you can expect from us and what
@@ -42,6 +42,18 @@ export default function TermsScreen() {
           or abuse the AI features. We may suspend access we reasonably believe is abusive or harmful, to keep the
           service fair for everyone. The app is provided as it is and as available. We work to keep it running, but we
           cannot promise it will never be down.
+        </Section>
+
+        {/* The same words on every platform, so it sits outside the storefront branch below. Approved by Melroy
+            word for word on 2026-10-19 (store 1.9, slice 6). It names no condition next to "cure": to this
+            audience that reads as calling autism something to be cured. */}
+        <Section styles={styles} heading="Not medical care">
+          DoubleDone is a to-do app. It is not a medical device, and it does not diagnose, treat, cure or prevent any
+          condition. Nothing in it is medical, psychological or other professional advice, including the steps, plans
+          and suggestions its AI features write, and it is not a substitute for care from a qualified health
+          professional. Settle and its breathing guide are a quiet pause, not a treatment. For advice about your
+          health, talk to a health professional. If you are in crisis or worried about your safety, call your local
+          emergency number (000 in Australia).
         </Section>
 
         {/* Three versions, one per storefront (lib/storefront). Android sells only through Google Play, so

@@ -9944,3 +9944,30 @@ line, the handoff line and the Settings card) still agrees after the change.
 - **Regenerating `docs/i18n/review-data.json` now.** The plan does one native read for the whole batch, in one pass.
 
 Manual cases ONB-03 and PREM-01 now quote the new words, and the suite is regenerated.
+
+## 2026-10-19: the Terms say plainly that DoubleDone is not medical care (store 1.9, slice 6)
+
+**Decided (Melroy's call 8, 2026-10-19: approved word for word, the crisis sentence included): a "Not medical
+care" section in the Terms, straight after "Using DoubleDone", in both `client/public/terms.html` and
+`client/src/app/terms.tsx`.** The store pages name ADHD, autism and OCD (and slice 8 puts ADHD in the name), the AI
+features write steps and plans, and Settle carries a breathing guide, so the Terms now say what the app is not: a
+to-do app, not a medical device, not professional advice of any kind (what the AI writes included), not a substitute
+for a qualified health professional, and Settle a quiet pause rather than a treatment. Then one line to talk to a
+health professional, and one for a crisis: call the local emergency number (000 in Australia). Google's Health apps
+policy asks apps to remind people to see a professional, and under the TGA rules what a product is for is judged
+from its claims and advertising, so this clause backs up the claims discipline (no "treatment", "therapy",
+"symptoms" or "ADHD management" in any visible field) and does not replace it.
+- **The same words everywhere.** In the app the section sits outside the storefront branch, so iOS, Android and the
+  web read it identically. A check against both files confirmed the text matches the approved wording exactly once
+  whitespace is collapsed, and that it sits right after "Using DoubleDone".
+- "Last updated" is 19 October 2026 on both copies. English only, like the rest of the legal pages, and still a
+  draft pending the lawyer's review, like the rest of the Terms. Manual case LEG-06.
+
+**Decided against:**
+- **Naming ADHD, autism or OCD beside "cure".** To this audience that reads as calling autism something to be cured,
+  so the clause says "any condition".
+- **Leaving out the crisis sentence.** It adds no feature and costs one line, and someone who opens the Terms on a
+  bad night may need exactly that line. Melroy approved it.
+- **A version per storefront.** What the app is medically does not depend on who sells Premium, so it does not
+  belong inside the billing branch, where Android would read different words.
+- **Translating it now.** The legal pages are English only, on every platform.
