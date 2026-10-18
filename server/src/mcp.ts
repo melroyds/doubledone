@@ -734,22 +734,25 @@ export function searchResultsFrom(rows: unknown, query: string, cap = 20): { id:
   return out;
 }
 
-/** Fetch a single task by id (any state), for the deep-research `fetch` call. */
+/** Fetch a single task by id, for the deep-research `fetch` call: open, done or waiting on its steps, with its parts.
+ *  A removed task is a miss (fetchNotFoundDoc), as "deleted since search" always meant; without the filter it came
+ *  back labelled "on today". */
 export function fetchTaskRequest(env: McpEnv, token: string, id: string): { url: string; init: RequestInit } {
   const q = new URLSearchParams({
-    select: 'id,title,done,recurrence,due,completed_dates,skipped_dates',
+    select: 'id,title,done,recurrence,due,completed_dates,skipped_dates,slices,silent_parent',
     id: `eq.${id}`,
+    deleted_at: 'is.null',
     limit: '1',
   });
   return { url: `${env.SUPABASE_URL}/rest/v1/tasks?${q.toString()}`, init: { method: 'GET', headers: supaHeaders(env, token, false) } };
 }
 
 /** The OpenAI deep-research `fetch` document for one row, or null if the row is missing/invalid.
- *  `text` is a short human line, "{title} — {status}", where status folds in due/repeat/done.
- *  Pure + unit-tested (the shape is the contract). */
+ *  `text` is a short human line: the title, then a status (describeStatus) that folds in due/repeat/done,
+ *  a task waiting on its steps, and a task's parts. Pure + unit-tested (the shape is the contract). */
 export function fetchResultFrom(rows: unknown, id: string, todayIso: string): { id: string; title: string; text: string; url: string } | null {
   if (!Array.isArray(rows) || rows.length === 0) return null;
-  const row = rows[0] as { id?: unknown; title?: unknown; done?: unknown; recurrence?: unknown; due?: unknown };
+  const row = rows[0] as StatusRow & { id?: unknown; title?: unknown };
   if (typeof row.id !== 'string' || typeof row.title !== 'string') return null;
   return { id: row.id, title: row.title, text: `${row.title} — ${describeStatus(row, todayIso)}`, url: APP_URL };
 }
@@ -772,13 +775,20 @@ export function addDaysIso(iso: string, days: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
-/** A short, calm status line for a task, e.g. "done", "on today", "due 2026-07-10",
- *  "repeats". Used by fetch's `text`. No shame, no raw fields. */
-function describeStatus(row: { done?: unknown; recurrence?: unknown; due?: unknown }, todayIso: string): string {
+/** The columns fetch's status line reads. */
+type StatusRow = { done?: unknown; recurrence?: unknown; due?: unknown; slices?: unknown; silent_parent?: unknown };
+
+/** A short, calm status line for a task, e.g. "done", "on today", "due 2026-07-10", "repeats", "waiting on its
+ *  steps", or "on today, 3 of 10 parts done". Used by fetch's `text`. No shame, no raw fields. A task waiting on its
+ *  steps (a broken-down or made-tiny task) is on no list, so "on today" was wrong for it; it is neither ticked nor
+ *  scheduled, it waits. Parts ride after the day, the way the app shows "3 / 10" on the row. */
+function describeStatus(row: StatusRow, todayIso: string): string {
   if (row.done === true) return 'done';
+  if (row.silent_parent === true) return 'waiting on its steps';
   if (row.recurrence != null) return 'repeats';
-  if (typeof row.due === 'string') return row.due > todayIso ? `due ${row.due}` : 'on today';
-  return 'on today';
+  const when = typeof row.due === 'string' && row.due > todayIso ? `due ${row.due}` : 'on today';
+  const parts = cleanSlices(row.slices);
+  return parts ? `${when}, ${parts.done} of ${parts.total} parts done` : when;
 }
 
 // --- break_down: the AI proposer (the only token spender), rate-limited per user -----------

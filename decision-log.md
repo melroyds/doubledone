@@ -9615,3 +9615,13 @@ step still deletes alone with no walk, the same as the app's Remove. REST still 
 matches, so a retried delete stays harmless.
 Decided against: removing the steps along with the big task (that is the parked "remove a whole breakdown", trigger:
 the first person who asks), and a `404` for a REST delete that finds nothing.
+
+**`fetch` names a task's real state (design section 4, Tier 2, with the server map's finding 5).** The hidden big task
+of a breakdown (or a task made tiny) read "on today", which it is not: it is on no list. It now reads "waiting on its
+steps". A task in parts adds its count after the day ("on today, 3 of 10 parts done"), cleaned as the app cleans it.
+And a removed task is now a miss, the calm "no longer available" document, because the read gained
+`deleted_at=is.null`: the code's own comment and `docs/mcp.md` always treated "deleted since search" as a miss, but
+the read had no filter, so a removed task came back "on today". Folded into this commit because it is the same read
+and the same wrong line. Decided against, for now: the big task's step progress in `fetch` ("2 of 4 steps done"),
+which needs a read of its children on every fetch (parked, trigger: the next Deep Research change or a report); and
+moving `fetch`'s repeat check onto the shared classifier (finding 6, latent, a `{kind: 'none'}` row only).

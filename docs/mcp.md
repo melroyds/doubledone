@@ -397,9 +397,12 @@ These two complete OpenAI's Deep Research connector contract, and any client may
 - **`search`** takes `query` and matches it, ignoring case, against the titles of your open
   tasks, up to 20 results, oldest first. An empty query returns your first 20 open tasks. The
   reply's text is JSON: `{"results":[{"id":"…","title":"…","url":"https://doubledone.app"}]}`.
-- **`fetch`** takes an `id` and looks up that task, whatever its state. The reply's text is JSON:
+- **`fetch`** takes an `id` and looks up that task: open, done, or waiting on its steps. A task you
+  have removed is a miss (below). The reply's text is JSON:
   `{"id":"…","title":"…","text":"…","url":"https://doubledone.app"}`, where `text` is the title
-  followed by a short status: `on today`, `due YYYY-MM-DD`, `repeats` or `done`.
+  followed by a short status: `on today`, `due YYYY-MM-DD`, `repeats`, `done`, or `waiting on its
+  steps` for the hidden big task of a breakdown (or a task made tiny), which is on no list. A task
+  in parts adds its count after the day, as in `on today, 3 of 10 parts done`.
 
 > **The miss path is deliberate.** `search` returns the well-formed empty shape
 > (`{"results":[]}`) when the lookup fails, so Deep Research does not choke. `fetch`

@@ -400,6 +400,28 @@ describe('OpenAI deep-research shapes (search / fetch)', () => {
     expect(dec).toContain('limit=1');
   });
 
+  it('fetchTaskRequest reads the parts and the waiting flag, and never a removed task (that is a miss)', () => {
+    const q = Object.fromEntries(new URL(fetchTaskRequest(env, 'tok', 't7').url).searchParams);
+    expect(q.deleted_at).toBe('is.null');
+    expect(q.select.split(',')).toEqual(expect.arrayContaining(['slices', 'silent_parent']));
+    expect(q.select).not.toContain('left_off');
+  });
+
+  it('fetchResultFrom says a task waits on its steps, and shows the parts of a task after its day', () => {
+    const today = '2026-06-20';
+    const line = (row: object) => fetchResultFrom([{ id: 'a', title: 'T', ...row }], 'a', today)?.text;
+    // On no list, so never "on today", even with a day of its own.
+    expect(line({ silent_parent: true })).toBe('T — waiting on its steps');
+    expect(line({ silent_parent: true, due: '2026-07-01' })).toBe('T — waiting on its steps');
+    expect(line({ silent_parent: true, done: true })).toBe('T — done');
+    expect(line({ slices: { total: 10, done: 3 } })).toBe('T — on today, 3 of 10 parts done');
+    expect(line({ slices: { total: 4, done: 1 }, due: '2026-07-01' })).toBe('T — due 2026-07-01, 1 of 4 parts done');
+    expect(line({ slices: { total: 3, done: 3 }, done: true })).toBe('T — done');
+    // Cleaned the way the app cleans them: a malformed count is a whole task, and a count past the total is the total.
+    expect(line({ slices: { total: 0, done: 0 } })).toBe('T — on today');
+    expect(line({ slices: { total: 5, done: 9 } })).toBe('T — on today, 5 of 5 parts done');
+  });
+
   it('fetchNotFoundDoc is a contract-complete empty document (all four required fields, no error key)', () => {
     const doc = fetchNotFoundDoc('gone-123');
     // The four fields Deep Research requires on every fetch response, and nothing off-shape.

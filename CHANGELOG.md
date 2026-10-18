@@ -52,6 +52,9 @@ _Server only (the Worker), not deployed yet. 1.8.0 is with the stores._
   REST. Its steps close it.
 - Nor can it be removed on its own (MCP `delete_task` refuses it, REST `DELETE` is a `409`), which left its steps
   on the list with nothing to close. Removing its steps brings it back, and then it removes like any task.
+- MCP `fetch` called a task waiting on its steps "on today", and a removed task too. It now says "waiting on its
+  steps", shows a task's parts ("on today, 3 of 10 parts done"), and treats a removed task as the calm miss its
+  documentation always described.
 - Ticking the last step of a broken-down task through MCP or REST used to leave the big task hidden, unseen by
   the agent, until a phone opened and repaired it. It now closes there and then whenever the answer is certain.
 - An MCP rename of a task already removed answered "Updated." for a task nobody could see, and removing a task
