@@ -1,5 +1,11 @@
 # Play resubmission walkthrough
 
+> **Do not paste from this file (retired 2026-10-19).** It is the Path C 1.6.0 run sheet, kept for the record. Its listing text is out of date (it still
+> carries lines the code proved false) and the gate no longer reads it. The paste sources are
+> [play-store-submission-pack.md](play-store-submission-pack.md) (English) and
+> [play-store-listings-localised.md](play-store-listings-localised.md) (de, es, fr, it), checked by
+> `node scripts/check-listings.mjs --play`.
+
 **Android 1.6.0 (versionCode 31), Path C: the Android app sells nothing.** Keep this open beside the Play Console and tick as you go.
 
 **The one rule:** save each change, but **do not send anything for review until step 10.** Google wants every change in one batch.

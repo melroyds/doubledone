@@ -101,7 +101,8 @@ Prompts written for Claude Design, and the handoffs that came back. Each one des
 | [Release notes 1.7.0](release-notes/1.7.0.md) | Android store notes: Premium through Google Play, and Settings easier to find. |
 | [Release notes 1.6.0](release-notes/1.6.0.md) | Store notes for Today v3, the rooms and the floating + button. |
 | [Release notes 1.5.1](release-notes/1.5.1.md) | Store notes for the Ours clarity pass and the reopen handshake. |
-| [App Store listing copy](appstore/listing-copy.md) | Paste-ready App Store Connect copy, each field within its limit. |
+| [App Store listing copy](appstore/listing-copy.md) | Paste-ready App Store Connect copy in English, with the second English keyword set, checked by [scripts/check-listings.mjs](../scripts/check-listings.mjs). |
+| [Localised App Store listings](appstore/listing-localised.md) | The German, Spanish (Mexico and Spain), French and Italian App Store listings, drafts until the native read is back. |
 | [App Store screenshots](appstore/) | Screens for the 6.9-inch and 6.5-inch iPhone sets and a 13-inch iPad set. |
 | [iOS submission prep](ios-submission-prep.md) | The iOS pack: the in-app purchase sandbox test, App Store Connect copy and review notes, App Privacy labels and the run sheet. |
 | [Play Store release guide](play-store-release.md) | The Play Console mechanics, step by step: setup, the app bundle, the listing, policy declarations and submission. |

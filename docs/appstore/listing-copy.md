@@ -1,138 +1,188 @@
-# App Store listing copy, paste-ready
+# App Store listing copy, paste-ready (English)
 
-*Drafted 2026-07-19. Character limits checked against App Store Connect's current fields. The
-voice rules: calm, plain, no exclamation marks, no clinical claims (never "treatment", "therapy",
-"symptoms"), the promise is "the whole calm daily loop stays free forever".*
+*Rewritten 2026-10-19 for 1.9.0 (store 1.9, slice 8). The 2026-08-16 rewrite never reached the store: on
+2026-10-19 the live subtitle was still `A calmer kind of to-do list`, and the live description still carried an A$
+price (shown on the US page beside Apple's own US$3.00), "colleagues", "your person cannot make your morning
+heavier", "nothing you type leaves your device", seven colour themes as Premium, and a free month offered before
+sign-in. All of that is gone below. Every count is measured by `node scripts/check-listings.mjs --appstore`, never
+estimated, and CI runs that gate on every push.*
 
-## Name (30 max)
-```
-DoubleDone
-```
-(10 chars. Leave it clean; the subtitle does the explaining.)
+*The voice rules: calm, plain, no exclamation marks, no clinical claims (never "treatment", "therapy",
+"symptoms"), and the promise is "the whole calm daily loop stays free forever". Every claim is checked against what
+an iPhone actually runs: no widget (Android only), no Speak (the web only, `speech.ts` is a stub on phones), and no
+mention of the web, Android, Google or a price. The four localisations (de, es-MX and es-ES, fr, it) are in
+[listing-localised.md](listing-localised.md).*
 
-## Subtitle (30 max)
-```
-A to-do list, never overdue
-```
-(27 chars.) **Changed 2026-08-16.** The previous one, `A calmer kind of to-do list` (also 27), spent
-Apple's second-highest-weighted ranking field on a category word the app NAME cannot carry and the
-keywords field can. This one spends it on the one promise no competitor can copy: every to-do app
-shows you today, almost none refuse to mark things late. It also matches the Play short description
-rewritten the same day (`A calm to-do app for ADHD and overwhelm. Just today. Nothing is ever
-overdue.`), so both stores now lead on the same claim.
+## Before you paste
 
-**It forces one keyword move.** "calm" is no longer in the name or subtitle, so it has to come back
-in the keywords, and "list" is now IN the subtitle, so repeating it there would be waste.
+1. **Run the gate:** `node scripts/check-listings.mjs --appstore`. It fails on a cap, a recorded count that has
+   drifted, a keyword that repeats the name or subtitle, a price, an Android-only or web-only feature, a lost
+   medical line or URL, and every claim the code has proved false.
+2. **In App Store Connect, read two things first:** App Information, then Primary Language, and the live Keywords
+   field on the current version. The primary language decides which slot the second keyword set goes into (below).
+   The keyword field in this file's previous version was never confirmed against ASC.
+3. **Print each field from this file and diff what was sent.** Never retype a field.
 
-## Promotional text (170 max, editable later WITHOUT review)
-```
-Ours: one shared list for two. Anything with a day reaches both your Todays. Nothing counts, so it cannot become a scoreboard. Free, like the whole calm daily loop.
-```
-(164 chars.) Updated for 1.3.1: drops "New:" (it is not new by the time most people read this) and
-spends the room on what the list actually DOES, which is the part that sells it. Keeps the two phrases the previous version earned, "Free" and "the whole calm daily loop",
-so the free-forever promise is not lost when this field turns over. "Cannot" is the load-bearing
-word: not "does not", not "we promise not to". The claim is about FINISHING, never about adding,
-because `shared_tasks.created_by` exists server-side for abuse reports and the honest sentence is
-"nothing says who did what" rather than "no such data exists".
+## English, the primary listing (`en`)
 
-*Previous, if you want it back:* `Today is finite and achievable. The whole calm daily loop is free,
-forever. Premium adds the extras, a weekly AI scrapbook and gentle insights, never anything you
-need.` (168 chars.)
-
-## What's New in This Version (4000 max, 1.3.1 / build 22)
+**Name** (27 / 30)
 
 ```
-Ours: one shared list with one other person.
-
-Nothing on it says who did what, and nothing counts or compares, so it cannot become a scoreboard.
-
-Anything with a day of its own, bin night on a Tuesday, arrives on both your Todays on the day. Everything else waits on the list, so nobody can make your morning heavier.
-
-Tick it from either phone and it closes for both, and either of you can change a shared row's day later, or take it away again.
-
-Free, like the rest of the daily loop.
+DoubleDone: ADHD To-Do List
 ```
 
-(486 characters. The cap is 4000, but Apple shows this collapsed to a couple of lines, so the first
-line has to stand alone.)
+**Changed 2026-10-19 (Melroy's call 6).** `DoubleDone` alone spent 10 of 30 characters on a name nobody searches
+yet, while every competitor puts the category or "ADHD" in its name, and the name is Apple's heaviest ranking field.
+The phone's icon label does not change: it comes from `app.json` `name`, so the home screen still says DoubleDone.
+**Pre-decided fallback** if Apple objects to "ADHD" in the name (guideline 2.3.7 or 1.4.1): `DoubleDone: Calm To-Do
+List` with the subtitle `For ADHD. Nothing overdue.`, a metadata-only resubmit of the same build.
 
-**This leads with what Ours IS, not with the 1.3.1 change, on an assumption you must confirm:** that
-1.3.0 never reached iOS users, making 1.3.1 the first App Store version carrying Ours. If 1.3.0 DID
-go out, lead with the day-change instead, since everything above it is old news to an iPhone user.
-The Play notes make the same choice for a checkable reason (1.3.0 reached only 20% of Android), and
-the two are deliberately near-identical otherwise, minus anything about Android or Stripe.
+**Subtitle** (29 / 30)
 
-## Keywords (100 max, comma-separated, no spaces)
 ```
-adhd,focus,planner,tasks,routine,autism,neurodivergent,gentle,overwhelm,shared,couples,household
+Calm planner, nothing overdue
 ```
-(96 chars, 12 terms. Deliberately no "calm", "to-do" or "list": the subtitle already indexes those,
-and repeating name or subtitle words wastes the budget.)
 
-**Out:** `simple` (generic, no intent, unwinnable). `daily` (weak alone; "planner" and "tasks"
-still form the combinations that matter). And `habits`, which is the interesting one: it ranked us
-for habit-tracker and streak searches, and this app's whole thesis is that there is no streak, so
-those installs churn and the reviews sting.
+The second-heaviest field carries the promise nobody else makes, nothing is ever overdue, plus the one category
+word the name lacks. "Calm" alone no longer sets DoubleDone apart (Tiimo, iPhone App of the Year 2025, now says "a
+calm, doable day"), so it rides beside the promise rather than carrying it.
 
-**In:** `shared` (the token everything else combines with), `couples` (the highest-intent term for
-this exact feature), `household` (the calm, accurate word for the use case).
+**Keywords** (100 / 100)
 
-**Deliberately NOT in:** `chores`, despite several times the volume of `household`. It brings
-chore-chart and reward-chart seekers, which is precisely the product Ours refuses to be, so we would
-rank for a term we convert near zero on. `family` is out too: it promises more than two people.
-
-## Description (4000 max; ends with the terms URL, which doubles as the EULA link)
 ```
-DoubleDone is a to-do app for people who find to-do apps overwhelming.
+todo,task,manager,daily,organizer,routine,autism,audhd,ocd,neurodivergent,brain,dump,breakdown,focus
+```
 
-The home screen is Today, and only Today. Not your whole backlog, not a wall of overdue guilt, just a day sized to be doable. Empty your head into it, and the app helps you shape the day into something you can actually finish.
+No word repeats the name or the subtitle (Apple combines words across all three fields within one localisation, so
+a repeat is wasted), no spaces, singular forms, and the gate checks all of it. **Out on purpose:** `calm` (in the
+subtitle, and as a bare word it mostly brings people looking for the Calm meditation app); `simple`; `habit`,
+`streak`, `chores` and `reward`, which bring habit-tracker and chore-chart seekers, the product DoubleDone refuses
+to be, so those installs churn and the reviews sting; competitor names (guideline 2.3.7); and clinical words
+(`anxiety`, `therapy`, `treatment`, `symptom`). `shared`, `couples` and `household` moved to the second set below.
 
-When a task is too big to start, Break it down turns it into a few small steps. When even the steps feel heavy, Make it tiny gives you a two-minute version. When the whole day is too much, Lighten today re-spreads it. When today gets loud, Settle is a quiet room with a breathing guide, always there and never earned. And when you finish, the day closes gently, with zero guilt about what moved to tomorrow.
+**Promotional text** (144 / 170)
+
+```
+A calm to-do list for ADHD, autism and OCD. Just today, sized to be doable, and nothing is ever overdue. The whole daily loop is free, for good.
+```
+
+Editable later without review, and not searched. It keeps the two phrases the field has always carried, so the
+free-forever promise survives whenever this line turns over.
+
+**Description** (3971 / 4000)
+
+```
+DoubleDone is a calm to-do list for adults with ADHD, autism, OCD and overwhelm.
+
+The home screen is Today, and only Today. Not your whole backlog, not a wall of overdue guilt, just a day sized to be doable. Nothing is ever overdue here. It just waits.
+
+When a task is too big to start, Break it down turns it into small steps, and ticking the last one finishes the real task. On a low day, tap Low and what counts as enough gently shrinks. When today gets loud, Settle is a quiet room with a breathing guide, always there and never earned. And the day closes gently, with zero guilt about what moved to tomorrow.
 
 There are no streaks, no scores, and nothing that shames you. A task is never punished for existing. What you finish, you keep: your Calendar shows everything you actually did, including the old dreaded things you finally closed, because that deserves to be seen.
 
-If you keep a list with somebody, Ours is one shared list between exactly two of you. Nothing on it says who did what, and nothing counts or compares, so it cannot become the scoreboard that shared lists usually turn into. A shared thing with a day on it, bin night on Tuesday, arrives on both your Todays by itself, and either of you can change that day later or take it away again. One without a day, milk and batteries, stays on the shared list and never reaches your Today, so your person cannot make your morning heavier. Tick it from either phone and it closes for both. Ours is free, and like sync it needs only the simple email sign-in.
+If you keep a list with somebody, Ours is one shared list between exactly two of you. Nothing on it says who did what, and nothing counts or compares, so it cannot become a scoreboard. A shared thing with a day on it, bin night on Tuesday, arrives on both your Todays by itself. Everything else, milk and batteries, stays on the shared list however long it gets, so your day stays yours. Tick it from either phone and it closes for both.
 
-DoubleDone was built with ADHD, autistic and OCD friends and colleagues in mind, and for anyone who lives with chronic overwhelm. Calm, predictable, and quiet by design.
+DoubleDone is made in Melbourne by Melroy. He built it for friends with ADHD and OCD, and for anyone whose list has ever felt like too much.
 
 Free, forever:
-- Today, sized to be doable, with a gentle weight-of-day gauge
-- Break it down, turn a dreaded task into small steps
+- Today, sized to be doable
+- Sort for me, a brain-dump shaped into your day
+- Break it down, a dreaded task in small steps
 - Make it tiny, a two-minute version when even small is too much
-- Lighten today, ease a too-full day by moving a few things to later
-- Focus on one thing, hide the rest and keep just one task in view
-- Combine, fold a few small tasks into one when the day feels cluttered
-- Settle, a quiet room with a breathing guide, for when the day is loud
+- A low day, when enough should mean less
+- Lighten today, a too-full day eased, only when you say yes
+- Focus on one thing, everything else out of sight
+- Where you left off, one short line on any task for next time
+- Combine, a few small tasks folded into one
+- Settle, a quiet room with a breathing guide
 - Quiet, a borderless look where nothing shouts
-- Repeating tasks and gentle reminders
+- Repeating tasks, routines and rhythms, with no streak to keep up
+- Gentle reminders, and Hold me to it for a firmer nudge
 - Close the day, and a shame-free return whenever you have been away
 - Your Calendar, everything you finished, kept
 - A free monthly AI scrapbook of your finished things
-- Ours, one shared list with one other person, and never a scoreboard
-- Sync across your devices with a simple email sign-in, no password
+- Ours, one shared list for two, with a free sign-in
+- Sync across your devices with an email code, no password
 
 Premium, if you ever want more:
 - Scan a photo of a list straight into tasks
-- Pin the day's one thing
-- Seven calm colour themes
+- Pin today's one thing
+- Six more calm colour themes
 - A weekly AI scrapbook, growing the longer you stay
 - Your patterns, gentle stats and a warm weekly reflection
 - Chart a course, turn a goal into calm next steps
 - Plan my day, a calm order for today
 - Energy matching without limits, ask what fits anytime
 
-DoubleDone Premium is an auto-renewable subscription: A$5.00 a month, or A$50.00 a year, charged to your Apple ID at confirmation of purchase. It renews at the same price until you cancel, and you can cancel any time in your Apple ID settings, up to a day before it renews. You can also try Premium free for a month first: no card, no charge, and it never turns into a subscription on its own. Everything in the free list stays free whether you subscribe or not.
+DoubleDone Premium is an optional auto-renewable subscription, monthly or yearly, at the price the App Store shows you before you buy. It is charged to your Apple ID at confirmation of purchase and renews automatically until you cancel, which you can do any time in your Apple ID settings, up to a day before it renews. Once you sign in, you can also try Premium free for a month: no card, no charge, and it never turns into a subscription on its own.
 
-Privacy, plainly: no ads, no advertising identifiers, no selling your data. You do not need an account, and your tasks live on your device unless you choose to sync. AI is optional too: one tap in Settings turns it off, and then nothing you type leaves your device. The full policy is at https://doubledone.app/privacy
+Privacy, plainly: no ads, no advertising identifiers, no selling your data. You do not need an account, and your tasks live on your device unless you choose to sync or share a list. The AI features are on to start and only send what you use them on, to Anthropic's Claude. Scrapbook pictures are made with Cloudflare's AI models. One tap in Settings turns the AI off, and the rest of the app keeps working. The full policy is at https://doubledone.app/privacy
+
+DoubleDone is not a medical device. It does not diagnose, treat, cure or prevent any condition, and it is not a substitute for professional care. For medical advice, talk to a health professional.
 
 Terms of use: https://doubledone.app/terms
 ```
-(~2,300 chars, comfortably inside 4,000.)
+
+It ends with the Terms URL, which doubles as the EULA link. **Checked against the iPhone build on 2026-10-19**,
+feature by feature (the landing page precedent):
+- **Scan a photo of a list** is Premium and needs AI on. On an iPhone it opens an in-app viewfinder with a gallery
+  fallback (`CameraCapture.tsx`, the `expo-camera` and `expo-image-picker` plugins and their permission strings in
+  `app.json`). The titles it reads land in the capture panel to check before anything is added, which is what the
+  paywall's own line ("straight into tasks") means: nobody types them.
+- **Energy matching, ask what fits anytime.** The free tier has 15 picks a calendar month (`ENERGY_FREE_MONTHLY`),
+  Premium has no limit, and the entry is "What fits right now?" inside Focus, shown with AI on.
+- **The free monthly scrapbook is an AI feature.** Its card is hidden with AI off (`lookback.tsx`), so the list
+  calls it an AI scrapbook and the privacy paragraph names Cloudflare, whose models draw the picture (and write the
+  scene if Claude is down). It needs no sign-in.
+- **The free month** only shows once you are signed in (`trialSlot`), hence "Once you sign in".
+- **Hold me to it, Rhythms and per-task reminders** run in both phone apps. Quiet is free for everyone. Sort for me,
+  Make it tiny, Lighten today and Combine hide with AI off (Break it down falls back to writing your own steps),
+  which the privacy paragraph's "the rest of the app keeps working" does not contradict.
+- **Left out because an iPhone does not have them:** the home-screen widget and Speak.
+
+## The second English keyword set
+
+Apple searches more than one localisation in most stores (industry observation, MobileAction, April 2026, not an
+Apple statement): Australia searches English (U.K.) beside its own, and Germany, France, Italy, Spain and Mexico
+search English (U.K.) as their second language. So a second English localisation with the same visible text is a
+second 100-character keyword field. Its slot depends on the Primary Language you read in step 2:
+
+| Primary Language | Add this localisation | Paste the keywords from |
+|---|---|---|
+| English (U.S.) or English (Australia) | English (U.K.) | `en-GB` below |
+| English (U.K.) | English (Australia) | `en-AU` below |
+
+Its name, subtitle, promotional text and description are the primary's, pasted unchanged, and so is the Privacy
+Policy URL. The set is drafted once per slot so the paste is never improvised, and the gate holds the two
+identical. Neither repeats a word from the primary's name, subtitle or keywords. `executive` and `function` are
+parked (close to clinical language, in the Backlog).
+
+### English (U.K.), the second keyword set (`en-GB`)
+
+**Keywords** (100 / 100)
+
+```
+shared,couples,household,partner,checklist,reminder,organiser,overwhelm,gentle,steps,tiny,low,energy
+```
+
+### English (Australia), the second keyword set (`en-AU`)
+
+**Keywords** (100 / 100)
+
+```
+shared,couples,household,partner,checklist,reminder,organiser,overwhelm,gentle,steps,tiny,low,energy
+```
+
+## What's New in This Version
+
+Each version's notes live in `docs/release-notes/<version>.md`. Every App Store localisation has its own What's
+New field and nothing inherits it, so each localisation in [listing-localised.md](listing-localised.md) (and the
+second English one) needs its own paste.
 
 ## The other App Store Connect fields
 - **Support URL:** `https://doubledone.app/support` (deploys with the support.html page)
 - **Marketing URL:** `https://doubledone.app`
-- **Privacy Policy URL:** `https://doubledone.app/privacy`
+- **Privacy Policy URL:** `https://doubledone.app/privacy`, on every localisation (each has its own field).
 - **Category:** Productivity. No secondary (deliberate: Health & Fitness invites medical
   scrutiny for no discovery gain).
 - **Age rating questionnaire:** Apple replaced this in July 2026, and the answers are already saved
@@ -171,14 +221,9 @@ line, and an App Store screenshot pointing at external purchase is a review flag
 
 ## Where the Ours paragraph sits, and why
 
-Between "There are no streaks, no scores, and nothing that shames you..." and "DoubleDone was built
-with ADHD, autistic and OCD friends...". That seam is chosen, not convenient: the paragraph above it
-already says nothing keeps score for one person, so Ours reads as "and that holds when there are two
-of you", which is an argument rather than a feature announcement.
-
-## Before any of this ships
-
-`supabase/ours-open.sql` must be applied. Until it is, `create_pair_invite` refuses anyone not in the
-hand-populated allowlist, so a person who reads this listing, installs the app and tries to start a
-shared list is refused with no way to fix it. Joining with a code was never gated, only starting,
-which means the gate blocked exactly the person a store listing brings you.
+Between "There are no streaks, no scores, and nothing that shames you..." and "DoubleDone is made in Melbourne by
+Melroy...". That seam is chosen, not convenient: the paragraph above it already says nothing keeps score for one
+person, so Ours reads as "and that holds when there are two of you", which is an argument rather than a feature
+announcement. It promises what the code does: a row with a day lands on both Todays, everything else waits on the
+shared list "however long it gets", and it never claims your person cannot change your morning, because either of
+you can give a shared row today's date.

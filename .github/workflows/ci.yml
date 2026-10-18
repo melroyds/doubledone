@@ -1,8 +1,9 @@
 name: ci
 
 # Runs on every push + PR: quality (lint · type-check · test with a coverage
-# floor), a web build (expo export), and a full-history secret scan. No repo
-# secrets are required for the gates themselves.
+# floor), the store listing gate (both stores' paste sources), a web build
+# (expo export), and a full-history secret scan. No repo secrets are required
+# for the gates themselves.
 on:
   push:
     branches: [main]
@@ -31,6 +32,23 @@ jobs:
           npm run lint
           npm run typecheck            # HARD gate, no '|| true'
           npm run test:coverage        # runs the tests AND enforces the coverage floor (see vitest.config.ts)
+
+  listings:
+    name: Store listing copy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Check the Play and App Store paste sources
+        # The store pages are pasted by hand into two consoles, so nothing else ever reads them. This gate
+        # holds the paste sources to each store's caps and rules, and fails on every claim the code has
+        # proved false (scripts/check-listings.mjs says which and why). Node built-ins only, no npm ci.
+        # One mode per line: under bash -e each line can fail the step on its own.
+        run: |
+          node scripts/check-listings.mjs --play
+          node scripts/check-listings.mjs --appstore
 
   secrets:
     name: Secret scan

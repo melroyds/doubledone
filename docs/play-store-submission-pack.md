@@ -138,9 +138,15 @@ data-deletion URL. No ads, no third-party analytics/trackers, no advertising ID.
 
 ## Store listing, paste-ready
 
-**App name:** DoubleDone
+**Title** (<=30): `DoubleDone: ADHD To-Do List`
 
-**Short description** (<=80): `A calm to-do app for ADHD and overwhelm. Shows only today. AI optional.`
+*Changed 2026-10-19 (Melroy's call 6): the same name as the App Store, so one name serves both stores. Play
+searches the title hardest, and `DoubleDone` alone named nothing anybody searches yet. Pre-decided fallback
+if Play flags it: `DoubleDone: Calm To-Do List`, with ADHD kept in the short description. At the console,
+also confirm App content, Health apps still fits: the title names an audience, not a condition being
+treated.*
+
+**Short description** (<=80): `A calm to-do list for ADHD, autism, OCD and overwhelm. Nothing is ever overdue.`
 
 **Full description** (<=4000). *Rewritten 2026-08-16 for 1.3.1. The previous copy is in git history; it
 was two months stale in five ways, and the audit that found them is worth repeating before any future
@@ -159,52 +165,71 @@ The listing now names no price, no paid-only feature and no outside way to pay, 
 `node scripts/check-listings.mjs` fails if any of that comes back. That retires the rule above about
 diffing against the Premium wall: diff the FREE list against the app instead.*
 
-3,318 characters of 4,000. *2026-10-14: the not-a-medical-device line added (Google Play's Health apps policy asks for it in the description of any app touching wellbeing).*
+3,835 characters of 4,000. *2026-10-19, rewritten for 1.9.0 (store 1.9, slice 8). The 2026-08-16 rewrite
+never reached Play: the live short description was still the older "Shows only today. AI optional." line.
+Out, because the code proved them false: "your person cannot make your morning heavier" (your person can
+give a shared row today's date), "nothing you type is sent anywhere" and "entirely on your device" with AI
+off (sync, Ours, a feedback note and the usage counts still run), "PRIVATE BY DEFAULT" (AI starts on), "No
+third-party trackers" (RevenueCat gets an install id, which Data Safety declares), "Export your data" (it
+exports tasks and what you finished), and "unlike every shared list" (a comparison nobody can check). In:
+the audience in the opening line, a Premium paragraph (Android sells through Google Play since Path A; no
+price, no other biller and no free month, which matches Google's own example of a violation), Where you
+left off, Hold me to it, routines and rhythms, a low day, Focus, the widget, the founder line, the scrapbook
+named as AI (it is hidden with AI off), and a second medical sentence (Melroy's call 9). The paste source
+for every other language is [play-store-listings-localised.md](play-store-listings-localised.md).*
+*2026-10-14: the not-a-medical-device line added (Google Play's Health apps policy asks for it in the
+description of any app touching wellbeing).*
 
 ```
 Today is finite and achievable.
 
-DoubleDone shows you only what today needs, sized to be doable, and quietly keeps everything you finish. Nothing is ever overdue here. It just waits.
+DoubleDone is a calm to-do list for adults with ADHD, autism, OCD and overwhelm. It shows you only what today needs, sized to be doable, and quietly keeps everything you finish. Nothing is ever overdue here. It just waits.
 
-Most to-do apps hand you the whole list and call it motivation. For a lot of us, that is the overwhelm. DoubleDone is the opposite. A calm home screen, a small day, and a list that never shames you for a task simply existing.
+Most to-do apps hand you the whole list and call it motivation. For a lot of us, that is the overwhelm. DoubleDone gives you a calm home screen, a small day, and a to-do list that never shames you for a task simply existing.
 
 MADE FOR
-People with ADHD, autism, the AuDHD overlap, OCD, and anyone whose list has ever felt like too much. Built for how those brains actually work: low friction, no streaks to break, no guilt mechanics, no punishment for a task that has waited a while.
+People with ADHD, autism, the AuDHD overlap, OCD, and anyone whose list has ever felt like too much. No streaks to break, no red, no guilt mechanics. DoubleDone is made in Melbourne by Melroy, who built it for friends with ADHD and OCD.
 
 THE CALM CORE, FREE FOREVER
-- Capture anything in seconds. One thing per line, in any order.
-- See only today, sized so it feels possible.
-- Break it down: turn a dreaded task into small, doable steps.
+- Capture anything in seconds, and Sort for me shapes it into a doable day.
+- See only today. Anything for another day waits calmly in Later.
+- Break it down: a dreaded task in small steps. Tick the last one and the real task is done too.
 - Make it tiny: a two-minute version, just to begin.
-- Lighten today: ease a too-full day by moving things to later.
-- Combine: fold small tasks into one when the day feels cluttered.
-- Repeating tasks, for the things that come back.
-- Gentle reminders, only the ones you ask for. Never nagging.
+- A low day: tap Low, and what counts as enough gently shrinks.
+- Lighten today: on a packed day it suggests moving a few things. Nothing moves until you say yes.
+- Focus on one thing: one task on the screen, the rest out of sight.
+- Where you left off: one short line on any task, for next time.
+- Repeating tasks, routines and rhythms, with no streak to keep up.
+- Gentle reminders, only the ones you ask for, and Hold me to it for a firmer nudge.
 - Settle: a quiet room with a breathing guide, for when the day is loud.
 - Close the day kindly. It honours what you did, never what you didn't.
-- Calendar: see everything you have actually finished, including the old task you dreaded for weeks. Your brain can't tell you that you did nothing.
-- A free monthly scrapbook: a keepsake picture of what you finished.
+- Calendar: everything you have actually finished, including the old task you dreaded for weeks. Your brain can't tell you that you did nothing.
+- A free monthly AI scrapbook: a keepsake picture of what you finished.
+- Today on your home screen, with the DoubleDone widget.
 
 OURS: ONE SHARED LIST, WITH ONE OTHER PERSON
-Free, and unlike every shared list you have used. Nothing on it says who did what, and nothing counts or compares, so it cannot become a scoreboard.
+Free. Nothing on it says who did what, and nothing counts or compares, so it cannot become a scoreboard.
 
-A shared thing with a day on it, bin night on Tuesday, arrives on both your Todays by itself. One without a day, milk and batteries, stays on the shared list and never reaches your Today, so your person cannot make your morning heavier. Tick it from either phone and it closes for both.
+A shared thing with a day on it, bin night on Tuesday, arrives on both your Todays by itself. Everything else stays on the shared list however long it gets, so your day stays yours. Tick it from either phone and it closes for both.
 
-You start it by reading somebody a six-character code. There is no feed, no browsing, and nobody can reach you unless you handed them that code. Either of you can leave whenever you like, no reason needed. Like sync, Ours needs only the simple email sign-in.
+You start it by reading somebody a six-character code, which only works for the email you invited. There is no feed, and nobody can reach you without that code. Either of you can leave whenever you like. Like sync, Ours needs only the email sign-in.
 
 AI THAT HELPS, FULLY OPTIONAL
-AI is on by default and does real work: it sorts a brain-dump into your day and breaks a hard task into steps. But it is genuinely optional. One tap in Settings turns it off, and then nothing you type is sent anywhere. The whole app keeps working, entirely on your device. If you are wary of AI or just like things private, this is built for you.
+The AI features are on to start, and only send what you use them on: Sort for me shapes a brain-dump into your day, and Break it down turns a hard task into steps. One tap in Settings turns them off, and the rest of the app keeps working.
 
-PRIVATE BY DEFAULT
+PREMIUM, IF YOU EVER WANT MORE
+Optional extras through Google Play: Scan a list from a photo, Pin today's one thing, Plan my day, Chart a course, six more colour themes, a weekly scrapbook, Your patterns, and unlimited picks in What fits right now.
+
+ON YOUR DEVICE BY DEFAULT
 - Your tasks live on your device. No account needed to use the app.
-- Optional sync across devices needs only an email and a one-time code. No password.
-- When AI is on, only the text you choose goes to Anthropic's Claude, and it is never used to train models. When AI is off, nothing leaves your device.
-- No ads. No third-party trackers. Nothing sold.
-- Export your data or delete your account any time.
+- Optional sync across devices: an email and a one-time code, no password.
+- What you use an AI feature on goes to Anthropic's Claude, which does not train on it. Scrapbook pictures are made with Cloudflare's AI models.
+- No ads. No advertising identifiers or cross-app tracking. Nothing sold.
+- Export your tasks and what you've finished, or delete your account, any time.
 
 you're allowed to go slowly
 
-DoubleDone is not a medical device. It does not diagnose, treat, cure or prevent any condition, and it is not a substitute for professional care.
+DoubleDone is not a medical device. It does not diagnose, treat, cure or prevent any condition, and it is not a substitute for professional care. For medical advice, talk to a health professional.
 
 Read the plain-English privacy policy at doubledone.app/privacy.
 ```
@@ -219,7 +244,9 @@ Read the plain-English privacy policy at doubledone.app/privacy.
 
 *(Earlier release note, kept for the record: "New: AI is now fully optional. One tap turns it off and nothing you type is ever sent anywhere, the whole app still works on your device. Plus a calmer onboarding and small fixes.")*
 
-**Category:** Productivity. **Tags:** adhd, to-do list, task manager, calm productivity, focus, neurodivergent, autism, ocd, planner, reminders, anti-overwhelm, daily tasks.
+**Category:** Productivity. **Tags:** Play takes at most five, picked from Google's own list under Store settings,
+then Manage tags, never free-form words (this line used to list twelve). Pick to-do list, task management and
+planner types. Never a habit tracker tag: it brings the streak seekers this app refuses to serve.
 
 ---
 

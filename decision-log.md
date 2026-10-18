@@ -9971,3 +9971,80 @@ from its claims and advertising, so this clause backs up the claims discipline (
 - **A version per storefront.** What the app is medically does not depend on who sells Premium, so it does not
   belong inside the billing branch, where Android would read different words.
 - **Translating it now.** The legal pages are English only, on every platform.
+
+## 2026-10-19: the store pages tell the truth, the name says what the app is, and a gate holds both stores (store 1.9, slice 8)
+
+**Decided (Melroy's calls 6, 7 and 9, 2026-10-19).** The paste sources for both stores are rewritten, and
+`scripts/check-listings.mjs` gains an App Store mode and runs in CI. On 2026-10-19 the live App Store subtitle was
+still `A calmer kind of to-do list` and the live Play short description still the older "Shows only today" line,
+so the 2026-08-16 rewrite never reached either store, and the App Store page had carried an A$ price on the US
+store, "colleagues", "your person cannot make your morning heavier" and "nothing you type leaves your device" for
+two months. No script read the App Store copy at all, which is how those survived.
+- **The name and title: `DoubleDone: ADHD To-Do List`, the same on both stores**, with the App Store subtitle
+  `Calm planner, nothing overdue`. The name is the heaviest ranking field on both stores, `DoubleDone` alone named
+  nothing anybody searches yet, and every competitor puts the category or ADHD in its name. The subtitle spends its
+  room on the promise no competitor makes (nothing is ever overdue) plus the category word the name lacks. The
+  home-screen label stays DoubleDone (`app.json` `name`). The fallback is pre-decided: `DoubleDone: Calm To-Do List`
+  with `For ADHD. Nothing overdue.`, a metadata-only resubmit. Each localisation gets its own name in its own
+  words (`ADHS To-do-Liste`, `tareas para TDAH`, `liste de tâches`, `lista cose da fare`), and Play's localised
+  titles match them, one name per language on both stores, which the gate checks.
+- **The keyword strategy.** Apple searches only the name, the subtitle and the 100-character field, and combines
+  words across them within a localisation, so the field never repeats a word from the other two, has no spaces and
+  uses singular forms (all gated). The English field is spent on the category and audience words
+  (`todo,task,manager,daily,organizer,routine,autism,audhd,ocd,neurodivergent,brain,dump,breakdown,focus`), and a
+  second English localisation with the same visible text carries a second set (`shared`, `couples`, `household`,
+  `partner` and nine more), because Australia and the five European stores also search English (U.K.) by industry
+  observation. Which slot it takes (en-GB or en-AU) depends on the Primary Language, which nobody has written down,
+  so it is drafted for both and picked at paste time after reading ASC. The field is also held to 100 UTF-8 bytes,
+  the stricter reading, so an accented letter can never tip it over.
+- **App Store localisations (call 7):** de-DE, fr-FR, it-IT, and one neutral Spanish text for es-MX and es-ES, in
+  the new `docs/appstore/listing-localised.md`. Adapted from the natively reviewed Play listings, not translated
+  from the English page: the widget and Google Play out, the Apple billing paragraph built from the paywall's own
+  `appleRenewalTerms` and `trialNoCard`, the Terms URL, the founder line, and both medical sentences in. They ship
+  with 1.9.0 only if the native read is back by submit day, else at the next version, decided now.
+- **The medical line, both stores, every language (call 9):** "For medical advice, talk to a health professional."
+  follows the not-a-medical-device sentence, and the gate pins both sentences per language.
+- **Every claim checked against the code for the platform that store serves.** The three the scouts had not
+  confirmed: Scan from a photo works on both phones (an in-app viewfinder with a gallery fallback, Premium, AI on;
+  the titles land in the capture panel to check), so it stays on both stores; "What fits right now?" is a free 15
+  picks a month and unlimited with Premium, so "without limits" and "unlimited picks" are true; and the monthly
+  scrapbook is hidden with AI off (`lookback.tsx`), so every listing now calls it an AI scrapbook and names
+  Cloudflare, whose models draw the picture. The App Store page names no widget (Android only), no Speak (the web
+  only), no web, Android, Google or price, and the gate fails on each.
+- **The Play translations:** the "private by default" headings, the AI-off "no text leaves" lines, "no third-party
+  trackers" and "export your data" replaced from the landing strings (`privTitle`, `priv2`, `priv3`, `priv4`);
+  Lighten today as a suggestion that moves nothing until you say yes, in all four; the two Spanish vosotros lines and
+  "carga la mañana" gone, so one neutral text now serves es-ES and es-419 (the live es-419 had no source in the
+  repo); Italian says La nostra lista everywhere; and German "je nach zu viel" became "jemals nach zu viel" in the
+  listing and in the five catalogue lines that share it, together, as the Backlog said. Each gained a title, the
+  founder line and a Premium paragraph from `faqFreeA` without its free-month sentence. The second, never-shipped
+  English short description is deleted, and the gate fails if an English block comes back to that file.
+- **The gate:** caps and recorded counts, diacritics, U+00A0 in French, neutral Spanish, the protected claims, the
+  App Store's platform rules, Play's no-other-biller and no-trial rules, and a banned list of every phrase the code
+  proved false, in five languages where a translation carried it. A negative run broke each rule once in a scratch
+  copy (29 cases) and the gate caught all of them. The retired paste sources
+  (`docs/play-resubmission-walkthrough.md`, section 4 of `docs/play-store-release.md`) carry a "do not paste"
+  banner and are no longer read.
+
+**Decided against:**
+- **Competitor names in any keyword field.** Apple 2.3.7, and Tiimo's French page shows what it looks like.
+- **Habit and streak words** (`habit`, `streak`, `chores`, `reward`). They rank DoubleDone for exactly the
+  products it refuses to be, so those installs churn and the reviews sting.
+- **Clinical words** (`anxiety`, `therapy`, `treatment`, `symptom`, the Italian `DDAI`). Under the TGA rules what a
+  product is for is judged from its claims, and the gate now bans the English ones in every field.
+- **The bare word `calm` as a keyword.** It sits in the subtitle anyway, and alone it mostly brings people looking
+  for the Calm meditation app.
+- **`executive` and `function` in the second set.** Close to clinical language; parked in the Backlog with a
+  trigger.
+- **The alternative subtitle `Daily planner for overwhelm`.** It names the feeling, but spends the field on a word
+  ("overwhelm") the second set can carry, and drops the promise nobody else makes.
+- **Two Spanish texts.** The 2026-10-18 neutral rule: one tú text reads as home in Spain and Latin America, and two
+  copies drift.
+- **Trial wording on Play, in any language.** Google gives "Try Premium free" as its own example of a violation, so
+  the Premium paragraph there names the extras and nothing about a free month, and the gate bans it.
+- **Rewording "straight into tasks" for Scan.** It is the paywall's own line, and true in the sense that matters
+  (nobody types the list); the listing doc records what it means.
+- **Localised screenshots now.** ASC falls back to the English set; they are parked with the next iOS version.
+
+The localised texts and every changed non-English line join the batch's one native read. Nothing was pasted into
+either console, and none of this reaches a store until Melroy pastes it at plan step 14.
