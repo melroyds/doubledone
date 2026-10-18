@@ -10487,3 +10487,13 @@ A11Y-11 and A11Y-14 say so.
   3.93:1, but the foot of Today never sits there. In the dev server the glow ends about 330px down at the top of
   its drift, RIGHT NOW starts at 351px, and the foot line comes after the whole list with only the optional links
   below it, so even scrolled to the end it sits near the bottom of the screen.
+
+**The iOS build step names the Terms decision, and PREM-61 says what it covers (finding 5).** The in-app Terms
+still name the website's A$5 and A$50 on an iPhone, in the "Premium and billing" branch the web and iOS share. The
+Backlog item that parks it is triggered "before the 1.9.0 iOS build is queued", but step (12), the list a cold
+session follows to queue builds, never named it. It does now, before the iOS command. PREM-61 claimed "the only
+price an iPhone shows is Apple's own", which is false on 1.9.0 while the Terms keep the website figure, so it now
+says the welcome shows no price of ours, the Premium screen shows Apple's, and the case does not cover the Terms.
+
+**Decided against:** splitting `terms.tsx` into an iOS variant now. It is legal text, and every Terms change waits
+for Melroy's word. The draft of the fix stays in the Backlog item.
