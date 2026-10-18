@@ -10,7 +10,10 @@
 // - STRIPE_HERE: may this build show Stripe (checkout, the billing portal, the dunning link) and OUR OWN
 //   fixed figures (A$5, A$50, "save 17%" as a sum we worked out). Web and iOS yes. Android never: Play's
 //   Payments policy forbids leading an Android user to any payment method but Play Billing, and its
-//   Subscriptions policy rejected 1.5.1 for a fixed A$ price shown to a reviewer abroad.
+//   Subscriptions policy rejected 1.5.1 for a fixed A$ price shown to a reviewer abroad. A PRICE of ours
+//   (A$5, A$50) also needs a build where no store sells, which is the web alone (`!IAP_AVAILABLE`): a store
+//   build prices from the store's own string, so an iPhone shows Apple's price and never our A$5 (Melroy's
+//   call, 2026-10-19, `welcomeFineKey` in lib/premium-ui). "save 17%" is the one figure iOS keeps (Path A).
 // - PLAY_COPY: say it the way Google Play needs. Android only. Store names, the renewal line, the trial
 //   wording that is not a Play trial, and prices that come ONLY from Play's own localised string.
 //

@@ -167,3 +167,18 @@ export function storeCopyKeys(playCopy: boolean) {
 
 /** The keys storeCopyKeys returns, for one build. */
 export type StoreCopy = ReturnType<typeof storeCopyKeys>;
+
+/**
+ * The welcome's Premium fine print, chosen here so the choice is tested. Our own figure ("A$5 a month") is
+ * the Stripe price on the website, so it shows only where no store sells. A store build prices Premium from
+ * the store's own string, in the viewer's currency, on the Premium screen and nowhere else. Until 1.9.0 an
+ * iPhone in the US read A$5 here while its Premium screen showed Apple's US$ price, because the welcome
+ * asked STRIPE_HERE, which is true on iOS (Melroy's call, 2026-10-19: on an iPhone, only Apple's price).
+ *
+ * `iapAvailable` is lib/purchases IAP_AVAILABLE (true on iOS and Android, a compile-time false on the web)
+ * and `stripeHere` is lib/storefront STRIPE_HERE (false on Android). premium-ui.test.ts reads the key each
+ * store build gets in all five catalogues and fails on a currency figure or a dollar word.
+ */
+export function welcomeFineKey(iapAvailable: boolean, stripeHere: boolean): 'welcome.premiumFine' | 'welcome.premiumFinePlain' {
+  return stripeHere && !iapAvailable ? 'welcome.premiumFine' : 'welcome.premiumFinePlain';
+}

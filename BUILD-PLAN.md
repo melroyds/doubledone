@@ -224,12 +224,13 @@ the ladder is fixed and readable, never randomised.
   its two stores, so adding `faqAiA`'s sentence is a copy call, and it needs the native read for three languages.
   Trigger: Melroy's word before the listings are pasted (plan step 14), or the next listing edit.
 - **Two in-app lines the slice 5 truth pass found and left (parked 2026-10-19, with slice 5 of `store-1.9`).**
-  (1) **The welcome's Premium fine print names our own price on an iPhone.** `welcome.premiumFine` ("A$5 a month,
-  cancel anytime") shows wherever `STRIPE_HERE` is true, and that is iOS as well as the web, so an iPhone in the US
-  reads A$5 while the Premium screen shows Apple's own US$ price. It is the in-app twin of the A$ figure on the App
-  Store page. The fix is one condition in `welcome.tsx` (the store-free `premiumFinePlain` wherever a store sells),
-  but `STRIPE_HERE` lets iOS show our figures by design (`lib/storefront.ts`), so it is Melroy's call. Trigger: his
-  word, before the 1.9.0 iOS build is queued, or the next change to the welcome's Premium step. (2) **The capture
+  (1) ~~**The welcome's Premium fine print names our own price on an iPhone.**~~ **DONE 2026-10-19 on Melroy's call
+  (`store-1.9`):** the welcome now asks `welcomeFineKey(IAP_AVAILABLE, STRIPE_HERE)` in `lib/premium-ui.ts`, so our
+  A$5 shows on the web only and an iPhone reads the store-free `premiumFinePlain`. `premium-ui.test.ts` reads every
+  iPhone key in all five catalogues and fails on a currency figure, and manual case PREM-61 checks it on a phone.
+  It reaches iPhones with the 1.9.0 build. *(The original: `welcome.premiumFine` ("A$5 a month, cancel anytime")
+  showed wherever `STRIPE_HERE` was true, iOS as well as the web, so an iPhone in the US read A$5 while the Premium
+  screen showed Apple's own US$ price.)* (2) **The capture
   and handoff lines on a signed-in welcome.** `welcome.capturePrivacyNoAi` ("Nothing here is sent anywhere") and the
   "keeps everything on this device" half of `capturePrivacyAi` are true on a first run, which is signed out, but a
   replay from Settings while signed in merges the lines into a synced list. The welcome's last screen has the same
@@ -240,6 +241,18 @@ the ladder is fixed and readable, never randomised.
   and no sign-in invite (for the handoff, e.g. "Synced to your account. The AI features send only the text you
   choose to Claude.", and an AI-off twin), in all five catalogues, with a manual case that replays the welcome
   signed in, AI on and AI off. Trigger: the next welcome copy change.
+- **Two figures of ours an iPhone still shows (found and left 2026-10-19, with the welcome fix on `store-1.9`).**
+  (1) **The in-app Terms name the website's price.** `terms.tsx`'s "Premium and billing" for a build that sells and
+  is not Android opens "On our website it costs A$5 per month or A$50 per year", and that branch is the web's AND
+  the iPhone's. True about the website, but it is an A$ figure on an iPhone in every country, it names the website
+  price where Apple's own is the one an iPhone buys at, and it sits close to Apple's rule on pointing buyers to
+  another way to pay. The fix: an iOS variant that says Premium is sold in this app through Apple at the price the
+  App Store shows before you buy, in your own currency, keeping the website line for the web, with "Last updated"
+  changed on both Terms copies. It is legal text, so it waits for Melroy's word, like every Terms change. Trigger:
+  his word, before the 1.9.0 iOS build is queued, or the next Terms change. (2) **"Annual · save 17%" on the
+  iPhone's plan pill.** Path A kept it on iOS on purpose (decision log, 2026-10-01). Apple rounds each storefront's
+  price to its own tier, so the saving may not be 17% everywhere. Trigger: a price change in App Store Connect, or
+  PREM-32's production read showing a ratio far from 17% on any storefront Melroy checks.
 - ~~**MCP: stepped tasks**~~ **BUILT 2026-10-18 on branch `mcp-steps`, waiting for a Worker deploy on Melroy's word** (the next action at the top says how; decision log, three entries the same day; the design and its maps in `docs/design-source/mcp-stepped-tasks-design.md` and `mcp-stepped-tasks-maps.md`, committed as `5964a41`). Commit 1 `eed5195` (parts: `parts` / `count`, REST `partsTotal` / `partsDone`); commit 2 `cd89027` (linked steps: the `add_steps` tool and `POST /tasks/{id}/steps`, the last step closing the big task when that is certain, the rest left to the app's repair, proven against the app's own rules by `server/src/settle-cases.json`). The Tier 2 fixes, each its own commit: `f049605` (no write ever lands on a removed task), `dc06e5a` (the OpenAPI drift and the repeat errors naming monthly), `8044337` (a task waiting on its steps is not removed on its own, a 409 over REST) and `940c632` (`fetch` names a task waiting on its steps and its parts, and a removed task is a miss). R11, the client merge fix, `5e76b6e` (a task in parts whose parts are all ticked after a merge is done). **The build review's fixes (2026-10-18, seven findings, all minor, each its own commit):** `ba9469d` (the parity proof claims the same end state on done, hidden and deleted, not `open_parent`, with the case in the fixture), `d15b597` (a breakdown whose hiding write is lost is read again before its steps are undone), `1ac9a83` (removing a broken-down task names every step, done ones too, when the done ones would make the app finish it; REST `stepIds`), `b34dca0` (the createTask 201 schema is `anyOf`, checked with ajv), `e2fdbaa` (the parts refusal no longer sends people to Undo a step), and `41184df` (the steps route's reply and the REST walk pinned by tests). `main` carries the original Backlog entry of this name, from `landing-v2`: strike it in the merge. **Parked from it, each with its trigger:** (1) **the completion half of the moat for agent steps** (the `decomposition_id` / `decomposition_steps` columns, a `corrId` minted by `break_down` and passed to `add_steps`, and the walk calling `logOutcome`). Trigger: MCP breakdowns reach about 5% of all offered breakdowns over four weeks, `ai_calls` with `endpoint = 'decompose'` and `input.via = 'mcp'` over every `plan` plus every `decompose` row (the app's breakdown runs through `/plan`). (2) **Removing a whole breakdown, its open steps with it**, over MCP and REST (today: delete ALL its steps one by one, done ones too, which the refusal names when two or more are done, and the app brings the big task back on its next open). The fuller fix is one PATCH over `or=(id.eq.P,parent_id.eq.P)&deleted_at=is.null` that tombstones the big task and its live steps together, pinned to the big task as read; it could also let a hidden task with no live step left be removed at once instead of waiting for the next open. Trigger: the first person who asks. (3) **`fetch` showing a big task's step progress** ("2 of 4 steps done"). Trigger: the next Deep Research change, or a report. (4) **Calendar A4**: a hidden big task with its own `due` still shows as planned on that day (`scheduledByDay` in `client/src/lib/calendar.ts` has no `silentParent` check), for app-made and agent-made breakdowns alike; when picked up, show it as the deadline it is ("due: Clear the garage"). Trigger: the next Calendar change, or a report.
 - ~~**Store copy still carries two claims the landing review corrected (2026-10-18).**~~ **FIXED in the paste sources
   2026-10-19 (`store-1.9`, slice 8), and the listing gate now bans both by name.** They reach the stores when Melroy

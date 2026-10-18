@@ -5,7 +5,7 @@ import { en } from './catalogs/en';
 import { es } from './catalogs/es';
 import { fr } from './catalogs/fr';
 import { it as itCat } from './catalogs/it';
-import { manageRoute, premiumPrimaryAction, showsCancelReassurance, storeCopyKeys, trialSlot } from './premium-ui';
+import { manageRoute, premiumPrimaryAction, showsCancelReassurance, storeCopyKeys, trialSlot, welcomeFineKey } from './premium-ui';
 
 // The full state -> control table for the entitled panel. Each row here is a cell that either
 // shipped wrong (trial, comp) or must never drift (the live Stripe path). See premium-ui.ts for
@@ -159,16 +159,23 @@ describe('premiumPrimaryAction on Android (Path A: STRIPE_HERE false)', () => {
   });
 });
 
+// Read a dotted catalogue key ('premium.planAnnual') out of one catalogue.
+const CATALOGS = { en, de, es, fr, it: itCat } as Record<string, unknown>;
+const lookup = (cat: unknown, key: string): unknown =>
+  key.split('.').reduce<unknown>((node, part) => (node && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined), cat);
+
+// A price of ours, in any of the five languages. Neither store build may show or speak one.
+const PRICE_OF_OURS: [string, RegExp][] = [
+  ['a currency figure', /A\$|US\$|\$\s?\d|\d\s?\$|€|£|\bAUD\b|\bUSD\b/],
+  ['a dollar word', /dollar|dólar|dolar/i],
+];
+
 // The words Android may show or SPEAK. Play rejected 1.5.1 for an A$ price shown to a reviewer abroad, and
 // its Payments policy forbids naming another biller. Every store line the paywall can render on Android is
 // chosen by storeCopyKeys(true), so reading every key it returns, in every catalogue, covers them all.
 describe('storeCopyKeys: what Android may say', () => {
-  const CATALOGS = { en, de, es, fr, it: itCat } as Record<string, unknown>;
-  const lookup = (cat: unknown, key: string): unknown =>
-    key.split('.').reduce<unknown>((node, part) => (node && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined), cat);
   const FORBIDDEN: [string, RegExp][] = [
-    ['a currency figure', /A\$|US\$|\$\s?\d|\d\s?\$|€|£|\bAUD\b|\bUSD\b/],
-    ['a dollar word', /dollar|dólar|dolar/i],
+    ...PRICE_OF_OURS,
     ['a worked-out discount', /\d\s?%|17/],
     ['Apple', /apple|app store|screen time|temps d.écran|bildschirmzeit|tiempo de uso|tempo di utilizzo/i],
     ['Stripe', /stripe/i],
@@ -219,4 +226,48 @@ describe('storeCopyKeys: what Android may say', () => {
     expect(apple.trialLink).toBe('premium.trialLink');
     for (const key of Object.values(apple)) expect(typeof lookup(en, key), key).toBe('string');
   });
+});
+
+// The words an iPhone may show. Apple prices Premium in each country's own currency, so a fixed A$ figure of
+// ours is wrong on every storefront but Australia's. Until 1.9.0 the welcome's fine print read "A$5 a month"
+// on a US iPhone whose Premium screen said US$ (Melroy's call, 2026-10-19: on an iPhone, only Apple's price).
+// The paywall's store lines come from storeCopyKeys(false) and the welcome's from welcomeFineKey, so reading
+// both, in every catalogue, covers them. "save 17%" is not a price and stays on iOS (Path A), so the discount
+// rule is Android's alone.
+describe('welcomeFineKey and storeCopyKeys: what an iPhone may say', () => {
+  const IOS = { iapAvailable: true, stripeHere: true }; // lib/purchases.ios.ts and the base lib/storefront.ts
+  const ANDROID = { iapAvailable: true, stripeHere: false }; // lib/purchases.android.ts and lib/storefront.android.ts
+  const WEB = { iapAvailable: false, stripeHere: true }; // the base lib/purchases.ts and lib/storefront.ts
+  const fine = (b: { iapAvailable: boolean; stripeHere: boolean }) => welcomeFineKey(b.iapAvailable, b.stripeHere);
+  const iphone = [...Object.values(storeCopyKeys(false)), fine(IOS)];
+
+  it('the welcome names our own price on the web only', () => {
+    expect(fine(WEB)).toBe('welcome.premiumFine');
+    expect(fine(IOS)).toBe('welcome.premiumFinePlain');
+    expect(fine(ANDROID)).toBe('welcome.premiumFinePlain');
+  });
+
+  it('the web keeps the Stripe figure in every language, and the rule below can see it', () => {
+    for (const [loc, cat] of Object.entries(CATALOGS)) {
+      const text = String(lookup(cat, fine(WEB)));
+      expect(PRICE_OF_OURS[0][1].test(text), `${loc}: ${text}`).toBe(true);
+    }
+  });
+
+  it('every iPhone key exists in every catalogue', () => {
+    for (const [loc, cat] of Object.entries(CATALOGS)) {
+      for (const key of iphone) expect(typeof lookup(cat, key), `${loc} ${key}`).toBe('string');
+    }
+  });
+
+  for (const [what, re] of PRICE_OF_OURS) {
+    it(`no iPhone line carries ${what}, in any language`, () => {
+      for (const [loc, cat] of Object.entries(CATALOGS)) {
+        for (const key of iphone) {
+          const text = String(lookup(cat, key));
+          expect(re.test(text), `${loc} ${key}: ${text}`).toBe(false);
+        }
+      }
+    });
+  }
 });

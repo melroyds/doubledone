@@ -7,6 +7,8 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { triage } from '@/lib/ai';
 import { t } from '@/lib/locale';
+import { welcomeFineKey } from '@/lib/premium-ui';
+import { IAP_AVAILABLE } from '@/lib/purchases';
 import { STRIPE_HERE } from '@/lib/storefront';
 import { enableDailyReminder } from '@/lib/reminders';
 import { reminderReasonLine } from '@/lib/reminders-types';
@@ -466,9 +468,10 @@ export default function WelcomeScreen() {
                 </View>
               ))}
             </View>
-            {/* Android never shows a price of ours (lib/storefront STRIPE_HERE): Play's own price is on the
-                Premium screen, in the buyer's currency. So its fine print carries none. */}
-            <Text style={styles.fine}>{STRIPE_HERE ? t('welcome.premiumFine') : t('welcome.premiumFinePlain')}</Text>
+            {/* Only the web shows our own price (A$5, the Stripe one). A store build, iOS or Android, shows
+                the store's own price on the Premium screen, in the buyer's currency, so its fine print
+                carries none (lib/premium-ui welcomeFineKey). */}
+            <Text style={styles.fine}>{t(welcomeFineKey(IAP_AVAILABLE, STRIPE_HERE))}</Text>
           </View>
         )}
 

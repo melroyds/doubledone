@@ -10303,3 +10303,34 @@ symbol at 3:1 on the page. Both tests pass in all 14 palettes, with the dark gap
 - **Settle's guide words, now.** They wear the five task-dot hues in turn on the page, 2.4 to 4.3:1 in light mode, and
   the changing colour is part of the breath. A taste call, parked in the Backlog with a trigger.
 - **Recolouring the gold ✦.** C8, Tier 3, still parked.
+
+## 2026-10-19: an iPhone shows only Apple's price, so the welcome's A$5 is the web's alone (store 1.9)
+
+**Decided (Melroy's call, 2026-10-19): on an iPhone the welcome's Premium fine print carries no figure of ours.** It
+read "A$5 a month, cancel anytime" wherever `STRIPE_HERE` was true, and that switch is true on iOS by design, so a
+US iPhone read A$5 in the welcome while its own Premium screen showed Apple's US$ price. The rule is now that a
+price of ours (A$5, A$50, the Stripe prices) shows only where no store sells, which is the web alone. A store
+build, iOS or Android, prices Premium from the store's own string, in the buyer's currency, on the Premium screen
+and nowhere else. The web keeps its Stripe figure, and Android showed none already.
+- **How:** `welcomeFineKey(iapAvailable, stripeHere)` in `lib/premium-ui.ts` picks `welcome.premiumFine` only when
+  `STRIPE_HERE && !IAP_AVAILABLE`, and `welcome.tsx` asks it. `IAP_AVAILABLE` (lib/purchases) is the compile-time
+  "a store sells here" fact the Premium screen's price line, `premiumPrimaryAction` and `trialSlot` already read,
+  so the welcome now follows the same rule the paywall does.
+- **The test, like Android's:** `premium-ui.test.ts` reads every key an iPhone gets from `storeCopyKeys(false)`
+  and `welcomeFineKey`, in all five catalogues, and fails on a currency figure or a dollar word. Run against the
+  old condition it failed, and a second test proves the rule can see the web's A$5 in every language. The
+  catalogue lines are unchanged, so there is nothing new for the native read.
+- Manual case PREM-61, and the suite regenerated. It reaches iPhones with the 1.9.0 build.
+
+**Decided against:**
+- **A fourth storefront switch and a `storefront.ios.ts`.** It would add a third platform file whose only job is
+  a value `IAP_AVAILABLE` already answers, and a third file to keep in step through the contract. The STRIPE_HERE
+  note in `lib/storefront.ts` now says a price of ours also needs a build where no store sells.
+- **`Platform.OS === 'ios'` in the screen.** The storefront rules are compile-time and tested in pure logic on
+  purpose. A runtime check in the screen is the scatter of conditions `storeCopyKeys` was built to end.
+- **Dropping "Annual · save 17%" on the iPhone in the same change.** It is not a price, Path A kept it on iOS on
+  purpose (2026-10-01), and Melroy's call named the welcome's figure. Apple rounds each storefront's price on its
+  own, so it may not be 17% everywhere. Parked in the Backlog with a trigger.
+- **Rewriting the iPhone's Terms, which name the website's A$5 and A$50.** True about the website, but it is the
+  last A$ figure an iPhone shows. It is legal text, so it waits for Melroy's word, parked in the Backlog with a
+  draft of the fix and a trigger before the 1.9.0 iOS build.
