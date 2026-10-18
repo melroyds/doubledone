@@ -92,8 +92,15 @@ jobs:
           # One check per line: under bash -e, only the LAST command of an && list can fail the step.
           test -f client/dist/robots.txt
           test -f client/dist/sitemap.xml
-          test -f client/dist/img/app-store-badge.svg
-          test -f client/dist/img/google-play-badge.png
+          test -f client/dist/img/badges/app-store-en.svg
+          test -f client/dist/img/badges/google-play-de.png
+          # The redesign (2026-10-18): one action per platform, chosen by the boot before paint, and the six real
+          # screens in every language and theme (the unit test checks all 60; this checks they reached the export).
+          ! grep -q 'You need to enable JavaScript' client/dist/index.html
+          # Run the boot that SHIPS (esbuild's output, not the test's transform) against fake phones and a laptop.
+          node scripts/check-landing-boot.mjs
+          grep -q 'class="act-desktop"' client/dist/index.html
+          test "$(ls client/dist/landing/*.webp | wc -l)" -eq 60
           # Self-hosted fonts: the files ship, and nothing in the page asks Google for them.
           test -f client/dist/fonts/newsreader-600.woff2
           test -f client/dist/fonts/atkinson-400.woff2

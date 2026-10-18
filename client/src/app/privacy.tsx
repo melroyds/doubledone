@@ -52,8 +52,7 @@ export default function PrivacyScreen() {
         </Section>
 
         <Section styles={styles} heading="Shared lists: who did what">
-          DoubleDone does not record which of you did what. There is no column for it, so who added, ticked or removed
-          something is not withheld from you, it is not stored at all and cannot be worked out later.
+          Nothing on a shared list says which of you did what, and DoubleDone keeps no record of who ticked or removed something. Our server does note which account added each item, only so a report of misuse can be acted on, and the app never shows it. If you delete your account, that note is erased and what you added stays on the list for the other person.
         </Section>
 
         <Section styles={styles} heading="Leaving, removing, deleting">
@@ -66,6 +65,9 @@ export default function PrivacyScreen() {
         <View style={styles.section}>
           <Text style={styles.heading}>The AI features</Text>
           <Text style={styles.body}>
+            The AI features are on when you start. One tap on Turn AI off in Settings switches them all off, and the rest of the app keeps working.
+          </Text>
+          <Text style={styles.body}>
             The AI features (such as Break it down, Sort, Combine, and the photo scan) send the text or photo you
             choose to our server, which passes it to Anthropic&apos;s Claude to do the work. Anthropic does not train their
             models on it, and deletes it within 30 days. Anything flagged for safety or legal reasons can be held by
@@ -77,6 +79,9 @@ export default function PrivacyScreen() {
             And when you finish steps from a broken-down task, the app notes only that they got done, a random id and
             a number of days, never the task text or anything about you, so it can learn how long things really take.
             Prefer not to? Just don&apos;t use those features. The rest of the app works fully without them.
+          </Text>
+          <Text style={styles.body}>
+            A scrapbook&apos;s picture is drawn by Cloudflare&apos;s image model, from a short scene Claude writes using the titles of what you finished. If Claude is unavailable, Cloudflare&apos;s text model writes the scene instead.
           </Text>
         </View>
 
@@ -155,10 +160,10 @@ export default function PrivacyScreen() {
 
         <Section styles={styles} heading="Your control">
           Work entirely offline and anonymous if you like. Sign out whenever you want, which stops syncing. You can
-          export all your data as a file at any time. And if you sync, you can permanently delete your account and
+          export your tasks and what you&apos;ve finished as a file at any time. And if you sync, you can permanently delete your account and
           everything synced to it from Settings. Two small records are kept: a billing record, if you ever subscribed (see Payment events), and, if you
           ever started the free trial, a note that you did (an internal number and two dates, nothing you
-          wrote), so a trial is used once.
+          wrote), so a trial is used once. What you added to a shared list stays on that list for the other person (see Shared lists).
         </Section>
 
         <Section styles={styles} heading="Your privacy under Australian law">
