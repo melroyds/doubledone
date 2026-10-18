@@ -213,9 +213,9 @@ the ladder is fixed and readable, never randomised.
   (the sort summary and the affirmation) briefly lies over the lowest rows; and the gold ✦ is 2.5:1 in light mode
   (C8, #C19A4F to #B18D4A, shared with the per-task dots). Trigger: a keyboard or screen-reader user reports one, or
   the next change to TaskRow's keys, the Energy pills or the floatNote.
-- **Two contrast gaps the slice 3 test found and left (parked 2026-10-19, with slice 3 of `store-1.9`).** Both are
-  measured by `client/src/constants/palette.test.ts`'s model. (1) **With Quiet on, a task row sits straight on the
-  sky.** Quiet drops the row's card, so its grey words (a done title, the row note, "· Ours", the repeat mark, the
+- **Three contrast gaps the slice 3 test and the colour review found and left (parked 2026-10-19, with slice 3 of
+  `store-1.9`).** All three are measured by `client/src/constants/palette.test.ts`'s model. (1) **With Quiet on,
+  a task row sits straight on the sky.** Quiet drops the row's card, so its grey words (a done title, the row note, "· Ours", the repeat mark, the
   step count), its accent words ("a lot", the nudge time, "looks big"), its check ring and Quiet's hold-hint line
   are all drawn on the living sky. In light mode the words measure 3.1 to 3.2:1, and the ring 2.1 to 2.5:1 in both
   modes, where it needs 3:1. The a11y scout modelled Quiet only for the held card and the Menu pill, so its list
@@ -233,6 +233,12 @@ the ladder is fixed and readable, never randomised.
   worse. Either fix clears it: dark `skyInk` and `skyAccent` one step lighter (Dusk #B2A89D and #CE9CAC, solved like
   the light ones), or the dark glow from 0.18 to 0.11 in `PHASE_POOLS` (`client/src/lib/phase.ts`). Trigger:
   Melroy's word, or the next change to dark mode or the pools. Strike the `OPEN_IN_DARK` entries in the same commit.
+  (3) **In dark mode, the empty check ring on the accent tint** (added by the colour review, 2026-10-19). A pinned
+  row sits on solid accentSoft with its ring always empty, and an Ours row changed since you looked sits on the
+  opaque wash. Dark inkFaint measures 2.78 to 2.95:1 there in Dusk, Rose, Fog and Slate, where a ring needs 3:1,
+  on every platform since the tint is solid. Light mode passes at 3.07 to 3.24. The test holds the four pairs in
+  `OPEN_IN_DARK` too. Fix it with the rest of dark mode: a lighter dark inkFaint, or a ring shade of its own solved
+  to 3:1 on both a card and the tint. Trigger: the same as (2). Strike those four entries in the same commit.
 - **Settle's guide words are in the task-dot hues (found and left 2026-10-19, with slice 4 of `store-1.9`).** In the
   Settle room the breathing guide's words and the rare affirmation wear the five per-task dot colours in turn,
   straight on the page. In light mode that is 2.4:1 (gold) to 4.3:1 (periwinkle) in every theme, under 4.5:1 for

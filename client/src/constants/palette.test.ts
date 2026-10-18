@@ -106,7 +106,9 @@ const ROLES: [string, keyof Palette, Surface[], number][] = [
   ['Remove and Skip today, and Settings\' Delete in Quiet, which drops the cards', 'danger', ['card', 'shelf', 'quietHeld', 'surface', 'bg'], 4.5],
   ['"done" as words (the affirmation, a closed hold line)', 'doneText', ['card', 'surface', 'bg'], 4.5],
   ['labels on the accent fill (the + pill, Break it down)', 'onAccent', ['accentFill'], 4.5],
-  ['the empty check ring and the select ring (not text, 3:1)', 'inkFaint', ['card'], 3],
+  // The tint too: a pinned row sits on solid accentSoft with its ring always empty (Today pins only an open task),
+  // and a row changed since you looked in Ours sits on the opaque wash for as long as you look.
+  ['the empty check ring and the select ring (not text, 3:1), on a card and on the tint of a pinned row or an Ours row changed since you looked', 'inkFaint', ['card', 'tint'], 3],
 ];
 
 type Failure = { key: string; r: number; text: string };
@@ -133,13 +135,15 @@ function failures(theme: (typeof THEME_NAMES)[number], scheme: Scheme): Failure[
 }
 
 // Open in DARK mode, by Melroy's call (store 1.9, 2026-10-19: light mode changes, dark mode keeps its values).
-// Pale words straight on the sky lose contrast where the hero glow is brightest, at the very top of the screen:
-// the date, the greeting, and Quiet's Menu label. The glow's centre sits above the screen, so a real line sees
-// about 65% of its strength at rest and 80% at the top of its drift, which still leaves Dusk, Honey and Rose at
-// about 4.4:1 there. The pools are off on Android, so this is the web and iPhones. Each gap is held where it is:
-// the test fails if one gets worse, and fails when one is fixed, so the entry is struck off.
+// Two kinds of gap. (1) Pale words straight on the sky lose contrast where the hero glow is brightest, at the very
+// top of the screen: the date, the greeting, and Quiet's Menu label. The glow's centre sits above the screen, so a
+// real line sees about 65% of its strength at rest and 80% at the top of its drift, which still leaves Dusk, Honey
+// and Rose at about 4.4:1 there. The pools are off on Android, so this is the web and iPhones. (2) The empty check
+// ring on the accent tint, a pinned row or an Ours row changed since you looked: dark inkFaint is 2.78 to 2.95:1
+// there in Dusk, Rose, Fog and Slate, on every platform, where a ring needs 3:1. Each gap is held where it is: the
+// test fails if one gets worse, and fails when one is fixed, so the entry is struck off.
 const OPEN_IN_DARK: Record<string, number> = {
-  // The floor each is held at: today's ratio, rounded down.
+  // The floor each is held at: today's ratio, rounded down to two decimals.
   'dusk dark skyInk on sky': 4.12,
   'dusk dark skyAccent on sky': 3.93,
   'slate dark skyInk on sky': 4.46,
@@ -150,6 +154,10 @@ const OPEN_IN_DARK: Record<string, number> = {
   'honey dark skyInk on sky': 4.1,
   'rose dark skyInk on sky': 4.16,
   'rose dark skyAccent on sky': 4.47,
+  'dusk dark inkFaint on tint': 2.78,
+  'rose dark inkFaint on tint': 2.8,
+  'fog dark inkFaint on tint': 2.92,
+  'slate dark inkFaint on tint': 2.95,
 };
 
 describe('contrast on the real surfaces, all 14 palettes', () => {

@@ -10452,3 +10452,16 @@ reader classifies the shapes the screens use, ternaries included.
   rule is simpler than the trace: the accent itself is a fill, so any other use names a text role or is listed.
 - **Reading a key from the line above** for a mention on a line of its own. It would let a multi-line ternary hide
   a text use. Such a mention counts until it is listed or rewritten.
+
+**The ring on the accent tint is modelled, and held open in dark (finding 3).** This corrects slice 3's test, which
+held inkFaint to 3:1 on a card only while its comment said every ring is held "on the surfaces the app really draws
+it on". A pinned row sits on solid accentSoft with its ring always empty, and an Ours row changed since you looked
+sits on the opaque wash, so the ring row now names the tint as well. Light mode passes at 3.07 to 3.24:1. Dark
+inkFaint measures 2.78 (Dusk), 2.80 (Rose), 2.93 (Fog) and 2.96 (Slate), so those four pairs join `OPEN_IN_DARK`
+at their ratios rounded down, and the BUILD-PLAN Backlog's contrast-gaps entry gains them as gap (3).
+
+**Decided against:**
+- **Lifting dark inkFaint now.** Melroy's call kept dark mode's values in this batch. The test holds the gap where
+  it is instead of hiding it, the same way it holds the dark sky pairs.
+- **Floors from the review's own figures** (2.93 and 2.96 for Fog and Slate). They sit above the real ratios, 2.929
+  and 2.955, so the held-open check would have failed on today's tokens.
