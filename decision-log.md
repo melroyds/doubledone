@@ -10097,3 +10097,13 @@ where we can read it and reply like any public review, but nothing links it to t
 October 2026 (the line has not shipped). PRV-02 quotes the new words. Decided against: dropping the sentence
 about written reviews. Leaving it out would let the parenthesis read as "we never see your review", the overclaim
 this batch exists to remove.
+
+**The welcome's handoff line on a signed-in replay is parked with the capture lines (finding 5).** Slice 5's new
+`welcome.handoffFineNoAi` ("your tasks stay on this device ... Sign in to sync"), and `handoffFineAi` beside it, are
+wrong for a signed-in, syncing user who replays the welcome from Settings, the same replay problem slice 5 parked
+for the two capture lines, but the Backlog entry named only those two. All four now sit in one Backlog item, with
+the fix spelled out (read the session as Settings does, a signed-in variant with no on-this-device claim and no
+sign-in invite, five catalogues, a manual case) under the same trigger, the next welcome copy change. Decided
+against: building the signed-in variants on this branch. It is new copy in five languages for a replay path few
+people take, the native read is already the batch's long pole, and the first-run line, which everyone sees, is
+true as written.
