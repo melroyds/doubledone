@@ -242,6 +242,7 @@ describe('update_task request builder', () => {
     const { url, init } = updateTaskRequest(env, 'tok', 't1', { title: 'New' }, '2026-06-20T00:00:00.000Z');
     expect(init.method).toBe('PATCH');
     expect(decodeURIComponent(url)).toContain('id=eq.t1');
+    expect(decodeURIComponent(url)).toContain('deleted_at=is.null'); // never a removed task
     const patch = JSON.parse(init.body as string);
     expect(patch.updated_at).toBe('2026-06-20T00:00:00.000Z');
     expect(patch.title).toBe('New');
@@ -281,6 +282,7 @@ describe('delete_task request builder (soft tombstone)', () => {
     const { url, init } = deleteTaskRequest(env, 'tok', 't1', '2026-06-20T00:00:00.000Z');
     expect(init.method).toBe('PATCH');
     expect(decodeURIComponent(url)).toContain('id=eq.t1');
+    expect(decodeURIComponent(url)).toContain('deleted_at=is.null'); // a second removal never moves the first one's time
     const patch = JSON.parse(init.body as string);
     expect(patch.deleted_at).toBe('2026-06-20T00:00:00.000Z');
     expect(patch.updated_at).toBe('2026-06-20T00:00:00.000Z');
@@ -494,6 +496,21 @@ describe('tool dispatch through handleMcp (fetch mocked)', () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonRes([{ id: 't1' }])));
     const r = await callTool('delete_task', { id: 't1' });
     expect(r.result.content[0].text).toBe('Removed.');
+  });
+
+  it('a task already removed is never written: a rename or a second removal is "No matching task found."', async () => {
+    // The write is pinned to a live row, so on a tombstone it matches nothing (PostgREST answers []).
+    for (const [name, args] of [
+      ['update_task', { id: 't1', title: 'Renamed' }],
+      ['delete_task', { id: 't1' }],
+    ] as const) {
+      const calls = sequence([]);
+      const r = await callTool(name, args);
+      expect(r.result.isError).toBe(true);
+      expect(r.result.content[0].text).toBe('No matching task found.');
+      expect(paramsOf(calls[calls.length - 1]).deleted_at).toBe('is.null');
+      vi.unstubAllGlobals();
+    }
   });
 
   it('search returns the OpenAI results shape as JSON text', async () => {

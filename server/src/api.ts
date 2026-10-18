@@ -285,9 +285,11 @@ export function updateRequest(
   return { url: `${tasksUrl(env)}?${q.toString()}`, init: { method: 'PATCH', headers: headers(env, token, true), body: JSON.stringify(body) } };
 }
 
-/** Soft delete: a tombstone via deleted_at + updated_at, matching the app's sync model. */
+/** Soft delete: a tombstone via deleted_at + updated_at, matching the app's sync model. Only a live row
+ *  (`deleted_at=is.null`): a repeated DELETE must not move the first removal's time, which the app reads for
+ *  its undo window and to match a Combine's folded tasks. */
 export function deleteRequest(env: ApiEnv, token: string, id: string, now: string): { url: string; init: RequestInit } {
-  const q = new URLSearchParams({ id: `eq.${id}` });
+  const q = new URLSearchParams({ id: `eq.${id}`, deleted_at: 'is.null' });
   return {
     url: `${tasksUrl(env)}?${q.toString()}`,
     init: { method: 'PATCH', headers: headers(env, token, true), body: JSON.stringify({ deleted_at: now, updated_at: now }) },

@@ -173,10 +173,12 @@ describe('request builders', () => {
     expect(clearBody).not.toHaveProperty('recurrence');
   });
 
-  it('deleteRequest soft-deletes via a PATCH on deleted_at', () => {
-    const { init } = deleteRequest(env, 'tok', 't1', 'NOW');
+  it('deleteRequest soft-deletes via a PATCH on deleted_at, on a live row only', () => {
+    const { url, init } = deleteRequest(env, 'tok', 't1', 'NOW');
     expect(init.method).toBe('PATCH');
     expect(JSON.parse(init.body as string).deleted_at).toBe('NOW');
+    // A second removal must not move the first one's time (the app reads it for Undo and Combine).
+    expect(Object.fromEntries(new URL(url).searchParams)).toEqual({ id: 'eq.t1', deleted_at: 'is.null' });
   });
 });
 
@@ -424,6 +426,12 @@ describe('handleApi', () => {
   it('204s a delete', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => [{}] }) as unknown as Response));
     expect((await handleApi(req('DELETE', '/api/v1/tasks/t1', { token: fakeJwt('u1') }), env, trust)).status).toBe(204);
+  });
+
+  it('a DELETE of a task already removed is still a 204, and its write never matches the tombstone', async () => {
+    const calls = sequence([]);
+    expect((await handleApi(req('DELETE', '/api/v1/tasks/t1', { token: fakeJwt('u1') }), env, trust)).status).toBe(204);
+    expect(paramsOf(calls[calls.length - 1]).deleted_at).toBe('is.null');
   });
 
   it('404s an unknown path under /api/v1', async () => {

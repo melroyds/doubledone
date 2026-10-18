@@ -317,7 +317,9 @@ A big task's rename is not copied onto its steps' `parentTitle`.
 A soft delete. The row is tombstoned (its `deleted_at` is set), the same way the app removes a
 task, so the removal syncs to your other devices instead of leaving a ghost behind. Answers
 `204` with no body. It answers `204` even when the id matches nothing, so a repeated delete is
-harmless. A removed task no longer appears in any listing and `GET /tasks/{id}` answers `404`.
+harmless, and a repeat never moves the first removal's time (the app reads it to keep Undo on offer
+and to recognise a task folded by Combine). A removed task no longer appears in any listing and
+`GET /tasks/{id}` answers `404`.
 
 ---
 

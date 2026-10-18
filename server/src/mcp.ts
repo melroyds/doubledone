@@ -559,7 +559,8 @@ export function fieldPatch(fields: { title?: string; due?: string | null; recurr
 /** PATCH a task's mutable fields (title / due / recurrence, see fieldPatch), ALWAYS bumping updated_at so the
  *  change wins last-write-wins sync (schema.sql: there is deliberately no now() trigger; the writer is
  *  authoritative). The plain path, with no read first: a change that needs the row (parts, done, a new repeat)
- *  goes through patchRowRequest instead. */
+ *  goes through patchRowRequest instead. Never on a tombstone (`deleted_at=is.null`), as every other write here:
+ *  a removed task renamed by an agent used to answer "Updated." for a task nobody could see. */
 export function updateTaskRequest(
   env: McpEnv,
   token: string,
@@ -567,7 +568,7 @@ export function updateTaskRequest(
   fields: { title?: string; due?: string | null; recurrence?: Recurrence | null },
   now: string,
 ): { url: string; init: RequestInit } {
-  const q = new URLSearchParams({ id: `eq.${id}` });
+  const q = new URLSearchParams({ id: `eq.${id}`, deleted_at: 'is.null' });
   const patch: Record<string, unknown> = { updated_at: now, ...fieldPatch(fields) };
   return {
     url: `${env.SUPABASE_URL}/rest/v1/tasks?${q.toString()}`,
@@ -576,9 +577,11 @@ export function updateTaskRequest(
 }
 
 /** SOFT-delete: set the deleted_at tombstone (and bump updated_at), exactly like the app. The
- *  client hides tombstoned rows and the tombstone syncs; nothing is ever hard-deleted here. */
+ *  client hides tombstoned rows and the tombstone syncs; nothing is ever hard-deleted here. Only a
+ *  live row (`deleted_at=is.null`): a second removal must not move the first one's time, which the
+ *  app reads for its undo window and to match a Combine's folded tasks. */
 export function deleteTaskRequest(env: McpEnv, token: string, id: string, now: string): { url: string; init: RequestInit } {
-  const q = new URLSearchParams({ id: `eq.${id}` });
+  const q = new URLSearchParams({ id: `eq.${id}`, deleted_at: 'is.null' });
   return {
     url: `${env.SUPABASE_URL}/rest/v1/tasks?${q.toString()}`,
     init: {

@@ -9581,3 +9581,17 @@ Next, separately: the Tier 2 `fix` commits (`fetch`'s status lines, refusing `de
 the `deleted_at` guard on `update_task` / `delete_task`, the OpenAPI drift fixes), and R11 as its own client
 `fix(sync)` commit. Manual cases MCP-20, MCP-21, MCP-22, MCP-24 and API-04; MCP-01 and MCP-15 now name `add_steps`,
 API-03 the steps route. Server tests 870 (94 new), client 1327 (46 new, the parity test).
+
+## 2026-10-18: stepped tasks, the follow-up fixes (Tier 2) and the R11 merge fix
+
+The separate `fix` commits the reviewed design (`docs/design-source/mcp-stepped-tasks-design.md`, section 6) lists
+for the same Worker deploy as the two stepped-tasks commits, and R11, the client merge fix, as its own commit
+(Melroy's call). One heading, a part per commit.
+
+**Never write a removed task (finding 4 of the server map).** MCP `update_task`'s plain field change and
+`delete_task`, and REST `DELETE`, now carry `deleted_at=is.null`, as every other write on both surfaces already did.
+Before, a rename of a removed task answered "Updated." for a task nobody could see, and a second removal re-stamped
+the tombstone's time, which the app's repair reads to recognise a task folded by Combine and to keep Remove's Undo
+on offer. A removed task now answers "No matching task found." over MCP. REST `DELETE` still answers `204` when
+nothing matched, so a retried delete stays harmless. Decided against: a 404 on a repeated REST delete (it would make
+a retry look like a failure, and the route has never returned one).

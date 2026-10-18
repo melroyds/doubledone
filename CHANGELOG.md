@@ -52,6 +52,9 @@ _Server only (the Worker), not deployed yet. 1.8.0 is with the stores._
   REST. Its steps close it.
 - Ticking the last step of a broken-down task through MCP or REST used to leave the big task hidden, unseen by
   the agent, until a phone opened and repaired it. It now closes there and then whenever the answer is certain.
+- An MCP rename of a task already removed answered "Updated." for a task nobody could see, and removing a task
+  twice, over MCP or REST, moved the first removal's time, which the app reads for Undo and Combine. Neither
+  writes a removed task any more.
 
 ## [1.8.0] - 2026-10-05
 

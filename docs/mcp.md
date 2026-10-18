@@ -253,7 +253,8 @@ on its steps is fine, and its steps keep the name they were made with (copying i
 rewrite rows a phone may be editing). An un-tick on a repeat holds
 **on the server only**: a device that already synced the tick brings it back on its next open,
 because the app keeps ticks on purpose. Replies "Updated.", or the tick, close, reopen, un-tick or
-parts reply when one is involved.
+parts reply when one is involved. A task you have removed is never changed: it answers "No matching
+task found."
 
 ### Parts
 
@@ -284,7 +285,9 @@ open (it can happen between two devices) is closed by the next tick.
 ### `delete_task`
 
 Removes a task by setting its tombstone, the same soft delete the app uses, so the removal syncs
-to your devices and nothing is destroyed. Replies "Removed."
+to your devices and nothing is destroyed. Replies "Removed." A task already removed answers "No
+matching task found." and its removal time stays as it was, because the app reads that time to
+keep Undo on offer and to recognise a task folded by Combine.
 
 ### `break_down`
 
