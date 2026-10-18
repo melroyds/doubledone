@@ -455,6 +455,11 @@ di noi" stays here for now, unlike the App Store's "Per molti": it translates th
 "For a lot of us", so it changes with the English or not at all (Melroy's call). Full description unchanged at
 3992 characters.
 
+**2026-10-19 (the colour and copy review):** the app had the same sentence. The welcome's `sharedLead2` in
+`client/src/lib/catalogs/it.ts` still read "La spunta uno dei due, e vale per entrambi.", straight after
+`sharedLead1`'s "la spesa" and "Una lista", so the app kept the wording this read rejected. It now says "La spunta
+di uno dei due vale per entrambi.", the reader's own words, so the app and both store pages say it the same way.
+
 4247 to 3841 characters, 406 removed, 109 of headroom left under the 3950 target. What went, in order of how little it cost:
 
 1. A duplicated sentence pair in paragraph three. The text said "DoubleDone fa il contrario. Una schermata calma, una giornata piccola, e niente ti farà mai sentire in colpa perché un'attività esiste." and then immediately said it again in shorter form ("DoubleDone fa il contrario. Una giornata piccola, e nessuna colpa..."). Kept the fuller first version, which is the one carrying never-shame-the-backlog. Roughly 120 characters for zero meaning.

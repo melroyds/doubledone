@@ -1353,7 +1353,7 @@ export const it: Catalog = {
     safetyNetTinyWhat: 'una versione da due minuti, giusto per iniziare.',
     sharedHeading: "Una lista che tenete in due.",
     sharedLead1: "Una lista, tenuta da due persone. Per la casa, la spesa, o prendersi cura di qualcuno.",
-    sharedLead2: "Ciò che ha un giorno suo, i rifiuti il martedì, arriva su entrambi i vostri Oggi quel giorno. La spunta uno dei due, e vale per entrambi.",
+    sharedLead2: "Ciò che ha un giorno suo, i rifiuti il martedì, arriva su entrambi i vostri Oggi quel giorno. La spunta di uno dei due vale per entrambi.",
     sharedLead3: 'Il resto rimane sulla lista, per quanto si allunghi, così la tua giornata resta tua, e resta finita.',
     sharedLead4: "Qui non si tiene il punteggio, e una cosa fatta non dice chi l'ha fatta.",
     skipA11y: "Salta l'introduzione",

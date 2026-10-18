@@ -10529,3 +10529,11 @@ both stores. The French reader passed the old sentence, so the new one goes back
   4000 cap.
 - **Changing the app's French `sharedLead2` in the same commit.** It has the same construction, but the French
   reader approved it as written, and the app's line should follow their word on the new one, not run ahead of it.
+
+**The Italian native-read fix reaches the app's welcome (finding 9).** The reader rejected "La spunta uno dei due,
+e vale per entrambi." in the listings because the feminine "La" could only point back to the list, and 8b5f9f2
+fixed it there. The welcome's `welcome.sharedLead2` in `it.ts` carried the same sentence, rendered right after
+`sharedLead1`'s "Una lista ... la casa, la spesa", and never changed, so the app kept the wording the reader turned
+down. It now reads "La spunta di uno dei due vale per entrambi.", the reader's own words, and the Italian
+native-read note in the Play listings doc records it. The French welcome line (`fr.ts`, "L'un ou l'autre la
+coche") stays as the French reader approved it, until their word on the new listing sentence (finding 8).
