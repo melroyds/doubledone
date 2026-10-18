@@ -10161,3 +10161,17 @@ English, eight across the four translations, both stores): 33 of 33 caught; the 
 the 16 probes through. The gate's header says to run it after any change to the gate. Decided against: running it
 in CI. It shells out once per case and proves the gate, not the copy, so it belongs with gate edits, which are rare;
 CI keeps running the gate itself on every push.
+
+**Clinical words are banned in all five languages, and the keyword fields hold slice 8's other rules (finding 10).**
+Slice 8's entry says the gate bans the English clinical words in every field, but `anxiety` was not in the rule,
+and the rule was English only, so "eine Therapie ... gegen Symptome" and "un tratamiento para tus síntomas" passed,
+in the translations where native-read rewrites happen. The rule now adds `anxiety` and the clinical nouns in
+German, Spanish, French and Italian (Behandlung, Therapie, Symptom, tratamiento, terapia, síntoma, traitement,
+thérapie, symptôme, trattamento, sintomo, and the Italian DDAI), nouns only, so the medical sentences' own verbs
+(behandelt, trata, traite, tratta) still pass. That makes slice 8's line true and carries it into the
+translations. The keyword fields also gain the two other words-ruled-out lists from slice 8, matched per keyword:
+competitor names (Apple 2.3.7; a dozen known ADHD and planner apps) and habit, streak, chore and reward words in
+the five languages. None matches the current paste sources. The break test gains the clinical (10) and keyword (6)
+groups: 49 of 49 caught; the gate before this commit let 15 of those 16 through. Decided against: banning the
+verbs. "treat" and its translations are the medical disclaimer's own words, and banning them would force the one
+sentence the stores ask for to be reworded.

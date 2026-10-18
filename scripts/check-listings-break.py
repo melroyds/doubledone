@@ -1,7 +1,7 @@
 """The break test for scripts/check-listings.mjs: every rule must FAIL on the copy it exists to stop.
 
     python scripts/check-listings-break.py            every group
-    python scripts/check-listings-break.py nothing    one group (protected, nothing)
+    python scripts/check-listings-break.py nothing    one group (protected, nothing, clinical, keywords)
 
 Why it exists: a gate that passes proves nothing about the rule you think it enforces. The 2026-10-19 build
 review found three that always passed (the six-character code check, the "nothing leaves your device" ban, and
@@ -160,6 +160,34 @@ GROUPS["nothing"] = [
     ("App Store fr: 'rien n'est envoyé'", probe("ios", "fr", "Sans l'IA, rien n'est envoyé."), LEAVES_TR),
     ("Play it: 'niente lascia il tuo telefono'", probe("play", "it", "Con l'AI spenta, niente lascia il tuo telefono."), LEAVES_TR),
     ("App Store it: 'nulla viene inviato'", probe("ios", "it", "Con l'AI spenta, nulla viene inviato."), LEAVES_TR),
+]
+
+
+CLINICAL = "a clinical claim"
+GROUPS["clinical"] = [
+    # English was the only language the rule covered, and "anxiety" was missing from it although the decision log
+    # said the gate banned it. The translations are where native-read rewrites happen, so they are probed hardest.
+    ("App Store en: 'anxiety'", probe("ios", "en", "Made for anxiety, too."), CLINICAL),
+    ("Play en: 'symptoms'", probe("play", "en", "Built around ADHD symptoms."), CLINICAL),
+    ("App Store de: 'eine Therapie ... gegen Symptome'", probe("ios", "de", "Eine Therapie mit Atembegleitung gegen Symptome."), CLINICAL),
+    ("Play de: 'Behandlung'", probe("play", "de", "Hilft bei der Behandlung."), CLINICAL),
+    ("App Store es: 'un tratamiento para tus síntomas'", probe("ios", "es", "Es como un tratamiento para tus síntomas."), CLINICAL),
+    ("Play es: 'terapia'", probe("play", "es", "No es terapia, es calma."), CLINICAL),
+    ("Play fr: 'traitement ... symptômes'", probe("play", "fr", "Un traitement doux des symptômes."), CLINICAL),
+    ("App Store fr: 'thérapie'", probe("ios", "fr", "Comme une thérapie."), CLINICAL),
+    ("Play it: 'trattamento dei sintomi'", probe("play", "it", "Un trattamento gentile dei sintomi."), CLINICAL),
+    ("App Store it: 'DDAI'", probe("ios", "it", "Pensata per il DDAI."), CLINICAL),
+]
+
+GROUPS["keywords"] = [
+    # Same-length swaps where the field is full, so the cap is never the reason.
+    ("App Store en: a competitor ('tiimo' for 'manager')", [("iosEn", "todo,task,manager,", "todo,task,tiimo,", "en")], "a competitor's name"),
+    ("App Store en: a habit word ('habit' for 'brain')", [("iosEn", ",brain,", ",habit,", "en")], "a habit, streak, chore or reward word"),
+    ("App Store en second set: 'streak' for 'gentle'",
+     [("iosEn", ",gentle,", ",streak,", "en-GB"), ("iosEn", ",gentle,", ",streak,", "en-AU")], "a habit, streak, chore or reward word"),
+    ("App Store en: 'anxiety' for 'breakdown'", [("iosEn", ",breakdown,", ",anxiety,", "en")], CLINICAL),
+    ("App Store it: 'ddai' for 'todo'", [("iosL10n", "attività,todo,", "attività,ddai,", "it-IT")], CLINICAL),
+    ("App Store es: 'racha' for 'lista'", [("iosL10n", "lista,pendientes,", "racha,pendientes,", "es-MX, es-ES")], "a habit, streak, chore or reward word"),
 ]
 
 

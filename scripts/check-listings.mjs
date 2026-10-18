@@ -55,8 +55,12 @@
 //      leaves or is sent" and "never leaves your device or phone" in each language; a pattern is a net, not a
 //      proof, so a native read still reads for the idea), "Private by default" (AI starts on), "third-party
 //      trackers" (RevenueCat gets an install id on Android), "Export your data" (it exports tasks and what you
-//      finished), seven themes as Premium (Dusk is free), a comparison nobody can check, and any accessibility
-//      claim, which nothing in the app has earned.
+//      finished), seven themes as Premium (Dusk is free), a comparison nobody can check, any accessibility
+//      claim, which nothing in the app has earned, and a clinical word in any of the five languages (anxiety,
+//      therapy, treatment, symptom, the Italian DDAI and their translations, as nouns).
+//
+//   7. THE KEYWORD FIELDS never carry a competitor's name (Apple 2.3.7) or a habit, streak, chore or reward
+//      word, the words slice 8 ruled out, on top of every rule above.
 //
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -234,7 +238,12 @@ const BANNED = [
   ['seven colour themes as Premium (Dusk is free, so Premium adds six)', /seven (?:calm )?colou?r themes|sieben\s+(?:\S+\s+)?Farbthemen|siete\s+temas|sept\s+thèmes|sette\s+temi/i],
   ['an accessibility claim (nothing in the app has earned one)', /\baccessible\b|\bWCAG\b|screen[- ]reader friendly|barrierefrei|\baccesible\b|\baccessibile\b/i],
   ['"Lighten today re-spreads" (it suggests, and nothing moves until you say yes)', /re-spreads/i],
-  ['a clinical claim (TGA: what a product is for is judged from its claims)', /\btreatment\b|\btherapy\b|\bsymptoms?\b|ADHD management/i],
+  // Nouns only, in all five languages, so the medical sentences' own verbs ("does not ... treat", behandelt, trata,
+  // traite, tratta) still pass. DDAI is the Italian clinical name for ADHD, ruled out with the rest (slice 8).
+  [
+    'a clinical claim (TGA: what a product is for is judged from its claims)',
+    /\btreatment\b|\btherapy\b|\bsymptoms?\b|\banxiety\b|ADHD management|\bBehandlung|\bTherapie|\bSymptom|\btratamiento|\bterapia|\bsíntoma|\btraitement|\bthérapie|\bsymptôme|\btrattament|\bsintom|\bDDAI\b/i,
+  ],
 ];
 const BANNED_BY_LANG = {
   de: [['"je nach zu viel" (a native first reads "depending on")', /je nach zu viel/i]],
@@ -249,6 +258,17 @@ const BANNED_BY_LANG = {
 // phrase per language, in checkLongCopy (a bare /six|sechs|seis|sei/ always passed once the Premium line named the
 // six colour themes).
 const PLAY_PROTECTED = [['the privacy URL', /doubledone\.app\/privacy/]];
+
+// The keyword fields only, matched per keyword (decision log, 2026-10-19, slice 8, decided against): a competitor's
+// name (Apple 2.3.7), and a habit, streak, chore or reward word in any of the five languages, because those rank
+// DoubleDone for exactly the apps it refuses to be. Clinical words are already caught in every field by BANNED.
+const KEYWORD_BANNED = [
+  ["a competitor's name (Apple 2.3.7)", /^(?:tiimo|todoist|ticktick|habitica|finch|goblin|structured|sunsama|inflow|routinery|llama|marvin)$/i],
+  [
+    'a habit, streak, chore or reward word (it ranks DoubleDone for the apps it refuses to be)',
+    /^(?:habit|streak|chore|reward|gewohnheit|belohnung|hábito|habito|racha|recompensa|habitude|récompense|abitudin|ricompens)/i,
+  ],
+];
 
 const CAPS = {
   play: { title: 30, short: 80, full: 4000 },
@@ -453,6 +473,7 @@ function checkKeywords(loc, kw, visible, alsoTaken = new Set()) {
   if (words.some((w) => w === '')) fail(loc, 'keywords contain an empty entry (a doubled or trailing comma).');
   const seen = new Set();
   for (const w of words) {
+    for (const [name, re] of KEYWORD_BANNED) if (re.test(w)) fail(loc, `keyword "${w}" is ${name}.`);
     if (seen.has(w)) fail(loc, `keyword "${w}" appears twice.`);
     seen.add(w);
     if (alsoTaken.has(w)) fail(loc, `keyword "${w}" is already in the primary English field. The second set must add words, not repeat them.`);
