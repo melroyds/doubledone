@@ -10048,3 +10048,29 @@ two months. No script read the App Store copy at all, which is how those survive
 
 The localised texts and every changed non-English line join the batch's one native read. Nothing was pasted into
 either console, and none of this reaches a store until Melroy pastes it at plan step 14.
+
+## 2026-10-19: the store 1.9 build review's fixes (ten findings, all minor, each fixed on `store-1.9`)
+
+The adversarial review of the branch confirmed ten findings, none a blocker. Each is fixed in its own commit (two
+share one, below), and this entry records what changed, what it corrects in the slice entries above, and what was
+left.
+
+**The review ask re-reads the evening when its timer fires (findings 1 and 2).** This corrects slice 1's "so they
+can never disagree". The Goodnight closure read `tonightOffer` from BEFORE the press, so a Goodnight note that was
+the week's third finish opened the scrapbook rung after the gates had passed, and an update status landing inside
+the 1.2s did the same with the update rung: the card would have landed on an offer, against call 4 and REV-06. And
+a double tap on Goodnight (the close Modal fades, so the button stays live) left two timers pending, and both
+stamped, counted `review.asked` and asked the store. Now, in `client/src/app/today.tsx`:
+- `offerShownSinceGoodnight`, a ref a layout effect sets whenever the rested screen's offer is not null, reset on
+  each Goodnight. Sticky, so an offer answered inside that second still counts as tonight's one ask.
+- `stillTheNightToAsk` in `lib/review.ts` (pure, with tests), run on a FRESH read of the memory just before the
+  stamp: no offer since the press, and the caps (this version never asked, 180 days apart) on what is stored now.
+  The caps are one shared `capsAllow`, so the two checks cannot drift.
+- One pending timer (cleared again right before a new one is set) and one ask in flight (`reviewAsking`).
+Manual cases REV-07 (the note opens the scrapbook offer, no card) and REV-08 (a double tap asks once).
+
+**Decided against:**
+- **Working the offer out from `[...tasks, did]` in Goodnight and passing it in.** Cheaper, but blind to the update
+  status landing inside the window. The ref sees whatever the screen really shows.
+- **A fresh memory read without the in-flight guard.** A second timer can read the memory before the first has
+  saved its stamp, because `reviewCardAvailable()` is awaited in between.

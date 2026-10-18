@@ -16,6 +16,8 @@
 //   - not a heavy day, and the evening (17:00 to 01:59, so a night owl's 00:30 close still counts);
 //   - the caps: never twice on one app version, and 180 days apart, so at most two a year, under
 //     Apple's three. A last ask stamped in the future (the clock went backwards) means no.
+// Then, when the 1.2s timer fires, `stillTheNightToAsk` reads again what can change in that second: an offer
+// that reached the screen after the press, and an ask another Goodnight tap already made.
 // Pure, so every gate is a test (review.test.ts). The screen supplies the facts and the timer.
 
 import { daysBetween, fromISODate } from './day';
@@ -128,6 +130,13 @@ export type ReviewMoment = {
   now: number;
 };
 
+/** The caps: never twice on one version, 180 days apart, and a last ask stamped in the future means no. */
+function capsAllow(m: ReviewMemory, version: string, now: number): boolean {
+  if (m.askedVersion === version) return false;
+  if (m.askedAt != null && (m.askedAt > now || now - m.askedAt < REVIEW_GAP_DAYS * DAY_MS)) return false;
+  return true;
+}
+
 /** Whether tonight is the night to hand the store its one request. Every gate must hold. */
 export function shouldAskForReview(x: ReviewMoment): boolean {
   if (!x.supported) return false;
@@ -141,7 +150,28 @@ export function shouldAskForReview(x: ReviewMoment): boolean {
   if (x.otherOffer !== null) return false;
   if (x.heavy) return false;
   if (!inReviewWindow(x.hour)) return false;
-  if (m.askedVersion === x.version) return false;
-  if (m.askedAt != null && (m.askedAt > x.now || x.now - m.askedAt < REVIEW_GAP_DAYS * DAY_MS)) return false;
-  return true;
+  return capsAllow(m, x.version, x.now);
+}
+
+export type ReviewTimerCheck = {
+  /** An offer has been on the rested screen at any moment since Goodnight was pressed. */
+  offerShown: boolean;
+  /** The memory read FRESH when the timer fires, never the copy from Goodnight. */
+  memory: ReviewMemory;
+  version: string;
+  now: number;
+};
+
+/**
+ * The last word, when the timer fires REVIEW_DELAY_MS after Goodnight, just before the stamp. Two things can
+ * have changed since the gates passed, and either one means no:
+ *   - an offer reached the rested screen AFTER the gates read it. The gates see the offer from before the press,
+ *     so a Goodnight note that is the week's third finish opens the scrapbook rung behind their back, and an
+ *     update status can land inside the 1.2s. The evening is taken after all, and the card would stack on it;
+ *   - another ask already went out on this version (a second Goodnight tap queued a second one), which only a
+ *     fresh read of the memory can see.
+ */
+export function stillTheNightToAsk(x: ReviewTimerCheck): boolean {
+  if (x.offerShown) return false;
+  return capsAllow(x.memory, x.version, x.now);
 }

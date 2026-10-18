@@ -1647,7 +1647,7 @@ CASES = [
     # testing track (the only track that lifts Google's review quota), installed from Play (never
     # sideloaded), on a tester account that has never reviewed DoubleDone. Signed OUT of sync, because the
     # clock moves. The daily reminder already on and any other goodnight offer already answered, so the
-    # rested screen offers nothing (except in REV-06). "A good close" below means: finish at least one task,
+    # rested screen offers nothing (except in REV-06 and REV-07). "A good close" below means: finish at least one task,
     # Energy left on Normal, then Close the day > Goodnight between 17:00 and 01:59.
     ("REV-01", "Review ask", "P1", "The earned card appears about 1.2s after the rested screen",
      "Do a good close. Move the device date forward 4 days and do another. Repeat until there have been 5 good closes spanning 16 days or more. Watch the rested screen after each Goodnight. Afterwards set the clock back to today and clear the app's storage (Settings > Apps > DoubleDone > Storage), because the ask is now stamped in the future.",
@@ -1667,6 +1667,12 @@ CASES = [
     ("REV-06", "Review ask", "P2", "Never stacks with a goodnight offer",
      "On a fresh install, leave the daily reminder OFF and leave the rested screen's reminder offer unanswered on every close. Do 5 good closes over 16+ days as in REV-01. On the 5th, read the rested screen. Then answer the offer ('Not now') and do one more good close the next evening.",
      "On the 5th close the rested screen shows its one offer and no rating card: never both at once. After the offer is answered, the next qualifying evening shows the card as in REV-01. The same holds for the widget, scrapbook and update offers: whichever one shows, the card waits.", "iOS + Android"),
+    ("REV-07", "Review ask", "P2", "A Goodnight note that opens the scrapbook offer never brings the card with it",
+     "PREREQ: AI on, the rested screen's reminder offer already answered (and on Android the widget offer too), and the scrapbook never made and never offered. Earn the ask as in REV-01 up to 4 good closes over 16+ days. On the 5th evening, make sure exactly 2 different tasks have been finished so far this week (the week runs Sunday to Saturday, and finishes from earlier closes count), then Close the day, write a Goodnight note ('Called the bank') and tap Goodnight.",
+     "The note counts as the week's third finish, so the rested screen shows the scrapbook offer, and NO rating card appears, then or a few seconds later. Answering the offer (either way) brings no card that night either: the evening already had its one ask. The next qualifying evening asks as in REV-01.", "iOS + Android"),
+    ("REV-08", "Review ask", "P3", "A double tap on Goodnight asks the store once",
+     "PREREQ: the Android 1.9.0 build on the internal track, a phone on USB with adb logcat -s ReactNativeJS running. Earn the ask as in REV-01 up to the 5th good close, then tap Goodnight twice, as fast as you can, while the close fades.",
+     "At most one rating card. The log shows exactly one [doubledone.review.asked] line for that close, never two, and nothing asks again on later evenings of 1.9.0.", "Android"),
     ("TEL-03", "Telemetry", "P3", "review.asked.ios and review.asked.android counters appear, and nothing else",
      "About 3 weeks after 1.9.0 is live in both stores (nothing can ask for 14 days after an update), and only once the Worker carrying the two names is deployed: from server/, npx wrangler d1 execute doubledone-telemetry --remote --command \"SELECT day, event, n FROM app_event_counts WHERE event LIKE 'review.%'\". Read only: never POST to production /event to test it.",
      "Rows named review.asked.ios and review.asked.android only, each a day, the name and a count. Never a bare review.asked, never review.unavailable or review.failed (those stay on the device), and nothing holding a version, a rating or a number of closes. Asks from the Play internal test track are counted too (only dev sessions are kept out), so subtract them. Still zero 30 days after the earliest possible ask: read the gates in client/src/lib/review.ts before loosening anything.", "Worker"),

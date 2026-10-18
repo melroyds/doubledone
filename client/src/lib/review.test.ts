@@ -14,7 +14,9 @@ import {
   type ReviewMoment,
   serializeReviewMemory,
   shouldAskForReview,
+  stillTheNightToAsk,
 } from './review';
+import { restedOffer, SCRAPBOOK_OFFER_MIN } from './offers';
 
 const DAY = 86_400_000;
 const NOW = new Date(2026, 10, 20, 21, 30).getTime(); // 20 Nov 2026, 21:30 local
@@ -224,5 +226,49 @@ describe('the whole earn, as a person would live it', () => {
   it('five closes inside one fortnight are not yet enough', () => {
     const m = ['2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13', '2026-11-20'].reduce(countClose, FRESH_REVIEW_MEMORY);
     expect(shouldAskForReview({ ...goodNight, memory: m })).toBe(false);
+  });
+});
+
+describe("stillTheNightToAsk: the timer's last word, on a fresh read", () => {
+  const fresh = { offerShown: false, memory: earned, version: '1.9.0', now: NOW };
+
+  it('asks when nothing changed in the 1.2s', () => {
+    expect(stillTheNightToAsk(fresh)).toBe(true);
+  });
+
+  it('never once an offer has reached the rested screen since Goodnight', () => {
+    expect(stillTheNightToAsk({ ...fresh, offerShown: true })).toBe(false);
+  });
+
+  it("a Goodnight note that is the week's third finish opens the scrapbook rung the gates never saw", () => {
+    // The 2026-10-19 review's case: AI on, the reminder answered, no scrapbook yet, two finishes this week.
+    const evening = {
+      reminderOn: true,
+      reminderOfferMade: true,
+      widgetSupported: false,
+      widgetPlaced: false,
+      widgetOfferMade: true,
+      aiEnabled: true,
+      scrapbookMade: false,
+      scrapbookOfferMade: false,
+      updateWorthMentioning: false,
+      hasSharedList: false,
+    };
+    const beforeThePress = restedOffer({ ...evening, weekFinishes: SCRAPBOOK_OFFER_MIN - 1 });
+    const withTheNote = restedOffer({ ...evening, weekFinishes: SCRAPBOOK_OFFER_MIN });
+    expect(beforeThePress).toBeNull();
+    expect(shouldAskForReview({ ...goodNight, otherOffer: beforeThePress })).toBe(true); // the gates pass
+    expect(withTheNote).toBe('scrapbook'); // and the rested screen shows the offer
+    expect(stillTheNightToAsk({ ...fresh, offerShown: withTheNote !== null })).toBe(false); // so the timer stops
+  });
+
+  it('never when another Goodnight tap already asked on this version', () => {
+    expect(stillTheNightToAsk({ ...fresh, memory: markAsked(earned, NOW - 1000, '1.9.0') })).toBe(false);
+  });
+
+  it('keeps the caps: 180 days apart, and a future stamp means no', () => {
+    expect(stillTheNightToAsk({ ...fresh, memory: markAsked(earned, NOW - 179 * DAY, '1.8.0') })).toBe(false);
+    expect(stillTheNightToAsk({ ...fresh, memory: markAsked(earned, NOW + DAY, '1.8.0') })).toBe(false);
+    expect(stillTheNightToAsk({ ...fresh, memory: markAsked(earned, NOW - 180 * DAY, '1.8.0') })).toBe(true);
   });
 });

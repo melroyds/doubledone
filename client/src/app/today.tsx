@@ -77,7 +77,7 @@ import { decideRenewalNotice } from '@/lib/renewal';
 import { type HoldContract, holdRequiresSwap, holdStepAt } from '@/lib/hold';
 import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHold, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursMine, loadOursSeen, loadOursTasks, loadReminderHour, loadRenewalMemory, loadReviewMemory, loadReviewQuietDate, loadUpdateMentioned, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHold, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveRenewalMemory, saveReviewMemory, saveReviewQuietDate, saveUpdateMentioned, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
 import { restedOffer } from '@/lib/offers';
-import { countClose, markAsked, REVIEW_DELAY_MS, shouldAskForReview } from '@/lib/review';
+import { countClose, markAsked, REVIEW_DELAY_MS, shouldAskForReview, stillTheNightToAsk } from '@/lib/review';
 import { REVIEW_SUPPORTED, requestReviewCard, reviewCardAvailable } from '@/lib/store-review';
 import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/plan-day';
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
@@ -326,6 +326,13 @@ export default function TodayScreen() {
   // the timer re-checks when it fires. Cleared on blur, on reopening the day and on unmount.
   const reviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const todayFocused = useRef(false);
+  // One store request at a time: set before askTheStore's first await, so a second timer that slips through
+  // can never reach the stamp while the first is still asking (two Goodnight taps, the 2026-10-19 review).
+  const reviewAsking = useRef(false);
+  // Whether an offer has been on the rested screen since Goodnight was pressed (set by a layout effect below the
+  // hoisted `tonightOffer`, reset by maybeAskForReview). The timer reads it, because the Goodnight closure only
+  // knew the offer from BEFORE the press.
+  const offerShownSinceGoodnight = useRef(false);
   const [didOpen, setDidOpen] = useState(false);
   const [didText, setDidText] = useState('');
   const [closeNote, setCloseNote] = useState('');
@@ -1075,6 +1082,13 @@ export default function TodayScreen() {
   // The rested screen's ONE offer tonight, decided once by the pure `restedOffer` rules. Hoisted so the
   // four offer blocks and the review ask all read the same answer, with no drift between copies of it.
   const tonightOffer = restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning, hasSharedList: oursPairId != null });
+  // The review timer's view of the screen. The Goodnight closure reads `tonightOffer` from before the press, so a
+  // Goodnight note that is the week's third finish (the scrapbook rung), or an update status landing inside the
+  // 1.2s, puts an offer on the rested screen the gates never saw. Sticky until the next Goodnight resets it, so an
+  // offer answered inside that second still counts as tonight's one ask (lib/review.ts `stillTheNightToAsk`).
+  useLayoutEffect(() => {
+    if (tonightOffer !== null) offerShownSinceGoodnight.current = true;
+  }, [tonightOffer]);
   // One-off, undone tasks on Today: the ones Strategise can re-spread (recurring stay by cadence).
   const spreadable = visible.filter((t) => !isRecurring(t) && !isDoneOn(t, today));
   // The shared rows that have a day, and whose day is today. Deliberately derived SEPARATELY from
@@ -1853,6 +1867,8 @@ export default function TodayScreen() {
     if (!REVIEW_SUPPORTED) return;
     if (reviewTimer.current) clearTimeout(reviewTimer.current);
     reviewTimer.current = null;
+    // Before the first await, so the closed render that follows can set it again if it shows an offer.
+    offerShownSinceGoodnight.current = tonightOffer !== null;
     const hour = new Date().getHours();
     const memory = countClose(await loadReviewMemory(), iso);
     await saveReviewMemory(memory);
@@ -1872,6 +1888,9 @@ export default function TodayScreen() {
       now: nowMs(),
     });
     if (!ask || !todayFocused.current) return;
+    // A second Goodnight call (a double tap while the close fades) awaited alongside this one, so the clear at
+    // the top found nothing. Clear again here, so only one timer is ever pending.
+    if (reviewTimer.current) clearTimeout(reviewTimer.current);
     reviewTimer.current = setTimeout(() => {
       reviewTimer.current = null;
       void askTheStore(iso, version);
@@ -1882,21 +1901,32 @@ export default function TodayScreen() {
    * The timer's moment, re-checked because 1.2s is long enough for it to stop being the moment: the
    * app is still in front, Today still has focus, and the day is still closed (not reopened). Then the
    * store must say it can show a card: "unavailable" (TestFlight, no Play Store) is NOT stamped, so a
-   * TestFlight phone keeps its ask for the App Store build. The stamp goes down BEFORE the request, so
-   * a throw can never become a retry.
+   * TestFlight phone keeps its ask for the App Store build. Last, `stillTheNightToAsk` on a FRESH read
+   * of the memory: no offer reached the rested screen since Goodnight, and no other ask went out on this
+   * version. One ask at a time (`reviewAsking`), and the stamp goes down BEFORE the request, so a throw
+   * can never become a retry.
    */
   async function askTheStore(iso: string, version: string) {
     const stillTheMoment = () => AppState.currentState === 'active' && todayFocused.current;
     if (!stillTheMoment()) return;
-    if ((await loadClosedDate()) !== iso) return;
-    if (!(await reviewCardAvailable())) {
-      track('review.unavailable');
-      return;
+    if (offerShownSinceGoodnight.current) return; // an early out; the fresh check below is the real one
+    if (reviewAsking.current) return;
+    reviewAsking.current = true;
+    try {
+      if ((await loadClosedDate()) !== iso) return;
+      if (!(await reviewCardAvailable())) {
+        track('review.unavailable');
+        return;
+      }
+      if (!stillTheMoment()) return;
+      const memory = await loadReviewMemory();
+      if (!stillTheNightToAsk({ offerShown: offerShownSinceGoodnight.current, memory, version, now: nowMs() })) return;
+      await saveReviewMemory(markAsked(memory, nowMs(), version));
+      track('review.asked', { store: Platform.OS });
+      if (!(await requestReviewCard())) track('review.failed');
+    } finally {
+      reviewAsking.current = false;
     }
-    if (!stillTheMoment()) return;
-    await saveReviewMemory(markAsked(await loadReviewMemory(), nowMs(), version));
-    track('review.asked', { store: Platform.OS });
-    if (!(await requestReviewCard())) track('review.failed');
   }
 
   // A low-capacity day: one tap recalibrates the weight gauge to a gentler target and
