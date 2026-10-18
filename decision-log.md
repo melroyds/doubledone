@@ -10508,3 +10508,10 @@ The notes were still waiting on their native read, so the new lines simply join 
 
 **Decided against:** a sentence about dark mode's lighter grey. It is the smallest visible change in the batch,
 and the cap on Play's French leaves 18 characters.
+
+**The cut table reaches the App Review notes (finding 7).** The table said a failed A11Y-07 cuts the "With
+VoiceOver on" sentence from all five Apple blocks, but the App Review notes say separately that 1.9.0 "gives
+VoiceOver an Options action on every task", and DEP-05 diffed What's New only. So a failed check would have told
+the reviewer about a feature that does not work. The A11Y-07 row now names the notes, a line under the table says
+what their paragraph becomes and that the count drops from 2646 to 2594, DEP-05 diffs the notes too, and step
+(14) in BUILD-PLAN pastes them after the cut table.
