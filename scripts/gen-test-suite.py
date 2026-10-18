@@ -808,6 +808,9 @@ CASES = [
     ("A11Y-12", "Accessibility", "P2", "A screen reader reads the hold-hint's tip, not only 'Got it'",
      "PREREQ: a fresh install, or the 'Hold a task for more' tip not yet dismissed. With VoiceOver, TalkBack, or a screen reader on the web (NVDA, or VoiceOver on a Mac), move to the tip above the list. Then turn AI off in Settings and come back.",
      "It reads the whole tip, then 'Got it, hide this tip', and activating it hides the tip for good. On the web the tip, seen and heard, also says 'or right-click it', in every language. With AI off it is the no-AI wording (no 'make it tiny').", "iOS + Android + Web"),
+    ("A11Y-13", "Accessibility", "P1", "A share or the 'Brain dump' shortcut closes a held card and opens the capture panel",
+     "PREREQ: the 1.9.0 build. On Today hold a task so its card opens, then switch to another app (DoubleDone goes to the background with the card still open). Select some text in a browser or Notes, Share it and pick DoubleDone. Then hold a task again, go to the home screen, long-press the DoubleDone icon and tap the 'Brain dump' shortcut. Last, enter select mode ('Select several') and share text in again.",
+     "Both times the card closes by itself and the capture panel rises with the keyboard up: the shared words are in the field, ready to add, and the shortcut gives an empty field ready to type. Nothing is added without a tap. In select mode the share waits as the pill's draft dots, as before, and is in the panel once select mode ends and the pill is opened.", "iOS + Android"),
 
     # --- Theming / visual on device ------------------------------------------
     ("VIS-01", "Visual", "P1", "Native fonts render",

@@ -53,7 +53,7 @@ import { addDaysISO, daysBetween, formatTodayLabel, friendlyDate, fromISODate, i
 import { type DayEnergy, type DayTool, dayTools, occupantTool, planEnergyFromDay, toolGate } from '@/lib/day-tools';
 import { dayWeight, heavyAt, weightedLoad } from '@/lib/estimate';
 import { dayCleared, dayClosed, stepsLanded, taskDone } from '@/lib/haptics';
-import { subscribeInbound, takeInbound } from '@/lib/inbound';
+import { seedRoute, subscribeInbound, takeInbound } from '@/lib/inbound';
 import { aiLanguage, fmt, t } from '@/lib/locale';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
@@ -1009,6 +1009,13 @@ export default function TodayScreen() {
   // callback-ref flush cured the launch-week "share only works when the box is already
   // open" bug; do not go back to flushing from an effect.
   const pendingSeed = useRef<string | null | undefined>(undefined); // undefined = nothing parked
+  // A share, or the launcher's "Brain dump" shortcut, while a task's card is HELD. Store 1.9 hides the pill for a
+  // held card, and CaptureSheet's seed() only parks the words while it is hidden, so the panel never rose and the
+  // shortcut did nothing at all (the 2026-10-19 review). The card closes first, and the seed waits here for the render that
+  // shows the sheet again (the effect below `cardHeld`). Select mode and a closed day still park, as they always
+  // have. `cardHeldRef` is how the focus-scoped listener, which keeps its first render's closure, reads the card.
+  const cardHeldRef = useRef(false);
+  const seedAfterCard = useRef<{ text: string | null } | null>(null);
   // Only the Today ON SCREEN listens. A second Today can sit under the stack (Chart and Premium used to
   // replace themselves with one), and a broadcast went to whichever had subscribed first: the Menu's
   // Repeating card opened a drawer nobody could see. Unfocused, an intent simply waits, and the Today you
@@ -1035,8 +1042,12 @@ export default function TodayScreen() {
         }
         // The composer is always there (it stays mounted), so a seed goes straight in and focuses it.
         const text = i.kind === 'capture' ? i.text : null;
-        if (sheetRef.current) {
-          sheetRef.current.seed(text, true);
+        const route = seedRoute(cardHeldRef.current, sheetRef.current != null);
+        if (route === 'after-card') {
+          seedAfterCard.current = { text };
+          setConfirmingId(null);
+        } else if (route === 'now') {
+          sheetRef.current?.seed(text, true);
         } else {
           pendingSeed.current = text;
         }
@@ -1119,6 +1130,19 @@ export default function TodayScreen() {
       upcoming.some((r) => r.id === confirmingId) ||
       sharedForToday.some((r) => r.id === confirmingId));
   const pillHidden = selectMode || isClosed || cardHeld;
+  useLayoutEffect(() => {
+    cardHeldRef.current = cardHeld;
+  }, [cardHeld]);
+  // The inbound seed that closed a held card (above, at the listener) lands once the card is gone. By then the
+  // sheet's handle has been rebuilt with the pill showing again, so seed() rises and focuses as it does from a
+  // clear Today. A setTimeout alone could still reach the handle from the hidden render.
+  useEffect(() => {
+    const parked = seedAfterCard.current;
+    if (cardHeld || !parked) return;
+    seedAfterCard.current = null;
+    if (sheetRef.current) sheetRef.current.seed(parked.text, true);
+    else pendingSeed.current = parked.text;
+  }, [cardHeld]);
   // The hold-hint's tip. On the web it names right-click too, the pointer's own way to hold (K7).
   const holdTip =
     Platform.OS === 'web'

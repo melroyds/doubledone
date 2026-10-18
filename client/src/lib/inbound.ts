@@ -42,6 +42,19 @@ export function subscribeInbound(listener: () => void): () => void {
   };
 }
 
+/**
+ * Where a seed (shared text, or the launcher's "Brain dump" shortcut) goes on Today. A held card hides the pill
+ * (store 1.9), and a hidden capture sheet only parks words, so a held card is closed FIRST and the seed waits for
+ * the render that shows the sheet again ('after-card'), or the panel never rises. With no sheet mounted yet (a cold start) it
+ * waits for the mount ('pending'). Otherwise it goes straight in ('now'), where select mode and a closed day still
+ * park it inside the sheet, as they always have: neither is a card someone can be asked to let go of.
+ */
+export type SeedRoute = 'after-card' | 'now' | 'pending';
+export function seedRoute(cardHeld: boolean, sheetMounted: boolean): SeedRoute {
+  if (cardHeld) return 'after-card';
+  return sheetMounted ? 'now' : 'pending';
+}
+
 const URL_RE = /https?:\/\/\S+/gi;
 
 /**

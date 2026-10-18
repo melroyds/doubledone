@@ -10074,3 +10074,17 @@ Manual cases REV-07 (the note opens the scrapbook offer, no card) and REV-08 (a 
   status landing inside the window. The ref sees whatever the screen really shows.
 - **A fresh memory read without the in-flight guard.** A second timer can read the memory before the first has
   saved its stamp, because `reviewCardAvailable()` is awaited in between.
+
+**A share or the "Brain dump" shortcut closes a held card first (finding 3).** Slice 2's P1 made a held card hide
+the pill, and CaptureSheet's `seed()` only parks words while the sheet is hidden. So a share, or the launcher's
+"Brain dump" shortcut, arriving while a card was still held (a card survives the app going to the background)
+never raised the panel: shared words became the pill's draft dots behind the card, and the shortcut did nothing at
+all. Now the listener reads a `cardHeldRef`, closes the card, and the seed waits for the render that shows the
+sheet again, then rises and focuses as from a clear Today. The routing rule is the pure `seedRoute` in
+`lib/inbound.ts`, with tests. Manual case A11Y-13. (The review called the shortcut "Add a task"; its label is
+"Brain dump", which the case uses.)
+
+**Decided against:**
+- **Deferring the seed for select mode and a closed day too.** CaptureSheet parks on purpose there and never rises
+  later by itself, so only a held card, which the app can let go of for the person, waits for the next render.
+- **A `setTimeout(0)` before seeding.** It can still reach the handle built in the hidden render.
