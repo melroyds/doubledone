@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
 import { fonts, spacing, type Theme } from '@/constants/theme';
+import { IAP_AVAILABLE } from '@/lib/purchases';
 import { PLAY_COPY, SELLS_HERE } from '@/lib/storefront';
 import { useThemedStyles } from '@/lib/theme-provider';
 
@@ -72,6 +73,21 @@ export default function TermsScreen() {
             support@doubledone.app and we will cancel it for you, or cancel it by signing in on the DoubleDone website
             with the same email. If you subscribed on an iPhone or iPad, Apple handles it, and you cancel it in your
             Apple ID subscription settings. We will give reasonable notice of any price change.
+          </Section>
+        ) : SELLS_HERE && IAP_AVAILABLE ? (
+          // The iPhone and iPad app (Melroy's wording, 2026-10-19): Apple prices Premium in each country's own
+          // currency, so this paragraph names no figure of ours and no website price, the same rule Android's
+          // follows. The web keeps the Stripe figures in the branch below.
+          <Section styles={styles} heading="Premium and billing">
+            Premium is optional. In this app it is sold through the App Store. The price is shown in the App Store
+            before you buy, in your own currency, and it is charged to your Apple ID every month or every year,
+            depending on the plan you choose. It renews automatically until you cancel, and you can cancel any time in
+            your Apple ID subscription settings. You keep Premium until the end of the period you have already paid
+            for. Each account can also have Premium free for 30 days, once, with no card and no charge. That month is
+            not a subscription and never becomes one. If you subscribed somewhere else, that store handles the
+            billing. If Stripe bills you, email support@doubledone.app and we will cancel it for you. If you
+            subscribed through Google Play, cancel it in the Play Store. We will give reasonable notice of any price
+            change.
           </Section>
         ) : SELLS_HERE ? (
           <Section styles={styles} heading="Premium and billing">
