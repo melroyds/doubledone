@@ -42,7 +42,7 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
-**THE IMMEDIATE NEXT ACTION (2026-10-19, night): 1.9.0 is BUILT on branch `store-1.9`. Nothing is pushed, deployed or built, and every step below waits for Melroy's word.** The Tier 2 store batch, to the contract in [`docs/design-source/store-1.9/plan.md`](docs/design-source/store-1.9/plan.md) (his calls at its end), in 21 commits from `809086b` to `e1585a2`, plus the release commit:
+**THE IMMEDIATE NEXT ACTION (2026-10-19, night): 1.9.0 is BUILT on branch `store-1.9`. Nothing is pushed, deployed or built, and every step below waits for Melroy's word.** The Tier 2 store batch, to the contract in [`docs/design-source/store-1.9/plan.md`](docs/design-source/store-1.9/plan.md) (his calls at its end), in 21 commits from `809086b` to `e1585a2`, plus the release commit and the colour and copy review's nine fixes (`3d0c529` to `b30f28e`, all minor, decision log 2026-10-19):
 - the store's own rating card after a good Close the day, silent, with the `review.asked` counter
 - a task's options without a finger, and the + stepping aside while a task is held
 - the colour roles on every screen, in light mode, with the "solved for both pools" sky tokens
