@@ -9906,3 +9906,41 @@ and the A11Y-07 and A11Y-08 device pass.
   land, no listing or landing line says accessible, WCAG or screen-reader friendly, and slice 8's gate bans them.
 - **The contrast tokens and their test (C10) in this slice.** They change how Today looks, so they wait for
   Melroy's before/after look (slice 3).
+
+## 2026-10-19: the app stops making the claims the store pages got wrong (store 1.9, slice 5): three truth strings
+
+**Decided: the in-app twins of the listing scout's false claims get the same fix, in all five catalogues.** The
+listing truth pass (`docs/design-source/store-1.9/listings.md`) found the stores overclaiming, and the plan's slice
+5 carries the same claims inside the app. Each was re-checked against the code before it changed:
+- **`welcome.handoffFineNoAi`** (the welcome's last screen, shown only with AI off): "Private by default, nothing
+  leaves your device" becomes "Private by default: your tasks stay on this device. Want them on your phone and your
+  laptop too? Sign in to sync, always optional." With AI off the feature-usage beacon still sends its bare counts
+  (`telemetry.ts` never reads `aiEnabled`), and a feedback note the person chooses to send leaves too, so "nothing
+  leaves" was false. The tasks themselves do stay, which is the claim now made.
+- **`premium.featureThemes`** (the Premium screen's list): "Seven calm colour themes to make it yours" becomes "Six
+  more calm colour themes". Dusk is free for everyone, so Premium adds six (`THEME_PRESETS` holds seven).
+- **`welcome.premiumColourWhat`** (the welcome's Premium step with AI off): "seven calm palettes..." becomes "six more
+  calm palettes for the whole app, yours to choose." The same seven-as-Premium claim under the Premium heading. The
+  plan named only the first two strings, and the re-check found this one.
+- **Translations:** German, neutral Spanish (tú, never vosotros or ustedes), French (U+00A0 before the colon and
+  the question mark) and Italian, in the app's register and its own words for tasks. They join the batch's one
+  native read (`scripts/gen-i18n-review.py`) with the rest of store 1.9.
+
+**Checked and left, because they are true:** `settings.colourThemeHintFree` (it counts all seven and says Premium
+unlocks the others); the free-month link (`trialSlot` hides it until sign-in, so it never promises a month to
+someone who cannot start one); `settings.aiOffNote`; "Pin today's one thing", already the paywall's wording; and
+"Export your data", which sits over a hint naming exactly what the file holds. The 2026-06-28 linked set (the capture
+line, the handoff line and the Settings card) still agrees after the change.
+
+**Decided against:**
+- **"Nothing you write leaves this device", or any softer "nothing leaves".** Still false, because a feedback note
+  is something you write and it leaves. Naming the tasks is the true claim, so the line names them.
+- **Dropping "Private by default".** The 2026-06-28 honesty decision keeps the phrase for the AI-off screen only, and
+  this line shows only with AI off. The App Store gate in slice 8 bans it in listings, where AI starts on.
+- **Fixing the iPhone's A$5 in the welcome's Premium fine print here.** `welcome.premiumFine` shows on iOS too,
+  because `STRIPE_HERE` lets iOS show our own figures by design, so changing it is a policy call and not a string.
+  Parked in the BUILD-PLAN Backlog with a trigger, beside the capture line on a signed-in replay.
+- **Changing `colourThemeHintFree`.** True as written, and the Settings picker is where the seven are counted.
+- **Regenerating `docs/i18n/review-data.json` now.** The plan does one native read for the whole batch, in one pass.
+
+Manual cases ONB-03 and PREM-01 now quote the new words, and the suite is regenerated.
