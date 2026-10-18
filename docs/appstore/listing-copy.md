@@ -69,7 +69,7 @@ A calm to-do list for ADHD, autism and OCD. Just today, sized to be doable, and 
 Editable later without review, and not searched. It keeps the two phrases the field has always carried, so the
 free-forever promise survives whenever this line turns over.
 
-**Description** (3971 / 4000)
+**Description** (3997 / 4000)
 
 ```
 DoubleDone is a calm to-do list for adults with ADHD, autism, OCD and overwhelm.
@@ -80,7 +80,7 @@ When a task is too big to start, Break it down turns it into small steps, and ti
 
 There are no streaks, no scores, and nothing that shames you. A task is never punished for existing. What you finish, you keep: your Calendar shows everything you actually did, including the old dreaded things you finally closed, because that deserves to be seen.
 
-If you keep a list with somebody, Ours is one shared list between exactly two of you. Nothing on it says who did what, and nothing counts or compares, so it cannot become a scoreboard. A shared thing with a day on it, bin night on Tuesday, arrives on both your Todays by itself. Everything else, milk and batteries, stays on the shared list however long it gets, so your day stays yours. Tick it from either phone and it closes for both.
+If you keep a list with somebody, Ours is one shared list for exactly two of you. Nothing on it says who did what, and nothing counts or compares, so it cannot become a scoreboard. A shared thing with a day on it, bin night on Tuesday, arrives on both your Todays by itself. Everything else, milk and batteries, stays on the list however long it gets, so your day stays yours. Tick it from either phone and it closes for both. It starts with a six-character code.
 
 DoubleDone is made in Melbourne by Melroy. He built it for friends with ADHD and OCD, and for anyone whose list has ever felt like too much.
 
@@ -138,6 +138,10 @@ feature by feature (the landing page precedent):
 - **Hold me to it, Rhythms and per-task reminders** run in both phone apps. Quiet is free for everyone. Sort for me,
   Make it tiny, Lighten today and Combine hide with AI off (Break it down falls back to writing your own steps),
   which the privacy paragraph's "the rest of the app keeps working" does not contradict.
+- **The six-character code** (`CODE_LENGTH` in `lib/pairing.ts`) starts Ours on an iPhone exactly as on Android.
+  This page was the one listing without it until the 2026-10-19 build review, and the gate now holds the phrase on
+  both stores in every language. It paid for itself with two trims in the Ours paragraph ("between" became "for",
+  and "the shared list" became "the list").
 - **Left out because an iPhone does not have them:** the home-screen widget and Speak.
 
 ## The second English keyword set

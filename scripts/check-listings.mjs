@@ -30,7 +30,10 @@
 //
 //   3. THE PROTECTED CLAIMS. A trim that drops the privacy URL, the Terms URL (the App Store's EULA link), the
 //      medical lines, the six-character code or the free-forever promise turns a copy edit into a policy or
-//      promise problem. Each must still be findable.
+//      promise problem. Each must still be findable, on both stores, by its own phrase in its own language: all
+//      three medical sentences (not a medical device, does not diagnose or treat, talk to a professional) and the
+//      code as a phrase ("six-character code"), never a bare number, which the Premium line's "six more colour
+//      themes" would satisfy on its own (the 2026-10-19 build review).
 //
 //   4. NOTHING THAT SELLS ANYWHERE BUT THE STORE ITSELF. Play rejected 1.5.1 for an A$ price, and its Payments
 //      policy names the listing as a place an app must not lead users to another payment method. Since Path A
@@ -77,7 +80,12 @@ const LANG = {
   en: {
     name: 'English',
     forever: /free,? forever|free for good/i,
-    medical: [/DoubleDone is not a medical device\./, /For medical advice, talk to a health professional\./],
+    code: /six-character code/,
+    medical: [
+      /DoubleDone is not a medical device\./,
+      /It does not diagnose, treat, cure or prevent any condition, and it is not a substitute for professional care\./,
+      /For medical advice, talk to a health professional\./,
+    ],
   },
   de: {
     name: 'German',
@@ -86,28 +94,48 @@ const LANG = {
     // known-bad WORDS, never the bare pairs. A blind find-and-replace is the wrong fix.
     ascii: /\b(zaehlt|Muelltonne|fuer|laesst|aendern|Groesse|ueber|fuenf|Ueber)\b/,
     forever: /für immer/i,
-    medical: [/DoubleDone ist kein Medizinprodukt\./, /Für medizinischen Rat wende dich an medizinisches Fachpersonal\./],
+    code: /Code aus sechs Zeichen/,
+    medical: [
+      /DoubleDone ist kein Medizinprodukt\./,
+      /Die App diagnostiziert, behandelt, heilt oder verhindert keine Erkrankungen und ersetzt keine professionelle Hilfe\./,
+      /Für medizinischen Rat wende dich an medizinisches Fachpersonal\./,
+    ],
   },
   es: {
     name: 'Spanish',
     marks: /[áéíóúñÁÉÍÓÚÑ]/,
     ascii: /\b(manana|dia|demas|asi|quien|que hacer|album)\b/,
     forever: /para siempre/i,
-    medical: [/DoubleDone no es un producto sanitario\./, /Si necesitas consejo médico, consulta con un profesional de la salud\./],
+    code: /código de seis caracteres/,
+    medical: [
+      /DoubleDone no es un producto sanitario\./,
+      /No diagnostica, trata, cura ni previene ninguna afección, y no sustituye la atención de un profesional\./,
+      /Si necesitas consejo médico, consulta con un profesional de la salud\./,
+    ],
   },
   fr: {
     name: 'French',
     marks: /[éèêàçôûùîâÉÈÀÇŒœ]/,
     ascii: /\b(partagee|etre|change|retire|apres|donnees|creer)\b|jour-la\b/,
     forever: /pour toujours/i,
-    medical: [/DoubleDone n'est pas un dispositif médical\./, /Pour un avis médical, adresse-toi à un professionnel de santé\./],
+    code: /code de six caractères/,
+    medical: [
+      /DoubleDone n'est pas un dispositif médical\./,
+      /L'appli ne diagnostique, ne traite, ne guérit ni ne prévient aucun problème de santé, et ne remplace pas le suivi d'un professionnel de santé\./,
+      /Pour un avis médical, adresse-toi à un professionnel de santé\./,
+    ],
   },
   it: {
     name: 'Italian',
     marks: /[àèéìòù]/,
     ascii: /\b(puo|martedi|cio|piu|gia|perche|attivita)\b/i,
     forever: /per sempre/i,
-    medical: [/DoubleDone non è un dispositivo medico\./, /Per un consiglio medico, rivolgiti a un professionista della salute\./],
+    code: /codice di sei caratteri/,
+    medical: [
+      /DoubleDone non è un dispositivo medico\./,
+      /Non diagnostica, non tratta, non cura né previene alcuna condizione di salute, e non sostituisce il supporto di un professionista\./,
+      /Per un consiglio medico, rivolgiti a un professionista della salute\./,
+    ],
   },
 };
 
@@ -181,11 +209,10 @@ const BANNED_BY_LANG = {
   it: [['"Nostro" as the shared list\'s name (it is always La nostra lista)', /\bNostro\b/]],
 };
 
-// Play's protected claims, on every full description.
-const PLAY_PROTECTED = [
-  ['the privacy URL', /doubledone\.app\/privacy/],
-  ['the six-character code', /sechs|seis|six|sei\b/i],
-];
+// Play's protected claims, on every full description. The six-character code is checked on both stores, by its
+// phrase per language, in checkLongCopy (a bare /six|sechs|seis|sei/ always passed once the Premium line named the
+// six colour themes).
+const PLAY_PROTECTED = [['the privacy URL', /doubledone\.app\/privacy/]];
 
 const CAPS = {
   play: { title: 30, short: 80, full: 4000 },
@@ -285,7 +312,8 @@ function checkLanguage(loc, label, text, lang, { long }) {
 function checkLongCopy(loc, label, text, lang) {
   const rules = LANG[lang];
   if (!rules.forever.test(text)) fail(loc, `${label}: the free-forever promise is missing.`);
-  for (const re of rules.medical) if (!re.test(text)) fail(loc, `${label}: the medical line is missing or reworded (expected ${re}).`);
+  if (!rules.code.test(text)) fail(loc, `${label}: the six-character code is missing or reworded (expected ${rules.code}).`);
+  for (const re of rules.medical) if (!re.test(text)) fail(loc, `${label}: a medical sentence is missing or reworded (expected ${re}).`);
 }
 
 // ---------------------------------------------------------------------------------------------------------------

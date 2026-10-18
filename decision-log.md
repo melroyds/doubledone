@@ -10126,3 +10126,17 @@ say "Des rappels tout doux, seulement ceux que tu demandes, jamais une échéanc
 Italian lines carry, on both stores (App Store 3,956 of 4,000, Play 3,846). The line joins the batch's one native
 read with the rest of the French texts. Decided against: a longer App Store variant that also names Tiens-moi à
 ça, because one French line on both stores cannot drift apart.
+
+**The gate holds the six-character code and all three medical sentences, on both stores (finding 8).** Play's
+code check was `/sechs|seis|six|sei\b/`, and slice 8 gave every Play text a Premium line naming "six more colour
+themes", so it passed with the code sentence gone. The App Store had no code check at all, though the header said
+it did. And the medical rules pinned only the first and last sentences, so "It does not diagnose, treat, cure or
+prevent any condition..." could be cut silently. Now `checkLongCopy`, which both stores run, checks the code by its
+phrase in each language (`six-character code`, `Code aus sechs Zeichen`, `código de seis caracteres`, `code de six
+caractères`, `codice di sei caratteri`) and all three medical sentences word for word. That made a gap visible:
+the English App Store page was the one listing that never named the code, so it now ends its Ours paragraph with
+"It starts with a six-character code.", paid for by two trims ("between" became "for", "the shared list" became
+"the list"), 3,997 of 4,000. A scratch break test (copies of the four paste sources, every recorded count
+re-measured after each change so only the rule under test can fail) removed the code from all ten texts and the
+diagnose sentence from six: the new gate fails all 17, the old one missed 16. Decided against: the bare-number
+check kept beside the phrase, which proves nothing once a number appears anywhere else in the text.
