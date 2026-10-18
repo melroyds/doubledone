@@ -1164,7 +1164,7 @@ describe('parts: a task tracked in parts moves forward one part at a time, and n
     const calls = sequence([sliced(3, 10, { done: true })]);
     const r = await callTool('update_task', { id: 's1', done: false });
     expect(r.result.isError).toBe(true);
-    expect(text(r)).toBe('Parts only go forward from here. Step one back in the app.');
+    expect(text(r)).toBe('Parts only go forward. Every device keeps the highest count it has seen, so a lower one would spring straight back.');
     expect(calls).toHaveLength(1);
   });
 

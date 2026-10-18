@@ -241,7 +241,11 @@ exactly when every part is.
 
 **Why parts only go forward.** Every device keeps the highest count it has ever seen for a task,
 so a count lowered here would spring straight back the next time a phone syncs. The app's own
-"Undo a step" is the way back.
+"Undo a step" holds only until the count has synced, which a count set here already has, so it cannot
+take this one back either (an undo of the last part of a task finished here puts it straight back in
+Done on the next sync). If a count does need to start again, send `partsTotal: null`, then
+`partsTotal` again, which starts at none done. A device that has not synced between those two calls
+still holds the old count, and its next sync brings that count back.
 
 **The MCP server counts differently, on purpose.** An agent's `complete_task` moves a task in parts
 forward one part at a time, relative to where it is, because a model reasons best with "one more".

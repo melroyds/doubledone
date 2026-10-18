@@ -9398,9 +9398,16 @@ asymmetry decides it: the sync merge keeps the highest `slices.done` it has ever
 over-tick that reaches a device can never be taken back, while an under-tick costs one more call. Only an explicit
 `count`, REST `partsDone` or REST `done: true` goes further.
 
-**Decided: parts never go down, anywhere.** MCP `done: false` on a task in parts is refused ("Parts only go forward
-from here. Step one back in the app."). REST answers 409 to a lower `partsDone` and to `done: false` on parts. The
-app's own "Undo a step" stays the way back.
+**Decided: parts never go down, anywhere.** MCP `done: false` on a task in parts is refused ("Parts only go
+forward. Every device keeps the highest count it has seen, so a lower one would spring straight back."). REST answers
+409 to a lower `partsDone` and to `done: false` on parts. **[Corrected 2026-10-18, after the review of the build:
+this entry first said the app's own "Undo a step" stays the way back, and the refusals said "Step one back in the
+app". It is not a way back for an agent's or the API's tick.]** Undo a step is a local edit, and the only push path
+pulls and merges first, where `reconcileConflict` keeps the higher count, so an undo holds only until the count has
+synced, which a count written on the server always has. With R11 (below) an undo of the last part of a task an agent
+finished even puts it back in Done on the next sync. The honest path, in the docs and not in the refusal: make it
+whole (`parts: null` / `partsTotal: null`) then set the parts again, with the caveat that a device which has not
+synced in between brings the old count back.
 
 **Decided: REST is absolute, MCP is relative.** An HTTP integrator retries, so `partsDone: 4` must land the same row
 twice (equal is a 200 with no write). A model reasons best with "one more". REST `done: true` FILLS every part, as

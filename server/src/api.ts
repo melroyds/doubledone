@@ -658,7 +658,7 @@ export function planPatch(row: Row, body: UpdateBody, base: UpdatePatch, todayIs
     if (hidden) return { status: 409, error: 'that task is waiting on its steps: tick its steps instead' };
     if (repeatsAfter) patch.completedDates = tickForDay(row.completed_dates, body.day ?? todayIso, body.done).dates;
     else if (parts) {
-      if (!body.done) return { status: 409, error: 'parts only go forward: step one back in the app' };
+      if (!body.done) return { status: 409, error: 'parts only go forward: every device keeps the highest count it has seen, so a lower one would spring straight back' };
       if (row.done !== true) applyParts(advanceParts(parts, parts.total));
     } else if (!(body.done && row.done === true)) {
       patch.done = body.done;
@@ -680,7 +680,7 @@ export function planPatch(row: Row, body: UpdateBody, base: UpdatePatch, todayIs
     if (repeatsAfter) return { status: 409, error: 'a repeating task is ticked by the day, not in parts' };
     if (!parts) return { status: 409, error: 'that task is not tracked in parts: send partsTotal first' };
     if (body.partsDone > parts.total) return { status: 400, error: `partsDone can be at most partsTotal (${parts.total})` };
-    if (body.partsDone < parts.done) return { status: 409, error: 'parts only go forward: step one back in the app' };
+    if (body.partsDone < parts.done) return { status: 409, error: 'parts only go forward: every device keeps the highest count it has seen, so a lower one would spring straight back' };
     if (row.done !== true) {
       const change = advanceParts(parts, body.partsDone);
       if (needsWrite(change, false)) applyParts(change);

@@ -949,7 +949,7 @@ export function planDone(row: TaskState, on: boolean, o: { count: number; day: s
   }
   const parts = cleanSlices(row.slices);
   if (!on) {
-    if (parts) return { kind: 'refuse', text: 'Parts only go forward from here. Step one back in the app.' };
+    if (parts) return { kind: 'refuse', text: 'Parts only go forward. Every device keeps the highest count it has seen, so a lower one would spring straight back.' };
     return { kind: 'write', body: { done: false, completed_at: null }, guard: {}, reply: 'Reopened.', miss: NO_MATCH };
   }
   if (row.done === true) return { kind: 'say', text: 'Already done.' };

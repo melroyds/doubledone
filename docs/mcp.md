@@ -274,9 +274,16 @@ it is done exactly when every part is.
 
 **Parts only go forward.** Every device keeps the highest count it has ever seen for a task, so a
 count lowered here would spring straight back the next time a phone syncs. So `done: false` on a
-task in parts is refused ("Parts only go forward from here. Step one back in the app."), and the
-app's own "Undo a step" is the way back. It is also why a tick moves one part by default: one too
-many could never be taken back, while one too few costs one more call.
+task in parts is refused ("Parts only go forward. Every device keeps the highest count it has seen,
+so a lower one would spring straight back."). The app's own "Undo a step" holds only until the count
+has synced, and a count an agent ticked is on the server the moment it is ticked, so Undo a step
+cannot take it back either: the next sync brings the higher count back, and an undo of the last part
+of a task finished here puts it straight back in Done. That is why a tick moves one part by default:
+one too many could never be taken back, while one too few costs one more call.
+
+If a count does need to start again, make it one whole task (`parts: null`), then set `parts` again,
+which starts at none done. A device that has not synced between those two calls still holds the old
+count, and its next sync brings that count back.
 
 Each parts write is pinned to the counts it read, so a tick or resize made on your phone in the
 same moment is never overwritten. A task in parts that a sync left at every part ticked but still
