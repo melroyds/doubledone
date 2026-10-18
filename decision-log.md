@@ -10334,3 +10334,83 @@ and nowhere else. The web keeps its Stripe figure, and Android showed none alrea
 - **Rewriting the iPhone's Terms, which name the website's A$5 and A$50.** True about the website, but it is the
   last A$ figure an iPhone shows. It is legal text, so it waits for Melroy's word, parked in the Backlog with a
   draft of the fix and a trigger before the 1.9.0 iOS build.
+
+## 2026-10-19: the App Store gets six captioned slides, and neither store shows a Speak button (store 1.9)
+
+**Decided: a `STORE=ios` mode inside `scripts/play-assets.mjs`,** not a fourth generator. It reuses the Play
+harness and writes six slides at three sizes from one raw capture per shot (440x956 at scale 3, so 1320x2868):
+`docs/appstore/captioned/{6.9,6.5,6.3}/en/01-today.jpeg` to `06-ours.jpeg`, at 1320x2868, 1284x2778 and 1206x2622,
+numbered so the file order is the upload order. Play's output is unchanged when `STORE` is unset.
+- **The six, in order:** Today ("Only today, / sized to feel possible."), the held card on a three-week-old "Do my
+  taxes" ("Too big to start? / Break it down."), the Calendar ("See everything / you actually did."), the capture
+  panel with three lines typed ("Empty your head / in one go."), Settle in dark ("A quiet room / for loud days.")
+  and a joined Ours room ("One shared list. / Never a scoreboard."). Apple shows the first three in search, so they
+  are the promise, the moment you are stuck and the payoff. Each caption was checked against the code: Break down
+  is on every held card, free, with AI on or off. The box takes many lines and offers "Add 3". Settle is ungated.
+  Nothing on the shared list counts who did what.
+- **The slide:** a frameless screen card at 76% of the slide's height, corner radius 5.5% of its width, a hairline
+  edge and Play's shadow, under a two-line caption at 7.5% of the slide width, on Play's warm gradient. Every
+  measure is a proportion, so one template draws all three sizes.
+- **The captions** live in `docs/appstore/captions.json`, English only. A gate runs before any browser starts and
+  fails on a missing caption, a dash, "!", a digit, a currency, Android, Google, Play or Stripe, Speak or the widget,
+  a French line without its no-break space, or more than two lines. Tested against 16 inputs, good and bad. Play's
+  own captions go through it too, and pass.
+- **The layout guard fails, never warns.** A caption line that wraps, or a caption that runs into the screen card,
+  stops the run. Proven with a deliberately long line. Every JPEG's own size header (SOFn) is read back and must
+  match its slot exactly, the 2026-08-17 rule that a file can be named right and sized wrong.
+- **The hardening, copied from `landing-shots.mjs` (not imported, per the 2026-08-16 rule):** the clock pinned to
+  Sunday 18 October 2026 at 14:00 in Melbourne, except Settle, whose breathing a fake clock freezes. `pinRandom`
+  and the reminder-offer seed. The AI host refused outright, so no run spends AI even against a production export.
+  The browser locale from `LOCALE_TAG` and the Melbourne timezone. Waits by catalogue string or fixture title,
+  through the esbuild `translate` bundle, never by English UI copy. Sample tasks from the landing cast and the
+  landing tables, so another language can render once its captions exist.
+
+**Two truth bugs on the live listings, fixed in both stores' pictures:**
+- **Speak.** The web build draws a Speak button that no phone has (`speech.ts` is a stub on native), and both
+  stores' capture slides showed it. Speech recognition is now deleted before the app boots, and the run fails if
+  the capture panel still shows Speak.
+- **"Waiting for your person · Get a new code"** on Play's Ours slide, because the fixture answered with one member.
+  The fixture is now two people (partner "Sam"), the room reads "Kept with Sam", and the run fails if it waits.
+
+**Play: two slides regenerated, `capture` and `ours-room`, in all three sizes.** Play's capture caption is now
+"Empty your head in one go." The old "Empty your head. One tap to add." stretched it, because the + opens the box
+and Add is a second tap. Play holds a copy of the English set in each of its six listings, so "every Play locale"
+means replacing those two files in all six, which `docs/play-store-submission-pack.md` now says. A new `NAMES`
+filter regenerates only the named slides, and skips the icon and the feature graphic. Play now gets the same
+hardening, the pinned clock included, so the two new slides read "Sunday 18 October" beside six older ones that
+read 27 September. Nobody shopping will compare dates, and the full set is parked.
+
+**The bottom-left smudge** on the old `ours-room.jpeg` (a blurred grey square near the corner) is in none of the
+eight new raw captures, checked by eye and by the corner's spread. Its cause was never reproduced. The
+`#error-toast` hide stays, and manual case DEP-04 asks for a look at every corner.
+
+**Two composition calls made while looking:** the held card is scrolled so the Right now card sits whole under the
+top edge (`topAnchor`), because scrolling to the end left a sliver of it across the top. The shared list got a
+sixth row, so the room reads lived-in. The Calendar slide ends on the Scrapbook heading and the top of its card,
+which is the real screen at that height, and is left for Melroy's look.
+
+**Decided against:**
+- **A bezel.** A plain dark phone body reads as another platform's device (2.3.10), and the icon and name already
+  sit right above the shots in the listing. Frameless says "this app" without saying "this phone".
+- **iPad shots.** `client/app.json` has `supportsTablet: false`, and Apple only asks for iPad shots when the app
+  supports iPadOS.
+- **The welcome screen first.** It is title art, which 2.3.3 bars ("not merely the title art"), and its words now
+  live in the captions.
+- **Ours third,** which would match the `couples`, `shared` and `household` keywords. Couples are the smaller
+  audience and Ours needs a sign-in. A Product Page Optimization test settles the slot without a new version.
+- **The "Here's the plan" sheet for slot 2.** It shows the result, but only for AI-on users. The held card is
+  true for everyone.
+- **Captions in catalogue `storeShots.*` keys now.** Strings phones never show should not ship to phones. They
+  move into the catalogues with the localised sets.
+- **Localised slides in this version.** ASC shows the English set in every storefront, the captions would need a
+  native read first, and the German lines are the likeliest to trip the wrap guard.
+- **"Just today. Nothing is ever overdue."** for slot 1. True, but it repeats the subtitle that sits right above
+  it in search. And **"never the whole list"**, which is false: every undated task shows on Today.
+- **A shared module with `landing-shots.mjs`.** The 2026-08-16 rule stands: loud, greppable duplication over a
+  quiet import that breaks both at once.
+- **Regenerating the whole Play set.** Only the two untrue slides changed. The rest is parked with a trigger.
+- **Writing into `docs/appstore/*.jpeg`.** `scripts/social-slides.mjs` reads those plain shots, so the script
+  refuses any App Store path outside `captioned/`.
+
+Manual case DEP-04 (look at all eight at real phone size before upload), and the suite regenerated (523 cases).
+`node scripts/check-listings.mjs` still passes with the new Screenshots section.

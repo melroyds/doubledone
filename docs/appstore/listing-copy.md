@@ -203,28 +203,66 @@ second English one) needs its own paste.
   comes out 4+ before saving: a 13+ on a calm to-do app is a real cost.
 - **EULA:** Apple's standard, plus the terms URL already at the end of the description.
 
-## Screenshots (docs/appstore/, 1320x2868 JPEG, upload in this order)
-1. welcome (the promise, best first impression)
-2. today-light (the core)
-3. ours-room (the shared list, which is what 1.3.x is FOR)
-4. ours-when (setting a shared row's day, the thing 1.3.1 adds)
-5. lookback-light (what you finish, you keep; the screen is called Calendar in the app)
-6. today-dark
-7. settle-light (the quiet room, the most distinctive screen in the app)
-8. settings-light
+## Screenshots (1.9.0: six captioned slides, upload in this order)
 
-**Eight since 2026-08-16.** Settle shipped on 1 August and was missing from every store listing for
-a fortnight, because this repo has three screenshot generators and a new screen has to be added to
-each by hand. Regenerate with `IOS=1 node scripts/screenshots.mjs` (needs `npm run dev` on :8081).
-JPEG rather than PNG on purpose: JPEG carries no alpha channel, and App Store Connect rejects
-transparency.
+Each slide is the real app, drawn the way a phone draws it, on a warm slide with a two-line caption above a
+frameless screen card. The files are numbered, so the file order is the upload order. The captions live in
+[captions.json](captions.json), English only this version, and a gate checks them before anything is captured.
 
-Apple surfaces the first three in search results, so the room sits third: promise, core, the new
-thing. Before 1.3.1 there was no Ours shot in the set at all, which meant the listing for a release
-about a shared list never showed one.
+| # | File | Caption | Why here |
+|---|---|---|---|
+| 1 | `01-today.jpeg` | Only today, / sized to feel possible. | The promise. The gauge on the screen reads "A gentle day. Room to breathe." |
+| 2 | `02-held-card.jpeg` | Too big to start? / Break it down. | The moment you are stuck. Break down is on every held card, free, with AI on or off. Held on a three-week-old "Do my taxes". |
+| 3 | `03-calendar.jpeg` | See everything / you actually did. | The payoff, in the screen's own words ("For when your brain says you did nothing"). The taxes are the big one. |
+| 4 | `04-capture.jpeg` | Empty your head / in one go. | The box takes many lines at once and offers "Add 3". No Speak button, because no phone has one. |
+| 5 | `05-settle.jpeg` | A quiet room / for loud days. | Settle is free and never earned. Dark, because a cream room on a cream slide washes out, and it shows the night face without spending a slot on it. |
+| 6 | `06-ours.jpeg` | One shared list. / Never a scoreboard. | Nothing on the list shows who did what. A joined room ("Kept with Sam"), never "Waiting for your person". |
 
-The Premium screen is deliberately not in the set: the web-rendered paywall shows the Stripe
-line, and an App Store screenshot pointing at external purchase is a review flag.
+Apple shows the first three in search results, so they carry the pitch: the promise, the moment you are stuck,
+the payoff. Ours sits sixth: couples are the smaller audience and Ours needs a sign-in. A Product Page
+Optimization test settles that slot later, which needs no new version.
+
+| Folder | Size | Slot |
+|---|---|---|
+| `docs/appstore/captioned/6.9/en/` | 1320x2868 | iPhone 6.9-inch (Dynamic Island, large). Upload this set first. |
+| `docs/appstore/captioned/6.5/en/` | 1284x2778 | iPhone 6.5-inch, the slot App Store Connect demanded on 2026-08-17. |
+| `docs/appstore/captioned/6.3/en/` | 1206x2622 | iPhone 6.3-inch (Dynamic Island, medium), the size Apple's page now names as required. |
+
+Fill every slot App Store Connect marks as required. All three come from one capture, so they show the same thing.
+
+**Regenerate:** `npm run dev`, then `STORE=ios node scripts/play-assets.mjs` in Git Bash, or
+`$env:STORE='ios'; node scripts/play-assets.mjs` in PowerShell. `NAMES=today,ours` renders a subset. The run
+fails, rather than warns, on any of these:
+- a caption with a dash, "!", a digit or a currency, another platform or a biller (Android, Google, Play,
+  Stripe), or a feature a phone does not have (Speak, the widget), or a French line without its no-break space
+- a caption line that wraps, or a caption that runs into the screen card
+- a JPEG whose own size header is not exactly its slot's size (a file can be named right and sized wrong)
+- a capture panel that shows Speak, or a room that reads "Waiting for your person"
+
+The capture never contacts anything real: Supabase is answered from a two-person fixture, the AI host is refused,
+the clock is pinned to Sunday 18 October 2026 at 14:00 (Settle keeps the real clock, which its breathing needs),
+and speech recognition is deleted before the app boots. The raw captures land in the system temp folder
+(`dd-store-shots`), for a look at the corners.
+
+**In App Store Connect, on the 1.9.0 version:** delete every old shot that carried over, then upload 01 to 06 in
+order in every size slot it marks. ASC shows the English set in every storefront and localisation until a
+localised set exists (parked in the Backlog).
+
+**Look before upload.** Open all six on a phone, full screen, at real size (manual case DEP-04). A render that
+passes every check has still not been looked at.
+
+**Not in the set, on purpose:**
+- **welcome:** title art, which 2.3.3 bars as a screenshot, and its words now live in the captions.
+- **today-dark, ours-when, settings-light:** Settle carries dark mode, ours-when is a detail of Ours rather than a
+  benefit of its own, and settings is not a benefit.
+- **The Premium screen:** the web paywall shows the Stripe line, and a screenshot pointing at another way to pay
+  is a review flag.
+- **A bezel, and an iPad set:** a generic dark phone body reads as another platform's device (2.3.10), and
+  `supportsTablet` is false, so Apple asks for no iPad shots.
+
+**The old plain shots stay where they are.** `docs/appstore/*.jpeg` (with `6.5-inch/` and `ipad-13/`) are the
+uncaptioned 1.3-era set from `IOS=1 node scripts/screenshots.mjs`. `scripts/social-slides.mjs` reads them, so
+they are never overwritten and never uploaded again.
 
 ---
 

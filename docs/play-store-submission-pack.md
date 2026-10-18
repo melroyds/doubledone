@@ -259,6 +259,14 @@ planner types. Never a habit tracker tag: it brings the streak seekers this app 
 > Premium surface in any shot (no Premium badge, no Menu Premium row). See
 > [play-store-release.md](play-store-release.md) section 10, step 2.
 
+> **1.9.0 (2026-10-19): two slides regenerated, the rest of the live set stays.** `capture.png` now reads
+> "Empty your head in one go." (the old "One tap to add" stretched it: the + opens the box and Add is a second
+> tap), and its panel no longer shows the Speak button, which no phone has. `ours-room.png` now shows a joined
+> room ("Kept with Sam"), not "Waiting for your person · Get a new code". Play holds a copy of the English set in
+> EACH listing, so replace both files in all six (en-AU, de-DE, es-ES, es-419, fr-FR, it-IT), in each of Phone,
+> 7-inch and 10-inch, keeping each slide's place in the order. Regenerate with
+> `NAMES=capture,ours-room node scripts/play-assets.mjs`.
+
 **Which folder: `docs/play-store/`, NOT `docs/screenshots/`.** This repo has two screenshot sets with
 overlapping filenames and they are easy to confuse (a ship checklist already sent Melroy to the wrong
 one). `docs/screenshots/` is the RAW app at 780x1688, for the README and review packs.

@@ -1,0 +1,11 @@
+{
+  "_about": "The App Store slide captions, read by STORE=ios node scripts/play-assets.mjs and its caption gate. One key per shot, in upload order, each one or two authored lines (one line per array item, and each must render as one line). English only for 1.9.0. A language is rendered only once it has all six here, natively reviewed. These move into catalogue storeShots.* keys when the localised sets happen. No dashes, no exclamation marks, no digits or prices, no other platform or biller, nothing a phone does not do, and French keeps its no-break space before ? ! : ;",
+  "en": {
+    "today": ["Only today,", "sized to feel possible."],
+    "held-card": ["Too big to start?", "Break it down."],
+    "calendar": ["See everything", "you actually did."],
+    "capture": ["Empty your head", "in one go."],
+    "settle": ["A quiet room", "for loud days."],
+    "ours": ["One shared list.", "Never a scoreboard."]
+  }
+}

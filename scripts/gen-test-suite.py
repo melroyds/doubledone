@@ -861,6 +861,9 @@ CASES = [
     ("DEP-03", "Deploy", "P2", "Local-first offline",
      "Use core features (add/complete) with no network.",
      "Works offline; syncs later when signed in.", "Both"),
+    ("DEP-04", "Deploy", "P1", "The store slides, looked at on a phone before upload",
+     "PREREQ: npm run dev, then STORE=ios node scripts/play-assets.mjs (all six App Store slides) and NAMES=capture,ours-room node scripts/play-assets.mjs (Play's two). Open each of docs/appstore/captioned/6.9/en/01-today.jpeg to 06-ours.jpeg on a phone, full screen, at real size, then Play's phone/capture.png and phone/ours-room.png.",
+     "Six App Store slides in this order: Today, the held card on Do my taxes, the Calendar, the capture panel, Settle in dark, the shared list. Each caption reads as two lines and never runs into the screen. No bezel, no price, no other platform. The capture panel shows Scan and Sort for me and NO Speak, on both stores. Both shared-list slides read 'Kept with Sam' and never 'Waiting for your person'. The bottom-left corner of every screen is clean (no grey square). Play's capture caption reads 'Empty your head in one go.' The 6.5 and 6.3 folders hold the same six. If a slide looks wrong to the eye, it is wrong, whatever the script's checks said.", "iOS + Android"),
 
     # --- Premium (Stripe, test mode) -----------------------------------------
     ("PREM-00", "Premium", "P1", "PREREQ: Stripe test keys + webhook",

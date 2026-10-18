@@ -210,6 +210,19 @@ the ladder is fixed and readable, never randomised.
   changing colour is part of the breath, so this is a taste call rather than a sweep fix. The fix: a darker text
   shade of each hue for light mode, solved to 4.5:1 on each theme's paper, or the room's own grey for the words.
   Trigger: Melroy's word, or the next change to Settle.
+- **The store slides' follow-ons (parked 2026-10-19, with slice 7 of `store-1.9`).** (1) **Localised App Store
+  slides** for de, es (one neutral set for both Spanish storefronts), fr and it. The harness already renders any
+  language (translated sample tasks, waits by catalogue string) and its gate refuses one until
+  `docs/appstore/captions.json` holds all six of its captions. The captions move into catalogue `storeShots.*` keys
+  then, natively read, and German is the wrap guard's likeliest failure. Trigger: the next iOS version, with its
+  localisations' native read. (2) **A Product Page Optimization test on Ours' slot** (sixth against third), run in
+  App Store Connect with no new version. Trigger: 1.9.0 live for 30 days. (3) **The iPhone Duo layout** (1398x2034
+  outer, 2007x2853 inner, a much squarer card than this template draws), which Apple requires from April 2027 for
+  builds on the iOS 27.1 SDK. Trigger: the first build on that SDK. (4) **The other six Play slides** still show
+  27 September and the colours from before slices 3 and 4. Only `capture` and `ours-room` were regenerated, because
+  only those two were untrue. Trigger: the next Play listing change, or Melroy's word. `node scripts/play-assets.mjs`
+  redraws all eight, but its `PLAY_SHOTS` order is not the live upload order (the 1.6.0 walkthrough put welcome
+  last), so take the order from the Console.
 - **Store keywords, parked with the slice 8 listing work (2026-10-19, `store-1.9`).** (1) **`executive` and
   `function`** as hidden keywords in the second English set (`docs/appstore/listing-copy.md`). Close to clinical
   language, so out for now. Trigger: Apple Search Ads shows real popularity for "executive function" planner
