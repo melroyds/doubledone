@@ -10252,3 +10252,54 @@ BUILD-PLAN Backlog with the fixes, as Melroy's calls.
 - **The widget importing `palette.ts`.** The pure module makes it safe in principle, but the widget's headless
   context has blanked before and needs a device test. It keeps its inlined hexes, now in sync.
 - **The gold ✦ (C8).** Tier 3, already parked.
+
+## 2026-10-19: Every screen's words take the colour roles, and a scan holds them there (store 1.9, slice 4)
+
+**Decided: the app-wide sweep, slice 4 of the 1.9 plan, with the roles slice 3 set on Today.** Settings, the
+Calendar, Ours (the setup screens and the shared list), Premium, Privacy, Terms, the welcome, sign-in, the rooms,
+Settle, and every sheet (the capture panel, the When sheet, Break it down's questions and review, the date picker,
+the camera, and Today's own Plan, Focus, slice and close-the-day cards). Colour only: no string changed, so the
+Premium screen's Android price rule is untouched.
+- **inkFaint is never words.** 42 lines of grey words move to inkSoft on paper, a card or a sheet, and to skyInk on
+  the shared list's sky. Two dead style entries that still named it (`cadenceNote` in the shared list, `controlOff`
+  in TaskRow) are deleted.
+- **The accent is never a text colour.** 90 accent words move: 87 to accentText, and 3 to skyAccent where they sit
+  straight on the sky. The four "ink on light, the accent on dark" ternaries (Chip, the capture panel's and the When sheet's
+  day chips, the welcome's chosen card) now name accentText for dark. Same value, since dark accentText is the
+  accent, so the scan needs no exceptions for them. `quietTokens.link` follows (unused today, but it is words).
+- **The shared list sits on Today's sky,** so its bare lines take the sky tokens: the date, the line under the
+  heading, "Kept with", the empty line, the offline and unsynced notes, Recently removed and its rows and hint
+  (skyInk), and Restore with the waiting line's "Get a new code" (skyAccent). An archived list shows the same lines on
+  the page, where skyInk is 7.3:1, darker than the rooms' grey and still quieter than a title.
+- **Found on the way.** "+ I also did that" under Today's list is accent words straight on the sky, missed by the
+  scout's list and by slice 3, now skyAccent. The "!" in the heading's tint (Today and Ours) is accent words on the
+  accent tint, 4.0:1 in Dusk, now accentText. Break it down's later-phase dates were `repeat` on the sheet's paper,
+  4.3:1 in the light themes, now inkSoft (the weight still sets them apart).
+
+**The guard, `client/src/constants/colour-sites.test.ts`.** It reads every source file and fails on (1) any
+placeholder in inkFaint, with no exceptions, (2) any inkFaint not on its list of non-words (three rings, four
+disabled controls, two decorations and one underline, each with its reason), and (3) any `color:` that names the accent
+itself, outside its list of two (the logo's second tick, a logotype, and Premium's spinner). A listed use that goes
+away fails too, so the lists only hold what is there. Entries are a file and a style key, never a line number, so an
+edit above them does not break the scan. **Run against the code before this sweep it failed 44 inkFaint sites and
+90 accent sites** (the scout counted 65 and 112 before slice 3 took Today, TaskRow and the placeholders).
+
+**`palette.test.ts` widens to the new surfaces.** skyInk and skyAccent are also held on the page (the archived list),
+inkSoft and accentText already were. `danger` gains the page (Settings in Quiet drops its cards). `repeat` stays
+words only on cards and sheets, and the Calendar's ↻ beside a day's task, which screen readers skip, is held as a
+symbol at 3:1 on the page. Both tests pass in all 14 palettes, with the dark gaps still in `OPEN_IN_DARK`.
+
+**Decided against:**
+- **A `repeatText` token, or retuning `repeat` again,** for the phase dates. One line, and Melroy approved the
+  `repeat` value in decision 1. inkSoft is the secondary role and it already passes.
+- **Line numbers in the lists.** They drift with every edit, which turns a guard into noise. The style key is stable.
+- **An allowlist for placeholders.** The plan banned inkFaint placeholders outright, and an empty field's hint is the
+  one line that says what the field is for.
+- **Scanning for inkSoft straight on the sky.** A file scan cannot know what a style is drawn over. The ROLES table
+  says which surfaces each role may sit on, and the sweep used it, screen by screen.
+- **Scanning `color` props.** A spinner's colour and the drawn pin are graphics, not words.
+- **Making the selected chips accentText in light mode.** The Chip rule (ink on the tint) is stronger than it needs to
+  be, and changing it is a look, not a fix.
+- **Settle's guide words, now.** They wear the five task-dot hues in turn on the page, 2.4 to 4.3:1 in light mode, and
+  the changing colour is part of the breath. A taste call, parked in the Backlog with a trigger.
+- **Recolouring the gold ✦.** C8, Tier 3, still parked.

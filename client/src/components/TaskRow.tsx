@@ -1522,7 +1522,7 @@ const makeStyles = (t: Theme) => {
     // The faint "· Ours" on YOUR copy. Quiet enough to be a fact and not a badge.
     originMark: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, marginLeft: spacing.two },
     // Ink on light (the accent on its own wash is 4.0:1, under AA for text this small), the accent on dark (4.9:1).
-    justAddedMark: { color: t.scheme === 'dark' ? t.colors.accent : t.colors.ink, fontSize: 11 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    justAddedMark: { color: t.scheme === 'dark' ? t.colors.accentText : t.colors.ink, fontSize: 11 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     // Full strength (C3): the 0.82 fade took it under 4.5:1 on the hero fill in both schemes (3.8 to 4.8).
     heroSub: { color: heroText },
     // Mark-as-a-lot, active: the row tints and its text lifts to accent, the app quietly agreeing.
@@ -1534,7 +1534,6 @@ const makeStyles = (t: Theme) => {
     moreCaret: { color: t.colors.accentText, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     // The revealed More items sit slightly indented, so they read as belonging under the disclosure.
     moreItem: { paddingLeft: spacing.four },
-    controlOff: { color: t.colors.inkFaint },
     // The rail (v2): one segmented hairline-bordered control, the card's ONLY bordered element
     // because it is the only act-and-stay element. In Quiet the border goes (whitespace
     // separates the two labels), same heights, same targets.

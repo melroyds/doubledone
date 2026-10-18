@@ -1112,7 +1112,7 @@ const makeStyles = (t: Theme) =>
       paddingVertical: spacing.three,
     },
     undoText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
-    undoAction: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
+    undoAction: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
     empty: { marginTop: spacing.four },
     // The suggestion strip at the top of a new form: paper inside the form's card, one hairline, a quiet
     // lead and one accent button.
@@ -1127,7 +1127,7 @@ const makeStyles = (t: Theme) =>
     },
     starterLead: { color: t.colors.inkSoft, fontSize: 13 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body },
     starterBtn: { minHeight: 40, justifyContent: 'center', alignSelf: 'flex-start' },
-    starterBtnText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    starterBtnText: { color: t.colors.accentText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     group: { gap: spacing.two, marginTop: spacing.two },
     groupHeading: { ...t.type.eyebrow, color: t.colors.inkSoft, textTransform: 'uppercase' },
     card: {
@@ -1158,13 +1158,13 @@ const makeStyles = (t: Theme) =>
     stepTitle: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.body, flex: 1 },
     stepTitleDone: { color: t.colors.inkSoft },
     cardActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.five, marginTop: spacing.two },
-    edit: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body },
+    edit: { color: t.colors.accentText, fontSize: 13 * t.scale, fontFamily: fonts.body },
     remove: { color: t.colors.danger, fontSize: 13 * t.scale, fontFamily: fonts.body },
     rhythmIntro: { marginBottom: spacing.one },
     rhythmWebNote: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two, fontStyle: 'italic' },
     nudgeHealth: { gap: spacing.one, marginTop: spacing.four },
-    nudgeHealthText: { color: t.colors.inkFaint, fontSize: 13 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body },
-    batteryLink: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    nudgeHealthText: { color: t.colors.inkSoft, fontSize: 13 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body },
+    batteryLink: { color: t.colors.accentText, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     // "+ New rhythm", the shape the preset row's last button had, now standing alone.
     newRhythmBtn: {
       borderWidth: border.hair,
@@ -1175,8 +1175,8 @@ const makeStyles = (t: Theme) =>
       alignItems: 'center',
       marginTop: spacing.one,
     },
-    newRhythmBtnText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    addTimeText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, marginTop: spacing.two },
+    newRhythmBtnText: { color: t.colors.accentText, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    addTimeText: { color: t.colors.accentText, fontSize: 15 * t.scale, fontFamily: fonts.body, marginTop: spacing.two },
     windowRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, flexWrap: 'wrap', marginTop: spacing.two },
     windowValue: { ...t.type.bodyStrong, color: t.colors.ink, minWidth: 52, textAlign: 'center' },
     windowTo: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
@@ -1202,7 +1202,7 @@ const makeStyles = (t: Theme) =>
     },
     stepsInput: { minHeight: 90, textAlignVertical: 'top' },
     // The quiet save hint: the form's own accent, never a red shout.
-    formHint: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale },
+    formHint: { color: t.colors.accentText, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale },
     whenPills: { flexDirection: 'row', gap: spacing.two },
     whenPill: {
       color: t.colors.inkSoft,
@@ -1224,7 +1224,7 @@ const makeStyles = (t: Theme) =>
     stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
     stepBtn: { width: 36, height: 36, borderRadius: radius.pill, borderWidth: border.hair, borderColor: t.colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: t.colors.surface },
     stepBtnOff: { opacity: 0.4 },
-    stepGlyph: { fontSize: 22 * t.scale, lineHeight: 26 * t.scale, color: t.colors.accent, fontFamily: fonts.body },
+    stepGlyph: { fontSize: 22 * t.scale, lineHeight: 26 * t.scale, color: t.colors.accentText, fontFamily: fonts.body },
     stepValue: { ...t.type.bodyStrong, color: t.colors.ink, minWidth: 88, textAlign: 'center' },
     // The precise 24h time entry, opened by tapping the time.
     timeEntryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, marginTop: spacing.three },
@@ -1243,5 +1243,5 @@ const makeStyles = (t: Theme) =>
       alignItems: 'center',
       marginTop: spacing.four,
     },
-    newBtnText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.body },
+    newBtnText: { color: t.colors.accentText, fontSize: 16 * t.scale, fontFamily: fonts.body },
   });

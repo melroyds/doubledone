@@ -349,7 +349,7 @@ const makeStyles = (th: Theme) =>
     // The inscription's own voice (RotatingPhrase): serif italic, accent-coloured at render.
     guideWord: { fontSize: 17 * th.scale, fontFamily: fonts.sans, fontStyle: 'italic', textAlign: 'center', letterSpacing: 0.2 },
     affirmation: { fontSize: 16 * th.scale, fontFamily: fonts.sans, fontStyle: 'italic', textAlign: 'center', letterSpacing: 0.2, maxWidth: 280 },
-    leavingLine: { color: th.colors.inkFaint, fontSize: 15 * th.scale, fontFamily: fonts.body, fontStyle: 'italic', textAlign: 'center' },
+    leavingLine: { color: th.colors.inkSoft, fontSize: 15 * th.scale, fontFamily: fonts.body, fontStyle: 'italic', textAlign: 'center' },
     guidePill: {
       alignSelf: 'center',
       paddingHorizontal: spacing.four,
@@ -358,6 +358,6 @@ const makeStyles = (th: Theme) =>
       minHeight: 36,
       justifyContent: 'center',
     },
-    guidePillText: { color: th.colors.inkFaint, fontSize: 13 * th.scale, fontFamily: fonts.body, letterSpacing: 0.4 },
+    guidePillText: { color: th.colors.inkSoft, fontSize: 13 * th.scale, fontFamily: fonts.body, letterSpacing: 0.4 },
     pressed: { opacity: PRESSED_OPACITY },
   });

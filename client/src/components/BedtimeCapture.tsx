@@ -166,5 +166,5 @@ const makeStyles = (t: Theme) =>
       gap: spacing.three,
     },
     pickerTitle: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
-    pickerTomorrow: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center' },
+    pickerTomorrow: { color: t.colors.accentText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center' },
   });

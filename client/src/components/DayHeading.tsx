@@ -111,7 +111,7 @@ const makeStyles = (t: Theme) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    markText: { color: t.colors.accent, fontSize: 13 * t.scale, lineHeight: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    markText: { color: t.colors.accentText, fontSize: 13 * t.scale, lineHeight: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     // The shrunk bar while the composer is open: the words at 21pt, the weight line on the right, a 3pt
     // gauge beneath, and one hairline to separate it from the list.
     compactBar: { gap: 9, paddingBottom: spacing.three, borderBottomWidth: border.hair, borderBottomColor: t.colors.line },
@@ -130,7 +130,7 @@ const makeStyles = (t: Theme) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    markTextCompact: { color: t.colors.accent, fontSize: 11 * t.scale, lineHeight: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    markTextCompact: { color: t.colors.accentText, fontSize: 11 * t.scale, lineHeight: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     compactWeight: { color: t.colors.skyInk, fontSize: 12.5 * t.scale, fontFamily: fonts.body, paddingBottom: 6 },
     compactTrack: { flexDirection: 'row', height: 3, borderRadius: radius.pill, backgroundColor: t.colors.line, overflow: 'hidden' },
     compactFill: { backgroundColor: t.colors.accent }, // the same fill as Today's full gauge: one gauge, two sizes

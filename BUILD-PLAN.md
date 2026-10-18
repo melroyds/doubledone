@@ -203,6 +203,13 @@ the ladder is fixed and readable, never randomised.
   worse. Either fix clears it: dark `skyInk` and `skyAccent` one step lighter (Dusk #B2A89D and #CE9CAC, solved like
   the light ones), or the dark glow from 0.18 to 0.11 in `PHASE_POOLS` (`client/src/lib/phase.ts`). Trigger:
   Melroy's word, or the next change to dark mode or the pools. Strike the `OPEN_IN_DARK` entries in the same commit.
+- **Settle's guide words are in the task-dot hues (found and left 2026-10-19, with slice 4 of `store-1.9`).** In the
+  Settle room the breathing guide's words and the rare affirmation wear the five per-task dot colours in turn,
+  straight on the page. In light mode that is 2.4:1 (gold) to 4.3:1 (periwinkle) in every theme, under 4.5:1 for
+  all five. Dark mode clears it at 6.2:1 and up. Slice 3 took the same hues off Today's foot phrase, but in Settle the
+  changing colour is part of the breath, so this is a taste call rather than a sweep fix. The fix: a darker text
+  shade of each hue for light mode, solved to 4.5:1 on each theme's paper, or the room's own grey for the words.
+  Trigger: Melroy's word, or the next change to Settle.
 - **Store keywords, parked with the slice 8 listing work (2026-10-19, `store-1.9`).** (1) **`executive` and
   `function`** as hidden keywords in the second English set (`docs/appstore/listing-copy.md`). Close to clinical
   language, so out for now. Trigger: Apple Search Ads shows real popularity for "executive function" planner

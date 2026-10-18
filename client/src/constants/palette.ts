@@ -218,7 +218,7 @@ export function quietTokens(colors: Palette, scheme: 'light' | 'dark'): QuietTok
     pressWash: scheme === 'light' ? mix(colors.accentSoft, colors.surface, 0.3) : rgba(colors.accentSoft, 0.85),
     captureUnderline: colors.line,
     secondary: colors.inkSoft,
-    link: colors.accent,
+    link: colors.accentText, // words, so the text role (the accent itself is a fill)
     remove: colors.danger,
     nOfM: colors.inkSoft,
   };

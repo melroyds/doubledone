@@ -286,7 +286,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   body: { padding: spacing.six, gap: spacing.three },
   title: { ...t.type.heading, color: t.colors.ink, letterSpacing: -0.3 },
   sub: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-  hint: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body },
+  hint: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
   list: { gap: spacing.two, marginTop: spacing.one },
   row: {
     flexDirection: 'row',
@@ -311,13 +311,13 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     borderBottomColor: t.colors.accent,
   },
   removeBtn: { paddingHorizontal: spacing.one, paddingVertical: spacing.half },
-  removeMark: { color: t.colors.inkFaint, fontSize: 14 * t.scale, fontFamily: fonts.body },
-  stepOff: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
+  removeMark: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+  stepOff: { color: t.colors.inkSoft, textDecorationLine: 'line-through' },
   meta: { color: t.colors.inkSoft, fontSize: 13 * t.scale, marginTop: spacing.half, fontFamily: fonts.body },
   phases: { gap: spacing.two, marginTop: spacing.three },
   phasesHead: {
     ...t.type.eyebrow,
-    color: t.colors.inkFaint,
+    color: t.colors.inkSoft,
     textTransform: 'uppercase',
   },
   phaseRow: {
@@ -335,8 +335,10 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   phaseTitleWrap: { flex: 1 },
   phaseInput: { flex: 1 },
   phaseTitle: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-  phaseDate: { color: t.colors.repeat, fontSize: 13 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
-  phasesNote: { color: t.colors.inkFaint, fontSize: 12 * t.scale, lineHeight: 17 * t.scale, fontFamily: fonts.body },
+  // inkSoft, not the periwinkle: the dashed row has no fill, so the date sits on the sheet's paper, where `repeat`
+  // is 4.3:1 in the light themes (palette.test.ts holds `repeat` to cards and sheets). The weight still sets it apart.
+  phaseDate: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
+  phasesNote: { color: t.colors.inkSoft, fontSize: 12 * t.scale, lineHeight: 17 * t.scale, fontFamily: fonts.body },
   pace: {
     color: t.colors.inkSoft,
     fontSize: 14 * t.scale,
@@ -360,6 +362,6 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     gap: 2,
   },
   altLabel: { color: t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  altSub: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body },
+  altSub: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body },
   dismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two, fontFamily: fonts.body },
 });

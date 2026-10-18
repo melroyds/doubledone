@@ -39,5 +39,5 @@ const makeStyles = (t: Theme) =>
     content: { padding: spacing.three },
     // Selectable, because the whole point is that it can be copied out and pasted to me.
     line: { color: t.colors.inkSoft, fontSize: 11 * t.scale, fontFamily: fonts.body, lineHeight: 16 * t.scale },
-    empty: { color: t.colors.inkFaint, fontSize: 11 * t.scale, fontFamily: fonts.body, marginTop: spacing.five },
+    empty: { color: t.colors.inkSoft, fontSize: 11 * t.scale, fontFamily: fonts.body, marginTop: spacing.five },
   });

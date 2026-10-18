@@ -4874,10 +4874,10 @@ const makeStyles = (t: Theme) =>
     sliceEditStepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.four, marginVertical: spacing.four },
     sliceStepBtn: { width: 44, height: 44, borderRadius: radius.pill, borderWidth: border.hair, borderColor: t.colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: t.colors.surface },
     sliceStepBtnOff: { opacity: 0.4 },
-    sliceStepGlyph: { fontSize: 26 * t.scale, lineHeight: 30 * t.scale, color: t.colors.accent, fontFamily: fonts.body },
+    sliceStepGlyph: { fontSize: 26 * t.scale, lineHeight: 30 * t.scale, color: t.colors.accentText, fontFamily: fonts.body },
     sliceNowRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.two },
     sliceNow: { color: t.colors.ink, fontFamily: fonts.bodyBold, fontWeight: '700', fontSize: 15 * t.scale },
-    sliceUndo: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '600', fontSize: 14 * t.scale },
+    sliceUndo: { color: t.colors.accentText, fontFamily: fonts.bodyBold, fontWeight: '600', fontSize: 14 * t.scale },
     doorAltRow: { borderTopWidth: border.hair, borderTopColor: t.colors.line, marginTop: spacing.four, paddingTop: spacing.three, alignItems: 'center', gap: 2 },
     doorAltLabel: { color: t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     doorAltSub: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body },
@@ -5052,11 +5052,11 @@ const makeStyles = (t: Theme) =>
     disabledBtn: { opacity: 0.5 },
     planItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
     planTitle: { color: t.colors.ink, fontSize: 16 * t.scale, flexShrink: 1, fontFamily: fonts.body },
-    planWhen: { color: t.colors.accent, fontSize: 14 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
+    planWhen: { color: t.colors.accentText, fontSize: 14 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
     // "Plan my order" (premium): the big PremiumButton (the DoubleDone Premium gradient), the premium signal on Today.
     // Quiet's replacement for the PremiumButton gradient: "Plan my day" as a plain accent text action.
     seqItem: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.three },
-    seqNum: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', minWidth: 16, textAlign: 'center', marginTop: 1 },
+    seqNum: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', minWidth: 16, textAlign: 'center', marginTop: 1 },
     seqText: { flex: 1, gap: 1 },
     // The per-row edit controls. Quiet by default (soft ink, not the accent) so the proposal still
     // reads as a plan rather than a form, and content-sized so a long title never squeezes them out.
@@ -5078,7 +5078,7 @@ const makeStyles = (t: Theme) =>
     },
     planChipOn: { borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
     planChipText: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    planChipTextOn: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    planChipTextOn: { color: t.colors.accentText, fontFamily: fonts.bodyBold, fontWeight: '700' },
     seqReason: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale },
     planDismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two, fontFamily: fonts.body },
     pressed: { opacity: PRESSED_OPACITY },
@@ -5103,7 +5103,7 @@ const makeStyles = (t: Theme) =>
     floatNoteWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', paddingHorizontal: spacing.five },
     floatNote: { maxWidth: layout.maxContentWidth - 48, backgroundColor: t.colors.surfaceCard, borderRadius: radius.lg, paddingHorizontal: spacing.four, paddingTop: spacing.two, gap: 2 },
     // display none (not unmount): BrainDump keeps its typed text while the panel is away.
-    alsoDidLink: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    alsoDidLink: { color: t.colors.skyAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     didTitle: { ...t.type.subheading, color: t.colors.ink, letterSpacing: -0.3 },
     didHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body },
     didInput: {
@@ -5168,7 +5168,7 @@ const makeStyles = (t: Theme) =>
     combineItem: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
     focusPickList: { marginTop: spacing.five, gap: spacing.four, alignItems: 'center' },
     focusPickItem: { paddingVertical: spacing.two, paddingHorizontal: spacing.three },
-    focusPickItemText: { color: t.colors.accent, fontFamily: fonts.sans, fontSize: 22 * t.scale, textAlign: 'center' },
+    focusPickItemText: { color: t.colors.accentText, fontFamily: fonts.sans, fontSize: 22 * t.scale, textAlign: 'center' },
     // The "not sure?" helper in the Focus picker: softer than the task choices, so it reads
     // as an offer beside them, not another task. The hairline pill (Melroy, device round:
     // plain italic text wasn't dynamic enough) makes it read as tappable without shouting.
@@ -5216,7 +5216,7 @@ const makeStyles = (t: Theme) =>
     focusExit: { position: 'absolute', top: spacing.seven, left: spacing.five, zIndex: 1 },
     focusExitText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     focusBody: { alignItems: 'center', gap: spacing.four, maxWidth: 440, width: '100%' },
-    focusLabel: { ...t.type.eyebrow, color: t.colors.accent, textTransform: 'uppercase' },
+    focusLabel: { ...t.type.eyebrow, color: t.colors.accentText, textTransform: 'uppercase' },
     focusTitle: { color: t.colors.ink, fontSize: 30 * t.scale, lineHeight: 38 * t.scale, fontFamily: fonts.sans, fontWeight: '600', textAlign: 'center', letterSpacing: -0.3 },
     focusStep: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body },
     focusEmptyNote: { color: t.colors.inkSoft, fontSize: 16 * t.scale, lineHeight: 24 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
@@ -5258,5 +5258,5 @@ const makeStyles = (t: Theme) =>
     wrapRoll: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, marginTop: spacing.two, fontFamily: fonts.body },
     wrapBtn: { marginTop: spacing.three },
     wrapGoodnightQuiet: { marginTop: spacing.four, alignItems: 'flex-start', paddingVertical: spacing.two },
-    wrapGoodnightQuietText: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    wrapGoodnightQuietText: { color: t.colors.accentText, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   });

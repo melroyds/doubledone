@@ -237,7 +237,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   form: { gap: spacing.three, marginTop: spacing.six },
   sentTo: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
   fieldLabel: { color: t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  crossHint: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },
+  crossHint: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },
   success: { color: t.colors.doneText, fontSize: 26 * t.scale, fontWeight: '600', fontFamily: fonts.sans, letterSpacing: -0.3 },
   input: {
     backgroundColor: t.colors.surface,
@@ -250,7 +250,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     fontFamily: fonts.body,
     color: t.colors.ink,
   },
-  link: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.two },
+  link: { color: t.colors.accentText, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.two },
   linkDim: { opacity: 0.5 },
-  error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.four },
+  error: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.four },
 });

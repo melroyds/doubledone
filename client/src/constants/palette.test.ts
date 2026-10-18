@@ -92,12 +92,16 @@ function surfaces(p: Palette, scheme: Scheme): Record<Surface, Sample[]> {
 // this table is the contract and the test holds it. [what it is, the token, its surfaces, the ratio it needs]
 const ROLES: [string, keyof Palette, Surface[], number][] = [
   ['primary words (titles, task names)', 'ink', ['sky', 'card', 'shelf', 'tint', 'quietHeld', 'surface', 'bg'], 4.5],
-  ['words straight on the sky: the date, the greeting, the weight line, Energy, Later, the rested screen, the foot phrase', 'skyInk', ['sky'], 4.5],
-  ['secondary words on a card, the shelf, a tint or a sheet, and every placeholder', 'inkSoft', ['card', 'shelf', 'tint', 'quietHeld', 'surface', 'bg'], 4.5],
-  ['accent words on a card, the shelf, a tint or a sheet: Close the day, More, Close, Normal, Got it, the Menu label', 'accentText', ['card', 'shelf', 'pill', 'tint', 'quietHeld', 'surface', 'bg'], 4.5],
-  ['accent words straight on the sky: Reopen today, the reminder Yes, Quiet\'s Menu', 'skyAccent', ['sky'], 4.5],
-  ['the repeat mark, step counts and the tiny-step eyebrow on a card', 'repeat', ['card'], 4.5],
-  ['Remove and Skip today', 'danger', ['card', 'shelf', 'quietHeld', 'surface'], 4.5],
+  ['words straight on the sky: the date, the greeting, the weight line, Energy, Later, the rested screen, the foot phrase, the shared list\'s lines (on the page once a list is archived)', 'skyInk', ['sky', 'bg'], 4.5],
+  ['secondary words on a card, the shelf, a tint, a sheet or the page, and every placeholder', 'inkSoft', ['card', 'shelf', 'tint', 'quietHeld', 'surface', 'bg'], 4.5],
+  ['accent words on a card, the shelf, a tint, a sheet or the page: Close the day, More, Close, Normal, Got it, the Menu label, every link and action on the other screens', 'accentText', ['card', 'shelf', 'pill', 'tint', 'quietHeld', 'surface', 'bg'], 4.5],
+  ['accent words straight on the sky: Reopen today, the reminder Yes, Quiet\'s Menu, + I also did that, the shared list\'s Restore', 'skyAccent', ['sky', 'bg'], 4.5],
+  ['the repeat mark, step counts and the tiny-step eyebrow on a card', 'repeat', ['card', 'surface'], 4.5],
+  // Not words on the page: periwinkle is 4.3:1 on paper in the light themes, so the break-down review's phase dates
+  // (the one line that put it there) are inkSoft. The Calendar's ↻ beside a day's task is a symbol that screen
+  // readers skip, held as one.
+  ['the Calendar\'s ↻ beside a day\'s task (a symbol, 3:1)', 'repeat', ['bg'], 3],
+  ['Remove and Skip today, and Settings\' Delete in Quiet, which drops the cards', 'danger', ['card', 'shelf', 'quietHeld', 'surface', 'bg'], 4.5],
   ['"done" as words (the affirmation, a closed hold line)', 'doneText', ['card', 'surface', 'bg'], 4.5],
   ['labels on the accent fill (the + pill, Break it down)', 'onAccent', ['accentFill'], 4.5],
   ['the empty check ring and the select ring (not text, 3:1)', 'inkFaint', ['card'], 3],

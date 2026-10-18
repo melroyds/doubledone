@@ -601,12 +601,12 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     marginBottom: spacing.four,
   },
   monthLabel: { color: t.colors.ink, fontSize: 18 * t.scale, fontWeight: '600', fontFamily: fonts.sans },
-  arrow: { color: t.colors.accent, fontSize: 28 * t.scale, fontFamily: fonts.body, paddingHorizontal: spacing.three },
+  arrow: { color: t.colors.accentText, fontSize: 28 * t.scale, fontFamily: fonts.body, paddingHorizontal: spacing.three },
   weekRow: { flexDirection: 'row' },
   weekdayLabel: {
     flex: 1,
     textAlign: 'center',
-    color: t.colors.inkFaint,
+    color: t.colors.inkSoft,
     fontSize: 12 * t.scale,
     fontFamily: fonts.bodyBold,
     fontWeight: '600',
@@ -627,16 +627,16 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   legendDot: { width: 6, height: 6, borderRadius: radius.pill, backgroundColor: t.colors.done },
   legendDotBig: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: t.colors.done },
   legendDotScheduled: { width: 7, height: 7, borderRadius: radius.pill, borderWidth: border.thin, borderColor: t.colors.accent },
-  legendText: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body },
+  legendText: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body },
   monthEmpty: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.five },
   detail: { marginTop: spacing.six, gap: spacing.two },
   detailDate: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginBottom: spacing.one },
-  detailEmpty: { color: t.colors.inkFaint, fontSize: 15 * t.scale, fontFamily: fonts.body },
+  detailEmpty: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
   // "Add for this day": plain accent text, never a filled button. This is an offer on a screen whose
   // job is reflection, so it should be findable and quiet, not the loudest thing in view.
   pressed: { opacity: PRESSED_OPACITY },
   addDayEntry: { marginTop: spacing.three, alignSelf: 'flex-start' },
-  addDayEntryText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+  addDayEntryText: { color: t.colors.accentText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   addDayBox: { marginTop: spacing.three, gap: spacing.two },
   addDayInput: {
     borderWidth: border.hair,
@@ -654,10 +654,10 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   addDayDone: { marginTop: spacing.two, color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
   item: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
   itemMark: { color: t.colors.doneText, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-  itemMarkScheduled: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+  itemMarkScheduled: { color: t.colors.accentText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
   itemRepeat: { color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
   detailScheduledHead: {
-    color: t.colors.accent,
+    color: t.colors.accentText,
     fontSize: 12 * t.scale,
     fontFamily: fonts.bodyBold,
     fontWeight: '700',
@@ -705,7 +705,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     marginTop: spacing.three,
     paddingHorizontal: spacing.two,
   },
-  scrapbookMeta: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+  scrapbookMeta: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
   // The offscreen share page (see the render comment). Fixed cream artifact palette and
   // fixed 1080 metrics: deliberately NOT theme- or text-scale-dependent, matching the web
   // canvas composite in share.web.ts so both platforms produce the same keepsake page.
@@ -715,7 +715,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   shareCardCaption: { color: '#2F2A23', fontSize: 44, lineHeight: 62, fontFamily: fonts.sans, fontStyle: 'italic', textAlign: 'center' },
   shareCardMeta: { color: '#8A8172', fontSize: 30, lineHeight: 40, fontFamily: fonts.body, textAlign: 'center' },
   shareKeepsake: {
-    color: t.colors.accent,
+    color: t.colors.accentText,
     fontSize: 15 * t.scale,
     fontFamily: fonts.bodyBold,
     fontWeight: '600',
@@ -743,12 +743,12 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  invitePlusText: { color: t.colors.accent, fontSize: 28 * t.scale, fontFamily: fonts.body, lineHeight: 32 * t.scale },
+  invitePlusText: { color: t.colors.accentText, fontSize: 28 * t.scale, fontFamily: fonts.body, lineHeight: 32 * t.scale },
   scrapbookHint: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
   scrapbookBtn: { alignSelf: 'center' },
-  scrapbookError: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
-  scrapbookNote: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, lineHeight: 17 * t.scale, textAlign: 'center' },
-  scrapbookCadence: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.one },
+  scrapbookError: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+  scrapbookNote: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body, lineHeight: 17 * t.scale, textAlign: 'center' },
+  scrapbookCadence: { color: t.colors.accentText, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.one },
   weekList: { marginTop: spacing.four, gap: spacing.two },
   weekListHead: {
     color: t.colors.inkSoft,
