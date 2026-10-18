@@ -1,28 +1,36 @@
-// The static, crawlable landing page (an external website audit, October 2026: "search can't see it").
+// The static, crawlable landing page (an external website audit, October 2026: "search can't see it"), rebuilt to
+// the Claude Design handoff of 18 October 2026 ("show what it does, calmly": one column, eleven sections, the drawn
+// Today card, six real screens), with every line checked against the app before it shipped.
 //
 // WHY THIS EXISTS: the web app is an SPA (output:'single'), so doubledone.app/ shipped an empty <div id="root">
 // and the real landing page only existed after the JavaScript bundle ran. Google indexes JavaScript pages late
 // and unreliably, link unfurlers and most other crawlers never run it, and searching "DoubleDone" mostly found
-// other apps. This module renders the SAME landing page as plain HTML, from the SAME catalogue strings the app
-// uses, and scripts/inject-web-meta.mjs writes it into the exported index.html at build time.
+// other apps. This module renders the landing page as plain HTML, from the SAME catalogue strings the app uses,
+// and scripts/inject-web-meta.mjs writes it into the exported index.html at build time.
 //
 // How it shows only when it should (the whole contract, kept in this file so it cannot drift):
 //   - landingBoot() runs inline in <head>, before first paint. A fresh visitor at "/" gets html.dd-landing (the
 //     static page shows, the app's #root is hidden). Anyone else, a returning visitor or any app route the SPA
 //     fallback serves this same index.html for, gets html.dd-app (the static page is hidden, the app shows).
 //     A returning visitor therefore never sees a flash of the marketing page.
+//   - The same boot stamps data-platform (ios / android / desktop) so CSS shows ONE primary action: the phone's
+//     own store badge with "Or start in your browser" under it, or Begin on a laptop or tablet. All three are in
+//     the HTML (crawlable); without JavaScript, or on a browser it cannot place, the laptop version shows, so
+//     every visitor still has a way in.
 //   - Without JavaScript nothing is hidden: the static page is the visible default, which is what crawlers need.
 //   - The app's own index route (app/index.tsx) takes over once the bundle runs, via lib/landing-dom.ts: Begin
-//     becomes a client-side navigation, and leaving "/" swaps the classes back.
+//     (and the browser link) become a client-side navigation, and leaving "/" swaps the classes back.
 //   - English is in the DOM. The other four languages ride in <template> elements, which are inert and not page
 //     text, so a crawler reads one clean English page. A visitor whose browser language is one of ours gets theirs
 //     swapped in by a tiny inline script before the page is shown (the boot hides the English until then).
 //   - No email collection here, by Melroy's rule (2026-10-18): email is only ever used to sign in.
+//   - No price figure, no social proof, no motion (decided for the redesign, 2026-10-18).
 //
 // Pure: no React Native, no DOM. landingBoot is inlined by toString(), so it must stay self-contained (no imports,
 // no module constants inside it) and plain enough for any browser that runs the app.
 
 import { translate } from './i18n';
+import { PICTURE_SIZES } from './landing-pictures';
 
 export const LANDING_LOCALES = ['en', 'de', 'es', 'fr', 'it'] as const;
 export type LandingLocale = (typeof LANDING_LOCALES)[number];
@@ -31,6 +39,7 @@ export const LANDING_ID = 'dd-landing';
 export const SITE = 'https://doubledone.app';
 export const APP_STORE_URL = 'https://apps.apple.com/app/doubledone/id6790136615';
 export const PLAY_URL = 'https://play.google.com/store/apps/details?id=app.doubledone';
+export const API_DOCS_URL = 'https://api.doubledone.app/api/v1/docs';
 /** The app's first-run flag (lib/storage.ts ONBOARDED_KEY). landingBoot repeats it as a literal; a test holds them equal. */
 export const ONBOARDED_STORAGE_KEY = 'doubledone.onboarded.v1';
 
@@ -41,8 +50,18 @@ export function pickLocale(languages: readonly (string | null | undefined)[]): L
   return (LANDING_LOCALES as readonly string[]).includes(first) ? (first as LandingLocale) : 'en';
 }
 
-/** Runs inline in <head> before first paint (see the header). Mirrors pickLocale and loadOnboarded exactly,
- *  including loadOnboarded's choice to treat unreadable storage as "already onboarded" (straight to the app). */
+/** The platform for the one primary action. An iPhone gets the App Store, an Android PHONE gets Google Play, and
+ *  everything else (a laptop, an iPad, an Android tablet, a browser we cannot place) gets Begin. landingBoot
+ *  repeats this as literals; a test holds the two equal. */
+export function pickPlatform(userAgent: string | null | undefined): 'ios' | 'android' | 'desktop' {
+  const ua = String(userAgent ?? '');
+  if (/iPhone|iPod/.test(ua)) return 'ios';
+  if (/Android/.test(ua) && /Mobile/.test(ua)) return 'android';
+  return 'desktop';
+}
+
+/** Runs inline in <head> before first paint (see the header). Mirrors pickLocale, pickPlatform and loadOnboarded
+ *  exactly, including loadOnboarded's choice to treat unreadable storage as "already onboarded" (straight to the app). */
 export function landingBoot(w: any): void {
   const h = w.document.documentElement;
   let onboarded = false;
@@ -56,6 +75,11 @@ export function landingBoot(w: any): void {
   const first = String(langs[0] || '').slice(0, 2).toLowerCase();
   const lang = ['en', 'de', 'es', 'fr', 'it'].indexOf(first) >= 0 ? first : 'en';
   h.setAttribute('data-dd-lang', lang);
+  const ua = String(nav.userAgent || '');
+  let platform = 'desktop';
+  if (/iPhone|iPod/.test(ua)) platform = 'ios';
+  else if (/Android/.test(ua) && /Mobile/.test(ua)) platform = 'android';
+  h.setAttribute('data-platform', platform);
   const path = w.location.pathname;
   if ((path === '/' || path === '/index.html') && !onboarded) {
     h.classList.add('dd-landing');
@@ -85,106 +109,210 @@ export function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ESC[c]);
 }
 
-/** The FAQ, in display order: [question key, answer key]. Also feeds the FAQPage structured data. */
+/** The questions, in display order: [question key, answer key]. Seven, and the list never grows: a new question
+ *  replaces one (the handoff's rule). "What happens to unfinished tasks" and "Can I share a list" were retired in the
+ *  redesign because sections 3 and 5 now answer them on the page. */
 export const FAQ: readonly (readonly [string, string])[] = [
   ['landing.faqWhoQ', 'landing.faqWhoA'],
   ['landing.faqFreeQ', 'landing.faqFreeA'],
   ['landing.faqAccountQ', 'landing.faqAccountA'],
-  ['landing.faqUnfinishedQ', 'landing.faqUnfinishedA'],
   ['landing.faqAiQ', 'landing.faqAiA'],
-  ['landing.faqShareQ', 'landing.faqShareA'],
   ['landing.faqWhereQ', 'landing.faqWhereA'],
   ['landing.faqMedicalQ', 'landing.faqMedicalA'],
   ['landing.faqDeleteQ', 'landing.faqDeleteA'],
 ];
 
-const MARK = '<span class="ddl-mark" aria-hidden="true"><span class="ddl-c1">✓</span><span class="ddl-c2">✓</span></span>';
+/** The six real screens. Files are /landing/{name}-{light|dark}-{locale}.webp, captured by
+ *  scripts/landing-shots.mjs from the app itself with the cast seeded in each language (an English screen on a
+ *  German page is a trust leak). Each crop follows its language's own line lengths, so its size comes from the
+ *  generated PICTURE_SIZES and the page holds exactly that box before the file loads. */
+export const PICTURES = {
+  rested: { alt: 'landing.altRested' },
+  plan: { alt: 'landing.altPlan' },
+  low: { alt: 'landing.altLow' },
+  settle: { alt: 'landing.altSettle' },
+  ours: { alt: 'landing.altOurs' },
+  calendar: { alt: 'landing.altCal' },
+} as const;
+export type PictureName = keyof typeof PICTURES;
 
-function stores(tr: (k: string) => string): string {
-  return `<div class="ddl-stores">
-        <a href="${APP_STORE_URL}" class="ddl-badge"><img src="/img/app-store-badge.svg" alt="${esc(tr('welcome.appStoreBadgeA11y'))}" width="144" height="48" loading="lazy"></a>
-        <a href="${PLAY_URL}" class="ddl-badge"><img src="/img/google-play-badge.png" alt="${esc(tr('welcome.playBadgeA11y'))}" width="140" height="54" loading="lazy"></a>
-      </div>`;
+/** The display box of a picture at 320 wide: the captured size, else a 4:5 placeholder (only before a first capture). */
+export function pictureSize(name: PictureName, loc: LandingLocale): readonly [number, number] {
+  return PICTURE_SIZES[name]?.[loc] ?? [320, 400];
 }
+
+/** The store badges per language: Apple's and Google's OFFICIAL localised badges (downloaded 2026-10-18 from
+ *  tools.applemediaservices.com and play.google.com/intl/en_us/badges, Melroy's yes), so a German page says
+ *  "Laden im App Store". Google's PNGs are trimmed of their built-in clear space, because the layout gives each
+ *  badge its own room. Each carries its own proportions (the French App Store badge is wider). */
+export const BADGES: Record<LandingLocale, { appStore: string; appStoreRatio: number; play: string; playRatio: number }> = {
+  en: { appStore: '/img/badges/app-store-en.svg', appStoreRatio: 119.66407 / 40, play: '/img/badges/google-play-en.png', playRatio: 564 / 168 },
+  de: { appStore: '/img/badges/app-store-de.svg', appStoreRatio: 119.66407 / 40, play: '/img/badges/google-play-de.png', playRatio: 646 / 192 },
+  es: { appStore: '/img/badges/app-store-es.svg', appStoreRatio: 119.66407 / 40, play: '/img/badges/google-play-es.png', playRatio: 646 / 192 },
+  fr: { appStore: '/img/badges/app-store-fr.svg', appStoreRatio: 126.50751 / 40, play: '/img/badges/google-play-fr.png', playRatio: 646 / 192 },
+  it: { appStore: '/img/badges/app-store-it.svg', appStoreRatio: 119.66407 / 40, play: '/img/badges/google-play-it.png', playRatio: 646 / 192 },
+};
+
+const MARK =
+  '<span class="ddl-mark" aria-hidden="true"><span class="ddl-c1">✓</span><span class="ddl-c2">✓</span></span>';
 
 /** One complete page in one language. Only one is ever in the DOM (id="ddl-page"). */
 export function renderPage(loc: LandingLocale): string {
   const tr = (k: string) => translate(loc, k);
   const t = (k: string) => esc(tr(k));
+  const badges = BADGES[loc];
+
+  const badge = (store: 'appStore' | 'play', height: number) => {
+    const ratio = store === 'appStore' ? badges.appStoreRatio : badges.playRatio;
+    const href = store === 'appStore' ? APP_STORE_URL : PLAY_URL;
+    const alt = t(store === 'appStore' ? 'welcome.appStoreBadgeA11y' : 'welcome.playBadgeA11y');
+    return `<a class="ddl-badge" href="${href}"><img src="${badges[store]}" alt="${alt}" width="${Math.round(height * ratio)}" height="${height}"></a>`;
+  };
+  // The visible word is inside the accessible name (WCAG 2.5.3): "Begin" -> "Begin, open DoubleDone".
   const begin = `<a class="ddl-btn" href="/today" data-dd-begin aria-label="${t('welcome.beginA11y')}">${t('common.begin')}</a>`;
+  const browser = `<a class="ddl-browser" href="/today" data-dd-begin>${t('landing.browser')}</a>`;
+  const trust = `<p class="ddl-trust">${t('welcome.trustLine')}</p>`;
+  /** The one action, by the same rule in the hero and the closing; only the hero carries the trust line and the
+   *  laptop's "Also on" row. */
+  const action = (hero: boolean) => `<div class="ddl-act">
+      <div class="act-ios">${badge('appStore', 56)}${browser}${hero ? trust : ''}</div>
+      <div class="act-android">${badge('play', 56)}${browser}${hero ? trust : ''}</div>
+      <div class="act-desktop">${begin}${
+        hero
+          ? `${trust}<p class="ddl-also">${t('landing.alsoOn')}</p><div class="ddl-stores">${badge('appStore', 40)}${badge('play', 40)}</div>`
+          : ''
+      }</div>
+    </div>`;
+
+  const picture = (name: PictureName) => {
+    const [w, h] = pictureSize(name, loc);
+    return `<picture class="ddl-pic">
+        <source srcset="/landing/${name}-dark-${loc}.webp" media="(prefers-color-scheme: dark)">
+        <img src="/landing/${name}-light-${loc}.webp" width="${w}" height="${h}" alt="${t(PICTURES[name].alt)}" loading="lazy" decoding="async">
+      </picture>`;
+  };
+
+  // The drawn Today card: HTML, not a picture, so it is sharp, themed and in every language. One spoken label;
+  // everything inside is presentational. Two rows done, one open: the weight bar fills one step of eight (12.5%),
+  // exactly what the app draws for one open task on a Normal day.
+  const row = (k: string, done: boolean) =>
+    `<li class="${done ? 'ddl-row ddl-row-done' : 'ddl-row'}"><span class="ddl-circle"></span><span>${t(k)}</span></li>`;
+  const card = `<div class="ddl-card" role="img" aria-label="${t('landing.cardA11y')}">
+        <div aria-hidden="true">
+          <p class="ddl-card-title"><span>${t('common.today')}</span></p>
+          <p class="ddl-card-greet">${t('phase.greeting.morning')}</p>
+          <div class="ddl-weight"><span></span></div>
+          <p class="ddl-card-weight">${t('estimate.weight.light')}</p>
+          <p class="ddl-energy"><span class="ddl-energy-label">${t('today.energyOverline')}</span><span>${t('today.energyPillLow')}</span><span class="ddl-energy-on">${t('today.energyPillNormal')}</span><span>${t('today.energyPillHigh')}</span></p>
+          <ul class="ddl-rows">
+            ${row('landing.castPharmacy', true)}
+            ${row('landing.castBins', true)}
+            ${row('landing.castTaxes', false)}
+          </ul>
+        </div>
+      </div>`;
+
   const steps = [
-    ['1', 'widget.quickActionDumpSubtitle', 'welcome.step1Body'],
-    ['2', 'welcome.step2Title', 'welcome.step2Body'],
-    ['3', 'welcome.step3Title', 'welcome.step3Body'],
+    ['1', 'landing.s1Title', 'landing.s1Body'],
+    ['2', 'landing.s2Title', 'landing.s2Body'],
+    ['3', 'landing.s3Title', 'landing.s3Body'],
   ]
-    .map(
-      ([n, title, body]) =>
-        `<li><span class="ddl-n" aria-hidden="true">${n}</span><div><h3>${t(title)}</h3><p>${t(body)}</p></div></li>`,
-    )
-    .join('\n          ');
-  const faq = FAQ.map(
-    ([q, a]) => `<details><summary><h3>${t(q)}</h3></summary><p>${t(a)}</p></details>`,
-  ).join('\n        ');
+    .map(([n, h, b]) => `<li><span class="ddl-n" aria-hidden="true">${n}</span><div><h3>${t(h)}</h3><p>${t(b)}</p></div></li>`)
+    .join('\n        ');
+
+  const moment = (n: 1 | 2 | 3 | 4, pic: PictureName) => `<div class="ddl-moment">
+        <p class="ddl-kicker">${t(`landing.m${n}Kicker`)}</p>
+        <h3>${t(`landing.m${n}Title`)}</h3>
+        <p>${t(`landing.m${n}Body`)}</p>
+        ${picture(pic)}
+      </div>`;
+
+  const small = [
+    ['landing.focusName', 'landing.focusLine'],
+    ['landing.repeatName', 'landing.repeatLine'],
+    ['landing.leftOffName', 'landing.leftOffLine'],
+  ]
+    .map(([n, l]) => `<li><b>${t(n)}</b> ${t(l)}</li>`)
+    .join('\n        ');
+  const priv = ['priv1', 'priv2', 'priv3', 'priv4', 'priv5'].map((k) => `<li>${t(`landing.${k}`)}</li>`).join('\n        ');
+  const faq = FAQ.map(([q, a]) => `<details><summary>${t(q)}</summary><p>${t(a)}</p></details>`).join('\n        ');
+  // The API docs are English only, so the link says so to a reader in another language.
+  const devLang = loc === 'en' ? '' : ' hreflang="en"';
 
   return `<div class="ddl-page" id="ddl-page" lang="${loc}">
   <a class="ddl-skip" href="#ddl-main">${t('landing.skipToContent')}</a>
   <header class="ddl-top">${MARK}<span class="ddl-word">DoubleDone</span></header>
   <main id="ddl-main">
     <section class="ddl-hero" aria-labelledby="ddl-h1">
-      <p class="ddl-kicker">${t('landing.kicker')}</p>
-      <h1 id="ddl-h1">${t('welcome.heroHeadline')}</h1>
-      <p class="ddl-sub">${t('welcome.heroSub')}</p>
-      ${begin}
-      <p class="ddl-trust">${t('welcome.trustLine')}</p>
-      <p class="ddl-also">${t('landing.alsoOn')}</p>
-      ${stores(tr)}
-      <div class="ddl-today" role="img" aria-label="${t('welcome.todayMockA11y')}">
-        <div class="ddl-today-head" aria-hidden="true"><span class="ddl-today-title">${t('common.today')}</span><span class="ddl-today-date">${t('welcome.mockTodayDate')}</span></div>
-        <ul aria-hidden="true">
-          <li class="ddl-done"><span class="ddl-check">✓</span>${t('welcome.mockTask1')}</li>
-          <li class="ddl-done"><span class="ddl-check">✓</span>${t('welcome.mockTask2')}</li>
-          <li><span class="ddl-check ddl-open"></span>${t('welcome.mockTask3')}</li>
-        </ul>
-        <p class="ddl-today-foot" aria-hidden="true">${t('welcome.revealRestWaiting')}</p>
-      </div>
-      <div class="ddl-promise"><h2>${t('welcome.lead2')}</h2><p>${t('welcome.promiseBody')}</p></div>
+      <h1 id="ddl-h1"><span class="ddl-kicker">${t('landing.kicker')}</span> <span class="ddl-belief">${t('welcome.heroHeadline')}</span></h1>
+      <p class="ddl-sub">${t('landing.sub')}</p>
+      ${card}
+      <p class="ddl-caption">${t('landing.caption')}</p>
+      ${action(true)}
     </section>
-    <section class="ddl-how" aria-labelledby="ddl-how-h">
-      <p class="ddl-label">${t('welcome.howLabel')}</p>
-      <h2 id="ddl-how-h">${t('welcome.howHeadline')}</h2>
-      <ol class="ddl-steps" role="list">
-          ${steps}
+    <section aria-labelledby="ddl-promise-h">
+      <p class="ddl-kicker">${t('landing.promiseKicker')}</p>
+      <h2 id="ddl-promise-h">${t('welcome.lead2')}</h2>
+      <p>${t('landing.promiseBody')}</p>
+      <p>${t('landing.promiseLead')}</p>
+      <blockquote class="ddl-quote"><p>${t('today.reentryBody')}</p></blockquote>
+    </section>
+    <section aria-labelledby="ddl-day-h">
+      <p class="ddl-kicker">${t('welcome.howLabel')}</p>
+      <h2 id="ddl-day-h">${t('welcome.howHeadline')}</h2>
+      <ol class="ddl-steps">
+        ${steps}
       </ol>
+      ${picture('rested')}
     </section>
-    <section class="ddl-payoff" aria-labelledby="ddl-pay-h">
-      <span class="ddl-dot" aria-hidden="true">✓</span>
-      <h2 id="ddl-pay-h">${t('welcome.keepHeading')}</h2>
-      <p>${t('welcome.payoffBody')}</p>
+    <section aria-labelledby="ddl-hard-h">
+      <h2 id="ddl-hard-h">${t('landing.hardTitle')}</h2>
+      <p>${t('landing.hardIntro')}</p>
+      ${moment(1, 'plan')}
+      ${moment(2, 'low')}
+      ${moment(3, 'settle')}
+      ${moment(4, 'ours')}
     </section>
-    <section class="ddl-faq" aria-labelledby="ddl-faq-h">
-      <p class="ddl-label">${t('landing.faqLabel')}</p>
-      <h2 id="ddl-faq-h">${t('landing.faqHeading')}</h2>
+    <section aria-labelledby="ddl-keep-h">
+      <p class="ddl-kicker">${t('landing.keepKicker')}</p>
+      <h2 id="ddl-keep-h">${t('welcome.keepHeading')}</h2>
+      <p>${t('landing.keepBody')}</p>
+      ${picture('calendar')}
+    </section>
+    <section aria-labelledby="ddl-small-h">
+      <h2 id="ddl-small-h">${t('landing.smallTitle')}</h2>
+      <ul class="ddl-list ddl-small">
+        ${small}
+      </ul>
+    </section>
+    <section aria-labelledby="ddl-priv-h">
+      <h2 id="ddl-priv-h">${t('landing.privTitle')}</h2>
+      <ul class="ddl-list">
+        ${priv}
+      </ul>
+    </section>
+    <section aria-labelledby="ddl-faq-h">
+      <h2 id="ddl-faq-h">${t('landing.faqLabel')}</h2>
       <div class="ddl-qs">
         ${faq}
       </div>
     </section>
-    <section class="ddl-closing">
-      <p class="ddl-closing-line">${t('welcome.closingLine')}</p>
-      ${begin}
-      <p class="ddl-trust">${t('welcome.trustLine')}</p>
-      ${stores(tr)}
-      <p class="ddl-store-fine" lang="en">Google Play and the Google Play logo are trademarks of Google LLC.</p>
+    <section class="ddl-closing" aria-labelledby="ddl-close-h">
+      <h2 id="ddl-close-h">${t('welcome.closingLine')}</h2>
+      ${action(false)}
+      <p class="ddl-founder">${t('landing.founder')}</p>
     </section>
   </main>
   <footer class="ddl-foot">
-    <p>${t('welcome.footerWho')}</p>
     <nav class="ddl-links" aria-label="DoubleDone">
       <a href="/privacy">${t('landing.footerPrivacy')}</a>
       <a href="/terms">${t('landing.footerTerms')}</a>
       <a href="/support">${t('landing.footerSupport')}</a>
+      <a href="${API_DOCS_URL}"${devLang}>${t('landing.footerDevelopers')}</a>
     </nav>
-    <p class="ddl-foot-meta">${MARK}<span class="ddl-word">DoubleDone</span></p>
-    <p class="ddl-fine">${t('landing.footerMedical')} ${t('welcome.footerFine')}</p>
+    <p>${t('landing.footerLanguages')}</p>
+    <p>${t('landing.footerMedical')}</p>
+    <p class="ddl-tm" lang="en">Apple, the Apple logo and iPhone are trademarks of Apple Inc., registered in the U.S. and other countries. App Store is a service mark of Apple Inc., registered in the U.S. and other countries. Google Play and the Google Play logo are trademarks of Google LLC.</p>
   </footer>
 </div>`;
 }
@@ -206,85 +334,138 @@ export function structuredData(): string {
   return JSON.stringify(data).replace(/</g, '\\u003c');
 }
 
+/** The palette, light then dark, exactly the handoff's tokens. Every text pair clears WCAG AA (the test computes
+ *  them). The app accent (#946475) is a hair under AA as TEXT on paper, so the page deepens it to #8D5D6F. */
+export const TOKENS = {
+  light: {
+    paper: '#FAF6F1', surface: '#FFFFFF', line: '#ECE4D8', ink: '#2B2722', body: '#5F564C', soft: '#6B6259',
+    mauve: '#8D5D6F', onMauve: '#FFFFFF', sage: '#7E9B6B', tint: '#F6EFF2', row: '#FFFFFF', repeat: '#6E72A0',
+    check: '#8C8279', skyTop: '#FBE4D1', skyMid: '#FAECE3', skyEnd: '#F7EEEC', cardSoft: '#5F564C',
+  },
+  dark: {
+    paper: '#1B1917', surface: '#252119', line: '#34302A', ink: '#F2EBE0', body: '#D8CEC0', soft: '#C9C0B4',
+    mauve: '#C68BA0', onMauve: '#2B2722', sage: '#9DB98A', tint: '#3A2E35', row: '#2A2521', repeat: '#8E97C8',
+    check: '#7E756C', skyTop: '#3A2D27', skyMid: '#2C2522', skyEnd: '#262120', cardSoft: '#C9C0B4',
+  },
+} as const;
+
+const vars = (p: (typeof TOKENS)['light'] | (typeof TOKENS)['dark']) =>
+  `--paper:${p.paper};--surface:${p.surface};--line:${p.line};--ink:${p.ink};--body:${p.body};--soft:${p.soft};--mauve:${p.mauve};--on-mauve:${p.onMauve};--sage:${p.sage};--tint:${p.tint};--row:${p.row};--repeat:${p.repeat};--check:${p.check};--card-soft:${p.cardSoft};--sky:linear-gradient(180deg,${p.skyTop} 0%,${p.skyMid} 55%,${p.skyEnd} 100%)`;
+
+const SERIF = "'Newsreader',Georgia,'Times New Roman',serif";
+const SANS = "'Atkinson Hyperlegible',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif";
+
 const CSS = `
 html.dd-app #dd-landing{display:none!important}
 /* Keyed off "not the app", not "is the landing": with no JavaScript the boot never runs, and the page must still scroll. */
 html:not(.dd-app) #root{display:none!important}
-html:not(.dd-app),html:not(.dd-app) body{height:auto!important;min-height:100%;overflow:auto!important;overscroll-behavior-y:auto!important;background:#FAF6F1}
+html:not(.dd-app),html:not(.dd-app) body{height:auto!important;min-height:100%;overflow:auto!important;overscroll-behavior-y:auto!important;background:${TOKENS.light.paper}}
 html:not(.ddl-ready)[data-dd-lang]:not([data-dd-lang="en"]) #ddl-page{visibility:hidden}
-/* The app accent (#946475) is a hair under AA as TEXT on paper (4.498:1), so the page deepens it a touch. */
-#dd-landing{--bg:#FAF6F1;--surface:#FFFFFF;--ink:#2B2722;--body:#5F564C;--soft:#6B6259;--line:#ECE4D8;--accent:#8D5D6F;--on-accent:#FFFFFF;--done:#7E9B6B;--on-done:#21261F;--shadow:0 24px 50px -28px rgba(43,39,34,.30);
-  background:var(--bg);color:var(--ink);font-family:'Atkinson Hyperlegible',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased;-webkit-user-select:text;user-select:text;-webkit-touch-callout:default;min-height:100vh}
+#dd-landing{${vars(TOKENS.light)};
+  background:var(--paper);color:var(--ink);font-family:${SANS};font-size:18px;line-height:27px;-webkit-font-smoothing:antialiased;-webkit-user-select:text;user-select:text;-webkit-touch-callout:default;min-height:100vh}
 @media (prefers-color-scheme:dark){
-  html:not(.dd-app),html:not(.dd-app) body{background:#1B1917}
-  #dd-landing{--bg:#1B1917;--surface:#252119;--ink:#F2EBE0;--body:#D8CEC0;--soft:#C9C0B4;--line:#34302A;--accent:#C68BA0;--on-accent:#2B2722;--done:#9DB98A;--on-done:#2B2722;--shadow:0 24px 50px -28px rgba(0,0,0,.55);color-scheme:dark}
+  html:not(.dd-app),html:not(.dd-app) body{background:${TOKENS.dark.paper}}
+  #dd-landing{${vars(TOKENS.dark)};color-scheme:dark}
 }
 #dd-landing *{box-sizing:border-box}
-#dd-landing .ddl-page{max-width:640px;margin:0 auto;padding:40px 22px 64px}
-#dd-landing h1,#dd-landing h2,#dd-landing h3,#dd-landing .ddl-today-title,#dd-landing .ddl-kicker,#dd-landing .ddl-closing-line,#dd-landing .ddl-today-foot{font-family:'Newsreader',Georgia,'Times New Roman',serif;color:var(--ink);font-weight:600;margin:0;text-wrap:balance}
-#dd-landing p{margin:0}
-#dd-landing a{color:var(--accent);text-underline-offset:3px}
-#dd-landing :focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:6px}
+#dd-landing .ddl-page{max-width:640px;margin:0 auto;padding:0 24px 48px}
+#dd-landing p,#dd-landing h1,#dd-landing h2,#dd-landing h3,#dd-landing ul,#dd-landing ol,#dd-landing blockquote{margin:0;padding:0}
+#dd-landing h1,#dd-landing h2,#dd-landing h3{font-family:${SERIF};color:var(--ink);text-wrap:balance}
+#dd-landing p{text-wrap:pretty}
+#dd-landing a{color:var(--mauve);font-weight:700;text-decoration:underline;text-underline-offset:3px}
+#dd-landing :focus-visible{outline:3px solid var(--mauve);outline-offset:3px;border-radius:6px}
 #dd-landing .ddl-skip{position:absolute;left:-9999px;top:8px;background:var(--surface);color:var(--ink);padding:10px 14px;border-radius:8px;border:1px solid var(--line);z-index:10}
 #dd-landing .ddl-skip:focus{left:12px}
-#dd-landing .ddl-top{display:flex;align-items:center;gap:10px;margin-bottom:36px}
-#dd-landing .ddl-mark{width:30px;height:30px;border-radius:9px;background:var(--surface);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;line-height:1}
-#dd-landing .ddl-c1{color:var(--done)}
-#dd-landing .ddl-c2{color:var(--accent);margin-left:-5px}
-#dd-landing .ddl-word{color:var(--soft);font-weight:700;font-size:14px;letter-spacing:.3px}
-#dd-landing .ddl-kicker{color:var(--accent);font-style:italic;font-weight:500;font-size:20px;line-height:1.3;margin-bottom:14px}
-#dd-landing h1{font-size:clamp(34px,8vw,44px);line-height:1.08;letter-spacing:-.6px}
-#dd-landing .ddl-sub{color:var(--body);font-size:19px;line-height:1.6;margin-top:18px;max-width:30em}
-#dd-landing .ddl-btn{display:flex;align-items:center;justify-content:center;min-height:52px;margin-top:28px;border-radius:999px;background:var(--accent);color:var(--on-accent);font-weight:700;font-size:17px;text-decoration:none;padding:0 28px}
-#dd-landing .ddl-btn:hover{filter:brightness(1.05)}
-#dd-landing .ddl-trust{color:var(--soft);font-size:15px;text-align:center;margin-top:12px}
-#dd-landing .ddl-also{color:var(--soft);font-size:15px;text-align:center;margin-top:22px}
-#dd-landing .ddl-stores{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:center;margin-top:12px}
-#dd-landing .ddl-badge{display:inline-flex;min-height:48px;align-items:center;border-radius:10px}
+#dd-landing .ddl-top{display:flex;align-items:center;gap:10px;padding:12px 0}
+#dd-landing .ddl-mark{width:32px;height:32px;border-radius:8px;background:var(--surface);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;line-height:1}
+#dd-landing .ddl-c1{color:var(--sage)}
+#dd-landing .ddl-c2{color:var(--mauve);margin-left:-5px}
+#dd-landing .ddl-word{color:var(--ink);font-weight:700;font-size:15px}
+#dd-landing section{padding:48px 0;border-top:1px solid var(--line)}
+#dd-landing section.ddl-hero{border-top:0;padding-top:24px}
+#dd-landing section>p,#dd-landing .ddl-moment>p:not(.ddl-kicker){color:var(--body);max-width:36em}
+#dd-landing .ddl-kicker{display:block;font-family:${SERIF};font-style:italic;font-weight:400;font-size:19px;line-height:27px;color:var(--mauve)}
+#dd-landing h1 .ddl-belief{display:block;margin-top:8px;font-weight:600;font-size:34px;line-height:39px;letter-spacing:-.01em}
+#dd-landing h2{font-weight:500;font-size:28px;line-height:34px}
+#dd-landing h3{font-weight:600;font-size:23px;line-height:29px}
+#dd-landing .ddl-kicker+h2,#dd-landing .ddl-kicker+h3{margin-top:8px}
+#dd-landing h2+p,#dd-landing h2+ol,#dd-landing h2+ul,#dd-landing h2+.ddl-qs{margin-top:16px}
+#dd-landing h3+p{margin-top:12px}
+#dd-landing section>p+p{margin-top:16px}
+#dd-landing .ddl-sub{margin-top:12px;color:var(--body)}
+/* The drawn Today card (handoff section 4). */
+#dd-landing .ddl-card{margin-top:24px;width:100%;max-width:420px;border-radius:20px;border:1px solid var(--line);background:var(--sky);padding:16px}
+#dd-landing .ddl-card-title span{display:inline-block;font-family:${SERIF};font-weight:500;font-size:28px;line-height:34px;color:var(--ink);border-bottom:2px solid var(--mauve);padding-bottom:3px}
+#dd-landing .ddl-card-greet{margin-top:8px;font-size:15px;line-height:21px;color:var(--card-soft)}
+#dd-landing .ddl-weight{margin-top:12px;height:5px;border-radius:3px;background:var(--line);background:color-mix(in srgb,var(--ink) 10%,transparent);overflow:hidden}
+#dd-landing .ddl-weight span{display:block;height:100%;width:12.5%;background:var(--mauve);border-radius:3px}
+#dd-landing .ddl-card-weight{margin-top:6px;font-size:13px;line-height:18px;color:var(--card-soft)}
+#dd-landing .ddl-energy{margin-top:12px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;font-size:13px;line-height:18px;color:var(--card-soft)}
+#dd-landing .ddl-energy span{padding:4px 8px;border-radius:999px}
+#dd-landing .ddl-energy .ddl-energy-label{padding-left:0;font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink)}
+#dd-landing .ddl-energy .ddl-energy-on{background:var(--tint);color:var(--mauve);font-weight:700}
+#dd-landing .ddl-rows{list-style:none;margin-top:12px;display:flex;flex-direction:column;gap:6px}
+#dd-landing .ddl-row{display:flex;align-items:center;gap:10px;min-height:42px;padding:8px 12px;border-radius:12px;background:var(--row);border:1.5px solid var(--repeat);font-size:15px;line-height:21px;color:var(--ink)}
+#dd-landing .ddl-row-done{color:var(--card-soft)}
+#dd-landing .ddl-circle{flex:none;width:22px;height:22px;border-radius:999px;border:2px solid var(--check);display:inline-flex;align-items:center;justify-content:center}
+#dd-landing .ddl-row-done .ddl-circle{border:0;background:var(--mauve)}
+#dd-landing .ddl-row-done .ddl-circle::after{content:'';width:6px;height:10px;border:solid var(--on-mauve);border-width:0 2px 2px 0;transform:translateY(-1px) rotate(45deg)}
+#dd-landing .ddl-caption{margin-top:12px;font-family:${SERIF};font-style:italic;font-size:16px;line-height:24px;color:var(--soft)}
+/* The one action (handoff section 3): CSS shows one of three. No JavaScript, or a browser we cannot place, is desktop. */
+#dd-landing .ddl-act{margin-top:24px}
+#dd-landing .act-ios,#dd-landing .act-android{display:none}
+html[data-platform="ios"] #dd-landing .act-ios,html[data-platform="android"] #dd-landing .act-android{display:block}
+html[data-platform="ios"] #dd-landing .act-desktop,html[data-platform="android"] #dd-landing .act-desktop{display:none}
+#dd-landing .ddl-badge{display:inline-flex;border-radius:10px;text-decoration:none}
 #dd-landing .ddl-badge img{display:block;height:auto;max-width:100%}
-#dd-landing .ddl-today{margin-top:40px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:var(--shadow)}
-#dd-landing .ddl-today-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
-#dd-landing .ddl-today-title{font-size:26px}
-#dd-landing .ddl-today-date{color:var(--soft);font-size:14px}
-#dd-landing .ddl-today ul{list-style:none;margin:14px 0 0;padding:0}
-#dd-landing .ddl-today li{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--line);font-size:16px}
-#dd-landing .ddl-today li.ddl-done{color:var(--soft);text-decoration:line-through}
-#dd-landing .ddl-check{width:24px;height:24px;flex:none;border-radius:999px;background:var(--done);color:var(--on-done);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;text-decoration:none}
-#dd-landing .ddl-check.ddl-open{background:transparent;border:2px solid var(--soft)}
-#dd-landing .ddl-today-foot{color:var(--accent);font-style:italic;font-weight:500;font-size:17px;margin-top:16px}
-#dd-landing .ddl-promise{margin-top:40px;border-top:1px solid var(--line);padding-top:28px}
-#dd-landing .ddl-promise h2,#dd-landing section>h2{font-size:clamp(27px,6vw,32px);line-height:1.2;letter-spacing:-.3px}
-#dd-landing .ddl-promise p,#dd-landing section>p:not(.ddl-label){color:var(--body);font-size:18px;line-height:1.6;margin-top:16px;max-width:30em}
-#dd-landing section{margin-top:56px}
-#dd-landing .ddl-hero{margin-top:0}
-#dd-landing .ddl-label{color:var(--soft);font-size:13px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;margin-bottom:8px}
-#dd-landing .ddl-steps{list-style:none;margin:20px 0 0;padding:0}
-#dd-landing .ddl-steps li{display:flex;gap:18px;padding:24px 0;border-top:1px solid var(--line)}
-#dd-landing .ddl-steps li:first-child{border-top:0}
-#dd-landing .ddl-n{font-family:'Newsreader',Georgia,serif;font-weight:600;font-size:40px;line-height:1;color:var(--soft);min-width:28px}
-#dd-landing .ddl-steps h3{font-size:23px;line-height:1.25}
-#dd-landing .ddl-steps p{color:var(--body);font-size:17px;margin-top:8px}
-#dd-landing .ddl-payoff{text-align:center}
-#dd-landing .ddl-payoff p{margin-left:auto;margin-right:auto}
-#dd-landing .ddl-dot{width:28px;height:28px;border-radius:999px;background:var(--done);color:var(--on-done);display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;margin-bottom:16px}
-#dd-landing .ddl-payoff h2{font-size:clamp(30px,7vw,38px)}
-#dd-landing .ddl-qs{margin-top:20px;border-top:1px solid var(--line)}
-#dd-landing details{border-bottom:1px solid var(--line)}
-#dd-landing summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 0;min-height:48px}
+#dd-landing .ddl-browser{display:flex;align-items:center;width:max-content;max-width:100%;min-height:44px;margin-top:6px;font-size:16px;line-height:22px}
+#dd-landing .ddl-trust{margin-top:8px;font-size:16px;line-height:24px;color:var(--body)}
+#dd-landing .ddl-btn{display:flex;align-items:center;justify-content:center;height:52px;width:100%;max-width:400px;border-radius:14px;background:var(--mauve);color:var(--on-mauve);font-size:17px;font-weight:700;text-decoration:none;padding:0 24px}
+#dd-landing .ddl-btn:hover{filter:brightness(1.05)}
+#dd-landing .act-desktop .ddl-trust{margin-top:16px}
+#dd-landing .ddl-also{margin-top:24px;font-size:15px;line-height:22px;color:var(--soft)}
+#dd-landing .ddl-stores{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:8px}
+#dd-landing .ddl-stores .ddl-badge{padding:2px 0}
+/* The promise card: the app's own welcome-back line. */
+#dd-landing .ddl-quote{margin-top:16px;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:24px}
+#dd-landing .ddl-quote p{font-family:${SERIF};font-style:italic;font-size:20px;line-height:30px;color:var(--ink)}
+/* Steps. */
+#dd-landing .ddl-steps{list-style:none;display:flex;flex-direction:column;gap:24px}
+#dd-landing .ddl-steps li{display:grid;grid-template-columns:32px 1fr}
+#dd-landing .ddl-n{font-family:${SERIF};font-weight:500;font-size:23px;line-height:29px;color:var(--soft)}
+#dd-landing .ddl-steps p{margin-top:8px;color:var(--body)}
+/* Pictures: the real screens, never framed, left-aligned with the text. */
+#dd-landing .ddl-pic{display:block;margin-top:24px}
+#dd-landing .ddl-steps+.ddl-pic{margin-top:32px}
+#dd-landing .ddl-pic img{display:block;width:100%;max-width:320px;height:auto;border-radius:20px;border:1px solid var(--line);background:var(--surface)}
+#dd-landing .ddl-moment{margin-top:48px}
+#dd-landing h2+p+.ddl-moment{margin-top:32px}
+/* Lists (small things, privacy). */
+#dd-landing .ddl-list{list-style:none;display:flex;flex-direction:column;gap:16px;color:var(--body)}
+#dd-landing .ddl-list li{position:relative;padding-left:18px}
+#dd-landing .ddl-list li::before{content:'';position:absolute;left:0;top:11px;width:6px;height:6px;border-radius:999px;background:var(--soft)}
+#dd-landing .ddl-small b{font-weight:700;color:var(--ink)}
+/* Questions. */
+#dd-landing .ddl-qs details{border-top:1px solid var(--line)}
+#dd-landing .ddl-qs details:last-child{border-bottom:1px solid var(--line)}
+#dd-landing summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:56px;padding:12px 0;font-weight:700;font-size:17px;line-height:24px;color:var(--ink)}
 #dd-landing summary::-webkit-details-marker{display:none}
-#dd-landing summary::after{content:'+';content:'+' / '';color:var(--accent);font-size:24px;line-height:1;flex:none}
+#dd-landing summary::after{content:'+';content:'+' / '';color:var(--soft);font-size:24px;line-height:1;flex:none;font-weight:400}
 #dd-landing details[open] summary::after{content:'\\2212';content:'\\2212' / ''}
-#dd-landing summary h3{font-family:'Atkinson Hyperlegible',ui-sans-serif,system-ui,sans-serif;font-size:18px;font-weight:700;line-height:1.4}
-#dd-landing details p{color:var(--body);font-size:17px;padding:0 0 20px;max-width:34em}
-#dd-landing .ddl-fine{color:var(--soft);font-size:14px;line-height:1.55;margin-top:14px}
-#dd-landing .ddl-closing{text-align:center}
-#dd-landing .ddl-closing-line{font-size:clamp(26px,6vw,30px);line-height:1.2}
-#dd-landing .ddl-store-fine{color:var(--soft);font-size:12px;margin-top:12px}
-#dd-landing .ddl-foot{border-top:1px solid var(--line);margin-top:48px;padding-top:28px;color:var(--soft);font-size:15px}
-#dd-landing .ddl-links{display:flex;flex-wrap:wrap;gap:6px 20px;margin-top:14px}
-#dd-landing .ddl-links a{display:inline-flex;min-height:44px;align-items:center;font-weight:700}
-#dd-landing .ddl-foot-meta{display:flex;align-items:center;gap:10px;margin-top:18px}
-@media (prefers-reduced-motion:reduce){#dd-landing *{transition:none!important;animation:none!important}}
+#dd-landing details p{color:var(--body);padding:0 0 20px;max-width:36em}
+/* Closing and footer. */
+#dd-landing .ddl-closing h2+.ddl-act{margin-top:24px}
+#dd-landing .ddl-founder{margin-top:24px;font-size:15px;line-height:22px;color:var(--soft)}
+#dd-landing .ddl-foot{border-top:1px solid var(--line);padding-top:32px;display:flex;flex-direction:column;gap:8px;font-size:15px;line-height:22px;color:var(--body)}
+#dd-landing .ddl-links{display:flex;flex-wrap:wrap;gap:0 20px}
+#dd-landing .ddl-links a{display:inline-flex;align-items:center;min-height:44px;font-size:15px}
+#dd-landing .ddl-tm{margin-top:8px;font-size:13px;line-height:20px;color:var(--soft)}
+@media (min-width:640px){
+  #dd-landing .ddl-kicker{font-size:21px;line-height:30px}
+  #dd-landing h1 .ddl-belief{font-size:48px;line-height:54px}
+  #dd-landing h2{font-size:34px;line-height:41px}
+  #dd-landing h3{font-size:25px;line-height:31px}
+}
 `;
 
 /** Collapse the stylesheet's whitespace (it ships inline in every page load of the app shell). */
@@ -304,11 +485,12 @@ export function buildLanding(): LandingParts {
   const templates = LANDING_LOCALES.filter((l) => l !== 'en')
     .map((l) => `<template id="ddl-t-${l}" lang="${l}">${renderPage(l)}</template>`)
     .join('\n');
-  // The fonts are self-hosted (global.css @font-face, client/public/fonts). Preload only the two the first screen
-  // needs, the headline's and the body's, so the hero does not repaint from the fallback.
+  // The fonts are self-hosted (global.css @font-face, client/public/fonts). Preload only the three the first screen
+  // needs, the kicker's italic, the headline's and the body's, so the hero does not repaint from the fallback.
   const head = [
     `<link rel="canonical" href="${SITE}/" />`,
     '<link rel="preload" href="/fonts/newsreader-600.woff2" as="font" type="font/woff2" crossorigin />',
+    '<link rel="preload" href="/fonts/newsreader-400-italic.woff2" as="font" type="font/woff2" crossorigin />',
     '<link rel="preload" href="/fonts/atkinson-400.woff2" as="font" type="font/woff2" crossorigin />',
     `<script type="application/ld+json">${structuredData()}</script>`,
     `<style id="dd-landing-css">${landingCss()}</style>`,

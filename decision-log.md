@@ -9373,3 +9373,80 @@ visitor data in the EU" option (it still runs everywhere else, so the policy lin
 **Correction:** the entry above says the beacon came from "the Pages project's toggle". It does not. It appears on
 doubledone.app and not on doubledone.pages.dev, which serve the same build, so it is the doubledone.app zone's Web
 Analytics automatic setup (Analytics & logs, Web analytics, Manage site). The Pages Metrics switch is not the source.
+
+## 2026-10-18: the landing page redesign, built to the Claude Design handoff, every line checked against the app
+
+**Decided: build the handoff ("show what it does, calmly").** One column, eleven sections: the hero (one heading
+whose first line names the audience, then "Today is finite and achievable."), a drawn Today card in HTML, the
+promise with the app's own welcome-back line, How a day goes, four hard-day moments (Break it down, a Low day,
+Settle, Ours), the Calendar, three small things, On your device by default, seven questions, the closing with the
+founder line, and the footer. Six REAL screens, captured from the app in all five languages and both themes (60
+WebP files, `scripts/landing-shots.mjs`). No price figure, no social proof, no motion, no email box.
+
+**Decided: one primary action per device.** The pre-paint boot stamps `data-platform`: an iPhone sees the App Store
+badge with "Or start in your browser" under it, an Android phone the Google Play badge, and a laptop, tablet, or
+any browser it cannot place sees Begin, then "Also on iPhone and Android." with both badges small. All three are in
+the HTML for crawlers; without JavaScript the laptop version shows. Never the other platform's badge on a phone.
+
+**Decided: the official localised badges** (Melroy's yes): Apple's from tools.applemediaservices.com and Google's
+from play.google.com/intl/en_us/badges, downloaded, inspected (no scripts or external references in the SVGs), and
+Google's PNGs trimmed of their built-in clear space, since the layout gives each its own room.
+
+**The truth check (the designer could not see the code).** Ten agents checked 127 claims against the code, a
+skeptic per slice re-checked every correction; 37 needed fixing and the skeptics found about 25 more. What changed
+from the handoff's copy, each because the app does something else:
+- "Everything else waits in Later": Later holds only dated tasks. Now "Anything for another day waits calmly in Later."
+- "no count of days": a count appears when you FINISH a broken-down task. Now "no count of how long an unfinished task has waited", and a repeat "comes back on its day" rather than rolling to tomorrow.
+- "Answer a question or two": there are always three, all optional. Now "Answer a few quick questions if you like."
+- The Break it down heading now uses the button's name; Focus is "Focus on one thing" (not the inner label "Just this one"); Bins and bills live in Repeating, so the item is "Repeating tasks and routines".
+- Lighten today proposes ONE spread, taken or left whole: "Nothing moves until you say yes."
+- Settle's guide is on by default and the drifting lines show only with it off; the copy now says so.
+- Ours: your person CAN date a row for today, so "nobody can make your morning heavier" became "Everything else stays on the list, however long it gets, so your day stays yours."
+- Premium in the FAQ: "a weekly scrapbook" (its name), "unlimited picks in What fits right now".
+- Where it works: "work fully offline" dropped "fully" and now says the AI features and syncing need a connection (the overclaim was also live).
+- Export is your tasks and what you finished, not "everything" (the FAQ and the policy both said so).
+- The drawn card's weight bar fills 12.5% (one step of eight, what the app draws for one open task), not the drawn 32%; done rows are not struck through, as in the app.
+- The Close-the-day picture shows the screen's real words ("You've closed today. A quiet day, and that's allowed. Rest well.").
+- **Decided against "Private by default"** as a heading: the app keeps that phrase for AI-off only (the 2026-06-28 honesty decision), and AI starts on. Now "On your device by default", the policy's own first heading.
+- The de/es/fr/it stand-ins for app strings were wrong in many places (six of seven French questions, Later in es/it, Sort for me and Lighten in es/fr/it, Italian "IA" for the app's "AI"); every one now comes from the catalogues, and the new lines were translated and natively reviewed per language.
+
+**Decided against** (from the handoff): localised trademark lines (they stay English, lang="en", by the 2026-08-01
+decision, as legal statements, now with Apple's credit line beside Google's); fixed 4:5 crops (the real screens
+are other shapes, so each crop follows its content and language and `client/src/lib/landing-pictures.ts`, generated,
+reserves each box); a five-step plan picture (four steps keep it a calm height).
+
+**Decided (Melroy): keep the length** (about 10 phone screens against the brief's 8). The extra is pictures, which
+load only as they scroll in. **The FAQ goes from nine to seven:** "unfinished tasks" and "sharing a list" are now
+answered by the promise and the Ours moment on the page.
+
+**Privacy policy (Melroy approved all four, both copies):** the AI features are on when you start and one tap on
+Turn AI off switches them off; a scrapbook's picture is drawn by Cloudflare's image model from a scene Claude
+writes, and Cloudflare's text model writes it when Claude is unavailable; what you added to a shared list stays
+with the other person if you delete your account; export is "your tasks and what you've finished".
+
+**In-app fixes the check found, in the same branch:** settings.aiOffNote and aiStatusOff no longer say everything
+stays on your device (sync and the feature counts still run); Italian "Your patterns" is "Le tue tendenze" (it
+clashed with Rhythms, "Ritmi"); es/it breakdown.laterPhasesNote names the Later heading exactly.
+
+**The native reviewers' catalogue notes, fixed in the same branch** (Melroy: "do this task here"; their notes are in
+docs/i18n/catalogue-review-2026-10-18.md):
+- **Pin has ONE name per language**, the welcome's (en "Pin today's one thing", de "Deine eine Sache anpinnen", es
+  "Fija lo más importante de hoy", fr "Épingler la chose du jour", it "Fissa la cosa di oggi"); premium.featurePin
+  and the landing FAQ now say the same. The short button label (Pin) is unchanged.
+- **Ours is always called by its default name** (Unsere Liste, Nuestra lista, Notre liste, La nostra lista): no more
+  "Unser" / "Nuestro" / "Nostro" fragments and no English "Ours" inside other languages.
+- **Privacy notes that named the wrong features:** es capture.aiNoteBoth said "Ordénalo tú" (sort it yourself, the
+  no-AI path); fr and it named features the app never shows. All now use the real names.
+- **Spanish is neutral everywhere (Melroy's call):** fourteen Spain-only vosotros lines in Ours rewritten without
+  vosotros or ustedes ("al Hoy de los dos", "aparece para los dos"). **Decided against** keeping vosotros (Spain would
+  not notice, Latin America would). The Play listing copy in docs still carries one vosotros line; fix it at the next
+  listing edit.
+- French and Italian typography (no-break spaces inside guillemets, straight apostrophes, «» in Italian), neutral
+  French participles, Italian "Una giornata no." for a low day, "Menu" without the accent.
+- **Decided against** (left alone): German "Andenken" beside "Erinnerungsalbum" (a deliberate pair, as English keepsake
+  and scrapbook); the German long and short imperatives (both correct).
+
+**The capture harness** stubs every Supabase read, answers the AI host only for the one break-down plan and refuses
+everything else (no spend, no feature counts), pins the clock to Sunday 18 October 2026 in Melbourne and
+Math.random, and runs Settle on the real clock with reduced motion (a fake clock freezes its animation where the
+guide word is still invisible).
