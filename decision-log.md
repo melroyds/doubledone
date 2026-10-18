@@ -9309,3 +9309,12 @@ by the landing review. Approved by Melroy the same day.
 
 **Ships:** Melroy looks at a Cloudflare preview of the branch first, then, on his word, `landing` merges to main
 and the push deploys the web. Nothing reaches production from this branch.
+
+## 2026-10-18: no thank-you email after a purchase (considered, left to the app)
+
+Melroy asked whether someone who buys Premium should get a thank-you email. **Decided:** no. The app already
+thanks them at the moment it matters (the unlocked Premium screen ends "Thank you for keeping DoubleDone
+independent."), and Apple, Google and Stripe each send their own receipt. **Decided against:** our own email
+(a new sender, five languages, triggers from both webhooks, and uneven: an iPhone buyer needs no account, so we
+may hold no address for them; it would also bend the rule set the same day, that email is only for signing
+in), and a custom line in Stripe's receipt (web buyers only). Melroy chose to leave it.
