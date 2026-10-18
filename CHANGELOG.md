@@ -30,6 +30,18 @@ _Server only (the Worker), not deployed yet. 1.8.0 is with the stores._
   ([`server/src/steps.ts`](server/src/steps.ts), shared by [`mcp.ts`](server/src/mcp.ts) and
   [`api.ts`](server/src/api.ts))
 - Every MCP `add_task` reply now ends with the new task's id.
+- **Linked steps for agents and integrations**: a new MCP tool, `add_steps`, writes the steps the person said yes
+  to exactly as the app's Break it down does, the big task tucked away behind them, for a task already on the
+  list (`task_id`) or a new one (`title`), 2 to 20 steps with optional minutes and days. When the LAST step is
+  ticked, through an agent or in the app, the big task closes itself and lands in the Lookback. The server
+  finishes it only when that is certain and leaves every other case (a task made tiny, a single step) to the
+  app's own repair on its next open. `break_down` now points the agent at `add_steps` instead of `add_task` per
+  step, which made plain tasks that never closed the big one. `list_today` / `list_upcoming` mark a step
+  `(toward "X")`. REST at parity: `steps` on `POST /tasks`, a new `POST /tasks/{id}/steps`, the task gains
+  `parentId`, `parentTitle` and `hidden`, and a `PATCH` that closes the last step answers with `finished`. Ten
+  MCP tools, the read-only ones marked `readOnlyHint`. `break_down`'s AI-call log now keeps the steps it
+  offered, as the app's own does. ([`server/src/steps.ts`](server/src/steps.ts), with the shared cases in
+  [`settle-cases.json`](server/src/settle-cases.json) run against the app's own rules too)
 
 ### Fixed
 - Ticking a task already done, over MCP or REST, now changes nothing. It used to re-stamp the finish time,
@@ -38,6 +50,8 @@ _Server only (the Worker), not deployed yet. 1.8.0 is with the stores._
   the app reopened it. It now moves the count, and the last part closes it.
 - A task waiting on its steps (a broken-down or made-tiny task) can no longer be ticked directly through MCP or
   REST. Its steps close it.
+- Ticking the last step of a broken-down task through MCP or REST used to leave the big task hidden, unseen by
+  the agent, until a phone opened and repaired it. It now closes there and then whenever the answer is certain.
 
 ## [1.8.0] - 2026-10-05
 

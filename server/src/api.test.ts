@@ -8,6 +8,7 @@ import {
   listRequest,
   newTaskId,
   parseCreate,
+  parseStepsBody,
   parseUpdate,
   searchTasks,
   toApiTask,
@@ -47,7 +48,21 @@ describe('toApiTask', () => {
   it('maps a row to the public camelCase shape', () => {
     expect(
       toApiTask({ id: 't1', title: 'A', done: true, due: '2026-06-21', created_at: 'c', completed_at: 'd' }),
-    ).toEqual({ id: 't1', title: 'A', done: true, due: '2026-06-21', recurrence: null, repeats: null, partsTotal: null, partsDone: null, createdAt: 'c', completedAt: 'd' });
+    ).toEqual({
+      id: 't1',
+      title: 'A',
+      done: true,
+      due: '2026-06-21',
+      recurrence: null,
+      repeats: null,
+      partsTotal: null,
+      partsDone: null,
+      parentId: null,
+      parentTitle: null,
+      hidden: false,
+      createdAt: 'c',
+      completedAt: 'd',
+    });
   });
   it('defaults the nullable fields', () => {
     const t = toApiTask({ id: 't2', title: 'B', done: false });
@@ -841,5 +856,300 @@ describe('parts over REST: partsTotal / partsDone, absolute and forward-only', (
     expect(bodyOf(viaDone[1])).toEqual(bodyOf(viaMcp[1]));
     expect(guardOf(viaPartsDone[1])).toEqual(guardOf(viaMcp[1]));
     expect(guardOf(viaDone[1])).toEqual(guardOf(viaMcp[1]));
+  });
+});
+
+describe('linked steps over REST: steps on create, POST /tasks/{id}/steps, and the finish walk', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+  const NOW = '2026-10-18T03:00:00.000Z';
+  const freeze = () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(NOW));
+  };
+  const token = fakeJwt('u1');
+  const at = (min: number) => new Date(Date.UTC(2026, 9, 18, 0, min)).toISOString();
+  /** A row as getRequest's SELECT returns it. */
+  const row = (extra: object = {}) => ({
+    id: 't1',
+    title: 'Clear the garage',
+    done: false,
+    due: null,
+    recurrence: null,
+    completed_dates: null,
+    slices: null,
+    silent_parent: null,
+    parent_id: null,
+    parent_title: null,
+    created_at: 'c',
+    completed_at: null,
+    ...extra,
+  });
+  const step = (id: string, extra: object = {}) => row({ id, title: `${id} (5 min)`, parent_id: 'P', parent_title: 'Clear the garage', ...extra });
+  const big = (extra: object = {}) => ({ ...row({ id: 'P', silent_parent: true }), open_parent: false, deleted_at: null, created_at: at(0), ...extra });
+  const kid = (id: string, done: boolean, extra: object = {}) => ({ id, done, recurrence: null, parent_id: 'P', deleted_at: null, created_at: at(1), completed_at: done ? at(30) : null, ...extra });
+  const twoSteps = [{ title: '• Bag up the rubbish (5 min)' }, { title: 'Take it to the tip', minutes: 30 }];
+  const post = (path: string, body: unknown) => handleApi(req('POST', `/api/v1${path}`, { token, body }), env, trust);
+  const patch = (id: string, body: unknown) => handleApi(req('PATCH', `/api/v1/tasks/${id}`, { token, body }), env, trust);
+  const guardOf = (c: Call) => {
+    const q = paramsOf(c);
+    delete q.select;
+    return q;
+  };
+  const errorOf = async (res: Response) => ((await res.json()) as { error: string }).error;
+
+  // --- the task shape and the body checks -----------------------------------------------------------------------
+
+  it('toApiTask exposes parentId, parentTitle and hidden', () => {
+    expect(toApiTask(row({ parent_id: 'P', parent_title: 'Clear the garage' }))).toMatchObject({ parentId: 'P', parentTitle: 'Clear the garage', hidden: false });
+    expect(toApiTask(row({ silent_parent: true }))).toMatchObject({ parentId: null, parentTitle: null, hidden: true });
+    expect(toApiTask(row({ parent_id: '', parent_title: 7, silent_parent: 'yes' }))).toMatchObject({ parentId: null, parentTitle: null, hidden: false });
+  });
+
+  it('parseCreate takes steps (2-20), never beside due, repeat or partsTotal, and a title of at most 500', () => {
+    expect(parseCreate({ title: 'Clear the garage', steps: twoSteps })).toEqual({
+      body: {
+        title: 'Clear the garage',
+        due: null,
+        repeat: null,
+        steps: [
+          { title: 'Bag up the rubbish', minutes: 5, due: null },
+          { title: 'Take it to the tip', minutes: 30, due: null },
+        ],
+      },
+    });
+    for (const extra of [{ due: '2026-10-20' }, { repeat: { kind: 'daily' } }, { partsTotal: 3 }]) {
+      expect(parseCreate({ title: 'x', steps: twoSteps, ...extra })).toEqual({ error: expect.stringMatching(/steps cannot come with due, repeat or partsTotal/) });
+    }
+    expect(parseCreate({ title: 'x', steps: [{ title: 'one' }] })).toEqual({ error: expect.stringMatching(/at least two steps/) });
+    expect(parseCreate({ title: 'y'.repeat(501), steps: twoSteps })).toEqual({ error: 'title can be at most 500 characters' });
+  });
+
+  it('parseStepsBody takes { steps } and nothing else', () => {
+    expect(parseStepsBody({ steps: twoSteps })).toMatchObject({ steps: [{ title: 'Bag up the rubbish' }, { title: 'Take it to the tip' }] });
+    expect(parseStepsBody({ steps: twoSteps, title: 'x' })).toEqual({ error: expect.stringMatching(/send only steps here \(not "title"\)/) });
+    expect(parseStepsBody([])).toEqual({ error: 'a JSON object with steps is required' });
+    expect(parseStepsBody({})).toMatchObject({ error: expect.any(String) });
+  });
+
+  // --- POST /tasks with steps -------------------------------------------------------------------------------------
+
+  it('POST /tasks with steps is ONE insert of the big task and its steps, and answers 201 { task, steps }', async () => {
+    freeze();
+    const calls = sequence([]);
+    // Answer the insert with exactly what was written, in the public SELECT's shape.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit) => {
+        calls.push({ url, init });
+        const rows = JSON.parse(init.body as string) as Record<string, unknown>[];
+        return { ok: true, status: 200, json: async () => rows.slice().reverse() } as unknown as Response;
+      }),
+    );
+    const res = await post('/tasks', { title: 'Clear the garage', steps: twoSteps });
+    expect(res.status).toBe(201);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].init.method).toBe('POST');
+    expect(paramsOf(calls[0]).select).toContain('parent_title');
+    const written = JSON.parse(calls[0].init.body as string) as Record<string, unknown>[];
+    expect(written).toHaveLength(3);
+    expect(written[0]).toMatchObject({ user_id: 'u1', silent_parent: true, open_parent: false, complexity: 35 });
+    expect(String(written[0].id)).toMatch(/^api-[a-z0-9]+-[a-z0-9]+-p$/);
+    const out = (await res.json()) as { task: Record<string, unknown>; steps: Record<string, unknown>[] };
+    expect(out.task).toMatchObject({ id: written[0].id, title: 'Clear the garage', hidden: true, parentId: null });
+    // In the order given, whatever order the insert came back in.
+    expect(out.steps.map((s) => s.title)).toEqual(['Bag up the rubbish (5 min)', 'Take it to the tip (30 min)']);
+    expect(out.steps.every((s) => s.parentId === written[0].id && s.parentTitle === 'Clear the garage' && s.hidden === false)).toBe(true);
+  });
+
+  it('POST /tasks with bad steps, or steps with a due, is a 400 before Supabase is asked', async () => {
+    const calls = sequence([]);
+    expect((await post('/tasks', { title: 'x', steps: [{ title: 'one' }] })).status).toBe(400);
+    expect((await post('/tasks', { title: 'x', steps: twoSteps, due: '2026-10-20' })).status).toBe(400);
+    expect((await post('/tasks', { title: 'x', steps: [{ title: 'a' }, { title: 'b', minutes: 481 }] })).status).toBe(400);
+    expect(calls).toHaveLength(0);
+  });
+
+  // --- POST /tasks/{id}/steps -------------------------------------------------------------------------------------
+
+  it('reads, inserts the steps, then hides the task pinned as read, and answers 201 with both', async () => {
+    freeze();
+    const calls = sequence([row()], [step('x-0'), step('x-1')], [row({ silent_parent: true })]);
+    const res = await post('/tasks/t1/steps', { steps: [{ title: 'Bag up the rubbish' }, { title: 'Sweep' }] });
+    expect(res.status).toBe(201);
+    expect(calls.map((c) => c.init.method)).toEqual(['GET', 'POST', 'PATCH']);
+    const inserted = JSON.parse(calls[1].init.body as string) as Record<string, unknown>[];
+    expect(inserted.every((s) => s.parent_id === 't1' && s.parent_title === 'Clear the garage')).toBe(true);
+    expect(guardOf(calls[2])).toEqual({ id: 'eq.t1', deleted_at: 'is.null', done: 'is.false', silent_parent: 'not.is.true', recurrence: 'is.null', slices: 'is.null' });
+    expect(bodyOf(calls[2])).toEqual({ silent_parent: true, open_parent: false, updated_at: NOW });
+    const out = (await res.json()) as { task: Record<string, unknown>; steps: unknown[] };
+    expect(out.task).toMatchObject({ id: 't1', hidden: true });
+  });
+
+  it('a 404 for a missing task, and a 409 for a done, repeating, in-parts or already hidden one, each after one read', async () => {
+    let calls = sequence([]);
+    expect((await post('/tasks/nope/steps', { steps: twoSteps })).status).toBe(404);
+    expect(calls).toHaveLength(1);
+    vi.unstubAllGlobals();
+    const conflicts: [object, RegExp][] = [
+      [row({ done: true }), /already done/],
+      [row({ recurrence: { kind: 'daily' } }), /repeating task cannot be broken into steps/],
+      [row({ slices: { total: 3, done: 1 } }), /tracked in parts: send partsTotal: null first/],
+      [row({ silent_parent: true }), /already waiting on its steps/],
+    ];
+    for (const [r, msg] of conflicts) {
+      calls = sequence([r]);
+      const res = await post('/tasks/t1/steps', { steps: twoSteps });
+      expect(res.status).toBe(409);
+      expect(await errorOf(res)).toMatch(msg);
+      expect(calls).toHaveLength(1);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a hide that matches nothing tombstones exactly the inserted steps and is a 409, with nothing added', async () => {
+    freeze();
+    const calls = sequence([row()], [step('x-0'), step('x-1')], [], [{ id: 'x' }]);
+    const res = await post('/tasks/t1/steps', { steps: twoSteps });
+    expect(res.status).toBe(409);
+    expect(await errorOf(res)).toBe('the task changed just now, so nothing was added: read it again and retry');
+    const ids = (JSON.parse(calls[1].init.body as string) as { id: string }[]).map((s) => s.id);
+    expect(paramsOf(calls[3])).toEqual({ id: `in.(${ids.join(',')})` });
+    expect(bodyOf(calls[3])).toEqual({ deleted_at: NOW, updated_at: NOW });
+  });
+
+  it('if even the tombstone fails, a 502 that says some steps may have landed', async () => {
+    sequence([row()], [step('x-0'), step('x-1')], [], failWith(500));
+    const res = await post('/tasks/t1/steps', { steps: twoSteps });
+    expect(res.status).toBe(502);
+    expect(await errorOf(res)).toMatch(/some of its steps may have landed/);
+  });
+
+  it('a bad body or id is a 400, another method a 405, and nothing reaches Supabase', async () => {
+    const calls = sequence([]);
+    expect((await post('/tasks/t1/steps', { steps: [{ title: 'one' }] })).status).toBe(400);
+    expect((await post('/tasks/t1/steps', { steps: twoSteps, due: '2026-10-20' })).status).toBe(400);
+    expect((await post('/tasks/%E0/steps', { steps: twoSteps })).status).toBe(400);
+    expect((await handleApi(req('GET', '/api/v1/tasks/t1/steps', { token }), env, trust)).status).toBe(405);
+    expect(calls).toHaveLength(0);
+  });
+
+  // --- PATCH: the finish walk -------------------------------------------------------------------------------------
+
+  it('done:true on the LAST step closes it, finishes the big task, and lists it in finished', async () => {
+    freeze();
+    const calls = sequence(
+      [step('s2')],
+      [step('s2', { done: true, completed_at: NOW })],
+      [big()],
+      [kid('s1', true), kid('s2', true)],
+      [big({ done: true, silent_parent: false, completed_at: NOW })],
+    );
+    const res = await patch('s2', { done: true });
+    expect(res.status).toBe(200);
+    const out = (await res.json()) as { task: Record<string, unknown>; finished?: Record<string, unknown>[] };
+    expect(out.task).toMatchObject({ id: 's2', done: true, parentId: 'P' });
+    expect(out.finished).toEqual([expect.objectContaining({ id: 'P', done: true, hidden: false })]);
+    expect(guardOf(calls[4])).toEqual({ id: 'eq.P', deleted_at: 'is.null', done: 'is.false', silent_parent: 'is.true', open_parent: 'not.is.true' });
+    expect(bodyOf(calls[4])).toEqual({ done: true, completed_at: NOW, silent_parent: false, updated_at: NOW });
+  });
+
+  it('a step that is not the last, or a case left to the app, answers without finished', async () => {
+    for (const children of [[kid('s1', false), kid('s2', true)], [kid('s2', true)]]) {
+      const calls = sequence([step('s2')], [step('s2', { done: true })], [big()], children);
+      const out = (await (await patch('s2', { done: true })).json()) as Record<string, unknown>;
+      expect(out).not.toHaveProperty('finished');
+      expect(calls).toHaveLength(4);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('partsDone that finishes a step walks too, and done:false on a step reopens it alone', async () => {
+    let calls = sequence([step('s2', { slices: { total: 2, done: 1 } })], [step('s2', { done: true })], [big()], [kid('s1', true), kid('s2', true)], [big({ done: true })]);
+    const out = (await (await patch('s2', { partsDone: 2 })).json()) as { finished?: unknown[] };
+    expect(out.finished).toHaveLength(1);
+    expect(calls).toHaveLength(5);
+    vi.unstubAllGlobals();
+    calls = sequence([step('s2', { done: true })], [step('s2')]);
+    expect((await patch('s2', { done: false })).status).toBe(200);
+    expect(calls).toHaveLength(2);
+  });
+
+  // --- the contract -----------------------------------------------------------------------------------------------
+
+  it('OpenAPI 1.3.0 documents the steps route, StepInput, StepsCreated and the new read fields', async () => {
+    const res = await handleApi(req('GET', '/api/v1/openapi.json'), env, trust);
+    type Schema = { properties: Record<string, unknown>; required?: string[] };
+    const spec = (await res.json()) as {
+      info: { version: string };
+      paths: Record<string, Record<string, { responses: Record<string, unknown> }>>;
+      components: { schemas: Record<string, Schema> };
+    };
+    expect(spec.info.version).toBe('1.3.0');
+    expect(spec.paths['/tasks/{id}/steps'].post.responses).toMatchObject({
+      '201': { content: { 'application/json': { schema: { $ref: '#/components/schemas/StepsCreated' } } } },
+      '409': { $ref: '#/components/responses/Conflict' },
+    });
+    const { Task, TaskInput, StepInput, StepsCreated } = spec.components.schemas;
+    expect(Task.required).toEqual(expect.arrayContaining(['parentId', 'parentTitle', 'hidden']));
+    expect(TaskInput.properties).toHaveProperty('steps');
+    expect(StepInput.required).toEqual(['title']);
+    expect(Object.keys(StepInput.properties)).toEqual(['title', 'minutes', 'due']);
+    expect(StepsCreated.required).toEqual(['task', 'steps']);
+  });
+
+  // --- parity with MCP --------------------------------------------------------------------------------------------
+
+  /** Call one MCP tool through the real handler, on the same stubbed fetch. */
+  const mcpTool = (name: string, args: object) =>
+    handleMcp(
+      new Request('https://doubledone-ai.example/mcp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }),
+      }),
+      env,
+      { kind: 'header' },
+      trust,
+    );
+
+  it('parity: the last step and its big task are written the same from MCP complete_task and REST done:true', async () => {
+    freeze();
+    const answers = (): unknown[] => [
+      [step('s2')],
+      [step('s2', { done: true })],
+      [big()],
+      [kid('s1', true), kid('s2', true)],
+      [big({ done: true, silent_parent: false })],
+    ];
+    const viaMcp = sequence(...answers());
+    await mcpTool('complete_task', { id: 's2' });
+    vi.unstubAllGlobals();
+    const viaRest = sequence(...answers());
+    await patch('s2', { done: true });
+    expect(viaRest.map((c) => c.init.method)).toEqual(viaMcp.map((c) => c.init.method));
+    for (const i of [1, 4]) {
+      expect(bodyOf(viaRest[i])).toEqual(bodyOf(viaMcp[i]));
+      expect(guardOf(viaRest[i])).toEqual(guardOf(viaMcp[i]));
+    }
+    expect(bodyOf(viaMcp[4])).toEqual({ done: true, completed_at: NOW, silent_parent: false, updated_at: NOW });
+    // The walk's reads ask the same rows of the same columns.
+    for (const i of [2, 3]) expect(paramsOf(viaRest[i])).toEqual(paramsOf(viaMcp[i]));
+  });
+
+  it('parity: a breakdown writes the same rows and the same hide from MCP add_steps and REST, ids aside', async () => {
+    freeze();
+    const answers = (): unknown[] => [[row()], [step('x-0'), step('x-1')], [row({ silent_parent: true })]];
+    const viaMcp = sequence(...answers());
+    await mcpTool('add_steps', { task_id: 't1', steps: twoSteps });
+    vi.unstubAllGlobals();
+    const viaRest = sequence(...answers());
+    await post('/tasks/t1/steps', { steps: twoSteps });
+    const withoutIds = (c: Call) => (JSON.parse(c.init.body as string) as Record<string, unknown>[]).map(({ id: _id, ...rest }) => rest);
+    expect(withoutIds(viaRest[1])).toEqual(withoutIds(viaMcp[1]));
+    expect(bodyOf(viaRest[2])).toEqual(bodyOf(viaMcp[2]));
+    expect(guardOf(viaRest[2])).toEqual(guardOf(viaMcp[2]));
   });
 });

@@ -22,14 +22,18 @@
 // budget. Everything else is a thin, cheap Supabase proxy.
 //
 // The spine holds even through an agent: propose-then-accept. break_down shows steps
-// and adds nothing; the human says yes; the agent then calls add_task per step. No
-// tool shames a backlog, punishes an old task, or deletes anything for real (delete
-// is a soft tombstone, exactly like the app).
+// and adds nothing; the human says yes; the agent then calls add_steps with the steps
+// they agreed, which writes them LINKED, exactly as the app's Break it down does (the
+// big task hidden behind them, closing itself when the last one is ticked). No tool
+// shames a backlog, punishes an old task, or deletes anything for real (delete is a
+// soft tombstone, exactly like the app).
 //
 // A task tracked in parts (the app's "Track in steps", the `slices` column) moves forward
 // one part per tick, as one tap in the app does, and never goes back: the sync merge keeps
-// the highest count it has seen, so a lowered one would spring straight back. The parts
-// arithmetic and its write guard live in steps.ts, shared with the REST API.
+// the highest count it has seen, so a lowered one would spring straight back. Ticking a
+// step walks up to its big task and finishes it when the answer is certain, and leaves
+// every other case to the app's own repair. The parts arithmetic, the step rows and the
+// finish walk live in steps.ts, shared with the REST API.
 //
 // Pure helpers (the tool schemas, the JWT decode, the Supabase request builders, the
 // row->list mappers, the OpenAI deep-research shapers) are exported and unit-tested;
@@ -45,16 +49,34 @@ import {
 } from './decompose';
 import {
   advanceParts,
+  buildStepRows,
   clearParts,
   cleanSlices,
+  hideGuard,
+  hidePatch,
+  insertedRowsFilter,
   MAX_PARTS,
+  MAX_STEP_MINUTES,
+  MAX_STEPS,
+  MAX_TITLE_CHARS,
   MIN_PARTS,
+  MIN_STEPS,
   needsWrite,
+  parseSteps,
   partsGuard,
   partsPatch,
   type PartsChange,
+  planFinish,
   setTotal,
   type Slices,
+  stepIds,
+  type StepSpec,
+  stepsRefusal,
+  type WalkIo,
+  type WalkOutcome,
+  type WalkRow,
+  walkChildrenQuery,
+  walkParentQuery,
   wholeIn,
 } from './steps';
 import { logAiCall, type TelemetryEnv } from './telemetry';
@@ -127,7 +149,7 @@ export const TOOLS = [
           minimum: MIN_PARTS,
           maximum: MAX_PARTS,
           description:
-            "Optional: track it in parts, the app's 'Track in steps' (e.g. 10 for a ten-episode series). Each complete_task ticks one part, and it is done when every part is. For one thing done in several goes, not for a task made of different steps. Not with `repeat`.",
+            "Optional: track it in parts, the app's 'Track in steps' (e.g. 10 for a ten-episode series). Each complete_task ticks one part, and it is done when every part is. For one thing done in several goes. Not with `repeat`. For a task made of DIFFERENT steps, use add_steps instead.",
         },
       },
       required: ['title'],
@@ -137,23 +159,25 @@ export const TOOLS = [
   {
     name: 'list_today',
     description:
-      "List the user's open tasks for today: one-offs undated or due today or earlier, plus any repeating task due today not yet ticked or skipped, marked '(repeats)'. A task tracked in parts shows its progress, marked e.g. '(3/10 parts)'. Today is the UTC calendar day for now, so early in an Australian morning it can still be yesterday's. Returns each task's id for complete_task.",
+      "List the user's open tasks for today: one-offs undated or due today or earlier, plus any repeating task due today not yet ticked or skipped, marked '(repeats)'. A task tracked in parts shows its progress, marked e.g. '(3/10 parts)'. A step of a bigger task is marked '(toward \"X\")', or '(a step)' when the big task's name is not known: ticking the last step closes X. The big task itself is not listed while it waits on its steps. Today is the UTC calendar day for now, so early in an Australian morning it can still be yesterday's. Returns each task's id for complete_task.",
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: true },
   },
   {
     name: 'list_upcoming',
     description:
-      "Look ahead: the user's future-dated tasks and the next occurrence of each repeating task, within a window (default 7 days). A task tracked in parts shows its progress, e.g. '(3/10 parts)'. Read-only.",
+      "Look ahead: the user's future-dated tasks and the next occurrence of each repeating task, within a window (default 7 days). A task tracked in parts shows its progress, e.g. '(3/10 parts)', and a step of a bigger task is marked '(toward \"X\")' or '(a step)'. Read-only.",
     inputSchema: {
       type: 'object',
       properties: { days: { type: 'integer', minimum: 1, maximum: 30, description: 'How many days ahead to look (1-30, default 7).' } },
       additionalProperties: false,
     },
+    annotations: { readOnlyHint: true },
   },
   {
     name: 'complete_task',
     description:
-      "Tick one of the user's tasks, by the id from list_today. A one-off closes. A REPEATING task (marked '(repeats)' in list_today) is ticked for ONE day and comes back on its next day; completing never closes a repeat (to stop one, update_task with repeat: null). A task TRACKED IN PARTS (marked e.g. '(3/10 parts)') moves forward ONE part, as one tap in the app does. Pass `count` to tick more, and the remaining count finishes it. The day defaults to the UTC calendar day; pass `day` with the user's local date when you know it.",
+      "Tick one of the user's tasks, by the id from list_today. A one-off closes. A REPEATING task (marked '(repeats)' in list_today) is ticked for ONE day and comes back on its next day; completing never closes a repeat (to stop one, update_task with repeat: null). A task TRACKED IN PARTS (marked e.g. '(3/10 parts)') moves forward ONE part, as one tap in the app does. Pass `count` to tick more, and the remaining count finishes it. A STEP (marked '(toward \"X\")') closes, and when it is the last open step, \"X\" closes as done too and the reply says so. The big task itself is not listed and can't be ticked directly: tick its steps. The day defaults to the UTC calendar day; pass `day` with the user's local date when you know it.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -173,7 +197,7 @@ export const TOOLS = [
   {
     name: 'update_task',
     description:
-      "Change one of the user's tasks: its title, its `due` day, its `repeat`, its `parts`, or `done`. Setting `due` clears any repeat and vice versa. Pass null to clear a field. `done: true` ticks it (a repeating task is ticked for one day, never closed; a task tracked in parts moves forward ONE part, exactly as complete_task does); `done: false` reopens a one-off, or un-ticks a day on a repeat on the server only (a device that already synced the tick brings it back). Parts only go forward, so `done: false` on a task tracked in parts is refused. Change `parts` or `done`, one at a time. The day defaults to the UTC calendar day; pass `day` with the user's local date when you know it. At least one change is required.",
+      "Change one of the user's tasks: its title, its `due` day, its `repeat`, its `parts`, or `done`. Setting `due` clears any repeat and vice versa. Pass null to clear a field. `done: true` ticks it exactly as complete_task does (a repeating task is ticked for one day, never closed; a task tracked in parts moves forward ONE part; the last step of a bigger task closes the big task too); `done: false` reopens a one-off or a step (never the big task it closed), or un-ticks a day on a repeat on the server only (a device that already synced the tick brings it back). Parts only go forward, so `done: false` on a task tracked in parts is refused. Change `parts` or `done`, one at a time. The day defaults to the UTC calendar day; pass `day` with the user's local date when you know it. At least one change is required.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -208,7 +232,7 @@ export const TOOLS = [
   {
     name: 'break_down',
     description:
-      "Break a dreaded or vague task into small, ordered, time-boxed steps. This ONLY proposes the steps; it adds nothing. Show them to the user, and once they agree, call add_task for each step. Costs a little AI time, so use it when a task genuinely needs breaking down.",
+      "Break a dreaded or vague task into small, ordered, time-boxed steps. This ONLY proposes the steps and adds nothing. Show them to the user, let them change any, and once they say yes call add_steps with the steps they agreed (not add_task), so the steps stay linked and the big task closes itself when the last one is done. Costs a little AI time, so use it when a task genuinely needs breaking down.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -217,6 +241,46 @@ export const TOOLS = [
         steps: { type: 'integer', minimum: 2, maximum: 10, description: 'Optional desired number of steps (2-10).' },
       },
       required: ['task'],
+      additionalProperties: false,
+    },
+    // It changes nothing of the user's: the one write it makes is the anonymous AI-call log.
+    annotations: { readOnlyHint: true },
+  },
+  {
+    name: 'add_steps',
+    description:
+      "Break one of the user's tasks into linked steps, the way the app's \"Break it down\" does. The big task is tucked away out of the list, and its steps go on today, or on the days you give them. When the user ticks the LAST step, here or in the app, the big task closes itself as done. Call this ONLY after the user has said yes to these exact steps: steps from break_down as they edited them, or steps they dictated. Pass `task_id` to break down a task already on their list, or `title` to create the big task together with its steps. Use 2 to 20 steps, in the order they will be done. Do NOT also call add_task for these steps. Not for a repeating task, or for one tracked in parts.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task_id: {
+          type: 'string',
+          description: 'The id of a task already on the list (from list_today, list_upcoming or search) to break down. Give this OR `title`.',
+        },
+        title: { type: 'string', description: 'The big task to create together with its steps, when it is not on the list yet. Give this OR `task_id`.' },
+        steps: {
+          type: 'array',
+          minItems: MIN_STEPS,
+          maxItems: MAX_STEPS,
+          description: 'The steps the user agreed, in the order they will be done.',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', description: 'The step, e.g. "Bag up the rubbish".' },
+              minutes: {
+                type: 'integer',
+                minimum: 1,
+                maximum: MAX_STEP_MINUTES,
+                description: "Optional estimate in minutes, shown after the title as '(5 min)'.",
+              },
+              due: { type: 'string', description: "Optional 'YYYY-MM-DD' for a step on a later day. Without it the step is on today." },
+            },
+            required: ['title'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['steps'],
       additionalProperties: false,
     },
   },
@@ -233,6 +297,7 @@ export const TOOLS = [
       required: ['query'],
       additionalProperties: false,
     },
+    annotations: { readOnlyHint: true },
   },
   {
     name: 'fetch',
@@ -243,8 +308,11 @@ export const TOOLS = [
       required: ['id'],
       additionalProperties: false,
     },
+    annotations: { readOnlyHint: true },
   },
 ] as const;
+// The writers carry no annotations on purpose: the protocol's defaults (readOnlyHint false, destructiveHint true)
+// are already the cautious signal, and an explicit false would add nothing.
 
 // The tools that require a premium entitlement. Empty today (every tool maps to a FREE app
 // feature); it is the single list a future paid tool joins, checked once in runTool.
@@ -361,9 +429,10 @@ export function listTodayRequest(env: McpEnv, token: string, todayIso: string): 
   // recurring task, whose "due today" is decided in the Worker (see cadence.ts) because
   // PostgREST can't do the day-of-week / interval math. The cadence fields come back so the
   // tool can filter. silent_parent=not.is.true keeps false/null rows, excluding only true.
-  // slices comes back so a task tracked in parts can show its progress.
+  // slices comes back so a task tracked in parts can show its progress, and parent_id /
+  // parent_title so a step can name the big task it closes.
   const q = new URLSearchParams({
-    select: 'id,title,recurrence,completed_dates,skipped_dates,due,slices',
+    select: 'id,title,recurrence,completed_dates,skipped_dates,due,slices,parent_id,parent_title',
     deleted_at: 'is.null',
     silent_parent: 'not.is.true',
     or: `(and(recurrence.is.null,done.is.false,or(due.is.null,due.lte.${todayIso})),and(recurrence.not.is.null,done.is.false))`,
@@ -376,22 +445,40 @@ export function listTodayRequest(env: McpEnv, token: string, todayIso: string): 
  *  null) is already scoped by the SQL (open, due today-or-earlier); a recurring row is kept
  *  only if it is due today and not yet done/skipped today (cadence.ts, the logic PostgREST
  *  can't express). Order is preserved (the query sorts by created_at). A one-off tracked in
- *  parts carries its cleaned counts so the line can show them. Pure + unit-tested. */
-export function listTodayFromRows(rows: unknown, todayIso: string): { id: string; title: string; repeats?: true; parts?: Slices }[] {
+ *  parts carries its cleaned counts so the line can show them, and a step carries the title
+ *  of the big task it closes. Pure + unit-tested. */
+export function listTodayFromRows(rows: unknown, todayIso: string): ListEntry[] {
   if (!Array.isArray(rows)) return [];
-  const out: { id: string; title: string; repeats?: true; parts?: Slices }[] = [];
+  const out: ListEntry[] = [];
   for (const r of rows) {
     if (r == null || typeof r !== 'object') continue;
-    const row = r as { id?: unknown; title?: unknown; recurrence?: unknown; completed_dates?: unknown; skipped_dates?: unknown; slices?: unknown };
+    const row = r as ListRow;
     if (typeof row.id !== 'string' || typeof row.title !== 'string') continue;
     if (row.recurrence == null) {
-      out.push({ id: row.id, title: row.title, ...partsOf(row.slices) }); // an open one-off, already scoped by the SQL
+      out.push({ id: row.id, title: row.title, ...partsOf(row.slices), ...towardOf(row) }); // an open one-off, already scoped by the SQL
     } else if (recurringDueToday(row.recurrence, row.completed_dates, row.skipped_dates, todayIso)) {
-      out.push({ id: row.id, title: row.title, repeats: true }); // so the model knows a tick is for today only
+      out.push({ id: row.id, title: row.title, repeats: true, ...towardOf(row) }); // so the model knows a tick is for today only
     }
   }
   return out;
 }
+
+/** One row as the list reads return it. */
+type ListRow = {
+  id?: unknown;
+  title?: unknown;
+  recurrence?: unknown;
+  completed_dates?: unknown;
+  skipped_dates?: unknown;
+  due?: unknown;
+  slices?: unknown;
+  parent_id?: unknown;
+  parent_title?: unknown;
+};
+
+/** One line of list_today: the task, and the markers its line carries. `toward` is the big task's title for a step,
+ *  or null for a step whose big task's title is not known (rows from builds before 2026-10-04 never sent it). */
+export type ListEntry = { id: string; title: string; repeats?: true; parts?: Slices; toward?: string | null };
 
 /** `{ parts }` for a stored value that is well-formed parts, else nothing, so a whole task's entry keeps its
  *  old shape. Only one-offs call it: a repeat is ticked by the day, so parts on one would mislead the model. */
@@ -400,16 +487,32 @@ function partsOf(slices: unknown): { parts?: Slices } {
   return parts ? { parts } : {};
 }
 
+/** `{ toward }` for a step of a bigger task, else nothing. A step of a breakdown and a made-tiny task's pebble both
+ *  carry `parent_id`, and nothing on the row tells them apart without reading the parent, so the one wording,
+ *  "toward", is true of both. */
+function towardOf(row: ListRow): { toward?: string | null } {
+  if (typeof row.parent_id !== 'string' || !row.parent_id) return {};
+  return { toward: typeof row.parent_title === 'string' && row.parent_title ? row.parent_title : null };
+}
+
 /** The progress marker on a list line, e.g. "  (3/10 parts)", or nothing for a whole task. */
 function partsMark(parts?: Slices): string {
   return parts ? `  (${parts.done}/${parts.total} parts)` : '';
 }
 
-/** The one read a done-write or a parts change needs first: whether the row repeats and which days are ticked,
- *  whether it is done, its stored parts, whether it is hidden behind its steps, and whether it is itself a step. */
+/** The step marker on a list line, `  (toward "Clear the garage")`, or `  (a step)` when the big task's title is
+ *  not known, or nothing for a task that is not a step. */
+function towardMark(toward?: string | null): string {
+  if (toward === undefined) return '';
+  return toward === null ? '  (a step)' : `  (toward "${toward}")`;
+}
+
+/** The one read a done-write, a parts change or a breakdown needs first: whether the row repeats and which days are
+ *  ticked, whether it is done, its stored parts, whether it is hidden behind its steps, and whether it is itself a
+ *  step (and of which big task, so a tick can walk up to it). */
 export function taskStateRequest(env: McpEnv, token: string, id: string): { url: string; init: RequestInit } {
   const q = new URLSearchParams({
-    select: 'id,title,done,recurrence,completed_dates,slices,silent_parent,parent_id',
+    select: 'id,title,done,recurrence,completed_dates,slices,silent_parent,parent_id,parent_title',
     id: `eq.${id}`,
     deleted_at: 'is.null',
     limit: '1',
@@ -486,6 +589,32 @@ export function deleteTaskRequest(env: McpEnv, token: string, id: string, now: s
   };
 }
 
+// --- add_steps and the finish walk (the rows and rules are steps.ts; these only address them) -----------------
+
+/** GET tasks with the given filters (the walk's reads, steps.ts walkParentQuery / walkChildrenQuery). */
+export function readRowsRequest(env: McpEnv, token: string, query: Record<string, string>): { url: string; init: RequestInit } {
+  return {
+    url: `${env.SUPABASE_URL}/rest/v1/tasks?${new URLSearchParams(query).toString()}`,
+    init: { method: 'GET', headers: supaHeaders(env, token, false) },
+  };
+}
+
+/** ONE POST of several rows, so the insert is atomic (steps.ts buildStepRows gives them one key set). */
+export function insertRowsRequest(env: McpEnv, token: string, rows: Record<string, unknown>[]): { url: string; init: RequestInit } {
+  return {
+    url: `${env.SUPABASE_URL}/rest/v1/tasks`,
+    init: { method: 'POST', headers: supaHeaders(env, token, true), body: JSON.stringify(rows) },
+  };
+}
+
+/** Tombstone exactly the rows a breakdown inserted, when the write that hides their big task missed. */
+export function tombstoneRowsRequest(env: McpEnv, token: string, ids: string[], now: string): { url: string; init: RequestInit } {
+  return {
+    url: `${env.SUPABASE_URL}/rest/v1/tasks?${new URLSearchParams(insertedRowsFilter(ids)).toString()}`,
+    init: { method: 'PATCH', headers: supaHeaders(env, token, true), body: JSON.stringify({ deleted_at: now, updated_at: now }) },
+  };
+}
+
 // --- list_upcoming: future one-offs + each repeat's next occurrence in a window -------------
 
 /** The window bounds for list_upcoming: strictly AFTER today, up to and including today+days.
@@ -501,7 +630,7 @@ export function upcomingWindow(days: unknown, todayIso: string): { count: number
  *  computed in the Worker). Uses the same silent_parent / deleted guards as list_today. */
 export function listUpcomingRequest(env: McpEnv, token: string, todayIso: string, endIso: string): { url: string; init: RequestInit } {
   const q = new URLSearchParams({
-    select: 'id,title,recurrence,completed_dates,skipped_dates,due,slices',
+    select: 'id,title,recurrence,completed_dates,skipped_dates,due,slices,parent_id,parent_title',
     deleted_at: 'is.null',
     silent_parent: 'not.is.true',
     // A future one-off (open, dated strictly after today, on/before the window end), OR any open
@@ -517,21 +646,21 @@ export function listUpcomingRequest(env: McpEnv, token: string, todayIso: string
  *  (already window-scoped by the SQL). A recurring task contributes its NEXT due day: walk
  *  today+1 .. today+count and take the first day it is due AND not already completed/skipped
  *  on (a repeat that's done for its next hit shows the one after). A one-off tracked in parts
- *  carries its cleaned counts, as in list_today. Pure + unit-tested; the tool formats and caps
- *  the output. */
-export function listUpcomingFromRows(rows: unknown, todayIso: string, count: number): { id: string; title: string; when: string; parts?: Slices }[] {
+ *  carries its cleaned counts, and a step its big task's title, as in list_today. Pure +
+ *  unit-tested; the tool formats and caps the output. */
+export function listUpcomingFromRows(rows: unknown, todayIso: string, count: number): (ListEntry & { when: string })[] {
   if (!Array.isArray(rows)) return [];
-  const out: { id: string; title: string; when: string; parts?: Slices }[] = [];
+  const out: (ListEntry & { when: string })[] = [];
   for (const r of rows) {
     if (r == null || typeof r !== 'object') continue;
-    const row = r as { id?: unknown; title?: unknown; recurrence?: unknown; completed_dates?: unknown; skipped_dates?: unknown; due?: unknown; slices?: unknown };
+    const row = r as ListRow;
     if (typeof row.id !== 'string' || typeof row.title !== 'string') continue;
     if (row.recurrence == null) {
       // A future one-off. Trust the SQL window, but keep the day so we can sort/format uniformly.
-      if (typeof row.due === 'string') out.push({ id: row.id, title: row.title, when: row.due, ...partsOf(row.slices) });
+      if (typeof row.due === 'string') out.push({ id: row.id, title: row.title, when: row.due, ...partsOf(row.slices), ...towardOf(row) });
     } else {
       const next = nextOccurrence(row.recurrence, row.completed_dates, row.skipped_dates, todayIso, count);
-      if (next) out.push({ id: row.id, title: row.title, when: next });
+      if (next) out.push({ id: row.id, title: row.title, when: next, ...towardOf(row) });
     }
   }
   // Stable date order (the SQL sorts one-offs, but the computed recurring days must interleave).
@@ -682,7 +811,7 @@ export function formatBreakdown(steps: Step[]): string {
     const mins = Number.isFinite(s.minutes) && s.minutes > 0 ? ` (${s.minutes} min)` : '';
     return `• ${s.title}${mins}`;
   });
-  return `${lines.join('\n')}\n\nNothing's been added yet. Say the word and I'll add these.`;
+  return `${lines.join('\n')}\n\nNothing's been added yet. Say the word and I'll add these as linked steps.`;
 }
 
 /** What the person needs to hear when their token is refused: not "try again", which sends them to retry
@@ -708,15 +837,18 @@ export type TaskState = {
   slices?: unknown;
   silent_parent?: unknown;
   parent_id?: unknown;
+  parent_title?: unknown;
 };
 
 /** What a done-write or a parts change will do, decided from the row as read. `refuse` (an isError sentence) and
  *  `say` (a calm sentence) write nothing. `write` is one guarded PATCH (patchRowRequest): `body` is the columns
- *  it sets before updated_at, `reply` is said when it lands, and `miss` is said when the guard matches no row. */
+ *  it sets before updated_at, `reply` is said when it lands, and `miss` is said when the guard matches no row.
+ *  `closes` marks a write that finishes the task, so a step walks up to its big task once it lands, and `lead` is
+ *  the reply's opening when the walk has something to add (the one-off's "Marked it done." without its "Nice."). */
 export type WritePlan =
   | { kind: 'refuse'; text: string }
   | { kind: 'say'; text: string }
-  | { kind: 'write'; body: Record<string, unknown>; guard: Record<string, string>; reply: string; miss: string };
+  | { kind: 'write'; body: Record<string, unknown>; guard: Record<string, string>; reply: string; miss: string; closes?: true; lead?: string };
 
 const NO_MATCH = 'No matching task found.';
 // A guarded write that matched nothing after the read found the row: it changed in between (a tick on a phone,
@@ -790,9 +922,18 @@ export function planDone(row: TaskState, on: boolean, o: { count: number; day: s
       guard: { ...partsGuard(row.slices), done: 'is.false' },
       reply: partsTickReply(row, parts, change),
       miss: CHANGED_TRY,
+      ...(change.complete ? { closes: true as const } : {}),
     };
   }
-  return { kind: 'write', body: { done: true, completed_at: o.now }, guard: { done: 'is.false' }, reply: 'Marked it done. Nice.', miss: CHANGED_CHECK };
+  return {
+    kind: 'write',
+    body: { done: true, completed_at: o.now },
+    guard: { done: 'is.false' },
+    reply: 'Marked it done. Nice.',
+    miss: CHANGED_CHECK,
+    closes: true,
+    lead: 'Marked it done.',
+  };
 }
 
 /** update_task `parts`, decided READ-FIRST: a number tracks the task in that many parts (the app's setSliceTotal:
@@ -820,6 +961,65 @@ export function planParts(row: TaskState, parts: number | null, o: { now: string
       ? `${name} is now in ${total} parts, and all ${total} are ticked, so it's done. Nice.`
       : `${name} is now tracked in ${total} parts, ${done} done.`,
     miss: CHANGED_TRY,
+    ...(change.complete ? { closes: true as const } : {}),
+  };
+}
+
+/** The walk's half of a step's reply, after its own ("Marked it done."), or '' when there is nothing to add. It names
+ *  only what landed: a big task the walk finished, its next level's count, or that the app sorts the rest out on
+ *  its next open (it may finish it or bring it back, so the reply says neither). `fallback` is the step's own record
+ *  of its big task's title, for a walk that could not read it. */
+export function walkReply(o: WalkOutcome, fallback: string | null): string {
+  const quote = (title: string | null, unnamed: string) => (title ? `"${title}"` : unnamed);
+  const stop = o.stop;
+  const below = o.finished.length > 0;
+  let after = '';
+  if (stop.kind === 'waiting') after = ` ${stop.done} of ${stop.of} steps toward ${quote(stop.title, 'the big task')} done.`;
+  if (stop.kind === 'app') {
+    // Above a task the walk finished, an unnamed level is "the rest", never "the big task" it just closed.
+    const who = quote(stop.title ?? (below ? null : fallback), below ? 'The rest' : 'The big task');
+    after = ` ${who} will sort itself out next time DoubleDone opens.`;
+  }
+  if (!below) return after;
+  const top = o.finished[o.finished.length - 1];
+  const closed = ` That was the last step, so ${quote(top.title, 'the big task')} is done too.`;
+  return stop.kind === 'gone' ? `${closed} That's the whole thing.` : `${closed}${after}`;
+}
+
+/** The walk, over this surface's own reads and writes. Every fetch is caught: the step's own write has landed by
+ *  the time this runs, so a throw here must end the walk calmly (as `app`), never turn the tick into an error the
+ *  agent retries. */
+function walkIo(env: McpEnv, token: string): WalkIo {
+  const rowsOf = async (query: Record<string, string>): Promise<WalkRow[] | null> => {
+    const { url, init } = readRowsRequest(env, token, query);
+    const res = await fetch(url, init);
+    if (!res.ok) return null;
+    const rows = (await res.json()) as unknown;
+    return Array.isArray(rows) ? (rows.filter((r) => r !== null && typeof r === 'object') as WalkRow[]) : [];
+  };
+  return {
+    async read(id) {
+      try {
+        const parents = await rowsOf(walkParentQuery(id));
+        if (!parents) return null;
+        const children = await rowsOf(walkChildrenQuery(id));
+        if (!children) return null;
+        return { parent: parents[0] ?? null, children };
+      } catch {
+        return null;
+      }
+    },
+    async finish(id, body, guard) {
+      try {
+        const w = patchRowRequest(env, token, id, body, guard);
+        const res = await fetch(w.url, w.init);
+        if (!res.ok) return null;
+        const rows = (await res.json()) as unknown;
+        return Array.isArray(rows) && rows[0] && typeof rows[0] === 'object' ? (rows[0] as WalkRow) : 'miss';
+      } catch {
+        return null;
+      }
+    },
   };
 }
 
@@ -834,27 +1034,121 @@ async function readTaskState(env: McpEnv, token: string, id: string, transient: 
 }
 
 /** Carry out a plan as ONE PATCH, with any field change riding in the same write (`fields`, from fieldPatch). A
- *  `say` plan still lands the field change. No plan at all is a plain field change. */
+ *  `say` plan still lands the field change. No plan at all is a plain field change. When the write closes a STEP
+ *  (the row read first has a `parent_id`), the finish walk runs once it has landed, dated to this close, and the
+ *  reply adds what the walk did (walkReply). */
 async function applyPlan(
   env: McpEnv,
   token: string,
   id: string,
   plan: WritePlan | null,
   fields: Record<string, unknown>,
-  now: string,
-  transient: string,
+  o: { now: string; day: string; transient: string; row: TaskState },
 ): Promise<ToolResult> {
   if (plan?.kind === 'refuse') return toolText(plan.text, true);
   const hasFields = Object.keys(fields).length > 0;
   if (plan?.kind === 'say' && !hasFields) return toolText(plan.text);
   const write = plan?.kind === 'write' ? plan : null;
-  const w = patchRowRequest(env, token, id, { ...fields, ...write?.body, updated_at: now }, write?.guard);
+  const w = patchRowRequest(env, token, id, { ...fields, ...write?.body, updated_at: o.now }, write?.guard);
   const res = await fetch(w.url, w.init);
-  if (!res.ok) return upstreamFailure(res, transient);
+  if (!res.ok) return upstreamFailure(res, o.transient);
   const rows = (await res.json()) as unknown;
   if (!Array.isArray(rows) || rows.length === 0) return toolText(write?.miss ?? NO_MATCH, true);
-  if (write) return toolText(write.reply);
-  return toolText(plan?.kind === 'say' ? `Updated. ${plan.text}` : 'Updated.');
+  if (!write) return toolText(plan?.kind === 'say' ? `Updated. ${plan.text}` : 'Updated.');
+  const parentId = typeof o.row.parent_id === 'string' && o.row.parent_id ? o.row.parent_id : null;
+  if (!write.closes || !parentId) return toolText(write.reply);
+  const parentTitle = typeof o.row.parent_title === 'string' && o.row.parent_title ? o.row.parent_title : null;
+  const outcome = await planFinish(walkIo(env, token), { parentId, parentTitle, completedAt: o.now }, o.day, o.now);
+  const more = walkReply(outcome, parentTitle);
+  return toolText(more ? `${write.lead ?? write.reply}${more}` : write.reply);
+}
+
+/** Why add_steps refused a task already on the list (steps.ts stepsRefusal), in one plain sentence each. "Waiting on
+ *  its steps" is neutral on purpose: a made-tiny task is hidden the same way as a breakdown. */
+const STEPS_REFUSALS: Record<'done' | 'repeats' | 'parts' | 'hidden', string> = {
+  done: 'That one is already done.',
+  repeats: "A repeating task can't be broken into steps. Add them as their own tasks, or stop it repeating first.",
+  parts: 'That task is tracked in parts. Make it one whole task first (update_task parts: null), then break it down.',
+  hidden: 'That task is already waiting on its steps. They are on the list.',
+};
+
+/** add_steps' reply: what it broke down and where the steps went, then one line per step with its id, so the agent
+ *  can tick them. The big task's id is not shown: it is not on the list, and it closes by its steps. */
+function stepsAddedReply(bigTitle: string | null, steps: StepSpec[], rows: Record<string, unknown>[]): string {
+  const onToday = steps.every((s) => s.due === null) ? ' on today' : '';
+  const what = bigTitle ? `"${bigTitle}"` : 'it';
+  const head = `Broke ${what} into ${steps.length} steps${onToday}. It's tucked away now, and it closes itself when the last step is ticked.`;
+  const lines = rows.map((r, i) => `• ${String(r.title)}${steps[i].due ? `  (on ${steps[i].due})` : ''}  [${String(r.id)}]`);
+  return [head, ...lines].join('\n');
+}
+
+/** add_steps: write a breakdown the user said yes to, exactly as the app's Break it down does (steps.ts
+ *  buildStepRows). With `title`, the big task and its steps are ONE insert, so it is atomic. With `task_id`, the task
+ *  is read and refused if it cannot be broken down, its steps are inserted, and only then is it hidden, by a write
+ *  pinned to the task as it was read. If that write misses (a phone changed the task in between) or fails, the steps
+ *  just inserted are tombstoned again, because steps beside a task that is not hidden would never close it, and the
+ *  reply says nothing was added, or, if even that write fails, that some steps may have landed. */
+async function runAddSteps(env: McpEnv, token: string, sub: string, args: Record<string, unknown>, now: string): Promise<ToolResult> {
+  const hasId = args.task_id !== undefined && args.task_id !== null;
+  const hasTitle = args.title !== undefined && args.title !== null;
+  if (hasId === hasTitle) {
+    return toolText('Pass task_id to break down a task already on the list, or title to make the big task with its steps. One of them, not both.', true);
+  }
+  const parsed = parseSteps(args.steps);
+  if ('error' in parsed) return toolText(parsed.tooFew ? `${parsed.error} Use add_task or update_task instead.` : parsed.error, true);
+  const steps = parsed.steps;
+  const nowMs = Date.parse(now);
+  const ids = stepIds(`mcp-${nowMs.toString(36)}-${Math.random().toString(36).slice(2, 8)}`, steps.length);
+  const transient = 'Could not add the steps just now. Try again.';
+
+  if (hasTitle) {
+    const title = typeof args.title === 'string' ? args.title.trim() : '';
+    if (!title) return toolText('A title is required.', true);
+    if (title.length > MAX_TITLE_CHARS) return toolText(`That title is too long. Keep it to ${MAX_TITLE_CHARS} characters.`, true);
+    const rows = buildStepRows({ userId: sub, nowMs, parent: { id: ids.parent, title }, stepIds: ids.steps, steps, withParent: true });
+    const ins = insertRowsRequest(env, token, rows);
+    const res = await fetch(ins.url, ins.init);
+    if (!res.ok) return upstreamFailure(res, transient);
+    return toolText(stepsAddedReply(title, steps, rows.slice(1)));
+  }
+
+  const taskId = typeof args.task_id === 'string' ? args.task_id.trim() : '';
+  if (!taskId) return toolText('A task id is required (use list_today first).', true);
+  const read = await readTaskState(env, token, taskId, transient);
+  if ('fail' in read) return read.fail;
+  const row = read.row;
+  const refusal = stepsRefusal(row);
+  if (refusal) return toolText(STEPS_REFUSALS[refusal], true);
+  const title = typeof row.title === 'string' ? row.title : null;
+  const rows = buildStepRows({ userId: sub, nowMs, parent: { id: taskId, title }, stepIds: ids.steps, steps, withParent: false });
+  const ins = insertRowsRequest(env, token, rows);
+  const res = await fetch(ins.url, ins.init);
+  if (!res.ok) return upstreamFailure(res, transient);
+  // Hidden only now its steps exist: a hidden task with no children is one the app's repair never touches, so it
+  // would stay out of sight for good.
+  const flip = patchRowRequest(env, token, taskId, { ...hidePatch(steps), updated_at: now }, hideGuard(row));
+  let flipRes: Response | null = null;
+  let landed = false;
+  try {
+    flipRes = await fetch(flip.url, flip.init);
+    if (flipRes.ok) {
+      const flipped = (await flipRes.json()) as unknown;
+      landed = Array.isArray(flipped) && flipped.length > 0;
+    }
+  } catch {
+    flipRes = null;
+  }
+  if (landed) return toolText(stepsAddedReply(title, steps, rows));
+  let undone = false;
+  try {
+    const undo = tombstoneRowsRequest(env, token, ids.steps, now);
+    undone = (await fetch(undo.url, undo.init)).ok;
+  } catch {
+    undone = false;
+  }
+  if (!undone) return toolText('Some steps may have landed on their own. Check list_today.', true);
+  if (flipRes && flipRes.ok) return toolText('That task changed just now, so nothing was added. Try again.', true);
+  return flipRes ? upstreamFailure(flipRes, 'Could not break it down just now, so nothing was added. Try again.') : toolText('Could not break it down just now, so nothing was added. Try again.', true);
 }
 
 /** The optional `day` an agent names for a tick: a real calendar day, else null (a refusal); absent means
@@ -921,7 +1215,7 @@ async function runTool(env: McpEnv, token: string, sub: string, name: string, ar
     const rows = (await res.json()) as unknown;
     const tasks = listTodayFromRows(rows, todayIso);
     if (tasks.length === 0) return toolText('Nothing on today. Enjoy the quiet.');
-    return toolText(tasks.map((t) => `• ${t.title}${t.repeats ? '  (repeats)' : ''}${partsMark(t.parts)}  [${t.id}]`).join('\n'));
+    return toolText(tasks.map((t) => `• ${t.title}${t.repeats ? '  (repeats)' : ''}${partsMark(t.parts)}${towardMark(t.toward)}  [${t.id}]`).join('\n'));
   }
 
   if (name === 'list_upcoming') {
@@ -934,7 +1228,7 @@ async function runTool(env: McpEnv, token: string, sub: string, name: string, ar
     if (items.length === 0) return toolText(`Nothing scheduled in the next ${count} day${count === 1 ? '' : 's'}.`);
     // Cap the printed list so a big backlog can't produce a wall of text.
     const shown = items.slice(0, 40);
-    const body = shown.map((t) => `• ${t.title}${partsMark(t.parts)} — ${t.when}  [${t.id}]`).join('\n');
+    const body = shown.map((t) => `• ${t.title}${partsMark(t.parts)}${towardMark(t.toward)} — ${t.when}  [${t.id}]`).join('\n');
     const more = items.length > shown.length ? `\n…and ${items.length - shown.length} more.` : '';
     return toolText(body + more);
   }
@@ -958,7 +1252,7 @@ async function runTool(env: McpEnv, token: string, sub: string, name: string, ar
     if ('fail' in read) return read.fail;
     // The shared classifier, so the tick and list_today agree by construction on what "repeats" means.
     const plan = planDone(read.row, true, { count, day, now, repeats: asRecurrence(read.row.recurrence) != null });
-    return applyPlan(env, token, taskId, plan, {}, now, transient);
+    return applyPlan(env, token, taskId, plan, {}, { now, day, transient, row: read.row });
   }
 
   if (name === 'update_task') {
@@ -1039,7 +1333,7 @@ async function runTool(env: McpEnv, token: string, sub: string, name: string, ar
         : done !== undefined
           ? planDone(row, done, { count: 1, day, now, repeats })
           : null;
-    return applyPlan(env, token, taskId, plan, fieldPatch(fields), now, transient);
+    return applyPlan(env, token, taskId, plan, fieldPatch(fields), { now, day, transient, row });
   }
 
   if (name === 'delete_task') {
@@ -1051,6 +1345,8 @@ async function runTool(env: McpEnv, token: string, sub: string, name: string, ar
     const rows = (await res.json()) as unknown;
     return Array.isArray(rows) && rows.length > 0 ? toolText('Removed.') : toolText('No matching task found.', true);
   }
+
+  if (name === 'add_steps') return runAddSteps(env, token, sub, args, now);
 
   if (name === 'break_down') {
     const task = typeof args.task === 'string' ? args.task.trim() : '';
@@ -1084,11 +1380,14 @@ async function runTool(env: McpEnv, token: string, sub: string, name: string, ar
     const steps = parseDecomposeResponse(raw);
     // Log to the moat if D1 is reachable from here (it is, via the widened env). Awaited, but
     // logAiCall swallows all errors and returns void, so it can never break the tool result.
+    // The offered half of the moat: the steps in full, as the app's own /decompose logs them, so an agent's offer
+    // can be read beside the app's. (Nothing ties an agent-written step back to this offer yet: the completion half
+    // waits on the parked decomposition columns, decision log 2026-10-18.)
     await logAiCall(env, {
       endpoint: 'decompose',
       model: DECOMPOSE_MODEL,
       input: { task, via: 'mcp' },
-      output: { steps: steps.length },
+      output: { steps },
       inputTokens: usageOf(raw).input,
       outputTokens: usageOf(raw).output,
       latencyMs: Date.now() - started,

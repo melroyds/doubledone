@@ -1171,3 +1171,452 @@ describe('parts: a task tracked in parts moves forward one part at a time, and n
     expect(paramsOf(calls[1])).toEqual({ id: 'eq.t1', deleted_at: 'is.null' });
   });
 });
+
+describe('linked steps: add_steps writes a breakdown, and the last step closes the big task', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+  const NOW = '2026-10-18T03:00:00.000Z';
+  const freeze = () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(NOW));
+  };
+  const text = (r: Awaited<ReturnType<typeof callTool>>) => r.result.content[0].text;
+  const at = (min: number) => new Date(Date.UTC(2026, 9, 18, 0, min)).toISOString();
+  /** A task as taskStateRequest returns it. */
+  const state = (extra: object = {}) => ({
+    id: 't1',
+    title: 'Clear the garage',
+    done: false,
+    recurrence: null,
+    completed_dates: null,
+    slices: null,
+    silent_parent: null,
+    parent_id: null,
+    parent_title: null,
+    ...extra,
+  });
+  /** A step, as the state read returns it. */
+  const step = (id: string, extra: object = {}) => state({ id, title: `${id} (5 min)`, parent_id: 'P', parent_title: 'Clear the garage', ...extra });
+  /** The big task as the walk reads it. */
+  const big = (extra: object = {}) => ({
+    id: 'P',
+    title: 'Clear the garage',
+    done: false,
+    recurrence: null,
+    silent_parent: true,
+    open_parent: false,
+    parent_id: null,
+    deleted_at: null,
+    created_at: at(0),
+    ...extra,
+  });
+  /** A child as the walk reads it. */
+  const kid = (id: string, done: boolean, extra: object = {}) => ({
+    id,
+    done,
+    recurrence: null,
+    parent_id: 'P',
+    deleted_at: null,
+    created_at: at(1),
+    completed_at: done ? at(30) : null,
+    ...extra,
+  });
+  const twoSteps = [{ title: '• Bag up the rubbish (5 min)' }, { title: 'Take it to the tip', minutes: 30 }];
+  const shape = (calls: Call[]) => calls.map((c) => [c.url, c.init.method, c.init.body]);
+
+  // --- tools/list ---------------------------------------------------------------------------------------------
+
+  it('tools/list: ten tools, add_steps beside break_down, with its schema', () => {
+    type Tool = { name: string; description: string; inputSchema: { properties: Record<string, unknown>; required?: string[] } };
+    const tools = (toolsListResult() as { tools: Tool[] }).tools;
+    expect(tools.map((t) => t.name)).toEqual([
+      'add_task',
+      'list_today',
+      'list_upcoming',
+      'complete_task',
+      'update_task',
+      'delete_task',
+      'break_down',
+      'add_steps',
+      'search',
+      'fetch',
+    ]);
+    const addSteps = tools.find((t) => t.name === 'add_steps') as Tool;
+    expect(addSteps.inputSchema.required).toEqual(['steps']);
+    expect(Object.keys(addSteps.inputSchema.properties)).toEqual(['task_id', 'title', 'steps']);
+    expect(addSteps.inputSchema.properties.steps).toMatchObject({
+      type: 'array',
+      minItems: 2,
+      maxItems: 20,
+      items: {
+        required: ['title'],
+        additionalProperties: false,
+        properties: { minutes: { type: 'integer', minimum: 1, maximum: 480 }, due: { type: 'string' } },
+      },
+    });
+    expect(addSteps.description).toMatch(/ONLY after the user has said yes to these exact steps/);
+    expect(addSteps.description).toMatch(/Do NOT also call add_task/);
+    expect((tools.find((t) => t.name === 'break_down') as Tool).description).toMatch(/call add_steps with the steps they agreed \(not add_task\)/);
+    expect((tools.find((t) => t.name === 'complete_task') as Tool).description).toContain(`A STEP (marked '(toward "X")') closes`);
+  });
+
+  it('the readers say they are read-only, and the writers keep the protocol defaults', () => {
+    type Tool = { name: string; annotations?: { readOnlyHint?: boolean } };
+    const tools = (toolsListResult() as { tools: Tool[] }).tools;
+    const readOnly = tools.filter((t) => t.annotations?.readOnlyHint === true).map((t) => t.name);
+    expect(readOnly).toEqual(['list_today', 'list_upcoming', 'break_down', 'search', 'fetch']);
+    for (const name of ['add_task', 'complete_task', 'update_task', 'delete_task', 'add_steps']) {
+      expect(tools.find((t) => t.name === name)?.annotations).toBeUndefined();
+    }
+  });
+
+  // --- add_steps, title mode ----------------------------------------------------------------------------------
+
+  it('title mode is ONE POST of the big task and its steps, every row the same keys, and no PATCH', async () => {
+    freeze();
+    const calls = sequence([{ id: 'x' }]);
+    const r = await callTool('add_steps', { title: 'Clear the garage', steps: twoSteps });
+    expect(r.result.isError).toBeUndefined();
+    expect(calls).toHaveLength(1);
+    expect(calls[0].init.method).toBe('POST');
+    const rows = JSON.parse(calls[0].init.body as string) as Record<string, unknown>[];
+    expect(rows).toHaveLength(3);
+    const keys = Object.keys(rows[0]).sort();
+    for (const row of rows) expect(Object.keys(row).sort()).toEqual(keys);
+    const [parent, s0, s1] = rows;
+    expect(parent).toMatchObject({ title: 'Clear the garage', user_id: 'user-9', silent_parent: true, open_parent: false, complexity: 35, due: null, created_at: NOW });
+    expect(String(parent.id)).toMatch(/^mcp-[a-z0-9]+-[a-z0-9]+-p$/);
+    // The leading "• " break_down writes is gone, and the minutes are written once, from the suffix.
+    expect(s0).toMatchObject({ title: 'Bag up the rubbish (5 min)', complexity: 5, parent_id: parent.id, parent_title: 'Clear the garage', created_at: '2026-10-18T03:00:00.001Z' });
+    expect(s1).toMatchObject({ title: 'Take it to the tip (30 min)', complexity: 30, parent_id: parent.id, created_at: '2026-10-18T03:00:00.002Z' });
+  });
+
+  it('the reply lists each step with its id, and never the big task', async () => {
+    const calls = sequence([{ id: 'x' }]);
+    const t = text(await callTool('add_steps', { title: 'Clear the garage', steps: twoSteps }));
+    const rows = JSON.parse(calls[0].init.body as string) as { id: string }[];
+    expect(t).toBe(
+      `Broke "Clear the garage" into 2 steps on today. It's tucked away now, and it closes itself when the last step is ticked.\n` +
+        `• Bag up the rubbish (5 min)  [${rows[1].id}]\n• Take it to the tip (30 min)  [${rows[2].id}]`,
+    );
+    expect(t).not.toContain(rows[0].id);
+  });
+
+  it('a dated step says its day, and the reply no longer says "on today"', async () => {
+    sequence([{ id: 'x' }]);
+    const t = text(await callTool('add_steps', { title: 'Move house', steps: [{ title: 'Book the van' }, { title: 'Pack', due: '2026-10-25' }] }));
+    expect(t).toMatch(/^Broke "Move house" into 2 steps\. It's tucked away/);
+    expect(t).toMatch(/• Pack {2}\(on 2026-10-25\) {2}\[mcp-/);
+  });
+
+  // --- add_steps, task_id mode --------------------------------------------------------------------------------
+
+  it('task_id mode reads, inserts the steps alone, then hides the task with a write pinned to it as read', async () => {
+    freeze();
+    const calls = sequence([state()], [{ id: 's' }], [{ id: 't1' }]);
+    const r = await callTool('add_steps', { task_id: 't1', steps: [{ title: 'Bag up the rubbish' }, { title: 'Sweep' }] });
+    expect(r.result.isError).toBeUndefined();
+    expect(calls.map((c) => c.init.method)).toEqual(['GET', 'POST', 'PATCH']);
+    const rows = JSON.parse(calls[1].init.body as string) as Record<string, unknown>[];
+    expect(rows).toHaveLength(2);
+    expect(rows.every((s) => s.parent_id === 't1' && s.parent_title === 'Clear the garage' && s.complexity === null)).toBe(true);
+    expect(paramsOf(calls[2])).toEqual({
+      id: 'eq.t1',
+      deleted_at: 'is.null',
+      done: 'is.false',
+      silent_parent: 'not.is.true',
+      recurrence: 'is.null',
+      slices: 'is.null',
+    });
+    // No step has minutes, so complexity is left alone, as the app's manual breakdown leaves it.
+    expect(bodyOf(calls[2])).toEqual({ silent_parent: true, open_parent: false, updated_at: NOW });
+    expect(text(r)).toMatch(/^Broke "Clear the garage" into 2 steps on today\./);
+  });
+
+  it('task_id mode sets complexity on the hidden task when a step has minutes, and nothing else of it', async () => {
+    const calls = sequence([state({ due: '2026-10-20' })], [{ id: 's' }], [{ id: 't1' }]);
+    await callTool('add_steps', { task_id: 't1', steps: twoSteps });
+    expect(bodyOf(calls[2])).toEqual({ silent_parent: true, open_parent: false, complexity: 35, updated_at: expect.any(String) });
+  });
+
+  it('each refusal is one read and no write: missing, done, repeating, in parts, already waiting', async () => {
+    const cases: [unknown, string][] = [
+      [[], 'No matching task found.'],
+      [[state({ done: true })], 'That one is already done.'],
+      [[state({ recurrence: { kind: 'daily' } })], "A repeating task can't be broken into steps. Add them as their own tasks, or stop it repeating first."],
+      [[state({ slices: { total: 3, done: 1 } })], 'That task is tracked in parts. Make it one whole task first (update_task parts: null), then break it down.'],
+      [[state({ silent_parent: true })], 'That task is already waiting on its steps. They are on the list.'],
+    ];
+    for (const [answer, says] of cases) {
+      const calls = sequence(answer);
+      const r = await callTool('add_steps', { task_id: 't1', steps: twoSteps });
+      expect(r.result.isError).toBe(true);
+      expect(text(r)).toBe(says);
+      expect(calls).toHaveLength(1);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a hiding write that matches nothing tombstones exactly the steps it inserted, then says nothing was added', async () => {
+    freeze();
+    const calls = sequence([state()], [{ id: 's' }], [], [{ id: 's' }]);
+    const r = await callTool('add_steps', { task_id: 't1', steps: twoSteps });
+    expect(r.result.isError).toBe(true);
+    expect(text(r)).toBe('That task changed just now, so nothing was added. Try again.');
+    expect(calls).toHaveLength(4);
+    const inserted = (JSON.parse(calls[1].init.body as string) as { id: string }[]).map((s) => s.id);
+    expect(paramsOf(calls[3])).toEqual({ id: `in.(${inserted.join(',')})` });
+    expect(bodyOf(calls[3])).toEqual({ deleted_at: NOW, updated_at: NOW });
+  });
+
+  it('a hiding write that fails is undone the same way, and a refused token says so', async () => {
+    const calls = sequence([state()], [{ id: 's' }], failWith(401), [{ id: 's' }]);
+    const r = await callTool('add_steps', { task_id: 't1', steps: twoSteps });
+    expect(text(r)).toBe(TOKEN_EXPIRED);
+    expect(calls.map((c) => c.init.method)).toEqual(['GET', 'POST', 'PATCH', 'PATCH']);
+  });
+
+  it('if even the tombstone fails, it says some steps may have landed', async () => {
+    sequence([state()], [{ id: 's' }], [], failWith(500));
+    const r = await callTool('add_steps', { task_id: 't1', steps: twoSteps });
+    expect(r.result.isError).toBe(true);
+    expect(text(r)).toBe('Some steps may have landed on their own. Check list_today.');
+  });
+
+  it('an insert that fails writes nothing more, and a refused token on title mode says so', async () => {
+    let calls = sequence([state()], failWith(500));
+    let r = await callTool('add_steps', { task_id: 't1', steps: twoSteps });
+    expect(r.result.isError).toBe(true);
+    expect(calls).toHaveLength(2);
+    vi.unstubAllGlobals();
+    calls = sequence(failWith(401));
+    r = await callTool('add_steps', { title: 'Clear the garage', steps: twoSteps });
+    expect(text(r)).toBe(TOKEN_EXPIRED);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('task_id and title together, or neither, one step, or bad steps are refused before any call', async () => {
+    const calls = sequence([state()]);
+    const bad: [object, RegExp][] = [
+      [{ task_id: 't1', title: 'x', steps: twoSteps }, /One of them, not both/],
+      [{ steps: twoSteps }, /One of them, not both/],
+      [{ title: 'x', steps: [{ title: 'Only' }] }, /^Give at least two steps\. One step on its own never closes the big task\. Use add_task or update_task instead\.$/],
+      [{ title: 'x', steps: [{ title: 'a' }, { title: 'b', minutes: 0 }] }, /minutes/],
+      [{ title: 'x', steps: [{ title: 'a' }, { title: 'b', due: 'tomorrow' }] }, /due date/],
+      [{ title: '  ', steps: twoSteps }, /title is required/],
+      [{ title: 'y'.repeat(501), steps: twoSteps }, /too long/],
+    ];
+    for (const [args, says] of bad) {
+      const r = await callTool('add_steps', args);
+      expect(r.result.isError).toBe(true);
+      expect(text(r)).toMatch(says);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  // --- complete_task on a step --------------------------------------------------------------------------------
+
+  it('the LAST step closes, then finishes the big task, dated to the step, under the finish guard, never writing open_parent', async () => {
+    freeze();
+    const calls = sequence([step('s2')], [{ id: 's2' }], [big()], [kid('s1', true), kid('s2', true, { completed_at: NOW })], [{ id: 'P' }]);
+    const r = await callTool('complete_task', { id: 's2' });
+    expect(text(r)).toBe(`Marked it done. That was the last step, so "Clear the garage" is done too. That's the whole thing.`);
+    expect(calls.map((c) => c.init.method)).toEqual(['GET', 'PATCH', 'GET', 'GET', 'PATCH']);
+    expect(paramsOf(calls[2])).toMatchObject({ id: 'eq.P', limit: '1' });
+    expect(paramsOf(calls[3])).toMatchObject({ parent_id: 'eq.P' });
+    expect(paramsOf(calls[3]).select.split(',')).not.toContain('left_off');
+    expect(paramsOf(calls[4])).toEqual({ id: 'eq.P', deleted_at: 'is.null', done: 'is.false', silent_parent: 'is.true', open_parent: 'not.is.true' });
+    const w = bodyOf(calls[4]);
+    expect(w).toEqual({ done: true, completed_at: bodyOf(calls[1]).completed_at, silent_parent: false, updated_at: NOW });
+    expect(w).not.toHaveProperty('open_parent');
+  });
+
+  it('a step that is not the last writes no parent, and says how many are done', async () => {
+    const calls = sequence([step('s2')], [{ id: 's2' }], [big()], [kid('s1', true), kid('s2', true), kid('s3', false), kid('s4', false)]);
+    const r = await callTool('complete_task', { id: 's2' });
+    expect(text(r)).toBe('Marked it done. 2 of 4 steps toward "Clear the garage" done.');
+    expect(calls).toHaveLength(4);
+  });
+
+  it('a round of one, a made-tiny pebble or a stale tiny flag is left to the app: no parent write, no tombstone, a neutral reply', async () => {
+    const levels: [object, unknown[]][] = [
+      [big(), [kid('s1', true)]],
+      [big({ open_parent: true }), [kid('k', true)]],
+      [big({ open_parent: true }), [kid('s1', true), kid('s2', true)]],
+    ];
+    for (const [parent, children] of levels) {
+      const calls = sequence([step('s1')], [{ id: 's1' }], [parent], children);
+      const r = await callTool('complete_task', { id: 's1' });
+      expect(r.result.isError).toBeUndefined();
+      expect(text(r)).toBe('Marked it done. "Clear the garage" will sort itself out next time DoubleDone opens.');
+      expect(calls.filter((c) => c.init.method === 'PATCH')).toHaveLength(1); // the step's own close, nothing else
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a big task already back on the list leaves the plain reply', async () => {
+    sequence([step('s1')], [{ id: 's1' }], [big({ silent_parent: false })], [kid('s1', true), kid('s2', true)]);
+    expect(text(await callTool('complete_task', { id: 's1' }))).toBe('Marked it done. Nice.');
+  });
+
+  it('a finish that fails, or that a device beat, never claims the close', async () => {
+    for (const answer of [failWith(500), []]) {
+      const calls = sequence([step('s2')], [{ id: 's2' }], [big()], [kid('s1', true), kid('s2', true)], answer);
+      const t = text(await callTool('complete_task', { id: 's2' }));
+      expect(t).toBe('Marked it done. "Clear the garage" will sort itself out next time DoubleDone opens.');
+      expect(t).not.toMatch(/done too/);
+      expect(calls).toHaveLength(5);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a walk read that fails still answers calmly, naming the big task from the step', async () => {
+    sequence([step('s2')], [{ id: 's2' }], failWith(500));
+    const r = await callTool('complete_task', { id: 's2' });
+    expect(r.result.isError).toBeUndefined();
+    expect(text(r)).toBe('Marked it done. "Clear the garage" will sort itself out next time DoubleDone opens.');
+  });
+
+  it('a nested chain finishes both, and the reply names the topmost', async () => {
+    const calls = sequence(
+      [step('s2')],
+      [{ id: 's2' }],
+      [big({ parent_id: 'G' })],
+      [kid('s1', true), kid('s2', true)],
+      [{ id: 'P' }],
+      [big({ id: 'G', title: 'Move house' })],
+      [kid('P', true, { parent_id: 'G' }), kid('Q', true, { parent_id: 'G' })],
+      [{ id: 'G' }],
+    );
+    const t = text(await callTool('complete_task', { id: 's2' }));
+    expect(t).toBe(`Marked it done. That was the last step, so "Move house" is done too. That's the whole thing.`);
+    expect(calls.filter((c) => c.init.method === 'PATCH').map((c) => paramsOf(c).id)).toEqual(['eq.s2', 'eq.P', 'eq.G']);
+  });
+
+  it('a finished level under one still waiting says both', async () => {
+    sequence(
+      [step('s2')],
+      [{ id: 's2' }],
+      [big({ parent_id: 'G' })],
+      [kid('s1', true), kid('s2', true)],
+      [{ id: 'P' }],
+      [big({ id: 'G', title: 'Move house' })],
+      [kid('P', true, { parent_id: 'G' }), kid('Q', false, { parent_id: 'G' })],
+    );
+    const t = text(await callTool('complete_task', { id: 's2' }));
+    expect(t).toBe('Marked it done. That was the last step, so "Clear the garage" is done too. 1 of 2 steps toward "Move house" done.');
+  });
+
+  it('the last part of a step in parts closes it, then walks', async () => {
+    const calls = sequence([step('s2', { slices: { total: 2, done: 1 } })], [{ id: 's2' }], [big()], [kid('s1', true), kid('s2', true)], [{ id: 'P' }]);
+    const t = text(await callTool('complete_task', { id: 's2' }));
+    expect(t).toBe(`Ticked the last part of "s2 (5 min)", so it's done: all 2. Nice. That was the last step, so "Clear the garage" is done too. That's the whole thing.`);
+    expect(calls).toHaveLength(5);
+  });
+
+  it('a part that does not finish a step in parts walks nothing', async () => {
+    const calls = sequence([step('s2', { slices: { total: 3, done: 1 } })], [{ id: 's2' }]);
+    await callTool('complete_task', { id: 's2' });
+    expect(calls).toHaveLength(2);
+  });
+
+  it('a step already done is "Already done." and walks nothing', async () => {
+    const calls = sequence([step('s2', { done: true })]);
+    expect(text(await callTool('complete_task', { id: 's2' }))).toBe('Already done.');
+    expect(calls).toHaveLength(1);
+  });
+
+  // --- update_task on steps -----------------------------------------------------------------------------------
+
+  it('update_task done:true on the last step writes exactly what complete_task writes, walk included', async () => {
+    freeze();
+    const answers = (): unknown[] => [[step('s2')], [{ id: 's2' }], [big()], [kid('s1', true), kid('s2', true)], [{ id: 'P' }]];
+    const viaComplete = sequence(...answers());
+    const a = text(await callTool('complete_task', { id: 's2' }));
+    vi.unstubAllGlobals();
+    const viaUpdate = sequence(...answers());
+    const b = text(await callTool('update_task', { id: 's2', done: true }));
+    expect(shape(viaUpdate)).toEqual(shape(viaComplete));
+    expect(b).toBe(a);
+  });
+
+  it('update_task parts that finishes a step runs the walk', async () => {
+    const calls = sequence([step('s2', { slices: { total: 5, done: 3 } })], [{ id: 's2' }], [big()], [kid('s1', true), kid('s2', true)], [{ id: 'P' }]);
+    const t = text(await callTool('update_task', { id: 's2', parts: 3 }));
+    expect(t).toMatch(/so it's done\. Nice\. That was the last step, so "Clear the garage" is done too\. That's the whole thing\.$/);
+    expect(calls.map((c) => c.init.method)).toEqual(['GET', 'PATCH', 'GET', 'GET', 'PATCH']);
+  });
+
+  it('update_task done:false on a step reopens the step only, never the big task it closed', async () => {
+    const calls = sequence([step('s2', { done: true })], [{ id: 's2' }]);
+    expect(text(await callTool('update_task', { id: 's2', done: false }))).toBe('Reopened.');
+    expect(calls).toHaveLength(2);
+    expect(paramsOf(calls[1]).id).toBe('eq.s2');
+  });
+
+  // --- the reads ----------------------------------------------------------------------------------------------
+
+  it('list_today selects the step columns and marks a step toward its big task, or "(a step)" when unnamed', async () => {
+    const calls = sequence([
+      { id: 's1', title: 'Bag up the rubbish (5 min)', recurrence: null, parent_id: 'P', parent_title: 'Clear the garage' },
+      { id: 's2', title: 'Sweep', recurrence: null, parent_id: 'P', parent_title: null },
+      { id: 's3', title: 'Paint', recurrence: null, slices: { total: 3, done: 1 }, parent_id: 'P', parent_title: 'Clear the garage' },
+      { id: 'o1', title: 'Call the vet', recurrence: null, parent_id: null },
+    ]);
+    const t = text(await callTool('list_today', {}));
+    expect(paramsOf(calls[0]).select.split(',')).toEqual(expect.arrayContaining(['slices', 'parent_id', 'parent_title']));
+    expect(paramsOf(calls[0]).select.split(',')).not.toContain('left_off');
+    expect(t).toContain('• Bag up the rubbish (5 min)  (toward "Clear the garage")  [s1]');
+    expect(t).toContain('• Sweep  (a step)  [s2]');
+    expect(t).toContain('• Paint  (1/3 parts)  (toward "Clear the garage")  [s3]');
+    expect(t).toContain('• Call the vet  [o1]');
+  });
+
+  it('list_upcoming marks a step on its day', async () => {
+    const tomorrow = addDaysIso(new Date().toISOString().slice(0, 10), 1);
+    const calls = sequence([{ id: 's1', title: 'Pack', recurrence: null, due: tomorrow, parent_id: 'P', parent_title: 'Move house' }]);
+    const t = text(await callTool('list_upcoming', {}));
+    expect(paramsOf(calls[0]).select.split(',')).toEqual(expect.arrayContaining(['parent_id', 'parent_title']));
+    expect(t).toContain(`• Pack  (toward "Move house")`);
+    expect(t).toContain(`${tomorrow}  [s1]`);
+  });
+
+  // --- break_down ---------------------------------------------------------------------------------------------
+
+  it('break_down still makes ONE fetch, points at linked steps, and logs the offered steps in full', async () => {
+    const anthropic = {
+      content: [
+        {
+          type: 'tool_use',
+          name: 'record_steps',
+          input: {
+            steps: [
+              { title: 'Open the door', minutes: 2 },
+              { title: 'Bag one box', minutes: 10 },
+            ],
+          },
+        },
+      ],
+      usage: { input_tokens: 10, output_tokens: 20 },
+    };
+    const spy = vi.fn(async () => ({ ok: true, json: async () => anthropic }) as unknown as Response);
+    vi.stubGlobal('fetch', spy as unknown as typeof fetch);
+    const bound: unknown[][] = [];
+    const DB = { prepare: () => ({ bind: (...p: unknown[]) => ({ run: async () => bound.push(p) }) }) };
+    const e = { ...env, ANTHROPIC_API_KEY: 'sk-test', DB } as unknown as McpEnv;
+    const r = await callTool('break_down', { task: 'Clean the garage' }, USER_JWT, e);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(text(r)).toMatch(/\n\nNothing's been added yet\. Say the word and I'll add these as linked steps\.$/);
+    expect(text(r)).not.toMatch(/\[[^\]]+\]/);
+    expect(bound).toHaveLength(1);
+    expect(JSON.parse(bound[0][3] as string)).toEqual({
+      steps: [
+        { title: 'Open the door', minutes: 2 },
+        { title: 'Bag one box', minutes: 10 },
+      ],
+    });
+    expect(JSON.parse(bound[0][2] as string)).toEqual({ task: 'Clean the garage', via: 'mcp' });
+  });
+});

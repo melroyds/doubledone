@@ -9453,3 +9453,131 @@ change here. The steps commit rides the same versions: both go out in one Worker
 
 Also: a shared `server/src/fetch-sequence.test-helper.ts` replaces the four copies of the fetch stand-in, so MCP and
 REST are driven the same way. Manual cases MCP-23 and API-05, and API-03 now reads 1.3.0. Server tests 776 (77 new).
+
+## 2026-10-18: linked steps over MCP and the REST API, and the last step closes the big task (stepped tasks, commit 2 of 2)
+
+The second half of the reviewed design (`docs/design-source/mcp-stepped-tasks-design.md`, with the two maps beside
+it), on top of commit 1's parts and the same `server/src/steps.ts`. Before this, an agent could break nothing down:
+`break_down` proposed, then `add_task` per step made plain, unlinked tasks, so ticking the last one never closed the
+big task, unlike the app. And an agent or integration ticking the last step of a breakdown made IN the app left the
+big task hidden, out of every agent read, until a phone opened and repaired it.
+
+**Decided: ONE accept tool, `add_steps`, and it REVERSES a line from 2026-07-07.** The "MCP tools expansion" entry
+says `break_down` "returns the steps ... and a separate add_task commits them". That line made the unlinked steps.
+Propose-then-accept stays exactly as it was: `break_down` still writes nothing, `add_steps`' description allows it
+ONLY after the person has said yes to these exact steps (as they edited them, or as they dictated them), and the
+chat is still the review surface. One tool with one job, not a `steps` array on `add_task` / `update_task`, which
+already juggle the `due` / `repeat` either-or: one job is easier for a model to call correctly. Named `add_steps`,
+not `accept_breakdown`, because it also takes steps a person dictates with no AI involved.
+
+**Decided: the rows are the app's own.** What `bdAccept` / `manualBreakdownSubmit` write (`client/src/app/today.tsx`):
+the big task `silent_parent: true`, `open_parent: false` (a breakdown, not a made-tiny task), `complexity` the summed
+minutes (only when a step has minutes, as the AI path does and the manual path does not); each step a one-off child
+with `parent_id`, `parent_title`, the title `"{title} ({m} min)"`, `complexity` the minutes as an integer, its day
+or null for today, and `created_at` 1 ms apart in order. Every row carries the same key set with explicit nulls,
+because a mixed-key batch is refused (PGRST102). German writes "Min.", the server cannot know the language, and
+"min" is accepted there. Ids come from one base per call, `-p` for the big task and `-<i>` for each step, unique by
+construction. A step title is tidied the way the capture box tidies a pasted list (a leading `• `, `- `, `* `,
+`1. `), and a trailing `(5 min)` becomes its minutes, so the list `break_down` printed can be passed straight back.
+
+**Decided: `title` mode is ONE insert, so it is atomic; `task_id` mode is read, insert, then a guarded hide, with a
+compensating tombstone.** The hide comes last because a hidden task with no children is one the app's repair never
+touches, so it would stay out of sight for good. The hide is pinned to the task as read: not removed, `done=is.false`,
+`silent_parent=not.is.true`, and `recurrence` / `slices` `is.null` ONLY when they read empty (a `{kind: 'none'}`
+repeat or a malformed count reads as none to the shared classifier but would never match `is.null`, and every retry
+would fail the same way). A hide that misses or fails tombstones exactly the inserted ids, and the reply says nothing
+was added; if even that fails, it says some steps may have landed. Accepted (R1): a Worker that dies between the
+insert and the hide leaves steps beside a visible task, untidy but nothing lost, and a retry adds a second round.
+Accepted (R10): a retried `title` call that had actually landed makes a duplicate, as `add_task` can.
+
+**Decided: two steps at least, twenty at most.** Since 1.8.0 a big task with one step in its round is brought back
+on that step's tick, never finished (`decide()`, the 2026-10-04 safe rule), so a one-step breakdown would never close
+itself. The app's manual breakdown allows one; an agent must not be able to set that trap.
+
+**Decided: the server only ever FINISHES, and with ONE rule at every level (Melroy's call, the design's pick).** A
+big task is finished when it is hidden, open, not removed, not a made-tiny task (`open_parent` not true), has two or
+more children in its current round, and every live child is done on the day. The write is `done`, `completed_at`
+the step's own (so the whole thing lands on the step's day in the Lookback) and `silent_parent: false`, guarded on
+`done=is.false`, `silent_parent=is.true`, `open_parent=not.is.true`. It never writes `open_parent`, `left_off` or
+`shared_ref`. Every other case is left to the app's repair (`healStuckParents`, in 1.8.0, live on both stores), which
+reaches the same end state on the next open.
+- **Why finish-only:** bringing a task back, retiring a spent pebble and the repair's bring-back all MOVE the child's
+  "Where you left off" line onto the parent, and the server never reads or writes `left_off`, a documented privacy
+  line. Retiring a pebble without moving its line would lose the person's words.
+- **Why one rule, with no flag clearing:** the app clears a stale tiny flag at the direct parent and then walks, but
+  above it `decide()` clears the flag and its `'walk'` is ignored, so it finishes nothing there. Copying that would
+  add a flag write for a legacy case the repair already handles. The only loss is the agent's "that's the whole
+  thing" line for a task made tiny on 1.8.0 and later broken down on 1.7.0.
+- **A round of none at the direct parent** (only reachable with clock skew) is left to the repair, which brings it
+  back where the in-app tick would finish it. The safe direction, accepted.
+- **Ported, not imported, and proven:** `currentRound` and `isDoneOn` exactly, with the client's own timestamp parse.
+  `server/src/settle-cases.json` holds 15 cases, run by the server against `planFinish` and by
+  `client/src/lib/settle-parity.test.ts` (a test-only client file) against the real `settleCompletions` and
+  `healStuckParents`, asserting (a) the server never finishes what the app would not, (b) the server's finishes then
+  the repair reach the end state, and (c) the app alone reaches the same one. (b) with (c) is the proof that leaving a
+  case to the app loses nothing. The draft's fixture asserted "the app brings something back exactly when the server
+  leaves it to the app", which is false for an ancestor with a stale tiny flag (`decide()` clears it and brings
+  nothing back); the end-state comparison replaces it, and that case is in the file.
+
+**Decided: a reply never claims a close that did not land.** "That was the last step, so "X" is done too. That's the
+whole thing." only when a finish landed and nothing hidden waits above it; "2 of 4 steps toward "X" done." while
+steps are open; "X will sort itself out next time DoubleDone opens." for every case the app decides, and for a
+failed read, a failed write or a write a phone beat, because it may finish or come back and the reply says neither.
+The walk's own fetches are caught: the step's write has landed by then, so a walk failure must never read as a failed
+tick the agent then retries.
+
+**Decided: neutral words for a step.** `list_today` / `list_upcoming` mark `(toward "X")`, or `(a step)` when the row
+has no `parent_title` (steps from before 2026-10-04). A made-tiny pebble carries `parent_id` and `parent_title` too,
+and nothing on the row tells the two apart without reading the parent, so "step of" and "is broken into steps" would
+mislabel a tiny task. The REST field is `hidden`, not `brokenDown`, for the same reason.
+
+**Decided: `update_task done: false` on a step reopens the step alone** (the app's untick never reopens a finished
+parent), and **a big task's rename is never copied onto its steps' `parent_title`**: bumping `updated_at` on sibling
+rows would beat a device's unsynced edit on those steps, and a slightly stale marker is the cheaper failure.
+
+**Decided: REST at parity, because writing steps is CRUD.** `steps` on `POST /tasks` (never with `due`, `repeat` or
+`partsTotal`: the big task has no day of its own), a new `POST /tasks/{id}/steps` (`201 {task, steps}`, 404, 409 for
+done / repeating / in parts / already hidden, 409 when the hide missed and nothing was added), `parentId`,
+`parentTitle` and `hidden` on every task, and `finished: Task[]` (topmost last) on a PATCH whose close finished a big
+task. This rewords the 2026-07-07 REST parity line ("Break-it-down and AI actions are MCP-only"): AI actions stay
+MCP-only, linked steps are CRUD on both. A parity test feeds both surfaces the same answers and asserts the same
+bodies and guards for the step's close, the big task's finish, and a breakdown's rows (ids aside) and hide. OpenAPI
+stays 1.3.0 and the MCP server 1.1.0, set in commit 1: both commits go out in one Worker deploy.
+
+**Decided: `readOnlyHint: true` on `list_today`, `list_upcoming`, `search`, `fetch` and `break_down`** (which changes
+nothing of the person's). The writers keep the protocol defaults (`readOnlyHint: false`, `destructiveHint: true`),
+already the cautious signal, so an explicit false would add nothing.
+
+**Decided: telemetry is offered-only for now, a conscious exception to "Telemetry before traffic" (Melroy's call).**
+`break_down` now logs `output: {steps}` in full, as the app's own `/decompose` does (the privacy policy's "the
+returned JSON" covers it). The completion half is deferred: nothing ties an agent-written step back to its offer until
+the parked `decomposition_id` / `decomposition_steps` columns exist. **Trigger to pull that migration forward:** MCP
+breakdowns reach about 5% of all offered breakdowns over four weeks. Numerator: `ai_calls` rows with
+`endpoint = 'decompose'` and `input.via = 'mcp'`. Denominator: every `plan` row plus every `decompose` row, because
+the app's own breakdown runs through `/plan` (`today.tsx`), so counting `decompose` rows alone (the draft's trigger)
+would wildly overstate the MCP share.
+
+**Decided: Calendar A4 is parked, not changed.** In `task_id` mode the hidden big task keeps its own `due`, and the
+Calendar's `scheduledByDay` has no `silentParent` check, so it still shows as planned on that day, exactly as an
+app-made breakdown does today. Backlog, trigger: the next Calendar change or a report.
+
+**Decided against:**
+- `add_task` per step (the old line), and a `steps` array on `add_task` / `update_task`.
+- A proposal token `add_steps` must echo: it could only prove `break_down` ran, never that a person said yes, and it
+  would block steps a person dictates. Consent theatre.
+- The server bringing a task back, retiring a pebble or clearing a stale tiny flag (the `left_off` line, and one
+  rule), and writing `open_parent` from the walk.
+- Encoding the offer's `corrId` in step ids: it would only cover agent ticks while most steps are ticked on the
+  phone, so the signal would be biased.
+- Bumping the app's `slices.defined` counter, or any app counter, from the server.
+- One-step breakdowns, a phase concept, a language parameter, and Make it tiny over MCP.
+- Folding the walk's two reads into one `or=(id.eq.P,parent_id.eq.P)`: a round trip fewer, but a new grammar (and id
+  quoting) under every tick.
+- Pulling the `decomposition_id` migration forward without Melroy's word.
+- A migration: every column used is synced and live (`open_parent` and `parent_title` are probed by
+  `check-migrations.py`; `slices`, `parent_id`, `silent_parent` and `complexity` are named on every client upsert).
+
+Next, separately: the Tier 2 `fix` commits (`fetch`'s status lines, refusing `delete_task` / DELETE on a hidden task,
+the `deleted_at` guard on `update_task` / `delete_task`, the OpenAPI drift fixes), and R11 as its own client
+`fix(sync)` commit. Manual cases MCP-20, MCP-21, MCP-22, MCP-24 and API-04; MCP-01 and MCP-15 now name `add_steps`,
+API-03 the steps route. Server tests 870 (94 new), client 1327 (46 new, the parity test).

@@ -2,16 +2,17 @@
 
 A small remote [MCP](https://modelcontextprotocol.io) server, so an AI assistant can look after
 your DoubleDone tasks with you: add them, see today's, look ahead, tick them off, and break a
-dreaded task into small steps. It runs on the same Cloudflare Worker as the app's AI backend and
+dreaded task into small, linked steps that close the big task when the last one is done. It runs on the same Cloudflare Worker as the app's AI backend and
 the [REST API](api.md), holds no elevated database key, and acts only as **you**.
 
 > **MCP or REST?** This surface is for AI assistants, and it is the only one with the AI
 > **Break it down** tool. For plain programmatic access to the same tasks (create, read, update,
-> delete, search, look-ahead, repeats and parts) there is the [REST API](api.md). Both use the same
-> cadence code and the same parts code, so a repeating task, or one tracked in parts, has the same
-> shape whichever one made it. The one difference is how a tick counts parts: here `done` ticks
-> **one** part, as a tap in the app does, while the REST API's `done` fills them all and its
-> `partsDone` sets an exact count.
+> delete, search, look-ahead, repeats, parts and linked steps) there is the [REST API](api.md). Both
+> use the same cadence, parts and steps code, so a repeating task, one tracked in parts, or a task
+> broken into steps has the same shape whichever one made it, and ticking the last step closes the
+> big task on both. The one difference is how a tick counts parts: here `done` ticks **one** part,
+> as a tap in the app does, while the REST API's `done` fills them all and its `partsDone` sets an
+> exact count.
 
 | | |
 |---|---|
@@ -19,7 +20,7 @@ the [REST API](api.md), holds no elevated database key, and acts only as **you**
 | Transport | MCP Streamable HTTP, JSON mode: JSON-RPC 2.0, one POST per message, one JSON reply |
 | Protocol version | `2025-06-18` (the server echoes the version a client asks for) |
 | Server | `{ "name": "doubledone", "version": "1.1.0" }` |
-| Tools | Nine: `add_task`, `list_today`, `list_upcoming`, `complete_task`, `update_task`, `delete_task`, `break_down`, `search`, `fetch` |
+| Tools | Ten: `add_task`, `list_today`, `list_upcoming`, `complete_task`, `update_task`, `delete_task`, `break_down`, `add_steps`, `search`, `fetch` |
 | Auth | Sign in with a URL (OAuth 2.1 with S256 PKCE), or paste your own token |
 | Price | Every tool is free. None needs Premium. |
 | Source | [`server/src/mcp.ts`](../server/src/mcp.ts), [`server/src/oauth.ts`](../server/src/oauth.ts), [`server/src/mcp-grants.ts`](../server/src/mcp-grants.ts) |
@@ -141,16 +142,21 @@ curl -s https://api.doubledone.app/mcp \
 | `add_task` | `title`, plus an optional `due` **or** `repeat` (not both), and an optional `parts` | Adds a task, and replies with its id. |
 | `list_today` | none | Lists what is open on your Today, each with its id. |
 | `list_upcoming` | optional `days` (1 to 30, default 7) | Looks ahead over the coming days. Read-only. |
-| `complete_task` | `id`, plus an optional `day` and `count` | Ticks a task. A repeat is ticked for one day, a task in parts moves forward one part (or `count`). |
+| `complete_task` | `id`, plus an optional `day` and `count` | Ticks a task. A repeat is ticked for one day, a task in parts moves forward one part (or `count`), and the last step of a broken-down task closes the big task too. |
 | `update_task` | `id`, plus any of `title`, `due`, `repeat`, `parts`, `done` (with an optional `day`) | Changes a task. |
 | `delete_task` | `id` | Removes a task as a soft delete, never a hard one. |
 | `break_down` | `task`, plus an optional `context` and `steps` (2 to 10) | **Proposes** small steps for a dreaded task. Adds nothing. |
+| `add_steps` | `task_id` **or** `title`, plus `steps` (2 to 20, each a `title` with an optional `minutes` and `due`) | Writes the steps you said yes to, **linked**, as the app's Break it down does. |
 | `search` | `query` | Searches your open tasks (for ChatGPT Deep Research). Read-only. |
 | `fetch` | `id` | Fetches one task (for ChatGPT Deep Research). Read-only. |
 
 Replies are short, plain sentences in keeping with the app, such as "Added …", "Marked it done.
 Nice." and "Nothing on today. Enjoy the quiet." Ids are opaque strings, shown in square brackets.
 Tasks made through MCP start `mcp-`.
+
+The tools that only read (`list_today`, `list_upcoming`, `search`, `fetch`, and `break_down`,
+which changes nothing of yours) are marked `readOnlyHint: true`, so a client can run them without
+asking first. The tools that write carry the protocol's cautious defaults.
 
 ### `add_task`
 
@@ -160,7 +166,8 @@ Tasks made through MCP start `mcp-`.
 - `repeat` (optional): a repeat rule (see [Recurrence](#recurrence)).
 - `parts` (optional): a whole number from 2 to 50, to track the task in parts, the app's **Track
   in steps** (a ten-episode series is 10 parts). It starts at none done. Not with `repeat`, because
-  a repeat is ticked by the day. A `due` day is fine. See [Parts](#parts).
+  a repeat is ticked by the day. A `due` day is fine. See [Parts](#parts). For a task made of
+  *different* steps, use [`add_steps`](#add_steps) instead.
 - With neither `due` nor `repeat`, the task is undated, which puts it on your Today.
 
 Replies `Added "Book the dentist" to today. [mcp-…]`, `Added "Renew the rego" for 2026-10-20.
@@ -172,16 +179,21 @@ just added without listing first.
 
 Your open one-offs that are undated or due today or earlier, plus each repeating task that is
 due today and not yet ticked or skipped today, marked `(repeats)`. A task tracked in parts shows
-its progress, as in `• Watch Severance  (3/10 parts)  [mcp-…]`. One line per task, oldest first,
-each ending in its id in square brackets, ready for `complete_task`. The hidden umbrella of a
-broken-down task is left out, so an agent sees the steps to act on, as you do in the app.
+its progress, as in `• Watch Severance  (3/10 parts)  [mcp-…]`. A step of a bigger task names
+it, as in `• Bag up the rubbish (5 min)  (toward "Clear the garage")  [mcp-…]`, or says `(a step)`
+when the big task's name is not on the row (steps made before the app's 1.8.0 never recorded it).
+A task made tiny in the app reads the same way, because nothing on the row tells the two apart.
+One line per task, oldest first, each ending in its id in square brackets, ready for
+`complete_task`. The big task itself is left out while it waits behind its steps, so an agent sees
+the steps to act on, as you do in the app.
 
 ### `list_upcoming`
 
 Your open one-offs dated **after today**, up to and including today plus `days`, and the next
 occurrence of each repeat inside that window, in date order. Each line names the task, the day it
 lands and its id. A repeat already ticked or skipped for its next day shows the one after, if it
-falls in the window. A task tracked in parts shows its progress, as in `list_today`. `days` is a
+falls in the window. A task tracked in parts shows its progress, and a step its big task, as in
+`list_today`. `days` is a
 whole number from 1 to 30, defaulting to 7. At most 40 lines are shown, then "…and N more."
 
 ### `complete_task`
@@ -209,6 +221,9 @@ It reads the task first, then decides, in this order:
    more, and 7 finishes it."). See [Parts](#parts).
 5. A **one-off** closes ("Marked it done. Nice.").
 
+When the task that closed is a **step** of a bigger task, the server then walks up to the big task
+and says what it found. See [The last step closes the big task](#the-last-step-closes-the-big-task).
+
 If the task changes between the read and the write (you tick it on your phone in that moment),
 the write matches nothing and the reply says so: "It changed just now. Try again." for parts, or
 "It changed just now. Check list_today." for a one-off.
@@ -223,7 +238,9 @@ the write matches nothing and the reply says so: "It changed just now. Try again
 - `parts`: a whole number from 2 to 50 to track it in parts, or `null` to make it one whole task
   again. See [Parts](#parts).
 - `done`: `true` ticks it exactly as `complete_task` does (a repeat for one day, a task in parts by
-  **one** part), `false` reopens a one-off or un-ticks a day on a repeat.
+  **one** part, and the last step closes its big task), `false` reopens a one-off or un-ticks a
+  day on a repeat. On a step, `false` reopens the step alone, never the big task it closed, as
+  unticking a step in the app does.
 - `day`: with `done`, the day to tick or un-tick on a repeat. Defaults to the UTC day.
 
 At least one change is required, and `parts` and `done` go one at a time, as do `parts` and a new
@@ -231,7 +248,9 @@ At least one change is required, and `parts` and `done` go one at a time, as do 
 new `repeat` reads the task first and then lands in **one** write, judged on the task as it will
 stand, so `{ "repeat": null, "done": true }` stops the repeat and closes the one-off it becomes.
 A new repeat is refused on a task tracked in parts, a task waiting on its steps, and a step of a
-broken-down task, because each of those closes by being done once. An un-tick on a repeat holds
+broken-down task, because each of those closes by being done once. Renaming a big task that waits
+on its steps is fine, and its steps keep the name they were made with (copying it onto them would
+rewrite rows a phone may be editing). An un-tick on a repeat holds
 **on the server only**: a device that already synced the tick brings it back on its next open,
 because the app keeps ticks on purpose. Replies "Updated.", or the tick, close, reopen, un-tick or
 parts reply when one is involved.
@@ -280,12 +299,86 @@ with a verb, with a first step of about two minutes and an honest estimate in mi
 qualifying questions first, so use `context` for anything that matters.
 
 It **only proposes**. The reply lists the steps and ends "Nothing's been added yet. Say the word
-and I'll add these." The tool's description tells the agent to show them to you and to call
-`add_task` for each step only once you agree. This is the one tool that spends AI time, so it carries the limits in
+and I'll add these as linked steps." The tool's description tells the agent to show them to you,
+let you change any, and once you say yes to call [`add_steps`](#add_steps) with the steps you
+agreed, never `add_task` per step (that would make plain tasks that never close the big one). This
+is the one tool that spends AI time, so it carries the limits in
 [Limits and cost guards](#limits-and-cost-guards). As with the app's own AI features, the task
-text goes to Anthropic's Claude to write the steps, and a copy of it is kept in DoubleDone's
-AI-call log without your account, name or network address (your `context` and the steps
-themselves are not kept there). See the [privacy policy](https://doubledone.app/privacy).
+text goes to Anthropic's Claude to write the steps, and a copy of the task and of the steps it
+offered is kept in DoubleDone's AI-call log without your account, name or network address, the
+same as the app's own Break it down (your `context` is not kept). See the
+[privacy policy](https://doubledone.app/privacy).
+
+### `add_steps`
+
+The accept-the-plan tool. It writes linked steps exactly as the app's **Break it down** does: the
+big task is tucked away out of your list, its steps go on Today (or on the days given), and when
+the **last** step is ticked, through an agent or in the app, the big task closes itself as done and
+lands in the Lookback with them.
+
+- `task_id`: a task already on your list to break down. **Or**
+- `title`: the big task to create together with its steps. One of the two, never both.
+- `steps` (required): 2 to 20 steps, in the order you will do them. Each is an object with a
+  `title` (required, up to 500 characters), an optional `minutes` (a whole number from 1 to 480,
+  rounded if it is not whole) and an optional `due` (`YYYY-MM-DD`; without it the step is on Today).
+
+The tool's description tells the agent to call it **only after you have said yes to these exact
+steps**: the ones `break_down` offered, as you edited them, or steps you dictated. The chat is the
+review, the same as before. No token is asked for, because a token could only prove `break_down`
+ran, never that a person said yes. A step's title is tidied the way the app tidies a pasted list: a
+leading `• `, `- `, `* ` or `1. ` is dropped, and a trailing `(5 min)` becomes its minutes, so the
+steps `break_down` printed can be passed straight back. Each step is written as
+`Bag up the rubbish (5 min)`, the app's own wording in English, Spanish, French and Italian (the
+German app writes `Min.`, and the server cannot know your language).
+
+Replies `Broke "Clear the garage" into 4 steps on today. It's tucked away now, and it closes
+itself when the last step is ticked.`, then one line per step with its id, ready for
+`complete_task`. The big task's id is not shown.
+
+**Why two steps at least.** In the app, a big task with a single step comes back to Today when that
+step is ticked, rather than closing itself, because one finished step cannot be told apart from a
+task made tiny. A one-step breakdown would set that trap, so it is refused: use `add_task` or
+`update_task` instead.
+
+**With `title`** the big task and its steps are written in **one** insert, so either all of it
+lands or none of it does. **With `task_id`** the task is read first, and refused if it is done
+("That one is already done."), repeats, is tracked in parts (make it whole first with
+`update_task parts: null`), or already waits on its steps. Its steps are written, and only then is
+the task tucked away, by a write pinned to the task exactly as it was read. If you changed it on
+your phone in that moment, the steps just written are removed again and the reply says "That task
+changed just now, so nothing was added. Try again." (If even that removal fails, it says some steps
+may have landed, so check `list_today`.) The task's own title, due day, pin, "a lot" mark and
+"Where you left off" line are never touched. A step can itself be broken down later, which makes a
+chain, as in the app.
+
+**To undo a breakdown**, remove its steps with `delete_task`. On its next open the app sees a big
+task with every step gone and brings it back to your Today, open, as it was.
+
+### The last step closes the big task
+
+When `complete_task` (or `update_task` with `done: true`) closes a step, the server walks up to its
+big task. It finishes the big task **only when that is certain**: the big task is still hidden and
+open, it was broken down (not made tiny), it has two or more steps in its current round, and every
+step is done. Then it marks it done, dated to the step, so the whole thing lands on the same day in
+the Lookback, and carries on up a chain the same way. One rule, at every level.
+
+| What it finds | The reply |
+|---|---|
+| The big task finished | "Marked it done. That was the last step, so "Clear the garage" is done too. That's the whole thing." |
+| Steps still open | "Marked it done. 2 of 4 steps toward "Clear the garage" done." |
+| Anything the app should decide | "Marked it done. "Clear the garage" will sort itself out next time DoubleDone opens." |
+
+**The app decides the rest**: a task made tiny (its real task comes back and the pebble is
+retired), a big task with a single step (it comes back to Today), a task made tiny and later broken
+down, and any finish a phone beat the server to. Each of those either brings a task back, which
+moves the step's "Where you left off" line onto it, or clears a flag first, and the server never
+reads or writes that line. So it leaves them to the app's own repair, which runs every time
+DoubleDone opens and reaches the same end state. The reply then says neither "done" nor "back",
+because it may be either, and it never claims a close that did not land.
+
+A big task the agent finishes shows in **Done today** and the Lookback on your next open, without
+the bloom, the same as one finished on another device. Ticking the last step **in the app** plays
+the bloom as always. No agent tick closes a "· Ours" copy's shared row.
 
 ### `search` and `fetch`
 
@@ -367,6 +460,7 @@ tick replies always name the day used, so a wrong guess is visible.
 | `break_down` per person | 20 calls in each clock hour (UTC) | Both connect paths |
 | `break_down` per network address | 30 a minute, counted separately from the app's own AI features | Pasted-token path |
 | `break_down` input | `task` and `context` up to 2,000 characters each | Both |
+| `add_steps` input | 2 to 20 steps a call, each title up to 500 characters, minutes 1 to 480 | Both |
 | Sign-in codes | 5 code requests a minute per network address | The URL sign-in page |
 | Request size | A declared request over 2,000,000 bytes is refused with `413` | Everything |
 | Every other tool | No limit set by the Worker | Both |
@@ -463,15 +557,16 @@ The tools read and write only your own rows in your own task list. Left out on p
 - **Anyone else's data.** Your verified session plus row-level security scopes every call to your
   account.
 - **The app's working detail.** Pins, "a lot" marks, effort estimates, the bookkeeping behind a
-  broken-down, tiny or combined task, and per-day tick and skip lists stay in the app. (The tick
-  and skip lists are read to decide what is due, never shown, and whether a task waits on its
-  steps or is a step is read only to refuse a change that would break it.) Parts tracked on a task
-  are exposed: see [Parts](#parts).
+  tiny or combined task, and per-day tick and skip lists stay in the app. (The tick and skip lists
+  are read to decide what is due, never shown, and whether a task was made tiny is read only to
+  leave its close to the app.) Parts tracked on a task are exposed (see [Parts](#parts)), and so
+  are step links: a step names its big task, `add_steps` writes them, and the last tick closes it.
+  Making a task tiny is app-only.
 - **The rest of the app.** Routines, rhythms, scrapbooks, settings, Premium and billing are not on
   this server. Skipping a day of a repeat is app-only too.
 - **AI steps added without a yes.** `break_down` never writes. Its steps reach your list only if
-  the agent then calls `add_task` for them. Delete is a soft tombstone, so nothing here
-  shames a backlog or deletes anything for real, in keeping with the app.
+  the agent then calls `add_steps` with the steps you agreed. Delete is a soft tombstone, so
+  nothing here shames a backlog or deletes anything for real, in keeping with the app.
 
 ---
 
@@ -480,7 +575,7 @@ The tools read and write only your own rows in your own task list. Left out on p
 | Method | Behaviour |
 |---|---|
 | `initialize` | Returns `protocolVersion` (yours if you sent one, else `2025-06-18`), `capabilities: { tools: {} }` and the server info, plus a fresh `Mcp-Session-Id` header. The server is stateless: the id is not stored, any id you echo back is accepted, and the bearer token is the only auth. |
-| `tools/list` | The nine tools with their JSON Schemas. |
+| `tools/list` | The ten tools with their JSON Schemas, the readers marked `readOnlyHint: true`. Connectors cache this list, so after the server gains a tool, refresh or reconnect the connector to see it. |
 | `tools/call` | Verifies the token, then runs the tool. |
 | `ping` | Returns `{}`. |
 | `notifications/*` | `202` with no body. |
@@ -497,11 +592,11 @@ The tools read and write only your own rows in your own task list. Left out on p
 
 | File | What it holds |
 |---|---|
-| [`server/src/mcp.ts`](../server/src/mcp.ts) | The JSON-RPC handler, the nine tools, replies and the `break_down` limits |
+| [`server/src/mcp.ts`](../server/src/mcp.ts) | The JSON-RPC handler, the ten tools, replies and the `break_down` limits |
 | [`server/src/oauth.ts`](../server/src/oauth.ts) | The URL sign-in: the provider setup, the email, code and consent pages, PKCE, and `/mcp/disconnect` |
 | [`server/src/mcp-grants.ts`](../server/src/mcp-grants.ts) | Encrypted session custody and refresh |
 | [`server/src/cadence.ts`](../server/src/cadence.ts) | `buildRecurrence`, the due-today maths and the per-day tick, shared with the REST API |
-| [`server/src/steps.ts`](../server/src/steps.ts) | The parts arithmetic (tick, resize, clear, the app's cleaning rule) and the guard that pins each parts write, shared with the REST API |
+| [`server/src/steps.ts`](../server/src/steps.ts) | The parts arithmetic and its write guard, the step rows `add_steps` writes, and the finish walk (the app's own round and done rules, ported), shared with the REST API. [`settle-cases.json`](../server/src/settle-cases.json) holds the cases it and the app's own repair are both tested against |
 | [`server/src/verify.ts`](../server/src/verify.ts) | Token verification |
 | [`server/src/decompose.ts`](../server/src/decompose.ts) | The step-writing prompt `break_down` uses |
 | [`server/src/index.ts`](../server/src/index.ts) | How `/mcp` is routed between the two connect paths |

@@ -1,0 +1,227 @@
+{
+  "about": [
+    "Shared cases for what ticking a step does to its big task. Each holds the tasks just AFTER the tick (the ticked step is already done), the ticked step's id, the big tasks the SERVER finishes (server/src/steps.ts planFinish), and the end state after the app has run its own repair.",
+    "Read by two tests: server/src/steps.test.ts runs planFinish over them and checks serverFinishes exactly; client/src/lib/settle-parity.test.ts runs the app's settleCompletions and healStuckParents and checks (a) the server never finishes what the app would not, (b) the server's finishes followed by the app's repair reach endState, and (c) the app on its own reaches endState too. (b) with (c) is the proof that leaving a case to the app loses nothing.",
+    "Times are epoch ms (small numbers on purpose, the dates do not matter, only the order). Each task field is the client's name: id, title, done, createdAt, completedAt, deletedAt, parentId, parentTitle, silentParent, openParent, recurrence, completedDates, combinedFrom. endState lists done, silentParent, openParent (true, false or null for unknown) and deleted, plus completedAt for a big task that finishes.",
+    "Not here on purpose: a round of NONE at the direct parent (reachable only with clock skew). The app's own tick would finish it, the server leaves it, and the repair brings it back, the safe direction (design doc, section 1c)."
+  ],
+  "day": "2026-10-18",
+  "now": 10000000,
+  "cases": [
+    {
+      "name": "the last of two steps finishes the big task",
+      "tasks": [
+        { "id": "P", "title": "Clear the garage", "silentParent": true, "openParent": false, "createdAt": 1000 },
+        { "id": "s1", "parentId": "P", "parentTitle": "Clear the garage", "done": true, "createdAt": 1001, "completedAt": 4000 },
+        { "id": "s2", "parentId": "P", "parentTitle": "Clear the garage", "done": true, "createdAt": 1002, "completedAt": 5000 }
+      ],
+      "completed": "s2",
+      "serverFinishes": ["P"],
+      "endState": {
+        "P": { "done": true, "silentParent": false, "openParent": false, "deleted": false, "completedAt": 5000 },
+        "s1": { "done": true, "silentParent": false, "openParent": null, "deleted": false },
+        "s2": { "done": true, "silentParent": false, "openParent": null, "deleted": false }
+      }
+    },
+    {
+      "name": "a step that is not the last finishes nothing",
+      "tasks": [
+        { "id": "P", "title": "Clear the garage", "silentParent": true, "openParent": false, "createdAt": 1000 },
+        { "id": "s1", "parentId": "P", "createdAt": 1001 },
+        { "id": "s2", "parentId": "P", "done": true, "createdAt": 1002, "completedAt": 5000 },
+        { "id": "s3", "parentId": "P", "createdAt": 1003 }
+      ],
+      "completed": "s2",
+      "serverFinishes": [],
+      "endState": {
+        "P": { "done": false, "silentParent": true, "openParent": false, "deleted": false },
+        "s1": { "done": false, "silentParent": false, "openParent": null, "deleted": false },
+        "s3": { "done": false, "silentParent": false, "openParent": null, "deleted": false }
+      }
+    },
+    {
+      "name": "a round of one is left, and the app brings the big task back",
+      "tasks": [
+        { "id": "P", "title": "Call the bank", "silentParent": true, "openParent": false, "createdAt": 1000 },
+        { "id": "s1", "parentId": "P", "done": true, "createdAt": 1001, "completedAt": 5000 }
+      ],
+      "completed": "s1",
+      "serverFinishes": [],
+      "endState": {
+        "P": { "done": false, "silentParent": false, "openParent": false, "deleted": false },
+        "s1": { "done": true, "silentParent": false, "openParent": null, "deleted": false }
+      }
+    },
+    {
+      "name": "a made-tiny task's pebble is left, and the app brings the real task back and retires the pebble",
+      "tasks": [
+        { "id": "P", "title": "Do the tax", "silentParent": true, "openParent": true, "createdAt": 1000 },
+        { "id": "k", "title": "Open the folder", "parentId": "P", "parentTitle": "Do the tax", "done": true, "createdAt": 1001, "completedAt": 5000 }
+      ],
+      "completed": "k",
+      "serverFinishes": [],
+      "endState": {
+        "P": { "done": false, "silentParent": false, "openParent": true, "deleted": false },
+        "k": { "done": true, "silentParent": false, "openParent": null, "deleted": true }
+      }
+    },
+    {
+      "name": "a stale tiny flag on two or more steps is left, and the app clears it and finishes",
+      "tasks": [
+        { "id": "P", "title": "Do the tax", "silentParent": true, "openParent": true, "createdAt": 1000 },
+        { "id": "s1", "parentId": "P", "done": true, "createdAt": 1001, "completedAt": 4000 },
+        { "id": "s2", "parentId": "P", "done": true, "createdAt": 1002, "completedAt": 5000 }
+      ],
+      "completed": "s2",
+      "serverFinishes": [],
+      "endState": {
+        "P": { "done": true, "silentParent": false, "openParent": false, "deleted": false, "completedAt": 5000 }
+      }
+    },
+    {
+      "name": "a nested chain finishes both levels, dated to the step",
+      "tasks": [
+        { "id": "G", "title": "Move house", "silentParent": true, "openParent": false, "createdAt": 1000 },
+        { "id": "P", "title": "Pack the kitchen", "parentId": "G", "silentParent": true, "openParent": false, "createdAt": 1001 },
+        { "id": "Q", "title": "Book the van", "parentId": "G", "done": true, "createdAt": 1002, "completedAt": 3000 },
+        { "id": "s1", "parentId": "P", "done": true, "createdAt": 1003, "completedAt": 4000 },
+        { "id": "s2", "parentId": "P", "done": true, "createdAt": 1004, "completedAt": 5000 }
+      ],
+      "completed": "s2",
+      "serverFinishes": ["P", "G"],
+      "endState": {
+        "P": { "done": true, "silentParent": false, "openParent": false, "deleted": false, "completedAt": 5000 },
+        "G": { "done": true, "silentParent": false, "openParent": false, "deleted": false, "completedAt": 5000 }
+      }
+    },
+    {
+      "name": "an ancestor with one task in its round stops the walk, and the app brings it back",
+      "tasks": [
+        { "id": "G", "title": "Move house", "silentParent": true, "openParent": false, "createdAt": 1000 },
+        { "id": "P", "title": "Pack the kitchen", "parentId": "G", "silentParent": true, "openParent": false, "createdAt": 1001 },
+        { "id": "s1", "parentId": "P", "done": true, "createdAt": 1002, "completedAt": 4000 },
+        { "id": "s2", "parentId": "P", "done": true, "createdAt": 1003, "completedAt": 5000 }
+      ],
+      "completed": "s2",
+      "serverFinishes": ["P"],
+      "endState": {
+        "P": { "done": true, "silentParent": false, "openParent": false, "deleted": false, "completedAt": 5000 },
+        "G": { "done": false, "silentParent": false, "openParent": false, "deleted": false }
+      }
+    },
+    {
+      "name": "an ancestor with a stale tiny flag stops the walk, and the app clears it and finishes (the case the first fixture got wrong)",
+      "tasks": [
+        { "id": "G", "title": "Move house", "silentParent": true, "openParent": true, "createdAt": 1000 },
+        { "id": "P", "title": "Pack the kitchen", "parentId": "G", "silentParent": true, "openParent": false, "createdAt": 1001 },
+        { "id": "Q", "title": "Book the van", "parentId": "G", "done": true, "createdAt": 1002, "completedAt": 3000 },
+        { "id": "s1", "parentId": "P", "done": true, "createdAt": 1003, "completedAt": 4000 },
+        { "id": "s2", "parentId": "P", "done": true, "createdAt": 1004, "completedAt": 5000 }
+      ],
+      "completed": "s2",
+      "serverFinishes": ["P"],
+      "endState": {
+        "P": { "done": true, "silentParent": false, "openParent": false, "deleted": false, "completedAt": 5000 },
+        "G": { "done": true, "silentParent": false, "openParent": false, "deleted": false, "completedAt": 5000 }
+      }
+    },
+    {
+      "name": "a removed big task is left alone",
+      "tasks": [
+        { "id": "P", "title": "Clear the garage", "silentParent": true, "openParent": false, "createdAt": 1000, "deletedAt": 2000 },
+        { "id": "s1", "parentId": "P", "done": true, "createdAt": 1001, "completedAt": 4000 },
+        { "id": "s2", "parentId": "P", "done": true, "createdAt": 1002, "completedAt": 5000 }
+      ],
+      "completed": "s2",
+      "serverFinishes": [],
+      "endState": {
+        "P": { "done": false, "silentParent": true, "openParent": false, "deleted": true }
+      }
+    },
+    {
+      "name": "a big task already done is left alone",
+      "tasks": [
+        { "id": "P", "title": "Clear the garage", "done": true, "openParent": false, "createdAt": 1000, "completedAt": 2500 },
+        { "id": "s1", "parentId": "P", "done": true, "createdAt": 1001, "completedAt": 4000 },
+        { "id": "s2", "parentId": "P", "done": true, "createdAt": 1002, "completedAt": 5000 }
+      ],
+      "completed": "s2",
+      "serverFinishes": [],
+      "endState": {
+        "P": { "done": true, "silentParent": false, "openParent": false, "deleted": false, "completedAt": 2500 }
+      }
+    },
+    {
+      "name": "a big task already back on the list is left alone",
+      "tasks": [
+        { "id": "P", "title": "Clear the garage", "openParent": false, "createdAt": 1000 },
+        { "id": "s1", "parentId": "P", "done": true, "createdAt": 1001, "completedAt": 4000 },
+        { "id": "s2", "parentId": "P", "done": true, "createdAt": 1002, "completedAt": 5000 }
+      ],
+      "completed": "s2",
+      "serverFinishes": [],
+      "endState": {
+        "P": { "done": false, "silentParent": false, "openParent": false, "deleted": false }
+      }
+    },
+    {
+      "name": "a malformed cycle ends",
+      "tasks": [
+        { "id": "A", "title": "Loop A", "parentId": "B", "silentParent": true, "openParent": false, "createdAt": 1000 },
+        { "id": "B", "title": "Loop B", "parentId": "A", "done": true, "createdAt": 999, "completedAt": 2000 },
+        { "id": "s1", "parentId": "A", "done": true, "createdAt": 1001, "completedAt": 4000 },
+        { "id": "s2", "parentId": "A", "done": true, "createdAt": 1002, "completedAt": 5000 }
+      ],
+      "completed": "s2",
+      "serverFinishes": ["A"],
+      "endState": {
+        "A": { "done": true, "silentParent": false, "openParent": false, "deleted": false, "completedAt": 5000 },
+        "B": { "done": true, "silentParent": false, "openParent": null, "deleted": false }
+      }
+    },
+    {
+      "name": "an earlier round's finished pebble is not counted, so one new step is a round of one",
+      "tasks": [
+        { "id": "P", "title": "Write the speech", "silentParent": true, "createdAt": 1000 },
+        { "id": "k", "title": "Open a blank page", "parentId": "P", "done": true, "createdAt": 1001, "completedAt": 1500 },
+        { "id": "s1", "parentId": "P", "done": true, "createdAt": 2000, "completedAt": 5000 }
+      ],
+      "completed": "s1",
+      "serverFinishes": [],
+      "endState": {
+        "P": { "done": false, "silentParent": false, "openParent": null, "deleted": false },
+        "k": { "done": true, "silentParent": false, "openParent": null, "deleted": false }
+      }
+    },
+    {
+      "name": "a step folded away by Combine is not counted",
+      "tasks": [
+        { "id": "P", "title": "Run the errands", "silentParent": true, "openParent": false, "createdAt": 1000 },
+        { "id": "s1", "parentId": "P", "done": true, "createdAt": 1001, "completedAt": 4000 },
+        { "id": "s2", "parentId": "P", "done": true, "createdAt": 1002, "completedAt": 5000 },
+        { "id": "s3", "title": "Post the parcel", "parentId": "P", "createdAt": 1003, "deletedAt": 3000 },
+        { "id": "U", "title": "Post office trip", "createdAt": 3000, "combinedFrom": [{ "id": "s3", "title": "Post the parcel" }] }
+      ],
+      "completed": "s2",
+      "serverFinishes": ["P"],
+      "endState": {
+        "P": { "done": true, "silentParent": false, "openParent": false, "deleted": false, "completedAt": 5000 },
+        "s3": { "done": false, "silentParent": false, "openParent": null, "deleted": true },
+        "U": { "done": false, "silentParent": false, "openParent": null, "deleted": false }
+      }
+    },
+    {
+      "name": "a repeating step counts as done on the day it was ticked for",
+      "tasks": [
+        { "id": "P", "title": "Get fit for the walk", "silentParent": true, "openParent": false, "createdAt": 1000 },
+        { "id": "s1", "parentId": "P", "done": true, "createdAt": 1001, "completedAt": 5000 },
+        { "id": "r", "parentId": "P", "recurrence": { "kind": "daily" }, "completedDates": ["2026-10-18"], "createdAt": 1002 }
+      ],
+      "completed": "s1",
+      "serverFinishes": ["P"],
+      "endState": {
+        "P": { "done": true, "silentParent": false, "openParent": false, "deleted": false, "completedAt": 5000 }
+      }
+    }
+  ]
+}

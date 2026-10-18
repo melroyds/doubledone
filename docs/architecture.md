@@ -255,7 +255,7 @@ flowchart LR
 | Keepsakes | `/scrapbook`, `GET /scrapbook-img/:key`, `/scrapbook/purge` | Scene by Haiku with a Workers AI fallback, image by Workers AI, bytes in R2. 20 a day per IP through D1 |
 | Money | `/checkout`, `/portal`, `GET /entitlement`, `/trial/start`, `/account/close-billing`, `/apple/reconcile` | Verified bearer on every one ([`stripe.ts`](../server/src/stripe.ts), [`premium.ts`](../server/src/premium.ts), [`revenuecat-api.ts`](../server/src/revenuecat-api.ts)) |
 | Webhooks | `/stripe-webhook`, `/rc-webhook` | The signature or shared secret is the authentication |
-| Developer surfaces | `/api/v1/*` (with `/api/v1/docs` and `/api/v1/openapi.json`), `/mcp`, `/mcp/disconnect`, the OAuth endpoints | [`api.ts`](../server/src/api.ts), [`openapi.ts`](../server/src/openapi.ts) (OpenAPI 3.1, version 1.3.0), [`mcp.ts`](../server/src/mcp.ts) (nine tools), [`oauth.ts`](../server/src/oauth.ts) |
+| Developer surfaces | `/api/v1/*` (with `/api/v1/docs` and `/api/v1/openapi.json`), `/mcp`, `/mcp/disconnect`, the OAuth endpoints | [`api.ts`](../server/src/api.ts), [`openapi.ts`](../server/src/openapi.ts) (OpenAPI 3.1, version 1.3.0), [`mcp.ts`](../server/src/mcp.ts) (ten tools), [`oauth.ts`](../server/src/oauth.ts) |
 | Telemetry and feedback | `/outcome`, `/event`, `/feedback` | Origin-gated and rate-limited like the AI routes |
 | Web push | `/push/subscribe`, `/push/unsubscribe` | Browser only (origin-gated) |
 | Owner | `GET /admin/analytics` (token-gated), `GET /review-code`, `GET /health` | `/health` reports only whether the Anthropic key is wired |
@@ -640,7 +640,7 @@ The design choices in that flow. The first three were each learned from a real f
 
 Developer clients (Claude Code, Claude Desktop, Cursor) can instead paste a token copied from Settings. That path sends the person's own Supabase access token as the bearer, which lasts about an hour, and is verified the same way before any tool runs.
 
-The nine tools are `add_task`, `list_today`, `list_upcoming`, `complete_task`, `update_task`, `delete_task`, `break_down`, and `search` and `fetch` (the OpenAI Deep Research connector contract). The REST API ([`api.ts`](../server/src/api.ts)) offers the same task operations without AI, and both surfaces build repeating tasks through one shared cadence engine (`buildRecurrence` in [`cadence.ts`](../server/src/cadence.ts)), which ports the app's own recurrence rules, so a repeat made by an agent or by the API has the same shape as one made in the app. The shared list itself (`shared_tasks`) is not exposed to either surface.
+The ten tools are `add_task`, `list_today`, `list_upcoming`, `complete_task`, `update_task`, `delete_task`, `break_down`, `add_steps` (writes the steps the user agreed, linked, as the app's Break it down does), and `search` and `fetch` (the OpenAI Deep Research connector contract). The REST API ([`api.ts`](../server/src/api.ts)) offers the same task operations without AI, linked steps included. Ticking the last step on either surface finishes the big task only when that is certain, and leaves every other case to the app's own repair ([`steps.ts`](../server/src/steps.ts), tested against the same cases as the app's rules). Both surfaces build repeating tasks through one shared cadence engine (`buildRecurrence` in [`cadence.ts`](../server/src/cadence.ts)), which ports the app's own recurrence rules, so a repeat made by an agent or by the API has the same shape as one made in the app. The shared list itself (`shared_tasks`) is not exposed to either surface.
 
 ---
 

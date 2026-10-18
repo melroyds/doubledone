@@ -16,6 +16,10 @@
 // (steps.ts). The one deliberate difference: this API's counts are ABSOLUTE (`partsDone: 4`),
 // because an HTTP integrator retries and the write must be idempotent, where MCP ticks
 // relative to the count (a model reasons best with "one more"). Both only ever go forward.
+//
+// Linked steps (the app's Break it down) are CRUD too, so they are here as well as on MCP: the
+// same rows (steps.ts buildStepRows), the same read, insert and guarded hide, and the same finish
+// walk when a step closes. Only the AI that proposes steps stays MCP-only.
 
 import {
   asRecurrence,
@@ -29,14 +33,28 @@ import {
 import { OPENAPI_SPEC, SWAGGER_HTML } from './openapi';
 import {
   advanceParts,
+  buildStepRows,
   cleanSlices,
+  hideGuard,
+  hidePatch,
+  insertedRowsFilter,
   MAX_PARTS,
+  MAX_TITLE_CHARS,
   MIN_PARTS,
   needsWrite,
+  parseSteps,
   type PartsChange,
   partsGuard,
+  planFinish,
   setTotal,
   type Slices,
+  type StepSpec,
+  stepIds,
+  stepsRefusal,
+  type WalkIo,
+  type WalkRow,
+  walkChildrenQuery,
+  walkParentQuery,
   wholeIn,
 } from './steps';
 import { defaultVerifySub, type SubVerifier } from './verify';
@@ -54,6 +72,9 @@ export type ApiTask = {
   repeats: string | null; // a short human summary of the recurrence, or null for a one-off
   partsTotal: number | null; // the parts a task is tracked in (the app's "Track in steps"), or null for a whole task
   partsDone: number | null; // how many of those are ticked, or null for a whole task
+  parentId: string | null; // for a step, the big task it closes; null otherwise
+  parentTitle: string | null; // that big task's title as the step recorded it, or null (older rows never sent it)
+  hidden: boolean; // waiting behind its steps (a broken-down or made-tiny task): its steps close it or bring it back
   createdAt: string;
   completedAt: string | null;
 };
@@ -61,10 +82,11 @@ export type ApiTask = {
 type Row = Record<string, unknown>;
 
 // The Supabase columns the API selects (snake_case, from PostgREST). recurrence and slices feed
-// the output shape; completed_dates / skipped_dates are read only to compute ?upcoming (a repeat
-// already done/skipped for a day shows the next one), and silent_parent / parent_id only to
-// refuse a write that would break a task's shape (see planPatch). Those four are never surfaced.
-const SELECT = 'id,title,done,due,created_at,completed_at,recurrence,completed_dates,skipped_dates,slices,silent_parent,parent_id';
+// the output shape, and so do parent_id, parent_title and silent_parent (as parentId, parentTitle
+// and hidden); completed_dates / skipped_dates are read only to compute ?upcoming (a repeat
+// already done/skipped for a day shows the next one), and are never surfaced. left_off is never
+// selected at all.
+const SELECT = 'id,title,done,due,created_at,completed_at,recurrence,completed_dates,skipped_dates,slices,silent_parent,parent_id,parent_title';
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Today as an ISO 'YYYY-MM-DD' UTC calendar day. The same basis MCP and cadence.ts use, so
@@ -126,6 +148,9 @@ export function toApiTask(row: Row): ApiTask {
     repeats: describeRecurrence(recurrence),
     partsTotal: parts ? parts.total : null,
     partsDone: parts ? parts.done : null,
+    parentId: typeof row.parent_id === 'string' && row.parent_id ? row.parent_id : null,
+    parentTitle: typeof row.parent_title === 'string' ? row.parent_title : null,
+    hidden: row.silent_parent === true,
     createdAt: typeof row.created_at === 'string' ? row.created_at : '',
     completedAt: typeof row.completed_at === 'string' ? row.completed_at : null,
   };
@@ -269,6 +294,72 @@ export function deleteRequest(env: ApiEnv, token: string, id: string, now: strin
   };
 }
 
+// --- Linked steps and the finish walk (the rows and rules are steps.ts; these only address them) ---------------
+
+/** ONE POST of several rows, so a breakdown's insert is atomic, returning them in the public shape's columns. */
+export function insertRowsRequest(env: ApiEnv, token: string, rows: Row[]): { url: string; init: RequestInit } {
+  return {
+    url: `${tasksUrl(env)}?${new URLSearchParams({ select: SELECT }).toString()}`,
+    init: { method: 'POST', headers: headers(env, token, true), body: JSON.stringify(rows) },
+  };
+}
+
+/** One PATCH of a row by id with exactly the body given (the hiding write, a finish), never on a tombstone, pinned by
+ *  `guard`, returning the row in the public shape's columns. */
+export function rowPatchRequest(env: ApiEnv, token: string, id: string, body: Row, guard: Record<string, string>): { url: string; init: RequestInit } {
+  const q = new URLSearchParams({ id: `eq.${id}`, deleted_at: 'is.null', select: SELECT, ...guard });
+  return { url: `${tasksUrl(env)}?${q.toString()}`, init: { method: 'PATCH', headers: headers(env, token, true), body: JSON.stringify(body) } };
+}
+
+/** GET tasks with the given filters (the walk's reads, steps.ts walkParentQuery / walkChildrenQuery). */
+export function readRowsRequest(env: ApiEnv, token: string, query: Record<string, string>): { url: string; init: RequestInit } {
+  return { url: `${tasksUrl(env)}?${new URLSearchParams(query).toString()}`, init: { method: 'GET', headers: headers(env, token, false) } };
+}
+
+/** Tombstone exactly the rows a breakdown inserted, when the write that hides their big task missed. */
+export function tombstoneRowsRequest(env: ApiEnv, token: string, ids: string[], now: string): { url: string; init: RequestInit } {
+  return {
+    url: `${tasksUrl(env)}?${new URLSearchParams(insertedRowsFilter(ids)).toString()}`,
+    init: { method: 'PATCH', headers: headers(env, token, true), body: JSON.stringify({ deleted_at: now, updated_at: now }) },
+  };
+}
+
+/** The walk over this surface's reads and writes. Every fetch is caught, because the step's own write has landed by
+ *  the time this runs, and a throw must end the walk quietly rather than answer a 500 for a change that was made. */
+function walkIo(env: ApiEnv, token: string): WalkIo {
+  const rowsOf = async (query: Record<string, string>): Promise<WalkRow[] | null> => {
+    const { url, init } = readRowsRequest(env, token, query);
+    const res = await fetch(url, init);
+    if (!res.ok) return null;
+    const rows = (await res.json()) as unknown;
+    return Array.isArray(rows) ? (rows.filter((r) => r !== null && typeof r === 'object') as WalkRow[]) : [];
+  };
+  return {
+    async read(id) {
+      try {
+        const parents = await rowsOf(walkParentQuery(id));
+        if (!parents) return null;
+        const children = await rowsOf(walkChildrenQuery(id));
+        if (!children) return null;
+        return { parent: parents[0] ?? null, children };
+      } catch {
+        return null;
+      }
+    },
+    async finish(id, body, guard) {
+      try {
+        const w = rowPatchRequest(env, token, id, body, guard);
+        const res = await fetch(w.url, w.init);
+        if (!res.ok) return null;
+        const rows = (await res.json()) as unknown;
+        return Array.isArray(rows) && rows[0] && typeof rows[0] === 'object' ? (rows[0] as WalkRow) : 'miss';
+      } catch {
+        return null;
+      }
+    },
+  };
+}
+
 // --- Read-parity helpers: ?q search + ?upcoming windowing (pure) -----------
 // These mirror the MCP read tools (mcp.ts) so an agent and this API answer the same question
 // the same way. The cadence math is REUSED from cadence.ts, never reimplemented.
@@ -350,7 +441,7 @@ function addDaysIso(iso: string, days: number): string {
 
 // --- Body parsing / validation (pure) --------------------------------------
 
-export type CreateBody = { title: string; due: string | null; repeat: RepeatSpec | null; partsTotal?: number };
+export type CreateBody = { title: string; due: string | null; repeat: RepeatSpec | null; partsTotal?: number; steps?: StepSpec[] };
 export type UpdateBody = {
   title?: string;
   done?: boolean;
@@ -381,6 +472,17 @@ export function parseCreate(raw: unknown): { body: CreateBody } | { error: strin
     repeat = o.repeat as RepeatSpec;
   }
   if (due && repeat) return { error: 'a task can have a due date or a repeat, not both' };
+  // steps: the big task is made together with its linked steps, hidden behind them, with no day of its own (the app
+  // makes one from the capture box the same way). So no due, repeat or parts beside them.
+  if (typeof o.steps !== 'undefined' && o.steps !== null) {
+    if (due || repeat || (typeof o.partsTotal !== 'undefined' && o.partsTotal !== null)) {
+      return { error: 'steps cannot come with due, repeat or partsTotal: the big task waits behind its steps (give a step its own due instead)' };
+    }
+    if (title.length > MAX_TITLE_CHARS) return { error: `title can be at most ${MAX_TITLE_CHARS} characters` };
+    const parsed = parseSteps(o.steps);
+    if ('error' in parsed) return { error: parsed.error };
+    return { body: { title, due: null, repeat: null, steps: parsed.steps } };
+  }
   // partsTotal: a one-off only, as the app's capture offers it. A due day is fine.
   if (typeof o.partsTotal !== 'undefined' && o.partsTotal !== null) {
     const partsTotal = wholeIn(o.partsTotal, MIN_PARTS, MAX_PARTS);
@@ -447,6 +549,36 @@ export function parseUpdate(raw: unknown): { body: UpdateBody } | { error: strin
   if (Object.keys(body).length === 0) return { error: 'nothing to update: send title, done, due, repeat, partsTotal or partsDone' };
   return { body };
 }
+
+/** Validate a POST /tasks/{id}/steps body: `{ steps: [...] }` and nothing else (the big task is already on the list,
+ *  so there is nothing to say about it here). The steps go through the one shared check, steps.ts parseSteps. */
+export function parseStepsBody(raw: unknown): { steps: StepSpec[] } | { error: string } {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return { error: 'a JSON object with steps is required' };
+  const o = raw as Row;
+  const extra = Object.keys(o).find((k) => k !== 'steps');
+  if (extra !== undefined) return { error: `send only steps here (not "${extra}"): the task itself is changed with PATCH /tasks/{id}` };
+  const parsed = parseSteps(o.steps);
+  return 'error' in parsed ? { error: parsed.error } : { steps: parsed.steps };
+}
+
+/** Why a task on the list cannot be broken into steps (steps.ts stepsRefusal), as the 409's message. */
+const STEPS_CONFLICTS: Record<'done' | 'repeats' | 'parts' | 'hidden', string> = {
+  done: 'that task is already done',
+  repeats: 'a repeating task cannot be broken into steps: add them as their own tasks, or send repeat: null first',
+  parts: 'that task is tracked in parts: send partsTotal: null first, then break it down',
+  hidden: 'that task is already waiting on its steps',
+};
+
+/** The rows an insert or a write returned, by id, so the reply lists them in the order they were written. */
+function rowsById(rows: unknown): Map<string, Row> {
+  const out = new Map<string, Row>();
+  if (!Array.isArray(rows)) return out;
+  for (const r of rows) if (r && typeof r === 'object' && typeof (r as Row).id === 'string') out.set((r as Row).id as string, r as Row);
+  return out;
+}
+
+/** A fresh six-character random tail for an id. */
+const randomTail = () => Math.random().toString(36).slice(2, 8);
 
 /** What the handler's read-first PATCH resolves to: the changes and the guard to send, or the refusal. */
 export type PatchPlan = { patch: UpdatePatch; guard: Record<string, string> } | { status: 400 | 409; error: string };
@@ -603,6 +735,71 @@ async function handleListTasks(request: Request, env: ApiEnv, token: string): Pr
   return json({ tasks: Array.isArray(rows) ? rows.map((r) => toApiTask(r as Row)) : [] });
 }
 
+/** POST /tasks with `steps`: the big task and its linked steps in ONE insert, so it is atomic (steps.ts
+ *  buildStepRows, the rows MCP add_steps writes). 201 `{ task, steps }`, the steps in the order given. */
+async function createWithSteps(env: ApiEnv, token: string, sub: string, title: string, steps: StepSpec[], now: string): Promise<Response> {
+  const nowMs = Date.parse(now);
+  const ids = stepIds(newTaskId(nowMs, randomTail()), steps.length);
+  const rows = buildStepRows({ userId: sub, nowMs, parent: { id: ids.parent, title }, stepIds: ids.steps, steps, withParent: true });
+  const { url, init } = insertRowsRequest(env, token, rows);
+  const res = await fetch(url, init);
+  if (!res.ok) return upstream(res);
+  const byId = rowsById(await res.json());
+  const task = byId.get(ids.parent);
+  if (!task) return json({ error: 'create failed' }, 502);
+  return json({ task: toApiTask(task), steps: ids.steps.flatMap((sid) => (byId.has(sid) ? [toApiTask(byId.get(sid) as Row)] : [])) }, 201);
+}
+
+/** POST /tasks/{id}/steps: break a task already on the list into linked steps, as MCP add_steps does. Read it (404
+ *  if missing, 409 if it is done, repeats, is tracked in parts or is already hidden), insert the steps, and only then
+ *  hide it, by a write pinned to the task as it was read. If that write misses or fails, the steps just inserted are
+ *  tombstoned again (steps beside a task that is not hidden would never close it) and the answer is a 409 or the
+ *  upstream error, with nothing added; if even that fails, a 502 that says some steps may have landed. */
+async function addStepsToTask(env: ApiEnv, token: string, sub: string, id: string, steps: StepSpec[], now: string): Promise<Response> {
+  const st = getRequest(env, token, id);
+  const sr = await fetch(st.url, st.init);
+  if (!sr.ok) return upstream(sr);
+  const srows = (await sr.json()) as unknown;
+  const row = Array.isArray(srows) && srows[0] && typeof srows[0] === 'object' ? (srows[0] as Row) : null;
+  if (!row) return json({ error: 'not found' }, 404);
+  const refusal = stepsRefusal(row);
+  if (refusal) return json({ error: STEPS_CONFLICTS[refusal] }, 409);
+  const nowMs = Date.parse(now);
+  const ids = stepIds(newTaskId(nowMs, randomTail()), steps.length);
+  const title = typeof row.title === 'string' ? row.title : null;
+  const rows = buildStepRows({ userId: sub, nowMs, parent: { id, title }, stepIds: ids.steps, steps, withParent: false });
+  const ins = insertRowsRequest(env, token, rows);
+  const res = await fetch(ins.url, ins.init);
+  if (!res.ok) return upstream(res);
+  const inserted = rowsById(await res.json());
+  const flip = rowPatchRequest(env, token, id, { ...hidePatch(steps), updated_at: now }, hideGuard(row));
+  let flipRes: Response | null = null;
+  let hidden: Row | null = null;
+  try {
+    flipRes = await fetch(flip.url, flip.init);
+    if (flipRes.ok) {
+      const flipped = (await flipRes.json()) as unknown;
+      hidden = Array.isArray(flipped) && flipped[0] && typeof flipped[0] === 'object' ? (flipped[0] as Row) : null;
+    }
+  } catch {
+    flipRes = null;
+  }
+  if (hidden) {
+    const out = ids.steps.flatMap((sid) => (inserted.has(sid) ? [toApiTask(inserted.get(sid) as Row)] : []));
+    return json({ task: toApiTask(hidden), steps: out }, 201);
+  }
+  let undone = false;
+  try {
+    const undo = tombstoneRowsRequest(env, token, ids.steps, now);
+    undone = (await fetch(undo.url, undo.init)).ok;
+  } catch {
+    undone = false;
+  }
+  if (!undone) return json({ error: 'the task changed just now, and some of its steps may have landed on their own: list your tasks and remove any you do not want' }, 502);
+  if (flipRes && flipRes.ok) return json({ error: 'the task changed just now, so nothing was added: read it again and retry' }, 409);
+  return flipRes ? upstream(flipRes) : json({ error: 'upstream error' }, 502);
+}
+
 /** Route + serve the `/api/v1/*` task surface. index.ts forwards every `/api/` request here. Everything
  *  inside answers calmly; whatever still throws (a fetch that rejects, a body that lies about its type) is
  *  a JSON 500 WITH CORS here, never a raw Cloudflare 1101 page, which also drops the CORS headers and reads
@@ -654,6 +851,7 @@ async function handleApiInner(request: Request, env: ApiEnv, verifySub: SubVerif
       const parsed = parseCreate(raw);
       if ('error' in parsed) return json({ error: parsed.error }, 400);
       const now = new Date().toISOString();
+      if (parsed.body.steps) return createWithSteps(env, token, sub, parsed.body.title, parsed.body.steps, now);
       // Translate the agent-shaped repeat through the ONE shared cadence builder. A malformed
       // repeat is a calm 400, never a 500 (buildRecurrence returns null, never throws).
       let recurrence: Recurrence | null = null;
@@ -673,6 +871,27 @@ async function handleApiInner(request: Request, env: ApiEnv, verifySub: SubVerif
       return created ? json({ task: created }, 201) : json({ error: 'create failed' }, 502);
     }
     return json({ error: 'method not allowed' }, 405);
+  }
+
+  // Steps for a task already on the list: /tasks/{id}/steps
+  const stepsMatch = path.match(/^\/tasks\/([^/]+)\/steps$/);
+  if (stepsMatch) {
+    if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
+    let id: string;
+    try {
+      id = decodeURIComponent(stepsMatch[1]);
+    } catch {
+      return json({ error: 'invalid task id' }, 400);
+    }
+    let raw: unknown;
+    try {
+      raw = await request.json();
+    } catch {
+      return json({ error: 'invalid JSON body' }, 400);
+    }
+    const parsed = parseStepsBody(raw);
+    if ('error' in parsed) return json({ error: parsed.error }, 400);
+    return addStepsToTask(env, token, sub, id, parsed.steps, new Date().toISOString());
   }
 
   // Item: /tasks/{id}
@@ -723,12 +942,13 @@ async function handleApiInner(request: Request, env: ApiEnv, verifySub: SubVerif
       // done=true on a series row made the repeat vanish from every agent read, audit PR B), any parts change,
       // and a new repeat (refused on a shape that cannot repeat). Then ONE guarded PATCH, or none.
       let guard: Record<string, string> = {};
+      let srow: Row | null = null;
       if (b.done !== undefined || b.partsTotal !== undefined || b.partsDone !== undefined || b.repeat != null) {
         const st = getRequest(env, token, id);
         const sr = await fetch(st.url, st.init);
         if (!sr.ok) return upstream(sr);
         const srows = (await sr.json()) as unknown;
-        const srow = Array.isArray(srows) && srows[0] && typeof srows[0] === 'object' ? (srows[0] as Row) : null;
+        srow = Array.isArray(srows) && srows[0] && typeof srows[0] === 'object' ? (srows[0] as Row) : null;
         if (!srow) return json({ error: 'not found' }, 404);
         const plan = planPatch(srow, b, patch, todayIsoUtc());
         if ('error' in plan) return json({ error: plan.error }, plan.status);
@@ -743,6 +963,13 @@ async function handleApiInner(request: Request, env: ApiEnv, verifySub: SubVerif
       if (!res.ok) return upstream(res);
       const rows = (await res.json()) as unknown;
       const task = Array.isArray(rows) && rows[0] ? toApiTask(rows[0] as Row) : null;
+      // A write that closed a STEP walks up to its big task, dated to this close, and the answer names every big
+      // task that finished, topmost last. A case the walk leaves (it only finishes when certain) is the app's.
+      if (task && patch.done === true && srow && typeof srow.parent_id === 'string' && srow.parent_id) {
+        const parentTitle = typeof srow.parent_title === 'string' && srow.parent_title ? srow.parent_title : null;
+        const walked = await planFinish(walkIo(env, token), { parentId: srow.parent_id, parentTitle, completedAt: now }, b.day ?? todayIsoUtc(), now);
+        if (walked.finished.length > 0) return json({ task, finished: walked.finished.map((f) => toApiTask(f.row as Row)) });
+      }
       if (task) return json({ task });
       // A guarded write that matched nothing after the read found the row: it changed in between (a tick on a
       // phone, a resize). A 409, so the integrator reads it again, rather than a 404 for a task that exists.
