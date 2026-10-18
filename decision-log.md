@@ -9318,3 +9318,35 @@ independent."), and Apple, Google and Stripe each send their own receipt. **Deci
 (a new sender, five languages, triggers from both webhooks, and uneven: an iPhone buyer needs no account, so we
 may hold no address for them; it would also bend the rule set the same day, that email is only for signing
 in), and a custom line in Stripe's receipt (web buyers only). Melroy chose to leave it.
+
+## 2026-10-18: the web fonts are self-hosted, the title says who it is for, and the redesign's first calls
+
+**Decided: no request to Google on any page.** The web loaded Newsreader and Atkinson Hyperlegible with an
+`@import` from Google Fonts, so every visitor's address went to Google, a request the privacy policy never
+mentioned (the landing review's skeptic found it). They are now seven woff2 files in `client/public/fonts`, made
+from the SAME static instances the phone apps bundle (`@expo-google-fonts`), subset with fontTools to
+U+0000-024F, U+0259, U+02B0-02FF, U+0300-036F, U+1E00-1EFF, U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-218F,
+U+2190-21FF, U+2200-22FF, U+25A0-25FF and U+2700-27BF (22 to 46 KB each, about Google's own size), with their SIL
+Open Font Licences beside them. `font-display: swap`, and the two first-screen faces are preloaded. CI fails if
+the export ever asks Google again. **Accepted:** Google served Newsreader as a variable font with optical sizing,
+the static file is its default cut, so web headlines are a touch wider than before and now match the phones
+exactly (compared side by side before shipping). **Decided against** fetching Google's variable woff2 to keep the
+old look (a download, and a third look across platforms).
+
+**Decided: the tab title and description name the audience.** "DoubleDone · A calm to-do list for ADHD, autism
+and OCD" and "A calm to-do list for adults with ADHD, autism and OCD. It shows only what today needs, and nothing is
+ever overdue. Free, no account needed." The audience and the promise sit in the first ~116 characters. Retires "a
+calmer kind of to-do", which named nothing anyone searches for. Melroy's yes.
+
+**The landing redesign's first calls (Melroy, the same day), for the design prompt:**
+- **On phones the primary action is the store** for that phone, with "or start in your browser" underneath; Begin
+  stays the action on a laptop. Why: reminders, Hold me to it, Rhythms, the widget and full offline are phone-app
+  features, and a list started in a phone browser stays there unless the person signs in.
+- **No price figure on the page.** The Premium extras are named in "Is it free?" and the free month needs no card.
+- **The founder line names friends, not colleagues:** made in Melbourne by Melroy, built for friends with ADHD and
+  OCD. **Decided against** "including people he has managed" (the skeptic: on a public page with his name, that
+  points at a small, findable group's health conditions).
+
+**Found, for Melroy:** the live site also loads Cloudflare Web Analytics (`static.cloudflareinsights.com`, the
+Pages project's toggle), and the privacy policy does not mention it. Cookieless and run by the host, but still
+unstated. His call: switch it off, or say it in the policy.

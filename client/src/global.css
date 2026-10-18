@@ -1,8 +1,21 @@
 /* Dusk typography (web): Newsreader (serif) for display/headings, and Atkinson
    Hyperlegible (the Braille Institute's legibility face) for body. Headings read
    the --font-display var via theme.fonts; body is set on the root below. Native
-   loads the same families via expo-google-fonts. */
-@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Atkinson+Hyperlegible:wght@400;700&display=swap');
+   loads the same families via expo-google-fonts.
+
+   Self-hosted since 2026-10-18 (they were an @import from Google Fonts, which sent every visitor's address to
+   Google, a request the privacy policy never mentioned). The files in client/public/fonts are the SAME static
+   instances the phone apps bundle (node_modules/@expo-google-fonts), subset to the Latin ranges our five
+   languages use and saved as woff2 with fontTools; their SIL Open Font Licence travels beside them. Regenerate
+   with `python -m fontTools.subset <ttf> --unicodes=... --layout-features='*' --flavor=woff2` (the ranges are in
+   the decision log). font-display: swap, so text shows at once in the fallback. */
+@font-face { font-family: 'Newsreader'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/newsreader-400.woff2') format('woff2'); }
+@font-face { font-family: 'Newsreader'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/newsreader-500.woff2') format('woff2'); }
+@font-face { font-family: 'Newsreader'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/newsreader-600.woff2') format('woff2'); }
+@font-face { font-family: 'Newsreader'; font-style: italic; font-weight: 400; font-display: swap; src: url('/fonts/newsreader-400-italic.woff2') format('woff2'); }
+@font-face { font-family: 'Newsreader'; font-style: italic; font-weight: 500; font-display: swap; src: url('/fonts/newsreader-500-italic.woff2') format('woff2'); }
+@font-face { font-family: 'Atkinson Hyperlegible'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/atkinson-400.woff2') format('woff2'); }
+@font-face { font-family: 'Atkinson Hyperlegible'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/atkinson-700.woff2') format('woff2'); }
 
 :root {
   --font-display: 'Newsreader', Georgia, 'Times New Roman', serif;

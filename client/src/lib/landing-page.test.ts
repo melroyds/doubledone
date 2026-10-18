@@ -177,6 +177,13 @@ describe('buildLanding: what the build writes into index.html', () => {
     expect(head).toContain('application/ld+json');
     expect(head).toContain('id="dd-landing-css"');
     expect(head).toContain('id="dd-landing-boot"');
+    expect(head).toContain('href="/fonts/newsreader-600.woff2" as="font"');
+  });
+  it('loads nothing from Google: the fonts are self-hosted', () => {
+    expect(head + body).not.toMatch(/fonts\.(googleapis|gstatic)\.com/);
+    const css = readFileSync(join(__dirname, '..', 'global.css'), 'utf8');
+    expect(css).not.toMatch(/fonts\.(googleapis|gstatic)\.com/);
+    expect(css).toContain("url('/fonts/newsreader-600.woff2')");
   });
   it('ships English as the page and the other four as inert templates', () => {
     expect(body.startsWith('<div id="dd-landing">')).toBe(true);

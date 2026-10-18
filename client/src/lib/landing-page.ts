@@ -304,10 +304,12 @@ export function buildLanding(): LandingParts {
   const templates = LANDING_LOCALES.filter((l) => l !== 'en')
     .map((l) => `<template id="ddl-t-${l}" lang="${l}">${renderPage(l)}</template>`)
     .join('\n');
-  // No font link here: the export already links Newsreader and Atkinson Hyperlegible (global.css), the same
-  // families, so a second render-blocking stylesheet would only slow every page down.
+  // The fonts are self-hosted (global.css @font-face, client/public/fonts). Preload only the two the first screen
+  // needs, the headline's and the body's, so the hero does not repaint from the fallback.
   const head = [
     `<link rel="canonical" href="${SITE}/" />`,
+    '<link rel="preload" href="/fonts/newsreader-600.woff2" as="font" type="font/woff2" crossorigin />',
+    '<link rel="preload" href="/fonts/atkinson-400.woff2" as="font" type="font/woff2" crossorigin />',
     `<script type="application/ld+json">${structuredData()}</script>`,
     `<style id="dd-landing-css">${landingCss()}</style>`,
     `<script id="dd-landing-boot">(${landingBoot.toString()})(window);</script>`,

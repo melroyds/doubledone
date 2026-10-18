@@ -94,6 +94,10 @@ jobs:
           test -f client/dist/sitemap.xml
           test -f client/dist/img/app-store-badge.svg
           test -f client/dist/img/google-play-badge.png
+          # Self-hosted fonts: the files ship, and nothing in the page asks Google for them.
+          test -f client/dist/fonts/newsreader-600.woff2
+          test -f client/dist/fonts/atkinson-400.woff2
+          ! grep -rq 'fonts.googleapis.com' client/dist/index.html client/dist/_expo/static/css
       - name: Stamp + verify the version file
         # The app asks doubledone.app/version.json whether a newer build exists. Gate it here so a
         # broken stamp fails CI rather than the deploy, and so the file can never silently vanish

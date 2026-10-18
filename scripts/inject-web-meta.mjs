@@ -19,9 +19,12 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const HTML = join(ROOT, 'client', 'dist', 'index.html');
 
-const TITLE = 'DoubleDone · a calmer kind of to-do';
+const TITLE = 'DoubleDone · A calm to-do list for ADHD, autism and OCD';
+// The search result and link card (2026-10-18, Melroy's yes): the audience and the promise sit in the first
+// ~116 characters, so a phone result that cuts off near 120 still lands. Retires "a calmer kind of to-do",
+// which named nothing anyone searches for.
 const DESCRIPTION =
-  'A calm, never-shame daily to-do app. It shows you only what today needs and quietly keeps everything you finish. Made for ADHD, autism, and OCD. Nothing is ever overdue.';
+  'A calm to-do list for adults with ADHD, autism and OCD. It shows only what today needs, and nothing is ever overdue. Free, no account needed.';
 const SITE = 'https://doubledone.app';
 const IMAGE = `${SITE}/og.png`;
 const IMAGE_ALT = 'DoubleDone · Today, finite and achievable';
