@@ -445,7 +445,7 @@ sequenceDiagram
 
 The rules around that core:
 
-- **Progress is never lost to an unrelated edit.** Repeat completions (`completedDates`) are unioned, and step progress (`slices.done`) takes the maximum, whichever copy wins.
+- **Progress is never lost to an unrelated edit.** Repeat completions (`completedDates`) are unioned, and step progress (`slices.done`) takes the maximum, whichever copy wins. When that maximum ticks every part, the task is done, dated to whichever side finished it, even if the winning copy was still open (a task finished on one device and edited on another before it pulled used to sit at "5 / 5" and open, where a tap does nothing).
 - **Device-only fields survive a remote win.** `manualOrder`, the breakdown link (`decompositionId`, `decompositionSteps`), `suggestBreakdown` and the reminder ids have no column, so they are carried from the local copy. A test fails unless every task field is either synced or on that list.
 - **A corrupt stamp loses.** A non-finite `updatedAt` ranks lowest, so a damaged row can never pin a task.
 - **Clocks are kept honest.** Each write is stamped no earlier than the copy it replaces ([`task-writes.ts`](../client/src/lib/task-writes.ts)), and the device clock is corrected by an offset read from the database's `server_now` RPC ([`clock.ts`](../client/src/lib/clock.ts)). That matters because the MCP server and other devices write on their own clocks.

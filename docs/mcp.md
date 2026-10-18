@@ -280,7 +280,8 @@ many could never be taken back, while one too few costs one more call.
 
 Each parts write is pinned to the counts it read, so a tick or resize made on your phone in the
 same moment is never overwritten. A task in parts that a sync left at every part ticked but still
-open (it can happen between two devices) is closed by the next tick.
+open (it could happen between two devices, until the app's merge was fixed to close it) is closed by
+the next tick.
 
 ### `delete_task`
 

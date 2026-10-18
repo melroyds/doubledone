@@ -9625,3 +9625,17 @@ the read had no filter, so a removed task came back "on today". Folded into this
 and the same wrong line. Decided against, for now: the big task's step progress in `fetch` ("2 of 4 steps done"),
 which needs a read of its children on every fetch (parked, trigger: the next Deep Research change or a report); and
 moving `fetch`'s repeat check onto the shared classifier (finding 6, latent, a `{kind: 'none'}` row only).
+
+**R11, the client merge fix: a task whose parts are all ticked after a merge is done (Melroy's call: ships alongside,
+its own commit).** `reconcileConflict` took the higher `slices.done` of the two copies but the last-write winner's
+`done`, so a task finished on one side (a last tap, now also an agent's tick) and edited on the other before that side
+pulled came out "5 / 5" and open, and a tap at the limit is a no-op (`applySliceDelta`), so nothing in the app could
+ever close it. Agents made it more reachable, which is why it ships with them. Now, when the merged count ticks every
+part of a live one-off that is not done, the merge sets it done, with `completedAt` from the side that finished it,
+else either side's stamp, else the newer `updatedAt`, so it lands in the Lookback on the right day. It is also
+pushed, because otherwise the server would keep the open copy and every device would close it again on every sync
+without the server ever learning it. Kept: the merge keeps the higher count, so an "Undo a step" made on one device
+after the other ticked the last part still springs back, now to done rather than to a stuck open row (R4, accepted).
+Decided against: closing a repeating task this way (a repeat closes by the day, and a `done` series vanishes from
+every agent read), touching a tombstone, and recomputing `done` downward when the merged count is short of the total
+(a task can be done with parts left: Done in Focus fills them, but an old row may not have).

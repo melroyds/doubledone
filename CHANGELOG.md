@@ -17,7 +17,8 @@ versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
-_Server only (the Worker), not deployed yet. 1.8.0 is with the stores._
+_The Worker (not deployed yet), plus one app sync fix, which reaches the web with the next push to `main` and the
+phones with the next store build. 1.8.0 is with the stores._
 
 ### Added
 - **Parts for agents and integrations**: a task tracked in parts (the app's "Track in steps", a ten-episode
@@ -52,6 +53,10 @@ _Server only (the Worker), not deployed yet. 1.8.0 is with the stores._
   REST. Its steps close it.
 - Nor can it be removed on its own (MCP `delete_task` refuses it, REST `DELETE` is a `409`), which left its steps
   on the list with nothing to close. Removing its steps brings it back, and then it removes like any task.
+- **App:** a task in parts finished on one device (or by an agent) and edited on another before it synced came
+  out of the merge at every part ticked but still open, and a tap at the last part does nothing, so it could never
+  close. The merge now closes it, dated to when it was finished, and tells the server.
+  ([`client/src/lib/sync-merge.ts`](client/src/lib/sync-merge.ts))
 - MCP `fetch` called a task waiting on its steps "on today", and a removed task too. It now says "waiting on its
   steps", shows a task's parts ("on today, 3 of 10 parts done"), and treats a removed task as the calm miss its
   documentation always described.
