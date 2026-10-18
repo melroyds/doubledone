@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { bodyOf, type Call, failWith, paramsOf, sequence } from './fetch-sequence.test-helper';
 import {
   addDaysIso,
   addTaskRequest,
   BREAKDOWN_HOURLY_CAP,
   breakdownRateKey,
-  completeTaskRequest,
   decodeJwtEmail,
   decodeJwtSub,
   deleteTaskRequest,
@@ -20,6 +20,7 @@ import {
   listUpcomingFromRows,
   listUpcomingRequest,
   type McpEnv,
+  patchRowRequest,
   searchResultsFrom,
   searchTasksRequest,
   TOKEN_EXPIRED,
@@ -127,13 +128,12 @@ describe('supabase request builders', () => {
     expect(listTodayFromRows('not-an-array', today)).toEqual([]);
   });
 
-  it('complete_task patches the row by id to done', () => {
-    const { url, init } = completeTaskRequest(env, 'tok', 't1', '2026-06-20T00:00:00.000Z');
+  it('patchRowRequest patches the row by id, never a tombstone, with the guard the plan asks for', () => {
+    const { url, init } = patchRowRequest(env, 'tok', 't1', { done: true, completed_at: 'N', updated_at: 'N' }, { done: 'is.false' });
     expect(init.method).toBe('PATCH');
-    expect(decodeURIComponent(url)).toContain('id=eq.t1');
-    const patch = JSON.parse(init.body as string);
-    expect(patch.done).toBe(true);
-    expect(patch.completed_at).toBe('2026-06-20T00:00:00.000Z');
+    const q = Object.fromEntries(new URL(url).searchParams);
+    expect(q).toEqual({ id: 'eq.t1', deleted_at: 'is.null', done: 'is.false' });
+    expect(JSON.parse(init.body as string)).toEqual({ done: true, completed_at: 'N', updated_at: 'N' });
   });
 });
 
@@ -155,6 +155,15 @@ describe('protocol envelopes', () => {
     expect(names).toEqual(
       expect.arrayContaining(['list_upcoming', 'update_task', 'delete_task', 'break_down', 'search', 'fetch']),
     );
+  });
+  it('tools/list describes parts: add_task and update_task take `parts`, complete_task takes `count`, never `parts`', () => {
+    type Schema = { name: string; inputSchema: { properties: Record<string, unknown> } };
+    const props = Object.fromEntries((toolsListResult() as { tools: Schema[] }).tools.map((t) => [t.name, t.inputSchema.properties]));
+    expect(props.add_task.parts).toMatchObject({ type: 'integer', minimum: 2, maximum: 50 });
+    expect(props.update_task.parts).toMatchObject({ type: ['integer', 'null'], minimum: 2, maximum: 50 });
+    // `parts` is the total everywhere else, so the tick count has its own name (the design's rename).
+    expect(props.complete_task.count).toMatchObject({ type: 'integer', minimum: 1, maximum: 50 });
+    expect(props.complete_task).not.toHaveProperty('parts');
   });
 });
 
@@ -688,20 +697,6 @@ describe('PR A: the bearer is verified before any tool runs', () => {
 describe('PR B: complete_task ticks a repeat for today and closes a one-off (read-first)', () => {
   afterEach(() => vi.unstubAllGlobals());
   const todayIso = new Date().toISOString().slice(0, 10);
-  type Call = { url: string; init: RequestInit };
-  /** A fetch double that answers each call in order and records what was sent. */
-  function sequence(...answers: unknown[]) {
-    const calls: Call[] = [];
-    let i = 0;
-    const fn = vi.fn(async (url: string, init: RequestInit) => {
-      calls.push({ url, init });
-      const body = answers[Math.min(i++, answers.length - 1)];
-      return { ok: true, status: 200, json: async () => body } as unknown as Response;
-    });
-    vi.stubGlobal('fetch', fn as unknown as typeof fetch);
-    return calls;
-  }
-  const bodyOf = (c: Call) => JSON.parse(c.init.body as string) as Record<string, unknown>;
 
   it('a REPEATING task: reads the row, then writes completed_dates with today and never touches done', async () => {
     const calls = sequence([{ id: 'r1', done: false, recurrence: { kind: 'daily' }, completed_dates: ['2026-09-01'] }], [{ id: 'r1' }]);
@@ -754,13 +749,16 @@ describe('PR B: complete_task ticks a repeat for today and closes a one-off (rea
     expect(bodyOf(calls[1])).toMatchObject({ done: false, completed_at: null });
   });
 
-  it('update_task with a title AND done applies the field change first, then the tick', async () => {
-    const calls = sequence([{ id: 'r1' }], [{ id: 'r1', recurrence: { kind: 'daily' }, completed_dates: [] }], [{ id: 'r1' }]);
+  it('update_task with a title AND done is one read and ONE PATCH carrying both', async () => {
+    const calls = sequence([{ id: 'r1', recurrence: { kind: 'daily' }, completed_dates: [] }], [{ id: 'r1' }]);
     const r = await callTool('update_task', { id: 'r1', title: 'Meds', done: true });
     expect(r.result.content[0].text).toMatch(/^Ticked for \d{4}-\d{2}-\d{2}\./);
-    expect(calls).toHaveLength(3);
-    expect(bodyOf(calls[0]).title).toBe('Meds');
-    expect(bodyOf(calls[2]).completed_dates).toEqual([todayIso]);
+    expect(calls).toHaveLength(2);
+    expect(calls[0].init.method).toBe('GET');
+    const w = bodyOf(calls[1]);
+    expect(w.title).toBe('Meds');
+    expect(w.completed_dates).toEqual([todayIso]);
+    expect(w.done).toBeUndefined();
   });
 
   it('update_task rejects a non-boolean done', async () => {
@@ -782,15 +780,6 @@ describe('PR B: complete_task ticks a repeat for today and closes a one-off (rea
 describe('PR B review: the ticked day is named, and an agent can choose it', () => {
   afterEach(() => vi.unstubAllGlobals());
   const todayIso = new Date().toISOString().slice(0, 10);
-  function sequence(...answers: unknown[]) {
-    const calls: { url: string; init: RequestInit }[] = [];
-    let i = 0;
-    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
-      calls.push({ url, init });
-      return { ok: true, status: 200, json: async () => answers[Math.min(i++, answers.length - 1)] } as unknown as Response;
-    }) as unknown as typeof fetch);
-    return calls;
-  }
 
   it('names the day it ticked (the UTC day by default)', async () => {
     sequence([{ id: 'r1', recurrence: { kind: 'daily' }, completed_dates: [] }], [{ id: 'r1' }]);
@@ -817,5 +806,368 @@ describe('PR B review: the ticked day is named, and an agent can choose it', () 
     const r = await callTool('complete_task', { id: 't1' });
     expect(r.result.content[0].text).toBe('Marked it done. Nice.');
     expect(JSON.parse(calls[1].init.body as string).done).toBe(true);
+  });
+});
+
+describe('parts: a task tracked in parts moves forward one part at a time, and never back', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+  const todayIso = new Date().toISOString().slice(0, 10);
+  /** A row as the read-first select returns it: a one-off tracked in parts. */
+  const sliced = (done: number, total: number, extra: object = {}) => ({
+    id: 's1',
+    title: 'Watch Severance',
+    done: false,
+    recurrence: null,
+    completed_dates: null,
+    slices: { total, done },
+    silent_parent: null,
+    parent_id: null,
+    ...extra,
+  });
+  const oneOff = (extra: object = {}) => ({
+    id: 't1',
+    title: 'Call the vet',
+    done: false,
+    recurrence: null,
+    completed_dates: null,
+    slices: null,
+    silent_parent: null,
+    parent_id: null,
+    ...extra,
+  });
+  const text = (r: Awaited<ReturnType<typeof callTool>>) => r.result.content[0].text;
+  const shape = (calls: Call[]) => calls.map((c) => [c.url, c.init.method, c.init.body]);
+
+  // --- add_task -------------------------------------------------------------------------------
+
+  it('add_task parts writes slices {N, 0}, and the reply names the parts and ends with the new id', async () => {
+    const calls = sequence([{ id: 'x' }]);
+    const r = await callTool('add_task', { title: 'Watch Severance', parts: 10 });
+    const row = bodyOf(calls[0]);
+    expect(row.slices).toEqual({ total: 10, done: 0 });
+    expect(text(r)).toBe(`Added "Watch Severance" to today, in 10 parts. [${row.id}]`);
+    expect(row.id).toMatch(/^mcp-[a-z0-9]+-[a-z0-9]+$/);
+  });
+
+  it('add_task parts sits happily with a due day', async () => {
+    const calls = sequence([{ id: 'x' }]);
+    const r = await callTool('add_task', { title: 'Read the report', due: '2026-11-02', parts: 4 });
+    expect(bodyOf(calls[0])).toMatchObject({ due: '2026-11-02', slices: { total: 4, done: 0 } });
+    expect(text(r)).toMatch(/^Added "Read the report" for 2026-11-02, in 4 parts\. \[mcp-/);
+  });
+
+  it('every add_task reply now carries the id it wrote, so the agent can act on it without a list call', async () => {
+    let calls = sequence([{ id: 'x' }]);
+    let r = await callTool('add_task', { title: 'Book the dentist' });
+    expect(text(r)).toBe(`Added "Book the dentist" to today. [${bodyOf(calls[0]).id}]`);
+    vi.unstubAllGlobals();
+    calls = sequence([{ id: 'x' }]);
+    r = await callTool('add_task', { title: 'Renew the rego', due: '2026-10-20' });
+    expect(text(r)).toBe(`Added "Renew the rego" for 2026-10-20. [${bodyOf(calls[0]).id}]`);
+    vi.unstubAllGlobals();
+    calls = sequence([{ id: 'x' }]);
+    r = await callTool('add_task', { title: 'Water the plants', repeat: { kind: 'daily' } });
+    expect(text(r)).toBe(`Added "Water the plants", repeating. [${bodyOf(calls[0]).id}]`);
+  });
+
+  it('add_task refuses parts with a repeat, and a part count outside 2-50 or not whole, with no write', async () => {
+    const calls = sequence([{ id: 'x' }]);
+    for (const args of [
+      { title: 'x', parts: 3, repeat: { kind: 'daily' } },
+      { title: 'x', parts: 1 },
+      { title: 'x', parts: 51 },
+      { title: 'x', parts: 2.5 },
+      { title: 'x', parts: '3' },
+    ]) {
+      const r = await callTool('add_task', args);
+      expect(r.result.isError).toBe(true);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  // --- the reads ------------------------------------------------------------------------------
+
+  it('list_today selects slices and marks a one-off in parts, never a repeat or a malformed value', async () => {
+    const calls = sequence([
+      { id: 's1', title: 'Watch Severance', recurrence: null, slices: { total: 10, done: 3 } },
+      { id: 'o1', title: 'Call the vet', recurrence: null, slices: null },
+      { id: 'r1', title: 'Meds', recurrence: { kind: 'daily' }, completed_dates: [], skipped_dates: [], slices: { total: 3, done: 1 } },
+      { id: 'b1', title: 'Bad parts', recurrence: null, slices: { total: 0, done: 0 } },
+    ]);
+    const t = text(await callTool('list_today', {}));
+    expect(paramsOf(calls[0]).select.split(',')).toContain('slices');
+    expect(t).toContain('• Watch Severance  (3/10 parts)  [s1]');
+    expect(t).toContain('• Call the vet  [o1]');
+    expect(t).toContain('• Meds  (repeats)  [r1]');
+    expect(t).toContain('• Bad parts  [b1]');
+  });
+
+  it('list_upcoming marks a one-off in parts too', async () => {
+    const tomorrow = addDaysIso(todayIso, 1);
+    const calls = sequence([{ id: 'u1', title: 'Read the report', recurrence: null, due: tomorrow, slices: { total: 4, done: 1 } }]);
+    const t = text(await callTool('list_upcoming', {}));
+    expect(paramsOf(calls[0]).select.split(',')).toContain('slices');
+    expect(t).toContain('• Read the report  (1/4 parts) ');
+    expect(t).toContain(`${tomorrow}  [u1]`);
+  });
+
+  // --- complete_task --------------------------------------------------------------------------
+
+  it('complete_task on a task in parts reads, then sends ONE PATCH of the counts alone, pinned to the stored counts', async () => {
+    const calls = sequence([sliced(2, 10)], [{ id: 's1' }]);
+    const r = await callTool('complete_task', { id: 's1' });
+    expect(r.result.isError).toBeUndefined();
+    expect(text(r)).toBe('Ticked one part of "Watch Severance": 3 of 10 done. Pass count to complete_task to tick more, and 7 finishes it.');
+    expect(calls).toHaveLength(2);
+    expect(calls[0].init.method).toBe('GET');
+    expect(paramsOf(calls[0]).select.split(',')).toEqual(expect.arrayContaining(['title', 'done', 'recurrence', 'slices', 'silent_parent']));
+    expect(paramsOf(calls[1])).toEqual({ id: 'eq.s1', deleted_at: 'is.null', 'slices->>done': 'eq.2', 'slices->>total': 'eq.10', done: 'is.false' });
+    expect(bodyOf(calls[1])).toEqual({ slices: { total: 10, done: 3 }, updated_at: expect.any(String) });
+  });
+
+  it('count ticks more, and past the end it is clamped, which finishes the task with done and its stamp', async () => {
+    let calls = sequence([sliced(2, 10)], [{ id: 's1' }]);
+    let r = await callTool('complete_task', { id: 's1', count: 3 });
+    expect(text(r)).toBe('Ticked 3 parts of "Watch Severance": 5 of 10 done. Pass count to complete_task to tick more, and 5 finishes it.');
+    expect(bodyOf(calls[1]).slices).toEqual({ total: 10, done: 5 });
+    vi.unstubAllGlobals();
+    calls = sequence([sliced(8, 10)], [{ id: 's1' }]);
+    r = await callTool('complete_task', { id: 's1', count: 5 });
+    expect(text(r)).toBe(`Ticked the last 2 parts of "Watch Severance", so it's done: all 10. Nice.`);
+    const w = bodyOf(calls[1]);
+    expect(w).toEqual({ slices: { total: 10, done: 10 }, done: true, completed_at: w.updated_at, updated_at: expect.any(String) });
+  });
+
+  it('the guard pins the RAW stored counts, so a malformed row is still matched (and the write tidies it)', async () => {
+    const calls = sequence([sliced(2.7, 5)], [{ id: 's1' }]);
+    await callTool('complete_task', { id: 's1' });
+    expect(paramsOf(calls[1])).toMatchObject({ 'slices->>done': 'eq.2.7', 'slices->>total': 'eq.5' });
+    expect(bodyOf(calls[1]).slices).toEqual({ total: 5, done: 3 });
+  });
+
+  it('a row a merge left at every part ticked but still open is closed by the tick', async () => {
+    const calls = sequence([sliced(5, 5)], [{ id: 's1' }]);
+    const r = await callTool('complete_task', { id: 's1' });
+    expect(text(r)).toBe(`Every part of "Watch Severance" was already ticked, so it's marked done now. Nice.`);
+    expect(bodyOf(calls[1])).toMatchObject({ slices: { total: 5, done: 5 }, done: true });
+  });
+
+  it('a task already done, in parts or not, is "Already done." with one read and no write', async () => {
+    // A row an old flaw left done at 2 of 5 must not reach the parts guard (done=is.false), or it loops forever.
+    let calls = sequence([sliced(2, 5, { done: true })]);
+    let r = await callTool('complete_task', { id: 's1' });
+    expect(r.result.isError).toBeUndefined();
+    expect(text(r)).toBe('Already done.');
+    expect(calls).toHaveLength(1);
+    vi.unstubAllGlobals();
+    // A done one-off: no second write, so completed_at is never re-stamped and it never moves in the Lookback.
+    calls = sequence([oneOff({ done: true })]);
+    r = await callTool('complete_task', { id: 't1' });
+    expect(text(r)).toBe('Already done.');
+    expect(calls).toHaveLength(1);
+  });
+
+  it('a one-off close is guarded by done=is.false, and a miss says it changed', async () => {
+    let calls = sequence([oneOff()], [{ id: 't1' }]);
+    let r = await callTool('complete_task', { id: 't1' });
+    expect(text(r)).toBe('Marked it done. Nice.');
+    expect(paramsOf(calls[1])).toEqual({ id: 'eq.t1', deleted_at: 'is.null', done: 'is.false' });
+    vi.unstubAllGlobals();
+    calls = sequence([oneOff()], []);
+    r = await callTool('complete_task', { id: 't1' });
+    expect(r.result.isError).toBe(true);
+    expect(text(r)).toBe('It changed just now. Check list_today.');
+    expect(calls).toHaveLength(2);
+  });
+
+  it('a parts tick that matches no row says it changed and to try again', async () => {
+    sequence([sliced(2, 10)], []);
+    const r = await callTool('complete_task', { id: 's1' });
+    expect(r.result.isError).toBe(true);
+    expect(text(r)).toBe('It changed just now. Try again.');
+  });
+
+  it('a task waiting on its steps is refused, with one read and no write, on every done path', async () => {
+    const paths: [string, object][] = [
+      ['complete_task', { id: 'p1' }],
+      ['update_task', { id: 'p1', done: true }],
+      ['update_task', { id: 'p1', done: false }],
+    ];
+    for (const [tool, args] of paths) {
+      const calls = sequence([oneOff({ id: 'p1', title: 'Clear the garage', silent_parent: true })]);
+      const r = await callTool(tool, args);
+      expect(r.result.isError).toBe(true);
+      expect(text(r)).toBe('"Clear the garage" is waiting on its steps. Tick those, and it closes or comes back by itself.');
+      expect(calls).toHaveLength(1);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('count must be a whole number from 1 to 50, checked before any read', async () => {
+    const calls = sequence([sliced(0, 10)]);
+    for (const count of [0, 51, 2.5, '2']) {
+      const r = await callTool('complete_task', { id: 's1', count });
+      expect(r.result.isError).toBe(true);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it('count is ignored on a one-off and on a repeat', async () => {
+    let calls = sequence([oneOff()], [{ id: 't1' }]);
+    expect(text(await callTool('complete_task', { id: 't1', count: 3 }))).toBe('Marked it done. Nice.');
+    expect(bodyOf(calls[1])).toMatchObject({ done: true });
+    vi.unstubAllGlobals();
+    calls = sequence([oneOff({ recurrence: { kind: 'daily' }, completed_dates: [] })], [{ id: 't1' }]);
+    await callTool('complete_task', { id: 't1', count: 3 });
+    expect(bodyOf(calls[1]).completed_dates).toEqual([todayIso]);
+  });
+
+  it('a refused token on the read says so, and nothing is written', async () => {
+    const calls = sequence(failWith(401));
+    const r = await callTool('complete_task', { id: 's1' });
+    expect(text(r)).toBe(TOKEN_EXPIRED);
+    expect(calls).toHaveLength(1);
+  });
+
+  // --- update_task ----------------------------------------------------------------------------
+
+  it('update_task done:true on a task in parts is +1, and writes exactly what complete_task writes', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-18T03:00:00.000Z'));
+    const viaComplete = sequence([sliced(2, 10)], [{ id: 's1' }]);
+    await callTool('complete_task', { id: 's1' });
+    vi.unstubAllGlobals();
+    const viaUpdate = sequence([sliced(2, 10)], [{ id: 's1' }]);
+    const r = await callTool('update_task', { id: 's1', done: true });
+    expect(text(r)).toMatch(/^Ticked one part of "Watch Severance": 3 of 10 done\./);
+    expect(shape(viaUpdate)).toEqual(shape(viaComplete));
+    expect(bodyOf(viaUpdate[1]).slices).toEqual({ total: 10, done: 3 }); // one part, never all ten
+  });
+
+  it('parts resizes and carries progress over, pinned to the stored counts', async () => {
+    const calls = sequence([sliced(3, 10)], [{ id: 's1' }]);
+    const r = await callTool('update_task', { id: 's1', parts: 12 });
+    expect(text(r)).toBe('"Watch Severance" is now tracked in 12 parts, 3 done.');
+    expect(bodyOf(calls[1])).toEqual({ slices: { total: 12, done: 3 }, updated_at: expect.any(String) });
+    expect(paramsOf(calls[1])).toMatchObject({ 'slices->>done': 'eq.3', 'slices->>total': 'eq.10', done: 'is.false' });
+  });
+
+  it('a parts count at or below what is ticked finishes the task', async () => {
+    const calls = sequence([sliced(4, 10)], [{ id: 's1' }]);
+    const r = await callTool('update_task', { id: 's1', parts: 4 });
+    expect(text(r)).toBe(`"Watch Severance" is now in 4 parts, and all 4 are ticked, so it's done. Nice.`);
+    const w = bodyOf(calls[1]);
+    expect(w).toEqual({ slices: { total: 4, done: 4 }, done: true, completed_at: w.updated_at, updated_at: expect.any(String) });
+  });
+
+  it('parts on a whole task starts it at none done, guarded on the absent counts', async () => {
+    const calls = sequence([oneOff()], [{ id: 't1' }]);
+    await callTool('update_task', { id: 't1', parts: 5 });
+    expect(bodyOf(calls[1]).slices).toEqual({ total: 5, done: 0 });
+    expect(paramsOf(calls[1])).toMatchObject({ 'slices->>done': 'is.null', 'slices->>total': 'is.null', done: 'is.false' });
+  });
+
+  it('the same parts count again changes nothing and writes nothing', async () => {
+    const calls = sequence([sliced(3, 10)]);
+    expect(text(await callTool('update_task', { id: 's1', parts: 10 }))).toBe("It's already tracked in 10 parts, 3 done.");
+    expect(calls).toHaveLength(1);
+  });
+
+  it('parts: null makes it one whole task again, leaving done alone, and says so when it was not in parts', async () => {
+    let calls = sequence([sliced(3, 10)], [{ id: 's1' }]);
+    let r = await callTool('update_task', { id: 's1', parts: null });
+    expect(text(r)).toBe('"Watch Severance" is one whole task again.');
+    expect(bodyOf(calls[1])).toEqual({ slices: null, updated_at: expect.any(String) });
+    vi.unstubAllGlobals();
+    calls = sequence([oneOff()]);
+    r = await callTool('update_task', { id: 't1', parts: null });
+    expect(r.result.isError).toBeUndefined();
+    expect(text(r)).toBe("It wasn't tracked in parts.");
+    expect(calls).toHaveLength(1);
+  });
+
+  it('parts with done, parts with a new repeat, or a bad parts value is refused before any read', async () => {
+    const calls = sequence([sliced(3, 10)]);
+    for (const args of [
+      { id: 's1', parts: 5, done: true },
+      { id: 's1', parts: null, done: false },
+      { id: 's1', parts: 5, repeat: { kind: 'daily' } },
+      { id: 's1', parts: 1 },
+      { id: 's1', parts: 51 },
+      { id: 's1', parts: 4.5 },
+    ]) {
+      const r = await callTool('update_task', args);
+      expect(r.result.isError).toBe(true);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it('parts is refused on a repeating task, a task waiting on its steps, and a done task: one read, no write', async () => {
+    for (const row of [oneOff({ recurrence: { kind: 'daily' } }), oneOff({ silent_parent: true }), oneOff({ done: true })]) {
+      const calls = sequence([row]);
+      const r = await callTool('update_task', { id: 't1', parts: 3 });
+      expect(r.result.isError).toBe(true);
+      expect(calls).toHaveLength(1);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('parts on a repeat stopped in the same call is fine: it is judged on the shape after the change', async () => {
+    const calls = sequence([oneOff({ recurrence: { kind: 'daily' } })], [{ id: 't1' }]);
+    await callTool('update_task', { id: 't1', parts: 3, repeat: null });
+    expect(bodyOf(calls[1])).toEqual({ recurrence: null, slices: { total: 3, done: 0 }, updated_at: expect.any(String) });
+  });
+
+  it('done:false on a task in parts is refused: parts only go forward', async () => {
+    const calls = sequence([sliced(3, 10, { done: true })]);
+    const r = await callTool('update_task', { id: 's1', done: false });
+    expect(r.result.isError).toBe(true);
+    expect(text(r)).toBe('Parts only go forward from here. Step one back in the app.');
+    expect(calls).toHaveLength(1);
+  });
+
+  it('a new repeat is refused on a task in parts, a task waiting on its steps, and a step: one read, no write', async () => {
+    for (const row of [sliced(3, 10), oneOff({ silent_parent: true }), oneOff({ parent_id: 'p1' })]) {
+      const calls = sequence([row]);
+      const r = await callTool('update_task', { id: 't1', repeat: { kind: 'daily' } });
+      expect(r.result.isError).toBe(true);
+      expect(calls).toHaveLength(1);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a new repeat on a plain one-off reads first, then lands in one PATCH', async () => {
+    const calls = sequence([oneOff({ due: '2026-10-20' })], [{ id: 't1' }]);
+    const r = await callTool('update_task', { id: 't1', repeat: { kind: 'daily' } });
+    expect(text(r)).toBe('Updated.');
+    expect(calls.map((c) => c.init.method)).toEqual(['GET', 'PATCH']);
+    expect(bodyOf(calls[1])).toMatchObject({ recurrence: { kind: 'daily' }, due: null });
+  });
+
+  it('a title change alone is still one plain PATCH with no read, even on a task waiting on its steps', async () => {
+    const calls = sequence([{ id: 'p1' }]);
+    expect(text(await callTool('update_task', { id: 'p1', title: 'Clear out the garage' }))).toBe('Updated.');
+    expect(calls).toHaveLength(1);
+    expect(bodyOf(calls[0])).toEqual({ updated_at: expect.any(String), title: 'Clear out the garage' });
+  });
+
+  it('{ repeat: null, done: true } still closes the one-off it makes, now in one guarded PATCH', async () => {
+    const calls = sequence([oneOff({ recurrence: { kind: 'daily' }, completed_dates: [] })], [{ id: 't1' }]);
+    expect(text(await callTool('update_task', { id: 't1', repeat: null, done: true }))).toBe('Marked it done. Nice.');
+    expect(bodyOf(calls[1])).toMatchObject({ recurrence: null, done: true });
+    expect(paramsOf(calls[1]).done).toBe('is.false');
+  });
+
+  it('a field change still lands when its done needs no write: "Updated. Already done."', async () => {
+    const calls = sequence([oneOff({ done: true })], [{ id: 't1' }]);
+    const r = await callTool('update_task', { id: 't1', title: 'Call the vet back', done: true });
+    expect(text(r)).toBe('Updated. Already done.');
+    const w = bodyOf(calls[1]);
+    expect(w.title).toBe('Call the vet back');
+    expect(w).not.toHaveProperty('done');
+    expect(paramsOf(calls[1])).toEqual({ id: 'eq.t1', deleted_at: 'is.null' });
   });
 });

@@ -15,7 +15,8 @@ import {
   upcomingTasks,
   upcomingWindow,
 } from './api';
-import { decodeJwtSub } from './mcp';
+import { bodyOf, type Call, failWith, paramsOf, sequence } from './fetch-sequence.test-helper';
+import { decodeJwtSub, handleMcp } from './mcp';
 
 const env = { SUPABASE_URL: 'https://sb.example.co', SUPABASE_ANON_KEY: 'anon-key' };
 
@@ -46,7 +47,7 @@ describe('toApiTask', () => {
   it('maps a row to the public camelCase shape', () => {
     expect(
       toApiTask({ id: 't1', title: 'A', done: true, due: '2026-06-21', created_at: 'c', completed_at: 'd' }),
-    ).toEqual({ id: 't1', title: 'A', done: true, due: '2026-06-21', recurrence: null, repeats: null, createdAt: 'c', completedAt: 'd' });
+    ).toEqual({ id: 't1', title: 'A', done: true, due: '2026-06-21', recurrence: null, repeats: null, partsTotal: null, partsDone: null, createdAt: 'c', completedAt: 'd' });
   });
   it('defaults the nullable fields', () => {
     const t = toApiTask({ id: 't2', title: 'B', done: false });
@@ -112,7 +113,8 @@ describe('describeRecurrence', () => {
 describe('request builders', () => {
   it('listRequest adds the today filters only when asked', () => {
     expect(listRequest(env, 'tok').url).not.toContain('due.lte');
-    expect(listRequest(env, 'tok').url).not.toContain('silent_parent');
+    // No silent_parent FILTER on the plain list (the column is selected, to guard writes, but nothing is excluded).
+    expect(new URL(listRequest(env, 'tok').url).searchParams.has('silent_parent')).toBe(false);
     const todayUrl = decodeURIComponent(listRequest(env, 'tok', { today: true, todayIso: '2026-06-21' }).url);
     expect(todayUrl).toContain('due.lte.2026-06-21');
     expect(todayUrl).toContain('silent_parent=not.is.true');
@@ -388,23 +390,15 @@ describe('handleApi', () => {
     expect(tasks[0].due).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
-  it('patches a task to repeat and returns the recurrence', async () => {
-    let sentBody: Record<string, unknown> = {};
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (_url: string, init: RequestInit) => {
-        sentBody = JSON.parse(init.body as string);
-        return {
-          ok: true,
-          json: async () => [{ id: 't1', title: 'A', done: false, due: null, recurrence: sentBody.recurrence, created_at: 'c', completed_at: null }],
-        } as unknown as Response;
-      }),
-    );
+  it('patches a task to repeat and returns the recurrence (read first: a repeat is refused on some shapes)', async () => {
+    const before = { id: 't1', title: 'A', done: false, due: '2026-07-10', recurrence: null, created_at: 'c', completed_at: null };
+    const calls = sequence([before], [{ ...before, due: null, recurrence: { kind: 'daily', start: '2026-07-07' } }]);
     const res = await handleApi(req('PATCH', '/api/v1/tasks/t1', { token: fakeJwt('u1'), body: { repeat: { kind: 'daily' } } }), env, trust);
     expect(res.status).toBe(200);
     const { task } = (await res.json()) as { task: { repeats: string } };
     expect(task.repeats).toBe('every day');
-    expect(sentBody.due).toBeNull(); // setting a repeat clears the due day
+    expect(calls.map((c) => c.init.method)).toEqual(['GET', 'PATCH']);
+    expect(bodyOf(calls[1]).due).toBeNull(); // setting a repeat clears the due day
   });
 
   it('400s a patch with both due and repeat', async () => {
@@ -464,19 +458,6 @@ describe('PR A: the bearer is verified before any call', () => {
 describe('PR B + C: a repeat is ticked, not closed; a bad id is a 400; a throw is a calm 500', () => {
   afterEach(() => vi.unstubAllGlobals());
   const todayIso = new Date().toISOString().slice(0, 10);
-  type Call = { url: string; init: RequestInit };
-  function sequence(...answers: unknown[]) {
-    const calls: Call[] = [];
-    let i = 0;
-    const fn = vi.fn(async (url: string, init: RequestInit) => {
-      calls.push({ url, init });
-      const body = answers[Math.min(i++, answers.length - 1)];
-      return { ok: true, status: 200, json: async () => body } as unknown as Response;
-    });
-    vi.stubGlobal('fetch', fn as unknown as typeof fetch);
-    return calls;
-  }
-  const bodyOf = (c: Call) => JSON.parse(c.init.body as string) as Record<string, unknown>;
   const row = { id: 'r1', title: 'Meds', done: false, due: null, recurrence: { kind: 'daily' }, completed_dates: ['2026-09-01'], created_at: 'c', completed_at: null };
 
   it('PATCH done:true on a REPEATING task writes completed_dates with today and leaves done alone', async () => {
@@ -544,16 +525,6 @@ describe('PR B + C: a repeat is ticked, not closed; a bad id is a 400; a throw i
 
 describe('PR B review: REST resolves done against the shape after the patch, and takes a day', () => {
   afterEach(() => vi.unstubAllGlobals());
-  function sequence(...answers: unknown[]) {
-    const calls: { url: string; init: RequestInit }[] = [];
-    let i = 0;
-    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
-      calls.push({ url, init });
-      return { ok: true, status: 200, json: async () => answers[Math.min(i++, answers.length - 1)] } as unknown as Response;
-    }) as unknown as typeof fetch);
-    return calls;
-  }
-  const bodyOf = (c: { init: RequestInit }) => JSON.parse(c.init.body as string) as Record<string, unknown>;
   const repeat = { id: 'r1', title: 'Meds', done: false, due: null, recurrence: { kind: 'daily' }, completed_dates: ['2026-09-01'], created_at: 'c', completed_at: null };
 
   it('PATCH {done:true, repeat:null} on a repeat closes the one-off it makes, with no tick write (parity with MCP)', async () => {
@@ -576,5 +547,299 @@ describe('PR B review: REST resolves done against the shape after the patch, and
   it('an impossible day, or a day without done, is a calm 400', () => {
     expect(parseUpdate({ done: true, day: '2026-02-30' })).toEqual({ error: 'day must be a real calendar day (YYYY-MM-DD)' });
     expect(parseUpdate({ day: '2026-09-24' })).toEqual({ error: 'day only makes sense with done' });
+  });
+});
+
+describe('parts over REST: partsTotal / partsDone, absolute and forward-only', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+  const token = fakeJwt('u1');
+  /** A row as getRequest's SELECT returns it: a one-off tracked in parts. */
+  const sliced = (done: number, total: number, extra: object = {}) => ({
+    id: 's1',
+    title: 'Watch Severance',
+    done: false,
+    due: null,
+    recurrence: null,
+    completed_dates: null,
+    slices: { total, done },
+    silent_parent: null,
+    parent_id: null,
+    created_at: 'c',
+    completed_at: null,
+    ...extra,
+  });
+  const oneOff = (extra: object = {}) => ({ ...sliced(0, 1), id: 't1', title: 'Call the vet', slices: null, ...extra });
+  const patch = (id: string, body: unknown) => handleApi(req('PATCH', `/api/v1/tasks/${id}`, { token, body }), env, trust);
+  const taskOf = async (res: Response) => ((await res.json()) as { task: Record<string, unknown> }).task;
+  const errorOf = async (res: Response) => ((await res.json()) as { error: string }).error;
+  /** The guard filters of a recorded PATCH, without the select the REST write adds. */
+  const guardOf = (c: Call) => {
+    const q = paramsOf(c);
+    delete q.select;
+    return q;
+  };
+
+  // --- the task shape and the body checks -----------------------------------------------------
+
+  it('toApiTask exposes partsTotal / partsDone, cleaned the way the app cleans them, and null for a whole task', () => {
+    expect(toApiTask({ id: 's', title: 'S', done: false, slices: { total: 10, done: 3 } })).toMatchObject({ partsTotal: 10, partsDone: 3 });
+    expect(toApiTask({ id: 's', title: 'S', done: false, slices: { total: 5.5, done: 7 } })).toMatchObject({ partsTotal: 5, partsDone: 5 });
+    for (const slices of [null, undefined, { total: 0, done: 0 }, { total: '5', done: 1 }, 'junk']) {
+      expect(toApiTask({ id: 's', title: 'S', done: false, slices })).toMatchObject({ partsTotal: null, partsDone: null });
+    }
+  });
+
+  it('parseCreate takes partsTotal 2-50 (with a due day too), and refuses it with a repeat', () => {
+    expect(parseCreate({ title: 'x', partsTotal: 4 })).toEqual({ body: { title: 'x', due: null, repeat: null, partsTotal: 4 } });
+    expect(parseCreate({ title: 'x', due: '2026-11-02', partsTotal: 4 })).toMatchObject({ body: { due: '2026-11-02', partsTotal: 4 } });
+    expect(parseCreate({ title: 'x', partsTotal: null })).toEqual({ body: { title: 'x', due: null, repeat: null } });
+    for (const partsTotal of [1, 51, 2.5, '4']) expect('error' in parseCreate({ title: 'x', partsTotal })).toBe(true);
+    expect('error' in parseCreate({ title: 'x', partsTotal: 4, repeat: { kind: 'daily' } })).toBe(true);
+  });
+
+  it('parseUpdate takes partsTotal (or null) and partsDone, one change of shape at a time', () => {
+    expect(parseUpdate({ partsTotal: 6 })).toEqual({ body: { partsTotal: 6 } });
+    expect(parseUpdate({ partsTotal: null })).toEqual({ body: { partsTotal: null } });
+    expect(parseUpdate({ partsDone: 0 })).toEqual({ body: { partsDone: 0 } });
+    expect(parseUpdate({ partsDone: 3, title: 'x' })).toEqual({ body: { title: 'x', partsDone: 3 } });
+    // Any two of partsTotal / partsDone / done is a 400: each can finish the task, so two have no single meaning.
+    for (const body of [{ partsTotal: 4, partsDone: 2 }, { partsTotal: 4, done: true }, { partsDone: 2, done: true }, { partsTotal: null, done: false }]) {
+      expect(parseUpdate(body)).toEqual({ error: 'send one of partsTotal, partsDone or done at a time' });
+    }
+    expect('error' in parseUpdate({ partsTotal: 4, repeat: { kind: 'daily' } })).toBe(true);
+    expect('error' in parseUpdate({ partsDone: 2, repeat: { kind: 'daily' } })).toBe(true);
+    for (const partsDone of [-1, 51, 2.5, '2', null]) expect('error' in parseUpdate({ partsDone })).toBe(true);
+    for (const partsTotal of [1, 51, 2.5, '4']) expect('error' in parseUpdate({ partsTotal })).toBe(true);
+  });
+
+  it('POST partsTotal writes slices {N, 0} and returns the task with its parts', async () => {
+    const calls = sequence([{ ...sliced(0, 4), id: 'api-1', title: 'Read the report' }]);
+    const res = await handleApi(req('POST', '/api/v1/tasks', { token, body: { title: 'Read the report', partsTotal: 4 } }), env, trust);
+    expect(res.status).toBe(201);
+    expect(bodyOf(calls[0]).slices).toEqual({ total: 4, done: 0 });
+    expect(await taskOf(res)).toMatchObject({ partsTotal: 4, partsDone: 0 });
+  });
+
+  it('POST partsTotal with a repeat, or two shapes in one PATCH, is a 400 before Supabase is asked', async () => {
+    const calls = sequence([]);
+    expect((await handleApi(req('POST', '/api/v1/tasks', { token, body: { title: 'x', partsTotal: 4, repeat: { kind: 'daily' } } }), env, trust)).status).toBe(400);
+    expect((await patch('s1', { partsDone: 2, done: true })).status).toBe(400);
+    expect(calls).toHaveLength(0);
+  });
+
+  // --- partsDone ------------------------------------------------------------------------------
+
+  it('partsDone forward: one read, then one PATCH of the counts alone, pinned to the stored counts', async () => {
+    const calls = sequence([sliced(1, 4)], [sliced(2, 4)]);
+    const res = await patch('s1', { partsDone: 2 });
+    expect(res.status).toBe(200);
+    expect(await taskOf(res)).toMatchObject({ partsTotal: 4, partsDone: 2, done: false });
+    expect(calls.map((c) => c.init.method)).toEqual(['GET', 'PATCH']);
+    expect(bodyOf(calls[1])).toEqual({ updated_at: expect.any(String), slices: { total: 4, done: 2 } });
+    expect(guardOf(calls[1])).toEqual({ id: 'eq.s1', deleted_at: 'is.null', 'slices->>done': 'eq.1', 'slices->>total': 'eq.4', done: 'is.false' });
+  });
+
+  it('partsDone at the total finishes the task: done and its stamp ride the same write', async () => {
+    const calls = sequence([sliced(3, 4)], [sliced(4, 4, { done: true, completed_at: 'now' })]);
+    const res = await patch('s1', { partsDone: 4 });
+    expect(res.status).toBe(200);
+    const w = bodyOf(calls[1]);
+    expect(w).toEqual({ updated_at: expect.any(String), done: true, completed_at: w.updated_at, slices: { total: 4, done: 4 } });
+  });
+
+  it('partsDone equal to the count is a 200 with the task as it stands and NO write, so a retry is harmless', async () => {
+    const calls = sequence([sliced(2, 4)]);
+    const res = await patch('s1', { partsDone: 2 });
+    expect(res.status).toBe(200);
+    expect(await taskOf(res)).toMatchObject({ partsDone: 2 });
+    expect(calls).toHaveLength(1);
+  });
+
+  it('partsDone lower than the count is a 409 (parts only go forward); above the total is a 400; on a whole task a 409', async () => {
+    let calls = sequence([sliced(3, 4)]);
+    let res = await patch('s1', { partsDone: 1 });
+    expect(res.status).toBe(409);
+    expect(await errorOf(res)).toMatch(/only go forward/);
+    expect(calls).toHaveLength(1);
+    vi.unstubAllGlobals();
+    calls = sequence([sliced(3, 4)]);
+    res = await patch('s1', { partsDone: 9 });
+    expect(res.status).toBe(400);
+    expect(await errorOf(res)).toBe('partsDone can be at most partsTotal (4)');
+    expect(calls).toHaveLength(1);
+    vi.unstubAllGlobals();
+    calls = sequence([oneOff()]);
+    res = await patch('t1', { partsDone: 1 });
+    expect(res.status).toBe(409);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('a row a merge left at every part ticked but still open is closed by partsDone at the total', async () => {
+    const calls = sequence([sliced(4, 4)], [sliced(4, 4, { done: true })]);
+    expect((await patch('s1', { partsDone: 4 })).status).toBe(200);
+    expect(bodyOf(calls[1])).toMatchObject({ done: true, slices: { total: 4, done: 4 } });
+  });
+
+  // --- partsTotal -----------------------------------------------------------------------------
+
+  it('partsTotal resizes and carries progress over; at or below what is ticked it finishes the task', async () => {
+    let calls = sequence([sliced(3, 10)], [sliced(3, 12)]);
+    expect((await patch('s1', { partsTotal: 12 })).status).toBe(200);
+    expect(bodyOf(calls[1])).toEqual({ updated_at: expect.any(String), slices: { total: 12, done: 3 } });
+    expect(guardOf(calls[1])).toMatchObject({ 'slices->>done': 'eq.3', 'slices->>total': 'eq.10', done: 'is.false' });
+    vi.unstubAllGlobals();
+    calls = sequence([sliced(4, 10)], [sliced(4, 4, { done: true })]);
+    expect((await patch('s1', { partsTotal: 4 })).status).toBe(200);
+    expect(bodyOf(calls[1])).toMatchObject({ done: true, completed_at: expect.any(String), slices: { total: 4, done: 4 } });
+  });
+
+  it('partsTotal on a whole task starts it at none done', async () => {
+    const calls = sequence([oneOff()], [oneOff({ slices: { total: 5, done: 0 } })]);
+    const res = await patch('t1', { partsTotal: 5 });
+    expect(await taskOf(res)).toMatchObject({ partsTotal: 5, partsDone: 0 });
+    expect(bodyOf(calls[1]).slices).toEqual({ total: 5, done: 0 });
+    expect(guardOf(calls[1])).toMatchObject({ 'slices->>done': 'is.null', 'slices->>total': 'is.null' });
+  });
+
+  it('partsTotal: null makes it one whole task again; on a whole task it writes nothing', async () => {
+    let calls = sequence([sliced(3, 10)], [oneOff({ id: 's1' })]);
+    expect((await patch('s1', { partsTotal: null })).status).toBe(200);
+    expect(bodyOf(calls[1])).toEqual({ updated_at: expect.any(String), slices: null });
+    vi.unstubAllGlobals();
+    calls = sequence([oneOff()]);
+    expect((await patch('t1', { partsTotal: null })).status).toBe(200);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('partsTotal is a 409 on a repeating task, a task waiting on its steps and a done task', async () => {
+    for (const row of [oneOff({ recurrence: { kind: 'daily' } }), oneOff({ silent_parent: true }), oneOff({ done: true })]) {
+      const calls = sequence([row]);
+      expect((await patch('t1', { partsTotal: 3 })).status).toBe(409);
+      expect(calls).toHaveLength(1);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  // --- done -----------------------------------------------------------------------------------
+
+  it('done:true on a task in parts FILLS every part (Done in Focus), pinned to the stored counts', async () => {
+    const calls = sequence([sliced(1, 4)], [sliced(4, 4, { done: true })]);
+    expect((await patch('s1', { done: true })).status).toBe(200);
+    expect(bodyOf(calls[1])).toMatchObject({ done: true, completed_at: expect.any(String), slices: { total: 4, done: 4 } });
+    expect(guardOf(calls[1])).toMatchObject({ 'slices->>done': 'eq.1', 'slices->>total': 'eq.4', done: 'is.false' });
+  });
+
+  it('done:false on a task in parts is a 409, and done on a task waiting on its steps is a 409', async () => {
+    let calls = sequence([sliced(4, 4, { done: true })]);
+    let res = await patch('s1', { done: false });
+    expect(res.status).toBe(409);
+    expect(calls).toHaveLength(1);
+    vi.unstubAllGlobals();
+    calls = sequence([oneOff({ silent_parent: true })]);
+    res = await patch('t1', { done: true });
+    expect(res.status).toBe(409);
+    expect(await errorOf(res)).toMatch(/tick its steps/);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('done:true on a task already done is a 200 with no write, so completedAt is never re-stamped', async () => {
+    for (const row of [oneOff({ done: true, completed_at: 'then' }), sliced(2, 5, { done: true })]) {
+      const calls = sequence([row]);
+      const res = await patch(row.id, { done: true });
+      expect(res.status).toBe(200);
+      expect(calls).toHaveLength(1);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a one-off close is guarded by done=is.false, and a guarded write that matches nothing is a 409, not a 404', async () => {
+    let calls = sequence([oneOff()], [oneOff({ done: true })]);
+    expect((await patch('t1', { done: true })).status).toBe(200);
+    expect(guardOf(calls[1])).toEqual({ id: 'eq.t1', deleted_at: 'is.null', done: 'is.false' });
+    vi.unstubAllGlobals();
+    calls = sequence([oneOff()], []);
+    const res = await patch('t1', { done: true });
+    expect(res.status).toBe(409);
+    expect(await errorOf(res)).toMatch(/changed just now/);
+  });
+
+  it('a new repeat is a 409 on a task in parts, a task waiting on its steps and a step', async () => {
+    for (const row of [sliced(3, 10), oneOff({ silent_parent: true }), oneOff({ parent_id: 'p1' })]) {
+      const calls = sequence([row]);
+      expect((await patch(row.id, { repeat: { kind: 'daily' } })).status).toBe(409);
+      expect(calls).toHaveLength(1);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a read that comes back 401 is the 401 the contract promises', async () => {
+    sequence(failWith(401));
+    expect((await patch('s1', { partsDone: 2 })).status).toBe(401);
+  });
+
+  // --- the contract and the parity with MCP ---------------------------------------------------
+
+  it('OpenAPI is 1.3.0 and documents the parts fields and the 409', async () => {
+    const res = await handleApi(req('GET', '/api/v1/openapi.json'), env, trust);
+    type Schema = { properties: Record<string, unknown>; required?: string[] };
+    const spec = (await res.json()) as {
+      info: { version: string };
+      paths: Record<string, Record<string, { responses: Record<string, unknown> }>>;
+      components: { schemas: Record<string, Schema>; responses: Record<string, unknown> };
+    };
+    expect(spec.info.version).toBe('1.3.0');
+    const { Task, TaskInput, TaskPatch } = spec.components.schemas;
+    expect(Task.required).toEqual(expect.arrayContaining(['partsTotal', 'partsDone']));
+    expect(TaskInput.properties).toHaveProperty('partsTotal');
+    expect(TaskPatch.properties).toHaveProperty('partsTotal');
+    expect(TaskPatch.properties).toHaveProperty('partsDone');
+    expect(spec.paths['/tasks/{id}'].patch.responses['409']).toEqual({ $ref: '#/components/responses/Conflict' });
+    expect(spec.components.responses).toHaveProperty('Conflict');
+  });
+
+  /** Call one MCP tool through the real handler, on the same stubbed fetch. */
+  const mcpTool = (name: string, args: object) =>
+    handleMcp(
+      new Request('https://doubledone-ai.example/mcp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }),
+      }),
+      env,
+      { kind: 'header' },
+      trust,
+    );
+
+  it('parity: an MCP part tick and REST partsDone write the same columns under the same guard', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-18T03:00:00.000Z'));
+    const viaMcp = sequence([sliced(2, 10)], [sliced(3, 10)]);
+    await mcpTool('complete_task', { id: 's1' });
+    vi.unstubAllGlobals();
+    const viaRest = sequence([sliced(2, 10)], [sliced(3, 10)]);
+    await patch('s1', { partsDone: 3 });
+    expect(bodyOf(viaRest[1])).toEqual(bodyOf(viaMcp[1]));
+    expect(guardOf(viaRest[1])).toEqual(guardOf(viaMcp[1]));
+  });
+
+  it('parity: the last part writes the same finish from MCP complete_task, REST partsDone and REST done:true', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-18T03:00:00.000Z'));
+    const viaMcp = sequence([sliced(9, 10)], [sliced(10, 10, { done: true })]);
+    await mcpTool('complete_task', { id: 's1' });
+    vi.unstubAllGlobals();
+    const viaPartsDone = sequence([sliced(9, 10)], [sliced(10, 10, { done: true })]);
+    await patch('s1', { partsDone: 10 });
+    vi.unstubAllGlobals();
+    const viaDone = sequence([sliced(9, 10)], [sliced(10, 10, { done: true })]);
+    await patch('s1', { done: true });
+    expect(bodyOf(viaMcp[1])).toEqual({ slices: { total: 10, done: 10 }, done: true, completed_at: '2026-10-18T03:00:00.000Z', updated_at: '2026-10-18T03:00:00.000Z' });
+    expect(bodyOf(viaPartsDone[1])).toEqual(bodyOf(viaMcp[1]));
+    expect(bodyOf(viaDone[1])).toEqual(bodyOf(viaMcp[1]));
+    expect(guardOf(viaPartsDone[1])).toEqual(guardOf(viaMcp[1]));
+    expect(guardOf(viaDone[1])).toEqual(guardOf(viaMcp[1]));
   });
 });

@@ -51,7 +51,7 @@ The daily loop is free. Premium is sold through each platform's own checkout: St
 - **Phones and the web.** An optional daily reminder (phone notifications, or web push), an Android home-screen widget, launcher shortcuts, and share-in from the Android share sheet, the iOS share extension or the installed web app.
 - **AI off.** One switch in Settings removes every generative AI feature, and the app runs without it.
 - **Your data.** No account needed. Optional email-code sign-in syncs across devices. Export your tasks to JSON, or delete your account and data from Settings.
-- **For agents and developers.** An [MCP server](docs/mcp.md) with nine tools (OAuth 2.1 sign-in, or a pasted token) and a [REST API](docs/api.md) (OpenAPI 3.1, v1.2.3, with [Swagger UI](https://api.doubledone.app/api/v1/docs)). Both act only on your own tasks with your own token.
+- **For agents and developers.** An [MCP server](docs/mcp.md) with nine tools (OAuth 2.1 sign-in, or a pasted token) and a [REST API](docs/api.md) (OpenAPI 3.1, v1.3.0, with [Swagger UI](https://api.doubledone.app/api/v1/docs)). Both act only on your own tasks with your own token.
 
 **Premium** adds Scan, Pin, the colour themes, Chart a course (a goal turned into ordered steps), Plan my day, Your patterns, unlimited energy matching and weekly scrapbooks. A signed-in account can take one card-free month to try it. On the web Premium is A$5 a month or A$50 a year. The App Store and Google Play show their own local price. Break it down, Make it tiny, Lighten today, Sort for me, the Calendar, Routines, Rhythms, Ours, Settle and Quiet stay free.
 

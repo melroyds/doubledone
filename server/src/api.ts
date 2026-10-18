@@ -11,6 +11,11 @@
 // cadence.buildRecurrence, and the SAME UTC-calendar-day basis. So a repeating task an
 // agent makes and one the app or this API makes are indistinguishable, and `?q` /
 // `?upcoming` return what MCP's search / list_upcoming would.
+//
+// Parts (the app's "Track in steps") share their arithmetic and write guard with MCP too
+// (steps.ts). The one deliberate difference: this API's counts are ABSOLUTE (`partsDone: 4`),
+// because an HTTP integrator retries and the write must be idempotent, where MCP ticks
+// relative to the count (a model reasons best with "one more"). Both only ever go forward.
 
 import {
   asRecurrence,
@@ -22,6 +27,18 @@ import {
   tickForDay,
 } from './cadence';
 import { OPENAPI_SPEC, SWAGGER_HTML } from './openapi';
+import {
+  advanceParts,
+  cleanSlices,
+  MAX_PARTS,
+  MIN_PARTS,
+  needsWrite,
+  type PartsChange,
+  partsGuard,
+  setTotal,
+  type Slices,
+  wholeIn,
+} from './steps';
 import { defaultVerifySub, type SubVerifier } from './verify';
 
 export type ApiEnv = { SUPABASE_URL?: string; SUPABASE_ANON_KEY?: string };
@@ -35,16 +52,19 @@ export type ApiTask = {
   due: string | null;
   recurrence: Recurrence | null;
   repeats: string | null; // a short human summary of the recurrence, or null for a one-off
+  partsTotal: number | null; // the parts a task is tracked in (the app's "Track in steps"), or null for a whole task
+  partsDone: number | null; // how many of those are ticked, or null for a whole task
   createdAt: string;
   completedAt: string | null;
 };
 
 type Row = Record<string, unknown>;
 
-// The Supabase columns the API selects (snake_case, from PostgREST). recurrence feeds the
-// output shape; completed_dates / skipped_dates are read only to compute ?upcoming (a repeat
-// already done/skipped for a day shows the next one), never surfaced.
-const SELECT = 'id,title,done,due,created_at,completed_at,recurrence,completed_dates,skipped_dates';
+// The Supabase columns the API selects (snake_case, from PostgREST). recurrence and slices feed
+// the output shape; completed_dates / skipped_dates are read only to compute ?upcoming (a repeat
+// already done/skipped for a day shows the next one), and silent_parent / parent_id only to
+// refuse a write that would break a task's shape (see planPatch). Those four are never surfaced.
+const SELECT = 'id,title,done,due,created_at,completed_at,recurrence,completed_dates,skipped_dates,slices,silent_parent,parent_id';
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Today as an ISO 'YYYY-MM-DD' UTC calendar day. The same basis MCP and cadence.ts use, so
@@ -92,9 +112,11 @@ export function describeRecurrence(r: Recurrence | null): string | null {
 
 /** Map a Supabase task row to the public API shape, defensively. recurrence is normalised
  *  through the shared asRecurrence (a malformed column becomes null, never throws), and
- *  `repeats` is its human summary. */
+ *  `repeats` is its human summary. slices is cleaned the way the app's own load cleans it
+ *  (steps.ts cleanSlices), because sync copies whatever a device wrote straight through. */
 export function toApiTask(row: Row): ApiTask {
   const recurrence = asRecurrence(row.recurrence);
+  const parts = cleanSlices(row.slices);
   return {
     id: typeof row.id === 'string' ? row.id : String(row.id ?? ''),
     title: typeof row.title === 'string' ? row.title : '',
@@ -102,6 +124,8 @@ export function toApiTask(row: Row): ApiTask {
     due: typeof row.due === 'string' ? row.due : null,
     recurrence,
     repeats: describeRecurrence(recurrence),
+    partsTotal: parts ? parts.total : null,
+    partsDone: parts ? parts.done : null,
     createdAt: typeof row.created_at === 'string' ? row.created_at : '',
     completedAt: typeof row.completed_at === 'string' ? row.completed_at : null,
   };
@@ -174,28 +198,43 @@ export function getRequest(env: ApiEnv, token: string, id: string): { url: strin
 export function createRequest(
   env: ApiEnv,
   token: string,
-  t: { id: string; userId: string; title: string; due: string | null; recurrence?: Recurrence | null; now: string },
+  t: { id: string; userId: string; title: string; due: string | null; recurrence?: Recurrence | null; slices?: Slices | null; now: string },
 ): { url: string; init: RequestInit } {
-  // due and recurrence are OPTIONAL and additive: a create with neither is byte-for-byte the
+  // due, recurrence and slices are OPTIONAL and additive: a create with none is byte-for-byte the
   // original row. When present they write the same columns the app / sync / MCP use, so an
-  // API-made dated or repeating task is indistinguishable from an app- or agent-made one.
+  // API-made dated, repeating or in-parts task is indistinguishable from an app- or agent-made one.
   const body: Row = { id: t.id, user_id: t.userId, title: t.title, done: false, created_at: t.now, updated_at: t.now };
   if (t.due) body.due = t.due;
   if (t.recurrence != null) body.recurrence = t.recurrence;
+  if (t.slices != null) body.slices = t.slices;
   return {
     url: `${tasksUrl(env)}?${new URLSearchParams({ select: SELECT }).toString()}`,
     init: { method: 'POST', headers: headers(env, token, true), body: JSON.stringify(body) },
   };
 }
 
+/** The changes a PATCH resolves to, before they become columns (see updateRequest). */
+export type UpdatePatch = {
+  title?: string;
+  done?: boolean;
+  due?: string | null;
+  recurrence?: Recurrence | null;
+  completedDates?: string[];
+  slices?: Slices | null;
+};
+
+/** The PATCH for one task. `guard` pins it to the row as the handler read it (planPatch): `done=is.false` so a
+ *  second close never re-stamps completedAt, and the stored parts so a concurrent tick or resize is never
+ *  reverted. With a guard, no row back means the task changed in between, a 409, not a 404. */
 export function updateRequest(
   env: ApiEnv,
   token: string,
   id: string,
-  patch: { title?: string; done?: boolean; due?: string | null; recurrence?: Recurrence | null; completedDates?: string[] },
+  patch: UpdatePatch,
   now: string,
+  guard: Record<string, string> = {},
 ): { url: string; init: RequestInit } {
-  const q = new URLSearchParams({ id: `eq.${id}`, deleted_at: 'is.null', select: SELECT });
+  const q = new URLSearchParams({ id: `eq.${id}`, deleted_at: 'is.null', select: SELECT, ...guard });
   const body: Row = { updated_at: now };
   if (typeof patch.title === 'string') body.title = patch.title;
   // A repeat's tick: the handler resolves `done` into completed_dates for a recurring row (read-first,
@@ -205,6 +244,8 @@ export function updateRequest(
     body.done = patch.done;
     body.completed_at = patch.done ? now : null;
   }
+  // Parts: the new counts (riding with done:true when they tick the last part), or null for one whole task.
+  if (patch.slices !== undefined) body.slices = patch.slices;
   // due <-> recurrence are mutually exclusive, made explicit (mirrors mcp.ts updateTaskRequest):
   // setting a due day clears any repeat, and setting a repeat clears the due day, so a task is
   // never both. Only keys present in `patch` are sent, so an unspecified field is untouched.
@@ -309,8 +350,16 @@ function addDaysIso(iso: string, days: number): string {
 
 // --- Body parsing / validation (pure) --------------------------------------
 
-export type CreateBody = { title: string; due: string | null; repeat: RepeatSpec | null };
-export type UpdateBody = { title?: string; done?: boolean; due?: string | null; repeat?: RepeatSpec | null; day?: string };
+export type CreateBody = { title: string; due: string | null; repeat: RepeatSpec | null; partsTotal?: number };
+export type UpdateBody = {
+  title?: string;
+  done?: boolean;
+  due?: string | null;
+  repeat?: RepeatSpec | null;
+  day?: string;
+  partsTotal?: number | null;
+  partsDone?: number;
+};
 
 /** Validate a POST body. Returns the clean body, or an { error } message. A `repeat` object and a
  *  `due` are mutually exclusive (a task repeats or has one due day, never both, exactly as the app
@@ -332,13 +381,22 @@ export function parseCreate(raw: unknown): { body: CreateBody } | { error: strin
     repeat = o.repeat as RepeatSpec;
   }
   if (due && repeat) return { error: 'a task can have a due date or a repeat, not both' };
+  // partsTotal: a one-off only, as the app's capture offers it. A due day is fine.
+  if (typeof o.partsTotal !== 'undefined' && o.partsTotal !== null) {
+    const partsTotal = wholeIn(o.partsTotal, MIN_PARTS, MAX_PARTS);
+    if (partsTotal === null) return { error: `partsTotal must be a whole number from ${MIN_PARTS} to ${MAX_PARTS}` };
+    if (repeat) return { error: 'a task tracked in parts cannot repeat: send partsTotal or repeat, not both' };
+    return { body: { title, due, repeat, partsTotal } };
+  }
   return { body: { title, due, repeat } };
 }
 
-/** Validate a PATCH body (any of title / done / due / repeat). Returns the clean patch, or an
- *  { error }. due and repeat are mutually exclusive when both are non-null. Pass due:null to clear
- *  a date, repeat:null to stop repeating. The repeat's internal correctness is validated later by
- *  cadence.buildRecurrence; here we shape-check and enforce the exclusivity. */
+/** Validate a PATCH body (any of title / done / due / repeat / partsTotal / partsDone). Returns the
+ *  clean patch, or an { error }. due and repeat are mutually exclusive when both are non-null. Pass
+ *  due:null to clear a date, repeat:null to stop repeating, partsTotal:null to make a task in parts
+ *  one whole task. The repeat's internal correctness is validated later by cadence.buildRecurrence;
+ *  here we shape-check and enforce the exclusivity. Only what the body alone can decide is a 400
+ *  here; a clash with the task as it stands is the handler's 409 (planPatch). */
 export function parseUpdate(raw: unknown): { body: UpdateBody } | { error: string } {
   if (typeof raw !== 'object' || raw === null) return { error: 'a JSON object is required' };
   const o = raw as Row;
@@ -364,11 +422,117 @@ export function parseUpdate(raw: unknown): { body: UpdateBody } | { error: strin
     else if (typeof o.repeat === 'object') body.repeat = o.repeat as RepeatSpec;
     else return { error: 'repeat must be an object (kind: daily | weekly | every_n_days) or null' };
   }
+  if (typeof o.partsTotal !== 'undefined') {
+    if (o.partsTotal === null) body.partsTotal = null;
+    else {
+      const partsTotal = wholeIn(o.partsTotal, MIN_PARTS, MAX_PARTS);
+      if (partsTotal === null) return { error: `partsTotal must be a whole number from ${MIN_PARTS} to ${MAX_PARTS}, or null to make it one whole task` };
+      body.partsTotal = partsTotal;
+    }
+  }
+  if (typeof o.partsDone !== 'undefined') {
+    const partsDone = wholeIn(o.partsDone, 0, MAX_PARTS);
+    if (partsDone === null) return { error: `partsDone must be a whole number from 0 to ${MAX_PARTS}` };
+    body.partsDone = partsDone;
+  }
   // Setting a due day and a repeat in the same call is contradictory (they clear each other).
   if (body.due != null && body.repeat != null) return { error: 'a task can have a due date or a repeat, not both' };
+  // One change of shape at a time: each of these can finish the task, and two at once have no single meaning.
+  const shapes = [body.partsTotal, body.partsDone, body.done].filter((v) => v !== undefined).length;
+  if (shapes > 1) return { error: 'send one of partsTotal, partsDone or done at a time' };
+  if ((body.partsTotal !== undefined || body.partsDone !== undefined) && body.repeat != null) {
+    return { error: 'a task tracked in parts cannot repeat: send parts or a repeat, not both' };
+  }
   if (body.day !== undefined && body.done === undefined) return { error: 'day only makes sense with done' };
-  if (Object.keys(body).length === 0) return { error: 'nothing to update: send title, done, due, or repeat' };
+  if (Object.keys(body).length === 0) return { error: 'nothing to update: send title, done, due, repeat, partsTotal or partsDone' };
   return { body };
+}
+
+/** What the handler's read-first PATCH resolves to: the changes and the guard to send, or the refusal. */
+export type PatchPlan = { patch: UpdatePatch; guard: Record<string, string> } | { status: 400 | 409; error: string };
+
+/** Decide a PATCH that needs the task as it stands (done, partsTotal, partsDone, or a new repeat), from the row
+ *  read first and the changes already parsed (`base`: title, due, a translated recurrence). Pure.
+ *
+ *  409 is a clash with the task as it stands; a body that is wrong whatever the task looks like was already a 400
+ *  in parseUpdate. The order mirrors MCP's (mcp.ts planDone / planParts):
+ *  - A new repeat is refused on a task in parts, a task waiting on its steps (`silent_parent`), and a step.
+ *  - `done` is refused on a task waiting on its steps. A REPEAT is ticked for one day. A task in parts: done:true
+ *    FILLS every part, as Done in the app's Focus does, and done:false is refused, because parts only go forward
+ *    (the sync merge keeps the highest count, so a lowered one springs back). A one-off closes with
+ *    done=is.false, so closing it twice writes nothing, or reopens.
+ *  - `partsTotal` sets the count (progress carries over, a count at or below what is ticked finishes it), refused
+ *    on a task waiting on its steps, a repeating one and a done one. null makes it one whole task again.
+ *  - `partsDone` is ABSOLUTE and forward-only: lower is a 409, above the total a 400, equal writes nothing, and
+ *    on a task already done it writes nothing either (as MCP says "Already done.").
+ *  Every parts write is pinned to the stored counts (steps.ts partsGuard). */
+export function planPatch(row: Row, body: UpdateBody, base: UpdatePatch, todayIso: string): PatchPlan {
+  const parts = cleanSlices(row.slices);
+  const hidden = row.silent_parent === true;
+  const isStep = typeof row.parent_id === 'string' && row.parent_id !== '';
+  // Judged on the shape AFTER this patch, so {done:true, repeat:null} closes the one-off it makes (as MCP does),
+  // and the shared classifier decides what "repeats" means.
+  const repeatsAfter = body.repeat !== undefined ? body.repeat !== null : body.due != null ? false : asRecurrence(row.recurrence) != null;
+  const patch: UpdatePatch = { ...base };
+  let guard: Record<string, string> = {};
+  const applyParts = (change: PartsChange) => {
+    patch.slices = change.slices;
+    if (change.complete) patch.done = true;
+    guard = { ...partsGuard(row.slices), done: 'is.false' };
+  };
+
+  if (body.repeat != null) {
+    if (parts) return { status: 409, error: 'a task tracked in parts cannot repeat: send partsTotal: null first' };
+    if (hidden) return { status: 409, error: 'that task is waiting on its steps, so it cannot repeat' };
+    if (isStep) return { status: 409, error: 'that task is a step toward a bigger task, so it cannot repeat' };
+  }
+
+  if (body.done !== undefined) {
+    if (hidden) return { status: 409, error: 'that task is waiting on its steps: tick its steps instead' };
+    if (repeatsAfter) patch.completedDates = tickForDay(row.completed_dates, body.day ?? todayIso, body.done).dates;
+    else if (parts) {
+      if (!body.done) return { status: 409, error: 'parts only go forward: step one back in the app' };
+      if (row.done !== true) applyParts(advanceParts(parts, parts.total));
+    } else if (!(body.done && row.done === true)) {
+      patch.done = body.done;
+      if (body.done) guard = { done: 'is.false' };
+    }
+  }
+
+  if (body.partsTotal === null) {
+    if (parts) patch.slices = null;
+  } else if (body.partsTotal !== undefined) {
+    if (hidden) return { status: 409, error: 'that task is waiting on its steps, so it cannot be tracked in parts' };
+    if (repeatsAfter) return { status: 409, error: 'a repeating task cannot be tracked in parts: send repeat: null first' };
+    if (row.done === true) return { status: 409, error: 'that task is already done' };
+    const change = setTotal(parts, body.partsTotal);
+    if (needsWrite(change, false)) applyParts(change);
+  }
+
+  if (body.partsDone !== undefined) {
+    if (repeatsAfter) return { status: 409, error: 'a repeating task is ticked by the day, not in parts' };
+    if (!parts) return { status: 409, error: 'that task is not tracked in parts: send partsTotal first' };
+    if (body.partsDone > parts.total) return { status: 400, error: `partsDone can be at most partsTotal (${parts.total})` };
+    if (body.partsDone < parts.done) return { status: 409, error: 'parts only go forward: step one back in the app' };
+    if (row.done !== true) {
+      const change = advanceParts(parts, body.partsDone);
+      if (needsWrite(change, false)) applyParts(change);
+    }
+  }
+
+  return { patch, guard };
+}
+
+/** Whether a resolved patch changes anything, so a PATCH that resolves to nothing answers without writing. */
+function patchWrites(p: UpdatePatch): boolean {
+  return (
+    typeof p.title === 'string' ||
+    p.due !== undefined ||
+    p.recurrence !== undefined ||
+    p.completedDates !== undefined ||
+    typeof p.done === 'boolean' ||
+    p.slices !== undefined
+  );
 }
 
 /** A fresh task id for a created task (api- prefix so the source is legible in the DB). */
@@ -500,7 +664,8 @@ async function handleApiInner(request: Request, env: ApiEnv, verifySub: SubVerif
         }
       }
       const id = newTaskId(Date.now(), Math.random().toString(36).slice(2, 8));
-      const { url, init } = createRequest(env, token, { id, userId: sub, title: parsed.body.title, due: parsed.body.due, recurrence, now });
+      const slices = parsed.body.partsTotal !== undefined ? { total: parsed.body.partsTotal, done: 0 } : null;
+      const { url, init } = createRequest(env, token, { id, userId: sub, title: parsed.body.title, due: parsed.body.due, recurrence, slices, now });
       const res = await fetch(url, init);
       if (!res.ok) return upstream(res);
       const rows = (await res.json()) as unknown;
@@ -538,46 +703,51 @@ async function handleApiInner(request: Request, env: ApiEnv, verifySub: SubVerif
       }
       const parsed = parseUpdate(raw);
       if ('error' in parsed) return json({ error: parsed.error }, 400);
+      const b = parsed.body;
       const now = new Date().toISOString();
       // Translate a set-repeat through the shared cadence builder; a malformed repeat is a calm
-      // 400. `repeat: null` (clear) stays null and reaches updateRequest as recurrence: null.
-      const patch: { title?: string; done?: boolean; due?: string | null; recurrence?: Recurrence | null; completedDates?: string[] } = {
-        title: parsed.body.title,
-        due: parsed.body.due,
-      };
-      // A done-write is READ-FIRST: a repeating task is ticked for today (in completed_dates, the same
-      // field the app writes) and its series stays open; only a one-off gets `done` itself. Setting
-      // done=true on a series row made the repeat vanish from every agent read (audit PR B).
-      if (typeof parsed.body.done === 'boolean') {
-        const st = getRequest(env, token, id);
-        const sr = await fetch(st.url, st.init);
-        if (!sr.ok) return upstream(sr);
-        const srows = (await sr.json()) as unknown;
-        const srow = Array.isArray(srows) && srows[0] && typeof srows[0] === 'object' ? (srows[0] as Row) : null;
-        if (!srow) return json({ error: 'not found' }, 404);
-        // Resolved against the shape AFTER this patch, so {done:true, repeat:null} closes the one-off it
-        // makes (as the MCP path does), and the shared classifier decides what "repeats" means.
-        const repeatsAfter =
-          parsed.body.repeat !== undefined ? parsed.body.repeat !== null : parsed.body.due != null ? false : asRecurrence(srow.recurrence) != null;
-        if (repeatsAfter) patch.completedDates = tickForDay(srow.completed_dates, parsed.body.day ?? todayIsoUtc(), parsed.body.done).dates;
-        else patch.done = parsed.body.done;
-      }
-      if (typeof parsed.body.repeat !== 'undefined') {
-        if (parsed.body.repeat === null) patch.recurrence = null;
+      // 400, before any read. `repeat: null` (clear) stays null and reaches updateRequest as recurrence: null.
+      let patch: UpdatePatch = { title: b.title, due: b.due };
+      if (typeof b.repeat !== 'undefined') {
+        if (b.repeat === null) patch.recurrence = null;
         else {
-          const recurrence = buildRecurrence(parsed.body.repeat, now.slice(0, 10));
+          const recurrence = buildRecurrence(b.repeat, now.slice(0, 10));
           if (!recurrence) {
             return json({ error: "couldn't read that repeat: use daily, weekly (with weekdays 0-6), or every_n_days (with days), or null to stop it" }, 400);
           }
           patch.recurrence = recurrence;
         }
       }
-      const { url, init } = updateRequest(env, token, id, patch, now);
+      // READ-FIRST whenever the answer depends on the task as it stands: a done-write (a repeating task is
+      // ticked for today in completed_dates, the same field the app writes, and its series stays open; setting
+      // done=true on a series row made the repeat vanish from every agent read, audit PR B), any parts change,
+      // and a new repeat (refused on a shape that cannot repeat). Then ONE guarded PATCH, or none.
+      let guard: Record<string, string> = {};
+      if (b.done !== undefined || b.partsTotal !== undefined || b.partsDone !== undefined || b.repeat != null) {
+        const st = getRequest(env, token, id);
+        const sr = await fetch(st.url, st.init);
+        if (!sr.ok) return upstream(sr);
+        const srows = (await sr.json()) as unknown;
+        const srow = Array.isArray(srows) && srows[0] && typeof srows[0] === 'object' ? (srows[0] as Row) : null;
+        if (!srow) return json({ error: 'not found' }, 404);
+        const plan = planPatch(srow, b, patch, todayIsoUtc());
+        if ('error' in plan) return json({ error: plan.error }, plan.status);
+        // Nothing to change (closing a task already done, a partsDone it already has): the task as it stands,
+        // with no write, so a retry is harmless and never re-stamps completedAt.
+        if (!patchWrites(plan.patch)) return json({ task: toApiTask(srow) });
+        patch = plan.patch;
+        guard = plan.guard;
+      }
+      const { url, init } = updateRequest(env, token, id, patch, now, guard);
       const res = await fetch(url, init);
       if (!res.ok) return upstream(res);
       const rows = (await res.json()) as unknown;
       const task = Array.isArray(rows) && rows[0] ? toApiTask(rows[0] as Row) : null;
-      return task ? json({ task }) : json({ error: 'not found' }, 404);
+      if (task) return json({ task });
+      // A guarded write that matched nothing after the read found the row: it changed in between (a tick on a
+      // phone, a resize). A 409, so the integrator reads it again, rather than a 404 for a task that exists.
+      if (Object.keys(guard).length > 0) return json({ error: 'the task changed just now: read it again and retry' }, 409);
+      return json({ error: 'not found' }, 404);
     }
     if (request.method === 'DELETE') {
       const { url, init } = deleteRequest(env, token, id, new Date().toISOString());

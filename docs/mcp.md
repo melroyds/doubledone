@@ -7,15 +7,18 @@ the [REST API](api.md), holds no elevated database key, and acts only as **you**
 
 > **MCP or REST?** This surface is for AI assistants, and it is the only one with the AI
 > **Break it down** tool. For plain programmatic access to the same tasks (create, read, update,
-> delete, search, look-ahead and repeats) there is the [REST API](api.md). Both use the same
-> cadence code, so a repeating task has the same shape whichever one made it.
+> delete, search, look-ahead, repeats and parts) there is the [REST API](api.md). Both use the same
+> cadence code and the same parts code, so a repeating task, or one tracked in parts, has the same
+> shape whichever one made it. The one difference is how a tick counts parts: here `done` ticks
+> **one** part, as a tap in the app does, while the REST API's `done` fills them all and its
+> `partsDone` sets an exact count.
 
 | | |
 |---|---|
 | Endpoint | `https://api.doubledone.app/mcp` |
 | Transport | MCP Streamable HTTP, JSON mode: JSON-RPC 2.0, one POST per message, one JSON reply |
 | Protocol version | `2025-06-18` (the server echoes the version a client asks for) |
-| Server | `{ "name": "doubledone", "version": "1.0.0" }` |
+| Server | `{ "name": "doubledone", "version": "1.1.0" }` |
 | Tools | Nine: `add_task`, `list_today`, `list_upcoming`, `complete_task`, `update_task`, `delete_task`, `break_down`, `search`, `fetch` |
 | Auth | Sign in with a URL (OAuth 2.1 with S256 PKCE), or paste your own token |
 | Price | Every tool is free. None needs Premium. |
@@ -135,19 +138,19 @@ curl -s https://api.doubledone.app/mcp \
 
 | Tool | Arguments | Does |
 |---|---|---|
-| `add_task` | `title`, plus an optional `due` **or** `repeat` (not both) | Adds a task. |
+| `add_task` | `title`, plus an optional `due` **or** `repeat` (not both), and an optional `parts` | Adds a task, and replies with its id. |
 | `list_today` | none | Lists what is open on your Today, each with its id. |
 | `list_upcoming` | optional `days` (1 to 30, default 7) | Looks ahead over the coming days. Read-only. |
-| `complete_task` | `id`, plus an optional `day` | Marks a task done. A repeat is ticked for one day. |
-| `update_task` | `id`, plus any of `title`, `due`, `repeat`, `done` (with an optional `day`) | Changes a task. |
+| `complete_task` | `id`, plus an optional `day` and `count` | Ticks a task. A repeat is ticked for one day, a task in parts moves forward one part (or `count`). |
+| `update_task` | `id`, plus any of `title`, `due`, `repeat`, `parts`, `done` (with an optional `day`) | Changes a task. |
 | `delete_task` | `id` | Removes a task as a soft delete, never a hard one. |
 | `break_down` | `task`, plus an optional `context` and `steps` (2 to 10) | **Proposes** small steps for a dreaded task. Adds nothing. |
 | `search` | `query` | Searches your open tasks (for ChatGPT Deep Research). Read-only. |
 | `fetch` | `id` | Fetches one task (for ChatGPT Deep Research). Read-only. |
 
 Replies are short, plain sentences in keeping with the app, such as "Added …", "Marked it done.
-Nice." and "Nothing on today. Enjoy the quiet." Ids are opaque strings. Tasks made through MCP
-start `mcp-`.
+Nice." and "Nothing on today. Enjoy the quiet." Ids are opaque strings, shown in square brackets.
+Tasks made through MCP start `mcp-`.
 
 ### `add_task`
 
@@ -155,37 +158,60 @@ start `mcp-`.
 - `due` (optional): a real calendar day, `YYYY-MM-DD`, for a one-off. A day of today or earlier
   shows on Today, as in the app.
 - `repeat` (optional): a repeat rule (see [Recurrence](#recurrence)).
-- With neither, the task is undated, which puts it on your Today.
+- `parts` (optional): a whole number from 2 to 50, to track the task in parts, the app's **Track
+  in steps** (a ten-episode series is 10 parts). It starts at none done. Not with `repeat`, because
+  a repeat is ticked by the day. A `due` day is fine. See [Parts](#parts).
+- With neither `due` nor `repeat`, the task is undated, which puts it on your Today.
 
-Replies `Added "Book the dentist" to today.`, `Added "Renew the rego" for 2026-10-20.` or
-`Added "Water the plants", repeating.`
+Replies `Added "Book the dentist" to today. [mcp-…]`, `Added "Renew the rego" for 2026-10-20.
+[mcp-…]`, `Added "Water the plants", repeating. [mcp-…]` or `Added "Watch Severance" to today, in
+10 parts. [mcp-…]`. Every reply ends with the new task's id, so an agent can tick or change what it
+just added without listing first.
 
 ### `list_today`
 
 Your open one-offs that are undated or due today or earlier, plus each repeating task that is
-due today and not yet ticked or skipped today, marked `(repeats)`. One line per task, oldest
-first, each ending in its id in square brackets, ready for `complete_task`. The hidden umbrella
-of a broken-down task is left out, so an agent sees the steps to act on, as you do in the app.
+due today and not yet ticked or skipped today, marked `(repeats)`. A task tracked in parts shows
+its progress, as in `• Watch Severance  (3/10 parts)  [mcp-…]`. One line per task, oldest first,
+each ending in its id in square brackets, ready for `complete_task`. The hidden umbrella of a
+broken-down task is left out, so an agent sees the steps to act on, as you do in the app.
 
 ### `list_upcoming`
 
 Your open one-offs dated **after today**, up to and including today plus `days`, and the next
 occurrence of each repeat inside that window, in date order. Each line names the task, the day it
 lands and its id. A repeat already ticked or skipped for its next day shows the one after, if it
-falls in the window. `days` is a whole number from 1 to 30, defaulting to 7. At most 40 lines are
-shown, then "…and N more."
+falls in the window. A task tracked in parts shows its progress, as in `list_today`. `days` is a
+whole number from 1 to 30, defaulting to 7. At most 40 lines are shown, then "…and N more."
 
 ### `complete_task`
 
 - `id` (required): from `list_today`, `list_upcoming` or `search`.
 - `day` (optional): a real calendar day, `YYYY-MM-DD`. Used only for a repeat.
+- `count` (optional): a whole number from 1 to 50, how many parts to tick on a task tracked in
+  parts. Defaults to 1. Ignored for any other task, but still checked.
 
-A one-off closes ("Marked it done. Nice."). A **repeating** task is ticked for one day and comes
-back on its next day ("Ticked for 2026-10-06. It repeats, so it will be back on its next
-day."). Completing never closes a repeat. To stop one, use `update_task` with `repeat: null`.
-The day defaults to the **UTC** calendar day and the reply always names it, so an agent that
-knows your local date can pass `day` next time. Ticking the same day of a repeat twice says it
-was already ticked and changes nothing.
+It reads the task first, then decides, in this order:
+
+1. A task **waiting on its steps** (the hidden big task of a breakdown, or a task made tiny) is
+   never ticked directly: ""Clear the garage" is waiting on its steps. Tick those, and it closes
+   or comes back by itself." Nothing is written.
+2. A **repeating** task is ticked for one day and comes back on its next day ("Ticked for
+   2026-10-06. It repeats, so it will be back on its next day."). Completing never closes a
+   repeat. To stop one, use `update_task` with `repeat: null`. The day defaults to the **UTC**
+   calendar day and the reply always names it, so an agent that knows your local date can pass
+   `day` next time. Ticking the same day of a repeat twice says it was already ticked and changes
+   nothing.
+3. A task **already done** answers "Already done." and writes nothing, so a second tick never
+   moves it in the Lookback.
+4. A task **tracked in parts** moves forward one part, or `count` parts, and the last part closes
+   it ("Ticked one part of "Watch Severance": 3 of 10 done. Pass count to complete_task to tick
+   more, and 7 finishes it."). See [Parts](#parts).
+5. A **one-off** closes ("Marked it done. Nice.").
+
+If the task changes between the read and the write (you tick it on your phone in that moment),
+the write matches nothing and the reply says so: "It changed just now. Try again." for parts, or
+"It changed just now. Check list_today." for a one-off.
 
 ### `update_task`
 
@@ -194,15 +220,47 @@ was already ticked and changes nothing.
 - `due`: a real calendar day, `YYYY-MM-DD`, or `null` to clear the date. Setting a day stops any
   repeat.
 - `repeat`: a repeat rule, or `null` to stop repeating. Setting a rule clears the due day.
-- `done`: `true` ticks it (a repeat for one day), `false` reopens a one-off or un-ticks a day on a
-  repeat.
+- `parts`: a whole number from 2 to 50 to track it in parts, or `null` to make it one whole task
+  again. See [Parts](#parts).
+- `done`: `true` ticks it exactly as `complete_task` does (a repeat for one day, a task in parts by
+  **one** part), `false` reopens a one-off or un-ticks a day on a repeat.
 - `day`: with `done`, the day to tick or un-tick on a repeat. Defaults to the UTC day.
 
-At least one change is required. Field changes land first, and then `done` is applied to the
-task as it now stands, so `{ "repeat": null, "done": true }` stops the repeat and closes the
-one-off it becomes. An un-tick on a repeat holds **on the server only**: a device that already
-synced the tick brings it back on its next open, because the app keeps ticks on purpose. Replies
-"Updated.", or a tick, reopen or un-tick reply when `done` is involved.
+At least one change is required, and `parts` and `done` go one at a time, as do `parts` and a new
+`repeat`. A change of title or due day alone is one plain write. Anything with `parts`, `done` or a
+new `repeat` reads the task first and then lands in **one** write, judged on the task as it will
+stand, so `{ "repeat": null, "done": true }` stops the repeat and closes the one-off it becomes.
+A new repeat is refused on a task tracked in parts, a task waiting on its steps, and a step of a
+broken-down task, because each of those closes by being done once. An un-tick on a repeat holds
+**on the server only**: a device that already synced the tick brings it back on its next open,
+because the app keeps ticks on purpose. Replies "Updated.", or the tick, close, reopen, un-tick or
+parts reply when one is involved.
+
+### Parts
+
+A task tracked in parts is the app's **Track in steps**: one thing done in several goes, such as
+a ten-episode series or a three-coat paint job, shown in the app as "3 / 10" with a bar. (A task
+made of *different* steps is a breakdown, which is not this.) It is a one-off, never a repeat, and
+it is done exactly when every part is.
+
+- **Start one** with `add_task` and `parts`, or turn a task you have into one with `update_task`
+  and `parts`.
+- **Tick it** with `complete_task`, which moves it forward **one** part, the same as one tap in
+  the app, or `count` parts. Ticking past the end stops at the end and closes it. `update_task`
+  with `done: true` does exactly the same, one part, never all of them.
+- **Resize it** with `update_task` and a new `parts`. Progress carries over, and a count at or
+  below the parts already ticked finishes it.
+- **Make it whole again** with `update_task` and `parts: null`. Its done state is left as it was.
+
+**Parts only go forward.** Every device keeps the highest count it has ever seen for a task, so a
+count lowered here would spring straight back the next time a phone syncs. So `done: false` on a
+task in parts is refused ("Parts only go forward from here. Step one back in the app."), and the
+app's own "Undo a step" is the way back. It is also why a tick moves one part by default: one too
+many could never be taken back, while one too few costs one more call.
+
+Each parts write is pinned to the counts it read, so a tick or resize made on your phone in the
+same moment is never overwritten. A task in parts that a sync left at every part ticked but still
+open (it can happen between two devices) is closed by the next tick.
 
 ### `delete_task`
 
@@ -404,9 +462,11 @@ The tools read and write only your own rows in your own task list. Left out on p
   list, so an agent sees it like any other task you own.
 - **Anyone else's data.** Your verified session plus row-level security scopes every call to your
   account.
-- **The app's working detail.** Pins, "a lot" marks, parts tracked on a task, effort estimates,
-  the bookkeeping behind a broken-down, tiny or combined task, and per-day tick and skip lists
-  stay in the app. (The tick and skip lists are read to decide what is due, never shown.)
+- **The app's working detail.** Pins, "a lot" marks, effort estimates, the bookkeeping behind a
+  broken-down, tiny or combined task, and per-day tick and skip lists stay in the app. (The tick
+  and skip lists are read to decide what is due, never shown, and whether a task waits on its
+  steps or is a step is read only to refuse a change that would break it.) Parts tracked on a task
+  are exposed: see [Parts](#parts).
 - **The rest of the app.** Routines, rhythms, scrapbooks, settings, Premium and billing are not on
   this server. Skipping a day of a repeat is app-only too.
 - **AI steps added without a yes.** `break_down` never writes. Its steps reach your list only if
@@ -441,6 +501,7 @@ The tools read and write only your own rows in your own task list. Left out on p
 | [`server/src/oauth.ts`](../server/src/oauth.ts) | The URL sign-in: the provider setup, the email, code and consent pages, PKCE, and `/mcp/disconnect` |
 | [`server/src/mcp-grants.ts`](../server/src/mcp-grants.ts) | Encrypted session custody and refresh |
 | [`server/src/cadence.ts`](../server/src/cadence.ts) | `buildRecurrence`, the due-today maths and the per-day tick, shared with the REST API |
+| [`server/src/steps.ts`](../server/src/steps.ts) | The parts arithmetic (tick, resize, clear, the app's cleaning rule) and the guard that pins each parts write, shared with the REST API |
 | [`server/src/verify.ts`](../server/src/verify.ts) | Token verification |
 | [`server/src/decompose.ts`](../server/src/decompose.ts) | The step-writing prompt `break_down` uses |
 | [`server/src/index.ts`](../server/src/index.ts) | How `/mcp` is routed between the two connect paths |

@@ -255,7 +255,7 @@ flowchart LR
 | Keepsakes | `/scrapbook`, `GET /scrapbook-img/:key`, `/scrapbook/purge` | Scene by Haiku with a Workers AI fallback, image by Workers AI, bytes in R2. 20 a day per IP through D1 |
 | Money | `/checkout`, `/portal`, `GET /entitlement`, `/trial/start`, `/account/close-billing`, `/apple/reconcile` | Verified bearer on every one ([`stripe.ts`](../server/src/stripe.ts), [`premium.ts`](../server/src/premium.ts), [`revenuecat-api.ts`](../server/src/revenuecat-api.ts)) |
 | Webhooks | `/stripe-webhook`, `/rc-webhook` | The signature or shared secret is the authentication |
-| Developer surfaces | `/api/v1/*` (with `/api/v1/docs` and `/api/v1/openapi.json`), `/mcp`, `/mcp/disconnect`, the OAuth endpoints | [`api.ts`](../server/src/api.ts), [`openapi.ts`](../server/src/openapi.ts) (OpenAPI 3.1, version 1.2.3), [`mcp.ts`](../server/src/mcp.ts) (nine tools), [`oauth.ts`](../server/src/oauth.ts) |
+| Developer surfaces | `/api/v1/*` (with `/api/v1/docs` and `/api/v1/openapi.json`), `/mcp`, `/mcp/disconnect`, the OAuth endpoints | [`api.ts`](../server/src/api.ts), [`openapi.ts`](../server/src/openapi.ts) (OpenAPI 3.1, version 1.3.0), [`mcp.ts`](../server/src/mcp.ts) (nine tools), [`oauth.ts`](../server/src/oauth.ts) |
 | Telemetry and feedback | `/outcome`, `/event`, `/feedback` | Origin-gated and rate-limited like the AI routes |
 | Web push | `/push/subscribe`, `/push/unsubscribe` | Browser only (origin-gated) |
 | Owner | `GET /admin/analytics` (token-gated), `GET /review-code`, `GET /health` | `/health` reports only whether the Anthropic key is wired |

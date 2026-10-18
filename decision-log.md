@@ -9373,3 +9373,83 @@ visitor data in the EU" option (it still runs everywhere else, so the policy lin
 **Correction:** the entry above says the beacon came from "the Pages project's toggle". It does not. It appears on
 doubledone.app and not on doubledone.pages.dev, which serve the same build, so it is the doubledone.app zone's Web
 Analytics automatic setup (Analytics & logs, Web analytics, Manage site). The Pages Metrics switch is not the source.
+
+## 2026-10-18: a task in parts, over MCP and the REST API (stepped tasks, commit 1 of 2)
+
+The Backlog's "MCP: stepped tasks", built from the adversarially reviewed design
+(`docs/design-source/mcp-stepped-tasks-design.md`, with the app and server maps beside it). Melroy made the four
+calls on the day, all as recommended: `parts` plus `count`; the server only ever finishes a big task, with one rule
+at every level; offered-only telemetry for now, with the 5% trigger; and the R11 merge fix ships alongside as its own
+client commit. This commit is the PARTS half (the app's "Track in steps", the `slices` column). Linked steps, the
+`add_steps` tool and the finish walk are the next commit, on top of the same `server/src/steps.ts`.
+
+**Decided: the count is called `parts`, never `steps`.** In this API `steps` already means two things, `break_down`'s
+hint and (next commit) the array of linked steps. The app's own copy says "Count it in parts", and every description
+also names "Track in steps" so a model can match what the person says. MCP `add_task` and `update_task` take
+`parts` (2 to 50, the app editor's bounds, one-offs only). REST has `partsTotal` and `partsDone`, flat, the same on
+read and write.
+
+**Decided: `complete_task`'s tick count is `count`, not `parts`.** `parts` is the total on the other two tools, so a
+delta under the same name is exactly the trap the design warned about.
+
+**Decided: +1 by default, on BOTH MCP done paths.** `complete_task` and `update_task done: true` go through one
+read-first `planDone` and write the same bytes for the same row (a test pins it). A tap in the app is +1, and the
+asymmetry decides it: the sync merge keeps the highest `slices.done` it has ever seen (`sync-merge.ts`), so an
+over-tick that reaches a device can never be taken back, while an under-tick costs one more call. Only an explicit
+`count`, REST `partsDone` or REST `done: true` goes further.
+
+**Decided: parts never go down, anywhere.** MCP `done: false` on a task in parts is refused ("Parts only go forward
+from here. Step one back in the app."). REST answers 409 to a lower `partsDone` and to `done: false` on parts. The
+app's own "Undo a step" stays the way back.
+
+**Decided: REST is absolute, MCP is relative.** An HTTP integrator retries, so `partsDone: 4` must land the same row
+twice (equal is a 200 with no write). A model reasons best with "one more". REST `done: true` FILLS every part, as
+Done in Focus does. Both run through `advanceParts` in `steps.ts`, and a parity test feeds MCP and REST the same
+answers and asserts the same columns under the same guard, for a part and for the last part.
+
+**Decided: every parts write is pinned to the counts it read.** The PATCH filters on `slices->>done` and
+`slices->>total` equal to the STORED text (`is.null` where a key is absent), plus `done=is.false`. Both keys,
+because the write sends the whole object and pinning `done` alone let a resize made a moment earlier be reverted.
+The stored text, never the cleaned value, because a malformed row (2.7, or 7 of 5) never equals its cleaned form and
+the agent would loop on "try again" for good. A guarded write that matches nothing answers "It changed just now"
+(MCP) or a 409 (REST).
+
+**Decided: the read-first order.** A task waiting on its steps is refused (neutral wording, a made-tiny task looks
+the same), then a repeat is ticked by the day as before, then a task already done says "Already done." and writes
+nothing, then parts, then a one-off close guarded by `done=is.false`. "Already done" comes before parts on purpose:
+rows the old flaw left done at 2 of 5 would otherwise meet the parts guard and loop. And a second close no longer
+re-stamps `completed_at`, which used to move the task in the Lookback (REST the same).
+
+**Decided: a row the merge left at every part ticked but still open is closed by the next tick.** A tap in the app is
+a no-op at the limit, so the server is the one place that can still close it. The R11 client fix, which stops the
+merge making that row, is still its own commit.
+
+**Decided: `update_task` with `parts`, `done` or a new `repeat` is one read, then ONE PATCH** with any title or due
+change riding in it, judged on the task as it will stand (so `{repeat: null, done: true}` still closes the one-off it
+makes). It used to PATCH the fields and then read and write again. A new repeat is now refused on a task in parts, a
+task waiting on its steps and a step (each closes by being done once). `parts` with `done`, or with a new repeat, is
+refused before any read (one change of shape at a time). A title or due change alone is still one plain write.
+
+**Decided: every `add_task` reply ends with the new id**, so an agent can tick what it just added without a list
+call. The replies' text changed, and the tests that pinned it changed with it.
+
+**Decided: the versions.** OpenAPI 1.2.3 to 1.3.0 and the MCP server 1.0.0 to 1.1.0, bumped here because the schemas
+change here. The steps commit rides the same versions: both go out in one Worker deploy.
+
+**Decided against:**
+- `steps` as the name, and `parts` as the tick count (two meanings each).
+- `update_task done: true` filling every part (the draft): a second tool must not make a permanent over-tick in one
+  call.
+- A relative REST count (a retried request would tick twice) and an absolute MCP count (models count badly, and +1 is
+  the tap).
+- Guarding on the cleaned counts, or on `done` alone.
+- Reading the stored text through an aliased `slices->>done` select: exact, but it puts a new PostgREST form under
+  every tick to cover a hand-typed `3.0` that no client writes. The text is rebuilt from the parsed JSON instead, and
+  the worst case is a calm "it changed just now".
+- Parts on a repeating task (the app's capture never offers it, and a repeat is ticked by the day).
+- Bumping the app's `slices.defined` counter from the server: it measures the held card, and agent writes would blur
+  it.
+- A migration: `slices` is synced and live (every client upsert names it).
+
+Also: a shared `server/src/fetch-sequence.test-helper.ts` replaces the four copies of the fetch stand-in, so MCP and
+REST are driven the same way. Manual cases MCP-23 and API-05, and API-03 now reads 1.3.0. Server tests 776 (77 new).

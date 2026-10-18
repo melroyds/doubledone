@@ -26,6 +26,11 @@
 // tool shames a backlog, punishes an old task, or deletes anything for real (delete
 // is a soft tombstone, exactly like the app).
 //
+// A task tracked in parts (the app's "Track in steps", the `slices` column) moves forward
+// one part per tick, as one tap in the app does, and never goes back: the sync merge keeps
+// the highest count it has seen, so a lowered one would spring straight back. The parts
+// arithmetic and its write guard live in steps.ts, shared with the REST API.
+//
 // Pure helpers (the tool schemas, the JWT decode, the Supabase request builders, the
 // row->list mappers, the OpenAI deep-research shapers) are exported and unit-tested;
 // handleMcp does the I/O.
@@ -38,6 +43,20 @@ import {
   parseDecomposeResponse,
   type Step,
 } from './decompose';
+import {
+  advanceParts,
+  clearParts,
+  cleanSlices,
+  MAX_PARTS,
+  MIN_PARTS,
+  needsWrite,
+  partsGuard,
+  partsPatch,
+  type PartsChange,
+  setTotal,
+  type Slices,
+  wholeIn,
+} from './steps';
 import { logAiCall, type TelemetryEnv } from './telemetry';
 import { defaultVerifySub, type SubVerifier } from './verify';
 
@@ -60,7 +79,7 @@ export type McpEnv = TelemetryEnv & {
 };
 
 export const MCP_PROTOCOL_VERSION = '2025-06-18';
-export const SERVER_INFO = { name: 'doubledone', version: '1.0.0' };
+export const SERVER_INFO = { name: 'doubledone', version: '1.1.0' };
 
 // The `repeat` object schema shared by add_task and update_task (JSON Schema). Kept as one
 // const so the two tools describe recurrence identically to an agent. Mirrors RepeatSpec /
@@ -96,13 +115,20 @@ export const TOOLS = [
   {
     name: 'add_task',
     description:
-      "Add a task to the user's DoubleDone. By default it lands on today. Optionally schedule it for a future day (`due`) OR make it repeat (`repeat`), never both.",
+      "Add a task to the user's DoubleDone. By default it lands on today. Optionally schedule it for a future day (`due`) OR make it repeat (`repeat`), never both, and optionally track it in `parts`. The reply ends with the new task's id in square brackets.",
     inputSchema: {
       type: 'object',
       properties: {
         title: { type: 'string', description: 'The task title.' },
         due: { type: 'string', description: "Optional 'YYYY-MM-DD' for a one-off on a future day. Mutually exclusive with `repeat`." },
         repeat: REPEAT_SCHEMA,
+        parts: {
+          type: 'integer',
+          minimum: MIN_PARTS,
+          maximum: MAX_PARTS,
+          description:
+            "Optional: track it in parts, the app's 'Track in steps' (e.g. 10 for a ten-episode series). Each complete_task ticks one part, and it is done when every part is. For one thing done in several goes, not for a task made of different steps. Not with `repeat`.",
+        },
       },
       required: ['title'],
       additionalProperties: false,
@@ -111,13 +137,13 @@ export const TOOLS = [
   {
     name: 'list_today',
     description:
-      "List the user's open tasks for today: one-offs undated or due today or earlier, plus any repeating task due today not yet ticked or skipped, marked '(repeats)'. Today is the UTC calendar day for now, so early in an Australian morning it can still be yesterday's. Returns each task's id for complete_task.",
+      "List the user's open tasks for today: one-offs undated or due today or earlier, plus any repeating task due today not yet ticked or skipped, marked '(repeats)'. A task tracked in parts shows its progress, marked e.g. '(3/10 parts)'. Today is the UTC calendar day for now, so early in an Australian morning it can still be yesterday's. Returns each task's id for complete_task.",
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
     name: 'list_upcoming',
     description:
-      "Look ahead: the user's future-dated tasks and the next occurrence of each repeating task, within a window (default 7 days). Read-only.",
+      "Look ahead: the user's future-dated tasks and the next occurrence of each repeating task, within a window (default 7 days). A task tracked in parts shows its progress, e.g. '(3/10 parts)'. Read-only.",
     inputSchema: {
       type: 'object',
       properties: { days: { type: 'integer', minimum: 1, maximum: 30, description: 'How many days ahead to look (1-30, default 7).' } },
@@ -127,12 +153,18 @@ export const TOOLS = [
   {
     name: 'complete_task',
     description:
-      "Mark one of the user's tasks done, by the id from list_today. A one-off closes. A REPEATING task (marked '(repeats)' in list_today) is ticked for ONE day and comes back on its next day; completing never closes a repeat (to stop one, update_task with repeat: null). The day defaults to the UTC calendar day; pass `day` with the user's local date when you know it.",
+      "Tick one of the user's tasks, by the id from list_today. A one-off closes. A REPEATING task (marked '(repeats)' in list_today) is ticked for ONE day and comes back on its next day; completing never closes a repeat (to stop one, update_task with repeat: null). A task TRACKED IN PARTS (marked e.g. '(3/10 parts)') moves forward ONE part, as one tap in the app does. Pass `count` to tick more, and the remaining count finishes it. The day defaults to the UTC calendar day; pass `day` with the user's local date when you know it.",
     inputSchema: {
       type: 'object',
       properties: {
         id: { type: 'string', description: 'The task id from list_today.' },
         day: { type: 'string', description: "Optional 'YYYY-MM-DD': the day to tick a repeating task for (the user's local date). Defaults to the UTC day. Ignored for a one-off." },
+        count: {
+          type: 'integer',
+          minimum: 1,
+          maximum: MAX_PARTS,
+          description: 'For a task tracked in parts: how many parts to tick (default 1). Ignored for other tasks.',
+        },
       },
       required: ['id'],
       additionalProperties: false,
@@ -141,7 +173,7 @@ export const TOOLS = [
   {
     name: 'update_task',
     description:
-      "Change one of the user's tasks: its title, its `due` day, its `repeat`, or `done`. Setting `due` clears any repeat and vice versa. Pass null to clear a field. `done: true` ticks it (a repeating task is ticked for one day, never closed); `done: false` reopens a one-off, or un-ticks a day on a repeat on the server only (a device that already synced the tick brings it back). The day defaults to the UTC calendar day; pass `day` with the user's local date when you know it. At least one change is required.",
+      "Change one of the user's tasks: its title, its `due` day, its `repeat`, its `parts`, or `done`. Setting `due` clears any repeat and vice versa. Pass null to clear a field. `done: true` ticks it (a repeating task is ticked for one day, never closed; a task tracked in parts moves forward ONE part, exactly as complete_task does); `done: false` reopens a one-off, or un-ticks a day on a repeat on the server only (a device that already synced the tick brings it back). Parts only go forward, so `done: false` on a task tracked in parts is refused. Change `parts` or `done`, one at a time. The day defaults to the UTC calendar day; pass `day` with the user's local date when you know it. At least one change is required.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -149,7 +181,14 @@ export const TOOLS = [
         title: { type: 'string', description: 'A new title.' },
         due: { type: ['string', 'null'], description: "'YYYY-MM-DD' to schedule it, or null to clear the date. Clears any repeat." },
         repeat: { anyOf: [REPEAT_SCHEMA, { type: 'null' }], description: 'A repeat object to make it recur, or null to stop it recurring. Clears any due date.' },
-        done: { type: 'boolean', description: 'true ticks it (a repeating task is ticked for one day, never closed); false reopens a one-off, or un-ticks a day on a repeat (server only: a device that already synced the tick brings it back).' },
+        parts: {
+          type: ['integer', 'null'],
+          minimum: MIN_PARTS,
+          maximum: MAX_PARTS,
+          description:
+            'Track this one-off in parts (2-50). Progress so far carries over, and a count at or below the parts already done finishes it. null makes it one whole task again. Not for a repeating task, or one waiting on its steps.',
+        },
+        done: { type: 'boolean', description: 'true ticks it (a repeating task is ticked for one day, never closed; a task tracked in parts moves forward one part); false reopens a one-off, or un-ticks a day on a repeat (server only: a device that already synced the tick brings it back). false is refused on a task tracked in parts.' },
         day: { type: 'string', description: "Optional 'YYYY-MM-DD' for `done` on a repeating task: the day to tick or un-tick (the user's local date). Defaults to the UTC day." },
       },
       required: ['id'],
@@ -290,11 +329,11 @@ function supaHeaders(env: McpEnv, token: string, write: boolean): Record<string,
 export function addTaskRequest(
   env: McpEnv,
   token: string,
-  t: { id: string; userId: string; title: string; now: string; due?: string | null; recurrence?: Recurrence | null },
+  t: { id: string; userId: string; title: string; now: string; due?: string | null; recurrence?: Recurrence | null; slices?: Slices | null },
 ): { url: string; init: RequestInit } {
-  // due and recurrence are OPTIONAL and additive: an add with neither is byte-for-byte the
+  // due, recurrence and slices are OPTIONAL and additive: an add with none is byte-for-byte the
   // original row. When present they are written into the same columns the app / sync use, so
-  // an agent-made dated or repeating task is indistinguishable from an app-made one.
+  // an agent-made dated, repeating or in-parts task is indistinguishable from an app-made one.
   const row: Record<string, unknown> = {
     id: t.id,
     user_id: t.userId,
@@ -305,6 +344,7 @@ export function addTaskRequest(
   };
   if (t.due != null) row.due = t.due;
   if (t.recurrence != null) row.recurrence = t.recurrence;
+  if (t.slices != null) row.slices = t.slices;
   return {
     url: `${env.SUPABASE_URL}/rest/v1/tasks`,
     init: {
@@ -321,8 +361,9 @@ export function listTodayRequest(env: McpEnv, token: string, todayIso: string): 
   // recurring task, whose "due today" is decided in the Worker (see cadence.ts) because
   // PostgREST can't do the day-of-week / interval math. The cadence fields come back so the
   // tool can filter. silent_parent=not.is.true keeps false/null rows, excluding only true.
+  // slices comes back so a task tracked in parts can show its progress.
   const q = new URLSearchParams({
-    select: 'id,title,recurrence,completed_dates,skipped_dates,due',
+    select: 'id,title,recurrence,completed_dates,skipped_dates,due,slices',
     deleted_at: 'is.null',
     silent_parent: 'not.is.true',
     or: `(and(recurrence.is.null,done.is.false,or(due.is.null,due.lte.${todayIso})),and(recurrence.not.is.null,done.is.false))`,
@@ -334,16 +375,17 @@ export function listTodayRequest(env: McpEnv, token: string, todayIso: string): 
 /** Turn the raw PostgREST rows into the id+title list to show. A one-off row (recurrence
  *  null) is already scoped by the SQL (open, due today-or-earlier); a recurring row is kept
  *  only if it is due today and not yet done/skipped today (cadence.ts, the logic PostgREST
- *  can't express). Order is preserved (the query sorts by created_at). Pure + unit-tested. */
-export function listTodayFromRows(rows: unknown, todayIso: string): { id: string; title: string; repeats?: true }[] {
+ *  can't express). Order is preserved (the query sorts by created_at). A one-off tracked in
+ *  parts carries its cleaned counts so the line can show them. Pure + unit-tested. */
+export function listTodayFromRows(rows: unknown, todayIso: string): { id: string; title: string; repeats?: true; parts?: Slices }[] {
   if (!Array.isArray(rows)) return [];
-  const out: { id: string; title: string; repeats?: true }[] = [];
+  const out: { id: string; title: string; repeats?: true; parts?: Slices }[] = [];
   for (const r of rows) {
     if (r == null || typeof r !== 'object') continue;
-    const row = r as { id?: unknown; title?: unknown; recurrence?: unknown; completed_dates?: unknown; skipped_dates?: unknown };
+    const row = r as { id?: unknown; title?: unknown; recurrence?: unknown; completed_dates?: unknown; skipped_dates?: unknown; slices?: unknown };
     if (typeof row.id !== 'string' || typeof row.title !== 'string') continue;
     if (row.recurrence == null) {
-      out.push({ id: row.id, title: row.title }); // an open one-off, already scoped by the SQL
+      out.push({ id: row.id, title: row.title, ...partsOf(row.slices) }); // an open one-off, already scoped by the SQL
     } else if (recurringDueToday(row.recurrence, row.completed_dates, row.skipped_dates, todayIso)) {
       out.push({ id: row.id, title: row.title, repeats: true }); // so the model knows a tick is for today only
     }
@@ -351,57 +393,54 @@ export function listTodayFromRows(rows: unknown, todayIso: string): { id: string
   return out;
 }
 
-/** Close a ONE-OFF. Never sent for a repeat (see setDone); `deleted_at=is.null` so a tombstone is never revived. */
-export function completeTaskRequest(env: McpEnv, token: string, id: string, now: string): { url: string; init: RequestInit } {
-  const q = new URLSearchParams({ id: `eq.${id}`, deleted_at: 'is.null' });
-  return {
-    url: `${env.SUPABASE_URL}/rest/v1/tasks?${q.toString()}`,
-    init: {
-      method: 'PATCH',
-      headers: supaHeaders(env, token, true),
-      body: JSON.stringify({ done: true, completed_at: now, updated_at: now }),
-    },
-  };
+/** `{ parts }` for a stored value that is well-formed parts, else nothing, so a whole task's entry keeps its
+ *  old shape. Only one-offs call it: a repeat is ticked by the day, so parts on one would mislead the model. */
+function partsOf(slices: unknown): { parts?: Slices } {
+  const parts = cleanSlices(slices);
+  return parts ? { parts } : {};
 }
 
-/** Reopen a ONE-OFF: done back to false, the completion stamp cleared. */
-export function reopenTaskRequest(env: McpEnv, token: string, id: string, now: string): { url: string; init: RequestInit } {
-  const q = new URLSearchParams({ id: `eq.${id}`, deleted_at: 'is.null' });
-  return {
-    url: `${env.SUPABASE_URL}/rest/v1/tasks?${q.toString()}`,
-    init: { method: 'PATCH', headers: supaHeaders(env, token, true), body: JSON.stringify({ done: false, completed_at: null, updated_at: now }) },
-  };
+/** The progress marker on a list line, e.g. "  (3/10 parts)", or nothing for a whole task. */
+function partsMark(parts?: Slices): string {
+  return parts ? `  (${parts.done}/${parts.total} parts)` : '';
 }
 
-/** The one read a done-write needs first: is this row a repeat, and which days are ticked. */
+/** The one read a done-write or a parts change needs first: whether the row repeats and which days are ticked,
+ *  whether it is done, its stored parts, whether it is hidden behind its steps, and whether it is itself a step. */
 export function taskStateRequest(env: McpEnv, token: string, id: string): { url: string; init: RequestInit } {
-  const q = new URLSearchParams({ select: 'id,done,recurrence,completed_dates', id: `eq.${id}`, deleted_at: 'is.null', limit: '1' });
+  const q = new URLSearchParams({
+    select: 'id,title,done,recurrence,completed_dates,slices,silent_parent,parent_id',
+    id: `eq.${id}`,
+    deleted_at: 'is.null',
+    limit: '1',
+  });
   return { url: `${env.SUPABASE_URL}/rest/v1/tasks?${q.toString()}`, init: { method: 'GET', headers: supaHeaders(env, token, false) } };
 }
 
-/** Tick (or un-tick) ONE day on a repeating task: completed_dates only, `done` untouched. */
-export function tickRecurringRequest(env: McpEnv, token: string, id: string, dates: string[], now: string): { url: string; init: RequestInit } {
-  const q = new URLSearchParams({ id: `eq.${id}`, deleted_at: 'is.null' });
-  return {
-    url: `${env.SUPABASE_URL}/rest/v1/tasks?${q.toString()}`,
-    init: { method: 'PATCH', headers: supaHeaders(env, token, true), body: JSON.stringify({ completed_dates: dates, updated_at: now }) },
-  };
-}
-
-/** PATCH a task's mutable fields (title / due / recurrence), ALWAYS bumping updated_at so the
- *  change wins last-write-wins sync (schema.sql: there is deliberately no now() trigger; the
- *  writer is authoritative). A due<->repeat switch is explicit: setting `due` also nulls
- *  `recurrence`, and setting `recurrence` also nulls `due`, so a task is never both at once.
- *  Only the keys present in `fields` are sent (a PATCH), so an unspecified field is untouched. */
-export function updateTaskRequest(
+/** ONE PATCH of a row by id, the write behind every read-first change (a tick, a close, a reopen, a parts change,
+ *  and any field change riding with them). Always `deleted_at=is.null`, so a tombstone is never revived, plus
+ *  whatever the plan pins: `done=is.false` so a second close never re-stamps completed_at (which would move the
+ *  task in the Lookback), and the stored parts (steps.ts partsGuard) so a concurrent tick or resize is never
+ *  reverted. The body carries updated_at; the caller stamps it. */
+export function patchRowRequest(
   env: McpEnv,
   token: string,
   id: string,
-  fields: { title?: string; due?: string | null; recurrence?: Recurrence | null },
-  now: string,
+  body: Record<string, unknown>,
+  guard: Record<string, string> = {},
 ): { url: string; init: RequestInit } {
-  const q = new URLSearchParams({ id: `eq.${id}` });
-  const patch: Record<string, unknown> = { updated_at: now };
+  const q = new URLSearchParams({ id: `eq.${id}`, deleted_at: 'is.null', ...guard });
+  return {
+    url: `${env.SUPABASE_URL}/rest/v1/tasks?${q.toString()}`,
+    init: { method: 'PATCH', headers: supaHeaders(env, token, true), body: JSON.stringify(body) },
+  };
+}
+
+/** The columns a change of title / due / recurrence sets. A due<->repeat switch is explicit: setting `due` also
+ *  nulls `recurrence`, and setting `recurrence` also nulls `due`, so a task is never both at once. Only the keys
+ *  present in `fields` are set (a PATCH), so an unspecified field is untouched. */
+export function fieldPatch(fields: { title?: string; due?: string | null; recurrence?: Recurrence | null }): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
   if (fields.title !== undefined) patch.title = fields.title;
   if (fields.due !== undefined) {
     patch.due = fields.due; // string schedules it, null clears it
@@ -411,6 +450,22 @@ export function updateTaskRequest(
     patch.recurrence = fields.recurrence; // an object makes it repeat, null stops it
     if (fields.recurrence != null) patch.due = null; // a repeat has no single due day
   }
+  return patch;
+}
+
+/** PATCH a task's mutable fields (title / due / recurrence, see fieldPatch), ALWAYS bumping updated_at so the
+ *  change wins last-write-wins sync (schema.sql: there is deliberately no now() trigger; the writer is
+ *  authoritative). The plain path, with no read first: a change that needs the row (parts, done, a new repeat)
+ *  goes through patchRowRequest instead. */
+export function updateTaskRequest(
+  env: McpEnv,
+  token: string,
+  id: string,
+  fields: { title?: string; due?: string | null; recurrence?: Recurrence | null },
+  now: string,
+): { url: string; init: RequestInit } {
+  const q = new URLSearchParams({ id: `eq.${id}` });
+  const patch: Record<string, unknown> = { updated_at: now, ...fieldPatch(fields) };
   return {
     url: `${env.SUPABASE_URL}/rest/v1/tasks?${q.toString()}`,
     init: { method: 'PATCH', headers: supaHeaders(env, token, true), body: JSON.stringify(patch) },
@@ -446,7 +501,7 @@ export function upcomingWindow(days: unknown, todayIso: string): { count: number
  *  computed in the Worker). Uses the same silent_parent / deleted guards as list_today. */
 export function listUpcomingRequest(env: McpEnv, token: string, todayIso: string, endIso: string): { url: string; init: RequestInit } {
   const q = new URLSearchParams({
-    select: 'id,title,recurrence,completed_dates,skipped_dates,due',
+    select: 'id,title,recurrence,completed_dates,skipped_dates,due,slices',
     deleted_at: 'is.null',
     silent_parent: 'not.is.true',
     // A future one-off (open, dated strictly after today, on/before the window end), OR any open
@@ -461,18 +516,19 @@ export function listUpcomingRequest(env: McpEnv, token: string, todayIso: string
 /** Map the upcoming rows to dated entries, in date order. A one-off contributes its `due` day
  *  (already window-scoped by the SQL). A recurring task contributes its NEXT due day: walk
  *  today+1 .. today+count and take the first day it is due AND not already completed/skipped
- *  on (a repeat that's done for its next hit shows the one after). Pure + unit-tested; the
- *  tool formats and caps the output. */
-export function listUpcomingFromRows(rows: unknown, todayIso: string, count: number): { id: string; title: string; when: string }[] {
+ *  on (a repeat that's done for its next hit shows the one after). A one-off tracked in parts
+ *  carries its cleaned counts, as in list_today. Pure + unit-tested; the tool formats and caps
+ *  the output. */
+export function listUpcomingFromRows(rows: unknown, todayIso: string, count: number): { id: string; title: string; when: string; parts?: Slices }[] {
   if (!Array.isArray(rows)) return [];
-  const out: { id: string; title: string; when: string }[] = [];
+  const out: { id: string; title: string; when: string; parts?: Slices }[] = [];
   for (const r of rows) {
     if (r == null || typeof r !== 'object') continue;
-    const row = r as { id?: unknown; title?: unknown; recurrence?: unknown; completed_dates?: unknown; skipped_dates?: unknown; due?: unknown };
+    const row = r as { id?: unknown; title?: unknown; recurrence?: unknown; completed_dates?: unknown; skipped_dates?: unknown; due?: unknown; slices?: unknown };
     if (typeof row.id !== 'string' || typeof row.title !== 'string') continue;
     if (row.recurrence == null) {
       // A future one-off. Trust the SQL window, but keep the day so we can sort/format uniformly.
-      if (typeof row.due === 'string') out.push({ id: row.id, title: row.title, when: row.due });
+      if (typeof row.due === 'string') out.push({ id: row.id, title: row.title, when: row.due, ...partsOf(row.slices) });
     } else {
       const next = nextOccurrence(row.recurrence, row.completed_dates, row.skipped_dates, todayIso, count);
       if (next) out.push({ id: row.id, title: row.title, when: next });
@@ -641,41 +697,164 @@ function upstreamFailure(res: Response, fallback: string): ToolResult {
   return toolText(fallback, true);
 }
 
-/** The done-write, READ-FIRST. A one-off closes (or reopens). A repeating task is ticked for today (or
- *  un-ticked) in completed_dates and its `done` is never touched: setting done=true on the series row
- *  is what made a repeat vanish from every agent read while the app kept showing it (audit PR B). */
-async function setDone(env: McpEnv, token: string, id: string, on: boolean, dayIso: string, now: string): Promise<ToolResult> {
-  const transient = on ? 'Could not complete it just now. Try again.' : 'Could not reopen it just now. Try again.';
-  const st = taskStateRequest(env, token, id);
-  const sr = await fetch(st.url, st.init);
-  if (!sr.ok) return upstreamFailure(sr, transient);
-  const srows = (await sr.json()) as unknown;
-  const row = Array.isArray(srows) && srows[0] && typeof srows[0] === 'object' ? (srows[0] as { recurrence?: unknown; completed_dates?: unknown }) : null;
-  if (!row) return toolText('No matching task found.', true);
-  // The shared classifier, so the tick and list_today agree by construction on what "repeats" means.
-  if (asRecurrence(row.recurrence) != null) {
-    const tick = tickForDay(row.completed_dates, dayIso, on);
+/** One row as a done-write or a parts change reads it first (taskStateRequest). Every field is unknown until
+ *  checked: devices write these columns and sync passes them through. */
+export type TaskState = {
+  id?: unknown;
+  title?: unknown;
+  done?: unknown;
+  recurrence?: unknown;
+  completed_dates?: unknown;
+  slices?: unknown;
+  silent_parent?: unknown;
+  parent_id?: unknown;
+};
+
+/** What a done-write or a parts change will do, decided from the row as read. `refuse` (an isError sentence) and
+ *  `say` (a calm sentence) write nothing. `write` is one guarded PATCH (patchRowRequest): `body` is the columns
+ *  it sets before updated_at, `reply` is said when it lands, and `miss` is said when the guard matches no row. */
+export type WritePlan =
+  | { kind: 'refuse'; text: string }
+  | { kind: 'say'; text: string }
+  | { kind: 'write'; body: Record<string, unknown>; guard: Record<string, string>; reply: string; miss: string };
+
+const NO_MATCH = 'No matching task found.';
+// A guarded write that matched nothing after the read found the row: it changed in between (a tick on a phone,
+// a resize), so the read is stale and one more call reads it fresh.
+const CHANGED_TRY = 'It changed just now. Try again.';
+const CHANGED_CHECK = 'It changed just now. Check list_today.';
+
+/** The task's title in quotes for a reply, or `fallback` when the row has none. */
+function quoted(row: TaskState, fallback: string): string {
+  return typeof row.title === 'string' && row.title ? `"${row.title}"` : fallback;
+}
+
+/** A task hidden behind its steps (a broken-down or made-tiny task, `silent_parent`) is never ticked directly: the
+ *  app closes it, or brings it back, when its steps are done. Neutral on purpose, because the two kinds look the
+ *  same from here. */
+function waitingOnSteps(row: TaskState): string {
+  return `${quoted(row, 'That task')} is waiting on its steps. Tick those, and it closes or comes back by itself.`;
+}
+
+/** The reply to a parts tick: how many it ticked, and what is left or that it is done. */
+function partsTickReply(row: TaskState, before: Slices, change: PartsChange): string {
+  const n = change.slices.done - before.done;
+  const of = typeof row.title === 'string' && row.title ? ` of "${row.title}"` : '';
+  const { total, done } = change.slices;
+  if (change.complete) {
+    // n is 0 only for a row a merge left at "5 of 5" but open: this tick is what closes it.
+    if (n === 0) return `Every part${of} was already ticked, so it's marked done now. Nice.`;
+    return `Ticked ${n === 1 ? 'the last part' : `the last ${n} parts`}${of}, so it's done: all ${total}. Nice.`;
+  }
+  return `Ticked ${n === 1 ? 'one part' : `${n} parts`}${of}: ${done} of ${total} done. Pass count to complete_task to tick more, and ${total - done} finishes it.`;
+}
+
+/** The done-write, decided READ-FIRST, in the one order both done paths share (complete_task and update_task
+ *  `done`, so the same call on the same row writes the same bytes):
+ *  1. A task hidden behind its steps is refused.
+ *  2. A REPEAT is ticked (or un-ticked) for one day in completed_dates, and its `done` is never touched: setting
+ *     done=true on the series row made a repeat vanish from every agent read (audit PR B).
+ *  3. A task already done says so and writes nothing. Before the parts branch, or a row an old flaw left done at
+ *     2 of 5 would meet the done=is.false guard and loop on "try again" for good.
+ *  4. A task in PARTS moves forward `count` parts, pinned to the stored counts. Never back: `done: false` is
+ *     refused, because the sync merge keeps the highest count and would bring it straight back.
+ *  5. A one-off closes with done=is.false, so a second close never re-stamps completed_at; or reopens.
+ *  `repeats` is the task's shape AFTER any field change riding with it (update_task), else as stored. */
+export function planDone(row: TaskState, on: boolean, o: { count: number; day: string; now: string; repeats: boolean }): WritePlan {
+  if (row.silent_parent === true) return { kind: 'refuse', text: waitingOnSteps(row) };
+  if (o.repeats) {
+    const tick = tickForDay(row.completed_dates, o.day, on);
     // The day is NAMED in every answer: the default is the UTC day, which for an Australian morning is
     // yesterday's date, and an agent that sees the date can pass `day` next time.
-    if (tick.already) return toolText(on ? `Already ticked for ${dayIso}. It repeats, so it will be back on its next day.` : `${dayIso} was not ticked, so nothing to undo.`);
-    const w = tickRecurringRequest(env, token, id, tick.dates, now);
-    const wr = await fetch(w.url, w.init);
-    if (!wr.ok) return upstreamFailure(wr, transient);
-    const wrows = (await wr.json()) as unknown;
-    if (!Array.isArray(wrows) || wrows.length === 0) return toolText('No matching task found.', true);
+    if (tick.already) {
+      return { kind: 'say', text: on ? `Already ticked for ${o.day}. It repeats, so it will be back on its next day.` : `${o.day} was not ticked, so nothing to undo.` };
+    }
     // An un-tick holds on the server only: the app keeps ticks on purpose (a device merge unions them and
     // pushes the union back), so a phone that already synced the tick brings it back on its next open.
-    return toolText(
-      on
-        ? `Ticked for ${dayIso}. It repeats, so it will be back on its next day.`
-        : `Un-ticked ${dayIso} on the server. A device that already synced the tick will bring it back on its next open, because ticks are kept on purpose.`,
-    );
+    const reply = on
+      ? `Ticked for ${o.day}. It repeats, so it will be back on its next day.`
+      : `Un-ticked ${o.day} on the server. A device that already synced the tick will bring it back on its next open, because ticks are kept on purpose.`;
+    return { kind: 'write', body: { completed_dates: tick.dates }, guard: {}, reply, miss: NO_MATCH };
   }
-  const w = on ? completeTaskRequest(env, token, id, now) : reopenTaskRequest(env, token, id, now);
-  const wr = await fetch(w.url, w.init);
-  if (!wr.ok) return upstreamFailure(wr, transient);
-  const wrows = (await wr.json()) as unknown;
-  return Array.isArray(wrows) && wrows.length > 0 ? toolText(on ? 'Marked it done. Nice.' : 'Reopened.') : toolText('No matching task found.', true);
+  const parts = cleanSlices(row.slices);
+  if (!on) {
+    if (parts) return { kind: 'refuse', text: 'Parts only go forward from here. Step one back in the app.' };
+    return { kind: 'write', body: { done: false, completed_at: null }, guard: {}, reply: 'Reopened.', miss: NO_MATCH };
+  }
+  if (row.done === true) return { kind: 'say', text: 'Already done.' };
+  if (parts) {
+    const change = advanceParts(parts, parts.done + o.count);
+    return {
+      kind: 'write',
+      body: partsPatch(change, o.now),
+      guard: { ...partsGuard(row.slices), done: 'is.false' },
+      reply: partsTickReply(row, parts, change),
+      miss: CHANGED_TRY,
+    };
+  }
+  return { kind: 'write', body: { done: true, completed_at: o.now }, guard: { done: 'is.false' }, reply: 'Marked it done. Nice.', miss: CHANGED_CHECK };
+}
+
+/** update_task `parts`, decided READ-FIRST: a number tracks the task in that many parts (the app's setSliceTotal:
+ *  progress carries over, and a count at or below what is ticked finishes it), null makes it one whole task
+ *  again (the done flag left alone). Refused on a task hidden behind its steps, a repeating one (judged on its
+ *  shape after the change) and a done one. */
+export function planParts(row: TaskState, parts: number | null, o: { now: string; repeats: boolean }): WritePlan {
+  const name = quoted(row, 'That task');
+  if (parts === null) {
+    const cleared = clearParts(row.slices);
+    if (!cleared) return { kind: 'say', text: "It wasn't tracked in parts." };
+    return { kind: 'write', body: cleared, guard: {}, reply: `${name} is one whole task again.`, miss: NO_MATCH };
+  }
+  if (row.silent_parent === true) return { kind: 'refuse', text: `${name} is waiting on its steps, so it can't be tracked in parts. Tick its steps instead.` };
+  if (o.repeats) return { kind: 'refuse', text: "A repeating task can't be tracked in parts. Stop it repeating first (repeat: null), then set parts." };
+  if (row.done === true) return { kind: 'refuse', text: 'That one is already done, so there are no parts left to track.' };
+  const change = setTotal(cleanSlices(row.slices), parts);
+  const { total, done } = change.slices;
+  if (!needsWrite(change, false)) return { kind: 'say', text: `It's already tracked in ${total} parts, ${done} done.` };
+  return {
+    kind: 'write',
+    body: partsPatch(change, o.now),
+    guard: { ...partsGuard(row.slices), done: 'is.false' },
+    reply: change.complete
+      ? `${name} is now in ${total} parts, and all ${total} are ticked, so it's done. Nice.`
+      : `${name} is now tracked in ${total} parts, ${done} done.`,
+    miss: CHANGED_TRY,
+  };
+}
+
+/** Read the row a done-write or a parts change is decided on. */
+async function readTaskState(env: McpEnv, token: string, id: string, transient: string): Promise<{ row: TaskState } | { fail: ToolResult }> {
+  const st = taskStateRequest(env, token, id);
+  const sr = await fetch(st.url, st.init);
+  if (!sr.ok) return { fail: upstreamFailure(sr, transient) };
+  const rows = (await sr.json()) as unknown;
+  const row = Array.isArray(rows) && rows[0] && typeof rows[0] === 'object' ? (rows[0] as TaskState) : null;
+  return row ? { row } : { fail: toolText(NO_MATCH, true) };
+}
+
+/** Carry out a plan as ONE PATCH, with any field change riding in the same write (`fields`, from fieldPatch). A
+ *  `say` plan still lands the field change. No plan at all is a plain field change. */
+async function applyPlan(
+  env: McpEnv,
+  token: string,
+  id: string,
+  plan: WritePlan | null,
+  fields: Record<string, unknown>,
+  now: string,
+  transient: string,
+): Promise<ToolResult> {
+  if (plan?.kind === 'refuse') return toolText(plan.text, true);
+  const hasFields = Object.keys(fields).length > 0;
+  if (plan?.kind === 'say' && !hasFields) return toolText(plan.text);
+  const write = plan?.kind === 'write' ? plan : null;
+  const w = patchRowRequest(env, token, id, { ...fields, ...write?.body, updated_at: now }, write?.guard);
+  const res = await fetch(w.url, w.init);
+  if (!res.ok) return upstreamFailure(res, transient);
+  const rows = (await res.json()) as unknown;
+  if (!Array.isArray(rows) || rows.length === 0) return toolText(write?.miss ?? NO_MATCH, true);
+  if (write) return toolText(write.reply);
+  return toolText(plan?.kind === 'say' ? `Updated. ${plan.text}` : 'Updated.');
 }
 
 /** The optional `day` an agent names for a tick: a real calendar day, else null (a refusal); absent means
@@ -716,13 +895,23 @@ async function runTool(env: McpEnv, token: string, sub: string, name: string, ar
       recurrence = buildRecurrence(args.repeat as RepeatSpec, todayIso);
       if (!recurrence) return toolText("I couldn't read that repeat. Use daily, weekly (with weekdays 0-6), every_n_days (with days), or monthly (with an optional day 1-31).", true);
     }
+    // parts: a one-off only, as the app's capture offers it (a repeat is ticked by the day, not in parts).
+    let slices: Slices | undefined;
+    if (args.parts != null) {
+      if (hasRepeat) return toolText("A repeating task can't be tracked in parts. Pick one.", true);
+      const total = wholeIn(args.parts, MIN_PARTS, MAX_PARTS);
+      if (total === null) return toolText(`\`parts\` needs to be a whole number from ${MIN_PARTS} to ${MAX_PARTS}.`, true);
+      slices = { total, done: 0 };
+    }
     const taskId = `mcp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    const { url, init } = addTaskRequest(env, token, { id: taskId, userId: sub, title, now, due, recurrence });
+    const { url, init } = addTaskRequest(env, token, { id: taskId, userId: sub, title, now, due, recurrence, slices });
     const res = await fetch(url, init);
     // Don't echo the raw upstream HTTP status (minor backend-topology leak); give a plain line, like api.ts.
     if (!res.ok) return upstreamFailure(res, 'Could not add it just now. Try again.');
     const when = due ? ` for ${due}` : recurrence ? ', repeating' : ' to today';
-    return toolText(`Added "${title}"${when}.`);
+    const inParts = slices ? `, in ${slices.total} parts` : '';
+    // The id rides every reply, so the agent can tick or change what it just added without a list call first.
+    return toolText(`Added "${title}"${when}${inParts}. [${taskId}]`);
   }
 
   if (name === 'list_today') {
@@ -732,7 +921,7 @@ async function runTool(env: McpEnv, token: string, sub: string, name: string, ar
     const rows = (await res.json()) as unknown;
     const tasks = listTodayFromRows(rows, todayIso);
     if (tasks.length === 0) return toolText('Nothing on today. Enjoy the quiet.');
-    return toolText(tasks.map((t) => `• ${t.title}${t.repeats ? '  (repeats)' : ''}  [${t.id}]`).join('\n'));
+    return toolText(tasks.map((t) => `• ${t.title}${t.repeats ? '  (repeats)' : ''}${partsMark(t.parts)}  [${t.id}]`).join('\n'));
   }
 
   if (name === 'list_upcoming') {
@@ -745,7 +934,7 @@ async function runTool(env: McpEnv, token: string, sub: string, name: string, ar
     if (items.length === 0) return toolText(`Nothing scheduled in the next ${count} day${count === 1 ? '' : 's'}.`);
     // Cap the printed list so a big backlog can't produce a wall of text.
     const shown = items.slice(0, 40);
-    const body = shown.map((t) => `• ${t.title} — ${t.when}  [${t.id}]`).join('\n');
+    const body = shown.map((t) => `• ${t.title}${partsMark(t.parts)} — ${t.when}  [${t.id}]`).join('\n');
     const more = items.length > shown.length ? `\n…and ${items.length - shown.length} more.` : '';
     return toolText(body + more);
   }
@@ -755,7 +944,21 @@ async function runTool(env: McpEnv, token: string, sub: string, name: string, ar
     if (!taskId) return toolText('A task id is required (use list_today first).', true);
     const day = readDay(args, todayIso);
     if (day === null) return toolText("`day` needs to look like 'YYYY-MM-DD'.", true);
-    return setDone(env, token, taskId, true, day, now);
+    // +1 by default, as one tap in the app is: an over-tick that reaches a device can never be lowered (the
+    // merge keeps the highest count), while an under-tick costs one more call. Checked even where it is then
+    // ignored (a one-off, a repeat), like `day`, so a bad value is never silently dropped.
+    let count = 1;
+    if (args.count !== undefined) {
+      const c = wholeIn(args.count, 1, MAX_PARTS);
+      if (c === null) return toolText(`\`count\` needs to be a whole number from 1 to ${MAX_PARTS}.`, true);
+      count = c;
+    }
+    const transient = 'Could not complete it just now. Try again.';
+    const read = await readTaskState(env, token, taskId, transient);
+    if ('fail' in read) return read.fail;
+    // The shared classifier, so the tick and list_today agree by construction on what "repeats" means.
+    const plan = planDone(read.row, true, { count, day, now, repeats: asRecurrence(read.row.recurrence) != null });
+    return applyPlan(env, token, taskId, plan, {}, now, transient);
   }
 
   if (name === 'update_task') {
@@ -785,20 +988,58 @@ async function runTool(env: McpEnv, token: string, sub: string, name: string, ar
       if (typeof args.done !== 'boolean') return toolText('`done` needs to be true or false.', true);
       done = args.done;
     }
+    let parts: number | null | undefined;
+    if (args.parts !== undefined) {
+      parts = args.parts === null ? null : wholeIn(args.parts, MIN_PARTS, MAX_PARTS);
+      if (parts === null && args.parts !== null) {
+        return toolText(`\`parts\` needs to be a whole number from ${MIN_PARTS} to ${MAX_PARTS}, or null to make it one whole task.`, true);
+      }
+    }
+    // One change of shape at a time: parts with done, or parts with a new repeat, asks for two shapes at once.
+    if (parts !== undefined && done !== undefined) return toolText('Change parts or done, one at a time.', true);
+    if (parts !== undefined && fields.recurrence != null) {
+      return toolText("A task tracked in parts can't repeat. Change parts or the repeat, one at a time.", true);
+    }
     const day = readDay(args, todayIso);
     if (day === null) return toolText("`day` needs to look like 'YYYY-MM-DD'.", true);
     // At least one mutable field is required (updated_at alone is not a user-meaningful change).
-    if (fields.title === undefined && fields.due === undefined && fields.recurrence === undefined) {
-      if (done === undefined) return toolText('Tell me what to change: a title, a due date, a repeat, or done.', true);
-      return setDone(env, token, taskId, done, day, now);
+    const noFields = fields.title === undefined && fields.due === undefined && fields.recurrence === undefined;
+    if (noFields && done === undefined && parts === undefined) {
+      return toolText('Tell me what to change: a title, a due date, a repeat, parts, or done.', true);
     }
-    const { url, init } = updateTaskRequest(env, token, taskId, fields, now);
-    const res = await fetch(url, init);
-    if (!res.ok) return upstreamFailure(res, 'Could not update it just now. Try again.');
-    const rows = (await res.json()) as unknown;
-    if (!Array.isArray(rows) || rows.length === 0) return toolText('No matching task found.', true);
-    // The field change has landed; a done flag rides after it, read-first like complete_task.
-    return done === undefined ? toolText('Updated.') : setDone(env, token, taskId, done, day, now);
+    // A plain field change needs no read. Parts, done and a new repeat are decided on the row as it stands, so
+    // they read first, and then everything lands in ONE PATCH.
+    if (parts === undefined && done === undefined && fields.recurrence == null) {
+      const { url, init } = updateTaskRequest(env, token, taskId, fields, now);
+      const res = await fetch(url, init);
+      if (!res.ok) return upstreamFailure(res, 'Could not update it just now. Try again.');
+      const rows = (await res.json()) as unknown;
+      if (!Array.isArray(rows) || rows.length === 0) return toolText('No matching task found.', true);
+      return toolText('Updated.');
+    }
+    const transient =
+      done === true ? 'Could not complete it just now. Try again.' : done === false ? 'Could not reopen it just now. Try again.' : 'Could not update it just now. Try again.';
+    const read = await readTaskState(env, token, taskId, transient);
+    if ('fail' in read) return read.fail;
+    const row = read.row;
+    if (fields.recurrence != null) {
+      // A repeat is ticked by the day, so it can't sit on a task counted in parts, a task waiting on its steps, or
+      // a step itself (each closes by being done once).
+      if (cleanSlices(row.slices)) {
+        return toolText("A task tracked in parts can't repeat. Make it one whole task first (parts: null), then set the repeat.", true);
+      }
+      if (row.silent_parent === true) return toolText(`${quoted(row, 'That task')} is waiting on its steps, so it can't repeat. Tick its steps instead.`, true);
+      if (typeof row.parent_id === 'string' && row.parent_id) return toolText("That one is a step toward a bigger task, so it can't repeat.", true);
+    }
+    // Judged on the shape AFTER this change, so { repeat: null, done: true } closes the one-off it makes.
+    const repeats = fields.recurrence !== undefined ? fields.recurrence !== null : fields.due != null ? false : asRecurrence(row.recurrence) != null;
+    const plan =
+      parts !== undefined
+        ? planParts(row, parts, { now, repeats })
+        : done !== undefined
+          ? planDone(row, done, { count: 1, day, now, repeats })
+          : null;
+    return applyPlan(env, token, taskId, plan, fieldPatch(fields), now, transient);
   }
 
   if (name === 'delete_task') {

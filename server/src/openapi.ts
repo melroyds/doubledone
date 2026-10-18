@@ -15,13 +15,14 @@ export const OPENAPI_SPEC = {
   openapi: '3.1.0',
   info: {
     title: 'DoubleDone API',
-    version: '1.2.3',
+    version: '1.3.0',
     description:
       'A small REST API over your DoubleDone tasks. Authenticate with your own DoubleDone token ' +
       '(in the app: Settings → AI agent access (MCP) → Copy my token), which scopes every call to your own data through ' +
       'row-level security. The server holds no elevated key. Tokens refresh about hourly. ' +
       'Tasks can repeat (daily, on chosen weekdays, every N days, or monthly on a day of the month); a repeat and a due date ' +
-      'are mutually exclusive. Listing supports search (q) and a look-ahead window (upcoming).',
+      'are mutually exclusive. A one-off can be tracked in parts (the app\'s "Track in steps"), counted with partsTotal and ' +
+      'partsDone, and parts only go forward. Listing supports search (q) and a look-ahead window (upcoming).',
   },
   servers: [{ url: API_BASE, description: 'Production' }],
   security: [{ bearerAuth: [] }],
@@ -74,7 +75,8 @@ export const OPENAPI_SPEC = {
       post: {
         tags: ['tasks'],
         summary: 'Create a task',
-        description: 'Creates a task. By default it lands on today. Optionally give it a future `due` day OR a `repeat`, never both.',
+        description:
+          'Creates a task. By default it lands on today. Optionally give it a future `due` day OR a `repeat`, never both. A one-off can start tracked in parts (`partsTotal`, 2-50), with or without a `due` day; a repeating task cannot (400).',
         operationId: 'createTask',
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/TaskInput' } } } },
         responses: {
@@ -100,14 +102,18 @@ export const OPENAPI_SPEC = {
       patch: {
         tags: ['tasks'],
         summary: 'Update a task',
-        description: 'Updates a task. Send any of title, done, due, or repeat. Setting a `due` day clears any repeat, and setting a `repeat` clears the due day; pass either as null to clear it. `done: true` on a REPEATING task ticks it for one day (the UTC day unless you pass `day`) and leaves the series open, so the returned task still shows done:false with its repeats summary; `done: false` un-ticks that day on the server only (a device that already synced the tick brings it back, ticks are kept on purpose). A one-off closes and reopens as you would expect.',
+        description:
+          'Updates a task. Send any of title, done, due, repeat, partsTotal or partsDone, with at most one of done, partsTotal and partsDone. Setting a `due` day clears any repeat, and setting a `repeat` clears the due day; pass either as null to clear it. `done: true` on a REPEATING task ticks it for one day (the UTC day unless you pass `day`) and leaves the series open, so the returned task still shows done:false with its repeats summary; `done: false` un-ticks that day on the server only (a device that already synced the tick brings it back, ticks are kept on purpose). A one-off closes and reopens as you would expect, and closing one that is already done changes nothing. ' +
+          'PARTS only go forward, because every device keeps the highest count it has seen: `partsDone` is absolute (lower than the current count is a 409, above partsTotal a 400, equal changes nothing), `done: true` on a task in parts fills every part, `done: false` on one is a 409, and `partsTotal` resizes (progress carries over, and a total at or below the parts done finishes it) or, as null, makes it one whole task again. ' +
+          'A 409 means the task as it stands does not allow the change: a task in parts, waiting on its steps or a step cannot repeat; a repeating, done or waiting task cannot be tracked in parts; `done` on a task waiting on its steps is refused (tick its steps); or the task changed between our read and our write, so read it again.',
         operationId: 'updateTask',
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/TaskPatch' } } } },
         responses: {
-          '200': taskResponse('The updated task.'),
+          '200': taskResponse('The updated task, or the task as it stands when the change needed no write.'),
           '400': { $ref: '#/components/responses/BadRequest' },
           '401': { $ref: '#/components/responses/Unauthorized' },
           '404': { $ref: '#/components/responses/NotFound' },
+          '409': { $ref: '#/components/responses/Conflict' },
         },
       },
       delete: {
@@ -151,10 +157,20 @@ export const OPENAPI_SPEC = {
             type: ['string', 'null'],
             description: 'A short human summary of the recurrence (e.g. "every day", "Mon, Wed, Fri", "every 3 days"), or null for a one-off.',
           },
+          partsTotal: {
+            type: ['integer', 'null'],
+            minimum: 1,
+            description: 'The number of parts the task is tracked in (the app\'s "Track in steps", e.g. 10 for a ten-episode series), or null for a whole task.',
+          },
+          partsDone: {
+            type: ['integer', 'null'],
+            minimum: 0,
+            description: 'How many of those parts are ticked (0 to partsTotal), or null for a whole task. The task is done when every part is.',
+          },
           createdAt: { type: 'string', format: 'date-time' },
           completedAt: { type: ['string', 'null'], format: 'date-time' },
         },
-        required: ['id', 'title', 'done', 'due', 'recurrence', 'repeats', 'createdAt', 'completedAt'],
+        required: ['id', 'title', 'done', 'due', 'recurrence', 'repeats', 'partsTotal', 'partsDone', 'createdAt', 'completedAt'],
       },
       TaskInput: {
         type: 'object',
@@ -163,19 +179,37 @@ export const OPENAPI_SPEC = {
           title: { type: 'string' },
           due: { type: ['string', 'null'], format: 'date', description: 'A future day (YYYY-MM-DD) for a one-off. Mutually exclusive with repeat.' },
           repeat: { $ref: '#/components/schemas/Repeat' },
+          partsTotal: {
+            type: 'integer',
+            minimum: 2,
+            maximum: 50,
+            description: 'Track the new one-off in this many parts, starting at none done. Not with repeat.',
+          },
         },
         required: ['title'],
       },
       TaskPatch: {
         type: 'object',
         description:
-          'Any of the fields. On a one-off, done:true stamps completedAt and done:false clears it. On a REPEATING task, done ticks or un-ticks ONE day (`day`, default the UTC day) and never closes the series. Setting a `due` day clears any repeat, and setting a `repeat` clears the due day; pass due:null or repeat:null to clear either.',
+          'Any of the fields, with at most one of done, partsTotal and partsDone. On a one-off, done:true stamps completedAt and done:false clears it. On a REPEATING task, done ticks or un-ticks ONE day (`day`, default the UTC day) and never closes the series. On a task in parts, done:true fills every part and done:false is refused. Setting a `due` day clears any repeat, and setting a `repeat` clears the due day; pass due:null or repeat:null to clear either.',
         properties: {
           title: { type: 'string' },
           done: { type: 'boolean' },
           day: { type: 'string', description: "With done on a repeating task: the calendar day to tick or un-tick ('YYYY-MM-DD', the user's local date). Defaults to the UTC day." },
           due: { type: ['string', 'null'], format: 'date' },
           repeat: { oneOf: [{ $ref: '#/components/schemas/Repeat' }, { type: 'null' }], description: 'A repeat to make the task recur, or null to stop it recurring.' },
+          partsTotal: {
+            type: ['integer', 'null'],
+            minimum: 2,
+            maximum: 50,
+            description: 'Track the task in this many parts. Progress carries over, and a total at or below the parts already done finishes it. null makes it one whole task again. Not with a repeat.',
+          },
+          partsDone: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 50,
+            description: 'How many parts are ticked, ABSOLUTE and forward-only: lower than the current count is a 409, above partsTotal a 400, the same count changes nothing. Reaching partsTotal finishes the task.',
+          },
         },
       },
       Repeat: {
@@ -220,6 +254,10 @@ export const OPENAPI_SPEC = {
       BadRequest: { description: 'Invalid request.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
       Unauthorized: { description: 'Missing, expired, forged or otherwise invalid token. The token is verified before any call, so re-copy it from the app.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
       NotFound: { description: 'No such task.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+      Conflict: {
+        description: 'The task as it stands does not allow this change (for example, lowering partsDone, or a repeat on a task in parts), or it changed between our read and our write. The message says which. Read the task again before retrying.',
+        content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+      },
       InternalError: { description: 'Something went wrong on our side (always JSON, always with CORS). Retry in a moment.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
     },
   },

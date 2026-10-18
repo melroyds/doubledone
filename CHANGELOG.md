@@ -17,7 +17,27 @@ versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
-_Nothing yet. 1.8.0 is with the stores._
+_Server only (the Worker), not deployed yet. 1.8.0 is with the stores._
+
+### Added
+- **Parts for agents and integrations**: a task tracked in parts (the app's "Track in steps", a ten-episode
+  series is 10 parts) can now be made, ticked, resized and made whole again through the MCP server and the REST
+  API. MCP: `add_task` and `update_task` take `parts`, `complete_task` moves a task in parts forward ONE part
+  (or `count` parts), as one tap in the app does, and `list_today` / `list_upcoming` show `(3/10 parts)`. REST:
+  the task gains `partsTotal` and `partsDone`, `POST /tasks` takes `partsTotal`, and `PATCH` takes `partsTotal`
+  and an absolute, forward-only `partsDone`, with `done: true` filling every part. Parts never go down on
+  either surface, because every device keeps the highest count it has seen. OpenAPI 1.3.0, MCP server 1.1.0.
+  ([`server/src/steps.ts`](server/src/steps.ts), shared by [`mcp.ts`](server/src/mcp.ts) and
+  [`api.ts`](server/src/api.ts))
+- Every MCP `add_task` reply now ends with the new task's id.
+
+### Fixed
+- Ticking a task already done, over MCP or REST, now changes nothing. It used to re-stamp the finish time,
+  which moved the task in the Lookback.
+- An agent's tick on a task in parts used to set it done while leaving its count at "2 / 5", so the next tap in
+  the app reopened it. It now moves the count, and the last part closes it.
+- A task waiting on its steps (a broken-down or made-tiny task) can no longer be ticked directly through MCP or
+  REST. Its steps close it.
 
 ## [1.8.0] - 2026-10-05
 

@@ -8,15 +8,16 @@ and the database's row-level security then scopes the call to exactly your rows.
 holds no elevated database key, so nothing here can reach anyone else's data.
 
 It is a create, read, update and delete surface with three read modes (search, look-ahead and
-Today) and repeat cadences. The repeat vocabulary and the cadence maths are the same code the
-[MCP server](mcp.md) uses, so a repeating task made here, by an AI agent or in the app has the
-same shape. The AI actions (Break it down) are on the MCP surface only. This API has none.
+Today), repeat cadences and parts. The repeat vocabulary, the cadence maths and the parts rules are
+the same code the [MCP server](mcp.md) uses, so a repeating task, or one tracked in parts, made
+here, by an AI agent or in the app has the same shape. The AI actions (Break it down) are on the
+MCP surface only. This API has none.
 
 | | |
 |---|---|
 | Base URL | `https://api.doubledone.app/api/v1` |
 | Interactive docs (Swagger UI) | [`/api/v1/docs`](https://api.doubledone.app/api/v1/docs) |
-| OpenAPI 3.1 spec | [`/api/v1/openapi.json`](https://api.doubledone.app/api/v1/openapi.json), `info.version` **1.2.3** |
+| OpenAPI 3.1 spec | [`/api/v1/openapi.json`](https://api.doubledone.app/api/v1/openapi.json), `info.version` **1.3.0** |
 | Auth | `Authorization: Bearer <your DoubleDone token>` on every task call |
 | Format | JSON in, JSON out. Errors are `{ "error": "<plain message>" }` |
 | CORS | Open to any origin (the token is the auth, not the origin) |
@@ -58,7 +59,7 @@ a copied token.)
 | `GET` | `/tasks` | List your tasks. One read mode per call: `?q`, `?upcoming` or `?today` (see [Reading](#reading-get-tasks)). | `200 { "tasks": [ … ] }` |
 | `POST` | `/tasks` | Create a task. | `201 { "task": … }` |
 | `GET` | `/tasks/{id}` | Get one task. | `200 { "task": … }` |
-| `PATCH` | `/tasks/{id}` | Change a task's title, done, due day or repeat. | `200 { "task": … }` |
+| `PATCH` | `/tasks/{id}` | Change a task's title, done, due day, repeat or parts. | `200 { "task": … }` |
 | `DELETE` | `/tasks/{id}` | Remove a task (a soft delete). | `204`, no body |
 
 Every path above is relative to the base URL, so the full collection URL is
@@ -76,6 +77,8 @@ Every path above is relative to the base URL, so the full collection URL is
   "due": null,
   "recurrence": { "kind": "weekly", "weekdays": [1, 3, 5], "start": "2026-10-05" },
   "repeats": "Mon, Wed, Fri",
+  "partsTotal": null,
+  "partsDone": null,
   "createdAt": "2026-10-05T01:12:09.412+00:00",
   "completedAt": null
 }
@@ -89,6 +92,8 @@ Every path above is relative to the base URL, so the full collection URL is
 | `due` | string or null | `YYYY-MM-DD` for a dated one-off. `null` means undated, which the app shows on Today. In an `upcoming` listing only, a repeating task carries the day it next lands here. |
 | `recurrence` | object or null | The stored repeat rule, or `null` for a one-off. See [Recurrence](#recurrence). |
 | `repeats` | string or null | A short English summary of the rule, such as `"every day"`, `"Mon, Wed, Fri"`, `"every 3 days"` or `"every month on the 1st"`. `null` for a one-off. |
+| `partsTotal` | integer or null | The number of parts a one-off is tracked in (the app's **Track in steps**, such as 10 for a ten-episode series), or `null` for a whole task. See [Parts](#parts). |
+| `partsDone` | integer or null | How many of those parts are ticked, from 0 to `partsTotal`, or `null` for a whole task. The task is done when every part is. |
 | `createdAt` | string | When the task was made. |
 | `completedAt` | string or null | When a one-off was finished, or `null`. |
 
@@ -96,8 +101,10 @@ A task is **never both dated and recurring**. It has a `due` day, or a `recurren
 neither. (The one exception is the `upcoming` listing described below, where a repeat's next
 day is shown in `due` for convenience. Nothing is stored that way.)
 
-Those eight fields are the whole shape. See [What this API does not expose](#what-this-api-does-not-expose)
-for what is left out on purpose.
+Those ten fields are the whole shape. See [What this API does not expose](#what-this-api-does-not-expose)
+for what is left out on purpose. The parts counts are cleaned the way the app cleans them before
+they reach you (whole numbers, `partsDone` never above `partsTotal`), so a malformed value a
+device once wrote reads as a whole task rather than as nonsense.
 
 ---
 
@@ -132,6 +139,7 @@ More on `upcoming`:
 { "title": "Book the dentist" }
 { "title": "Renew the rego", "due": "2026-10-20" }
 { "title": "Water the plants", "repeat": { "kind": "weekly", "weekdays": [1, 3, 5] } }
+{ "title": "Watch Severance", "partsTotal": 10 }
 ```
 
 | Field | Required | Rules |
@@ -139,6 +147,7 @@ More on `upcoming`:
 | `title` | yes | A non-empty string. Leading and trailing spaces are trimmed. |
 | `due` | no | A `YYYY-MM-DD` day for a one-off. A day of today or earlier shows on Today, as in the app. Only the shape is checked here (unlike `day` on an update), so send a real calendar day. |
 | `repeat` | no | A repeat rule (see [Recurrence](#recurrence)). |
+| `partsTotal` | no | A whole number from 2 to 50, to track the new one-off in parts, starting at none done. A `due` day is fine. A `repeat` is a `400`, because a repeat is ticked by the day. |
 
 Send `due` **or** `repeat`, never both (that is a `400`). With neither, the task is undated,
 which puts it on your Today in the app. New tasks always start open. Answers `201` with the
@@ -157,9 +166,23 @@ Send any of these. At least one is required.
 | `day` | With `done` only: the `YYYY-MM-DD` day to tick or un-tick on a repeating task. It must be a real calendar day (`2026-02-30` is refused). Defaults to the UTC day. |
 | `due` | A `YYYY-MM-DD` day, or `null` to clear the date. Setting a day stops any repeat. As on create, only the shape is checked. |
 | `repeat` | A repeat rule, or `null` to stop repeating. Setting a rule clears the due day. |
+| `partsTotal` | A whole number from 2 to 50 to track the task in parts, or `null` to make it one whole task again. See [Parts](#parts). |
+| `partsDone` | A whole number: how many parts are ticked, as an **absolute** count. See [Parts](#parts). |
 
-`due` and `repeat` both non-null in one call is a `400`, because each one clears the other.
-Answers `200` with the task as it now stands, or `404` if there is no such task.
+`due` and `repeat` both non-null in one call is a `400`, because each one clears the other. So is
+more than one of `done`, `partsTotal` and `partsDone`, because each of them can finish the task,
+and so is `partsTotal` or `partsDone` with a non-null `repeat`. Answers `200` with the task as it
+now stands, `404` if there is no such task, or `409` if the task as it stands does not allow the
+change (see below).
+
+A change of title or due day alone is written straight away. Anything with `done`, `partsTotal`,
+`partsDone` or a non-null `repeat` reads the task first and then makes **one** write, or none:
+closing a one-off that is already done, or sending the `partsDone` it already has, answers `200`
+with the task unchanged, so a retry is harmless and never re-stamps `completedAt`. A new `repeat`
+is a `409` on a task tracked in parts, a task waiting on its steps (the hidden big task of a
+breakdown, or a task made tiny) and a step of a breakdown, because each of those closes by being
+done once. `done` on a task waiting on its steps is a `409` too: tick its steps, and the app closes
+it or brings it back.
 
 ### Repeats and `done`
 
@@ -180,6 +203,38 @@ the same:
 - Completing never ends a repeat. To stop one, send `"repeat": null`.
 - Skipping a day of a repeat is something only the app does. This API can see that a day was
   skipped (it shapes `upcoming`) but cannot skip one.
+
+### Parts
+
+A task tracked in parts is the app's **Track in steps**: one thing done in several goes, such as a
+ten-episode series, shown in the app as "3 / 10" with a bar. It is always a one-off, and it is done
+exactly when every part is.
+
+- **`partsDone`** sets how many parts are ticked, as an absolute count, so a retried request lands
+  the same row. It only goes **forward**: lower than the current count is a `409`, above
+  `partsTotal` is a `400`, and the count it already has answers `200` with no write. Reaching
+  `partsTotal` finishes the task and stamps `completedAt`. On a task already done it writes nothing
+  and answers `200` with the task as it stands, as closing a done task does.
+- **`done: true`** on a task in parts fills every part, as **Done** in the app's Focus does.
+  **`done: false`** on one is a `409`.
+- **`partsTotal`** resizes it. Progress carries over, and a total at or below the parts already
+  ticked finishes it. On a whole task it starts the count at none done. It is a `409` on a
+  repeating task, a done task and a task waiting on its steps. **`partsTotal: null`** makes it one
+  whole task again and leaves `done` as it was.
+- `partsDone` on a whole task is a `409`: send `partsTotal` first.
+
+**Why parts only go forward.** Every device keeps the highest count it has ever seen for a task,
+so a count lowered here would spring straight back the next time a phone syncs. The app's own
+"Undo a step" is the way back.
+
+**The MCP server counts differently, on purpose.** An agent's `complete_task` moves a task in parts
+forward one part at a time, relative to where it is, because a model reasons best with "one more".
+Here the count is absolute, because an HTTP integration retries. Both run the same code and write
+the same columns.
+
+Each parts write is pinned to the counts the API read, so a tick or resize made on a phone in the
+same moment is never overwritten. If one lands in between, the write matches nothing and the
+answer is a `409` saying the task changed just now: read it again and retry.
 
 ---
 
@@ -249,10 +304,11 @@ and never a leaked upstream status.
 
 | Status | When |
 |---|---|
-| `400` | The body is not valid JSON, a field breaks the rules above (an empty or missing title, a badly shaped `due`, an unreadable `repeat`, `due` and `repeat` together, a `day` that is not a real calendar day, a `day` without `done`, nothing to update), or a task id in the path will not decode. |
+| `400` | The body is not valid JSON, a field breaks the rules above (an empty or missing title, a badly shaped `due`, an unreadable `repeat`, `due` and `repeat` together, a `day` that is not a real calendar day, a `day` without `done`, a `partsTotal` or `partsDone` that is not a whole number in range, more than one of `done` / `partsTotal` / `partsDone`, parts with a repeat, a `partsDone` above the task's `partsTotal`, nothing to update), or a task id in the path will not decode. |
 | `401` | No bearer token, a token that fails verification (expired, forged or otherwise invalid), or Supabase refusing the token. The message says to re-copy it from Settings. |
 | `404` | No such task, or a task you have removed. Also an unknown path: under `/api/v1` after the token check, and any other `/api/` path with `not found (use /api/v1)`. |
 | `405` | A method the path does not support. |
+| `409` | The task as it stands does not allow the change: a lower `partsDone`, `done: false` on a task in parts, parts on a repeating, done or waiting task, a repeat on a task in parts, a waiting task or a step, `done` on a task waiting on its steps. Or the task changed between the read and the write, so read it again and retry. |
 | `413` | A declared request size over 2,000,000 bytes. This one is plain text, sent by the Worker before the API runs. |
 | `500` | Something went wrong on our side. Still JSON with CORS. Try again in a moment. |
 | `502` | Supabase itself failed (anything other than refusing the token), or a create came back with no row. |
@@ -273,7 +329,7 @@ and never a leaked upstream status.
 
 ## What this API does not expose
 
-The API reads and writes only your own rows in your own task list, and returns only the eight
+The API reads and writes only your own rows in your own task list, and returns only the ten
 fields above. Left out on purpose:
 
 - **Where you left off.** The one-line note you keep on a task in the app (new in 1.8.0) is never
@@ -286,10 +342,11 @@ fields above. Left out on purpose:
   list.
 - **Anyone else's data.** Your verified token plus row-level security scopes every call to your
   account, and the Worker holds no key that could do otherwise.
-- **The app's working detail.** Pins, "a lot" marks, parts tracked on a task, effort estimates,
-  the bookkeeping behind a broken-down, tiny or combined task, per-day tick and skip lists, your
-  user id and internal timestamps. (The tick and skip lists are read to shape `upcoming`, never
-  returned.)
+- **The app's working detail.** Pins, "a lot" marks, effort estimates, the bookkeeping behind a
+  broken-down, tiny or combined task, per-day tick and skip lists, your user id and internal
+  timestamps. (The tick and skip lists are read to shape `upcoming`, never returned, and whether
+  a task waits on its steps or is a step is read only to refuse a change that would break it.)
+  Parts tracked on a task are exposed, as `partsTotal` and `partsDone`.
 - **The rest of the app.** Routines, rhythms, scrapbooks, settings, Premium and billing are not
   on this API.
 - **AI.** No endpoint here calls a model. Break it down for agents is the MCP `break_down` tool.
@@ -345,6 +402,12 @@ curl -s -X PATCH "$BASE/tasks/<id>" -H "Authorization: Bearer $TOKEN" \
 curl -s -X PATCH "$BASE/tasks/<id>" -H "Authorization: Bearer $TOKEN" \
   -H "content-type: application/json" -d '{"repeat":null}'
 
+# Track a series in ten parts, then mark three of them watched
+curl -s -X POST "$BASE/tasks" -H "Authorization: Bearer $TOKEN" \
+  -H "content-type: application/json" -d '{"title":"Watch Severance","partsTotal":10}'
+curl -s -X PATCH "$BASE/tasks/<id>" -H "Authorization: Bearer $TOKEN" \
+  -H "content-type: application/json" -d '{"partsDone":3}'
+
 # Remove one
 curl -s -X DELETE "$BASE/tasks/<id>" -H "Authorization: Bearer $TOKEN"
 ```
@@ -358,6 +421,7 @@ curl -s -X DELETE "$BASE/tasks/<id>" -H "Authorization: Bearer $TOKEN"
 | [`server/src/api.ts`](../server/src/api.ts) | The routes, body checks, read modes and the task shape |
 | [`server/src/openapi.ts`](../server/src/openapi.ts) | The OpenAPI 3.1 spec and the Swagger UI page |
 | [`server/src/cadence.ts`](../server/src/cadence.ts) | `buildRecurrence`, the due-today maths and the per-day tick, shared with MCP |
+| [`server/src/steps.ts`](../server/src/steps.ts) | The parts arithmetic and the guard that pins each parts write, shared with MCP |
 | [`server/src/verify.ts`](../server/src/verify.ts) | Token verification |
 | [`server/src/index.ts`](../server/src/index.ts) | Routing on the Worker, including the request-size ceiling |
 | [`server/src/api.test.ts`](../server/src/api.test.ts) | The unit tests for the routes, body checks, read modes and task shape |
