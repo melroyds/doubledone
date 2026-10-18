@@ -987,7 +987,23 @@ describe('linked steps over REST: steps on create, POST /tasks/{id}/steps, and t
 
   it('reads, inserts the steps, then hides the task pinned as read, and answers 201 with both', async () => {
     freeze();
-    const calls = sequence([row()], [step('x-0'), step('x-1')], [row({ silent_parent: true })]);
+    const calls: Call[] = [];
+    // The read and the hide answer as PostgREST would. The insert answers with exactly the rows it was sent, in the
+    // columns its `select` asked for, in reverse, so the reply must find each step by its id and keep the order given.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit) => {
+        calls.push({ url, init });
+        let answer: unknown = [row({ silent_parent: true })];
+        if (init.method === 'GET') answer = [row()];
+        if (init.method === 'POST') {
+          const cols = paramsOf({ url, init }).select.split(',');
+          const sent = JSON.parse(init.body as string) as Record<string, unknown>[];
+          answer = sent.map((r) => Object.fromEntries(cols.map((k) => [k, r[k] ?? null]))).reverse();
+        }
+        return { ok: true, status: 200, json: async () => answer } as unknown as Response;
+      }),
+    );
     const res = await post('/tasks/t1/steps', { steps: [{ title: 'Bag up the rubbish' }, { title: 'Sweep' }] });
     expect(res.status).toBe(201);
     expect(calls.map((c) => c.init.method)).toEqual(['GET', 'POST', 'PATCH']);
@@ -995,8 +1011,12 @@ describe('linked steps over REST: steps on create, POST /tasks/{id}/steps, and t
     expect(inserted.every((s) => s.parent_id === 't1' && s.parent_title === 'Clear the garage')).toBe(true);
     expect(guardOf(calls[2])).toEqual({ id: 'eq.t1', deleted_at: 'is.null', done: 'is.false', silent_parent: 'not.is.true', recurrence: 'is.null', slices: 'is.null' });
     expect(bodyOf(calls[2])).toEqual({ silent_parent: true, open_parent: false, updated_at: NOW });
-    const out = (await res.json()) as { task: Record<string, unknown>; steps: unknown[] };
+    const out = (await res.json()) as { task: Record<string, unknown>; steps: Record<string, unknown>[] };
     expect(out.task).toMatchObject({ id: 't1', hidden: true });
+    expect(out.steps).toHaveLength(2);
+    expect(out.steps.map((s) => s.title)).toEqual(['Bag up the rubbish', 'Sweep']);
+    expect(out.steps.map((s) => s.id)).toEqual(inserted.map((s) => s.id));
+    for (const s of out.steps) expect(s).toMatchObject({ parentId: 't1', parentTitle: 'Clear the garage', hidden: false, done: false });
   });
 
   it('a 404 for a missing task, and a 409 for a done, repeating, in-parts or already hidden one, each after one read', async () => {
@@ -1115,6 +1135,55 @@ describe('linked steps over REST: steps on create, POST /tasks/{id}/steps, and t
       const out = (await (await patch('s2', { done: true })).json()) as Record<string, unknown>;
       expect(out).not.toHaveProperty('finished');
       expect(calls).toHaveLength(4);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a nested chain finishes both, and finished lists them lowest first, the topmost last', async () => {
+    freeze();
+    const closed = { done: true, silent_parent: false, completed_at: NOW };
+    const calls = sequence(
+      [step('s2')],
+      [step('s2', { done: true, completed_at: NOW })],
+      [big({ parent_id: 'G' })],
+      [kid('s1', true), kid('s2', true)],
+      [big({ parent_id: 'G', ...closed })],
+      [big({ id: 'G', title: 'Move house' })],
+      [kid('P', true, { parent_id: 'G' }), kid('Q', true, { parent_id: 'G' })],
+      [big({ id: 'G', title: 'Move house', ...closed })],
+    );
+    const res = await patch('s2', { done: true });
+    expect(res.status).toBe(200);
+    const out = (await res.json()) as { task: Record<string, unknown>; finished?: Record<string, unknown>[] };
+    expect(out.task).toMatchObject({ id: 's2', done: true });
+    expect(out.finished?.map((t) => t.id)).toEqual(['P', 'G']);
+    expect(out.finished?.map((t) => t.title)).toEqual(['Clear the garage', 'Move house']);
+    expect(calls.filter((c) => c.init.method === 'PATCH').map((c) => paramsOf(c).id)).toEqual(['eq.s2', 'eq.P', 'eq.G']);
+    for (const i of [4, 7]) expect(bodyOf(calls[i])).toEqual({ done: true, completed_at: NOW, silent_parent: false, updated_at: NOW });
+  });
+
+  it('a parent finish that fails, or that a device beat, still answers the closed step, with no finished', async () => {
+    for (const answer of [failWith(500), [], REJECTS]) {
+      const calls = sequence([step('s2')], [step('s2', { done: true })], [big()], [kid('s1', true), kid('s2', true)], answer);
+      const res = await patch('s2', { done: true });
+      expect(res.status).toBe(200);
+      const out = (await res.json()) as Record<string, unknown>;
+      expect(out.task).toMatchObject({ id: 's2', done: true });
+      expect(out).not.toHaveProperty('finished');
+      expect(calls).toHaveLength(5);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("a walk read that fails, after the step's close has landed, still answers the closed step, with no finished", async () => {
+    for (const answer of [failWith(500), REJECTS]) {
+      const calls = sequence([step('s2')], [step('s2', { done: true })], answer);
+      const res = await patch('s2', { done: true });
+      expect(res.status).toBe(200);
+      const out = (await res.json()) as Record<string, unknown>;
+      expect(out.task).toMatchObject({ id: 's2', done: true });
+      expect(out).not.toHaveProperty('finished');
+      expect(calls).toHaveLength(3);
       vi.unstubAllGlobals();
     }
   });
