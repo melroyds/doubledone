@@ -221,7 +221,8 @@ export const TOOLS = [
   },
   {
     name: 'delete_task',
-    description: "Remove one of the user's tasks. It is tombstoned (recoverable), never hard-deleted.",
+    description:
+      "Remove one of the user's tasks. It is tombstoned (recoverable), never hard-deleted. A task waiting on its steps (one broken down with add_steps) is not removed on its own: remove its steps first, and the app brings it back to the list.",
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string', description: 'The task id to remove.' } },
@@ -579,9 +580,16 @@ export function updateTaskRequest(
 /** SOFT-delete: set the deleted_at tombstone (and bump updated_at), exactly like the app. The
  *  client hides tombstoned rows and the tombstone syncs; nothing is ever hard-deleted here. Only a
  *  live row (`deleted_at=is.null`): a second removal must not move the first one's time, which the
- *  app reads for its undo window and to match a Combine's folded tasks. */
-export function deleteTaskRequest(env: McpEnv, token: string, id: string, now: string): { url: string; init: RequestInit } {
-  const q = new URLSearchParams({ id: `eq.${id}`, deleted_at: 'is.null' });
+ *  app reads for its undo window and to match a Combine's folded tasks. `guard` pins it further to
+ *  the row as read (delete_task: still not waiting on its steps). */
+export function deleteTaskRequest(
+  env: McpEnv,
+  token: string,
+  id: string,
+  now: string,
+  guard: Record<string, string> = {},
+): { url: string; init: RequestInit } {
+  const q = new URLSearchParams({ id: `eq.${id}`, deleted_at: 'is.null', ...guard });
   return {
     url: `${env.SUPABASE_URL}/rest/v1/tasks?${q.toString()}`,
     init: {
@@ -869,6 +877,13 @@ function quoted(row: TaskState, fallback: string): string {
  *  same from here. */
 function waitingOnSteps(row: TaskState): string {
   return `${quoted(row, 'That task')} is waiting on its steps. Tick those, and it closes or comes back by itself.`;
+}
+
+/** Why delete_task refuses a task hidden behind its steps: removed alone, it would leave its steps on the list with
+ *  nothing left for them to close, and it is not on any list for the agent to see what went. Removing the steps
+ *  instead brings it back (the app's repair, on its next open), and then it can be removed as any task is. */
+function waitingToRemove(row: TaskState): string {
+  return `${quoted(row, 'That task')} is waiting on its steps, so it can't be removed on its own. Remove its steps first (list_today and list_upcoming mark them toward it), and the app brings it back on its next open.`;
 }
 
 /** The reply to a parts tick: how many it ticked, and what is left or that it is done. */
@@ -1342,11 +1357,18 @@ async function runTool(env: McpEnv, token: string, sub: string, name: string, ar
   if (name === 'delete_task') {
     const taskId = typeof args.id === 'string' ? args.id.trim() : '';
     if (!taskId) return toolText('A task id is required.', true);
-    const { url, init } = deleteTaskRequest(env, token, taskId, now);
+    const transient = 'Could not remove it just now. Try again.';
+    // Read first, because a task waiting on its steps is refused (waitingToRemove). A step is removed alone, with no
+    // walk, the same as the app's Remove: the repair sorts its big task out on the next open.
+    const read = await readTaskState(env, token, taskId, transient);
+    if ('fail' in read) return read.fail;
+    if (read.row.silent_parent === true) return toolText(waitingToRemove(read.row), true);
+    const { url, init } = deleteTaskRequest(env, token, taskId, now, { silent_parent: 'not.is.true' });
     const res = await fetch(url, init);
-    if (!res.ok) return upstreamFailure(res, 'Could not remove it just now. Try again.');
+    if (!res.ok) return upstreamFailure(res, transient);
     const rows = (await res.json()) as unknown;
-    return Array.isArray(rows) && rows.length > 0 ? toolText('Removed.') : toolText('No matching task found.', true);
+    // Read a moment ago, so a miss now means it changed in between (removed, or broken down, elsewhere).
+    return Array.isArray(rows) && rows.length > 0 ? toolText('Removed.') : toolText(CHANGED_CHECK, true);
   }
 
   if (name === 'add_steps') return runAddSteps(env, token, sub, args, now);

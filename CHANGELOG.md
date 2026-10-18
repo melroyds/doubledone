@@ -50,6 +50,8 @@ _Server only (the Worker), not deployed yet. 1.8.0 is with the stores._
   the app reopened it. It now moves the count, and the last part closes it.
 - A task waiting on its steps (a broken-down or made-tiny task) can no longer be ticked directly through MCP or
   REST. Its steps close it.
+- Nor can it be removed on its own (MCP `delete_task` refuses it, REST `DELETE` is a `409`), which left its steps
+  on the list with nothing to close. Removing its steps brings it back, and then it removes like any task.
 - Ticking the last step of a broken-down task through MCP or REST used to leave the big task hidden, unseen by
   the agent, until a phone opened and repaired it. It now closes there and then whenever the answer is certain.
 - An MCP rename of a task already removed answered "Updated." for a task nobody could see, and removing a task

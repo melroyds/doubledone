@@ -144,7 +144,7 @@ curl -s https://api.doubledone.app/mcp \
 | `list_upcoming` | optional `days` (1 to 30, default 7) | Looks ahead over the coming days. Read-only. |
 | `complete_task` | `id`, plus an optional `day` and `count` | Ticks a task. A repeat is ticked for one day, a task in parts moves forward one part (or `count`), and the last step of a broken-down task closes the big task too. |
 | `update_task` | `id`, plus any of `title`, `due`, `repeat`, `parts`, `done` (with an optional `day`) | Changes a task. |
-| `delete_task` | `id` | Removes a task as a soft delete, never a hard one. |
+| `delete_task` | `id` | Removes a task as a soft delete, never a hard one. A task waiting on its steps is refused: remove its steps. |
 | `break_down` | `task`, plus an optional `context` and `steps` (2 to 10) | **Proposes** small steps for a dreaded task. Adds nothing. |
 | `add_steps` | `task_id` **or** `title`, plus `steps` (2 to 20, each a `title` with an optional `minutes` and `due`) | Writes the steps you said yes to, **linked**, as the app's Break it down does. |
 | `search` | `query` | Searches your open tasks (for ChatGPT Deep Research). Read-only. |
@@ -288,6 +288,13 @@ Removes a task by setting its tombstone, the same soft delete the app uses, so t
 to your devices and nothing is destroyed. Replies "Removed." A task already removed answers "No
 matching task found." and its removal time stays as it was, because the app reads that time to
 keep Undo on offer and to recognise a task folded by Combine.
+
+A task **waiting on its steps** (the big task of a breakdown, or a task made tiny) is not removed
+on its own: removed alone, it would leave its steps on the list with nothing left to close. The
+reply says ""Clear the garage" is waiting on its steps, so it can't be removed on its own. Remove
+its steps first ...", and nothing changes. Removing its steps brings it back to your Today on the
+app's next open (see the undo note under `add_steps`), and then it can be removed like any task.
+Removing a **step** removes that step alone, the same as Remove in the app.
 
 ### `break_down`
 

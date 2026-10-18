@@ -9603,3 +9603,15 @@ repeat errors, which each listed their own kinds and all left out monthly, now c
 Decided against: enforcing a future `due` to match the old words (the app and MCP both take a past day, which
 lands on today), and wiring the unused `InternalError` response into every operation in the same commit (not on
 the design's list; the 500 is documented in `docs/api.md`).
+
+**A task waiting on its steps is not removed on its own (design section 4, Tier 2).** MCP `delete_task` refuses it
+(""X" is waiting on its steps, so it can't be removed on its own. Remove its steps first ..."), and REST `DELETE`
+answers `409`. Removed alone, the big task would leave its steps on the list with nothing left for them to close,
+and it is on no list, so the agent cannot see what went. The id is reachable: `add_steps`' `task_id` mode is
+handed it. Removing the steps brings it back on the app's next open (every step gone means it comes back open),
+and then it removes like any task. Both surfaces now read first, and the tombstone is pinned to the row as read
+(`silent_parent=not.is.true`); a write that then misses is "It changed just now" over MCP and a `409` over REST. A
+step still deletes alone with no walk, the same as the app's Remove. REST still answers `204` when nothing live
+matches, so a retried delete stays harmless.
+Decided against: removing the steps along with the big task (that is the parked "remove a whole breakdown", trigger:
+the first person who asks), and a `404` for a REST delete that finds nothing.

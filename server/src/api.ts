@@ -292,9 +292,16 @@ export function updateRequest(
 
 /** Soft delete: a tombstone via deleted_at + updated_at, matching the app's sync model. Only a live row
  *  (`deleted_at=is.null`): a repeated DELETE must not move the first removal's time, which the app reads for
- *  its undo window and to match a Combine's folded tasks. */
-export function deleteRequest(env: ApiEnv, token: string, id: string, now: string): { url: string; init: RequestInit } {
-  const q = new URLSearchParams({ id: `eq.${id}`, deleted_at: 'is.null' });
+ *  its undo window and to match a Combine's folded tasks. `guard` pins it further to the row as read (the
+ *  DELETE route: still not waiting on its steps). */
+export function deleteRequest(
+  env: ApiEnv,
+  token: string,
+  id: string,
+  now: string,
+  guard: Record<string, string> = {},
+): { url: string; init: RequestInit } {
+  const q = new URLSearchParams({ id: `eq.${id}`, deleted_at: 'is.null', ...guard });
   return {
     url: `${tasksUrl(env)}?${q.toString()}`,
     init: { method: 'PATCH', headers: headers(env, token, true), body: JSON.stringify({ deleted_at: now, updated_at: now }) },
@@ -575,6 +582,10 @@ const STEPS_CONFLICTS: Record<'done' | 'repeats' | 'parts' | 'hidden', string> =
   parts: 'that task is tracked in parts: send partsTotal: null first, then break it down',
   hidden: 'that task is already waiting on its steps',
 };
+
+/** Why DELETE refuses a task waiting behind its steps: deleted alone, it would leave its steps listed with nothing
+ *  left for them to close. Deleting the steps brings it back (the app's repair), and then it deletes as any task. */
+const WAITING_DELETE = 'that task is waiting on its steps: delete its steps first, and the app brings it back on its next open';
 
 /** The rows an insert or a write returned, by id, so the reply lists them in the order they were written. */
 function rowsById(rows: unknown): Map<string, Row> {
@@ -984,9 +995,22 @@ async function handleApiInner(request: Request, env: ApiEnv, verifySub: SubVerif
       return json({ error: 'not found' }, 404);
     }
     if (request.method === 'DELETE') {
-      const { url, init } = deleteRequest(env, token, id, new Date().toISOString());
+      // Read first, because a task waiting on its steps is a 409 (WAITING_DELETE). A step deletes alone, with no
+      // walk, the same as the app's Remove.
+      const st = getRequest(env, token, id);
+      const sr = await fetch(st.url, st.init);
+      if (!sr.ok) return upstream(sr);
+      const srows = (await sr.json()) as unknown;
+      const row = Array.isArray(srows) && srows[0] && typeof srows[0] === 'object' ? (srows[0] as Row) : null;
+      // Nothing live by that id (already deleted, or never there): a 204 as always, so a retried delete is harmless.
+      if (!row) return new Response(null, { status: 204, headers: API_CORS });
+      if (row.silent_parent === true) return json({ error: WAITING_DELETE }, 409);
+      const { url, init } = deleteRequest(env, token, id, new Date().toISOString(), { silent_parent: 'not.is.true' });
       const res = await fetch(url, init);
       if (!res.ok) return upstream(res);
+      const rows = (await res.json()) as unknown;
+      // Read a moment ago, so a miss now means it changed in between (deleted, or broken down, elsewhere).
+      if (!Array.isArray(rows) || rows.length === 0) return json({ error: 'the task changed just now: read it again and retry' }, 409);
       return new Response(null, { status: 204, headers: API_CORS });
     }
     return json({ error: 'method not allowed' }, 405);

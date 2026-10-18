@@ -499,18 +499,18 @@ describe('tool dispatch through handleMcp (fetch mocked)', () => {
   });
 
   it('a task already removed is never written: a rename or a second removal is "No matching task found."', async () => {
-    // The write is pinned to a live row, so on a tombstone it matches nothing (PostgREST answers []).
-    for (const [name, args] of [
-      ['update_task', { id: 't1', title: 'Renamed' }],
-      ['delete_task', { id: 't1' }],
-    ] as const) {
-      const calls = sequence([]);
-      const r = await callTool(name, args);
-      expect(r.result.isError).toBe(true);
-      expect(r.result.content[0].text).toBe('No matching task found.');
-      expect(paramsOf(calls[calls.length - 1]).deleted_at).toBe('is.null');
-      vi.unstubAllGlobals();
-    }
+    // The rename is one PATCH pinned to a live row, so on a tombstone it matches nothing (PostgREST answers []).
+    let calls = sequence([]);
+    let r = await callTool('update_task', { id: 't1', title: 'Renamed' });
+    expect(r.result.content[0].text).toBe('No matching task found.');
+    expect(calls.map((c) => [c.init.method, paramsOf(c).deleted_at])).toEqual([['PATCH', 'is.null']]);
+    vi.unstubAllGlobals();
+    // A removal reads first, and the read only finds live rows, so nothing is written at all.
+    calls = sequence([]);
+    r = await callTool('delete_task', { id: 't1' });
+    expect(r.result.isError).toBe(true);
+    expect(r.result.content[0].text).toBe('No matching task found.');
+    expect(calls.map((c) => [c.init.method, paramsOf(c).deleted_at])).toEqual([['GET', 'is.null']]);
   });
 
   it('search returns the OpenAI results shape as JSON text', async () => {
@@ -1598,6 +1598,51 @@ describe('linked steps: add_steps writes a breakdown, and the last step closes t
     expect(paramsOf(calls[0]).select.split(',')).toEqual(expect.arrayContaining(['parent_id', 'parent_title']));
     expect(t).toContain(`• Pack  (toward "Move house")`);
     expect(t).toContain(`${tomorrow}  [s1]`);
+  });
+
+  // --- delete_task -------------------------------------------------------------------------------------------
+
+  it('delete_task refuses a task waiting on its steps, with one read and no write, and says how to remove it', async () => {
+    const cases: [object, string][] = [
+      [state({ silent_parent: true }), '"Clear the garage"'],
+      [state({ silent_parent: true, title: null }), 'That task'],
+    ];
+    for (const [hidden, name] of cases) {
+      const calls = sequence([hidden]);
+      const r = await callTool('delete_task', { id: 't1' });
+      expect(r.result.isError).toBe(true);
+      expect(text(r)).toBe(
+        `${name} is waiting on its steps, so it can't be removed on its own. Remove its steps first (list_today and list_upcoming mark them toward it), and the app brings it back on its next open.`,
+      );
+      expect(calls).toHaveLength(1);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('delete_task on any other task reads, then tombstones it pinned to a live task not waiting on its steps', async () => {
+    freeze();
+    const calls = sequence([state()], [{ id: 't1' }]);
+    expect(text(await callTool('delete_task', { id: 't1' }))).toBe('Removed.');
+    expect(calls.map((c) => c.init.method)).toEqual(['GET', 'PATCH']);
+    expect(paramsOf(calls[1])).toEqual({ id: 'eq.t1', deleted_at: 'is.null', silent_parent: 'not.is.true' });
+    expect(bodyOf(calls[1])).toEqual({ deleted_at: NOW, updated_at: NOW });
+  });
+
+  it('removing a step tombstones that step alone: no walk, the same as Remove in the app', async () => {
+    const calls = sequence([step('s2')], [{ id: 's2' }]);
+    expect(text(await callTool('delete_task', { id: 's2' }))).toBe('Removed.');
+    expect(calls).toHaveLength(2);
+  });
+
+  it('a removal that matches nothing after the read says it changed, and a refused token says so', async () => {
+    sequence([state()], []);
+    let r = await callTool('delete_task', { id: 't1' });
+    expect(r.result.isError).toBe(true);
+    expect(text(r)).toBe('It changed just now. Check list_today.');
+    vi.unstubAllGlobals();
+    sequence(failWith(401));
+    r = await callTool('delete_task', { id: 't1' });
+    expect(text(r)).toBe(TOKEN_EXPIRED);
   });
 
   // --- break_down ---------------------------------------------------------------------------------------------

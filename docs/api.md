@@ -321,6 +321,12 @@ harmless, and a repeat never moves the first removal's time (the app reads it to
 and to recognise a task folded by Combine). A removed task no longer appears in any listing and
 `GET /tasks/{id}` answers `404`.
 
+A task waiting on its steps (`hidden: true`) is a `409`: deleted alone, it would leave its steps
+listed with nothing left to close. Delete its steps instead, and the app brings it back on its next
+open, after which it deletes like any task. Deleting a step deletes that step alone, the same as
+Remove in the app. A delete reads the task first, and if it changed between that read and the
+write (deleted or broken down elsewhere), the answer is a `409`: read it again and retry.
+
 ---
 
 ## Recurrence
@@ -384,7 +390,7 @@ and never a leaked upstream status.
 | `401` | No bearer token, a token that fails verification (expired, forged or otherwise invalid), or Supabase refusing the token. The message says to re-copy it from Settings. |
 | `404` | No such task, or a task you have removed. Also an unknown path: under `/api/v1` after the token check, and any other `/api/` path with `not found (use /api/v1)`. |
 | `405` | A method the path does not support. |
-| `409` | The task as it stands does not allow the change: a lower `partsDone`, `done: false` on a task in parts, parts on a repeating, done or waiting task, a repeat on a task in parts, a waiting task or a step, `done` on a task waiting on its steps, steps for a task that is done, repeats, is in parts or already waits on its steps. Or the task changed between the read and the write, so read it again and retry. |
+| `409` | The task as it stands does not allow the change: a lower `partsDone`, `done: false` on a task in parts, parts on a repeating, done or waiting task, a repeat on a task in parts, a waiting task or a step, `done` on a task waiting on its steps, steps for a task that is done, repeats, is in parts or already waits on its steps, deleting a task waiting on its steps. Or the task changed between the read and the write, so read it again and retry. |
 | `413` | A declared request size over 2,000,000 bytes. This one is plain text, sent by the Worker before the API runs. |
 | `500` | Something went wrong on our side. Still JSON with CORS. Try again in a moment. |
 | `502` | Supabase itself failed (anything other than refusing the token), a create came back with no row, or a breakdown that could not be finished could not be undone either (some steps may have landed). |

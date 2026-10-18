@@ -428,10 +428,11 @@ describe('handleApi', () => {
     expect((await handleApi(req('DELETE', '/api/v1/tasks/t1', { token: fakeJwt('u1') }), env, trust)).status).toBe(204);
   });
 
-  it('a DELETE of a task already removed is still a 204, and its write never matches the tombstone', async () => {
+  it('a DELETE of a task already removed is still a 204, and the tombstone is never written again', async () => {
+    // The read only finds live rows, so a second delete writes nothing at all.
     const calls = sequence([]);
     expect((await handleApi(req('DELETE', '/api/v1/tasks/t1', { token: fakeJwt('u1') }), env, trust)).status).toBe(204);
-    expect(paramsOf(calls[calls.length - 1]).deleted_at).toBe('is.null');
+    expect(calls.map((c) => [c.init.method, paramsOf(c).deleted_at])).toEqual([['GET', 'is.null']]);
   });
 
   it('404s an unknown path under /api/v1', async () => {
@@ -1085,6 +1086,41 @@ describe('linked steps over REST: steps on create, POST /tasks/{id}/steps, and t
     expect(calls).toHaveLength(2);
   });
 
+  // --- DELETE -------------------------------------------------------------------------------------------------------
+
+  const del = (id: string) => handleApi(req('DELETE', `/api/v1/tasks/${id}`, { token }), env, trust);
+
+  it('DELETE of a task waiting on its steps is a 409 after one read, with no write', async () => {
+    const calls = sequence([row({ silent_parent: true })]);
+    const res = await del('t1');
+    expect(res.status).toBe(409);
+    expect(await errorOf(res)).toBe('that task is waiting on its steps: delete its steps first, and the app brings it back on its next open');
+    expect(calls).toHaveLength(1);
+  });
+
+  it('DELETE of any other task reads, then tombstones it pinned to a live task not waiting on its steps', async () => {
+    freeze();
+    const calls = sequence([row()], [{ id: 't1' }]);
+    expect((await del('t1')).status).toBe(204);
+    expect(calls.map((c) => c.init.method)).toEqual(['GET', 'PATCH']);
+    expect(paramsOf(calls[1])).toEqual({ id: 'eq.t1', deleted_at: 'is.null', silent_parent: 'not.is.true' });
+    expect(bodyOf(calls[1])).toEqual({ deleted_at: NOW, updated_at: NOW });
+  });
+
+  it('DELETE of a step deletes that step alone (no walk), and a write that misses after the read is a 409', async () => {
+    let calls = sequence([step('s2')], [{ id: 's2' }]);
+    expect((await del('s2')).status).toBe(204);
+    expect(calls).toHaveLength(2);
+    vi.unstubAllGlobals();
+    calls = sequence([row()], []);
+    const res = await del('t1');
+    expect(res.status).toBe(409);
+    expect(await errorOf(res)).toBe('the task changed just now: read it again and retry');
+    vi.unstubAllGlobals();
+    sequence(failWith(401));
+    expect((await del('t1')).status).toBe(401);
+  });
+
   // --- the contract -----------------------------------------------------------------------------------------------
 
   it('OpenAPI 1.3.0 documents the steps route, StepInput, StepsCreated and the new read fields', async () => {
@@ -1102,6 +1138,7 @@ describe('linked steps over REST: steps on create, POST /tasks/{id}/steps, and t
     });
     const { Task, TaskInput, StepInput, StepsCreated } = spec.components.schemas;
     expect(Task.required).toEqual(expect.arrayContaining(['parentId', 'parentTitle', 'hidden']));
+    expect(spec.paths['/tasks/{id}'].delete.responses['409']).toEqual({ $ref: '#/components/responses/Conflict' });
     expect(TaskInput.properties).toHaveProperty('steps');
     expect(StepInput.required).toEqual(['title']);
     expect(Object.keys(StepInput.properties)).toEqual(['title', 'minutes', 'due']);
