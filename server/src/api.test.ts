@@ -1,3 +1,4 @@
+import Ajv from 'ajv';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -18,6 +19,7 @@ import {
 } from './api';
 import { bodyOf, type Call, failWith, GARBLED, paramsOf, REJECTS, sequence } from './fetch-sequence.test-helper';
 import { decodeJwtSub, handleMcp } from './mcp';
+import { OPENAPI_SPEC } from './openapi';
 
 const env = { SUPABASE_URL: 'https://sb.example.co', SUPABASE_ANON_KEY: 'anon-key' };
 
@@ -1211,6 +1213,25 @@ describe('linked steps over REST: steps on create, POST /tasks/{id}/steps, and t
     expect(StepInput.required).toEqual(['title']);
     expect(Object.keys(StepInput.properties)).toEqual(['title', 'minutes', 'due']);
     expect(StepsCreated.required).toEqual(['task', 'steps']);
+  });
+
+  it('the createTask 201 schema takes both bodies it answers, { task } and { task, steps }, as a response validator reads it', () => {
+    // Compiled with ajv against the spec's own components, so the $refs resolve as a validator or a generated
+    // client resolves them. A oneOf here failed every { task, steps } body: it matched both branches.
+    const created = OPENAPI_SPEC.paths['/tasks'].post.responses['201'].content['application/json'].schema;
+    const validate = new Ajv({ allErrors: true }).compile({ ...created, components: OPENAPI_SPEC.components });
+    const iso = '2026-10-18T03:00:00.000Z';
+    const real = (extra: object = {}) => toApiTask(row({ created_at: iso, ...extra }));
+    const bodies = {
+      task: { task: real() },
+      steps: {
+        task: real({ id: 'P', silent_parent: true }),
+        steps: [real({ id: 's1', parent_id: 'P', parent_title: 'Clear the garage' }), real({ id: 's2', parent_id: 'P', parent_title: 'Clear the garage' })],
+      },
+    };
+    for (const [name, body] of Object.entries(bodies)) expect(validate(body), `${name}: ${JSON.stringify(validate.errors)}`).toBe(true);
+    // And it still refuses a body that is neither.
+    expect(validate({ steps: [] })).toBe(false);
   });
 
   // --- parity with MCP --------------------------------------------------------------------------------------------

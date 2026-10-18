@@ -93,8 +93,11 @@ export const OPENAPI_SPEC = {
             description: 'The created task, or, when `steps` were sent, the big task and its steps.',
             content: {
               'application/json': {
+                // anyOf, never oneOf: a { task, steps } body matches BOTH branches (the first does not forbid extra
+                // keys, and must not, because Task may grow), and oneOf demands exactly one, so every breakdown reply
+                // failed a response validator and a strict generated client. api.test.ts compiles it with ajv.
                 schema: {
-                  oneOf: [
+                  anyOf: [
                     { type: 'object', properties: { task: { $ref: '#/components/schemas/Task' } }, required: ['task'] },
                     { $ref: '#/components/schemas/StepsCreated' },
                   ],
