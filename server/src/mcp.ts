@@ -1110,12 +1110,64 @@ function stepsAddedReply(bigTitle: string | null, steps: StepSpec[], rows: Recor
   return [head, ...lines].join('\n');
 }
 
+/** What the write that hides a big task behind its new steps came to. A 2xx whose body is an empty list is a definite
+ *  miss: the guard matched nothing, so nothing was written. A 401/403 is refused, so nothing was written either.
+ *  Everything else short of a written row is UNKNOWN: the fetch threw, the body did not parse, or a 5xx came back,
+ *  which a gateway can send after Postgres has already committed. An unknown outcome is read again before anything
+ *  is undone, because tombstoning the steps of a task that DID get hidden leaves it hidden with nothing to close it. */
+type HideOutcome = 'landed' | 'missed' | 'refused' | 'unknown';
+
+async function sendHide(w: { url: string; init: RequestInit }): Promise<HideOutcome> {
+  let res: Response;
+  try {
+    res = await fetch(w.url, w.init);
+  } catch {
+    return 'unknown';
+  }
+  if (res.status === 401 || res.status === 403) return 'refused';
+  if (!res.ok) return 'unknown';
+  let rows: unknown;
+  try {
+    rows = await res.json();
+  } catch {
+    return 'unknown';
+  }
+  if (!Array.isArray(rows)) return 'unknown';
+  return rows.length > 0 ? 'landed' : 'missed';
+}
+
+/** After an unknown hiding write: whether the task now reads hidden (the write landed), not hidden (it did not, or the
+ *  task was removed in between), or null when the read failed too, so nothing can be known. */
+async function readHidden(env: McpEnv, token: string, id: string): Promise<boolean | null> {
+  try {
+    const st = taskStateRequest(env, token, id);
+    const res = await fetch(st.url, st.init);
+    if (!res.ok) return null;
+    const rows = (await res.json()) as unknown;
+    if (!Array.isArray(rows)) return null;
+    const row = rows[0] && typeof rows[0] === 'object' ? (rows[0] as TaskState) : null;
+    return row?.silent_parent === true;
+  } catch {
+    return null;
+  }
+}
+
+const STEPS_MAY_HAVE_LANDED = 'Some steps may have landed on their own. Check list_today.';
+
 /** add_steps: write a breakdown the user said yes to, exactly as the app's Break it down does (steps.ts
  *  buildStepRows). With `title`, the big task and its steps are ONE insert, so it is atomic. With `task_id`, the task
  *  is read and refused if it cannot be broken down, its steps are inserted, and only then is it hidden, by a write
- *  pinned to the task as it was read. If that write misses (a phone changed the task in between) or fails, the steps
- *  just inserted are tombstoned again, because steps beside a task that is not hidden would never close it, and the
- *  reply says nothing was added, or, if even that write fails, that some steps may have landed. */
+ *  pinned to the task as it was read (sendHide says what that came to):
+ *  - landed: the breakdown is done;
+ *  - refused (401/403): nothing more can be written with this token, so the reply says the token expired AND that
+ *    the steps went in without the task being tucked away, because a retry after re-pasting would add a second set;
+ *  - unknown: the task is read again. Hidden means the write landed after all. Not hidden goes on as a miss. A read
+ *    that fails too undoes nothing and says some steps may have landed. (A write still running when the read looks
+ *    can land after the steps are undone. The app's repair brings that task back on its next open, every step being
+ *    gone, which is the recoverable direction, so it is accepted rather than guarded);
+ *  - missed (or unknown, then read not hidden): the steps just inserted are tombstoned again, because steps beside a
+ *    task that is not hidden would never close it, and the reply says nothing was added, or, if even that write
+ *    fails, that some steps may have landed. */
 async function runAddSteps(env: McpEnv, token: string, sub: string, args: Record<string, unknown>, now: string): Promise<ToolResult> {
   const hasId = args.task_id !== undefined && args.task_id !== null;
   const hasTitle = args.title !== undefined && args.title !== null;
@@ -1154,19 +1206,16 @@ async function runAddSteps(env: McpEnv, token: string, sub: string, args: Record
   if (!res.ok) return upstreamFailure(res, transient);
   // Hidden only now its steps exist: a hidden task with no children is one the app's repair never touches, so it
   // would stay out of sight for good.
-  const flip = patchRowRequest(env, token, taskId, { ...hidePatch(steps), updated_at: now }, hideGuard(row));
-  let flipRes: Response | null = null;
-  let landed = false;
-  try {
-    flipRes = await fetch(flip.url, flip.init);
-    if (flipRes.ok) {
-      const flipped = (await flipRes.json()) as unknown;
-      landed = Array.isArray(flipped) && flipped.length > 0;
-    }
-  } catch {
-    flipRes = null;
+  const hide = await sendHide(patchRowRequest(env, token, taskId, { ...hidePatch(steps), updated_at: now }, hideGuard(row)));
+  if (hide === 'refused') {
+    return toolText(`${TOKEN_EXPIRED} Its steps went in, but the task is not tucked away behind them yet, so check list_today before you try again.`, true);
   }
-  if (landed) return toolText(stepsAddedReply(title, steps, rows));
+  if (hide === 'landed') return toolText(stepsAddedReply(title, steps, rows));
+  if (hide === 'unknown') {
+    const hidden = await readHidden(env, token, taskId);
+    if (hidden === null) return toolText(STEPS_MAY_HAVE_LANDED, true);
+    if (hidden) return toolText(stepsAddedReply(title, steps, rows));
+  }
   let undone = false;
   try {
     const undo = tombstoneRowsRequest(env, token, ids.steps, now);
@@ -1174,9 +1223,9 @@ async function runAddSteps(env: McpEnv, token: string, sub: string, args: Record
   } catch {
     undone = false;
   }
-  if (!undone) return toolText('Some steps may have landed on their own. Check list_today.', true);
-  if (flipRes && flipRes.ok) return toolText('That task changed just now, so nothing was added. Try again.', true);
-  return flipRes ? upstreamFailure(flipRes, 'Could not break it down just now, so nothing was added. Try again.') : toolText('Could not break it down just now, so nothing was added. Try again.', true);
+  if (!undone) return toolText(STEPS_MAY_HAVE_LANDED, true);
+  if (hide === 'missed') return toolText('That task changed just now, so nothing was added. Try again.', true);
+  return toolText('Could not break it down just now, so nothing was added. Try again.', true);
 }
 
 /** The optional `day` an agent names for a tick: a real calendar day, else null (a refusal); absent means

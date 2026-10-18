@@ -358,9 +358,14 @@ lands or none of it does. **With `task_id`** the task is read first, and refused
 the task tucked away, by a write pinned to the task exactly as it was read. If you changed it on
 your phone in that moment, the steps just written are removed again and the reply says "That task
 changed just now, so nothing was added. Try again." (If even that removal fails, it says some steps
-may have landed, so check `list_today`.) The task's own title, due day, pin, "a lot" mark and
-"Where you left off" line are never touched. A step can itself be broken down later, which makes a
-chain, as in the app.
+may have landed, so check `list_today`.) If the answer to that write is lost (a dropped connection,
+a gateway error, which can come back after the write has landed), the task is read again before
+anything is removed: tucked away means the breakdown stands, and the reply is the usual one. Still
+on the list means the steps are removed as above. A read that fails too removes nothing and says
+some steps may have landed. If your token expired in that moment, the reply says so, and that the
+steps went in without the task being tucked away, so check `list_today` before you try again. The
+task's own title, due day, pin, "a lot" mark and "Where you left off" line are never touched. A step
+can itself be broken down later, which makes a chain, as in the app.
 
 **To undo a breakdown**, remove its steps with `delete_task`. On its next open the app sees a big
 task with every step gone and brings it back to your Today, open, as it was.

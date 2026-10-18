@@ -768,11 +768,60 @@ async function createWithSteps(env: ApiEnv, token: string, sub: string, title: s
   return json({ task: toApiTask(task), steps: ids.steps.flatMap((sid) => (byId.has(sid) ? [toApiTask(byId.get(sid) as Row)] : [])) }, 201);
 }
 
+/** What the write that hides a big task behind its new steps came to, as MCP's sendHide reads it: `landed` with the
+ *  row written; `missed` for a 2xx with an empty list (the guard matched nothing, so nothing was written); `refused`
+ *  for a 401/403 (nothing written, and nothing more can be with this token); and `unknown` for everything else (the
+ *  fetch threw, the body did not parse, a 5xx a gateway can send after Postgres has committed), which is read again
+ *  before anything is undone. */
+type HideOutcome = { kind: 'landed'; row: Row } | { kind: 'missed' } | { kind: 'refused' } | { kind: 'unknown' };
+
+async function sendHide(w: { url: string; init: RequestInit }): Promise<HideOutcome> {
+  let res: Response;
+  try {
+    res = await fetch(w.url, w.init);
+  } catch {
+    return { kind: 'unknown' };
+  }
+  if (res.status === 401 || res.status === 403) return { kind: 'refused' };
+  if (!res.ok) return { kind: 'unknown' };
+  let rows: unknown;
+  try {
+    rows = await res.json();
+  } catch {
+    return { kind: 'unknown' };
+  }
+  if (!Array.isArray(rows)) return { kind: 'unknown' };
+  if (rows.length === 0) return { kind: 'missed' };
+  return rows[0] && typeof rows[0] === 'object' ? { kind: 'landed', row: rows[0] as Row } : { kind: 'unknown' };
+}
+
+/** After an unknown hiding write: the task as it reads now, or null when that read failed too. A missing row (removed
+ *  in between) reads as `{}`, which is not hidden. */
+async function rereadTask(env: ApiEnv, token: string, id: string): Promise<Row | null> {
+  try {
+    const st = getRequest(env, token, id);
+    const res = await fetch(st.url, st.init);
+    if (!res.ok) return null;
+    const rows = (await res.json()) as unknown;
+    if (!Array.isArray(rows)) return null;
+    return rows[0] && typeof rows[0] === 'object' ? (rows[0] as Row) : {};
+  } catch {
+    return null;
+  }
+}
+
+/** The 502 when the steps of a breakdown may be on the list without it being confirmed: an undo that failed, or a
+ *  hiding write and the read after it that both came to nothing. */
+const STEPS_MAY_HAVE_LANDED = 'the breakdown could not be confirmed, and some of its steps may have landed on their own: list your tasks and remove any you do not want';
+
 /** POST /tasks/{id}/steps: break a task already on the list into linked steps, as MCP add_steps does. Read it (404
  *  if missing, 409 if it is done, repeats, is tracked in parts or is already hidden), insert the steps, and only then
- *  hide it, by a write pinned to the task as it was read. If that write misses or fails, the steps just inserted are
- *  tombstoned again (steps beside a task that is not hidden would never close it) and the answer is a 409 or the
- *  upstream error, with nothing added; if even that fails, a 502 that says some steps may have landed. */
+ *  hide it, by a write pinned to the task as it was read. What happens next is MCP's runAddSteps, in HTTP terms: a
+ *  hide that landed is a 201; a refused one is the 401, saying the steps went in without the task being hidden; an
+ *  unknown one is read again, and a task that now reads hidden is the 201 after all, while a read that fails is the
+ *  502 that says some steps may have landed, with nothing undone; a miss (or an unknown that reads not hidden)
+ *  tombstones the steps just inserted (steps beside a task that is not hidden would never close it) and is a 409 or
+ *  the upstream 502, with nothing added, or the same "may have landed" 502 if even that undo fails. */
 async function addStepsToTask(env: ApiEnv, token: string, sub: string, id: string, steps: StepSpec[], now: string): Promise<Response> {
   const st = getRequest(env, token, id);
   const sr = await fetch(st.url, st.init);
@@ -790,21 +839,15 @@ async function addStepsToTask(env: ApiEnv, token: string, sub: string, id: strin
   const res = await fetch(ins.url, ins.init);
   if (!res.ok) return upstream(res);
   const inserted = rowsById(await res.json());
-  const flip = rowPatchRequest(env, token, id, { ...hidePatch(steps), updated_at: now }, hideGuard(row));
-  let flipRes: Response | null = null;
-  let hidden: Row | null = null;
-  try {
-    flipRes = await fetch(flip.url, flip.init);
-    if (flipRes.ok) {
-      const flipped = (await flipRes.json()) as unknown;
-      hidden = Array.isArray(flipped) && flipped[0] && typeof flipped[0] === 'object' ? (flipped[0] as Row) : null;
-    }
-  } catch {
-    flipRes = null;
-  }
-  if (hidden) {
-    const out = ids.steps.flatMap((sid) => (inserted.has(sid) ? [toApiTask(inserted.get(sid) as Row)] : []));
-    return json({ task: toApiTask(hidden), steps: out }, 201);
+  const created = (task: Row) => json({ task: toApiTask(task), steps: ids.steps.flatMap((sid) => (inserted.has(sid) ? [toApiTask(inserted.get(sid) as Row)] : [])) }, 201);
+  const hide = await sendHide(rowPatchRequest(env, token, id, { ...hidePatch(steps), updated_at: now }, hideGuard(row)));
+  if (hide.kind === 'landed') return created(hide.row);
+  // The 401 the contract promises, saying what did land, because a retry after a fresh token would add a second set.
+  if (hide.kind === 'refused') return json({ error: `${TOKEN_EXPIRED}. Its steps were added, but the task is not hidden behind them yet: list your tasks before you retry` }, 401);
+  if (hide.kind === 'unknown') {
+    const current = await rereadTask(env, token, id);
+    if (current === null) return json({ error: STEPS_MAY_HAVE_LANDED }, 502);
+    if (current.silent_parent === true) return created(current);
   }
   let undone = false;
   try {
@@ -813,9 +856,9 @@ async function addStepsToTask(env: ApiEnv, token: string, sub: string, id: strin
   } catch {
     undone = false;
   }
-  if (!undone) return json({ error: 'the task changed just now, and some of its steps may have landed on their own: list your tasks and remove any you do not want' }, 502);
-  if (flipRes && flipRes.ok) return json({ error: 'the task changed just now, so nothing was added: read it again and retry' }, 409);
-  return flipRes ? upstream(flipRes) : json({ error: 'upstream error' }, 502);
+  if (!undone) return json({ error: STEPS_MAY_HAVE_LANDED }, 502);
+  if (hide.kind === 'missed') return json({ error: 'the task changed just now, so nothing was added: read it again and retry' }, 409);
+  return json({ error: 'upstream error' }, 502);
 }
 
 /** Route + serve the `/api/v1/*` task surface. index.ts forwards every `/api/` request here. Everything

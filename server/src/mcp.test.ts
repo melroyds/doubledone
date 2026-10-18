@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { bodyOf, type Call, failWith, paramsOf, sequence } from './fetch-sequence.test-helper';
+import { bodyOf, type Call, failWith, GARBLED, paramsOf, REJECTS, sequence } from './fetch-sequence.test-helper';
 import {
   addDaysIso,
   addTaskRequest,
@@ -1410,11 +1410,57 @@ describe('linked steps: add_steps writes a breakdown, and the last step closes t
     expect(bodyOf(calls[3])).toEqual({ deleted_at: NOW, updated_at: NOW });
   });
 
-  it('a hiding write that fails is undone the same way, and a refused token says so', async () => {
-    const calls = sequence([state()], [{ id: 's' }], failWith(401), [{ id: 's' }]);
+  it('a hiding write the token is refused for writes nothing more, and says the steps went in untucked', async () => {
+    for (const status of [401, 403]) {
+      const calls = sequence([state()], [{ id: 's' }], failWith(status), [{ id: 's' }]);
+      const r = await callTool('add_steps', { task_id: 't1', steps: twoSteps });
+      expect(r.result.isError).toBe(true);
+      expect(text(r)).toBe(`${TOKEN_EXPIRED} Its steps went in, but the task is not tucked away behind them yet, so check list_today before you try again.`);
+      // No undo: a 401 means nothing more lands with this token, so the tombstone would only fail too.
+      expect(calls.map((c) => c.init.method)).toEqual(['GET', 'POST', 'PATCH']);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a hiding write that answers a 503 but landed is read again, and is a breakdown, with no undo', async () => {
+    const calls = sequence([state()], [{ id: 's' }], failWith(503), [state({ silent_parent: true })]);
     const r = await callTool('add_steps', { task_id: 't1', steps: twoSteps });
-    expect(text(r)).toBe(TOKEN_EXPIRED);
-    expect(calls.map((c) => c.init.method)).toEqual(['GET', 'POST', 'PATCH', 'PATCH']);
+    expect(r.result.isError).toBeUndefined();
+    expect(text(r)).toMatch(/^Broke "Clear the garage" into 2 steps on today\. It's tucked away now/);
+    expect(calls.map((c) => c.init.method)).toEqual(['GET', 'POST', 'PATCH', 'GET']);
+    expect(paramsOf(calls[3])).toMatchObject({ id: 'eq.t1', deleted_at: 'is.null' });
+  });
+
+  it('a hiding write that throws, or answers what does not parse, is read again, and a task still on the list is undone', async () => {
+    freeze();
+    for (const answer of [REJECTS, GARBLED, failWith(500)]) {
+      const calls = sequence([state()], [{ id: 's' }], answer, [state()], [{ id: 's' }]);
+      const r = await callTool('add_steps', { task_id: 't1', steps: twoSteps });
+      expect(r.result.isError).toBe(true);
+      expect(text(r)).toBe('Could not break it down just now, so nothing was added. Try again.');
+      expect(calls.map((c) => c.init.method)).toEqual(['GET', 'POST', 'PATCH', 'GET', 'PATCH']);
+      const inserted = (JSON.parse(calls[1].init.body as string) as { id: string }[]).map((s) => s.id);
+      expect(paramsOf(calls[4])).toEqual({ id: `in.(${inserted.join(',')})` });
+      expect(bodyOf(calls[4])).toEqual({ deleted_at: NOW, updated_at: NOW });
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a task removed in between reads as not hidden, so its steps are undone too', async () => {
+    const calls = sequence([state()], [{ id: 's' }], REJECTS, [], [{ id: 's' }]);
+    expect(text(await callTool('add_steps', { task_id: 't1', steps: twoSteps }))).toBe('Could not break it down just now, so nothing was added. Try again.');
+    expect(calls.map((c) => c.init.method)).toEqual(['GET', 'POST', 'PATCH', 'GET', 'PATCH']);
+  });
+
+  it('a hiding write AND the read after it that both come to nothing undo nothing, and say some steps may have landed', async () => {
+    for (const reread of [failWith(500), REJECTS, GARBLED]) {
+      const calls = sequence([state()], [{ id: 's' }], REJECTS, reread);
+      const r = await callTool('add_steps', { task_id: 't1', steps: twoSteps });
+      expect(r.result.isError).toBe(true);
+      expect(text(r)).toBe('Some steps may have landed on their own. Check list_today.');
+      expect(calls.map((c) => c.init.method)).toEqual(['GET', 'POST', 'PATCH', 'GET']);
+      vi.unstubAllGlobals();
+    }
   });
 
   it('if even the tombstone fails, it says some steps may have landed', async () => {

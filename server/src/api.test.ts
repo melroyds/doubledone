@@ -16,7 +16,7 @@ import {
   upcomingTasks,
   upcomingWindow,
 } from './api';
-import { bodyOf, type Call, failWith, paramsOf, sequence } from './fetch-sequence.test-helper';
+import { bodyOf, type Call, failWith, GARBLED, paramsOf, REJECTS, sequence } from './fetch-sequence.test-helper';
 import { decodeJwtSub, handleMcp } from './mcp';
 
 const env = { SUPABASE_URL: 'https://sb.example.co', SUPABASE_ANON_KEY: 'anon-key' };
@@ -1034,6 +1034,48 @@ describe('linked steps over REST: steps on create, POST /tasks/{id}/steps, and t
     const res = await post('/tasks/t1/steps', { steps: twoSteps });
     expect(res.status).toBe(502);
     expect(await errorOf(res)).toMatch(/some of its steps may have landed/);
+  });
+
+  it('a hide the token is refused for is the 401, with no undo, and says the steps went in', async () => {
+    for (const status of [401, 403]) {
+      const calls = sequence([row()], [step('x-0'), step('x-1')], failWith(status), [{ id: 'x' }]);
+      const res = await post('/tasks/t1/steps', { steps: twoSteps });
+      expect(res.status).toBe(401);
+      expect(await errorOf(res)).toMatch(/^unauthorized: token expired or invalid\..*Its steps were added, but the task is not hidden behind them yet/);
+      expect(calls.map((c) => c.init.method)).toEqual(['GET', 'POST', 'PATCH']);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a hide that answers a 503 but landed is read again, and is the 201 from that read, with no undo', async () => {
+    const calls = sequence([row()], [step('x-0'), step('x-1')], failWith(503), [row({ silent_parent: true })]);
+    const res = await post('/tasks/t1/steps', { steps: twoSteps });
+    expect(res.status).toBe(201);
+    expect(calls.map((c) => c.init.method)).toEqual(['GET', 'POST', 'PATCH', 'GET']);
+    expect(paramsOf(calls[3])).toMatchObject({ id: 'eq.t1', deleted_at: 'is.null' });
+    expect(((await res.json()) as { task: Record<string, unknown> }).task).toMatchObject({ id: 't1', hidden: true });
+  });
+
+  it('a hide that throws, or answers what does not parse, is read again, and a task still on the list is undone', async () => {
+    freeze();
+    for (const answer of [REJECTS, GARBLED, failWith(500)]) {
+      const calls = sequence([row()], [step('x-0'), step('x-1')], answer, [row()], [{ id: 'x' }]);
+      const res = await post('/tasks/t1/steps', { steps: twoSteps });
+      expect(res.status).toBe(502);
+      expect(await errorOf(res)).toBe('upstream error');
+      expect(calls.map((c) => c.init.method)).toEqual(['GET', 'POST', 'PATCH', 'GET', 'PATCH']);
+      const ids = (JSON.parse(calls[1].init.body as string) as { id: string }[]).map((s) => s.id);
+      expect(paramsOf(calls[4])).toEqual({ id: `in.(${ids.join(',')})` });
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a hide AND the read after it that both come to nothing undo nothing: the 502 that says some steps may have landed', async () => {
+    const calls = sequence([row()], [step('x-0'), step('x-1')], REJECTS, failWith(500));
+    const res = await post('/tasks/t1/steps', { steps: twoSteps });
+    expect(res.status).toBe(502);
+    expect(await errorOf(res)).toMatch(/could not be confirmed, and some of its steps may have landed/);
+    expect(calls.map((c) => c.init.method)).toEqual(['GET', 'POST', 'PATCH', 'GET']);
   });
 
   it('a bad body or id is a 400, another method a 405, and nothing reaches Supabase', async () => {

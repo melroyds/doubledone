@@ -287,7 +287,13 @@ waits on its steps.
 The steps are written first, and only then is the task hidden, by a write pinned to the task
 exactly as it was read. If it changed on a phone in that moment, the steps just written are removed
 again and the answer is a `409` with nothing added. (If even that removal fails, the answer is a
-`502` saying some steps may have landed, so list your tasks.) The task's own title, due day and
+`502` saying some steps may have landed, so list your tasks.) If the answer to that write is lost (a
+dropped connection, a gateway error, which can come back after the write has landed), the task is
+read again before anything is removed: hidden means the breakdown stands, and the answer is the
+`201`; still visible means the steps are removed and the answer is a `502`, with nothing added; a
+read that fails too removes nothing and is the same "may have landed" `502`. A token that expired in
+that moment is the `401`, and its message says the steps were added without the task being hidden,
+so list your tasks before you retry. The task's own title, due day and
 everything else about it are left as they were. Its `due` day stays, and the app's Calendar still
 shows it on that day, as it does for a task broken down in the app.
 
