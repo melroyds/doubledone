@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The public pages of doubledone.app. The landing page is static HTML in the exported index.html
+     (client/src/lib/landing-page.ts); privacy, terms and support are static files beside it. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://doubledone.app/</loc></url>
+  <url><loc>https://doubledone.app/privacy</loc></url>
+  <url><loc>https://doubledone.app/terms</loc></url>
+  <url><loc>https://doubledone.app/support</loc></url>
+</urlset>

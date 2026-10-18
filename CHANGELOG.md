@@ -17,7 +17,59 @@ versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
-_Nothing yet. 1.8.0 is with the stores._
+_The Worker (not deployed yet), plus one app sync fix, which reaches the web with the next push to `main` and the
+phones with the next store build. 1.8.0 is with the stores._
+
+### Added
+- **Parts for agents and integrations**: a task tracked in parts (the app's "Track in steps", a ten-episode
+  series is 10 parts) can now be made, ticked, resized and made whole again through the MCP server and the REST
+  API. MCP: `add_task` and `update_task` take `parts`, `complete_task` moves a task in parts forward ONE part
+  (or `count` parts), as one tap in the app does, and `list_today` / `list_upcoming` show `(3/10 parts)`. REST:
+  the task gains `partsTotal` and `partsDone`, `POST /tasks` takes `partsTotal`, and `PATCH` takes `partsTotal`
+  and an absolute, forward-only `partsDone`, with `done: true` filling every part. Parts never go down on
+  either surface, because every device keeps the highest count it has seen. OpenAPI 1.3.0, MCP server 1.1.0.
+  ([`server/src/steps.ts`](server/src/steps.ts), shared by [`mcp.ts`](server/src/mcp.ts) and
+  [`api.ts`](server/src/api.ts))
+- Every MCP `add_task` reply now ends with the new task's id.
+- **Linked steps for agents and integrations**: a new MCP tool, `add_steps`, writes the steps the person said yes
+  to exactly as the app's Break it down does, the big task tucked away behind them, for a task already on the
+  list (`task_id`) or a new one (`title`), 2 to 20 steps with optional minutes and days. When the LAST step is
+  ticked, through an agent or in the app, the big task closes itself and lands in the Lookback. The server
+  finishes it only when that is certain and leaves every other case (a task made tiny, a single step) to the
+  app's own repair on its next open. `break_down` now points the agent at `add_steps` instead of `add_task` per
+  step, which made plain tasks that never closed the big one. `list_today` / `list_upcoming` mark a step
+  `(toward "X")`. REST at parity: `steps` on `POST /tasks`, a new `POST /tasks/{id}/steps`, the task gains
+  `parentId`, `parentTitle` and `hidden`, and a `PATCH` that closes the last step answers with `finished`. Ten
+  MCP tools, the read-only ones marked `readOnlyHint`. `break_down`'s AI-call log now keeps the steps it
+  offered, as the app's own does. ([`server/src/steps.ts`](server/src/steps.ts), with the shared cases in
+  [`settle-cases.json`](server/src/settle-cases.json) run against the app's own rules too)
+
+### Fixed
+- Ticking a task already done, over MCP or REST, now changes nothing. It used to re-stamp the finish time,
+  which moved the task in the Lookback.
+- An agent's tick on a task in parts used to set it done while leaving its count at "2 / 5", so the next tap in
+  the app reopened it. It now moves the count, and the last part closes it.
+- A task waiting on its steps (a broken-down or made-tiny task) can no longer be ticked directly through MCP or
+  REST. Its steps close it.
+- Nor can it be removed on its own (MCP `delete_task` refuses it, REST `DELETE` is a `409`), which left its steps
+  on the list with nothing to close. Removing all its steps brings it back, and then it removes like any task.
+  The refusal names every step when two or more are already done, because an agent sees only the open ones,
+  and leaving the done ones behind would make the app finish the big task instead (REST: `stepIds`).
+- **App:** a task in parts finished on one device (or by an agent) and edited on another before it synced came
+  out of the merge at every part ticked but still open, and a tap at the last part does nothing, so it could never
+  close. The merge now closes it, dated to when it was finished, and tells the server.
+  ([`client/src/lib/sync-merge.ts`](client/src/lib/sync-merge.ts))
+- MCP `fetch` called a task waiting on its steps "on today", and a removed task too. It now says "waiting on its
+  steps", shows a task's parts ("on today, 3 of 10 parts done"), and treats a removed task as the calm miss its
+  documentation always described.
+- Ticking the last step of a broken-down task through MCP or REST used to leave the big task hidden, unseen by
+  the agent, until a phone opened and repaired it. It now closes there and then whenever the answer is certain.
+- An MCP rename of a task already removed answered "Updated." for a task nobody could see, and removing a task
+  twice, over MCP or REST, moved the first removal's time, which the app reads for Undo and Combine. Neither
+  writes a removed task any more.
+- The OpenAPI spec now says what the routes do: the plain list is every task that is not deleted (it said "open
+  and dated"), DELETE no longer lists a 404 it never returns, and a `due` day is no longer promised to be in the
+  future. The REST repeat errors now name monthly.
 
 ## [1.8.0] - 2026-10-05
 

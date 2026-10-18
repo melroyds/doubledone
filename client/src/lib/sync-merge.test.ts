@@ -103,6 +103,48 @@ describe('mergeTasks', () => {
     expect(ids(res.toPush)).toEqual(['s']); // progress grew beyond remote, so push
   });
 
+  // R11 (2026-10-18): the merge kept the higher count but the winner's done, so a task finished on one side and
+  // edited on the other before it pulled came out at every part ticked and open, where a tap does nothing.
+  describe('a task in parts whose parts are all ticked after the merge is done (R11)', () => {
+    it('finished elsewhere (an agent, another phone), edited here before the pull: done, dated to the finish, pushed', () => {
+      const local = [task('s', 20, { title: 'renamed here', slices: { total: 5, done: 4 } })];
+      const remote = [task('s', 15, { done: true, completedAt: 15, slices: { total: 5, done: 5 } })];
+      const res = mergeTasks(local, remote);
+      expect(res.merged[0]).toMatchObject({ title: 'renamed here', slices: { total: 5, done: 5 }, done: true, completedAt: 15 });
+      expect(ids(res.toPush)).toEqual(['s']);
+    });
+
+    it('finished here offline, edited elsewhere since: done, dated to this finish, and pushed so the server learns it', () => {
+      const local = [task('s', 12, { done: true, completedAt: 12, slices: { total: 3, done: 3 } })];
+      const remote = [task('s', 20, { title: 'edited there', slices: { total: 3, done: 2 } })];
+      const res = mergeTasks(local, remote);
+      expect(res.merged[0]).toMatchObject({ title: 'edited there', slices: { total: 3, done: 3 }, done: true, completedAt: 12 });
+      expect(ids(res.toPush)).toEqual(['s']);
+    });
+
+    it('a row left at every part ticked and open on both sides, with no finish time, is closed at the newer edit', () => {
+      const res = mergeTasks([task('s', 10, { slices: { total: 2, done: 2 } })], [task('s', 20, { slices: { total: 2, done: 2 } })]);
+      expect(res.merged[0]).toMatchObject({ done: true, completedAt: 20 });
+      expect(ids(res.toPush)).toEqual(['s']); // the server still has it open, so it is told
+    });
+
+    it('parts not all ticked stay open, and a task done on both sides pushes nothing (the steady state)', () => {
+      const open = mergeTasks([task('s', 10, { slices: { total: 5, done: 3 } })], [task('s', 20, { slices: { total: 5, done: 1 } })]);
+      expect(open.merged[0].done).toBe(false);
+      expect(open.merged[0]).not.toHaveProperty('completedAt');
+      const both = { done: true, completedAt: 9, slices: { total: 4, done: 4 } };
+      expect(mergeTasks([task('s', 9, both)], [task('s', 9, both)]).toPush).toEqual([]);
+    });
+
+    it('never closes a repeating task or touches a tombstone, whatever its parts say', () => {
+      const rep = { recurrence: { kind: 'daily' as const }, slices: { total: 2, done: 2 } };
+      expect(mergeTasks([task('r', 10, rep)], [task('r', 20, { ...rep, slices: { total: 2, done: 1 } })]).merged[0].done).toBe(false);
+      const gone = mergeTasks([task('g', 10, { slices: { total: 2, done: 2 } })], [task('g', 20, { deletedAt: 20, slices: { total: 2, done: 1 } })]);
+      expect(gone.merged[0]).toMatchObject({ deletedAt: 20, done: false });
+      expect(gone.toPush).toHaveLength(1); // the higher count still pushes, as it always did
+    });
+  });
+
   it('a corrupt remote row with a non-finite updatedAt loses to the good local copy', () => {
     // A NaN updatedAt (an unparseable remote timestamp) would make every `>` comparison false and
     // silently adopt the corrupt row, pinning the task to it. Treating non-finite as -Infinity makes

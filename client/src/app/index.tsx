@@ -1,11 +1,12 @@
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { Image, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { t } from '@/lib/locale';
+import { hasStaticLanding, hideStaticLanding, showStaticLanding } from '@/lib/landing-dom';
 import { loadOnboarded } from '@/lib/storage';
 import { useThemedStyles } from '@/lib/theme-provider';
 
@@ -15,6 +16,12 @@ import { useThemedStyles } from '@/lib/theme-provider';
 // (already onboarded) skip straight to Today, so only a fresh web visitor, or a crawler, sees the marketing page.
 // Design: the Claude Design "Dusk" landing, re-implemented on the live theme tokens so it follows light/dark and
 // the completion tick matches the app's (a dark ink on sage, the AA-correct one, not the mock's white check).
+//
+// Since 2026-10-18 production web does NOT render this page. The exported index.html carries the same landing as
+// plain HTML (lib/landing-page.ts, written in by scripts/inject-web-meta.mjs) so search engines and link previews
+// can read it, and this route only takes that static page over (lib/landing-dom.ts). The page below is now the
+// fallback for wherever there is no static copy: the dev server, and a client-side visit to "/" on a build
+// without one. Keep its copy in the catalogues, which both share.
 const STEPS = [
   // Step 1's title deliberately reuses the launcher shortcut's words ("Empty your head"), so they share a key.
   { n: '1', title: t('widget.quickActionDumpSubtitle'), body: t('welcome.step1Body') },
@@ -38,7 +45,8 @@ export default function Landing() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const styles = useThemedStyles(makeStyles);
-  const [show, setShow] = useState(false);
+  // wait: deciding. static: the exported HTML landing is the page. page: render the fallback below.
+  const [mode, setMode] = useState<'wait' | 'static' | 'page'>('wait');
 
   useEffect(() => {
     let active = true;
@@ -48,16 +56,47 @@ export default function Landing() {
     }
     void loadOnboarded().then((done) => {
       if (!active) return;
-      if (done) router.replace('/today');
-      else setShow(true);
+      if (done) {
+        hideStaticLanding();
+        router.replace('/today');
+      } else setMode(hasStaticLanding() ? 'static' : 'page');
     });
     return () => {
       active = false;
     };
   }, [router]);
 
+  // The static landing is the page while this route is FOCUSED, not merely mounted: the root Stack keeps this
+  // screen mounted underneath once Begin pushes /today, so an unmount cleanup would never run and the landing
+  // would sit over the app. Blur hands the screen back. Coming back to "/" (Back, or the app returning here)
+  // re-reads the flag first, so someone who has just finished the welcome goes to Today, not the sales page.
+  useFocusEffect(
+    useCallback(() => {
+      if (mode !== 'static') return;
+      let active = true;
+      let undo: (() => void) | null = null;
+      void loadOnboarded().then((done) => {
+        if (!active) return;
+        if (done) {
+          hideStaticLanding();
+          router.replace('/today');
+          return;
+        }
+        undo = showStaticLanding(() => {
+          hideStaticLanding(); // at once, so the app's first frame is never under the landing
+          router.push('/today');
+        });
+      });
+      return () => {
+        active = false;
+        undo?.();
+      };
+    }, [mode, router]),
+  );
+
   // Blank (not the page) until we know whether to redirect, so a returning user never sees a flash of marketing.
-  if (!show) return <View style={styles.blank} />;
+  // Blank too while the static landing shows: it sits outside the app's root, which is hidden meanwhile.
+  if (mode !== 'page') return <View style={styles.blank} />;
 
   const begin = () => router.push('/today');
 
@@ -71,7 +110,7 @@ export default function Landing() {
 
         {/* hero */}
         <View style={styles.hero}>
-          <Text style={styles.kicker}>{t('welcome.kicker')}</Text>
+          <Text style={styles.kicker}>{t('landing.kicker')}</Text>
           <Text style={styles.h1}>{t('welcome.heroHeadline')}</Text>
           <Text style={styles.sub}>{t('welcome.heroSub')}</Text>
           <PrimaryButton label={t('common.begin')} onPress={begin} accessibilityLabel={t('welcome.beginA11y')} style={styles.cta} />

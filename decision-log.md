@@ -9225,3 +9225,556 @@ disconnected account's grants, whose props carry the email, stayed in KV for at 
 builds the helpers with `getOAuthApi` from the same options and revokes them, best effort. The free-trial
 record (`trials`: an internal id and two dates, no email, no task data) stays, so a trial is used once; the
 privacy policy does not yet say so, and its new wording waits for Melroy's confirmation (BUILD-PLAN).
+
+## 2026-10-07: the "Due today" Ours strip stays on Today (considered, kept)
+
+Melroy, optimising the UI: the Menu has the Ours room, so could the strip come off Today to cut clutter?
+**Decided:** leave it as is. **Decided against:** removing it (a shared chore due today would be visible
+only to whoever remembers to open the room, the failure the strip exists to prevent: "bin night should not
+require a trip to another room every Tuesday"), and shrinking it to a one-line link (less clutter, but it
+loses the tick from Today). It is already absent when nothing shared is due. Its ticks are not counted, so
+if this comes up again, count first (a bare-name beacon) and decide on the number.
+
+## 2026-10-18: the landing page Google can read, and its questions (the email list built, then removed)
+
+An external website audit (8 October) put it plainly: "Search can't see it." The web root was an empty
+`<div id="root">` until the JavaScript bundle ran, so Google indexed late and unreliably, link previews and most
+other crawlers read nothing, and a search for "DoubleDone" found other apps. It also found the audience named
+only at the bottom, no questions answered, and no list to launch to. Melroy asked for the free version of that
+item (#1 of the free list).
+
+**Decided: the same landing page, written into the HTML at build.** `client/src/lib/landing-page.ts` renders it
+from the app's own catalogues, and `scripts/inject-web-meta.mjs` (already the place that patches the SPA's head,
+because `output:'single'` ignores `+html.tsx`) writes it into `client/dist/index.html`: canonical, structured
+data, its own stylesheet and a tiny pre-paint boot in `<head>`, the page at the start of `<body>`, outside
+`#root`. The boot decides before first paint: a fresh visitor at "/" gets the static page and the app's root is
+hidden; a returning visitor, and every app route (the SPA fallback serves this same file for all of them), get
+the app with the landing hidden. With no JavaScript nothing hides and the page scrolls (its rules are keyed off
+"not the app", not "is the landing"; the review caught a first version that left a no-JS visitor stuck on one
+screen). Once the bundle runs, the index route owns the page (`lib/landing-dom.ts`): Begin becomes a client-side
+navigation, and a focus effect hands the screen back on blur. **Focus, not mount**, found in the browser: the root
+Stack keeps "/" mounted underneath once Begin pushes, so an unmount cleanup never ran and the landing sat over the
+app. And each focus re-reads the onboarded flag, so Back from a finished welcome goes to Today, not the sales page
+(the review).
+
+**Decided against:**
+- **Expo's static output** (prerender every route). The module-scope Supabase client already crashed it
+  (Gotchas), every route would hydrate, and "/" renders blank until it knows whether to redirect, so it would
+  prerender nothing. A whole-app rendering change on a live paid app, for one page.
+- **A separate static index with the app moved to `app.html`** behind a rewrite. Cleanest on paper, but it rests
+  on Pages rewrite and clean-URL behaviour this repo has already been bitten by (`_redirects` notes the /privacy
+  loop), and it changes what the installed PWA's `start_url` opens.
+- **Prerendering for bots only.** Different content for crawlers is cloaking.
+- **Putting the static copy inside `#root`** for React to replace. `createRoot` swaps it out on mount, so every
+  visitor sees one page jump into another.
+
+**Decided: five languages, one of them in the page.** English is the DOM; German, Spanish, French and Italian ride
+in `<template>` elements, inert to HTML5 parsers (Google, Bing), and a visitor whose FIRST browser language is one
+of ours gets theirs swapped in before the page shows (the app's own rule: only the first device language counts).
+**Decided against** five blocks hidden by CSS (four languages of hidden text) and per-language URLs with hreflang
+for now (right for those markets, but acquisition is AU/US/UK English first; Backlog, with a trigger). Accepted:
+the templates are 41 KB of the 70 KB shell (about 17 KB gzipped, every hard load), and non-HTML5 text extractors
+read all five.
+
+**Decided: the audience first, and only claims that are true.** A new line above the headline, "A calm to-do app
+for ADHD, autism, OCD and overwhelm." Nine questions as `<details>` (keyboard-ready with no script), every answer
+checked against the code. The review corrected four that overclaimed, and the fixes went to all five languages:
+- **Offline:** the web app has no offline shell (the only service worker is for push), so the page now says the
+  phone apps work offline and an OPEN browser tab keeps working. `welcome.trustLine` no longer says "Works offline".
+- **Accounts:** "your own list" works without an account; sync and the shared list need one.
+- **Deleting:** export works for everyone, and in a browser clearing the site's data is how to erase.
+- **The AI:** names Scan and the keepsake picture's image model.
+Structured data is **WebSite only** (with "Double Done" as an alternate name), so the name is known as this site.
+**Decided against** SoftwareApplication (Google treats it as invalid without a rating or review, and there are
+none to give, never faked) and FAQPage (Google retired the FAQ result in 2026). `robots.txt` and `sitemap.xml`
+(/, /privacy, /terms, /support). Every text colour clears WCAG AA in both themes, held by a test; the app's mauve
+was 4.498:1 as text on paper, so the page deepens it a touch. German Begin's spoken name now starts with its
+visible word (voice control).
+
+**Decided: no email list. Email is only ever used to sign in** (Melroy, 2026-10-18, after seeing it built and
+reviewed). A single opt-in list (`POST /subscribe` into a D1 `subscribers` table, a two-step unsubscribe, a
+rate limiter and a honeypot) was built, reviewed, and then removed whole: the page, the eleven strings in five
+catalogues, the Worker routes, the limiter binding and the table. **Why:** "Begin" is already zero friction for a
+free app with no account; a list with nothing planned to send is a duty without a use, and it would have needed a
+sender, a confirm-only first email (a forged Origin can put anyone's address on it) and Spam Act care before its
+first note. The rule now stands for the product: an email address is collected only for signing in. `server/`
+ends up identical to main, so this ships with no Worker deploy. (Melroy's follow-up question, a thank-you email
+when someone buys Premium, was answered against that rule: see the next entry if one is decided.)
+
+**Decided: the privacy policy names Speak.** A new section, "Speaking instead of typing", in both copies: on the
+web the browser's own speech recognition does the work (Chrome sends the audio to Google's speech service, other
+browsers their maker's or the device), DoubleDone never receives audio, and in the phone apps there is no Speak
+button, only the keyboard's own dictation. `lib/speech.web.ts` had claimed the policy said this; it did not, found
+by the landing review. Approved by Melroy the same day.
+
+**Ships:** Melroy looks at a Cloudflare preview of the branch first, then, on his word, `landing` merges to main
+and the push deploys the web. Nothing reaches production from this branch.
+
+## 2026-10-18: no thank-you email after a purchase (considered, left to the app)
+
+Melroy asked whether someone who buys Premium should get a thank-you email. **Decided:** no. The app already
+thanks them at the moment it matters (the unlocked Premium screen ends "Thank you for keeping DoubleDone
+independent."), and Apple, Google and Stripe each send their own receipt. **Decided against:** our own email
+(a new sender, five languages, triggers from both webhooks, and uneven: an iPhone buyer needs no account, so we
+may hold no address for them; it would also bend the rule set the same day, that email is only for signing
+in), and a custom line in Stripe's receipt (web buyers only). Melroy chose to leave it.
+
+## 2026-10-18: the web fonts are self-hosted, the title says who it is for, and the redesign's first calls
+
+**Decided: no request to Google on any page.** The web loaded Newsreader and Atkinson Hyperlegible with an
+`@import` from Google Fonts, so every visitor's address went to Google, a request the privacy policy never
+mentioned (the landing review's skeptic found it). They are now seven woff2 files in `client/public/fonts`, made
+from the SAME static instances the phone apps bundle (`@expo-google-fonts`), subset with fontTools to
+U+0000-024F, U+0259, U+02B0-02FF, U+0300-036F, U+1E00-1EFF, U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-218F,
+U+2190-21FF, U+2200-22FF, U+25A0-25FF and U+2700-27BF (22 to 46 KB each, about Google's own size), with their SIL
+Open Font Licences beside them. `font-display: swap`, and the two first-screen faces are preloaded. CI fails if
+the export ever asks Google again. **Accepted:** Google served Newsreader as a variable font with optical sizing,
+the static file is its default cut, so web headlines are a touch wider than before and now match the phones
+exactly (compared side by side before shipping). **Decided against** fetching Google's variable woff2 to keep the
+old look (a download, and a third look across platforms).
+
+**Decided: the tab title and description name the audience.** "DoubleDone · A calm to-do list for ADHD, autism
+and OCD" and "A calm to-do list for adults with ADHD, autism and OCD. It shows only what today needs, and nothing is
+ever overdue. Free, no account needed." The audience and the promise sit in the first ~116 characters. Retires "a
+calmer kind of to-do", which named nothing anyone searches for. Melroy's yes.
+
+**The landing redesign's first calls (Melroy, the same day), for the design prompt:**
+- **On phones the primary action is the store** for that phone, with "or start in your browser" underneath; Begin
+  stays the action on a laptop. Why: reminders, Hold me to it, Rhythms, the widget and full offline are phone-app
+  features, and a list started in a phone browser stays there unless the person signs in.
+- **No price figure on the page.** The Premium extras are named in "Is it free?" and the free month needs no card.
+- **The founder line names friends, not colleagues:** made in Melbourne by Melroy, built for friends with ADHD and
+  OCD. **Decided against** "including people he has managed" (the skeptic: on a public page with his name, that
+  points at a small, findable group's health conditions).
+
+**Found, for Melroy:** the live site also loads Cloudflare Web Analytics (`static.cloudflareinsights.com`, the
+Pages project's toggle), and the privacy policy does not mention it. Cookieless and run by the host, but still
+unstated. His call: switch it off, or say it in the policy.
+
+## 2026-10-18: Cloudflare Web Analytics stays on, and the privacy policy names it
+
+**Decided: keep Web Analytics on and say so in the policy** (Melroy's yes, after first agreeing to switch it off).
+The new section "Visits to the website", in both copies (`client/public/privacy.html` and the in-app
+`privacy.tsx`), says Cloudflare counts visits to the website and the web app: the page, the referring site, the
+country, the browser and device, and load time, with no cookies, no following anyone to other sites, totals only,
+and not in the phone apps. Every claim was checked against Cloudflare's own docs on the day: the beacon stores
+nothing in the browser, the IP is discarded at the nearest data centre, and the dimensions are country, host,
+path, referrer, device type, browser and OS.
+
+**Why:** our own beacon counts about twenty named features inside the app and nothing else. It cannot see the
+landing page at all: no visits, no referrer, no country. With the crawlable landing just shipped and a redesign
+next, switching off the only landing measurement would ship the redesign with no before and after. The privacy
+cost is small (cookieless, aggregate, from the host that already sees every request); the real fault was that
+the policy never named it, and one paragraph closes that.
+
+**Decided against:** switching it off (my first pick, reversed on Melroy's challenge) and the "Enable, excluding
+visitor data in the EU" option (it still runs everywhere else, so the policy line is needed either way).
+
+**Correction:** the entry above says the beacon came from "the Pages project's toggle". It does not. It appears on
+doubledone.app and not on doubledone.pages.dev, which serve the same build, so it is the doubledone.app zone's Web
+Analytics automatic setup (Analytics & logs, Web analytics, Manage site). The Pages Metrics switch is not the source.
+
+## 2026-10-18: the landing page redesign, built to the Claude Design handoff, every line checked against the app
+
+**Decided: build the handoff ("show what it does, calmly").** One column, eleven sections: the hero (one heading
+whose first line names the audience, then "Today is finite and achievable."), a drawn Today card in HTML, the
+promise with the app's own welcome-back line, How a day goes, four hard-day moments (Break it down, a Low day,
+Settle, Ours), the Calendar, three small things, On your device by default, seven questions, the closing with the
+founder line, and the footer. Six REAL screens, captured from the app in all five languages and both themes (60
+WebP files, `scripts/landing-shots.mjs`). No price figure, no social proof, no motion, no email box.
+
+**Decided: one primary action per device.** The pre-paint boot stamps `data-platform`: an iPhone sees the App Store
+badge with "Or start in your browser" under it, an Android phone the Google Play badge, and a laptop, tablet, or
+any browser it cannot place sees Begin, then "Also on iPhone and Android." with both badges small. All three are in
+the HTML for crawlers; without JavaScript the laptop version shows. Never the other platform's badge on a phone.
+
+**Decided: the official localised badges** (Melroy's yes): Apple's from tools.applemediaservices.com and Google's
+from play.google.com/intl/en_us/badges, downloaded, inspected (no scripts or external references in the SVGs), and
+Google's PNGs trimmed of their built-in clear space, since the layout gives each its own room.
+
+**The truth check (the designer could not see the code).** Ten agents checked 127 claims against the code, a
+skeptic per slice re-checked every correction; 37 needed fixing and the skeptics found about 25 more. What changed
+from the handoff's copy, each because the app does something else:
+- "Everything else waits in Later": Later holds only dated tasks. Now "Anything for another day waits calmly in Later."
+- "no count of days": a count appears when you FINISH a broken-down task. Now "no count of how long an unfinished task has waited", and a repeat "comes back on its day" rather than rolling to tomorrow.
+- "Answer a question or two": there are always three, all optional. Now "Answer a few quick questions if you like."
+- The Break it down heading now uses the button's name; Focus is "Focus on one thing" (not the inner label "Just this one"); Bins and bills live in Repeating, so the item is "Repeating tasks and routines".
+- Lighten today proposes ONE spread, taken or left whole: "Nothing moves until you say yes."
+- Settle's guide is on by default and the drifting lines show only with it off; the copy now says so.
+- Ours: your person CAN date a row for today, so "nobody can make your morning heavier" became "Everything else stays on the list, however long it gets, so your day stays yours."
+- Premium in the FAQ: "a weekly scrapbook" (its name), "unlimited picks in What fits right now".
+- Where it works: "work fully offline" dropped "fully" and now says the AI features and syncing need a connection (the overclaim was also live).
+- Export is your tasks and what you finished, not "everything" (the FAQ and the policy both said so).
+- The drawn card's weight bar fills 12.5% (one step of eight, what the app draws for one open task), not the drawn 32%; done rows are not struck through, as in the app.
+- The Close-the-day picture shows the screen's real words ("You've closed today. A quiet day, and that's allowed. Rest well.").
+- **Decided against "Private by default"** as a heading: the app keeps that phrase for AI-off only (the 2026-06-28 honesty decision), and AI starts on. Now "On your device by default", the policy's own first heading.
+- The de/es/fr/it stand-ins for app strings were wrong in many places (six of seven French questions, Later in es/it, Sort for me and Lighten in es/fr/it, Italian "IA" for the app's "AI"); every one now comes from the catalogues, and the new lines were translated and natively reviewed per language.
+
+**Decided against** (from the handoff): localised trademark lines (they stay English, lang="en", by the 2026-08-01
+decision, as legal statements, now with Apple's credit line beside Google's); fixed 4:5 crops (the real screens
+are other shapes, so each crop follows its content and language and `client/src/lib/landing-pictures.ts`, generated,
+reserves each box); a five-step plan picture (four steps keep it a calm height).
+
+**Decided (Melroy): keep the length** (about 10 phone screens against the brief's 8). The extra is pictures, which
+load only as they scroll in. **The FAQ goes from nine to seven:** "unfinished tasks" and "sharing a list" are now
+answered by the promise and the Ours moment on the page.
+
+**Privacy policy (Melroy approved all four, both copies):** the AI features are on when you start and one tap on
+Turn AI off switches them off; a scrapbook's picture is drawn by Cloudflare's image model from a scene Claude
+writes, and Cloudflare's text model writes it when Claude is unavailable; what you added to a shared list stays
+with the other person if you delete your account; export is "your tasks and what you've finished".
+
+**In-app fixes the check found, in the same branch:** settings.aiOffNote and aiStatusOff no longer say everything
+stays on your device (sync and the feature counts still run); Italian "Your patterns" is "Le tue tendenze" (it
+clashed with Rhythms, "Ritmi"); es/it breakdown.laterPhasesNote names the Later heading exactly.
+
+**The native reviewers' catalogue notes, fixed in the same branch** (Melroy: "do this task here"; their notes are in
+docs/i18n/catalogue-review-2026-10-18.md):
+- **Pin has ONE name per language**, the welcome's (en "Pin today's one thing", de "Deine eine Sache anpinnen", es
+  "Fija lo más importante de hoy", fr "Épingler la chose du jour", it "Fissa la cosa di oggi"); premium.featurePin
+  and the landing FAQ now say the same. The short button label (Pin) is unchanged.
+- **Ours is always called by its default name** (Unsere Liste, Nuestra lista, Notre liste, La nostra lista): no more
+  "Unser" / "Nuestro" / "Nostro" fragments and no English "Ours" inside other languages.
+- **Privacy notes that named the wrong features:** es capture.aiNoteBoth said "Ordénalo tú" (sort it yourself, the
+  no-AI path); fr and it named features the app never shows. All now use the real names.
+- **Spanish is neutral everywhere (Melroy's call):** fourteen Spain-only vosotros lines in Ours rewritten without
+  vosotros or ustedes ("al Hoy de los dos", "aparece para los dos"). **Decided against** keeping vosotros (Spain would
+  not notice, Latin America would). The Play listing copy in docs still carries one vosotros line; fix it at the next
+  listing edit.
+- French and Italian typography (no-break spaces inside guillemets, straight apostrophes, «» in Italian), neutral
+  French participles, Italian "Una giornata no." for a low day, "Menu" without the accent.
+- **Decided against** (left alone): German "Andenken" beside "Erinnerungsalbum" (a deliberate pair, as English keepsake
+  and scrapbook); the German long and short imperatives (both correct).
+
+**The capture harness** stubs every Supabase read, answers the AI host only for the one break-down plan and refuses
+everything else (no spend, no feature counts), pins the clock to Sunday 18 October 2026 in Melbourne and
+Math.random, and runs Settle on the real clock with reduced motion (a fake clock freezes its animation where the
+guide word is still invisible).
+
+## 2026-10-18: the landing redesign's adversarial review, and what it changed
+
+Six reviewers (truth, accessibility, engineering, legal and store rules, catalogue regressions, visual fidelity),
+each finding re-checked by a skeptic told to refute it: 31 findings, 26 confirmed (3 major), 5 refuted. All 26 fixed
+on `landing-v2`.
+
+**The privacy policy, two more fixes (Melroy approved both, both copies).** (1) The shared-lists paragraph said no
+record exists of who added, ticked or removed something. False since August: `shared_tasks.created_by` notes the
+adding account (the decision log of 2026-08-13 already narrowed the store copy to "says, not records"; the policy
+never followed). Now: nothing on the list says who did what, no record of who ticked or removed, the server notes
+who added each item only so a misuse report can be acted on, the app never shows it, and deleting the account
+erases that note while the words stay. (2) "Your control" now says what you added to a shared list stays for the
+other person, so the deletion paragraph no longer contradicts it. **Decided against, for now:** stopping
+`created_by` from syncing to phones (it rides `select('*')` but is never shown); parked in the Backlog.
+
+**Copy, decided:**
+- The hero trust line said your list "stays" on your device while AI starts on: it now says it "lives" there (a claim
+  about storage), in all five languages, matching the policy and the privacy section.
+- The privacy section names Speak on the web (Chrome sends the audio to Google), which the policy already disclosed.
+- The AI consent card said nothing else ever leaves your device; it now says nothing else goes to an AI.
+- Turn AI off said nothing you write goes to an AI, false while an MCP assistant is connected (it reads tasks
+  server-side and never sees the device switch). Now "The app's AI features send nothing you write", plus, for a
+  signed-in user, a line that a connected assistant keeps its access until Disconnect AI connectors.
+- The welcome's Ours step still promised "nobody can make your morning heavier" (the claim the truth check had
+  already corrected on the landing): now the same honest line.
+- German Ours capitalised in the last two places ("In Unserer Liste").
+
+**Store rules:** one App Store badge per layout (Apple): the iPhone closing repeats the action as a plain link;
+Android is now credited in the trademark line beside Google Play (Google's brand rule). Each badge's spoken name
+now starts with the words printed on that badge (WCAG 2.5.3), from new landing.* keys.
+
+**Engineering:** the page resets the body margin itself (it painted 8px wider until the app bundle arrived, then
+jumped); the column is 640 of content on a laptop (the gutters were eating it, so the English headline wrapped);
+lists keep `role="list"` (WebKit drops list semantics under list-style:none, so VoiceOver lost "1 of 3"); the bold
+face is preloaded; without JavaScript the template's bare "enable JavaScript" line is gone and a calm note under
+Begin says the browser version needs it (Begin would only loop back to the landing); CI now RUNS the shipped boot
+(`scripts/check-landing-boot.mjs`) instead of grepping a string the stylesheet always contains; the French spacing
+test now rejects a plain space (its old class let one through); the capture script refuses a crop that runs past
+the viewport (Playwright trimmed it silently, so the German Calendar box was 3px too tall) and records each size
+from the PNG it wrote, and a test compares every reserved box with its WebP header. The Close-the-day crop follows
+the screen's text, and the shared-list crop keeps both tab words (French wraps them) and the whole fourth row.
+
+**Refuted (no change):** that the first brain dump can land elsewhere (only by choosing Sort for me, which the next
+sentence names); the English docs link needs more than hreflang; Turn AI off as a per-device switch needs saying;
+straight apostrophes beside curly quotes; the intro-to-first-moment spacing.
+
+## 2026-10-18: a task in parts, over MCP and the REST API (stepped tasks, commit 1 of 2)
+
+The Backlog's "MCP: stepped tasks", built from the adversarially reviewed design
+(`docs/design-source/mcp-stepped-tasks-design.md`, with the app and server maps beside it). Melroy made the four
+calls on the day, all as recommended: `parts` plus `count`; the server only ever finishes a big task, with one rule
+at every level; offered-only telemetry for now, with the 5% trigger; and the R11 merge fix ships alongside as its own
+client commit. This commit is the PARTS half (the app's "Track in steps", the `slices` column). Linked steps, the
+`add_steps` tool and the finish walk are the next commit, on top of the same `server/src/steps.ts`.
+
+**Decided: the count is called `parts`, never `steps`.** In this API `steps` already means two things, `break_down`'s
+hint and (next commit) the array of linked steps. The app's own copy says "Count it in parts", and every description
+also names "Track in steps" so a model can match what the person says. MCP `add_task` and `update_task` take
+`parts` (2 to 50, the app editor's bounds, one-offs only). REST has `partsTotal` and `partsDone`, flat, the same on
+read and write.
+
+**Decided: `complete_task`'s tick count is `count`, not `parts`.** `parts` is the total on the other two tools, so a
+delta under the same name is exactly the trap the design warned about.
+
+**Decided: +1 by default, on BOTH MCP done paths.** `complete_task` and `update_task done: true` go through one
+read-first `planDone` and write the same bytes for the same row (a test pins it). A tap in the app is +1, and the
+asymmetry decides it: the sync merge keeps the highest `slices.done` it has ever seen (`sync-merge.ts`), so an
+over-tick that reaches a device can never be taken back, while an under-tick costs one more call. Only an explicit
+`count`, REST `partsDone` or REST `done: true` goes further.
+
+**Decided: parts never go down, anywhere.** MCP `done: false` on a task in parts is refused ("Parts only go
+forward. Every device keeps the highest count it has seen, so a lower one would spring straight back."). REST answers
+409 to a lower `partsDone` and to `done: false` on parts. **[Corrected 2026-10-18, after the review of the build:
+this entry first said the app's own "Undo a step" stays the way back, and the refusals said "Step one back in the
+app". It is not a way back for an agent's or the API's tick.]** Undo a step is a local edit, and the only push path
+pulls and merges first, where `reconcileConflict` keeps the higher count, so an undo holds only until the count has
+synced, which a count written on the server always has. With R11 (below) an undo of the last part of a task an agent
+finished even puts it back in Done on the next sync. The honest path, in the docs and not in the refusal: make it
+whole (`parts: null` / `partsTotal: null`) then set the parts again, with the caveat that a device which has not
+synced in between brings the old count back.
+
+**Decided: REST is absolute, MCP is relative.** An HTTP integrator retries, so `partsDone: 4` must land the same row
+twice (equal is a 200 with no write). A model reasons best with "one more". REST `done: true` FILLS every part, as
+Done in Focus does. Both run through `advanceParts` in `steps.ts`, and a parity test feeds MCP and REST the same
+answers and asserts the same columns under the same guard, for a part and for the last part.
+
+**Decided: every parts write is pinned to the counts it read.** The PATCH filters on `slices->>done` and
+`slices->>total` equal to the STORED text (`is.null` where a key is absent), plus `done=is.false`. Both keys,
+because the write sends the whole object and pinning `done` alone let a resize made a moment earlier be reverted.
+The stored text, never the cleaned value, because a malformed row (2.7, or 7 of 5) never equals its cleaned form and
+the agent would loop on "try again" for good. A guarded write that matches nothing answers "It changed just now"
+(MCP) or a 409 (REST).
+
+**Decided: the read-first order.** A task waiting on its steps is refused (neutral wording, a made-tiny task looks
+the same), then a repeat is ticked by the day as before, then a task already done says "Already done." and writes
+nothing, then parts, then a one-off close guarded by `done=is.false`. "Already done" comes before parts on purpose:
+rows the old flaw left done at 2 of 5 would otherwise meet the parts guard and loop. And a second close no longer
+re-stamps `completed_at`, which used to move the task in the Lookback (REST the same).
+
+**Decided: a row the merge left at every part ticked but still open is closed by the next tick.** A tap in the app is
+a no-op at the limit, so the server is the one place that can still close it. The R11 client fix, which stops the
+merge making that row, is still its own commit.
+
+**Decided: `update_task` with `parts`, `done` or a new `repeat` is one read, then ONE PATCH** with any title or due
+change riding in it, judged on the task as it will stand (so `{repeat: null, done: true}` still closes the one-off it
+makes). It used to PATCH the fields and then read and write again. A new repeat is now refused on a task in parts, a
+task waiting on its steps and a step (each closes by being done once). `parts` with `done`, or with a new repeat, is
+refused before any read (one change of shape at a time). A title or due change alone is still one plain write.
+
+**Decided: every `add_task` reply ends with the new id**, so an agent can tick what it just added without a list
+call. The replies' text changed, and the tests that pinned it changed with it.
+
+**Decided: the versions.** OpenAPI 1.2.3 to 1.3.0 and the MCP server 1.0.0 to 1.1.0, bumped here because the schemas
+change here. The steps commit rides the same versions: both go out in one Worker deploy.
+
+**Decided against:**
+- `steps` as the name, and `parts` as the tick count (two meanings each).
+- `update_task done: true` filling every part (the draft): a second tool must not make a permanent over-tick in one
+  call.
+- A relative REST count (a retried request would tick twice) and an absolute MCP count (models count badly, and +1 is
+  the tap).
+- Guarding on the cleaned counts, or on `done` alone.
+- Reading the stored text through an aliased `slices->>done` select: exact, but it puts a new PostgREST form under
+  every tick to cover a hand-typed `3.0` that no client writes. The text is rebuilt from the parsed JSON instead, and
+  the worst case is a calm "it changed just now".
+- Parts on a repeating task (the app's capture never offers it, and a repeat is ticked by the day).
+- Bumping the app's `slices.defined` counter from the server: it measures the held card, and agent writes would blur
+  it.
+- A migration: `slices` is synced and live (every client upsert names it).
+
+Also: a shared `server/src/fetch-sequence.test-helper.ts` replaces the four copies of the fetch stand-in, so MCP and
+REST are driven the same way. Manual cases MCP-23 and API-05, and API-03 now reads 1.3.0. Server tests 776 (77 new).
+
+## 2026-10-18: linked steps over MCP and the REST API, and the last step closes the big task (stepped tasks, commit 2 of 2)
+
+The second half of the reviewed design (`docs/design-source/mcp-stepped-tasks-design.md`, with the two maps beside
+it), on top of commit 1's parts and the same `server/src/steps.ts`. Before this, an agent could break nothing down:
+`break_down` proposed, then `add_task` per step made plain, unlinked tasks, so ticking the last one never closed the
+big task, unlike the app. And an agent or integration ticking the last step of a breakdown made IN the app left the
+big task hidden, out of every agent read, until a phone opened and repaired it.
+
+**Decided: ONE accept tool, `add_steps`, and it REVERSES a line from 2026-07-07.** The "MCP tools expansion" entry
+says `break_down` "returns the steps ... and a separate add_task commits them". That line made the unlinked steps.
+Propose-then-accept stays exactly as it was: `break_down` still writes nothing, `add_steps`' description allows it
+ONLY after the person has said yes to these exact steps (as they edited them, or as they dictated them), and the
+chat is still the review surface. One tool with one job, not a `steps` array on `add_task` / `update_task`, which
+already juggle the `due` / `repeat` either-or: one job is easier for a model to call correctly. Named `add_steps`,
+not `accept_breakdown`, because it also takes steps a person dictates with no AI involved.
+
+**Decided: the rows are the app's own.** What `bdAccept` / `manualBreakdownSubmit` write (`client/src/app/today.tsx`):
+the big task `silent_parent: true`, `open_parent: false` (a breakdown, not a made-tiny task), `complexity` the summed
+minutes (only when a step has minutes, as the AI path does and the manual path does not); each step a one-off child
+with `parent_id`, `parent_title`, the title `"{title} ({m} min)"`, `complexity` the minutes as an integer, its day
+or null for today, and `created_at` 1 ms apart in order. Every row carries the same key set with explicit nulls,
+because a mixed-key batch is refused (PGRST102). German writes "Min.", the server cannot know the language, and
+"min" is accepted there. Ids come from one base per call, `-p` for the big task and `-<i>` for each step, unique by
+construction. A step title is tidied the way the capture box tidies a pasted list (a leading `• `, `- `, `* `,
+`1. `), and a trailing `(5 min)` becomes its minutes, so the list `break_down` printed can be passed straight back.
+
+**Decided: `title` mode is ONE insert, so it is atomic; `task_id` mode is read, insert, then a guarded hide, with a
+compensating tombstone.** The hide comes last because a hidden task with no children is one the app's repair never
+touches, so it would stay out of sight for good. The hide is pinned to the task as read: not removed, `done=is.false`,
+`silent_parent=not.is.true`, and `recurrence` / `slices` `is.null` ONLY when they read empty (a `{kind: 'none'}`
+repeat or a malformed count reads as none to the shared classifier but would never match `is.null`, and every retry
+would fail the same way). A hide that misses or fails tombstones exactly the inserted ids, and the reply says nothing
+was added; if even that fails, it says some steps may have landed. Accepted (R1): a Worker that dies between the
+insert and the hide leaves steps beside a visible task, untidy but nothing lost, and a retry adds a second round.
+Accepted (R10): a retried `title` call that had actually landed makes a duplicate, as `add_task` can.
+
+**Decided: two steps at least, twenty at most.** Since 1.8.0 a big task with one step in its round is brought back
+on that step's tick, never finished (`decide()`, the 2026-10-04 safe rule), so a one-step breakdown would never close
+itself. The app's manual breakdown allows one; an agent must not be able to set that trap.
+
+**Decided: the server only ever FINISHES, and with ONE rule at every level (Melroy's call, the design's pick).** A
+big task is finished when it is hidden, open, not removed, not a made-tiny task (`open_parent` not true), has two or
+more children in its current round, and every live child is done on the day. The write is `done`, `completed_at`
+the step's own (so the whole thing lands on the step's day in the Lookback) and `silent_parent: false`, guarded on
+`done=is.false`, `silent_parent=is.true`, `open_parent=not.is.true`. It never writes `open_parent`, `left_off` or
+`shared_ref`. Every other case is left to the app's repair (`healStuckParents`, in 1.8.0, live on both stores), which
+reaches the same end state on done, hidden and deleted on the next open. **[Corrected 2026-10-18, after the review
+of the build: the same end state on those three, not on `open_parent`.]** A stale tiny flag on a task with steps
+still open is cleared by the app's own tick of one of its steps (`decide()` clears it on any tick once the round has
+two or more), never by an agent's, because the server never writes it, and the repair leaves a task with an open step
+alone. Both paths agree again at the last step. Cosmetic: the open steps keep the "a tiny step toward" eyebrow until
+then. The fixture has the case and pins what each path leaves (`openParentDiffers`).
+- **Why finish-only:** bringing a task back, retiring a spent pebble and the repair's bring-back all MOVE the child's
+  "Where you left off" line onto the parent, and the server never reads or writes `left_off`, a documented privacy
+  line. Retiring a pebble without moving its line would lose the person's words.
+- **Why one rule, with no flag clearing:** the app clears a stale tiny flag at the direct parent and then walks, but
+  above it `decide()` clears the flag and its `'walk'` is ignored, so it finishes nothing there. Copying that would
+  add a flag write for a legacy case the repair already handles. The only loss is the agent's "that's the whole
+  thing" line for a task made tiny on 1.8.0 and later broken down on 1.7.0.
+- **A round of none at the direct parent** (only reachable with clock skew) is left to the repair, which brings it
+  back where the in-app tick would finish it. The safe direction, accepted.
+- **Ported, not imported, and proven:** `currentRound` and `isDoneOn` exactly, with the client's own timestamp parse.
+  `server/src/settle-cases.json` holds 16 cases, run by the server against `planFinish` and by
+  `client/src/lib/settle-parity.test.ts` (a test-only client file) against the real `settleCompletions` and
+  `healStuckParents`, asserting (a) the server never finishes what the app would not, (b) the server's finishes then
+  the repair reach the end state, and (c) the app alone reaches the same one. (b) with (c) is the proof that leaving a
+  case to the app loses nothing. The draft's fixture asserted "the app brings something back exactly when the server
+  leaves it to the app", which is false for an ancestor with a stale tiny flag (`decide()` clears it and brings
+  nothing back); the end-state comparison replaces it, and that case is in the file.
+
+**Decided: a reply never claims a close that did not land.** "That was the last step, so "X" is done too. That's the
+whole thing." only when a finish landed and nothing hidden waits above it; "2 of 4 steps toward "X" done." while
+steps are open; "X will sort itself out next time DoubleDone opens." for every case the app decides, and for a
+failed read, a failed write or a write a phone beat, because it may finish or come back and the reply says neither.
+The walk's own fetches are caught: the step's write has landed by then, so a walk failure must never read as a failed
+tick the agent then retries.
+
+**Decided: neutral words for a step.** `list_today` / `list_upcoming` mark `(toward "X")`, or `(a step)` when the row
+has no `parent_title` (steps from before 2026-10-04). A made-tiny pebble carries `parent_id` and `parent_title` too,
+and nothing on the row tells the two apart without reading the parent, so "step of" and "is broken into steps" would
+mislabel a tiny task. The REST field is `hidden`, not `brokenDown`, for the same reason.
+
+**Decided: `update_task done: false` on a step reopens the step alone** (the app's untick never reopens a finished
+parent), and **a big task's rename is never copied onto its steps' `parent_title`**: bumping `updated_at` on sibling
+rows would beat a device's unsynced edit on those steps, and a slightly stale marker is the cheaper failure.
+
+**Decided: REST at parity, because writing steps is CRUD.** `steps` on `POST /tasks` (never with `due`, `repeat` or
+`partsTotal`: the big task has no day of its own), a new `POST /tasks/{id}/steps` (`201 {task, steps}`, 404, 409 for
+done / repeating / in parts / already hidden, 409 when the hide missed and nothing was added), `parentId`,
+`parentTitle` and `hidden` on every task, and `finished: Task[]` (topmost last) on a PATCH whose close finished a big
+task. This rewords the 2026-07-07 REST parity line ("Break-it-down and AI actions are MCP-only"): AI actions stay
+MCP-only, linked steps are CRUD on both. A parity test feeds both surfaces the same answers and asserts the same
+bodies and guards for the step's close, the big task's finish, and a breakdown's rows (ids aside) and hide. OpenAPI
+stays 1.3.0 and the MCP server 1.1.0, set in commit 1: both commits go out in one Worker deploy.
+
+**Decided: `readOnlyHint: true` on `list_today`, `list_upcoming`, `search`, `fetch` and `break_down`** (which changes
+nothing of the person's). The writers keep the protocol defaults (`readOnlyHint: false`, `destructiveHint: true`),
+already the cautious signal, so an explicit false would add nothing.
+
+**Decided: telemetry is offered-only for now, a conscious exception to "Telemetry before traffic" (Melroy's call).**
+`break_down` now logs `output: {steps}` in full, as the app's own `/decompose` does (the privacy policy's "the
+returned JSON" covers it). The completion half is deferred: nothing ties an agent-written step back to its offer until
+the parked `decomposition_id` / `decomposition_steps` columns exist. **Trigger to pull that migration forward:** MCP
+breakdowns reach about 5% of all offered breakdowns over four weeks. Numerator: `ai_calls` rows with
+`endpoint = 'decompose'` and `input.via = 'mcp'`. Denominator: every `plan` row plus every `decompose` row, because
+the app's own breakdown runs through `/plan` (`today.tsx`), so counting `decompose` rows alone (the draft's trigger)
+would wildly overstate the MCP share.
+
+**Decided: Calendar A4 is parked, not changed.** In `task_id` mode the hidden big task keeps its own `due`, and the
+Calendar's `scheduledByDay` has no `silentParent` check, so it still shows as planned on that day, exactly as an
+app-made breakdown does today. Backlog, trigger: the next Calendar change or a report.
+
+**Decided against:**
+- `add_task` per step (the old line), and a `steps` array on `add_task` / `update_task`.
+- A proposal token `add_steps` must echo: it could only prove `break_down` ran, never that a person said yes, and it
+  would block steps a person dictates. Consent theatre.
+- The server bringing a task back, retiring a pebble or clearing a stale tiny flag (the `left_off` line, and one
+  rule), and writing `open_parent` from the walk.
+- Encoding the offer's `corrId` in step ids: it would only cover agent ticks while most steps are ticked on the
+  phone, so the signal would be biased.
+- Bumping the app's `slices.defined` counter, or any app counter, from the server.
+- One-step breakdowns, a phase concept, a language parameter, and Make it tiny over MCP.
+- Folding the walk's two reads into one `or=(id.eq.P,parent_id.eq.P)`: a round trip fewer, but a new grammar (and id
+  quoting) under every tick.
+- Pulling the `decomposition_id` migration forward without Melroy's word.
+- A migration: every column used is synced and live (`open_parent` and `parent_title` are probed by
+  `check-migrations.py`; `slices`, `parent_id`, `silent_parent` and `complexity` are named on every client upsert).
+
+Next, separately: the Tier 2 `fix` commits (`fetch`'s status lines, refusing `delete_task` / DELETE on a hidden task,
+the `deleted_at` guard on `update_task` / `delete_task`, the OpenAPI drift fixes), and R11 as its own client
+`fix(sync)` commit. Manual cases MCP-20, MCP-21, MCP-22, MCP-24 and API-04; MCP-01 and MCP-15 now name `add_steps`,
+API-03 the steps route. Server tests 870 (94 new), client 1327 (46 new, the parity test).
+
+## 2026-10-18: stepped tasks, the follow-up fixes (Tier 2) and the R11 merge fix
+
+The separate `fix` commits the reviewed design (`docs/design-source/mcp-stepped-tasks-design.md`, section 6) lists
+for the same Worker deploy as the two stepped-tasks commits, and R11, the client merge fix, as its own commit
+(Melroy's call). One heading, a part per commit.
+
+**Never write a removed task (finding 4 of the server map).** MCP `update_task`'s plain field change and
+`delete_task`, and REST `DELETE`, now carry `deleted_at=is.null`, as every other write on both surfaces already did.
+Before, a rename of a removed task answered "Updated." for a task nobody could see, and a second removal re-stamped
+the tombstone's time, which the app's repair reads to recognise a task folded by Combine and to keep Remove's Undo
+on offer. A removed task now answers "No matching task found." over MCP. REST `DELETE` still answers `204` when
+nothing matched, so a retried delete stays harmless. Decided against: a 404 on a repeated REST delete (it would make
+a retry look like a failure, and the route has never returned one).
+
+**The OpenAPI spec says what the routes do (the design's drift list).** The plain list is every task that is not
+deleted, finished, repeating and hidden ones included (it said "open and dated"); `DELETE` no longer lists a `404`
+it never returns; a `due` day is no longer called "future", because only its shape is checked; and the four REST
+repeat errors, which each listed their own kinds and all left out monthly, now come from one line that names it.
+Decided against: enforcing a future `due` to match the old words (the app and MCP both take a past day, which
+lands on today), and wiring the unused `InternalError` response into every operation in the same commit (not on
+the design's list; the 500 is documented in `docs/api.md`).
+
+**A task waiting on its steps is not removed on its own (design section 4, Tier 2).** MCP `delete_task` refuses it
+(""X" is waiting on its steps, so it can't be removed on its own. Remove its steps first ..."), and REST `DELETE`
+answers `409`. Removed alone, the big task would leave its steps on the list with nothing left for them to close,
+and it is on no list, so the agent cannot see what went. The id is reachable: `add_steps`' `task_id` mode is
+handed it. Removing the steps brings it back on the app's next open (every step gone means it comes back open),
+and then it removes like any task. **[Corrected 2026-10-18, after the review of the build: only when ALL of them
+go, done ones too.]** An agent sees only open steps (every list reads `done=is.false`), and two or more done steps
+left behind make the repair FINISH the big task, the opposite of removing it. So the refusal now also reads its
+steps (`removalAdvice` in `steps.ts`, the repair's own round over the done ones) and, in that case, says so and
+names every live step; REST carries `stepIds` on every waiting `409`. Both surfaces now read first, and the tombstone is pinned to the row as read
+(`silent_parent=not.is.true`); a write that then misses is "It changed just now" over MCP and a `409` over REST. A
+step still deletes alone with no walk, the same as the app's Remove. REST still answers `204` when nothing live
+matches, so a retried delete stays harmless.
+Decided against: removing the steps along with the big task (that is the parked "remove a whole breakdown", trigger:
+the first person who asks), and a `404` for a REST delete that finds nothing.
+
+**`fetch` names a task's real state (design section 4, Tier 2, with the server map's finding 5).** The hidden big task
+of a breakdown (or a task made tiny) read "on today", which it is not: it is on no list. It now reads "waiting on its
+steps". A task in parts adds its count after the day ("on today, 3 of 10 parts done"), cleaned as the app cleans it.
+And a removed task is now a miss, the calm "no longer available" document, because the read gained
+`deleted_at=is.null`: the code's own comment and `docs/mcp.md` always treated "deleted since search" as a miss, but
+the read had no filter, so a removed task came back "on today". Folded into this commit because it is the same read
+and the same wrong line. Decided against, for now: the big task's step progress in `fetch` ("2 of 4 steps done"),
+which needs a read of its children on every fetch (parked, trigger: the next Deep Research change or a report); and
+moving `fetch`'s repeat check onto the shared classifier (finding 6, latent, a `{kind: 'none'}` row only).
+
+**R11, the client merge fix: a task whose parts are all ticked after a merge is done (Melroy's call: ships alongside,
+its own commit).** `reconcileConflict` took the higher `slices.done` of the two copies but the last-write winner's
+`done`, so a task finished on one side (a last tap, now also an agent's tick) and edited on the other before that side
+pulled came out "5 / 5" and open, and a tap at the limit is a no-op (`applySliceDelta`), so nothing in the app could
+ever close it. Agents made it more reachable, which is why it ships with them. Now, when the merged count ticks every
+part of a live one-off that is not done, the merge sets it done, with `completedAt` from the side that finished it,
+else either side's stamp, else the newer `updatedAt`, so it lands in the Lookback on the right day. It is also
+pushed, because otherwise the server would keep the open copy and every device would close it again on every sync
+without the server ever learning it. Kept: the merge keeps the higher count, so an "Undo a step" made on one device
+after the other ticked the last part still springs back, now to done rather than to a stuck open row (R4, accepted).
+Decided against: closing a repeating task this way (a repeat closes by the day, and a `done` series vanishes from
+every agent read), touching a tombstone, and recomputing `done` downward when the merged count is short of the total
+(a task can be done with parts left: Done in Focus fills them, but an old row may not have).

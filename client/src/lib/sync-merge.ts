@@ -3,6 +3,7 @@
 // No network, no Supabase, no clock, so it is fully unit-testable (sync-merge.test.ts).
 // The integration seam that actually talks to Supabase lives in sync.ts and calls this.
 
+import { sliceComplete } from './slices';
 import { type Task } from './tasks';
 
 /**
@@ -66,8 +67,8 @@ export function mergeTasks(local: Task[], remote: Task[]): MergeResult {
       // Whole-row LWW would silently lose a synced completion or slices progress the loser holds, and would
       // drop the local-only fields when the remote row wins. Reconcile instead: take the LWW winner, but
       // union completedDates (grow-only, so an offline recurring tick is never erased), keep the max
-      // slices.done, seed a tie-held big (the pre-column migration, see reconcileConflict), and carry the
-      // local-only manualOrder. Push when local won OR the reconciliation grew the synced data beyond the
+      // slices.done (and close the task when that ticks every part), seed a tie-held big (the pre-column
+      // migration, see reconcileConflict), and carry the local-only manualOrder. Push when local won OR the reconciliation grew the synced data beyond the
       // server's remote copy, so the server converges too.
       const reconciled = reconcileConflict(l, r);
       merged.push(reconciled);
@@ -75,6 +76,7 @@ export function mergeTasks(local: Task[], remote: Task[]): MergeResult {
       const grewBeyondRemote =
         (reconciled.completedDates?.length ?? 0) > (r.completedDates?.length ?? 0) ||
         (reconciled.slices?.done ?? 0) > (r.slices?.done ?? 0) ||
+        (reconciled.done && !r.done) || // a task in parts the merge closed (reconcileConflict), so the server learns it too
         (reconciled.big === true && r.big !== true) ||
         SEEDED_FIELDS.some((key) => reconciled[key] != null && r[key] == null);
       if (localNewer || grewBeyondRemote) toPush.push(reconciled);
@@ -94,9 +96,10 @@ export function mergeTasks(local: Task[], remote: Task[]): MergeResult {
 
 // Reconcile a task present on both sides. The LWW winner is the base, but the synced completion data is made
 // monotonic so a tick or progress made on one device is never erased by a newer unrelated edit on another:
-// completedDates is unioned (grow-only) and slices.done takes the max. The local-only fields (never sent
-// to the server, LOCAL_ONLY_FIELDS) are carried from the local copy instead of being dropped when the
-// remote row wins. This is the never-lose-a-task, never-shame-by-disappearance guarantee, made real in sync.
+// completedDates is unioned (grow-only) and slices.done takes the max, closing the task when every part is then
+// ticked. The local-only fields (never sent to the server, LOCAL_ONLY_FIELDS) are carried from the local copy
+// instead of being dropped when the remote row wins. This is the never-lose-a-task, never-shame-by-disappearance
+// guarantee, made real in sync.
 function reconcileConflict(l: Task, r: Task): Task {
   const out: Task = rank(l.updatedAt) > rank(r.updatedAt) ? { ...l } : { ...r };
 
@@ -106,6 +109,14 @@ function reconcileConflict(l: Task, r: Task): Task {
   if (out.slices) {
     const done = Math.max(l.slices?.done ?? 0, r.slices?.done ?? 0);
     out.slices = { total: out.slices.total, done: Math.min(done, out.slices.total) };
+    // Every part ticked means done (applySliceDelta keeps the two in step). The count is the max of both sides but
+    // `done` is the winner's, so a task finished on one side (a last tap, an agent's tick) and edited on the other
+    // before that side pulled came out "5 / 5" and open, and a tap at the limit does nothing, so nothing could ever
+    // close it (R11, 2026-10-18). A live one-off only: a repeat closes by the day, and a tombstone stays as it is.
+    if (sliceComplete(out.slices) && !out.done && out.deletedAt == null && (out.recurrence == null || out.recurrence.kind === 'none')) {
+      out.done = true;
+      out.completedAt = finishedAt(l, r);
+    }
   }
 
   // big syncs by plain LWW (marking or clearing bumps updatedAt, so the winner's value is the truth), with
@@ -127,6 +138,19 @@ function reconcileConflict(l: Task, r: Task): Task {
   }
 
   return out;
+}
+
+/** When a task in parts the merge closes was finished: the side that finished it says when; failing that, either
+ *  side's stamp; failing that, the newer edit, the last moment either side saw it. Undefined only when both stamps
+ *  are corrupt, rather than a time that is not one. */
+function finishedAt(l: Task, r: Task): number | undefined {
+  const stamp = (t: Task) => (typeof t.completedAt === 'number' && Number.isFinite(t.completedAt) ? t.completedAt : undefined);
+  const byDone = [l, r].find((t) => t.done && stamp(t) !== undefined);
+  if (byDone) return stamp(byDone);
+  const any = stamp(l) ?? stamp(r);
+  if (any !== undefined) return any;
+  const newer = Math.max(rank(l.updatedAt), rank(r.updatedAt));
+  return Number.isFinite(newer) ? newer : undefined;
 }
 
 /** A pre-column value from the local copy onto a tied reconciliation (see SEEDED_FIELDS). */

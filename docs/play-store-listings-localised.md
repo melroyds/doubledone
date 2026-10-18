@@ -76,7 +76,7 @@ The full English description is in
 Ruhige To-dos für ADHS und Überforderung. Nur heute. Nichts ist je überfällig.
 ```
 
-**Full description** (3063 / 4000)
+**Full description** (3216 / 4000)
 
 ```
 Heute ist überschaubar und machbar.
@@ -119,12 +119,16 @@ Privat von Haus aus
 
 du darfst langsam machen
 
+DoubleDone ist kein Medizinprodukt. Die App diagnostiziert, behandelt, heilt oder verhindert keine Erkrankungen und ersetzt keine professionelle Hilfe.
+
 Die Datenschutzerklärung, in klarem Englisch: doubledone.app/privacy
 ```
 
 <details><summary>What was trimmed, and why those lines were the safest to lose</summary>
 
 **2026-09-27, Path C:** the whole Premium block went (the heading, nine bullets, the trial and A$ price line, the Stripe line). Full description now 3063 characters. Everything below is the 2026-08-16 record.
+
+**2026-10-16:** the not-a-medical-device line went in just before the privacy line, matching the English listing (a5d3031). Full description now 3216 characters.
 
 Full description: 4005 to 3909 characters (96 cut, 41 under the 3950 target). Short description: 78 characters.
 
@@ -154,7 +158,7 @@ Short description, 78 characters: "Ruhige To-dos für ADHS und Überforderung. N
 Tu lista para el TDAH y el agobio. Solo hoy. Aquí nada está nunca atrasado.
 ```
 
-**Full description** (3174 / 4000)
+**Full description** (3319 / 4000)
 
 ```
 Hoy es finito y alcanzable.
@@ -199,12 +203,16 @@ PRIVADO POR DEFECTO
 
 tienes permiso para ir despacio
 
+DoubleDone no es un producto sanitario. No diagnostica, trata, cura ni previene ninguna afección, y no sustituye la atención de un profesional.
+
 Lee la política de privacidad, en lenguaje claro, en doubledone.app/privacy.
 ```
 
 <details><summary>What was trimmed, and why those lines were the safest to lose</summary>
 
 **2026-09-27, Path C:** the whole Premium block went (the heading, eight bullets, the trial and A$ price line, the Stripe line). Full description now 3174 characters. Everything below is the 2026-08-16 record.
+
+**2026-10-16:** the not-a-medical-device line went in just before the privacy line, matching the English listing (a5d3031). Full description now 3319 characters.
 
 4372 to 3933 characters (cap 4000, target 3950). Short description is 75 characters.
 
@@ -231,7 +239,7 @@ Short description: lifts the app's own Spanish. "Solo hoy" is the today subtitle
 Pour le TDAH et la surcharge. Juste aujourd'hui. Rien n'est jamais en retard.
 ```
 
-**Full description** (2913 / 4000)
+**Full description** (3101 / 4000)
 
 ```
 Aujourd'hui a une fin, et tu peux y arriver.
@@ -276,12 +284,16 @@ PRIVÉ PAR DÉFAUT
 
 tu as le droit d'aller doucement
 
+DoubleDone n'est pas un dispositif médical. L'appli ne diagnostique, ne traite, ne guérit ni ne prévient aucun problème de santé, et ne remplace pas le suivi d'un professionnel de santé.
+
 La politique de confidentialité, en clair : doubledone.app/privacy.
 ```
 
 <details><summary>What was trimmed, and why those lines were the safest to lose</summary>
 
 **2026-09-27, Path C:** the whole Premium block went (the heading, nine bullets, the trial and $A price line, the Stripe line), and so did ", et, avec Premium, lit la photo d'une liste et en fait des tâches" from the AI paragraph, which now reads "elle trie ce que tu déposes et décompose une tâche difficile." Full description now 2913 characters. Everything below is the 2026-08-16 record.
+
+**2026-10-16:** the not-a-medical-device line went in just before the privacy line, matching the English listing (a5d3031). Full description now 3101 characters.
 
 4029 to 3853 characters, verified in Python (UTF-8, trailing newline excluded), so 97 under the 3950 target and 147 under Google's cap. Every cut was a repeat, never a fact, and no bullet was lost: the adjective and clause layer alone freed enough room, so both bullets I first removed (Regrouper, Silencieuse) went back in.
 
@@ -311,7 +323,7 @@ Short description, 77 characters. It lifts the app's own French: "Juste aujourd'
 Cose da fare per ADHD e per il troppo. Solo oggi. Niente è mai in ritardo.
 ```
 
-**Full description** (3029 / 4000)
+**Full description** (3201 / 4000)
 
 ```
 Oggi ha una fine, ed è fattibile.
@@ -355,12 +367,16 @@ PRIVATA DI DEFAULT
 
 hai il permesso di andare piano
 
+DoubleDone non è un dispositivo medico. Non diagnostica, non tratta, non cura né previene alcuna condizione di salute, e non sostituisce il supporto di un professionista.
+
 La privacy, in parole semplici, su doubledone.app/privacy.
 ```
 
 <details><summary>What was trimmed, and why those lines were the safest to lose</summary>
 
 **2026-09-27, Path C:** the whole Premium block went (the heading, eight bullets, the trial and A$ price line, the Stripe line), and so did ", e, con Premium, legge la foto di una lista e ne fa attività" from the AI paragraph, which now reads "ordina in una giornata quello che hai buttato giù e divide in passaggi un'attività difficile." Full description now 3029 characters. Everything below is the 2026-08-16 record.
+
+**2026-10-16:** the not-a-medical-device line went in just before the privacy line, matching the English listing (a5d3031). Full description now 3201 characters.
 
 4247 to 3841 characters, 406 removed, 109 of headroom left under the 3950 target. What went, in order of how little it cost:
 

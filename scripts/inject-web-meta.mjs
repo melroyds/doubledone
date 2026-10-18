@@ -19,9 +19,12 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const HTML = join(ROOT, 'client', 'dist', 'index.html');
 
-const TITLE = 'DoubleDone · a calmer kind of to-do';
+const TITLE = 'DoubleDone · A calm to-do list for ADHD, autism and OCD';
+// The search result and link card (2026-10-18, Melroy's yes): the audience and the promise sit in the first
+// ~116 characters, so a phone result that cuts off near 120 still lands. Retires "a calmer kind of to-do",
+// which named nothing anyone searches for.
 const DESCRIPTION =
-  'A calm, never-shame daily to-do app. It shows you only what today needs and quietly keeps everything you finish. Made for ADHD, autism, and OCD. Nothing is ever overdue.';
+  'A calm to-do list for adults with ADHD, autism and OCD. It shows only what today needs, and nothing is ever overdue. Free, no account needed.';
 const SITE = 'https://doubledone.app';
 const IMAGE = `${SITE}/og.png`;
 const IMAGE_ALT = 'DoubleDone · Today, finite and achievable';
@@ -30,7 +33,8 @@ const esc = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 
 const META = `
     <meta name="description" content="${esc(DESCRIPTION)}" />
-    <meta name="theme-color" content="#FAF6F1" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FAF6F1" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1B1917" />
     <link rel="manifest" href="/manifest.json" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="${SITE}" />
@@ -82,15 +86,56 @@ if (!html.includes('interactive-widget=resizes-content')) {
 //
 // Browsers without dvh keep the 100% they had. Placed last in the head so it wins over the reset.
 const VIEWPORT_STYLE = '<style id="dd-viewport">#root { overflow: hidden; } html, body { overscroll-behavior-y: contain; } @supports (height: 100dvh) { html, body, #root { height: 100dvh; } }</style>';
-if (!html.includes('id="dd-viewport"')) html = html.replace('</head>', `  ${VIEWPORT_STYLE}\n  </head>`);
+// Function replacers throughout: a plain replacement string would expand $& or $' if a value ever carried one.
+if (!html.includes('id="dd-viewport"')) html = html.replace('</head>', () => `  ${VIEWPORT_STYLE}\n  </head>`);
 if (!html.includes('id="dd-viewport"')) {
   console.error('inject-web-meta: could not add the dynamic-viewport style — no </head> in the export?');
   process.exit(1);
 }
 
+// The static, crawlable landing page (2026-10-18, an external website audit: "search can't see it"). The SPA's "/"
+// was an empty <div id="root"> until the bundle ran, so Google and every link preview read nothing. This writes the
+// same landing page, built from the app's own catalogues by client/src/lib/landing-page.ts, into the HTML itself:
+// canonical + structured data (the site's name) + its stylesheet + a tiny pre-paint boot in <head>, the page at the start of
+// <body>. The boot shows it only to a fresh visitor at "/", so a returning user and every app route are untouched;
+// the contract is in that file's header. The TS module is bundled on the fly with esbuild (already in the tree,
+// via vitest), because node cannot import the catalogues' extensionless TS imports directly. Idempotent by its id.
+if (!html.includes('id="dd-landing"')) {
+  const { build } = await import('esbuild');
+  const out = await build({
+    entryPoints: [join(ROOT, 'client', 'src', 'lib', 'landing-page.ts')],
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    write: false,
+    logLevel: 'silent',
+  });
+  const mod = await import(`data:text/javascript;base64,${Buffer.from(out.outputFiles[0].text).toString('base64')}`);
+  const { head, body } = mod.buildLanding();
+  if (!/<body[^>]*>/.test(html)) {
+    console.error('inject-web-meta: no <body> in the export, cannot place the landing page');
+    process.exit(1);
+  }
+  html = html.replace('</head>', () => `  ${head}\n  </head>`).replace(/<body[^>]*>/, (tag) => `${tag}\n${body}\n`);
+  // Expo's template ends the page with a bare "You need to enable JavaScript to run this app." for no-JS visitors.
+  // The landing is the no-JS page now (with its own calm note under Begin), so the template's line would sit
+  // unstyled under the footer and be a crawler's last words. Remove it, loudly if the template ever changes.
+  const NOSCRIPT = /<noscript>\s*You need to enable JavaScript to run this app\.\s*<\/noscript>\s*/;
+  if (!NOSCRIPT.test(html)) {
+    console.error("inject-web-meta: the export template's <noscript> line was not found; check the export");
+    process.exit(1);
+  }
+  html = html.replace(NOSCRIPT, () => '');
+  if (!html.includes('id="dd-landing"') || !html.includes('id="dd-landing-boot"')) {
+    console.error('inject-web-meta: the landing page did not land in the export');
+    process.exit(1);
+  }
+  console.log(`inject-web-meta: static landing page injected (${Math.round(body.length / 1024)} KB of markup, 5 languages)`);
+}
+
 if (html.includes('property="og:image"')) {
   writeFileSync(HTML, html);
-  console.log('inject-web-meta: og:image already present; viewport ensured, nothing else to do');
+  console.log('inject-web-meta: og:image already present; viewport and landing ensured, nothing else to do');
   process.exit(0);
 }
 
@@ -99,6 +144,6 @@ if (!/<title>[^<]*<\/title>/.test(html)) {
   process.exit(1);
 }
 
-html = html.replace(/<title>[^<]*<\/title>/, `<title>${esc(TITLE)}</title>${META}`);
+html = html.replace(/<title>[^<]*<\/title>/, () => `<title>${esc(TITLE)}</title>${META}`);
 writeFileSync(HTML, html);
 console.log(`inject-web-meta: title + ${META.match(/<meta/g).length} meta tags + viewport injected into ${HTML}`);

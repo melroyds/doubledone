@@ -51,7 +51,7 @@ The daily loop is free. Premium is sold through each platform's own checkout: St
 - **Phones and the web.** An optional daily reminder (phone notifications, or web push), an Android home-screen widget, launcher shortcuts, and share-in from the Android share sheet, the iOS share extension or the installed web app.
 - **AI off.** One switch in Settings removes every generative AI feature, and the app runs without it.
 - **Your data.** No account needed. Optional email-code sign-in syncs across devices. Export your tasks to JSON, or delete your account and data from Settings.
-- **For agents and developers.** An [MCP server](docs/mcp.md) with nine tools (OAuth 2.1 sign-in, or a pasted token) and a [REST API](docs/api.md) (OpenAPI 3.1, v1.2.3, with [Swagger UI](https://api.doubledone.app/api/v1/docs)). Both act only on your own tasks with your own token.
+- **For agents and developers.** An [MCP server](docs/mcp.md) with ten tools, including linked steps that close the big task (OAuth 2.1 sign-in, or a pasted token) and a [REST API](docs/api.md) (OpenAPI 3.1, v1.3.0, with [Swagger UI](https://api.doubledone.app/api/v1/docs)). Both act only on your own tasks with your own token.
 
 **Premium** adds Scan, Pin, the colour themes, Chart a course (a goal turned into ordered steps), Plan my day, Your patterns, unlimited energy matching and weekly scrapbooks. A signed-in account can take one card-free month to try it. On the web Premium is A$5 a month or A$50 a year. The App Store and Google Play show their own local price. Break it down, Make it tiny, Lighten today, Sort for me, the Calendar, Routines, Rhythms, Ours, Settle and Quiet stay free.
 
@@ -186,7 +186,7 @@ DoubleDone is local-first and anonymous by default: with no account, your list l
 | [docs/README.md](docs/README.md) | The index of everything in `docs/` |
 | [docs/architecture.md](docs/architecture.md) | The solution architecture: components, routes, data stores and flows |
 | [docs/api.md](docs/api.md) | The public REST API, `/api/v1`, with OpenAPI 3.1 and Swagger UI |
-| [docs/mcp.md](docs/mcp.md) | The MCP server: both sign-in paths, the nine tools, connecting an agent |
+| [docs/mcp.md](docs/mcp.md) | The MCP server: both sign-in paths, the ten tools, connecting an agent |
 | [docs/testing.md](docs/testing.md) | The testing strategy, the gates and the manual suite |
 | [docs/operations.md](docs/operations.md) | Running the live service: the monitor, billing runbooks, releases |
 | [docs/product-spec.md](docs/product-spec.md) | What DoubleDone is, who it is for, and why it is shaped this way |

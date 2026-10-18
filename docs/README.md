@@ -22,8 +22,8 @@ DoubleDone is live on the web at [doubledone.app](https://doubledone.app), on th
 | File | What it is |
 |---|---|
 | [REST API](api.md) | The public REST API at `/api/v1`: your own token, the endpoints, the read modes, repeat cadences and worked examples. |
-| [OpenAPI source](../server/src/openapi.ts) | The OpenAPI 3.1 spec (version 1.2.3). The live copy is at [api.doubledone.app/api/v1/openapi.json](https://api.doubledone.app/api/v1/openapi.json), with a browsable page at [api.doubledone.app/api/v1/docs](https://api.doubledone.app/api/v1/docs). |
-| [MCP server](mcp.md) | The remote MCP server for AI agents: connecting with a URL (claude.ai, Cowork, ChatGPT) or a pasted token, the nine tools, and the security model. |
+| [OpenAPI source](../server/src/openapi.ts) | The OpenAPI 3.1 spec (version 1.3.0). The live copy is at [api.doubledone.app/api/v1/openapi.json](https://api.doubledone.app/api/v1/openapi.json), with a browsable page at [api.doubledone.app/api/v1/docs](https://api.doubledone.app/api/v1/docs). |
+| [MCP server](mcp.md) | The remote MCP server for AI agents: connecting with a URL (claude.ai, Cowork, ChatGPT) or a pasted token, the ten tools, and the security model. |
 | [Connect Claude to DoubleDone](connect-claude-to-doubledone.html) | A plain-language guide for users, laid out to print on A4. GitHub shows its source, so download it and open it in a browser. |
 | [Connect guide, PDF](connect-claude-to-doubledone.pdf) | The printed copy of that guide. It was last updated in July 2026, so the HTML is newer. |
 

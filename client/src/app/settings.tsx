@@ -328,7 +328,10 @@ export default function SettingsScreen() {
   function turnAiOff() {
     setSettings({ aiEnabled: false });
     setConfirmingAi(false);
-    setAiNote(t('settings.aiOffNote'));
+    // The switch turns off the APP's AI features only. An AI assistant connected over MCP reads tasks server-side
+    // and never sees this device setting, so a signed-in user (the only one who can have connected one) is told
+    // plainly that it keeps its access until disconnected.
+    setAiNote(session ? `${t('settings.aiOffNote')} ${t('settings.aiOffAgentNote')}` : t('settings.aiOffNote'));
     track('ai.disabled');
   }
 

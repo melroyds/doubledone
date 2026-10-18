@@ -8,15 +8,18 @@ and the database's row-level security then scopes the call to exactly your rows.
 holds no elevated database key, so nothing here can reach anyone else's data.
 
 It is a create, read, update and delete surface with three read modes (search, look-ahead and
-Today) and repeat cadences. The repeat vocabulary and the cadence maths are the same code the
-[MCP server](mcp.md) uses, so a repeating task made here, by an AI agent or in the app has the
-same shape. The AI actions (Break it down) are on the MCP surface only. This API has none.
+Today), repeat cadences, parts and linked steps. The repeat vocabulary, the cadence maths, the parts
+rules and the step rows are the same code the [MCP server](mcp.md) uses, so a repeating task, one
+tracked in parts, or a task broken into steps, made here, by an AI agent or in the app has the same
+shape, and ticking the last step closes the big task whichever one ticks it. The AI that
+*proposes* steps (Break it down) is on the MCP surface only. Writing steps you already have is
+plain create and update, so it is here too.
 
 | | |
 |---|---|
 | Base URL | `https://api.doubledone.app/api/v1` |
 | Interactive docs (Swagger UI) | [`/api/v1/docs`](https://api.doubledone.app/api/v1/docs) |
-| OpenAPI 3.1 spec | [`/api/v1/openapi.json`](https://api.doubledone.app/api/v1/openapi.json), `info.version` **1.2.3** |
+| OpenAPI 3.1 spec | [`/api/v1/openapi.json`](https://api.doubledone.app/api/v1/openapi.json), `info.version` **1.3.0** |
 | Auth | `Authorization: Bearer <your DoubleDone token>` on every task call |
 | Format | JSON in, JSON out. Errors are `{ "error": "<plain message>" }` |
 | CORS | Open to any origin (the token is the auth, not the origin) |
@@ -56,9 +59,10 @@ a copied token.)
 | Method | Path | Does | Success |
 |---|---|---|---|
 | `GET` | `/tasks` | List your tasks. One read mode per call: `?q`, `?upcoming` or `?today` (see [Reading](#reading-get-tasks)). | `200 { "tasks": [ … ] }` |
-| `POST` | `/tasks` | Create a task. | `201 { "task": … }` |
+| `POST` | `/tasks` | Create a task, or a task with its linked steps. | `201 { "task": … }`, or `201 { "task": …, "steps": [ … ] }` |
+| `POST` | `/tasks/{id}/steps` | Break a task already on your list into linked steps (see [Linked steps](#linked-steps)). | `201 { "task": …, "steps": [ … ] }` |
 | `GET` | `/tasks/{id}` | Get one task. | `200 { "task": … }` |
-| `PATCH` | `/tasks/{id}` | Change a task's title, done, due day or repeat. | `200 { "task": … }` |
+| `PATCH` | `/tasks/{id}` | Change a task's title, done, due day, repeat or parts. | `200 { "task": … }`, plus `"finished": [ … ]` when closing a step finished its big task |
 | `DELETE` | `/tasks/{id}` | Remove a task (a soft delete). | `204`, no body |
 
 Every path above is relative to the base URL, so the full collection URL is
@@ -76,6 +80,11 @@ Every path above is relative to the base URL, so the full collection URL is
   "due": null,
   "recurrence": { "kind": "weekly", "weekdays": [1, 3, 5], "start": "2026-10-05" },
   "repeats": "Mon, Wed, Fri",
+  "partsTotal": null,
+  "partsDone": null,
+  "parentId": null,
+  "parentTitle": null,
+  "hidden": false,
   "createdAt": "2026-10-05T01:12:09.412+00:00",
   "completedAt": null
 }
@@ -89,6 +98,11 @@ Every path above is relative to the base URL, so the full collection URL is
 | `due` | string or null | `YYYY-MM-DD` for a dated one-off. `null` means undated, which the app shows on Today. In an `upcoming` listing only, a repeating task carries the day it next lands here. |
 | `recurrence` | object or null | The stored repeat rule, or `null` for a one-off. See [Recurrence](#recurrence). |
 | `repeats` | string or null | A short English summary of the rule, such as `"every day"`, `"Mon, Wed, Fri"`, `"every 3 days"` or `"every month on the 1st"`. `null` for a one-off. |
+| `partsTotal` | integer or null | The number of parts a one-off is tracked in (the app's **Track in steps**, such as 10 for a ten-episode series), or `null` for a whole task. See [Parts](#parts). |
+| `partsDone` | integer or null | How many of those parts are ticked, from 0 to `partsTotal`, or `null` for a whole task. The task is done when every part is. |
+| `parentId` | string or null | For a **step**, the id of the big task it belongs to. Ticking the last step closes that task. `null` for any other task. See [Linked steps](#linked-steps). |
+| `parentTitle` | string or null | For a step, its big task's title as the step recorded it when it was made. It is not updated when the big task is renamed, and steps made before the app's 1.8.0 may not carry it. |
+| `hidden` | boolean | `true` while the task waits behind its steps: broken down here, by an agent or in the app, or made tiny in the app. Its steps close it, or bring it back. |
 | `createdAt` | string | When the task was made. |
 | `completedAt` | string or null | When a one-off was finished, or `null`. |
 
@@ -96,8 +110,10 @@ A task is **never both dated and recurring**. It has a `due` day, or a `recurren
 neither. (The one exception is the `upcoming` listing described below, where a repeat's next
 day is shown in `due` for convenience. Nothing is stored that way.)
 
-Those eight fields are the whole shape. See [What this API does not expose](#what-this-api-does-not-expose)
-for what is left out on purpose.
+Those thirteen fields are the whole shape. See [What this API does not expose](#what-this-api-does-not-expose)
+for what is left out on purpose. The parts counts are cleaned the way the app cleans them before
+they reach you (whole numbers, `partsDone` never above `partsTotal`), so a malformed value a
+device once wrote reads as a whole task rather than as nonsense.
 
 ---
 
@@ -114,8 +130,8 @@ first match wins in this order: `q`, then `upcoming`, then `today`, then the pla
 | *(none)* | Every task you have that is not deleted: open and finished, one-off and repeating. | Oldest first |
 
 "Open" means not finished and not removed. The search, look-ahead and Today modes also leave out
-the hidden umbrella of a broken-down task, because the app hides it behind its steps until they
-are done.
+a task waiting behind its steps (`hidden: true`), because the app hides it until its steps are
+done. The plain list and `GET /tasks/{id}` return it, marked `hidden`.
 
 More on `upcoming`:
 
@@ -132,6 +148,8 @@ More on `upcoming`:
 { "title": "Book the dentist" }
 { "title": "Renew the rego", "due": "2026-10-20" }
 { "title": "Water the plants", "repeat": { "kind": "weekly", "weekdays": [1, 3, 5] } }
+{ "title": "Watch Severance", "partsTotal": 10 }
+{ "title": "Clear the garage", "steps": [{ "title": "Bag up the rubbish", "minutes": 5 }, { "title": "Take it to the tip", "minutes": 30 }] }
 ```
 
 | Field | Required | Rules |
@@ -139,10 +157,13 @@ More on `upcoming`:
 | `title` | yes | A non-empty string. Leading and trailing spaces are trimmed. |
 | `due` | no | A `YYYY-MM-DD` day for a one-off. A day of today or earlier shows on Today, as in the app. Only the shape is checked here (unlike `day` on an update), so send a real calendar day. |
 | `repeat` | no | A repeat rule (see [Recurrence](#recurrence)). |
+| `partsTotal` | no | A whole number from 2 to 50, to track the new one-off in parts, starting at none done. A `due` day is fine. A `repeat` is a `400`, because a repeat is ticked by the day. |
+| `steps` | no | 2 to 20 linked steps (see [Linked steps](#linked-steps)), to create the task already broken down, in **one** write. Not with `due`, `repeat` or `partsTotal` (a `400`): the big task has no day of its own, so give a step its own `due` instead. The title can then be at most 500 characters. |
 
 Send `due` **or** `repeat`, never both (that is a `400`). With neither, the task is undated,
 which puts it on your Today in the app. New tasks always start open. Answers `201` with the
-created task.
+created task, or, with `steps`, `201 { "task": …, "steps": [ … ] }`: the big task (`hidden: true`)
+and its steps in the order given.
 
 ---
 
@@ -157,9 +178,27 @@ Send any of these. At least one is required.
 | `day` | With `done` only: the `YYYY-MM-DD` day to tick or un-tick on a repeating task. It must be a real calendar day (`2026-02-30` is refused). Defaults to the UTC day. |
 | `due` | A `YYYY-MM-DD` day, or `null` to clear the date. Setting a day stops any repeat. As on create, only the shape is checked. |
 | `repeat` | A repeat rule, or `null` to stop repeating. Setting a rule clears the due day. |
+| `partsTotal` | A whole number from 2 to 50 to track the task in parts, or `null` to make it one whole task again. See [Parts](#parts). |
+| `partsDone` | A whole number: how many parts are ticked, as an **absolute** count. See [Parts](#parts). |
 
-`due` and `repeat` both non-null in one call is a `400`, because each one clears the other.
-Answers `200` with the task as it now stands, or `404` if there is no such task.
+`due` and `repeat` both non-null in one call is a `400`, because each one clears the other. So is
+more than one of `done`, `partsTotal` and `partsDone`, because each of them can finish the task,
+and so is `partsTotal` or `partsDone` with a non-null `repeat`. Answers `200` with the task as it
+now stands, `404` if there is no such task, or `409` if the task as it stands does not allow the
+change (see below).
+
+A change of title or due day alone is written straight away. Anything with `done`, `partsTotal`,
+`partsDone` or a non-null `repeat` reads the task first and then makes **one** write, or none:
+closing a one-off that is already done, or sending the `partsDone` it already has, answers `200`
+with the task unchanged, so a retry is harmless and never re-stamps `completedAt`. A new `repeat`
+is a `409` on a task tracked in parts, a task waiting on its steps (the hidden big task of a
+breakdown, or a task made tiny) and a step of a breakdown, because each of those closes by being
+done once. `done` on a task waiting on its steps is a `409` too: tick its steps, and the app closes
+it or brings it back.
+
+Closing a **step** (`done: true`, or the `partsDone` or `partsTotal` that ticks its last part) also
+walks up to its big task, and the answer adds `"finished": [ … ]` when that closed it. See
+[The last step closes the big task](#the-last-step-closes-the-big-task).
 
 ### Repeats and `done`
 
@@ -181,6 +220,108 @@ the same:
 - Skipping a day of a repeat is something only the app does. This API can see that a day was
   skipped (it shapes `upcoming`) but cannot skip one.
 
+### Parts
+
+A task tracked in parts is the app's **Track in steps**: one thing done in several goes, such as a
+ten-episode series, shown in the app as "3 / 10" with a bar. It is always a one-off, and it is done
+exactly when every part is.
+
+- **`partsDone`** sets how many parts are ticked, as an absolute count, so a retried request lands
+  the same row. It only goes **forward**: lower than the current count is a `409`, above
+  `partsTotal` is a `400`, and the count it already has answers `200` with no write. Reaching
+  `partsTotal` finishes the task and stamps `completedAt`. On a task already done it writes nothing
+  and answers `200` with the task as it stands, as closing a done task does.
+- **`done: true`** on a task in parts fills every part, as **Done** in the app's Focus does.
+  **`done: false`** on one is a `409`.
+- **`partsTotal`** resizes it. Progress carries over, and a total at or below the parts already
+  ticked finishes it. On a whole task it starts the count at none done. It is a `409` on a
+  repeating task, a done task and a task waiting on its steps. **`partsTotal: null`** makes it one
+  whole task again and leaves `done` as it was.
+- `partsDone` on a whole task is a `409`: send `partsTotal` first.
+
+**Why parts only go forward.** Every device keeps the highest count it has ever seen for a task,
+so a count lowered here would spring straight back the next time a phone syncs. The app's own
+"Undo a step" holds only until the count has synced, which a count set here already has, so it cannot
+take this one back either (an undo of the last part of a task finished here puts it straight back in
+Done on the next sync). If a count does need to start again, send `partsTotal: null`, then
+`partsTotal` again, which starts at none done. A device that has not synced between those two calls
+still holds the old count, and its next sync brings that count back.
+
+**The MCP server counts differently, on purpose.** An agent's `complete_task` moves a task in parts
+forward one part at a time, relative to where it is, because a model reasons best with "one more".
+Here the count is absolute, because an HTTP integration retries. Both run the same code and write
+the same columns.
+
+Each parts write is pinned to the counts the API read, so a tick or resize made on a phone in the
+same moment is never overwritten. If one lands in between, the write matches nothing and the
+answer is a `409` saying the task changed just now: read it again and retry.
+
+---
+
+## Linked steps
+
+A task broken into steps is the app's **Break it down**: the big task stays a task of its own,
+hidden (`hidden: true`), and each step is a task with a `parentId`. When the **last** step is
+ticked, here, by an agent or in the app, the big task closes itself and lands in the Lookback with
+its steps.
+
+### Breaking a task down: `POST /tasks/{id}/steps`
+
+```json
+{ "steps": [
+  { "title": "Bag up the rubbish", "minutes": 5 },
+  { "title": "Sweep the floor" },
+  { "title": "Take it to the tip", "minutes": 30, "due": "2026-10-25" }
+] }
+```
+
+| Step field | Required | Rules |
+|---|---|---|
+| `title` | yes | A non-empty string, up to 500 characters. A leading `• `, `- `, `* ` or `1. ` is dropped, and a trailing `(5 min)` becomes the step's minutes. |
+| `minutes` | no | A whole number from 1 to 480 (rounded if it is not whole). It is written into the title as `(5 min)`, the app's own wording in English, Spanish, French and Italian. |
+| `due` | no | A real calendar day, `YYYY-MM-DD`. Without it the step is on Today. |
+
+Send 2 to 20 steps, in the order they will be done, and nothing else in the body. Two at least,
+because in the app a big task with a single step comes back to Today when it is ticked rather than
+closing itself, so a one-step breakdown would never close. Answers `201 { "task": …, "steps": [ … ] }`:
+the task, now `hidden`, and the steps in the order given. It is a `404` for no such task, and a
+`409` if the task is done, repeats, is tracked in parts (send `partsTotal: null` first) or already
+waits on its steps.
+
+The steps are written first, and only then is the task hidden, by a write pinned to the task
+exactly as it was read. If it changed on a phone in that moment, the steps just written are removed
+again and the answer is a `409` with nothing added. (If even that removal fails, the answer is a
+`502` saying some steps may have landed, so list your tasks.) If the answer to that write is lost (a
+dropped connection, a gateway error, which can come back after the write has landed), the task is
+read again before anything is removed: hidden means the breakdown stands, and the answer is the
+`201`; still visible means the steps are removed and the answer is a `502`, with nothing added; a
+read that fails too removes nothing and is the same "may have landed" `502`. A token that expired in
+that moment is the `401`, and its message says the steps were added without the task being hidden,
+so list your tasks before you retry. The task's own title, due day and
+everything else about it are left as they were. Its `due` day stays, and the app's Calendar still
+shows it on that day, as it does for a task broken down in the app.
+
+**To undo a breakdown**, delete all its steps, done ones too. On its next open the app sees a big
+task with every step gone and brings it back to Today, open, as it was. Two or more done steps left
+behind would make the app finish it instead (see Deleting); a `DELETE` of the big task answers with
+the id of every step it still has.
+
+`POST /tasks` with `steps` does the same for a task that is not on your list yet, in a single
+write.
+
+### The last step closes the big task
+
+Closing a step walks up to its big task, which is finished **only when that is certain**: it is
+still hidden and open, it was broken down (not made tiny in the app), it has two or more steps in
+its current round, and every step is done. It is marked done, dated to the step, and the answer
+lists it in `"finished"`, with any big task above it that closed too, the topmost last.
+Everything else is left to the app's own repair, which runs every time DoubleDone opens: a task
+made tiny, a big task with a single step (the app brings it back to Today), and any finish a phone
+beat us to. So no `finished` in the answer does not mean the big task never will close. Reopening a
+step (`done: false`) reopens the step alone, never the big task it closed, as in the app.
+
+A big task's rename is not copied onto its steps' `parentTitle`.
+
 ---
 
 ## Deleting: `DELETE /tasks/{id}`
@@ -188,7 +329,18 @@ the same:
 A soft delete. The row is tombstoned (its `deleted_at` is set), the same way the app removes a
 task, so the removal syncs to your other devices instead of leaving a ghost behind. Answers
 `204` with no body. It answers `204` even when the id matches nothing, so a repeated delete is
-harmless. A removed task no longer appears in any listing and `GET /tasks/{id}` answers `404`.
+harmless, and a repeat never moves the first removal's time (the app reads it to keep Undo on offer
+and to recognise a task folded by Combine). A removed task no longer appears in any listing and
+`GET /tasks/{id}` answers `404`.
+
+A task waiting on its steps (`hidden: true`) is a `409`: deleted alone, it would leave its steps
+listed with nothing left to close. The `409` carries `stepIds`, the id of every step it still has,
+done ones too. Delete **all** of them, and the app brings it back on its next open, after which it
+deletes like any task. Leave two or more done steps behind and every step it has left is done, so
+the app's repair **finishes** it instead (it lands in Done today and the Lookback), and the message
+says so when that is the case. Deleting a step deletes that step alone, the same as Remove in the
+app. A delete reads the task first, and if it changed between that read and the
+write (deleted or broken down elsewhere), the answer is a `409`: read it again and retry.
 
 ---
 
@@ -249,13 +401,14 @@ and never a leaked upstream status.
 
 | Status | When |
 |---|---|
-| `400` | The body is not valid JSON, a field breaks the rules above (an empty or missing title, a badly shaped `due`, an unreadable `repeat`, `due` and `repeat` together, a `day` that is not a real calendar day, a `day` without `done`, nothing to update), or a task id in the path will not decode. |
+| `400` | The body is not valid JSON, a field breaks the rules above (an empty or missing title, a badly shaped `due`, an unreadable `repeat`, `due` and `repeat` together, a `day` that is not a real calendar day, a `day` without `done`, a `partsTotal` or `partsDone` that is not a whole number in range, more than one of `done` / `partsTotal` / `partsDone`, parts with a repeat, a `partsDone` above the task's `partsTotal`, fewer than 2 or more than 20 steps, a step that breaks its rules, steps with a `due`, `repeat` or `partsTotal`, anything but `steps` in a steps body, nothing to update), or a task id in the path will not decode. |
 | `401` | No bearer token, a token that fails verification (expired, forged or otherwise invalid), or Supabase refusing the token. The message says to re-copy it from Settings. |
 | `404` | No such task, or a task you have removed. Also an unknown path: under `/api/v1` after the token check, and any other `/api/` path with `not found (use /api/v1)`. |
 | `405` | A method the path does not support. |
+| `409` | The task as it stands does not allow the change: a lower `partsDone`, `done: false` on a task in parts, parts on a repeating, done or waiting task, a repeat on a task in parts, a waiting task or a step, `done` on a task waiting on its steps, steps for a task that is done, repeats, is in parts or already waits on its steps, deleting a task waiting on its steps. Or the task changed between the read and the write, so read it again and retry. |
 | `413` | A declared request size over 2,000,000 bytes. This one is plain text, sent by the Worker before the API runs. |
 | `500` | Something went wrong on our side. Still JSON with CORS. Try again in a moment. |
-| `502` | Supabase itself failed (anything other than refusing the token), or a create came back with no row. |
+| `502` | Supabase itself failed (anything other than refusing the token), a create came back with no row, or a breakdown that could not be finished could not be undone either (some steps may have landed). |
 
 ---
 
@@ -264,6 +417,7 @@ and never a leaked upstream status.
 - **Request size.** A request declaring more than 2,000,000 bytes is refused with a `413`.
 - **Search** returns at most 50 tasks.
 - **Look-ahead** is 1 to 30 days.
+- **A breakdown** is 2 to 20 steps a call, each title up to 500 characters.
 - **No pagination parameter.** A list comes back as a single response, in the order shown in
   [Reading](#reading-get-tasks).
 - **Rate limits.** The Worker sets no per-call rate limit on these endpoints. Please poll no more
@@ -273,7 +427,7 @@ and never a leaked upstream status.
 
 ## What this API does not expose
 
-The API reads and writes only your own rows in your own task list, and returns only the eight
+The API reads and writes only your own rows in your own task list, and returns only the thirteen
 fields above. Left out on purpose:
 
 - **Where you left off.** The one-line note you keep on a task in the app (new in 1.8.0) is never
@@ -286,13 +440,16 @@ fields above. Left out on purpose:
   list.
 - **Anyone else's data.** Your verified token plus row-level security scopes every call to your
   account, and the Worker holds no key that could do otherwise.
-- **The app's working detail.** Pins, "a lot" marks, parts tracked on a task, effort estimates,
-  the bookkeeping behind a broken-down, tiny or combined task, per-day tick and skip lists, your
-  user id and internal timestamps. (The tick and skip lists are read to shape `upcoming`, never
-  returned.)
+- **The app's working detail.** Pins, "a lot" marks, effort estimates, the bookkeeping behind a
+  tiny or combined task, per-day tick and skip lists, your user id and internal timestamps. (The
+  tick and skip lists are read to shape `upcoming`, never returned, and whether a task was made
+  tiny is read only to leave its close to the app.) Parts are exposed, as `partsTotal` and
+  `partsDone`, and so are step links, as `parentId`, `parentTitle` and `hidden`. Making a task tiny
+  is app-only.
 - **The rest of the app.** Routines, rhythms, scrapbooks, settings, Premium and billing are not
   on this API.
-- **AI.** No endpoint here calls a model. Break it down for agents is the MCP `break_down` tool.
+- **AI.** No endpoint here calls a model. Proposing steps for a dreaded task is the MCP
+  `break_down` tool. Steps you already have are written here with `steps`.
 
 ---
 
@@ -345,6 +502,17 @@ curl -s -X PATCH "$BASE/tasks/<id>" -H "Authorization: Bearer $TOKEN" \
 curl -s -X PATCH "$BASE/tasks/<id>" -H "Authorization: Bearer $TOKEN" \
   -H "content-type: application/json" -d '{"repeat":null}'
 
+# Track a series in ten parts, then mark three of them watched
+curl -s -X POST "$BASE/tasks" -H "Authorization: Bearer $TOKEN" \
+  -H "content-type: application/json" -d '{"title":"Watch Severance","partsTotal":10}'
+curl -s -X PATCH "$BASE/tasks/<id>" -H "Authorization: Bearer $TOKEN" \
+  -H "content-type: application/json" -d '{"partsDone":3}'
+
+# Break a task you have into linked steps (the last one ticked closes it)
+curl -s -X POST "$BASE/tasks/<id>/steps" -H "Authorization: Bearer $TOKEN" \
+  -H "content-type: application/json" \
+  -d '{"steps":[{"title":"Bag up the rubbish","minutes":5},{"title":"Take it to the tip","minutes":30}]}'
+
 # Remove one
 curl -s -X DELETE "$BASE/tasks/<id>" -H "Authorization: Bearer $TOKEN"
 ```
@@ -358,6 +526,7 @@ curl -s -X DELETE "$BASE/tasks/<id>" -H "Authorization: Bearer $TOKEN"
 | [`server/src/api.ts`](../server/src/api.ts) | The routes, body checks, read modes and the task shape |
 | [`server/src/openapi.ts`](../server/src/openapi.ts) | The OpenAPI 3.1 spec and the Swagger UI page |
 | [`server/src/cadence.ts`](../server/src/cadence.ts) | `buildRecurrence`, the due-today maths and the per-day tick, shared with MCP |
+| [`server/src/steps.ts`](../server/src/steps.ts) | The parts arithmetic and its write guard, the step rows, and the finish walk, shared with MCP. [`settle-cases.json`](../server/src/settle-cases.json) holds the cases it and the app's own repair are both tested against |
 | [`server/src/verify.ts`](../server/src/verify.ts) | Token verification |
 | [`server/src/index.ts`](../server/src/index.ts) | Routing on the Worker, including the request-size ceiling |
 | [`server/src/api.test.ts`](../server/src/api.test.ts) | The unit tests for the routes, body checks, read modes and task shape |
