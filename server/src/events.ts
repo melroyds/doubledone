@@ -6,7 +6,7 @@
 // The posture is the STRICTEST of the telemetry family: a closed allowlist of event
 // names is all that can ever be stored, as one count per name per day. No user_id, no IP,
 // no free text, no props beyond the few folded into a name (the guide's on/off, the
-// hold's rough stage, which Settings door). Anything off the list is accepted and
+// hold's rough stage, which Settings door, which store a review ask went to). Anything off the list is accepted and
 // dropped (a 200 with no write), so probing the endpoint teaches nothing and an
 // older server never errors a newer client. Deliberately NOT collected: settle.left
 // (leaving the room), because enter+leave timestamps at low traffic could be paired
@@ -57,6 +57,10 @@ export const APP_EVENTS = new Set([
   'leftoff.saved.card',
   'leftoff.saved.focus',
   'leftoff.cleared',
+  // The calm review ask (2026-10-19), folded from review.asked by its store. It counts the app's
+  // ASKS, never a shown card and never a rating: neither store reports either.
+  'review.asked.ios',
+  'review.asked.android',
 ]);
 
 /** Normalise a raw client body to a storable event name, or null to drop it.
@@ -81,6 +85,11 @@ export function parseAppEvent(raw: unknown): string | null {
     const p = body.props as { room?: unknown; door?: unknown } | null | undefined;
     if (p?.room !== 'settings' || (p.door !== 'sign' && p.door !== 'shelf')) return null;
     name = `menu.settings.${p.door}`;
+  }
+  if (name === 'review.asked') {
+    const store = (body.props as { store?: unknown } | null | undefined)?.store;
+    if (store !== 'ios' && store !== 'android') return null;
+    name = `review.asked.${store}`;
   }
   return APP_EVENTS.has(name) ? name : null;
 }

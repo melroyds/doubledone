@@ -41,6 +41,10 @@ export default defineConfig({
         'src/lib/purchases.ts',
         'src/lib/purchases.ios.ts',
         'src/lib/purchases.android.ts',
+        // The store's rating card: store-review.ts lazy-imports expo-store-review's native module and
+        // store-review.web.ts is its inert web half. Every gate is in the pure, tested review.ts.
+        'src/lib/store-review.ts',
+        'src/lib/store-review.web.ts',
         // Types only: the platform-split contract is checked by tsc, and has no code to run.
         'src/lib/platform-split.contract.ts',
       ],

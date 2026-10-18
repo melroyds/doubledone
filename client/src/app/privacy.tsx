@@ -22,7 +22,7 @@ export default function PrivacyScreen() {
         <BackLink fallback="/settings" />
 
         <Text style={styles.title}>Privacy</Text>
-        <Text style={styles.updated}>Last updated 18 October 2026.</Text>
+        <Text style={styles.updated}>Last updated 19 October 2026.</Text>
 
         <Text style={styles.lead}>
           DoubleDone is built to need almost nothing from you. It runs on your device, and the main things that ever
@@ -100,7 +100,9 @@ export default function PrivacyScreen() {
           keep only as one of three rough stages), holding a task to open its card, which task tools get used (on the
           card, in the capture box, or when several tasks are selected, by the button’s name only, never the task),
           which of the Menu’s two ways into Settings you used, whether you saved or cleared a “where you left off”
-          line (on the card or in Focus, never the words), and “I also did that”. We count “I also did that” only
+          line (on the card or in Focus, never the words), “I also did that”, and, in the phone apps, that the app
+          asked your app store to show its own rating card, and which store (the store decides whether the card
+          appears, and we never learn whether you rated or what you wrote). We count “I also did that” only
           until we have decided whether it earns its place on Today, then we stop. That is the whole message: no
           account, no name, nothing you typed, and never how long you stayed. (Older versions of the app also attach a
           small detail to a few of these, such as which reminder time you picked; the server throws it away unstored.)

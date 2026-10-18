@@ -75,8 +75,10 @@ import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } f
 import { spreadDueDates } from '@/lib/spread';
 import { decideRenewalNotice } from '@/lib/renewal';
 import { type HoldContract, holdRequiresSwap, holdStepAt } from '@/lib/hold';
-import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHold, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursMine, loadOursSeen, loadOursTasks, loadReminderHour, loadRenewalMemory, loadUpdateMentioned, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHold, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveRenewalMemory, saveUpdateMentioned, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
+import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHold, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursMine, loadOursSeen, loadOursTasks, loadReminderHour, loadRenewalMemory, loadReviewMemory, loadReviewQuietDate, loadUpdateMentioned, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHold, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveRenewalMemory, saveReviewMemory, saveReviewQuietDate, saveUpdateMentioned, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
 import { restedOffer } from '@/lib/offers';
+import { countClose, markAsked, REVIEW_DELAY_MS, shouldAskForReview } from '@/lib/review';
+import { REVIEW_SUPPORTED, requestReviewCard, reviewCardAvailable } from '@/lib/store-review';
 import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/plan-day';
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
 import { authHeader, isSyncConfigured, supabase } from '@/lib/supabase';
@@ -320,6 +322,10 @@ export default function TodayScreen() {
   const affirmCount = useRef(0); // rotates the completion affirmation through the pool (lib/celebrate)
   const tinyBusy = useRef(false); // guards the make-it-tiny AI call from a double-fire
   const [reentry, setReentry] = useState(false);
+  // The calm review ask's one pending timer (lib/review.ts), and whether Today has focus right now, which
+  // the timer re-checks when it fires. Cleared on blur, on reopening the day and on unmount.
+  const reviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const todayFocused = useRef(false);
   const [didOpen, setDidOpen] = useState(false);
   const [didText, setDidText] = useState('');
   const [closeNote, setCloseNote] = useState('');
@@ -619,6 +625,7 @@ export default function TodayScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
+      todayFocused.current = true;
       setVisit((n) => n + 1);
       setToday((prev) => (toISODate(prev) === toISODate(new Date()) ? prev : new Date()));
       void loadTasks().then((stored) => {
@@ -683,11 +690,18 @@ export default function TodayScreen() {
         if (isReentry(last, today, REENTRY_GAP_DAYS)) {
           setReentry(true);
           track('reentry.shown');
+          // Coming back after time away is a tender day: the review ask keeps quiet until tomorrow.
+          if (REVIEW_SUPPORTED) void saveReviewQuietDate(toISODate(today));
         }
         void saveLastOpen(toISODate(today));
       });
       return () => {
         active = false;
+        todayFocused.current = false;
+        if (reviewTimer.current) {
+          clearTimeout(reviewTimer.current);
+          reviewTimer.current = null;
+        }
       };
     }, [today, session]),
   );
@@ -709,6 +723,7 @@ export default function TodayScreen() {
   useEffect(
     () => () => {
       if (tuckTimer.current) clearTimeout(tuckTimer.current);
+      if (reviewTimer.current) clearTimeout(reviewTimer.current);
     },
     [],
   );
@@ -1057,6 +1072,9 @@ export default function TodayScreen() {
   const isLowDay = lowDayDate === toISODate(today);
   const windDown = isWindDownTime(today); // evening: a gentle in-app nudge toward closing the day
   const todayDone = useMemo(() => completionsByDay(tasks).get(toISODate(today)) ?? [], [tasks, today]);
+  // The rested screen's ONE offer tonight, decided once by the pure `restedOffer` rules. Hoisted so the
+  // four offer blocks and the review ask all read the same answer, with no drift between copies of it.
+  const tonightOffer = restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning, hasSharedList: oursPairId != null });
   // One-off, undone tasks on Today: the ones Strategise can re-spread (recurring stay by cadence).
   const spreadable = visible.filter((t) => !isRecurring(t) && !isDoneOn(t, today));
   // The shared rows that have a day, and whose day is today. Deliberately derived SEPARATELY from
@@ -1796,9 +1814,70 @@ export default function TodayScreen() {
   }
 
   function reopenDay() {
+    if (reviewTimer.current) {
+      clearTimeout(reviewTimer.current);
+      reviewTimer.current = null;
+    }
     setClosedDate(null);
     void saveClosedDate(null);
     track('day.reopened');
+  }
+
+  /**
+   * The calm review ask, after Goodnight (Melroy's call 2026-10-19; every gate and its reason is in
+   * lib/review.ts). Counts tonight's close, and only if every gate holds asks the STORE for its own card
+   * REVIEW_DELAY_MS after the rested screen lands. Not a word of ours before the card or after it. The
+   * offer, the energy and the weight are read from this render, the same answers the rested screen shows.
+   * Native only: on the web REVIEW_SUPPORTED is false, so nothing is counted or written.
+   */
+  async function maybeAskForReview(finishedTonight: number, iso: string) {
+    if (!REVIEW_SUPPORTED) return;
+    if (reviewTimer.current) clearTimeout(reviewTimer.current);
+    reviewTimer.current = null;
+    const hour = new Date().getHours();
+    const memory = countClose(await loadReviewMemory(), iso);
+    await saveReviewMemory(memory);
+    const quietISO = await loadReviewQuietDate();
+    const version = runningVersion(Application.nativeApplicationVersion, Constants.expoConfig?.version);
+    const ask = shouldAskForReview({
+      supported: REVIEW_SUPPORTED,
+      memory,
+      todayISO: iso,
+      hour,
+      finishedTonight,
+      energy: dayEnergy,
+      heavy: dayIsHeavy,
+      quietISO,
+      otherOffer: tonightOffer,
+      version,
+      now: nowMs(),
+    });
+    if (!ask || !todayFocused.current) return;
+    reviewTimer.current = setTimeout(() => {
+      reviewTimer.current = null;
+      void askTheStore(iso, version);
+    }, REVIEW_DELAY_MS);
+  }
+
+  /**
+   * The timer's moment, re-checked because 1.2s is long enough for it to stop being the moment: the
+   * app is still in front, Today still has focus, and the day is still closed (not reopened). Then the
+   * store must say it can show a card: "unavailable" (TestFlight, no Play Store) is NOT stamped, so a
+   * TestFlight phone keeps its ask for the App Store build. The stamp goes down BEFORE the request, so
+   * a throw can never become a retry.
+   */
+  async function askTheStore(iso: string, version: string) {
+    const stillTheMoment = () => AppState.currentState === 'active' && todayFocused.current;
+    if (!stillTheMoment()) return;
+    if ((await loadClosedDate()) !== iso) return;
+    if (!(await reviewCardAvailable())) {
+      track('review.unavailable');
+      return;
+    }
+    if (!stillTheMoment()) return;
+    await saveReviewMemory(markAsked(await loadReviewMemory(), nowMs(), version));
+    track('review.asked', { store: Platform.OS });
+    if (!(await requestReviewCard())) track('review.failed');
   }
 
   // A low-capacity day: one tap recalibrates the weight gauge to a gentler target and
@@ -1818,6 +1897,8 @@ export default function TodayScreen() {
     if (level === 'low') {
       setLowDayDate(iso);
       void saveLowDayDate(iso);
+      // A Low day stays quiet for the review ask all day, even if the pill later moves back up.
+      if (REVIEW_SUPPORTED) void saveReviewQuietDate(iso);
       affirm(t('today.lowDayAffirm')); // the same warm permission the low-day toggle gave
     } else {
       setLowDayDate(null);
@@ -1951,6 +2032,8 @@ export default function TodayScreen() {
   // it (the user accepts). Never rearranges the day on its own.
   async function runStrategise() {
     if (strategising) return;
+    // Reaching for Lighten means the day felt like too much: the review ask keeps quiet tonight.
+    if (REVIEW_SUPPORTED) void saveReviewQuietDate(toISODate(today));
     setStrategiseError(null);
     setStrategising(true);
     try {
@@ -3156,7 +3239,7 @@ export default function TodayScreen() {
             {/* At most ONE lifeline offer, ever, decided by the pure `restedOffer` rules: the app is
                 so calm that its own opt-in lifelines are invisible (a returning user asked for four
                 things that already existed), but the goodnight screen must never become a pitch. */}
-            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning, hasSharedList: oursPairId != null }) === 'reminder' && (
+            {tonightOffer === 'reminder' && (
               <View style={styles.reminderOffer}>
                 <Text style={styles.reminderOfferText}>{t('reminders.offerText')}</Text>
                 <View style={styles.reminderOfferRow}>
@@ -3169,7 +3252,7 @@ export default function TodayScreen() {
                 </View>
               </View>
             )}
-            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning, hasSharedList: oursPairId != null }) === 'widget' && (
+            {tonightOffer === 'widget' && (
               <View style={styles.reminderOffer}>
                 {widgetHowShown ? (
                   <Text style={styles.reminderOfferText}>{t('reminders.widgetOfferHow')}</Text>
@@ -3193,7 +3276,7 @@ export default function TodayScreen() {
                 second framing is a demand and this screen exists to make none. "Not now" costs
                 nothing and is never remembered: the fortnight brake is the only thing that decides
                 whether it is ever said again. */}
-            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning, hasSharedList: oursPairId != null }) === 'update' && (
+            {tonightOffer === 'update' && (
               <View style={styles.reminderOffer}>
                 <Text style={styles.reminderOfferText}>{t('updates.offer')}</Text>
                 <View style={styles.reminderOfferRow}>
@@ -3206,7 +3289,7 @@ export default function TodayScreen() {
                 </View>
               </View>
             )}
-            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning, hasSharedList: oursPairId != null }) === 'scrapbook' && (
+            {tonightOffer === 'scrapbook' && (
               <View style={styles.reminderOffer}>
                 <Text style={styles.reminderOfferText}>{t('today.scrapbookOffer')}</Text>
                 <View style={styles.reminderOfferRow}>
@@ -4235,6 +4318,8 @@ export default function TodayScreen() {
                   setClosedDate(toISODate(today));
                   void saveClosedDate(toISODate(today));
                   dayClosed(reduced); // the gentle close: a warm, soft confirmation
+                  // Counted, then maybe the store's own card ~1.2s after the rested screen (lib/review).
+                  void maybeAskForReview(todayDone.length + (note ? 1 : 0), toISODate(today));
                 };
                 // Quiet renders the close as a plain accent text link, matching the rest of
                 // the borderless surface; Standard keeps the filled primary button.

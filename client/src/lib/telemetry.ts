@@ -47,6 +47,12 @@ export const BEACON_EVENTS = new Set([
   'leftoff.saved.card',
   'leftoff.saved.focus',
   'leftoff.cleared',
+  // The calm review ask (store 1.9, 2026-10-19): that the app ASKED the store for its rating card,
+  // with which store. Not that a card appeared and never a rating, because neither is knowable. A gate
+  // this strict can silently never open, and neither console can tell "never asked" from "asked and
+  // ignored", so this count is the only proof it ever fires. review.unavailable and review.failed stay
+  // on the device.
+  'review.asked',
 ]);
 
 // What may ride WITH a beacon, per name. Everything else is stripped HERE, on the device, so the
@@ -57,6 +63,7 @@ const BEACON_PROPS: Record<string, readonly string[]> = {
   'hold.completed': ['step'],
   'hold.released': ['step'],
   'rooms.opened': ['room', 'door'],
+  'review.asked': ['store'],
 };
 
 function beaconProps(name: string, props?: Record<string, unknown>): Record<string, unknown> | undefined {
@@ -92,6 +99,7 @@ export function formatEvent(event: TelemetryEvent): string {
 export function beaconRequest(name: string, props?: Record<string, unknown>): { url: string; init: RequestInit } | null {
   if (!BEACON_EVENTS.has(name)) return null;
   if (name === 'rooms.opened' && props?.room !== 'settings') return null;
+  if (name === 'review.asked' && props?.store !== 'ios' && props?.store !== 'android') return null;
   if (typeof __DEV__ !== 'undefined' && __DEV__) return null;
   const base = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
   return {

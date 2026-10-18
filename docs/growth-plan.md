@@ -31,12 +31,22 @@ badge, invite-nag, or FOMO mechanic (forever, not just for now).
 
 ## Week 0 (this week): product levers + baseline — Claude builds, Melroy approves
 
-- [ ] **The calm review ask** (native, rides the next scheduled build, never burns one).
-  One ask EVER, at an earned moment (after a keepsake is made, or a Lookback visit that shows
-  finished things), copy in the house voice: "If DoubleDone is helping, a review helps others
-  like you find it." Uses the platform in-app review sheet (expo-store-review), dismiss is
-  forever, all four locales, E2E case. NEVER on launch, never after a bad moment (a cleared
-  day, an error).
+- [x] **The calm review ask** (native, rides the 1.9.0 build, never burns one). **BUILT
+  2026-10-19 on branch `store-1.9`, and CORRECTED from the line first planned here** (decision
+  log, same day). The store's own rating card (expo-store-review) and nothing else: **zero words
+  of ours**, before the card or after it. Asked about 1.2s after Goodnight lands the rested
+  screen, only when every gate in `client/src/lib/review.ts` holds: five closed days over 14 or
+  more, something finished tonight, not a Low, Settle, Lighten or return-after-time-away day,
+  no other goodnight offer, not a heavy day, 17:00 to 01:59, once per app version and 180 days
+  apart. Never on the web, never on launch.
+  *What changed, and why:* the 2026-08-03 plan had a house-voice line before the sheet ("If
+  DoubleDone is helping, a review helps others like you find it"). That is a custom pre-prompt,
+  which Apple 5.6.1 disallows and Google bans before its card, and "if it is helping" is the
+  sentiment filtering Apple's Section 3 calls "filtered". "Dismiss is forever" cannot be built,
+  because neither store reports a dismiss (or whether the card appeared at all). The keepsake
+  and Calendar triggers lost to the rested screen: the keepsake is AI-only and collides with
+  the share sheet, and a Calendar visit is often mid-task. With no copy, there are no catalogue
+  keys either: the OS localises its own card.
 - [ ] **Keepsake attribution.** Audit the share path; ensure the shared page/image carries
   "made with DoubleDone · doubledone.app" quietly. Every share becomes a poster with an address.
 - [ ] **Comp codes, the missing half.** The owner allowlist exists server-side; outreach needs

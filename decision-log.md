@@ -9778,3 +9778,69 @@ after the other ticked the last part still springs back, now to done rather than
 Decided against: closing a repeating task this way (a repeat closes by the day, and a `done` series vanishes from
 every agent read), touching a tombstone, and recomputing `done` downward when the merged count is short of the total
 (a task can be done with parts left: Done in Focus fills them, but an old row may not have).
+
+## 2026-10-19: the calm review ask, built (store 1.9, slice 1): the store's own card after Goodnight, and not a word of ours
+
+**Decided (Melroy's calls 4 and 5, 2026-10-19): ask once, at the end of a good day, using the store's card and
+nothing else.** About 1.2s after Goodnight lands the rested screen, Today hands the store one request
+(`expo-store-review`). Every gate lives in the pure `client/src/lib/review.ts`, one test each in `review.test.ts`:
+- **Earned:** five distinct closed days, the first counted one 14 or more days ago. Never consecutive, never
+  shown, never reset, so it is not a streak. It counts from this build's first close, for everyone, so a loyal user
+  waits about two weeks after updating. Only a day later than the last counted one counts, so a reopened and
+  re-closed day is one close and a clock moved backwards cannot count days twice.
+- **Something finished tonight** (today's finished tasks plus the Goodnight note).
+- **Not a tender day:** not Low, and not a day marked quiet. The quiet date (`doubledone.reviewquiet.v1`) is
+  written by four things: opening Settle, running Lighten, choosing Low (it holds even if the pill moves back), and
+  coming back after four or more days away.
+- **Nothing else asked tonight:** the rested screen's own offer is null. `restedOffer` is now hoisted into one
+  `tonightOffer`, read by the four offer blocks and the ask alike, so they can never disagree.
+- **Not a heavy day, and the evening: 17:00 to 01:59** (the plan's change from the scout's 23:59: a good day closed
+  at 00:30 is a normal close for a night owl, and the other gates already keep a bad night out).
+- **Caps:** never twice on one app version, and 180 days apart, so at most two a year, under Apple's three. A last
+  ask stamped in the future means no.
+- **Still the moment when the timer fires:** the app is active, Today has focus, the stored closed date is still
+  tonight. The timer is cleared on blur, on Reopen today and on unmount.
+- **Stamp before the call**, so a throw can never become a retry loop. "Unavailable" (TestFlight, no Play Store) is
+  not stamped, so a TestFlight phone keeps its ask for the App Store build.
+
+**The two traps, built around:** the package's native entry throws at import on a binary without the module, so
+`client/src/lib/store-review.ts` imports it lazily inside try/catch (a top-level import would crash Today at
+launch). And `requestReview()` falls back to opening the store page when app.json has `ios.appStoreUrl` or
+`android.playStoreUrl`, so neither key is ever added and `hasAction()` is never called. The only gate is
+`isAvailableAsync()`. `store-review.web.ts` is the inert web half (`REVIEW_SUPPORTED = false`), never imports the
+package, and the platform-split contract holds the pair identical. Verified from exports: the web bundle contains
+no `StoreReview` at all and its stub resolves false, and the Android bundle reaches the package only through
+Metro's async require. `npx expo install` chose `~56.0.4`, inside SDK 56's `~56.0.3` line. No config plugin, no
+app.json change, but it needs the 1.9.0 native builds to reach phones.
+
+**The counter (call 5): `review.asked` leaves the device with its store, and nothing else.** The Worker folds it
+into `review.asked.ios` / `review.asked.android` (a bad or missing store is dropped, and the bare name is never
+stored). It counts our asks, never a shown card and never a rating, because neither store reports either. Why it
+earns a beacon: a gate this strict can silently never open, and neither console can tell "never asked" from
+"asked and ignored". `review.unavailable` and `review.failed` stay on the device. Both privacy copies name it, with
+Last updated moved to 19 October 2026. The client can ship before the Worker (an older Worker drops unknown names
+with a 200), and nothing can send it for 14 days after the release anyway. The Worker deploy waits for Melroy's
+word. Both review keys stay out of `wipeLocalData`, like the update mention: device state, not personal data, and
+clearing them would re-arm an ask the stores already counted.
+
+**Corrected: `docs/growth-plan.md`'s 2026-08-03 plan for this.** Its house-voice line before the sheet ("If
+DoubleDone is helping, a review helps others like you find it") is a custom pre-prompt, which Apple 5.6.1
+disallows and Google bans before its card, and "if it is helping" is sentiment filtering. "Dismiss is forever"
+cannot be built, because neither store reports a dismiss. With no copy of ours there are no catalogue keys: the OS
+localises its own card.
+
+**Decided against:**
+- **Our own line before the card**, of any kind, including "Enjoying DoubleDone?" (Apple 5.6.1, Google's rules,
+  and Skip forever).
+- **A Rate button that calls the API.** Once a store's quota says no it does nothing, so it reads as broken. A
+  Settings link to the store listing, never the API, is parked in the BUILD-PLAN Backlog (trigger: ratings flat 60
+  days after the asks begin).
+- **Bloom, Calendar or the keepsake as the trigger.** The Bloom lands mid-flow and would turn recognition into a
+  toll, where rejection sensitivity bites. The keepsake is AI-only and collides with its own share sheet. A Calendar
+  visit is often mid-task now that it plans ahead.
+- **Holding the ask back from people who sent feedback.** That is sentiment filtering, the thing Apple's Section 3
+  forbids. Timing by behaviour at a calm pause is what both stores recommend. Asking someone's mood first is not.
+- **Counting from install time.** Install age says nothing about whether the daily loop is being used, so a
+  months-old install that never closes a day would be asked. Closed days are the behaviour the ask is earned by.
+- **A kill switch.** Both stores cap the card themselves, so the worst bug is a wasted ask, not a nagging app, and
+  the 14-day earn after an update works as a staged rollout on its own.

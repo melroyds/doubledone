@@ -806,6 +806,9 @@ CASES = [
     ("PRV-01", "Privacy", "P1", "Privacy policy reachable",
      "Visit doubledone.app/privacy (and via Settings).",
      "Loads, plain-English, matches the privacy posture.", "Both"),
+    ("PRV-02", "Privacy", "P2", "Both privacy copies name the review counter",
+     "Open doubledone.app/privacy in a browser. Then open Settings > Privacy in the phone app and in the web app.",
+     "Every copy says 'Last updated 19 October 2026.' and its Feature-usage counts section names, in the phone apps, that the app asked your app store to show its own rating card, and which store, that the store decides whether the card appears, and that we never learn whether you rated or what you wrote. The web page and the in-app screen say the same thing in the same place.", "iOS + Android + Web"),
 
     # --- Cross-platform / deploy ---------------------------------------------
     ("DEP-01", "Deploy", "P1", "Web loads + deep links",
@@ -1609,6 +1612,35 @@ CASES = [
     ("TEL-02", "Telemetry", "P3", "'Where you left off' counts as bare names, never a word of the line",
      "Against a LOCAL Worker as in TEL-01, never production: save a line on a held card, save one in Focus, and clear one. Then SELECT day, event, n FROM app_event_counts.",
      "leftoff.saved.card 1, leftoff.saved.focus 1, leftoff.cleared 1. Each /event body is the bare name: no properties, no length, never a word of the text. A title-only rename sends only task.renamed, and an unchanged line sends nothing.", "Desktop"),
+
+    # --- The review ask (store 1.9, decided 2026-10-19; every gate is in client/src/lib/review.ts) ---------
+    # Prerequisites for every native REV case: the 1.9.0 build. Android: the AAB from the Play INTERNAL
+    # testing track (the only track that lifts Google's review quota), installed from Play (never
+    # sideloaded), on a tester account that has never reviewed DoubleDone. Signed OUT of sync, because the
+    # clock moves. The daily reminder already on and any other goodnight offer already answered, so the
+    # rested screen offers nothing (except in REV-06). "A good close" below means: finish at least one task,
+    # Energy left on Normal, then Close the day > Goodnight between 17:00 and 01:59.
+    ("REV-01", "Review ask", "P1", "The earned card appears about 1.2s after the rested screen",
+     "Do a good close. Move the device date forward 4 days and do another. Repeat until there have been 5 good closes spanning 16 days or more. Watch the rested screen after each Goodnight. Afterwards set the clock back to today and clear the app's storage (Settings > Apps > DoubleDone > Storage), because the ask is now stamped in the future.",
+     "Closes 1 to 4 show the rested screen and nothing else. On the 5th, Play's own rating card appears about 1.2s after the rested screen lands, on top of it, with not one word of DoubleDone's before it, on it or after it (no 'Enjoying DoubleDone?', no thank-you). Rating, or dismissing it, returns to the rested screen exactly as it was. The count is never shown anywhere in the app.", "Android"),
+    ("REV-02", "Review ask", "P1", "Never asks on a Low, Settle, Lighten or re-entry day, or outside the gates",
+     "Earn the ask as in REV-01 up to 4 closes over 16+ days, so the next good close would ask. On that 5th day, before closing, do ONE of: choose Low on the Energy pills; choose Low and then move it back to Normal; open Settle and leave; run Lighten today; or open the app after 4+ days away (the 'Welcome back.' note shows). Then do a good close. Repeat once per item, each on its own day. Then, on separate days: close at 16:30; close with nothing finished and no Goodnight note; close on a heavy day (Lighten is offered).",
+     "No card on any of them: the rested screen only, and nothing breaks. A tender day (Low, Settle, Lighten, a return) stays quiet all day even if Energy is moved back to Normal. The first later evening that passes every gate asks, as in REV-01. On the web none of this applies (REV-04).", "iOS + Android"),
+    ("REV-03", "Review ask", "P2", "Once per version, 180 days apart, and a re-closed day counts once",
+     "Part A: after REV-01's card, keep doing good closes for a week (clock forward). Part B, on a fresh install: do good closes on days 1, 8 and 16 (3 closes). On day 17 do a good close, tap 'Reopen today', and close it again. Then on day 18 do a good close. Part C: on any qualifying 5th close, tap 'Reopen today' within a second of Goodnight.",
+     "A: no second card on 1.9.0, however many good days follow (a later version also waits 180 days from the last ask). B: no card on day 17, because a reopened and re-closed day is still one close (4 so far); the card appears on day 18, the real 5th. C: reopening before the card cancels the pending ask, so no card appears over the reopened day.", "iOS + Android"),
+    ("REV-04", "Review ask", "P1", "The web never asks and writes nothing",
+     "On doubledone.app with the browser's console open: choose Low, open Settle, run Lighten, then do a good close in the evening (for an earned-looking case, repeat over several days with the computer's clock moved forward). Then open DevTools > Application > Local Storage for doubledone.app.",
+     "No rating card or popup of any kind, ever. No console warning about a store URL (nothing mentioning playStoreUrl or appStoreUrl). Local Storage holds no 'doubledone.review.v1' and no 'doubledone.reviewquiet.v1'. Developer check: after npx expo export -p web, grep -l StoreReview client/dist/_expo/static/js/web/*.js finds nothing.", "Web"),
+    ("REV-05", "Review ask", "P2", "TestFlight shows no card and nothing breaks",
+     "On the 1.9.0 TestFlight build, run REV-01's clock trick through the 5th good close.",
+     "No card (Apple never shows it in TestFlight, by design), no crash or freeze, and the rested screen stays as it is. The ask is not spent, so the App Store build can still ask on that phone. The real card can only be seen on the App Store build after release, and Apple may still decline it (its three-a-year cap, its own judgement, or Settings > Apps > App Store > In-App Ratings & Reviews switched off).", "iOS"),
+    ("REV-06", "Review ask", "P2", "Never stacks with a goodnight offer",
+     "On a fresh install, leave the daily reminder OFF and leave the rested screen's reminder offer unanswered on every close. Do 5 good closes over 16+ days as in REV-01. On the 5th, read the rested screen. Then answer the offer ('Not now') and do one more good close the next evening.",
+     "On the 5th close the rested screen shows its one offer and no rating card: never both at once. After the offer is answered, the next qualifying evening shows the card as in REV-01. The same holds for the widget, scrapbook and update offers: whichever one shows, the card waits.", "iOS + Android"),
+    ("TEL-03", "Telemetry", "P3", "review.asked.ios and review.asked.android counters appear, and nothing else",
+     "About 3 weeks after 1.9.0 is live in both stores (nothing can ask for 14 days after an update), and only once the Worker carrying the two names is deployed: from server/, npx wrangler d1 execute doubledone-telemetry --remote --command \"SELECT day, event, n FROM app_event_counts WHERE event LIKE 'review.%'\". Read only: never POST to production /event to test it.",
+     "Rows named review.asked.ios and review.asked.android only, each a day, the name and a count. Never a bare review.asked, never review.unavailable or review.failed (those stay on the device), and nothing holding a version, a rating or a number of closes. Asks from the Play internal test track are counted too (only dev sessions are kept out), so subtract them. Still zero 30 days after the earliest possible ask: read the gates in client/src/lib/review.ts before loosening anything.", "Worker"),
 ]
 
 # A case id is how a tester records a pass or a fail, so two rows sharing one makes the

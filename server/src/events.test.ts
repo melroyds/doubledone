@@ -84,6 +84,32 @@ describe('rooms.opened folding', () => {
   });
 });
 
+// The calm review ask (2026-10-19): folded to the store it was asked of. A store we do not sell
+// through, a missing one, and the bare unfolded name are all dropped unwritten.
+describe('review.asked folding', () => {
+  it('folds the ask into its store', () => {
+    expect(parseAppEvent({ name: 'review.asked', props: { store: 'ios' } })).toBe('review.asked.ios');
+    expect(parseAppEvent({ name: 'review.asked', props: { store: 'android' } })).toBe('review.asked.android');
+  });
+
+  it('drops a bad, missing or unknown store, and never stores the bare name', () => {
+    expect(parseAppEvent({ name: 'review.asked', props: { store: 'web' } })).toBeNull();
+    expect(parseAppEvent({ name: 'review.asked', props: { store: 'IOS' } })).toBeNull();
+    expect(parseAppEvent({ name: 'review.asked', props: { store: 1 } })).toBeNull();
+    expect(parseAppEvent({ name: 'review.asked', props: {} })).toBeNull();
+    expect(parseAppEvent({ name: 'review.asked', props: null })).toBeNull();
+    expect(parseAppEvent({ name: 'review.asked' })).toBeNull();
+    expect(APP_EVENTS.has('review.asked')).toBe(false);
+  });
+
+  it('keeps nothing but the store: a rating, a version or a count on the wire is dropped', () => {
+    expect(parseAppEvent({ name: 'review.asked', props: { store: 'ios', stars: 5, version: '1.9.0' } })).toBe('review.asked.ios');
+    // The local-only failure names never enter the table.
+    expect(parseAppEvent({ name: 'review.unavailable' })).toBeNull();
+    expect(parseAppEvent({ name: 'review.failed' })).toBeNull();
+  });
+});
+
 describe('eventStatement', () => {
   it('binds exactly the event name, nothing else, into a per-day counter', () => {
     const { sql, params } = eventStatement('settle.opened');

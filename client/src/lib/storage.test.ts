@@ -57,6 +57,9 @@ describe('wipeLocalData', () => {
     expect(removed).not.toContain('doubledone.settings.v1');
     expect(removed).not.toContain('doubledone.reminder.v1');
     expect(removed).not.toContain('doubledone.onboarded.v1');
+    // the review ask's memory is device state: clearing it would re-arm an ask the stores already counted
+    expect(removed).not.toContain('doubledone.review.v1');
+    expect(removed).not.toContain('doubledone.reviewquiet.v1');
   });
 
   // The shared list is the only key holding words ANOTHER person wrote. Leaving it behind would

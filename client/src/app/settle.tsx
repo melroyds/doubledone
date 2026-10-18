@@ -36,7 +36,9 @@ import {
   WORD_FADE_MS,
   WORD_FADE_REDUCED_MS,
 } from '@/lib/settle';
-import { loadSettleGuide, saveSettleGuide } from '@/lib/storage';
+import { toISODate } from '@/lib/day';
+import { loadSettleGuide, saveReviewQuietDate, saveSettleGuide } from '@/lib/storage';
+import { REVIEW_SUPPORTED } from '@/lib/store-review';
 import { track } from '@/lib/telemetry';
 import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
@@ -104,6 +106,8 @@ export default function Settle() {
   useEffect(() => {
     openedAtRef.current = Date.now();
     track('settle.opened');
+    // A day that needed this room is a tender one: the review ask keeps quiet until tomorrow (lib/review).
+    if (REVIEW_SUPPORTED) void saveReviewQuietDate(toISODate(new Date()));
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(breath, { toValue: 1, duration: SWELL_MS, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
