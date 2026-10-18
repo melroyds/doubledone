@@ -9,6 +9,23 @@
         "dev"
       ],
       "port": 8081
+    },
+    {
+      "name": "doubledone-dist",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "exec",
+        "-w",
+        "server",
+        "--",
+        "wrangler",
+        "pages",
+        "dev",
+        "../client/dist",
+        "--port",
+        "8788"
+      ],
+      "port": 8788
     }
   ]
 }

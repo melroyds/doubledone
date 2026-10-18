@@ -1,0 +1,7 @@
+# doubledone.app. Everything public is crawlable; the sitemap lists the pages worth indexing.
+# The app's own routes (/today, /settings, ...) serve the same shell, which declares
+# https://doubledone.app/ as its canonical, so they never compete with the landing page.
+User-agent: *
+Allow: /
+
+Sitemap: https://doubledone.app/sitemap.xml

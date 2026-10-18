@@ -26,7 +26,9 @@
     { "name": "AI_LIMITER", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } },
     { "name": "OTP_LIMITER", "namespace_id": "1002", "simple": { "limit": 5, "period": 60 } },
     // Account deletion's billing close: a few tries a minute per person (each spends Stripe reads).
-    { "name": "BILLING_LIMITER", "namespace_id": "1003", "simple": { "limit": 5, "period": 60 } }
+    { "name": "BILLING_LIMITER", "namespace_id": "1003", "simple": { "limit": 5, "period": 60 } },
+    // The landing page's email sign-up: 5 a minute per IP, so the public form cannot be scripted into a list-filler.
+    { "name": "SUBSCRIBE_LIMITER", "namespace_id": "1004", "simple": { "limit": 5, "period": 60 } }
   ],
   // MCP OAuth (the paste-a-URL connector path for claude.ai / Cowork / ChatGPT):
   // @cloudflare/workers-oauth-provider stores clients, grants and its own tokens here.

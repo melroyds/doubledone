@@ -196,7 +196,7 @@ TypeScript only reads the base file of a split, so a name missing from a platfor
 ### 2.2 Cloudflare Pages, the web host
 
 - The web build is a single-page app (`web.output: "single"` in [`client/app.json`](../client/app.json)). [`client/public/_redirects`](../client/public/_redirects) sends every path to `index.html` so deep links resolve.
-- Because single-page output ignores `+html.tsx`, the shipped `<head>` is patched after export by [`scripts/inject-web-meta.mjs`](../scripts/inject-web-meta.mjs): title, social cards, `interactive-widget=resizes-content` for the keyboard, and a small viewport stylesheet. CI greps the exported page for the social image tag, the keyboard setting and the viewport stylesheet, so they cannot silently vanish.
+- Because single-page output ignores `+html.tsx`, the shipped `<head>` is patched after export by [`scripts/inject-web-meta.mjs`](../scripts/inject-web-meta.mjs): title, social cards, `interactive-widget=resizes-content` for the keyboard, and a small viewport stylesheet. Since 2026-10-18 it also writes in the static, crawlable landing page ([`client/src/lib/landing-page.ts`](../client/src/lib/landing-page.ts)): the page itself at the start of `<body>` (English in the DOM, German, Spanish, French and Italian in `<template>`s), a canonical link, WebSite structured data, and a pre-paint boot that shows it only to a fresh visitor at "/" and hides it for returning visitors and every app route. The app takes it over once the bundle runs ([`landing-dom.ts`](../client/src/lib/landing-dom.ts), [`app/index.tsx`](../client/src/app/index.tsx)). CI greps the exported page for the social image tag, the keyboard setting, the viewport stylesheet, the landing page, its boot, the four templates, the structured data, the canonical and the heading, and checks robots.txt, sitemap.xml and the store badges exist, so none of them can silently vanish.
 - [`client/public/_headers`](../client/public/_headers) sends HSTS for a year, subdomains included.
 - Static files ride alongside the app: `privacy.html`, `terms.html`, `support.html`, `manifest.json` (with the share target), `sw.js` (the push service worker) and `version.json` (the update nudge, section 5).
 
@@ -291,6 +291,7 @@ D1 (`doubledone-telemetry`, binding `DB`) is bound only to the Worker. Its schem
 | `mcp_grants` | MCP OAuth custody: the user's Supabase refresh token, AES-GCM encrypted, plus a cached access token | User id and email |
 | `scrapbook_log` | One row per keepsake for the per-IP daily cap | IP, deleted after 24 hours |
 | `alerts_sent` | When each alarm kind last fired, for a 6-hour dedup | None |
+| `subscribers` | The landing page email list: address (lowercased), language, date joined, a random unsubscribe token. Single opt-in, nothing sent at sign-up; leaving deletes the row ([`subscribe.ts`](../server/src/subscribe.ts)) | Email address. No IP, no user id, never linked to an account |
 
 `review_otp` (the App Review relay) is created by its own code on first use rather than in the schema file.
 
@@ -350,6 +351,7 @@ flowchart LR
 | Purchases | The store's own entitlement on iOS and Android | No | `entitlements`, `trials`, `rc_events` | Stripe sees the Supabase user id in its metadata, and whatever the buyer enters at Checkout. RevenueCat sees the Supabase user id as its App User ID |
 | Web reminders | The subscription | No | `push_subs`, with no user id | The browser's push service delivers a push with no payload |
 | Feedback | No | No | Emailed to the support inbox with the platform name | Email delivery |
+| The email list (web landing page) | No | No | `subscribers`: email, language, date, token | None yet: nothing is sent at sign-up |
 
 ### What reaches the AI, and what never does
 

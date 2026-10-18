@@ -375,3 +375,33 @@ describe('the money routes: origin gate before the verified bearer', () => {
     });
   }
 });
+
+// The landing page's email list goes through the real router: preflight, origin gate, and the shape the page needs.
+describe('the landing email list (/subscribe, /unsubscribe)', () => {
+  const db = {
+    prepare: () => {
+      const stmt = { bind: () => stmt, run: async () => ({}), first: async () => null, all: async () => ({ results: [] }) };
+      return stmt;
+    },
+  };
+  it('answers the browser preflight for the landing page', async () => {
+    const res = await worker.fetch(req('OPTIONS', '/subscribe', { origin: 'https://doubledone.app' }), makeEnv(), ctx);
+    expect(res.status).toBe(204);
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://doubledone.app');
+  });
+  it('replies subscribed:true from the landing page, and refuses another origin', async () => {
+    const ok = await worker.fetch(req('POST', '/subscribe', { origin: 'https://doubledone.app', body: { email: 'a@b.co', locale: 'en' } }), makeEnv({ DB: db } as Partial<Env>), ctx);
+    expect(await ok.json()).toEqual({ ok: true, subscribed: true });
+    const evil = await worker.fetch(req('POST', '/subscribe', { origin: 'https://evil.example', body: { email: 'a@b.co' } }), makeEnv({ DB: db } as Partial<Env>), ctx);
+    expect(evil.status).toBe(403);
+  });
+  it('serves the unsubscribe page on GET (a button, nothing deleted) and deletes on POST', async () => {
+    const t = '00000000-0000-4000-8000-000000000000';
+    const page = await worker.fetch(req('GET', `/unsubscribe?t=${t}`), makeEnv({ DB: db } as Partial<Env>), ctx);
+    expect(page.headers.get('content-type')).toContain('text/html');
+    expect(await page.text()).toContain('Leave the list');
+    const done = await worker.fetch(req('POST', `/unsubscribe?t=${t}`), makeEnv({ DB: db } as Partial<Env>), ctx);
+    expect(done.headers.get('content-type')).toContain('text/html');
+    expect(await done.text()).not.toBe('doubledone-ai');
+  });
+});

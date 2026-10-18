@@ -22,7 +22,7 @@ export default function PrivacyScreen() {
         <BackLink fallback="/settings" />
 
         <Text style={styles.title}>Privacy</Text>
-        <Text style={styles.updated}>Last updated 5 October 2026.</Text>
+        <Text style={styles.updated}>Last updated 18 October 2026.</Text>
 
         <Text style={styles.lead}>
           DoubleDone is built to need almost nothing from you. It runs on your device, and the main things that ever
@@ -121,6 +121,17 @@ export default function PrivacyScreen() {
           email address and sign-in keys for your account: the long-lived key is encrypted, and a short-lived one
           (about an hour) is kept as-is so you are not asked to reconnect constantly. You can cut the connection at any time in Settings: it stops working straight away, and the email and
           keys we held for it are deleted. Deleting your account does the same.
+        </Section>
+
+        <Section styles={styles} heading="The email list">
+          If you join the email list on doubledone.app, we keep your email address, the language you read the page in,
+          and the date you joined, so we can send you at most one short note a month about what changed in DoubleDone.
+          That is all they are used for, and they are never sold. The list is separate from the app: joining it does
+          not create an account, and it is never linked to one. Every note carries a one-tap way to leave, which
+          deletes your address from the list (our hosting provider&apos;s short-lived backups age out within 30 days). You
+          can also ask us to remove it at support@doubledone.app. To stop the form being misused, sign-ups are limited
+          per network address. We never keep that address, though like every request it can appear in our hosting
+          provider&apos;s request log for up to a week.
         </Section>
 
         <Section styles={styles} heading="Keeping the service running">

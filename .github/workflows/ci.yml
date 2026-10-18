@@ -81,6 +81,19 @@ jobs:
           grep -q 'property="og:image"' client/dist/index.html
           grep -q 'interactive-widget=resizes-content' client/dist/index.html
           grep -q 'id="dd-viewport"' client/dist/index.html
+          # The static, crawlable landing page (lib/landing-page.ts): the page, its pre-paint boot, the four
+          # language templates, the structured data and the canonical, plus the crawler files beside it.
+          grep -q 'id="dd-landing"' client/dist/index.html
+          grep -q 'id="dd-landing-boot"' client/dist/index.html
+          test "$(grep -o '<template id="ddl-t-' client/dist/index.html | wc -l)" -eq 4
+          grep -q 'application/ld+json' client/dist/index.html
+          grep -q '<link rel="canonical" href="https://doubledone.app/"' client/dist/index.html
+          grep -q '<h1 id="ddl-h1">' client/dist/index.html
+          # One check per line: under bash -e, only the LAST command of an && list can fail the step.
+          test -f client/dist/robots.txt
+          test -f client/dist/sitemap.xml
+          test -f client/dist/img/app-store-badge.svg
+          test -f client/dist/img/google-play-badge.png
       - name: Stamp + verify the version file
         # The app asks doubledone.app/version.json whether a newer build exists. Gate it here so a
         # broken stamp fails CI rather than the deploy, and so the file can never silently vanish

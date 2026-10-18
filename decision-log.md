@@ -9234,3 +9234,95 @@ only to whoever remembers to open the room, the failure the strip exists to prev
 require a trip to another room every Tuesday"), and shrinking it to a one-line link (less clutter, but it
 loses the tick from Today). It is already absent when nothing shared is due. Its ticks are not counted, so
 if this comes up again, count first (a bare-name beacon) and decide on the number.
+
+## 2026-10-18: the landing page Google can read, its questions, and an email list
+
+An external website audit (8 October) put it plainly: "Search can't see it." The web root was an empty
+`<div id="root">` until the JavaScript bundle ran, so Google indexed late and unreliably, link previews and most
+other crawlers read nothing, and a search for "DoubleDone" found other apps. It also found the audience named
+only at the bottom, no questions answered, and no list to launch to. Melroy asked for the free version of that
+item (#1 of the free list).
+
+**Decided: the same landing page, written into the HTML at build.** `client/src/lib/landing-page.ts` renders it
+from the app's own catalogues, and `scripts/inject-web-meta.mjs` (already the place that patches the SPA's head,
+because `output:'single'` ignores `+html.tsx`) writes it into `client/dist/index.html`: canonical, structured
+data, its own stylesheet and a tiny pre-paint boot in `<head>`, the page at the start of `<body>`, outside
+`#root`. The boot decides before first paint: a fresh visitor at "/" gets the static page and the app's root is
+hidden; a returning visitor, and every app route (the SPA fallback serves this same file for all of them), get
+the app with the landing hidden. With no JavaScript nothing hides and the page scrolls (its rules are keyed off
+"not the app", not "is the landing"; the review caught a first version that left a no-JS visitor stuck on one
+screen). Once the bundle runs, the index route owns the page (`lib/landing-dom.ts`): Begin becomes a client-side
+navigation, and a focus effect hands the screen back on blur. **Focus, not mount**, found in the browser: the root
+Stack keeps "/" mounted underneath once Begin pushes, so an unmount cleanup never ran and the landing sat over the
+app. And each focus re-reads the onboarded flag, so Back from a finished welcome goes to Today, not the sales page
+(the review).
+
+**Decided against:**
+- **Expo's static output** (prerender every route). The module-scope Supabase client already crashed it
+  (Gotchas), every route would hydrate, and "/" renders blank until it knows whether to redirect, so it would
+  prerender nothing. A whole-app rendering change on a live paid app, for one page.
+- **A separate static index with the app moved to `app.html`** behind a rewrite. Cleanest on paper, but it rests
+  on Pages rewrite and clean-URL behaviour this repo has already been bitten by (`_redirects` notes the /privacy
+  loop), and it changes what the installed PWA's `start_url` opens.
+- **Prerendering for bots only.** Different content for crawlers is cloaking.
+- **Putting the static copy inside `#root`** for React to replace. `createRoot` swaps it out on mount, so every
+  visitor sees one page jump into another.
+
+**Decided: five languages, one of them in the page.** English is the DOM; German, Spanish, French and Italian ride
+in `<template>` elements, inert to HTML5 parsers (Google, Bing), and a visitor whose FIRST browser language is one
+of ours gets theirs swapped in before the page shows (the app's own rule: only the first device language counts).
+**Decided against** five blocks hidden by CSS (four languages of hidden text) and per-language URLs with hreflang
+for now (right for those markets, but acquisition is AU/US/UK English first; Backlog, with a trigger). Accepted:
+the templates are 41 KB of the 70 KB shell (about 17 KB gzipped, every hard load), and non-HTML5 text extractors
+read all five.
+
+**Decided: the audience first, and only claims that are true.** A new line above the headline, "A calm to-do app
+for ADHD, autism, OCD and overwhelm." Nine questions as `<details>` (keyboard-ready with no script), every answer
+checked against the code. The review corrected four that overclaimed, and the fixes went to all five languages:
+- **Offline:** the web app has no offline shell (the only service worker is for push), so the page now says the
+  phone apps work offline and an OPEN browser tab keeps working. `welcome.trustLine` no longer says "Works offline".
+- **Accounts:** "your own list" works without an account; sync and the shared list need one.
+- **Deleting:** export works for everyone, and in a browser clearing the site's data is how to erase.
+- **The AI:** names Scan and the keepsake picture's image model.
+Structured data is **WebSite only** (with "Double Done" as an alternate name), so the name is known as this site.
+**Decided against** SoftwareApplication (Google treats it as invalid without a rating or review, and there are
+none to give, never faked) and FAQPage (Google retired the FAQ result in 2026). `robots.txt` and `sitemap.xml`
+(/, /privacy, /terms, /support). Every text colour clears WCAG AA in both themes, held by a test; the app's mauve
+was 4.498:1 as text on paper, so the page deepens it a touch. German Begin's spoken name now starts with its
+visible word (voice control).
+
+**Decided: an email list, single opt-in, nothing sent at sign-up.** `POST /subscribe` keeps the address
+(lowercased), the page's language, the date and a random token in a new D1 `subscribers` table, and nothing else
+(no IP, no user id). Guards, cheapest first, before a byte of the body is read:
+- the Origin check;
+- a per-IP limiter (`SUBSCRIBE_LIMITER`, namespace 1004, 5 a minute, IPv6 keyed by its /64);
+- then a body capped at 4 KB with a counting reader (a chunked upload can't make the Worker buffer megabytes);
+- the honeypot;
+- a ceiling of 200 new rows a day.
+The reply carries `subscribed: true`, which the page requires (the deployed Worker answers any path with a 200). A
+no-JavaScript form post gets a 303 back to the page's thanks or sorry anchor.
+
+**Unsubscribe is two steps by design:** `GET /unsubscribe?t=` shows one "Leave the list" button and changes
+nothing, because corporate mail scanners open every link in a message; `POST` deletes (also the RFC 8058
+one-click target) and says truly whether a row went.
+
+**Decided against** a confirmation email now: the Worker's only mail path, Cloudflare's `send_email`, reaches only
+verified addresses, Resend is not wired into the Worker, and a mail-on-request form is a way to mail anyone. An
+Origin can be forged, so the list proves nothing about consent: the first message must be CONFIRM-ONLY (Backlog).
+**Decided against** keeping a left address as a suppression row: leaving deletes it. The privacy policy gains "The
+email list" in both copies, a DRAFT for Melroy's OK like every legal change, worded so it agrees with the policy's
+own hosting section (request logs can hold the address for up to a week; D1 backups age out within 30 days).
+
+**My honest view, for Melroy to overrule:** the list is the weakest part of #1. "Begin" is already zero friction
+for a free app with no account, and a list with nothing planned to send is a duty without a use. It is built so
+it costs nothing to keep, and it is one section to delete if the answer is no.
+
+**Ships in this order, pre-decided:**
+1. Melroy's OK on the privacy text.
+2. The Worker deploy (his per-instance OK, from main, with `server/` identical on both branches). Prove it by
+   body, not status: `curl -s -X POST https://api.doubledone.app/subscribe` with no Origin must answer 403 JSON
+   `{"error":"forbidden origin"}`, where the old Worker says `200 doubledone-ai`.
+3. Only then the web push to main (his word).
+
+The other way round, every sign-up lands on the old Worker's catch-all for as long as the gap lasts. Nothing
+reaches production from this branch.
