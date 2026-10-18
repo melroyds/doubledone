@@ -102,7 +102,9 @@ export default function PrivacyScreen() {
           which of the Menu’s two ways into Settings you used, whether you saved or cleared a “where you left off”
           line (on the card or in Focus, never the words), “I also did that”, and, in the phone apps, that the app
           asked your app store to show its own rating card, and which store (the store decides whether the card
-          appears, and we never learn whether you rated or what you wrote). We count “I also did that” only
+          appears, and the app is never told whether you rated). A review you choose to write is posted on the store,
+          where we can read it and reply like any public review, but nothing links it to that count. We count “I
+          also did that” only
           until we have decided whether it earns its place on Today, then we stop. That is the whole message: no
           account, no name, nothing you typed, and never how long you stayed. (Older versions of the app also attach a
           small detail to a few of these, such as which reminder time you picked; the server throws it away unstored.)

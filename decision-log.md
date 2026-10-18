@@ -10088,3 +10088,12 @@ sheet again, then rises and focuses as from a clear Today. The routing rule is t
 - **Deferring the seed for select mode and a closed day too.** CaptureSheet parks on purpose there and never rises
   later by itself, so only a held card, which the app can let go of for the person, waits for the next render.
 - **A `setTimeout(0)` before seeding.** It can still reach the handle built in the hidden render.
+
+**The privacy line about the review card says only what the app is told (finding 4).** Slice 1's line ended "we
+never learn whether you rated or what you wrote", and the second half was false: App Store Connect and the Play
+Console show the developer every written review, under the reviewer's store nickname, and let us reply. Both copies
+now say the app is never told whether you rated, and that a review you choose to write is posted on the store,
+where we can read it and reply like any public review, but nothing links it to the count. Last updated stays 19
+October 2026 (the line has not shipped). PRV-02 quotes the new words. Decided against: dropping the sentence
+about written reviews. Leaving it out would let the parenthesis read as "we never see your review", the overclaim
+this batch exists to remove.

@@ -444,7 +444,7 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | ID | Pri | Platform | Test | Steps | Expected |
 |---|---|---|---|---|---|
 | PRV-01 | P1 | Both | Privacy policy reachable | Visit doubledone.app/privacy (and via Settings). | Loads, plain-English, matches the privacy posture. |
-| PRV-02 | P2 | iOS + Android + Web | Both privacy copies name the review counter | Open doubledone.app/privacy in a browser. Then open Settings > Privacy in the phone app and in the web app. | Every copy says 'Last updated 19 October 2026.' and its Feature-usage counts section names, in the phone apps, that the app asked your app store to show its own rating card, and which store, that the store decides whether the card appears, and that we never learn whether you rated or what you wrote. The web page and the in-app screen say the same thing in the same place. |
+| PRV-02 | P2 | iOS + Android + Web | Both privacy copies name the review counter | Open doubledone.app/privacy in a browser. Then open Settings > Privacy in the phone app and in the web app. | Every copy says 'Last updated 19 October 2026.' and its Feature-usage counts section names, in the phone apps, that the app asked your app store to show its own rating card, and which store, that the store decides whether the card appears and the app is never told whether you rated, and that a review you choose to write is posted on the store, where we can read it and reply like any public review, but nothing links it to that count. Neither copy says we never learn what you wrote. The web page and the in-app screen say the same thing in the same place. |
 
 ## Deploy
 
