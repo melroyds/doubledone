@@ -275,7 +275,7 @@ DoubleDone : liste de tâches
 Pour le TDAH et la surcharge. Juste aujourd'hui. Rien n'est jamais en retard.
 ```
 
-**Full description** (3830 / 4000)
+**Full description** (3846 / 4000)
 
 ```
 Aujourd'hui a une fin, et tu peux y arriver.
@@ -295,7 +295,7 @@ LE CŒUR CALME, GRATUIT POUR TOUJOURS
 - Allège ta journée : les jours bien remplis, elle propose de déplacer quelques tâches vers les jours suivants. Rien ne bouge tant que tu n'as pas dit oui.
 - Regrouper : fusionne les tâches semblables.
 - Les tâches qui reviennent, à leur jour.
-- Rappel quotidien : un seul, tout doux, jamais une échéance.
+- Des rappels tout doux, seulement ceux que tu demandes, jamais une échéance.
 - Settle : une pièce calme, un guide de respiration, quand aujourd'hui fait du bruit.
 - Clore en douceur. On y honore ce que tu as fait, jamais ce que tu n'as pas fait.
 - Ton Calendrier : tout ce que tu as vraiment terminé, même une tâche redoutée depuis des semaines. Ton cerveau ne pourra plus te dire que tu n'as rien fait.
@@ -335,6 +335,8 @@ La politique de confidentialité, en clair : doubledone.app/privacy.
 **2026-10-16:** the not-a-medical-device line went in just before the privacy line, matching the English listing (a5d3031). Full description now 3101 characters.
 
 **2026-10-19 (store 1.9, slice 8):** a title, the App Store's French name. "plus rien de ce que tu écris ne part" and "Sinon, rien de ce que tu écris ne sort de ton appareil" went (false with AI off: sync, Ours, a feedback note and the usage counts still run), and the AI paragraph now carries `priv2`'s words. "PRIVÉ PAR DÉFAUT" became `privTitle`, "Aucun traqueur tiers" became `priv3`, "Exporte tes données" became `priv4`, and Allège ta journée is a suggestion (`m2Body`). The monthly album is an "album souvenir IA", and the Claude bullet names Cloudflare. Added: `founder`, a Premium paragraph from `faqFreeA`, and "Pour un avis médical, adresse-toi à un professionnel de santé." The Ours lines were already true and are untouched. Every colon, question mark and guillemet now takes U+00A0, which the gate enforces. Full description now 3830 characters.
+
+**2026-10-19 (the store 1.9 build review):** "Rappel quotidien : un seul, tout doux, jamais une échéance." said there is one reminder, a daily one, and both phone apps also have per-task reminders, « Tiens-moi à ça » and the Rythmes (the catalogue's own `faqWhereA`). It is now "Des rappels tout doux, seulement ceux que tu demandes, jamais une échéance.", the idea the other four languages carry, the same on the App Store. Full description now 3846 characters.
 
 4029 to 3853 characters, verified in Python (UTF-8, trailing newline excluded), so 97 under the 3950 target and 147 under Google's cap. Every cut was a repeat, never a fact, and no bullet was lost: the adjective and clause layer alone freed enough room, so both bullets I first removed (Regrouper, Silencieuse) went back in.
 

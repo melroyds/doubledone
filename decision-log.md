@@ -10117,3 +10117,12 @@ stores name Anthropic as the only place AI text goes and leave out the copy we k
 address (the privacy policy's "The AI features" section, and `faqAiA` on the landing page). They are not false
 about what Anthropic does, and every language agrees across its two stores, so adding `faqAiA`'s copy sentence to
 them is a copy call, not a fix, and it would need the native read for three languages.
+
+**French no longer says there is one reminder (finding 7).** Both French texts had a bullet that began "Rappel
+quotidien" and said there is one, a daily one. Both phone apps also have per-task reminders, Hold me to it and
+Rhythms (`scheduleNudge`, `scheduleHold`, `scheduleRhythm` in `lib/reminders.ts`), which the French catalogue
+itself names (`faqWhereA`). Slice 8's truth pass carried the line into the new App Store French unchanged. Both now
+say "Des rappels tout doux, seulement ceux que tu demandes, jamais une échéance.", the idea the German, Spanish and
+Italian lines carry, on both stores (App Store 3,956 of 4,000, Play 3,846). The line joins the batch's one native
+read with the rest of the French texts. Decided against: a longer App Store variant that also names Tiens-moi à
+ça, because one French line on both stores cannot drift apart.

@@ -230,7 +230,7 @@ todo,to-do,planificateur,agenda,organisation,autisme,toc,neuroatypique,routine,r
 Une liste de tâches calme pour le TDAH, l'autisme et les TOC. Juste aujourd'hui, et rien n'est jamais en retard. Toute la boucle quotidienne est gratuite, pour de bon.
 ```
 
-**Description** (3940 / 4000)
+**Description** (3956 / 4000)
 
 ```
 DoubleDone est une liste de tâches calme pour les adultes concernés par le TDAH, l'autisme, les TOC ou le trop-plein.
@@ -247,7 +247,7 @@ LE CŒUR CALME, GRATUIT POUR TOUJOURS
 - Juste un petit bout : une version de deux minutes.
 - Allège ta journée : les jours bien remplis, elle propose de déplacer quelques tâches vers les jours suivants. Rien ne bouge tant que tu n'as pas dit oui.
 - Les tâches qui reviennent, à leur jour.
-- Rappel quotidien : un seul, tout doux, jamais une échéance.
+- Des rappels tout doux, seulement ceux que tu demandes, jamais une échéance.
 - Settle : une pièce calme, un guide de respiration, quand aujourd'hui fait du bruit.
 - Clore en douceur. On y honore ce que tu as fait, jamais ce que tu n'as pas fait.
 - Ton Calendrier : tout ce que tu as vraiment terminé, même une tâche redoutée depuis des semaines.
