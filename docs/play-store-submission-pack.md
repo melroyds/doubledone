@@ -165,7 +165,7 @@ The listing now names no price, no paid-only feature and no outside way to pay, 
 `node scripts/check-listings.mjs` fails if any of that comes back. That retires the rule above about
 diffing against the Premium wall: diff the FREE list against the app instead.*
 
-3,835 characters of 4,000. *2026-10-19, rewritten for 1.9.0 (store 1.9, slice 8). The 2026-08-16 rewrite
+3,918 characters of 4,000. *2026-10-19, rewritten for 1.9.0 (store 1.9, slice 8). The 2026-08-16 rewrite
 never reached Play: the live short description was still the older "Shows only today. AI optional." line.
 Out, because the code proved them false: "your person cannot make your morning heavier" (your person can
 give a shared row today's date), "nothing you type is sent anywhere" and "entirely on your device" with AI
@@ -176,7 +176,9 @@ the audience in the opening line, a Premium paragraph (Android sells through Goo
 price, no other biller and no free month, which matches Google's own example of a violation), Where you
 left off, Hold me to it, routines and rhythms, a low day, Focus, the widget, the founder line, the scrapbook
 named as AI (it is hidden with AI off), and a second medical sentence (Melroy's call 9). The paste source
-for every other language is [play-store-listings-localised.md](play-store-listings-localised.md).*
+for every other language is [play-store-listings-localised.md](play-store-listings-localised.md). Later the
+same day (Melroy's call), the Claude bullet gained the copy we keep without your name or account, in the
+landing's `faqAiA` words, as the privacy policy and the Spanish listing already said.*
 *2026-10-14: the not-a-medical-device line added (Google Play's Health apps policy asks for it in the
 description of any app touching wellbeing).*
 
@@ -223,7 +225,7 @@ Optional extras through Google Play: Scan a list from a photo, Pin today's one t
 ON YOUR DEVICE BY DEFAULT
 - Your tasks live on your device. No account needed to use the app.
 - Optional sync across devices: an email and a one-time code, no password.
-- What you use an AI feature on goes to Anthropic's Claude, which does not train on it. Scrapbook pictures are made with Cloudflare's AI models.
+- What you use an AI feature on goes to Anthropic's Claude, which does not train on it. Scrapbook pictures are made with Cloudflare's AI models. We keep a copy without your name or account, to improve how tasks get broken down.
 - No ads. No advertising identifiers or cross-app tracking. Nothing sold.
 - Export your tasks and what you've finished, or delete your account, any time.
 

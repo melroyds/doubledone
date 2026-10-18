@@ -23,7 +23,14 @@ the Play text, each one:
 - **keeps** the Play fixes of 2026-10-19 (the privacy heading and lines from the landing strings `privTitle`,
   `priv2` and `priv3`; Lighten today as a suggestion; the scrapbook named as AI);
 - **says the policy and the Terms are in English**, because they are (the German Play listing once promised "in
-  klarem Deutsch" and was wrong).
+  klarem Deutsch" and was wrong);
+- **names the copy we keep** without your name or account (added later on 2026-10-19, Melroy's call), in each
+  language's landing `faqAiA` sentence, at the end of the Claude line where the Spanish already carried it. The
+  room came from deletions only, so the one new wording for the native read is that sentence, the landing's own.
+  German dropped the AI paragraph's two examples, which its free list already says ("die Reihenfolge ist unser
+  Job", „Mach Schritte draus“). French and Italian kept the sorting example, the only place their text says the
+  AI sorts a brain-dump, and dropped the breakdown one (the list has Décompose-la and Dividi in passaggi) and the
+  "when today is loud" clause after Settle.
 
 The keywords follow the English rules: no word repeats the name or subtitle, no spaces, no competitor names, no
 clinical words. Apple searches the name, subtitle and keyword field only, never the description.
@@ -76,7 +83,7 @@ adhd,aufgaben,aufgabenliste,todo,autismus,zwangsstörung,neurodivergent,routine,
 Eine ruhige To-do-Liste für ADHS, Autismus und Zwangsstörungen. Nur heute, in machbarer Größe, und nichts ist je überfällig. Der tägliche Ablauf ist kostenlos, für immer.
 ```
 
-**Description** (3934 / 4000)
+**Description** (3935 / 4000)
 
 ```
 DoubleDone ist eine ruhige To-do-Liste für Erwachsene mit ADHS, Autismus, Zwangsstörungen und Überforderung.
@@ -101,7 +108,7 @@ Unsere Liste: eine gemeinsame Liste mit einem anderen Menschen
 Kostenlos. Nichts darauf sagt, wer was getan hat, und nichts zählt oder vergleicht. Was einen eigenen Tag hat, die Mülltonne am Dienstag, erscheint an dem Tag in euren beiden Heute. Was keinen hat, bleibt auf der Liste und erreicht niemandes Tag. Wer abhakt, hakt für beide ab. Sie fängt mit einem Code aus sechs Zeichen an, den du deinem Menschen vorliest, und nötig ist nur die Anmeldung per E-Mail.
 
 KI, die hilft, ganz freiwillig
-Die KI ist von Haus aus an und macht echte Arbeit: sie sortiert deinen leergeräumten Kopf in einen machbaren Tag und macht aus einer zu großen Aufgabe kleine Schritte. Freiwillig ist sie trotzdem, und sie schickt nur das, wofür du sie nutzt. Ein Fingertipp in den Einstellungen schaltet sie aus, und die App funktioniert weiter.
+Die KI ist von Haus aus an und macht echte Arbeit. Freiwillig ist sie trotzdem, und sie schickt nur das, wofür du sie nutzt. Ein Fingertipp in den Einstellungen schaltet sie aus, und die App funktioniert weiter.
 
 Premium, wenn du mehr möchtest
 Premium ergänzt optionale Extras: „Liste scannen“, „Deine eine Sache anpinnen“, „Plan meinen Tag“, „Kurs setzen“, sechs weitere Farbthemen, ein wöchentliches Erinnerungsalbum, „Deine Muster“ und Vorschläge ohne Limit bei „Was passt gerade“.
@@ -111,7 +118,7 @@ DoubleDone Premium ist ein optionales, sich automatisch verlängerndes Abo, mona
 Von Haus aus auf deinem Gerät
 - Deine Aufgaben liegen auf deinem Gerät. Kein Konto nötig.
 - Synchronisieren auf allen Geräten: optional, eine E-Mail-Adresse, ein einmaliger Code, kein Passwort.
-- Was du für eine KI-Funktion auswählst, geht an Claude von Anthropic, und Anthropic trainiert damit keine KI-Modelle. Die Bilder im Erinnerungsalbum entstehen mit KI-Modellen von Cloudflare.
+- Was du für eine KI-Funktion auswählst, geht an Claude von Anthropic, und Anthropic trainiert damit keine KI-Modelle. Die Bilder im Erinnerungsalbum entstehen mit KI-Modellen von Cloudflare. Wir behalten eine Kopie ohne deinen Namen und ohne Bezug zu deinem Konto, damit aus Aufgaben bessere Schritte werden.
 - Keine Werbung. Keine Werbe-IDs und kein Tracking über Apps hinweg. Nichts wird verkauft.
 
 du darfst langsam machen
@@ -230,7 +237,7 @@ todo,to-do,planificateur,agenda,organisation,autisme,toc,neuroatypique,routine,r
 Une liste de tâches calme pour le TDAH, l'autisme et les TOC. Juste aujourd'hui, et rien n'est jamais en retard. Toute la boucle quotidienne est gratuite, pour de bon.
 ```
 
-**Description** (3956 / 4000)
+**Description** (3996 / 4000)
 
 ```
 DoubleDone est une liste de tâches calme pour les adultes concernés par le TDAH, l'autisme, les TOC ou le trop-plein.
@@ -248,7 +255,7 @@ LE CŒUR CALME, GRATUIT POUR TOUJOURS
 - Allège ta journée : les jours bien remplis, elle propose de déplacer quelques tâches vers les jours suivants. Rien ne bouge tant que tu n'as pas dit oui.
 - Les tâches qui reviennent, à leur jour.
 - Des rappels tout doux, seulement ceux que tu demandes, jamais une échéance.
-- Settle : une pièce calme, un guide de respiration, quand aujourd'hui fait du bruit.
+- Settle : une pièce calme, un guide de respiration.
 - Clore en douceur. On y honore ce que tu as fait, jamais ce que tu n'as pas fait.
 - Ton Calendrier : tout ce que tu as vraiment terminé, même une tâche redoutée depuis des semaines.
 - Un album souvenir IA gratuit par mois, une image de ce que tu termines.
@@ -257,7 +264,7 @@ NOTRE LISTE : PARTAGÉE AVEC UNE SEULE AUTRE PERSONNE
 Gratuite. Rien n'y dit qui a fait quoi, et rien ne compte ni ne compare, cela ne peut donc pas devenir un tableau de scores. Ce qui a son propre jour, les poubelles le mardi, arrive dans vos deux Aujourd'hui ce jour-là. Le reste attend sur la liste, ta journée reste la tienne. L'un ou l'autre la coche, elle est faite pour les deux. Ça commence par un code de six caractères, que tu lis à ta personne. Notre liste demande seulement la connexion par e-mail.
 
 UNE IA QUI AIDE, ENTIÈREMENT OPTIONNELLE
-L'IA est active par défaut : elle trie ce que tu déposes et décompose une tâche difficile. Elle n'envoie que ce sur quoi tu l'utilises. Un seul geste dans les Réglages la désactive, et l'appli continue de fonctionner.
+L'IA est active par défaut : elle trie ce que tu déposes. Elle n'envoie que ce sur quoi tu l'utilises. Un seul geste dans les Réglages la désactive, et l'appli continue de fonctionner.
 
 PREMIUM, SI UN JOUR TU VEUX PLUS
 Premium ajoute des extras facultatifs : Scanner une liste, Épingler la chose du jour, Organiser ma journée, Trace ta route, six autres thèmes de couleur, un album souvenir chaque semaine, Tes tendances, et des choix illimités dans « Qu'est-ce qui colle en ce moment ».
@@ -267,7 +274,7 @@ DoubleDone Premium est un abonnement facultatif à renouvellement automatique, m
 SUR TON APPAREIL PAR DÉFAUT
 - Tes tâches restent sur ton appareil. Aucun compte n'est nécessaire.
 - La synchro entre appareils est optionnelle : un e-mail, un code à 6 chiffres, aucun mot de passe à retenir.
-- Ce que tu choisis pour une fonction IA est envoyé à Claude, d'Anthropic, et Anthropic ne s'en sert pas pour entraîner ses modèles. Les images des albums souvenirs sont créées avec les modèles d'IA de Cloudflare.
+- Ce que tu choisis pour une fonction IA est envoyé à Claude, d'Anthropic, et Anthropic ne s'en sert pas pour entraîner ses modèles. Les images des albums souvenirs sont créées avec les modèles d'IA de Cloudflare. On garde une copie, sans ton nom ni ton compte, pour améliorer la façon dont les tâches sont décomposées.
 - Pas de pub. Aucun identifiant publicitaire, aucun suivi entre applis. Rien n'est vendu.
 
 tu as le droit d'aller doucement
@@ -306,7 +313,7 @@ attività,todo,planner,agenda,promemoria,autismo,doc,neurodivergente,routine,org
 Una lista calma di cose da fare per ADHD, autismo e DOC. Solo oggi, una giornata fattibile, e niente è mai in ritardo. Tutto il ciclo quotidiano è gratis, per sempre.
 ```
 
-**Description** (3915 / 4000)
+**Description** (3998 / 4000)
 
 ```
 DoubleDone è una lista calma di cose da fare per adulti con ADHD, autismo, DOC e sovraccarico mentale.
@@ -324,7 +331,7 @@ IL CUORE CALMO, GRATIS PER SEMPRE
 - Alleggerisci la giornata, nei giorni pieni propone di spostare qualche attività ai giorni successivi. Non si sposta niente finché non dici di sì.
 - Ricorrenti, le attività che ritornano.
 - Promemoria gentili, solo quelli che chiedi tu, mai una scadenza.
-- Settle, una stanza tranquilla con una guida al respiro, quando oggi fa rumore.
+- Settle, una stanza tranquilla con una guida al respiro.
 - Chiudi la giornata. Onora quello che hai fatto, mai quello che non hai fatto.
 - Calendario, tutto quello che hai portato a termine, anche un'attività che temevi da settimane.
 - Un album dei ricordi gratis ogni mese, fatto con l'AI.
@@ -333,7 +340,7 @@ LA NOSTRA LISTA: UNA LISTA PER DUE PERSONE
 Gratis, e in due soltanto. Nulla dice chi ha fatto cosa, e nulla conta o confronta, quindi non può diventare una classifica. Ciò che ha un giorno suo, i rifiuti il martedì, arriva su entrambi i vostri Oggi quel giorno. Quello che non ce l'ha resta sulla lista. La spunta uno dei due, e vale per entrambi. Si comincia leggendo un codice di sei caratteri alla tua persona, e serve solo l'accesso via email.
 
 L'AI CHE AIUTA, DEL TUTTO FACOLTATIVA
-L'AI è attiva di default e fa un lavoro vero: ordina in una giornata quello che hai buttato giù e divide in passaggi un'attività difficile. Invia solo quello su cui la usi. Un tocco nelle Impostazioni la spegne, e l'app continua a funzionare.
+L'AI è attiva di default e fa un lavoro vero: ordina in una giornata quello che hai buttato giù. Invia solo quello su cui la usi. Un tocco nelle Impostazioni la spegne, e l'app continua a funzionare.
 
 PREMIUM, SE UN GIORNO VUOI DI PIÙ
 Premium aggiunge extra facoltativi: Scansiona una lista, Fissa la cosa di oggi, Organizza la giornata, Traccia la rotta, sei temi di colore in più, un album della settimana, Le tue tendenze e le scelte senza limiti in Cosa ci sta adesso.
@@ -343,7 +350,7 @@ DoubleDone Premium è un abbonamento facoltativo a rinnovo automatico, mensile o
 SUL TUO DISPOSITIVO, DI DEFAULT
 - Le tue attività restano sul tuo dispositivo. Non serve un account.
 - Sincronizzare tra dispositivi è facoltativo: un'email e un codice usa e getta, nessuna password.
-- Quello che scegli per una funzione AI lo riceve Claude di Anthropic, e Anthropic non lo usa per addestrare i suoi modelli. Le immagini dell'album dei ricordi sono create con i modelli AI di Cloudflare.
+- Quello che scegli per una funzione AI lo riceve Claude di Anthropic, e Anthropic non lo usa per addestrare i suoi modelli. Le immagini dell'album dei ricordi sono create con i modelli AI di Cloudflare. Di quello che invii conserviamo una copia senza il tuo nome né il tuo account, per migliorare il modo in cui le attività vengono divise in passaggi.
 - Niente pubblicità. Nessun identificativo pubblicitario né tracciamento tra app. Niente viene venduto.
 
 hai il permesso di andare piano

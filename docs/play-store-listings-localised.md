@@ -89,7 +89,7 @@ DoubleDone: ADHS To-do-Liste
 Ruhige To-dos für ADHS und Überforderung. Nur heute. Nichts ist je überfällig.
 ```
 
-**Full description** (3969 / 4000)
+**Full description** (3970 / 4000)
 
 ```
 Heute ist überschaubar und machbar.
@@ -120,7 +120,7 @@ Was einen eigenen Tag hat, die Mülltonne am Dienstag, erscheint an dem Tag in e
 Sie fängt damit an, dass du deinem Menschen einen Code aus sechs Zeichen vorliest. Es gibt keinen Feed, erreichen kann dich nur, wem du ihn gegeben hast. Verlassen kann sie jeder von euch, wann er mag, ohne Grund. Nötig ist nur die Anmeldung per E-Mail.
 
 KI, die hilft, ganz freiwillig
-Die KI ist von Haus aus an und macht echte Arbeit: sie sortiert deinen leergeräumten Kopf in einen machbaren Tag und macht aus einer zu großen Aufgabe kleine Schritte. Freiwillig ist sie trotzdem, und sie schickt nur das, wofür du sie nutzt. Ein Fingertipp in den Einstellungen schaltet sie aus, und die App funktioniert weiter.
+Die KI ist von Haus aus an und macht echte Arbeit. Freiwillig ist sie trotzdem, und sie schickt nur das, wofür du sie nutzt. Ein Fingertipp in den Einstellungen schaltet sie aus, und die App funktioniert weiter.
 
 Premium, wenn du mehr möchtest
 Premium ergänzt optionale Extras über Google Play: „Liste scannen“, „Deine eine Sache anpinnen“, „Plan meinen Tag“, „Kurs setzen“, sechs weitere Farbthemen, ein wöchentliches Erinnerungsalbum, „Deine Muster“ und Vorschläge ohne Limit bei „Was passt gerade“.
@@ -128,7 +128,7 @@ Premium ergänzt optionale Extras über Google Play: „Liste scannen“, „Dei
 Von Haus aus auf deinem Gerät
 - Deine Aufgaben liegen auf deinem Gerät. Kein Konto nötig.
 - Synchronisieren auf allen Geräten: optional, eine E-Mail-Adresse, ein einmaliger Code, kein Passwort.
-- Was du für eine KI-Funktion auswählst, geht an Claude von Anthropic, und Anthropic trainiert damit keine KI-Modelle. Die Bilder im Erinnerungsalbum entstehen mit KI-Modellen von Cloudflare.
+- Was du für eine KI-Funktion auswählst, geht an Claude von Anthropic, und Anthropic trainiert damit keine KI-Modelle. Die Bilder im Erinnerungsalbum entstehen mit KI-Modellen von Cloudflare. Wir behalten eine Kopie ohne deinen Namen und ohne Bezug zu deinem Konto, damit aus Aufgaben bessere Schritte werden.
 - Keine Werbung. Keine Werbe-IDs und kein Tracking über Apps hinweg. Nichts wird verkauft.
 - Exportiere jederzeit deine Aufgaben und alles, was du geschafft hast. Falls du dich angemeldet hast, löschst du dein Konto und deine synchronisierten Daten in den Einstellungen.
 
@@ -146,6 +146,8 @@ Die Datenschutzerklärung, in klarem Englisch: doubledone.app/privacy
 **2026-10-16:** the not-a-medical-device line went in just before the privacy line, matching the English listing (a5d3031). Full description now 3216 characters.
 
 **2026-10-19 (store 1.9, slice 8):** a title, the App Store's German name, so one name serves each language on both stores. The AI-off "dann verlässt kein Text mehr dein Gerät" went (false: sync, Ours, a feedback note and the usage counts still run), and the AI paragraph now ends with `priv2`'s words. "Privat von Haus aus" became `privTitle`, "Keine Tracker von Dritten" became `priv3`, "Deine Daten exportieren" became `priv4`. "Mach heute leichter: Aufgaben wandern auf spätere Tage" became a suggestion that moves nothing until you say yes (`m2Body`). The monthly album is a KI-Erinnerungsalbum, because it is hidden with AI off. The Claude bullet says what you choose rather than only text (Scan sends a photo) and names Cloudflare, from `faqAiA`. "je nach zu viel" became "jemals nach zu viel", here and in the five landing and welcome lines that share it (the Backlog's rule: all together). Added: `founder`, a Premium paragraph from `faqFreeA` with "über Google Play", and "Für medizinischen Rat wende dich an medizinisches Fachpersonal." Cut for room: Zusammenlegen. Full description now 3969 characters.
+
+**2026-10-19, later (Melroy's call):** the Claude bullet ends with `faqAiA`'s kept-copy sentence, "Wir behalten eine Kopie ohne deinen Namen und ohne Bezug zu deinem Konto, damit aus Aufgaben bessere Schritte werden.", as the privacy policy and the Spanish listing already said. Room, the same cut as the App Store's German: the AI paragraph's two examples went ("sie sortiert deinen leergeräumten Kopf ... kleine Schritte"), which the free list above names in the app's own words. Full description now 3970 characters.
 
 Full description: 4005 to 3909 characters (96 cut, 41 under the 3950 target). Short description: 78 characters.
 
@@ -275,7 +277,7 @@ DoubleDone : liste de tâches
 Pour le TDAH et la surcharge. Juste aujourd'hui. Rien n'est jamais en retard.
 ```
 
-**Full description** (3846 / 4000)
+**Full description** (3952 / 4000)
 
 ```
 Aujourd'hui a une fin, et tu peux y arriver.
@@ -317,7 +319,7 @@ Premium ajoute des extras facultatifs, via Google Play : Scanner une liste, Ép
 SUR TON APPAREIL PAR DÉFAUT
 - Tes tâches restent sur ton appareil. Aucun compte n'est nécessaire.
 - La synchro entre appareils est optionnelle : un e-mail, un code à 6 chiffres, aucun mot de passe à retenir.
-- Ce que tu choisis pour une fonction IA est envoyé à Claude, d'Anthropic, et Anthropic ne s'en sert pas pour entraîner ses modèles. Les images des albums souvenirs sont créées avec les modèles d'IA de Cloudflare.
+- Ce que tu choisis pour une fonction IA est envoyé à Claude, d'Anthropic, et Anthropic ne s'en sert pas pour entraîner ses modèles. Les images des albums souvenirs sont créées avec les modèles d'IA de Cloudflare. On garde une copie, sans ton nom ni ton compte, pour améliorer la façon dont les tâches sont décomposées.
 - Pas de pub. Aucun identifiant publicitaire, aucun suivi entre applis. Rien n'est vendu.
 - Exporte tes tâches et ce que tu as terminé quand tu veux. Si tu as un compte, supprime-le dans les Réglages, avec tes données synchronisées.
 
@@ -337,6 +339,8 @@ La politique de confidentialité, en clair : doubledone.app/privacy.
 **2026-10-19 (store 1.9, slice 8):** a title, the App Store's French name. "plus rien de ce que tu écris ne part" and "Sinon, rien de ce que tu écris ne sort de ton appareil" went (false with AI off: sync, Ours, a feedback note and the usage counts still run), and the AI paragraph now carries `priv2`'s words. "PRIVÉ PAR DÉFAUT" became `privTitle`, "Aucun traqueur tiers" became `priv3`, "Exporte tes données" became `priv4`, and Allège ta journée is a suggestion (`m2Body`). The monthly album is an "album souvenir IA", and the Claude bullet names Cloudflare. Added: `founder`, a Premium paragraph from `faqFreeA`, and "Pour un avis médical, adresse-toi à un professionnel de santé." The Ours lines were already true and are untouched. Every colon, question mark and guillemet now takes U+00A0, which the gate enforces. Full description now 3830 characters.
 
 **2026-10-19 (the store 1.9 build review):** "Rappel quotidien : un seul, tout doux, jamais une échéance." said there is one reminder, a daily one, and both phone apps also have per-task reminders, « Tiens-moi à ça » and the Rythmes (the catalogue's own `faqWhereA`). It is now "Des rappels tout doux, seulement ceux que tu demandes, jamais une échéance.", the idea the other four languages carry, the same on the App Store. Full description now 3846 characters.
+
+**2026-10-19, later (Melroy's call):** the Claude bullet ends with `faqAiA`'s kept-copy sentence, "On garde une copie, sans ton nom ni ton compte, pour améliorer la façon dont les tâches sont décomposées.", as the privacy policy and the Spanish listing already said. It fits without a cut here. The App Store's French made room with two deletions: the breakdown example in its AI paragraph, and "quand aujourd'hui fait du bruit" after Settle. Full description now 3952 characters.
 
 4029 to 3853 characters, verified in Python (UTF-8, trailing newline excluded), so 97 under the 3950 target and 147 under Google's cap. Every cut was a repeat, never a fact, and no bullet was lost: the adjective and clause layer alone freed enough room, so both bullets I first removed (Regrouper, Silencieuse) went back in.
 
@@ -372,7 +376,7 @@ DoubleDone: lista cose da fare
 Cose da fare per ADHD e per il troppo. Solo oggi. Niente è mai in ritardo.
 ```
 
-**Full description** (3843 / 4000)
+**Full description** (3992 / 4000)
 
 ```
 Oggi ha una fine, ed è fattibile.
@@ -413,7 +417,7 @@ Premium aggiunge extra facoltativi, tramite Google Play: Scansiona una lista, Fi
 SUL TUO DISPOSITIVO, DI DEFAULT
 - Le tue attività restano sul tuo dispositivo. Non serve un account.
 - Sincronizzare tra dispositivi è facoltativo: un'email e un codice usa e getta, nessuna password.
-- Quello che scegli per una funzione AI lo riceve Claude di Anthropic, e Anthropic non lo usa per addestrare i suoi modelli. Le immagini dell'album dei ricordi sono create con i modelli AI di Cloudflare.
+- Quello che scegli per una funzione AI lo riceve Claude di Anthropic, e Anthropic non lo usa per addestrare i suoi modelli. Le immagini dell'album dei ricordi sono create con i modelli AI di Cloudflare. Di quello che invii conserviamo una copia senza il tuo nome né il tuo account, per migliorare il modo in cui le attività vengono divise in passaggi.
 - Niente pubblicità. Nessun identificativo pubblicitario né tracciamento tra app. Niente viene venduto.
 - Esporta le tue attività e quello che hai finito, quando vuoi. Se hai fatto l'accesso, nelle Impostazioni puoi eliminare l'account e i dati sincronizzati.
 
@@ -431,6 +435,8 @@ La privacy, in parole semplici, su doubledone.app/privacy.
 **2026-10-16:** the not-a-medical-device line went in just before the privacy line, matching the English listing (a5d3031). Full description now 3201 characters.
 
 **2026-10-19 (store 1.9, slice 8):** a title, the App Store's Italian name. The shared list is "La nostra lista" everywhere (the 2026-10-18 rule: always its default name), so the heading "NOSTRO: LA LISTA CHE TENETE IN DUE" is `m4Title`, "Nell'app si chiama La nostra lista" went, and "Nostro chiede" is "La nostra lista chiede". "niente di quello che scrivi esce" went twice (false with AI off), and the AI paragraph now carries `priv2`'s words. "PRIVATA DI DEFAULT" became `privTitle`, the trackers line became `priv3`, "Esporta i tuoi dati" became `priv4`, and Alleggerisci la giornata is a suggestion (`m2Body`). The monthly album is "fatto con l'AI", and the Claude bullet names Cloudflare. Added: `founder`, a Premium paragraph from `faqFreeA`, and "Per un consiglio medico, rivolgiti a un professionista della salute." Full description now 3843 characters.
+
+**2026-10-19, later (Melroy's call):** the Claude bullet ends with `faqAiA`'s kept-copy sentence, "Di quello che invii conserviamo una copia senza il tuo nome né il tuo account, per migliorare il modo in cui le attività vengono divise in passaggi.", as the privacy policy and the Spanish listing already said. It fits without a cut here. The App Store's Italian made room with two deletions: the breakdown example in its AI paragraph, and "quando oggi fa rumore" after Settle. Full description now 3992 characters.
 
 4247 to 3841 characters, 406 removed, 109 of headroom left under the 3950 target. What went, in order of how little it cost:
 

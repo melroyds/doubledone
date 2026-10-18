@@ -69,14 +69,14 @@ A calm to-do list for ADHD, autism and OCD. Just today, sized to be doable, and 
 Editable later without review, and not searched. It keeps the two phrases the field has always carried, so the
 free-forever promise survives whenever this line turns over.
 
-**Description** (3997 / 4000)
+**Description** (3993 / 4000)
 
 ```
 DoubleDone is a calm to-do list for adults with ADHD, autism, OCD and overwhelm.
 
 The home screen is Today, and only Today. Not your whole backlog, not a wall of overdue guilt, just a day sized to be doable. Nothing is ever overdue here. It just waits.
 
-When a task is too big to start, Break it down turns it into small steps, and ticking the last one finishes the real task. On a low day, tap Low and what counts as enough gently shrinks. When today gets loud, Settle is a quiet room with a breathing guide, always there and never earned. And the day closes gently, with zero guilt about what moved to tomorrow.
+When a task is too big to start, Break it down turns it into small steps, and ticking the last one finishes the real task. When today gets loud, Settle is a quiet room, always there and never earned. And the day closes gently, with zero guilt about what moved to tomorrow.
 
 There are no streaks, no scores, and nothing that shames you. A task is never punished for existing. What you finish, you keep: your Calendar shows everything you actually did, including the old dreaded things you finally closed, because that deserves to be seen.
 
@@ -116,7 +116,7 @@ Premium, if you ever want more:
 
 DoubleDone Premium is an optional auto-renewable subscription, monthly or yearly, at the price the App Store shows you before you buy. It is charged to your Apple ID at confirmation of purchase and renews automatically until you cancel, which you can do any time in your Apple ID settings, up to a day before it renews. Once you sign in, you can also try Premium free for a month: no card, no charge, and it never turns into a subscription on its own.
 
-Privacy, plainly: no ads, no advertising identifiers, no selling your data. You do not need an account, and your tasks live on your device unless you choose to sync or share a list. The AI features are on to start and only send what you use them on, to Anthropic's Claude. Scrapbook pictures are made with Cloudflare's AI models. One tap in Settings turns the AI off, and the rest of the app keeps working. The full policy is at https://doubledone.app/privacy
+Privacy, plainly: no ads, no advertising identifiers, no selling your data. You do not need an account, and your tasks live on your device unless you choose to sync or share a list. The AI features are on to start and only send what you use them on, to Anthropic's Claude. Scrapbook pictures are made with Cloudflare's AI models. We keep a copy without your name or account, to improve how tasks get broken down. One tap in Settings turns the AI off, and the rest of the app keeps working. The full policy is at https://doubledone.app/privacy
 
 DoubleDone is not a medical device. It does not diagnose, treat, cure or prevent any condition, and it is not a substitute for professional care. For medical advice, talk to a health professional.
 
@@ -143,6 +143,11 @@ feature by feature (the landing page precedent):
   both stores in every language. It paid for itself with two trims in the Ours paragraph ("between" became "for",
   and "the shared list" became "the list").
 - **Left out because an iPhone does not have them:** the home-screen widget and Speak.
+- **The kept copy** (added later on 2026-10-19, Melroy's call). The privacy paragraph now says we keep a copy
+  without your name or account, in the landing's `faqAiA` words, as the privacy policy and the Spanish listing
+  already did. The room came from two lines the free list below already says: the low-day sentence ("A low day,
+  when enough should mean less") and "with a breathing guide" after Settle ("Settle, a quiet room with a
+  breathing guide").
 
 ## The second English keyword set
 

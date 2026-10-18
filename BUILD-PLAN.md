@@ -216,13 +216,16 @@ the ladder is fixed and readable, never randomised.
   searches after 1.9.0 is live, and Melroy's yes. (2) **Renaming the in-app purchase products**, since Apple
   searches their display names too. Trigger: the next IAP change in App Store Connect. (3) **Baseline the keyword
   reads** once 1.9.0 is live: Apple Search Ads keyword popularity (5 to 100) for the English set, and Play Console's
-  acquisition report by search term. Trigger: 1.9.0 live on both stores (plan step 15). (4) **The kept AI copy in
-  the listings' privacy lines** (added by the 2026-10-19 build review). The English, German, French and Italian
-  listings, on both stores, name Anthropic as where AI text goes and leave out the copy we keep without a name,
-  account or IP address, which the privacy policy and the landing page's `faqAiA` both state. Spanish carries it
-  ("Guardamos una copia sin nombre ni cuenta para mejorar los pasos."). Not false, and each language agrees across
-  its two stores, so adding `faqAiA`'s sentence is a copy call, and it needs the native read for three languages.
-  Trigger: Melroy's word before the listings are pasted (plan step 14), or the next listing edit.
+  acquisition report by search term. Trigger: 1.9.0 live on both stores (plan step 15). (4) ~~**The kept AI copy
+  in the listings' privacy lines**~~ **DONE 2026-10-19 on Melroy's call (`store-1.9`):** the English, German,
+  French and Italian listings, on both stores, now end their Claude line with that language's `faqAiA` sentence
+  (in English, "We keep a copy without your name or account, to improve how tasks get broken down."), where the
+  Spanish already carried it, so all five agree with the privacy policy. The room on the five fields that needed it
+  came from deletions only, each recorded in its doc, and `node scripts/check-listings.mjs` is green. The German,
+  French and Italian sentences are the landing's own words, and they ride the batch's one native read with the
+  rest of the listings. *(The original:
+  the four listings named Anthropic and left out the copy we keep without a name, account or IP address, which
+  the privacy policy and `faqAiA` both state.)*
 - **Two in-app lines the slice 5 truth pass found and left (parked 2026-10-19, with slice 5 of `store-1.9`).**
   (1) ~~**The welcome's Premium fine print names our own price on an iPhone.**~~ **DONE 2026-10-19 on Melroy's call
   (`store-1.9`):** the welcome now asks `welcomeFineKey(IAP_AVAILABLE, STRIPE_HERE)` in `lib/premium-ui.ts`, so our
