@@ -47,9 +47,10 @@ elle est faite pour les deux." had the slip the Spanish and Italian readers fixe
 before "la coche" are "la tienne" (ta journée) and "la liste", so it read as one of you ticking your day, or the
 list. It is now "La coche de l'un ou de l'autre vaut pour les deux.", the Italian fix's shape and 5 characters
 shorter, which this page needed at 3999 / 4000. The Play listing takes the same line. The French reader passed the
-old sentence, so this one goes back to them before paste day. If they confirm it, the app's own `sharedLead2` in
-`client/src/lib/catalogs/fr.ts` has the same construction ("L'un ou l'autre la coche, et elle est faite pour les
-deux.") and takes the same fix, so the app and its store pages say it the same way.
+old sentence, so this one went back to them, and they confirmed it on 2026-10-19 (the native read of the 1.9.0
+release notes). The app's own `sharedLead2` in `client/src/lib/catalogs/fr.ts` had the same construction ("L'un
+ou l'autre la coche, et elle est faite pour les deux.") and took the same line then, so the app and its store
+pages say it the same way.
 
 The keywords follow the English rules: no word repeats the name or subtitle, no spaces, no competitor names, no
 clinical words. Apple searches the name, subtitle and keyword field only, never the description.
