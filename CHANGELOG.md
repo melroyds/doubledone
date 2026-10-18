@@ -55,6 +55,9 @@ _Server only (the Worker), not deployed yet. 1.8.0 is with the stores._
 - An MCP rename of a task already removed answered "Updated." for a task nobody could see, and removing a task
   twice, over MCP or REST, moved the first removal's time, which the app reads for Undo and Combine. Neither
   writes a removed task any more.
+- The OpenAPI spec now says what the routes do: the plain list is every task that is not deleted (it said "open
+  and dated"), DELETE no longer lists a 404 it never returns, and a `due` day is no longer promised to be in the
+  future. The REST repeat errors now name monthly.
 
 ## [1.8.0] - 2026-10-05
 

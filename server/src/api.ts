@@ -89,6 +89,11 @@ type Row = Record<string, unknown>;
 const SELECT = 'id,title,done,due,created_at,completed_at,recurrence,completed_dates,skipped_dates,slices,silent_parent,parent_id,parent_title';
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+// The repeat kinds and the help line, written once for every message that names them. Each message used to list
+// its own kinds, and all four left out monthly, which the API takes.
+const REPEAT_KINDS = 'daily | weekly | every_n_days | monthly';
+const UNREADABLE_REPEAT = "couldn't read that repeat: use daily, weekly (with weekdays 0-6), every_n_days (with days), or monthly (with an optional day 1-31)";
+
 /** Today as an ISO 'YYYY-MM-DD' UTC calendar day. The same basis MCP and cadence.ts use, so
  *  a repeat's "next occurrence" is computed identically across the REST API and the agent. */
 function todayIsoUtc(): string {
@@ -470,7 +475,7 @@ export function parseCreate(raw: unknown): { body: CreateBody } | { error: strin
   }
   let repeat: RepeatSpec | null = null;
   if (typeof o.repeat !== 'undefined' && o.repeat !== null) {
-    if (typeof o.repeat !== 'object') return { error: 'repeat must be an object (kind: daily | weekly | every_n_days)' };
+    if (typeof o.repeat !== 'object') return { error: `repeat must be an object (kind: ${REPEAT_KINDS})` };
     repeat = o.repeat as RepeatSpec;
   }
   if (due && repeat) return { error: 'a task can have a due date or a repeat, not both' };
@@ -524,7 +529,7 @@ export function parseUpdate(raw: unknown): { body: UpdateBody } | { error: strin
   if (typeof o.repeat !== 'undefined') {
     if (o.repeat === null) body.repeat = null;
     else if (typeof o.repeat === 'object') body.repeat = o.repeat as RepeatSpec;
-    else return { error: 'repeat must be an object (kind: daily | weekly | every_n_days) or null' };
+    else return { error: `repeat must be an object (kind: ${REPEAT_KINDS}) or null` };
   }
   if (typeof o.partsTotal !== 'undefined') {
     if (o.partsTotal === null) body.partsTotal = null;
@@ -860,7 +865,7 @@ async function handleApiInner(request: Request, env: ApiEnv, verifySub: SubVerif
       if (parsed.body.repeat) {
         recurrence = buildRecurrence(parsed.body.repeat, now.slice(0, 10));
         if (!recurrence) {
-          return json({ error: "couldn't read that repeat: use daily, weekly (with weekdays 0-6), or every_n_days (with days)" }, 400);
+          return json({ error: UNREADABLE_REPEAT }, 400);
         }
       }
       const id = newTaskId(Date.now(), Math.random().toString(36).slice(2, 8));
@@ -934,7 +939,7 @@ async function handleApiInner(request: Request, env: ApiEnv, verifySub: SubVerif
         else {
           const recurrence = buildRecurrence(b.repeat, now.slice(0, 10));
           if (!recurrence) {
-            return json({ error: "couldn't read that repeat: use daily, weekly (with weekdays 0-6), or every_n_days (with days), or null to stop it" }, 400);
+            return json({ error: `${UNREADABLE_REPEAT}, or null to stop it` }, 400);
           }
           patch.recurrence = recurrence;
         }

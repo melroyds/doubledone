@@ -1161,3 +1161,49 @@ describe('linked steps over REST: steps on create, POST /tasks/{id}/steps, and t
     expect(guardOf(viaRest[2])).toEqual(guardOf(viaMcp[2]));
   });
 });
+
+describe('the OpenAPI spec and the error messages say what the routes do (the drift fixes)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const token = fakeJwt('u1');
+  type Op = { description?: string; responses: Record<string, unknown> };
+  const spec = async () =>
+    (await (await handleApi(req('GET', '/api/v1/openapi.json'), env, trust)).json()) as {
+      paths: Record<string, Record<string, Op>>;
+      components: { schemas: Record<string, { properties: Record<string, { description?: string }> }> };
+    };
+
+  it('the plain list is every task not deleted, finished and hidden ones included, never "open and dated"', async () => {
+    const list = (await spec()).paths['/tasks'].get.description ?? '';
+    expect(list).not.toMatch(/open and dated/);
+    expect(list).toMatch(/every task you have that is not deleted/);
+    expect(list).toMatch(/hidden: true/);
+  });
+
+  it('DELETE documents its 204 for nothing to delete, and no 404, which it never returns', async () => {
+    const del = (await spec()).paths['/tasks/{id}'].delete;
+    expect(Object.keys(del.responses)).not.toContain('404');
+    expect(del.description).toMatch(/204 even when no task matches/);
+    // The route agrees: a delete that matches nothing is a 204.
+    sequence([]);
+    expect((await handleApi(req('DELETE', '/api/v1/tasks/nope', { token }), env, trust)).status).toBe(204);
+  });
+
+  it('a due day is not promised to be in the future, because only its shape is checked', async () => {
+    const s = await spec();
+    expect(s.components.schemas.TaskInput.properties.due.description).not.toMatch(/future/i);
+    expect(s.paths['/tasks'].post.description).not.toMatch(/future `due`/);
+    expect(parseCreate({ title: 'Ring the bank', due: '2020-01-01' })).toEqual({ body: { title: 'Ring the bank', due: '2020-01-01', repeat: null } });
+  });
+
+  it('every repeat error names monthly, which the API takes', async () => {
+    expect(parseCreate({ title: 'x', repeat: 'daily' })).toEqual({ error: 'repeat must be an object (kind: daily | weekly | every_n_days | monthly)' });
+    expect(parseUpdate({ repeat: 5 })).toEqual({ error: 'repeat must be an object (kind: daily | weekly | every_n_days | monthly) or null' });
+    const errorOf = async (res: Response) => ((await res.json()) as { error: string }).error;
+    const create = await handleApi(req('POST', '/api/v1/tasks', { token, body: { title: 'x', repeat: { kind: 'weekly' } } }), env, trust);
+    expect(create.status).toBe(400);
+    expect(await errorOf(create)).toBe("couldn't read that repeat: use daily, weekly (with weekdays 0-6), every_n_days (with days), or monthly (with an optional day 1-31)");
+    const update = await handleApi(req('PATCH', '/api/v1/tasks/t1', { token, body: { repeat: { kind: 'weekly' } } }), env, trust);
+    expect(update.status).toBe(400);
+    expect(await errorOf(update)).toBe("couldn't read that repeat: use daily, weekly (with weekdays 0-6), every_n_days (with days), or monthly (with an optional day 1-31), or null to stop it");
+  });
+});

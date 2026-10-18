@@ -41,7 +41,8 @@ export const OPENAPI_SPEC = {
         summary: 'List your tasks',
         description:
           'Lists your tasks. Choose one read mode via a query param; when more than one is given the ' +
-          'precedence is q, then upcoming, then today, then a plain list of all your open and dated tasks.',
+          'precedence is q, then upcoming, then today, then the plain list: every task you have that is not deleted, ' +
+          'open and finished, one-off and repeating, and those waiting on their steps (`hidden: true`) too.',
         operationId: 'listTasks',
         parameters: [
           {
@@ -83,7 +84,7 @@ export const OPENAPI_SPEC = {
         tags: ['tasks'],
         summary: 'Create a task',
         description:
-          'Creates a task. By default it lands on today. Optionally give it a future `due` day OR a `repeat`, never both. A one-off can start tracked in parts (`partsTotal`, 2-50), with or without a `due` day; a repeating task cannot (400). ' +
+          'Creates a task. By default it lands on today. Optionally give it a `due` day OR a `repeat`, never both. A one-off can start tracked in parts (`partsTotal`, 2-50), with or without a `due` day; a repeating task cannot (400). ' +
           'With `steps` (2 to 20), the task is created together with its linked steps in one write: the big task waits hidden behind them, and ticking the last one closes it. The answer is then `{ task, steps }`. `steps` cannot come with `due`, `repeat` or `partsTotal` (400): give a step its own `due` instead.',
         operationId: 'createTask',
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/TaskInput' } } } },
@@ -182,12 +183,13 @@ export const OPENAPI_SPEC = {
       delete: {
         tags: ['tasks'],
         summary: 'Delete a task',
+        description:
+          'A soft delete: the task is tombstoned, the same way the app removes one, so the removal syncs to your devices. A 204 even when no task matches (already removed, or never there), so a repeated delete is harmless.',
         operationId: 'deleteTask',
         responses: {
-          '204': { description: 'Deleted (a soft delete; the row is tombstoned).' },
+          '204': { description: 'Deleted (a soft delete; the row is tombstoned), or there was nothing to delete.' },
           '400': { $ref: '#/components/responses/BadRequest' },
           '401': { $ref: '#/components/responses/Unauthorized' },
-          '404': { $ref: '#/components/responses/NotFound' },
         },
       },
     },
@@ -252,7 +254,12 @@ export const OPENAPI_SPEC = {
         description: 'A new task. Give a `due` day OR a `repeat`, never both; with neither, the task lands on today. Or give `steps` to create it broken down.',
         properties: {
           title: { type: 'string', description: 'The task. With `steps`, at most 500 characters.' },
-          due: { type: ['string', 'null'], format: 'date', description: 'A future day (YYYY-MM-DD) for a one-off. Mutually exclusive with repeat.' },
+          due: {
+            type: ['string', 'null'],
+            format: 'date',
+            description:
+              'The day (YYYY-MM-DD) a one-off is due. A later day schedules it; today or an earlier day puts it on today, as in the app. Only its shape is checked, so send a real calendar day. Mutually exclusive with repeat.',
+          },
           repeat: { $ref: '#/components/schemas/Repeat' },
           partsTotal: {
             type: 'integer',

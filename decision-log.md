@@ -9595,3 +9595,11 @@ the tombstone's time, which the app's repair reads to recognise a task folded by
 on offer. A removed task now answers "No matching task found." over MCP. REST `DELETE` still answers `204` when
 nothing matched, so a retried delete stays harmless. Decided against: a 404 on a repeated REST delete (it would make
 a retry look like a failure, and the route has never returned one).
+
+**The OpenAPI spec says what the routes do (the design's drift list).** The plain list is every task that is not
+deleted, finished, repeating and hidden ones included (it said "open and dated"); `DELETE` no longer lists a `404`
+it never returns; a `due` day is no longer called "future", because only its shape is checked; and the four REST
+repeat errors, which each listed their own kinds and all left out monthly, now come from one line that names it.
+Decided against: enforcing a future `due` to match the old words (the app and MCP both take a past day, which
+lands on today), and wiring the unused `InternalError` response into every operation in the same commit (not on
+the design's list; the 500 is documented in `docs/api.md`).
