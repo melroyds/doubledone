@@ -9844,3 +9844,65 @@ localises its own card.
   months-old install that never closes a day would be asked. Closed days are the behaviour the ask is earned by.
 - **A kill switch.** Both stores cap the card themselves, so the worst bug is a wasted ask, not a nagging app, and
   the 14-day earn after an update works as a staged rollout on its own.
+
+## 2026-10-19: every way into a task's card that needs no finger, built (store 1.9, slice 2): no colour change yet
+
+**Decided (Melroy's calls 2 and 3, 2026-10-19): the held card gets a door for every reader who cannot hold, and the
+pill steps aside while a card is open.** The a11y scout proved from source that RN-web never fires `onLongPress`
+from a keyboard and drops `accessibilityActions`, so on the web no keyboard or screen-reader user could open a
+task's card at all, and on the phones the hold worked only by gesture pass-through. The card is the door to half the
+app. What `client/src/components/TaskRow.tsx` now does, on all five long-press branches (plain, in steps, "looks
+big", a tiny step, a held row):
+- **Native screen readers (S1):** one `accessibilityActions` entry, `longpress` labelled "Options". Android maps it
+  to its long-click, so TalkBack's double-tap-and-hold and its Actions menu both open the card; VoiceOver lists it in
+  the Actions rotor. The sliced row's spoken "hold to adjust" finally has a real path.
+- **The web keyboard and mouse (K1):** `rowDoor()` in the new `client/src/components/row-door.ts` adds right-click,
+  the Menu key and Shift+F10, with `aria-keyshortcuts`. A contextmenu the press responder already prevented (a touch
+  hold, which opens the card itself) is skipped, and the one a browser sends after a key open is swallowed, so one
+  gesture never opens the card twice or shows the browser's menu over it. The key test is pure, in
+  `client/src/lib/row-options.ts` with its tests.
+- **The Mac path (K2):** a web-only "Options for {title}" button after each row, invisible and untouchable until
+  keyboard focus reveals it as a small chip, because a Mac has no Menu key. The plain and sliced rows gain a plain
+  wrapper View on the web only, since a button cannot sit inside the row's own Pressable.
+- **Focus follows the card (K3):** on open, focus lands on the card's title (web focus, or the screen reader's).
+  On close it comes back to the row only when it was inside the card: the web watches focus, and native, which
+  cannot see a screen reader's focus, counts only the card's own ways out. An action that opens a sheet keeps the
+  focus the sheet took, and a row that mounts already open (an appearance remount under Settings) never pulls focus.
+- **The other ways out (K4):** Escape on the web (keyup on the window, so a Modal above closes alone), VoiceOver's
+  escape scrub, and Android's back, all inside `useFocusEffect` so a Today buried under Premium never swallows
+  Premium's back.
+- **K6, C3, C4:** the rail's cells draw the browser's focus ring 2 inside (the rail clipped it; checked in an
+  export, all four sides show). The hero's sub-label loses its 0.82 fade. The free Pin is dimmed by inkSoft colour
+  instead of 0.6 opacity on a live control, and the ✦ keeps its full gold. No colour token changed.
+
+On Today (`client/src/app/today.tsx`) and the Ours list: **the pill steps aside while a card is held (P1)**, exactly
+as for select mode, because it sat on the card's shelf, right over "Select several". One refinement over the plan's
+`confirmingId != null`: only for a card actually on the screen, so an id whose row has gone (removed on another
+device, a Done line folded shut) can never leave the day with no way to add. **The web lists carry the pill's band
+as `scrollPaddingBottom` (P2)**, from the new `pillClearance()` beside `pillBottom` in `CaptureSheet.tsx` (90 on a
+phone with no home bar), so a row reached by Tab stops above the pill: in the export a row parked under it was
+scrolled clear. **"Add a task" is the first Tab stop (K8)**, focus-revealed above the date line, offered only while
+the pill itself is (it was the last stop, after every row). **The hold-hint is heard in full (K7):** its label is
+the tip, then "Got it, hide this tip", and the web's tip names right-click.
+
+New strings in all five catalogues: `today.rowOptions`, `today.rowOptionsA11y`, `today.holdHintWeb` and
+`today.holdHintNoAiWeb` (neutral Spanish, French no-break space before the colon). Manual cases A11Y-04 to 10 and
+A11Y-12. Verified in a production export served locally: Shift+F10, right-click and the Options button each open the
+card with focus on its title, Escape and Close return focus to the row, Select several lands focus on the selected
+row, the pill is gone while a card is open, and nothing ticks by accident. The phone halves need the 1.9.0 build
+and the A11Y-07 and A11Y-08 device pass.
+
+**Decided against:**
+- **A visible "…" button on every row.** It would put a control on every row for everybody, on the screen briefed
+  to be calm, to serve readers the invisible button and the screen-reader action already serve (the scout's Tier 4).
+- **Measuring the card and scrolling it clear of the pill** (the `liftAboveKeyboard` pattern) instead of stepping
+  the pill aside. More code, different on native and the web, and the pill would still cover the shelf on native,
+  where nothing scrolls a held card. Stepping aside mirrors select mode and is one prop.
+- **A native-only fix.** `accessibilityActions` alone leaves the web, where the audit found the gap, exactly
+  as broken, because RN-web ignores it.
+- **Space toggling a row (K5), arrow keys in Energy, the floatNote overlay and the ✦ gold (C8).** Tier 3, parked in
+  the BUILD-PLAN Backlog with a trigger. Enter already ticks a row.
+- **Any accessibility claim in copy.** Until the VoiceOver and TalkBack device pass and the contrast work (slice 3)
+  land, no listing or landing line says accessible, WCAG or screen-reader friendly, and slice 8's gate bans them.
+- **The contrast tokens and their test (C10) in this slice.** They change how Today looks, so they wait for
+  Melroy's before/after look (slice 3).

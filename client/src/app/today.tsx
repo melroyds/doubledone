@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Bloom, type BloomData } from '@/components/Bloom';
 import { BedtimeCapture } from '@/components/BedtimeCapture';
-import { CaptureSheet, type CaptureSheetHandle, restingListPad, restingPanelHeight } from '@/components/CaptureSheet';
+import { CaptureSheet, type CaptureSheetHandle, pillClearance, restingListPad, restingPanelHeight } from '@/components/CaptureSheet';
 import { DayHeading } from '@/components/DayHeading';
 import { MenuPill } from '@/components/MenuPill';
 import { CameraCapture } from '@/components/CameraCapture';
@@ -1095,6 +1095,25 @@ export default function TodayScreen() {
     }),
   );
   const sharedForToday = sharedTasks.filter((row) => sharedDueOn(row, toISODate(today), today) && !heldCopies.has(row.id));
+  // A card is held, so the pill steps aside (store 1.9, slice 2, P1), exactly as it does for select mode: it sat on
+  // the card's shelf, right over "Select several". Only for a card that is ON the screen, though. An id whose row
+  // has gone (removed on another device, a Done line folded shut) must never leave the day with no way to add.
+  const cardHeld =
+    confirmingId != null &&
+    (rows.some((r) => r.id === confirmingId) ||
+      (tuckOpen && tuckedRows.some((r) => r.id === confirmingId)) ||
+      upcoming.some((r) => r.id === confirmingId) ||
+      sharedForToday.some((r) => r.id === confirmingId));
+  const pillHidden = selectMode || isClosed || cardHeld;
+  // The hold-hint's tip. On the web it names right-click too, the pointer's own way to hold (K7).
+  const holdTip =
+    Platform.OS === 'web'
+      ? aiEnabled
+        ? t('today.holdHintWeb')
+        : t('today.holdHintNoAiWeb')
+      : aiEnabled
+        ? t('today.holdHint')
+        : t('today.holdHintNoAi');
   // Copies whose shared row has been taken off the list. A fact on the row, never a prompt: the
   // task is yours and stays yours, and Remove is already on its held card if you want it gone.
   const originGone = oursPairId ? removedOrigins(tasks, sharedTasks, oursPairId) : new Set<string>();
@@ -2984,7 +3003,9 @@ export default function TodayScreen() {
       <LivingBackground />
       <ScrollView
         ref={scrollRef}
-        style={styles.scroll}
+        // The web gets the pill's band as scroll padding (P2): a row focused by Tab, or a held card scrolled into
+        // view, stops above the pill instead of under it. React Native's style types do not know the CSS property.
+        style={[styles.scroll, Platform.OS === 'web' ? ({ scrollPaddingBottom: pillClearance(insets.bottom) } as object) : null]}
         // While the panel is up the day behind it is out of reach: the panel is a modal region.
         accessibilityElementsHidden={sheetOpen}
         importantForAccessibility={sheetOpen ? 'no-hide-descendants' : 'auto'}
@@ -3019,6 +3040,20 @@ export default function TodayScreen() {
             so closing the day hid the diagnostic, and a diagnostic a state gate can suppress is not
             one. Nothing above it can gate it now. */}
         {debugOn ? <DebugPanel /> : null}
+        {/* The first Tab stop of the day, the web only (K8). The pill is drawn after the list, so for a keyboard
+            "Add a task" was the LAST stop, after every row, Later and the footer links. Invisible until it holds
+            focus, and only while the pill itself is there to open. */}
+        {Platform.OS === 'web' && !pillHidden && (
+          <Pressable
+            onPress={() => sheetRef.current?.open()}
+            accessibilityRole="button"
+            accessibilityLabel={t('capture.openA11y')}
+            // RN-web hands Pressable's style a `focused` flag that React Native's own types do not declare.
+            style={(state) => ((state as { focused?: boolean }).focused ? [styles.skipAdd, { top: insets.top + spacing.one }] : styles.srOnlyPress)}
+          >
+            <Text style={styles.skipAddText}>{t('capture.openA11y')}</Text>
+          </Pressable>
+        )}
 
         <View style={styles.topBar}>
           <Text style={styles.date}>{formatTodayLabel(today)}</Text>
@@ -3338,11 +3373,13 @@ export default function TodayScreen() {
               void saveHoldHintSeen();
             }}
             accessibilityRole="button"
-            accessibilityLabel={t('today.holdHintDismissA11y')}
+            // The tip itself, then what the press does (K7). The label used to be the dismiss alone, so a
+            // screen reader heard "Got it, hide this tip" and never the tip.
+            accessibilityLabel={`${holdTip} ${t('today.holdHintDismissA11y')}`}
             style={styles.holdHint}
           >
             {theme.appearance === 'quiet' && <View style={styles.holdHintDot} />}
-            <Text style={styles.holdHintText}>{aiEnabled ? t('today.holdHint') : t('today.holdHintNoAi')}</Text>
+            <Text style={styles.holdHintText}>{holdTip}</Text>
             <Text style={styles.holdHintDismiss}>{t('common.gotIt')}</Text>
           </Pressable>
         )}
@@ -3638,7 +3675,7 @@ export default function TodayScreen() {
       <CaptureSheet
         ref={attachSheet}
         heading={t('ours.addTo', { name: t('common.today') })}
-        hidden={selectMode || isClosed}
+        hidden={pillHidden}
         onOpenChange={onSheetOpenChange}
         onCapture={captureFromComposer}
         onBiteElephant={biteElephant}
@@ -4676,6 +4713,21 @@ const makeStyles = (t: Theme) =>
     doneLineCaret: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
     tuckedList: { marginTop: spacing.two },
     srOnly: { position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0 },
+    // The same, for a control that only keyboard focus reveals: it also takes no pointer, so no tap lands on it.
+    srOnlyPress: { position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' },
+    // "Add a task" while it holds keyboard focus (K8): the pill's own accent and words, in the room above the date
+    // (36 tall, so it clears the date line; only a keyboard reaches it, so it needs no 44pt touch target).
+    skipAdd: {
+      position: 'absolute',
+      left: spacing.five,
+      zIndex: 2,
+      minHeight: 36,
+      justifyContent: 'center',
+      paddingHorizontal: spacing.five,
+      borderRadius: radius.pill,
+      backgroundColor: t.colors.accent,
+    },
+    skipAddText: { color: t.colors.onAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     calmNote: { color: t.colors.inkSoft, fontSize: 16 * t.scale, marginTop: spacing.five, lineHeight: 24 * t.scale, fontFamily: fonts.body },
     emptyState: { alignItems: 'center' },
     emptyArt: { width: '100%', maxWidth: 420, aspectRatio: 16 / 9, borderRadius: radius.lg, marginTop: spacing.five, overflow: 'hidden' },

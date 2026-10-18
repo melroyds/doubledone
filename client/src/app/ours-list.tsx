@@ -4,7 +4,7 @@ import { AppState, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowD
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
-import { CaptureSheet, type CaptureSheetHandle, restingListPad, restingPanelHeight } from '@/components/CaptureSheet';
+import { CaptureSheet, type CaptureSheetHandle, pillClearance, restingListPad, restingPanelHeight } from '@/components/CaptureSheet';
 import { CameraCapture } from '@/components/CameraCapture';
 import { DayHeading } from '@/components/DayHeading';
 import { LivingBackground } from '@/components/LivingBackground';
@@ -759,7 +759,8 @@ export default function OursListScreen() {
       {tabbed ? <LivingBackground /> : null}
       <ScrollView
         ref={scrollRef}
-        style={styles.scroll}
+        // The web gets the pill's band as scroll padding, as on Today (P2): a focused row stops above the pill.
+        style={[styles.scroll, Platform.OS === 'web' ? ({ scrollPaddingBottom: pillClearance(insets.bottom) } as object) : null]}
         // While the panel is up the list behind it is out of reach: the panel is a modal region.
         accessibilityElementsHidden={sheetOpen}
         importantForAccessibility={sheetOpen ? 'no-hide-descendants' : 'auto'}
@@ -1052,7 +1053,8 @@ export default function OursListScreen() {
         <CaptureSheet
           ref={sheetRef}
           heading={t('ours.addTo', { name: listName })}
-          hidden={selectMode}
+          // The pill steps aside while a card is held, as on Today (P1), and only for a card on the screen.
+          hidden={selectMode || (confirmingId != null && visible.some((task) => task.id === confirmingId))}
           onOpenChange={onSheetOpenChange}
           onCapture={captureFromSheet}
           whenNote={whenNote}
