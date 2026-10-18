@@ -4993,25 +4993,36 @@ const makeStyles = (t: Theme) =>
     frameResting: { opacity: 0.45 },
     rightNowRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
     rightNowSlot: { flex: 1, paddingVertical: spacing.one },
+    // The frame's words follow its surface. In Standard they sit on the card (inkSoft, accentText). Quiet drops
+    // the card, so they sit straight on the living sky, like ENERGY above them, and take the sky's own roles:
+    // inkSoft and accentText measured 3.3 to 4.1:1 there in light mode. Dark is unchanged, since the sky roles
+    // are inkSoft and the accent in dark.
     rightNowOverline: {
-      color: t.colors.inkSoft,
+      color: t.appearance === 'quiet' ? t.colors.skyInk : t.colors.inkSoft,
       fontSize: 10.5 * t.scale,
       fontFamily: fonts.bodyBold,
       fontWeight: '700',
       letterSpacing: 1.2,
       textTransform: 'uppercase',
     },
-    rightNowName: { color: t.colors.accentText, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', marginTop: 2 },
+    rightNowName: {
+      color: t.appearance === 'quiet' ? t.colors.skyAccent : t.colors.accentText,
+      fontSize: 17 * t.scale,
+      fontFamily: fonts.bodyBold,
+      fontWeight: '700',
+      marginTop: 2,
+    },
     caretBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-    caretText: { color: t.colors.inkSoft, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    caretText: { color: t.appearance === 'quiet' ? t.colors.skyInk : t.colors.inkSoft, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     toolsPanel: { paddingRight: spacing.three, paddingBottom: spacing.one },
     toolsDivider: { height: border.hair, backgroundColor: t.colors.line, marginTop: 6, marginBottom: 2, marginRight: spacing.one },
     // The shrunk heading's bar, outside the scroll while the composer is open.
     toolRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
     toolName: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', flexShrink: 1 },
-    // Quiet-unavailable: lowered contrast, no lock, no border, no strikethrough. Present, resting.
-    toolNameQuiet: { color: t.colors.inkSoft, fontFamily: fonts.body, fontWeight: '400' },
-    toolNowTag: { color: t.colors.accentText, fontSize: 12 * t.scale, fontFamily: fonts.body },
+    // Quiet-unavailable: lowered contrast, no lock, no border, no strikethrough. Present, resting. It also
+    // overrides rightNowName for an unavailable occupant, so it follows the same surface rule as the frame.
+    toolNameQuiet: { color: t.appearance === 'quiet' ? t.colors.skyInk : t.colors.inkSoft, fontFamily: fonts.body, fontWeight: '400' },
+    toolNowTag: { color: t.appearance === 'quiet' ? t.colors.skyAccent : t.colors.accentText, fontSize: 12 * t.scale, fontFamily: fonts.body },
     toolHintLine: { color: t.colors.skyInk, fontSize: 13 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two },
     windDown: { color: t.colors.skyInk, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     // The evening door to Settle: a soft pressable sentence under the wind-down line.

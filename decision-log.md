@@ -10414,3 +10414,25 @@ which is the real screen at that height, and is left for Melroy's look.
 
 Manual case DEP-04 (look at all eight at real phone size before upload), and the suite regenerated (523 cases).
 `node scripts/check-listings.mjs` still passes with the new Screenshots section.
+
+## 2026-10-19: the store 1.9 colour and copy review's fixes (nine findings, all minor, each fixed on `store-1.9`)
+
+A second adversarial review of the branch, after the colour slices, the listings' kept-copy sentence and the
+release commit, confirmed nine findings, none a blocker. Each is fixed in its own commit, and this entry records
+the calls inside them and what each corrects in the entries above.
+
+**Quiet's Right now frame takes the sky roles (finding 1).** This corrects slice 3's list. The a11y scout filed
+RIGHT NOW, the occupant's name, the caret, the tools panel's unavailable names and its "now" tag as words on a
+card, which is only true in Standard: Quiet drops the frame's card, so they sit straight on the living sky. In
+light mode, with the real geometry on a 390 x 844 phone, inkSoft and accentText measured 3.9 to 4.1:1 where the
+frame rests and 3.3 to 3.4:1 scrolled under the rose pool. In Quiet those five styles now read `skyInk` and
+`skyAccent` (Dusk #574F48 and #654950, checked in the dev server), and Standard keeps inkSoft and accentText.
+Dark mode is unchanged, because the sky roles are inkSoft and the accent there. The ROLES rows in
+`palette.test.ts` now say the frame is a card in Standard only.
+
+**Decided against:**
+- **Parking it with the Quiet rows' taste call.** The rows were parked because firming every row changes how Quiet
+  reads. The frame is a handful of labels right under ENERGY, which already takes skyInk in Quiet, so leaving it
+  pale kept a known AA failure for no look worth keeping. The parked rows entry now says the frame is done.
+- **Giving Quiet's frame back a card.** Quiet is borderless on purpose, and the roles exist so a surface change is
+  never needed to fix a word.

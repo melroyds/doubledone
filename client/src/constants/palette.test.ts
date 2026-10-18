@@ -92,10 +92,12 @@ function surfaces(p: Palette, scheme: Scheme): Record<Surface, Sample[]> {
 // this table is the contract and the test holds it. [what it is, the token, its surfaces, the ratio it needs]
 const ROLES: [string, keyof Palette, Surface[], number][] = [
   ['primary words (titles, task names)', 'ink', ['sky', 'card', 'shelf', 'tint', 'quietHeld', 'surface', 'bg'], 4.5],
-  ['words straight on the sky: the date, the greeting, the weight line, Energy, Later, the rested screen, the foot phrase, the shared list\'s lines (on the page once a list is archived)', 'skyInk', ['sky', 'bg'], 4.5],
-  ['secondary words on a card, the shelf, a tint, a sheet or the page, and every placeholder', 'inkSoft', ['card', 'shelf', 'tint', 'quietHeld', 'surface', 'bg'], 4.5],
-  ['accent words on a card, the shelf, a tint, a sheet or the page: Close the day, More, Close, Normal, Got it, the Menu label, every link and action on the other screens', 'accentText', ['card', 'shelf', 'pill', 'tint', 'quietHeld', 'surface', 'bg'], 4.5],
-  ['accent words straight on the sky: Reopen today, the reminder Yes, Quiet\'s Menu, + I also did that, the shared list\'s Restore', 'skyAccent', ['sky', 'bg'], 4.5],
+  ['words straight on the sky: the date, the greeting, the weight line, Energy, Later, the rested screen, the foot phrase, the shared list\'s lines (on the page once a list is archived), and in Quiet the Right now frame (RIGHT NOW, the caret, an unavailable tool\'s name), which has no card there', 'skyInk', ['sky', 'bg'], 4.5],
+  // Right now's frame is a card only in Standard. In Quiet its words are on the sky, so they take skyInk and
+  // skyAccent above, never these two rows.
+  ['secondary words on a card, the shelf, a tint, a sheet or the page, and every placeholder (the Right now frame in Standard only)', 'inkSoft', ['card', 'shelf', 'tint', 'quietHeld', 'surface', 'bg'], 4.5],
+  ['accent words on a card, the shelf, a tint, a sheet or the page: Close the day, More, Close, Normal, Got it, the Menu label, every link and action on the other screens, and the Right now frame\'s tool and "now" in Standard only', 'accentText', ['card', 'shelf', 'pill', 'tint', 'quietHeld', 'surface', 'bg'], 4.5],
+  ['accent words straight on the sky: Reopen today, the reminder Yes, Quiet\'s Menu, + I also did that, the shared list\'s Restore, and in Quiet the Right now frame\'s tool and its "now" tag', 'skyAccent', ['sky', 'bg'], 4.5],
   ['the repeat mark, step counts and the tiny-step eyebrow on a card', 'repeat', ['card', 'surface'], 4.5],
   // Not words on the page: periwinkle is 4.3:1 on paper in the light themes, so the break-down review's phase dates
   // (the one line that put it there) are inkSoft. The Calendar's ↻ beside a day's task is a symbol that screen

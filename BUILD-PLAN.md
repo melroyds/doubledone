@@ -221,7 +221,10 @@ the ladder is fixed and readable, never randomised.
   modes, where it needs 3:1. The a11y scout modelled Quiet only for the held card and the Menu pill, so its list
   missed this. The fix follows slice 3's rule: those Quiet styles read `skyInk` and `skyAccent`, and the ring gets a
   darker sky shade of its own, solved the same way. That makes Quiet's rows visibly firmer, so it is a taste call.
-  Trigger: Melroy's word (before the 1.9.0 builds, if he wants it in them), or the next change to Quiet. (2) **In
+  Trigger: Melroy's word (before the 1.9.0 builds, if he wants it in them), or the next change to Quiet. Already
+  done, so not part of this: the Right now frame above the rows (RIGHT NOW, the tool's name, the caret) and its
+  tools panel's unavailable names and "now" tag. The colour review found them on the sky in Quiet too (3.3 to
+  4.1:1), and they took `skyInk` and `skyAccent` there on 2026-10-19, to match ENERGY just above them. (2) **In
   dark mode, pale words under the hero glow.** With the glow at full strength, inkSoft and the accent straight on
   the dark sky measure 3.9 to 4.5:1 in six of the seven themes. A real line at the top of the screen sees about 80%
   of the glow at the peak of its drift, which still leaves Dusk, Honey and Rose near 4.4:1 there (the date, the
