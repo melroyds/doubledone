@@ -80,7 +80,7 @@ and the gate passed both, so the copy here is gone and the gate now fails on any
 **Title** (28 / 30)
 
 ```
-DoubleDone: ADHS To-do-Liste
+DoubleDone: ADHS-To-do-Liste
 ```
 
 **Short description** (78 / 80)
@@ -149,6 +149,12 @@ Die Datenschutzerklärung, in klarem Englisch: doubledone.app/privacy
 
 **2026-10-19, later (Melroy's call):** the Claude bullet ends with `faqAiA`'s kept-copy sentence, "Wir behalten eine Kopie ohne deinen Namen und ohne Bezug zu deinem Konto, damit aus Aufgaben bessere Schritte werden.", as the privacy policy and the Spanish listing already said. Room, the same cut as the App Store's German: the AI paragraph's two examples went ("sie sortiert deinen leergeräumten Kopf ... kleine Schritte"), which the free list above names in the app's own words. Full description now 3970 characters.
 
+**2026-10-19 (the native German read):** the title is "DoubleDone: ADHS-To-do-Liste". A German compound that
+starts with an abbreviation takes the hyphen (ADHS-Ratgeber, Kfz-Steuer), and without it a careful reader sees the
+missing hyphen right beside the hyphenated To-do-Liste. The App Store's German name takes the same fix, so one name
+still serves both stores, and search is unaffected because both stores break words at a hyphen. Title still
+28 characters, full description unchanged at 3970.
+
 Full description: 4005 to 3909 characters (96 cut, 41 under the 3950 target). Short description: 78 characters.
 
 Four edits, no bullet and no heading removed, so every feature a shopper chooses on is still listed.
@@ -186,7 +192,7 @@ DoubleDone: tareas para TDAH
 Tu lista para el TDAH y el agobio. Solo hoy. Aquí nada está nunca atrasado.
 ```
 
-**Full description** (3880 / 4000)
+**Full description** (3888 / 4000)
 
 ```
 Hoy es finito y alcanzable.
@@ -214,7 +220,7 @@ EL NÚCLEO TRANQUILO, GRATIS PARA SIEMPRE
 NUESTRA LISTA: UNA SOLA LISTA COMPARTIDA CON OTRA PERSONA
 Gratis, y de dos personas exactamente. Nada dice quién hizo qué, y nada cuenta ni compara, así que no puede volverse un marcador.
 
-Lo que tiene día propio, la basura el martes, llega al Hoy de los dos ese día. Lo que no tiene día, la leche y las pilas, se queda en la lista, por larga que sea, para que tu día siga siendo tuyo. La marca cualquiera de los dos y queda hecha para ambos.
+Lo que tiene día propio, la basura el martes, llega al Hoy de los dos ese día. Lo que no tiene día, la leche y las pilas, se queda en la lista, por larga que sea, para que tu día siga siendo tuyo. Cualquiera de los dos marca una tarea, y queda hecha para ambos.
 
 Cada uno inicia sesión con su correo, y el código de seis caracteres que le lees a tu persona solo sirve para la dirección que pusiste. Nadie llega a ti si no le diste ese código. Cualquiera de los dos sale cuando quiera, sin explicaciones, y todo se puede seguir leyendo.
 
@@ -244,7 +250,7 @@ Lee la política de privacidad, en lenguaje claro, en doubledone.app/privacy.
 
 **2026-10-16:** the not-a-medical-device line went in just before the privacy line, matching the English listing (a5d3031). Full description now 3319 characters.
 
-**2026-10-19 (store 1.9, slice 8):** neutral now, one text pasted under es-ES and es-419 (the live es-419 text had no source in this repo). The two vosotros lines went: "llega a vuestros dos Hoy" is "llega al Hoy de los dos" and "Los dos iniciáis sesión" is "Cada uno inicia sesión" (`m4Body`). "así que tu persona no te carga la mañana" went (false: your person can give a shared row today's date) for "por larga que sea, para que tu día siga siendo tuyo". The AI-off "el texto que escribes ya no sale de tu dispositivo" lines went (the AI paragraph now carries `priv2`'s "solo envía aquello en lo que la usas"), "PRIVADO POR DEFECTO" became `privTitle`, "rastreadores de terceros" became `priv3`, "Exporta tus datos" became `priv4`, and Aligera el día is a suggestion (`m2Body`). The monthly album is "hecho con IA", and the Claude bullet names Cloudflare. Added: a title, `founder`, a Premium paragraph from `faqFreeA`, and "Si necesitas consejo médico, consulta con un profesional de la salud." Full description now 3880 characters.
+**2026-10-19 (store 1.9, slice 8):** neutral now, one text pasted under es-ES and es-419 (the live es-419 text had no source in this repo). The two vosotros lines went: "llega a vuestros dos Hoy" is "llega al Hoy de los dos" and "Los dos iniciáis sesión" is "Cada uno inicia sesión" (`m4Body`). "así que tu persona no te carga la mañana" went (false: your person can give a shared row today's date) for "por larga que sea, para que tu día siga siendo tuyo". The AI-off "el texto que escribes ya no sale de tu dispositivo" lines went (the AI paragraph now carries `priv2`'s "solo envía aquello en lo que la usas"), "PRIVADO POR DEFECTO" became `privTitle`, "rastreadores de terceros" became `priv3`, "Exporta tus datos" became `priv4`, and Aligera el día is a suggestion (`m2Body`). The monthly album is "hecho con IA", and the Claude bullet names Cloudflare. Added: a title, `founder`, a Premium paragraph from `faqFreeA`, and "Si necesitas consejo médico, consulta con un profesional de la salud." Then, from the native read, "La marca cualquiera de los dos" became "Cualquiera de los dos marca una tarea": after "se queda en la lista" the "la" read as the list, and the catalogue's own `sharedLead2` puts the subject first too. Full description now 3888 characters.
 
 4372 to 3933 characters (cap 4000, target 3950). Short description is 75 characters.
 
@@ -277,7 +283,7 @@ DoubleDone : liste de tâches
 Pour le TDAH et la surcharge. Juste aujourd'hui. Rien n'est jamais en retard.
 ```
 
-**Full description** (3952 / 4000)
+**Full description** (3955 / 4000)
 
 ```
 Aujourd'hui a une fin, et tu peux y arriver.
@@ -313,7 +319,7 @@ Ce qui a son propre jour, les poubelles le mardi, arrive dans vos deux Aujourd'h
 UNE IA QUI AIDE, ENTIÈREMENT OPTIONNELLE
 L'IA est active par défaut : elle trie ce que tu déposes et décompose une tâche difficile. Elle n'envoie que ce sur quoi tu l'utilises. Un seul geste dans les Réglages la désactive, et l'appli continue de fonctionner.
 
-PREMIUM, SI UN JOUR TU VEUX PLUS
+PREMIUM, SI UN JOUR TU EN VEUX PLUS
 Premium ajoute des extras facultatifs, via Google Play : Scanner une liste, Épingler la chose du jour, Organiser ma journée, Trace ta route, six autres thèmes de couleur, un album souvenir chaque semaine, Tes tendances, et des choix illimités dans « Qu'est-ce qui colle en ce moment ».
 
 SUR TON APPAREIL PAR DÉFAUT
@@ -341,6 +347,8 @@ La politique de confidentialité, en clair : doubledone.app/privacy.
 **2026-10-19 (the store 1.9 build review):** "Rappel quotidien : un seul, tout doux, jamais une échéance." said there is one reminder, a daily one, and both phone apps also have per-task reminders, « Tiens-moi à ça » and the Rythmes (the catalogue's own `faqWhereA`). It is now "Des rappels tout doux, seulement ceux que tu demandes, jamais une échéance.", the idea the other four languages carry, the same on the App Store. Full description now 3846 characters.
 
 **2026-10-19, later (Melroy's call):** the Claude bullet ends with `faqAiA`'s kept-copy sentence, "On garde une copie, sans ton nom ni ton compte, pour améliorer la façon dont les tâches sont décomposées.", as the privacy policy and the Spanish listing already said. It fits without a cut here. The App Store's French made room with two deletions: the breakdown example in its AI paragraph, and "quand aujourd'hui fait du bruit" after Settle. Full description now 3952 characters.
+
+**2026-10-19 (the native French read):** the Premium heading is "PREMIUM, SI UN JOUR TU EN VEUX PLUS". Without the "en", a French ear hears the spoken "tu (ne) veux plus", you no longer want it, and "en vouloir plus" is the idiom for wanting more. The App Store's French takes the same fix. Full description now 3955 characters.
 
 4029 to 3853 characters, verified in Python (UTF-8, trailing newline excluded), so 97 under the 3950 target and 147 under Google's cap. Every cut was a repeat, never a fact, and no bullet was lost: the adjective and clause layer alone freed enough room, so both bullets I first removed (Regrouper, Silencieuse) went back in.
 
@@ -404,7 +412,7 @@ IL CUORE CALMO, GRATIS PER SEMPRE
 LA NOSTRA LISTA: UNA LISTA PER DUE PERSONE
 Gratis, e in due soltanto. Nulla dice chi ha fatto cosa, e nulla conta o confronta, quindi non può diventare una classifica.
 
-Ciò che ha un giorno suo, i rifiuti il martedì, arriva su entrambi i vostri Oggi quel giorno. Quello che non ce l'ha, il latte e le pile, resta sulla lista. La spunta uno dei due, e vale per entrambi.
+Ciò che ha un giorno suo, i rifiuti il martedì, arriva su entrambi i vostri Oggi quel giorno. Quello che non ce l'ha, il latte e le pile, resta sulla lista. La spunta di uno dei due vale per entrambi.
 
 Si comincia leggendo un codice di sei caratteri alla tua persona. Niente feed, e nessuno può raggiungerti senza quel codice. Potete uscirne quando volete, senza spiegare niente. Come la sincronizzazione, La nostra lista chiede solo il semplice accesso via email.
 
@@ -437,6 +445,13 @@ La privacy, in parole semplici, su doubledone.app/privacy.
 **2026-10-19 (store 1.9, slice 8):** a title, the App Store's Italian name. The shared list is "La nostra lista" everywhere (the 2026-10-18 rule: always its default name), so the heading "NOSTRO: LA LISTA CHE TENETE IN DUE" is `m4Title`, "Nell'app si chiama La nostra lista" went, and "Nostro chiede" is "La nostra lista chiede". "niente di quello che scrivi esce" went twice (false with AI off), and the AI paragraph now carries `priv2`'s words. "PRIVATA DI DEFAULT" became `privTitle`, the trackers line became `priv3`, "Esporta i tuoi dati" became `priv4`, and Alleggerisci la giornata is a suggestion (`m2Body`). The monthly album is "fatto con l'AI", and the Claude bullet names Cloudflare. Added: `founder`, a Premium paragraph from `faqFreeA`, and "Per un consiglio medico, rivolgiti a un professionista della salute." Full description now 3843 characters.
 
 **2026-10-19, later (Melroy's call):** the Claude bullet ends with `faqAiA`'s kept-copy sentence, "Di quello che invii conserviamo una copia senza il tuo nome né il tuo account, per migliorare il modo in cui le attività vengono divise in passaggi.", as the privacy policy and the Spanish listing already said. It fits without a cut here. The App Store's Italian made room with two deletions: the breakdown example in its AI paragraph, and "quando oggi fa rumore" after Settle. Full description now 3992 characters.
+
+**2026-10-19 (the native Italian read):** "La spunta uno dei due, e vale per entrambi." is "La spunta di uno dei
+due vale per entrambi." The feminine "La" could only point back to "lista", so it read as one of you ticking the
+list, and the noun says one person's tick counts for both. The App Store's Italian takes the same fix. "Per tanti
+di noi" stays here for now, unlike the App Store's "Per molti": it translates the English Play listing's own
+"For a lot of us", so it changes with the English or not at all (Melroy's call). Full description unchanged at
+3992 characters.
 
 4247 to 3841 characters, 406 removed, 109 of headroom left under the 3950 target. What went, in order of how little it cost:
 

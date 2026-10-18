@@ -1287,7 +1287,7 @@ export const de: Catalog = {
     footerFine: 'Auf iPhone, Android und im Web. Heute ist überschaubar und machbar.',
     footerWho: 'Gemacht für ADHS, Autismus, Zwangsstörungen und alle, deren Liste sich jemals nach zu viel angefühlt hat.',
     handoffEthos: 'heute ist überschaubar und machbar',
-    handoffFineAi: 'Von Haus aus bleibt alles auf deinem Gerät. Die KI-Funktionen schicken nur den Text, den du auswählst, an Claude, mehr nicht. Du willst es auch auf Handy und Laptop? Meld dich an, um zu synchronisieren, immer freiwillig.',
+    handoffFineAi: 'Von Haus aus auf deinem Gerät. Die KI-Funktionen schicken nur den Text, den du auswählst, an Claude, mehr nicht. Du willst es auch auf Handy und Laptop? Meld dich an, um zu synchronisieren, immer freiwillig.',
     handoffFineNoAi: 'Privat von Haus aus: Deine Aufgaben bleiben auf diesem Gerät. Du willst sie auch auf Handy und Laptop? Meld dich an, um zu synchronisieren, immer freiwillig.',
     handoffHeading: 'Das war’s. Keine Einrichtung.',
     handoffLead1: 'Es ist jetzt raus aus deinem Kopf, und alles ist hier. Morgen öffnet sich die App fertig vorbereitet, ohne dass du irgendetwas ordnen musst.',

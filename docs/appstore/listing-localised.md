@@ -4,7 +4,8 @@
 German, Spanish, French or Italian iPhone user read English and then the app opened in their own language. These
 are DRAFTS until the batch's one native read is back (Melroy's call 7): if it is back by submit day they ship with
 1.9.0, and if not the store stays English-only this version and they ship at the next one. That fallback is decided
-now, so nobody makes it at the console.*
+now, so nobody makes it at the console. The native read of all four came back on 2026-10-19, one reader per
+language, and its fixes are in (the last paragraph of How these were made).*
 
 *Every count is measured by `node scripts/check-listings.mjs --appstore`, never estimated, and CI runs it.*
 
@@ -31,6 +32,15 @@ the Play text, each one:
   Job", „Mach Schritte draus“). French and Italian kept the sorting example, the only place their text says the
   AI sorts a brain-dump, and dropped the breakdown one (the list has Décompose-la and Dividi in passaggi) and the
   "when today is loud" clause after Settle.
+
+**The native read (2026-10-19)** changed five lines of copy here. German: the name is `ADHS-To-do-Liste`,
+because a compound that starts with an abbreviation takes the hyphen, and Play's title changed with it so one
+name still serves both stores (both stores break search words at a hyphen). Spanish: "Cualquiera de los dos
+marca una tarea, y queda hecha para ambos", subject first like the catalogue's `sharedLead2`, because "La marca"
+read as the list, or as a brand. French: "PREMIUM, SI UN JOUR TU EN VEUX PLUS", because without "en" a French
+ear hears "tu (ne) veux plus", you no longer want it. Italian: "Per molti" for "Per tanti di noi", which told
+a reader the writer has ADHD two paragraphs before the founder line says he built it for friends who do, and "La
+spunta di uno dei due vale per entrambi", because the feminine "La" could only point back to the list.
 
 The keywords follow the English rules: no word repeats the name or subtitle, no spaces, no competitor names, no
 clinical words. Apple searches the name, subtitle and keyword field only, never the description.
@@ -62,7 +72,7 @@ clinical words. Apple searches the name, subtitle and keyword field only, never 
 **Name** (28 / 30)
 
 ```
-DoubleDone: ADHS To-do-Liste
+DoubleDone: ADHS-To-do-Liste
 ```
 
 **Subtitle** (30 / 30)
@@ -160,7 +170,7 @@ lista,pendientes,todo,planificador,organizador,autismo,toc,neurodivergente,rutin
 Una lista de tareas serena para el TDAH, el autismo y el TOC. Solo hoy, en su justa medida, y nada está nunca atrasado. Todo el ciclo diario es gratis, para siempre.
 ```
 
-**Description** (3981 / 4000)
+**Description** (3989 / 4000)
 
 ```
 DoubleDone es una lista de tareas serena para adultos con TDAH, autismo, TOC y agobio.
@@ -185,7 +195,7 @@ EL NÚCLEO TRANQUILO, GRATIS PARA SIEMPRE
 - Un álbum gratis al mes, hecho con IA: una imagen de recuerdo de lo que terminaste.
 
 NUESTRA LISTA: UNA SOLA LISTA COMPARTIDA CON OTRA PERSONA
-Gratis, y de dos personas exactamente. Nada dice quién hizo qué, y nada cuenta ni compara, así que no puede volverse un marcador. Lo que tiene día propio, la basura el martes, llega al Hoy de los dos ese día. Lo demás se queda en la lista, por larga que sea, para que tu día siga siendo tuyo. La marca cualquiera de los dos y queda hecha para ambos. Empieza con un código de seis caracteres que le lees a tu persona, y cada uno inicia sesión con su correo.
+Gratis, y de dos personas exactamente. Nada dice quién hizo qué, y nada cuenta ni compara, así que no puede volverse un marcador. Lo que tiene día propio, la basura el martes, llega al Hoy de los dos ese día. Lo demás se queda en la lista, por larga que sea, para que tu día siga siendo tuyo. Cualquiera de los dos marca una tarea, y queda hecha para ambos. Empieza con un código de seis caracteres que le lees a tu persona, y cada uno inicia sesión con su correo.
 
 UNA IA QUE AYUDA, Y OPCIONAL DEL TODO
 La IA viene activada y hace trabajo real: ordena lo que te sacas de la cabeza en un día posible y divide una tarea difícil en pasos. Pero es opcional de verdad, y solo envía aquello en lo que la usas. Un toque en Ajustes la apaga, y la app sigue funcionando.
@@ -237,7 +247,7 @@ todo,to-do,planificateur,agenda,organisation,autisme,toc,neuroatypique,routine,r
 Une liste de tâches calme pour le TDAH, l'autisme et les TOC. Juste aujourd'hui, et rien n'est jamais en retard. Toute la boucle quotidienne est gratuite, pour de bon.
 ```
 
-**Description** (3996 / 4000)
+**Description** (3999 / 4000)
 
 ```
 DoubleDone est une liste de tâches calme pour les adultes concernés par le TDAH, l'autisme, les TOC ou le trop-plein.
@@ -266,7 +276,7 @@ Gratuite. Rien n'y dit qui a fait quoi, et rien ne compte ni ne compare, cela ne
 UNE IA QUI AIDE, ENTIÈREMENT OPTIONNELLE
 L'IA est active par défaut : elle trie ce que tu déposes. Elle n'envoie que ce sur quoi tu l'utilises. Un seul geste dans les Réglages la désactive, et l'appli continue de fonctionner.
 
-PREMIUM, SI UN JOUR TU VEUX PLUS
+PREMIUM, SI UN JOUR TU EN VEUX PLUS
 Premium ajoute des extras facultatifs : Scanner une liste, Épingler la chose du jour, Organiser ma journée, Trace ta route, six autres thèmes de couleur, un album souvenir chaque semaine, Tes tendances, et des choix illimités dans « Qu'est-ce qui colle en ce moment ».
 
 DoubleDone Premium est un abonnement facultatif à renouvellement automatique, mensuel ou annuel, au prix que l'App Store t'affiche avant l'achat. Il est facturé sur ton identifiant Apple à la confirmation de l'achat. Il se renouvelle tout seul jusqu'à ce que tu l'annules. Tu peux l'annuler à tout moment dans les réglages de ton identifiant Apple, jusqu'à un jour avant le renouvellement. Si tu te connectes, tu peux aussi essayer Premium gratuitement pendant un mois : sans carte, sans prélèvement, et ça ne devient jamais un abonnement tout seul.
@@ -313,14 +323,14 @@ attività,todo,planner,agenda,promemoria,autismo,doc,neurodivergente,routine,org
 Una lista calma di cose da fare per ADHD, autismo e DOC. Solo oggi, una giornata fattibile, e niente è mai in ritardo. Tutto il ciclo quotidiano è gratis, per sempre.
 ```
 
-**Description** (3998 / 4000)
+**Description** (3991 / 4000)
 
 ```
 DoubleDone è una lista calma di cose da fare per adulti con ADHD, autismo, DOC e sovraccarico mentale.
 
 Ti mostra solo ciò che serve oggi, e conserva in silenzio tutto quello che finisci. Niente è mai in ritardo. Semplicemente aspetta.
 
-Quasi tutte le app di cose da fare ti danno la lista intera e la chiamano motivazione. Per tanti di noi, è proprio lì che arriva il troppo. DoubleDone fa il contrario. Una schermata calma, una giornata piccola, e niente ti farà mai sentire in colpa perché un'attività esiste. Nessuna serie da mantenere, e nessuna punizione per un'attività che ha aspettato.
+Quasi tutte le app di cose da fare ti danno la lista intera e la chiamano motivazione. Per molti, è proprio lì che arriva il troppo. DoubleDone fa il contrario. Una schermata calma, una giornata piccola, e niente ti farà mai sentire in colpa perché un'attività esiste. Nessuna serie da mantenere, e nessuna punizione per un'attività che ha aspettato.
 
 DoubleDone è fatta a Melbourne da Melroy. L'ha creata per amici con ADHD e DOC, e per chiunque abbia mai sentito che la lista era troppa.
 
@@ -337,7 +347,7 @@ IL CUORE CALMO, GRATIS PER SEMPRE
 - Un album dei ricordi gratis ogni mese, fatto con l'AI.
 
 LA NOSTRA LISTA: UNA LISTA PER DUE PERSONE
-Gratis, e in due soltanto. Nulla dice chi ha fatto cosa, e nulla conta o confronta, quindi non può diventare una classifica. Ciò che ha un giorno suo, i rifiuti il martedì, arriva su entrambi i vostri Oggi quel giorno. Quello che non ce l'ha resta sulla lista. La spunta uno dei due, e vale per entrambi. Si comincia leggendo un codice di sei caratteri alla tua persona, e serve solo l'accesso via email.
+Gratis, e in due soltanto. Nulla dice chi ha fatto cosa, e nulla conta o confronta, quindi non può diventare una classifica. Ciò che ha un giorno suo, i rifiuti il martedì, arriva su entrambi i vostri Oggi quel giorno. Quello che non ce l'ha resta sulla lista. La spunta di uno dei due vale per entrambi. Si comincia leggendo un codice di sei caratteri alla tua persona, e serve solo l'accesso via email.
 
 L'AI CHE AIUTA, DEL TUTTO FACOLTATIVA
 L'AI è attiva di default e fa un lavoro vero: ordina in una giornata quello che hai buttato giù. Invia solo quello su cui la usi. Un tocco nelle Impostazioni la spegne, e l'app continua a funzionare.
