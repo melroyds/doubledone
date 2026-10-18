@@ -809,7 +809,7 @@ export default function OursScreen() {
               autoFocus
               maxLength={40}
               placeholder={t('ours.namePlaceholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               style={styles.input}
               accessibilityLabel={t('ours.namePlaceholder')}
             />
@@ -846,7 +846,7 @@ export default function OursScreen() {
               autoFocus
               maxLength={40}
               placeholder={t('ours.yourNamePlaceholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               style={styles.input}
               accessibilityLabel={t('ours.yourName')}
             />
@@ -1036,7 +1036,7 @@ export default function OursScreen() {
               onChangeText={setName}
               maxLength={40}
               placeholder={t('ours.namePlaceholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               style={styles.input}
               accessibilityLabel={t('ours.namePlaceholder')}
             />
@@ -1048,7 +1048,7 @@ export default function OursScreen() {
             onChangeText={setMyLabel}
             maxLength={40}
             placeholder={t('ours.yourNamePlaceholder')}
-            placeholderTextColor={theme.colors.inkFaint}
+            placeholderTextColor={theme.colors.inkSoft}
             style={styles.input}
             accessibilityLabel={t('ours.yourName')}
           />
@@ -1061,7 +1061,7 @@ export default function OursScreen() {
               if (failure === 'bad-email' || failure === 'own-email') setFailure(null);
             }}
             placeholder={t('ours.theirEmailPlaceholder')}
-            placeholderTextColor={theme.colors.inkFaint}
+            placeholderTextColor={theme.colors.inkSoft}
             style={styles.input}
             keyboardType="email-address"
             autoCapitalize="none"
@@ -1093,7 +1093,7 @@ export default function OursScreen() {
               if (failure === 'invalid-code') setFailure(null);
             }}
             placeholder={t('ours.codePlaceholder')}
-            placeholderTextColor={theme.colors.inkFaint}
+            placeholderTextColor={theme.colors.inkSoft}
             style={[styles.input, styles.codeInput]}
             autoCapitalize="characters"
             autoCorrect={false}
@@ -1108,7 +1108,7 @@ export default function OursScreen() {
             onChangeText={setMyLabel}
             maxLength={40}
             placeholder={t('ours.yourNamePlaceholder')}
-            placeholderTextColor={theme.colors.inkFaint}
+            placeholderTextColor={theme.colors.inkSoft}
             style={styles.input}
             accessibilityLabel={t('ours.yourName')}
           />

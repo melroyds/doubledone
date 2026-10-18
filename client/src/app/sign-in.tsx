@@ -129,7 +129,7 @@ export default function SignInScreen() {
             onChangeText={setEmail}
             editable={!busy}
             placeholder={t('signIn.emailPlaceholder')}
-            placeholderTextColor={theme.colors.inkFaint}
+            placeholderTextColor={theme.colors.inkSoft}
             style={styles.input}
             keyboardType="email-address"
             autoCapitalize="none"
@@ -154,7 +154,7 @@ export default function SignInScreen() {
             onChangeText={setCode}
             editable={!busy}
             placeholder={t('signIn.codePlaceholder')}
-            placeholderTextColor={theme.colors.inkFaint}
+            placeholderTextColor={theme.colors.inkSoft}
             style={styles.input}
             keyboardType="number-pad"
             inputMode="numeric"

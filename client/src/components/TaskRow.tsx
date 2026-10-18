@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, type AccessibilityActionEvent, Animated, BackHandler, Easing, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
-import { border, cardShadow, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
+import { border, cardShadow, fonts, PRESSED_OPACITY, radius, shelfTint, spacing, type Theme } from '@/constants/theme';
 import { forSpeech, LEFT_OFF_MAX } from '@/lib/leftoff';
 import { fmt, t } from '@/lib/locale';
 import { formatNudgeTime } from '@/lib/nudge';
@@ -1347,7 +1347,7 @@ const makeStyles = (t: Theme) => {
   // The hero (Break it down) fills in light, tints in dark, and drops its fill entirely in Quiet, so the
   // text colour on it follows: white on the light fill, accent on the dark tint / in Quiet. Computed once
   // so heroLabel and heroSub can't drift apart.
-  const heroText = t.appearance === 'quiet' ? t.colors.accent : t.scheme === 'dark' ? t.colors.accent : t.colors.onAccent;
+  const heroText = t.appearance === 'quiet' ? t.colors.accentText : t.scheme === 'dark' ? t.colors.accentText : t.colors.onAccent;
   return StyleSheet.create({
     // Quiet strips the card to whitespace + a 5%-ink bottom hairline; standard keeps the soft floating card.
     // The row's CONTENT line. Everything that used to sit directly on `row` lives here now, so a
@@ -1355,7 +1355,7 @@ const makeStyles = (t: Theme) => {
     rowMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four, alignSelf: 'stretch' },
     // Quiet, and in the body colour: this is a fact about the row, not an alarm about it.
     rowNote: {
-      color: t.colors.inkFaint,
+      color: t.colors.inkSoft,
       fontSize: 13 * t.scale,
       fontFamily: fonts.body,
       marginTop: spacing.one,
@@ -1400,13 +1400,13 @@ const makeStyles = (t: Theme) => {
     holdLineMain: { flex: 1, minHeight: 36, justifyContent: 'center' },
     holdLineText: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
     holdLineLetGo: { minHeight: 36, justifyContent: 'center' },
-    holdLineLetGoText: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    holdLineLetGoText: { color: t.colors.accentText, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     holdLineClosed: { marginLeft: 0, backgroundColor: `${t.colors.done}26`, justifyContent: 'center', borderRadius: radius.md, paddingHorizontal: spacing.three },
     holdClosedText: { color: t.colors.doneText, fontFamily: fonts.sans, fontStyle: 'italic', fontSize: 14 * t.scale, textAlign: 'center', flex: 1, paddingVertical: spacing.one },
     // A quiet accent tag (never danger red): the app agreeing this task is a lot, sized small so it never scolds.
     // "a lot" tag: a soft accent pill in standard; plain accent text (no pill chrome) in quiet.
     bigMark: {
-      color: t.colors.accent,
+      color: t.colors.accentText,
       fontSize: 11 * t.scale,
       fontFamily: fonts.bodyBold,
       fontWeight: '700',
@@ -1436,7 +1436,7 @@ const makeStyles = (t: Theme) => {
       ...(Platform.OS === 'web' ? { outlineStyle: 'solid' as const, outlineWidth: 0 } : null),
     },
     doneTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, paddingHorizontal: spacing.two, paddingBottom: spacing.one },
-    doneCheck: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    doneCheck: { color: t.colors.accentText, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     titleLine: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.two },
     // "Where you left off" (2026-10-04, the handoff's L1 and E1). Faint by size, regular weight and its place
     // under a 22pt serif, never by a colour that fails: inkSoft on the card face, ink on the Quiet wash.
@@ -1476,7 +1476,7 @@ const makeStyles = (t: Theme) => {
     fieldFocused: t.appearance === 'quiet' ? { borderWidth: border.thin, borderColor: t.colors.accent } : { borderBottomWidth: border.thin, borderColor: t.colors.accent },
     titleGrow: { flexShrink: 1 },
     titleCount: { ...t.type.label, color: t.colors.inkSoft, paddingTop: 2 },
-    titleCountLive: { color: t.colors.accent },
+    titleCountLive: { color: t.colors.accentText },
     confirmTitleDone: { color: t.colors.inkSoft, paddingHorizontal: 0, paddingBottom: 0, flexShrink: 1 },
     // The done card's inscription: the serif voice (like Today's rotating line), above the shelf.
     doneIsDone: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', textAlign: 'center', paddingTop: spacing.two, paddingBottom: spacing.one },
@@ -1504,7 +1504,7 @@ const makeStyles = (t: Theme) => {
         : { backgroundColor: t.scheme === 'dark' ? t.colors.accentSoft : t.colors.accent, borderRadius: radius.sm },
     heroLabel: { color: heroText, fontWeight: '700' },
     // The hero seat once the copy exists: a settled fact, in the quiet voice, not a dead button.
-    broughtLabel: { color: t.colors.inkFaint },
+    broughtLabel: { color: t.colors.inkSoft },
     // The quiet wash, on the row's OWN surface. It was a wrapper with its own border, which drew a
     // second ring around the card and read as a rendering fault rather than a signal: Melroy's first
     // question on seeing it was "what does the outer boundary mean?", which is the whole verdict.
@@ -1520,18 +1520,18 @@ const makeStyles = (t: Theme) => {
       backgroundColor: t.colors.accentSoft,
     },
     // The faint "· Ours" on YOUR copy. Quiet enough to be a fact and not a badge.
-    originMark: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginLeft: spacing.two },
+    originMark: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, marginLeft: spacing.two },
     // Ink on light (the accent on its own wash is 4.0:1, under AA for text this small), the accent on dark (4.9:1).
     justAddedMark: { color: t.scheme === 'dark' ? t.colors.accent : t.colors.ink, fontSize: 11 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     // Full strength (C3): the 0.82 fade took it under 4.5:1 on the hero fill in both schemes (3.8 to 4.8).
     heroSub: { color: heroText },
     // Mark-as-a-lot, active: the row tints and its text lifts to accent, the app quietly agreeing.
     actionRowActive: t.appearance === 'quiet' ? {} : { backgroundColor: t.colors.accentSoft, borderRadius: radius.sm },
-    actionLabelActive: { color: t.colors.accent },
+    actionLabelActive: { color: t.colors.accentText },
     // The More disclosure: the label plus a faint preview of what is inside, and a caret that flips.
     moreLead: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, flexShrink: 1 },
-    moreLabel: { ...t.type.label, color: t.colors.accent },
-    moreCaret: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    moreLabel: { ...t.type.label, color: t.colors.accentText },
+    moreCaret: { color: t.colors.accentText, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     // The revealed More items sit slightly indented, so they read as belonging under the disclosure.
     moreItem: { paddingLeft: spacing.four },
     controlOff: { color: t.colors.inkFaint },
@@ -1572,7 +1572,7 @@ const makeStyles = (t: Theme) => {
       backgroundColor: t.colors.surface,
     },
     optionsLabel: { ...t.type.label, color: t.colors.ink },
-    pinnedLabel: { color: t.colors.accent },
+    pinnedLabel: { color: t.colors.accentText },
     // The shelf (v2): the card's floor. A quiet surface-tint band flush to the card's edges,
     // rounded into its bottom corners, holding Close (easy thumb), Select more, Remove (far).
     // Quiet keeps its chrome-free hairline instead of a band.
@@ -1604,9 +1604,9 @@ const makeStyles = (t: Theme) => {
             borderColor: t.colors.line,
             borderBottomLeftRadius: radius.md,
             borderBottomRightRadius: radius.md,
-            backgroundColor: t.scheme === 'dark' ? 'rgba(0,0,0,0.16)' : 'rgba(43,39,34,0.035)',
+            backgroundColor: shelfTint(t.scheme),
           },
-    close: { ...t.type.label, color: t.colors.accent, fontWeight: '700' },
+    close: { ...t.type.label, color: t.colors.accentText, fontWeight: '700' },
     selectMore: { ...t.type.label, color: t.colors.inkSoft },
     remove: { ...t.type.label, color: t.colors.danger },
     rowSelected: { borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
@@ -1627,12 +1627,12 @@ const makeStyles = (t: Theme) => {
     textDone: { color: t.colors.inkSoft },
     repeatMark: { color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     heldDot: { width: 8, height: 8, borderRadius: 999, backgroundColor: t.colors.accent, marginLeft: 6, alignSelf: 'center' },
-    heldLabel: { color: t.colors.accent },
-    nudgeMark: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    heldLabel: { color: t.colors.accentText },
+    nudgeMark: { color: t.colors.accentText, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     suggestColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
     suggestMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
     suggestHintBtn: { alignSelf: 'flex-start' },
-    suggestHint: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    suggestHint: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     tinyColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
     tinyMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
     tinyEyebrow: { ...t.type.eyebrow, color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat },
@@ -1644,7 +1644,7 @@ const makeStyles = (t: Theme) => {
       fontFamily: fonts.bodyBold,
       fontWeight: t.appearance === 'quiet' ? '600' : '700',
     },
-    sliceAdjustHint: { color: t.colors.inkFaint, fontSize: 11 * t.scale, fontFamily: fonts.body, marginTop: spacing.half },
+    sliceAdjustHint: { color: t.colors.inkSoft, fontSize: 11 * t.scale, fontFamily: fonts.body, marginTop: spacing.half },
     track: {
       flexDirection: 'row',
       height: 4,

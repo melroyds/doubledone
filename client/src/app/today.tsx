@@ -20,7 +20,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { PRESS_NOW, PRESS_SETTLE_MS } from '@/components/press-now';
 import { RotatingPhrase } from '@/components/RotatingPhrase';
 import { TaskRow } from '@/components/TaskRow';
-import { border, cardShadow, fonts, layout, motion, PRESSED_OPACITY, radius, rgba, spacing, type Theme } from '@/constants/theme';
+import { border, cardShadow, fonts, layout, motion, PRESSED_OPACITY, radius, rgba, shelfTint, spacing, type Theme } from '@/constants/theme';
 import {
   clarify,
   combine,
@@ -4029,7 +4029,7 @@ export default function TodayScreen() {
               value={didText}
               onChangeText={setDidText}
               placeholder={t('today.didPlaceholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               autoFocus
               returnKeyType="done"
               onSubmitEditing={() => logDidIt(didText)}
@@ -4061,7 +4061,7 @@ export default function TodayScreen() {
               value={combineTitle}
               onChangeText={setCombineTitle}
               placeholder={t('today.combinePlaceholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               returnKeyType="done"
               onSubmitEditing={combineAccept}
               accessibilityLabel={t('today.combineInputA11y')}
@@ -4109,7 +4109,7 @@ export default function TodayScreen() {
               value={manualBdText}
               onChangeText={setManualBdText}
               placeholder={t('breakdown.manualPlaceholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               multiline
               accessibilityLabel={t('breakdown.manualInputA11y')}
             />
@@ -4389,7 +4389,7 @@ export default function TodayScreen() {
                 value={closeNote}
                 onChangeText={setCloseNote}
                 placeholder={t('closeDay.notePlaceholder')}
-                placeholderTextColor={theme.colors.inkFaint}
+                placeholderTextColor={theme.colors.inkSoft}
                 returnKeyType="done"
                 accessibilityLabel={t('closeDay.noteA11y')}
               />
@@ -4737,8 +4737,8 @@ const makeStyles = (t: Theme) =>
       paddingVertical: spacing.three,
       marginTop: spacing.two,
     },
-    restNoteTitle: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    restNoteBody: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
+    restNoteTitle: { color: t.colors.skyInk, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    restNoteBody: { color: t.colors.skyInk, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
     screen: { flex: 1, backgroundColor: 'transparent' }, // the LivingBackground shows through
     scroll: { flex: 1 },
     content: {
@@ -4749,8 +4749,8 @@ const makeStyles = (t: Theme) =>
       alignSelf: 'center',
     },
     topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.one },
-    date: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    spine: { color: t.colors.inkSoft, fontSize: 16 * t.scale, marginTop: spacing.two, marginBottom: spacing.six, fontFamily: fonts.body },
+    date: { color: t.colors.skyInk, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    spine: { color: t.colors.skyInk, fontSize: 16 * t.scale, marginTop: spacing.two, marginBottom: spacing.six, fontFamily: fonts.body },
     list: { gap: spacing.two },
     // The Done today line: a hairline, the words and a caret in soft ink, the whole row a 44pt tap.
     doneLine: {
@@ -4763,8 +4763,8 @@ const makeStyles = (t: Theme) =>
       borderTopWidth: border.hair,
       borderTopColor: t.appearance === 'quiet' ? t.quiet.hairline : t.colors.line,
     },
-    doneLineText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    doneLineCaret: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    doneLineText: { color: t.colors.skyInk, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    doneLineCaret: { color: t.colors.skyInk, fontSize: 15 * t.scale, fontFamily: fonts.body },
     tuckedList: { marginTop: spacing.two },
     srOnly: { position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0 },
     // The same, for a control that only keyboard focus reveals: it also takes no pointer, so no tap lands on it.
@@ -4782,7 +4782,7 @@ const makeStyles = (t: Theme) =>
       backgroundColor: t.colors.accent,
     },
     skipAddText: { color: t.colors.onAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    calmNote: { color: t.colors.inkSoft, fontSize: 16 * t.scale, marginTop: spacing.five, lineHeight: 24 * t.scale, fontFamily: fonts.body },
+    calmNote: { color: t.colors.skyInk, fontSize: 16 * t.scale, marginTop: spacing.five, lineHeight: 24 * t.scale, fontFamily: fonts.body },
     emptyState: { alignItems: 'center' },
     emptyArt: { width: '100%', maxWidth: 420, aspectRatio: 16 / 9, borderRadius: radius.lg, marginTop: spacing.five, overflow: 'hidden' },
     emptyNote: { textAlign: 'center' },
@@ -4790,12 +4790,12 @@ const makeStyles = (t: Theme) =>
     later: { marginTop: spacing.seven, gap: spacing.two },
     laterHeading: {
       ...t.type.eyebrow,
-      color: t.colors.inkFaint,
+      color: t.colors.skyInk,
       textTransform: 'uppercase',
       marginBottom: spacing.one,
     },
     laterItem: { gap: spacing.two },
-    laterDate: { color: t.colors.inkSoft, fontSize: 13 * t.scale, marginTop: spacing.two, fontFamily: fonts.body },
+    laterDate: { color: t.colors.skyInk, fontSize: 13 * t.scale, marginTop: spacing.two, fontFamily: fonts.body },
     footer: {
       paddingHorizontal: spacing.five,
       paddingTop: spacing.three,
@@ -4812,8 +4812,8 @@ const makeStyles = (t: Theme) =>
     },
     ethos: { marginTop: spacing.three, alignItems: 'center' },
     optionalLinks: { marginTop: spacing.four, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: spacing.five },
-    optLink: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', textDecorationLine: 'underline' },
-    optFaint: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center', textDecorationLine: 'underline' },
+    optLink: { color: t.colors.skyInk, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', textDecorationLine: 'underline' },
+    optFaint: { color: t.colors.skyInk, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center', textDecorationLine: 'underline' },
     // The select shelf card (congruency pass): the held-card-v2 family. Standard wears the
     // card surface + hairline + shadow; Quiet keeps its single accentSoft wash, no chrome.
     selectShelfCard:
@@ -4844,7 +4844,7 @@ const makeStyles = (t: Theme) =>
       t.appearance === 'quiet'
         ? { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three, paddingHorizontal: spacing.two }
         : { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three, paddingHorizontal: spacing.three, borderRadius: radius.sm, backgroundColor: t.colors.accentSoft },
-    combineHeroLabel: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    combineHeroLabel: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     combineHeroSub: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body, textAlign: 'right', flexShrink: 1 },
     // The shelf: the same floor as the held card (band + hairline, rounded into the corners).
     selectShelf:
@@ -4864,7 +4864,7 @@ const makeStyles = (t: Theme) =>
             borderColor: t.colors.line,
             borderBottomLeftRadius: radius.md,
             borderBottomRightRadius: radius.md,
-            backgroundColor: t.scheme === 'dark' ? 'rgba(0,0,0,0.16)' : 'rgba(43,39,34,0.035)',
+            backgroundColor: shelfTint(t.scheme),
           },
     selectCancelText: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     removeStack: { alignItems: 'flex-end' },
@@ -4880,11 +4880,11 @@ const makeStyles = (t: Theme) =>
     sliceUndo: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '600', fontSize: 14 * t.scale },
     doorAltRow: { borderTopWidth: border.hair, borderTopColor: t.colors.line, marginTop: spacing.four, paddingTop: spacing.three, alignItems: 'center', gap: 2 },
     doorAltLabel: { color: t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    doorAltSub: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body },
+    doorAltSub: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body },
     sliceStepValue: { ...t.type.heading, color: t.colors.ink, minWidth: 110, textAlign: 'center' },
     selectDone: { color: t.colors.doneText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     selectRemove: { color: t.colors.danger, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', textAlign: 'right' },
-    sortSummary: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginBottom: spacing.two },
+    sortSummary: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginBottom: spacing.two },
     affirmation: { color: t.colors.doneText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', marginBottom: spacing.two },
     // The Remove undo bar: Routines' shape, the app's one destructive-action pattern.
     undoBar: {
@@ -4900,7 +4900,7 @@ const makeStyles = (t: Theme) =>
       marginBottom: spacing.three,
     },
     undoText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
-    undoAction: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
+    undoAction: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
     toolPremiumMark: { color: t.colors.accents[2], fontSize: 12 * t.scale, marginLeft: spacing.one },
     dockSpacer: { height: spacing.four }, // the composer is one line now; a breath under the last row is enough
     holdHint: {
@@ -4916,7 +4916,7 @@ const makeStyles = (t: Theme) =>
     },
     holdHintDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: t.colors.accent },
     holdHintText: { flex: 1, color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },
-    holdHintDismiss: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    holdHintDismiss: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     reentry: {
       backgroundColor: t.colors.accentSoft,
       borderRadius: radius.lg,
@@ -4939,13 +4939,13 @@ const makeStyles = (t: Theme) =>
       overflow: 'hidden',
     },
     weightFill: { backgroundColor: t.colors.accent },
-    weightLabel: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
+    weightLabel: { color: t.colors.skyInk, fontSize: 13 * t.scale, fontFamily: fonts.body },
     // The Energy pills: a segmented day-state beside the gauge. Selected = accent on accent-tint
     // with a soft accent border; unselected = plain soft ink, no border (the design's own spec).
     // The pills' visible header, in the same overline voice as RIGHT NOW: without it, three bare
     // words under the greeting read as lost text (real-user report, 2026-07-26).
     energyOverline: {
-      color: t.colors.inkFaint,
+      color: t.colors.skyInk,
       fontSize: 10.5 * t.scale,
       fontFamily: fonts.bodyBold,
       fontWeight: '700',
@@ -4969,11 +4969,11 @@ const makeStyles = (t: Theme) =>
             borderColor: 'transparent',
           },
     energyPillOn: t.appearance === 'quiet' ? {} : { backgroundColor: t.colors.accentSoft, borderColor: rgba(t.colors.accent, 0.4) },
-    energyPillText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+    energyPillText: { color: t.colors.skyInk, fontSize: 14 * t.scale, fontFamily: fonts.body },
     energyPillTextOn:
       t.appearance === 'quiet'
         ? { color: t.colors.ink, fontFamily: fonts.bodyBold, fontWeight: '700' }
-        : { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '600' },
+        : { color: t.colors.accentText, fontFamily: fonts.bodyBold, fontWeight: '600' },
     // The day tools' card under Energy (the Today v3 handoff): the Right-now slot + caret on one row, and
     // the tools opening DOWNWARD inside the same card behind a hairline. The slot occupant is the one
     // accent-weight thing in it. Quiet keeps the structure and drops the card chrome.
@@ -4994,14 +4994,14 @@ const makeStyles = (t: Theme) =>
     rightNowRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
     rightNowSlot: { flex: 1, paddingVertical: spacing.one },
     rightNowOverline: {
-      color: t.colors.inkFaint,
+      color: t.colors.inkSoft,
       fontSize: 10.5 * t.scale,
       fontFamily: fonts.bodyBold,
       fontWeight: '700',
       letterSpacing: 1.2,
       textTransform: 'uppercase',
     },
-    rightNowName: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', marginTop: 2 },
+    rightNowName: { color: t.colors.accentText, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', marginTop: 2 },
     caretBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
     caretText: { color: t.colors.inkSoft, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     toolsPanel: { paddingRight: spacing.three, paddingBottom: spacing.one },
@@ -5010,15 +5010,15 @@ const makeStyles = (t: Theme) =>
     toolRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
     toolName: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', flexShrink: 1 },
     // Quiet-unavailable: lowered contrast, no lock, no border, no strikethrough. Present, resting.
-    toolNameQuiet: { color: t.colors.inkFaint, fontFamily: fonts.body, fontWeight: '400' },
-    toolNowTag: { color: t.colors.accent, fontSize: 12 * t.scale, fontFamily: fonts.body },
-    toolHintLine: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two },
-    windDown: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+    toolNameQuiet: { color: t.colors.inkSoft, fontFamily: fonts.body, fontWeight: '400' },
+    toolNowTag: { color: t.colors.accentText, fontSize: 12 * t.scale, fontFamily: fonts.body },
+    toolHintLine: { color: t.colors.skyInk, fontSize: 13 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two },
+    windDown: { color: t.colors.skyInk, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     // The evening door to Settle: a soft pressable sentence under the wind-down line.
-    windDownSettle: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, fontStyle: 'italic', textAlign: 'center', marginTop: spacing.one },
+    windDownSettle: { color: t.colors.skyInk, fontSize: 13 * t.scale, fontFamily: fonts.body, fontStyle: 'italic', textAlign: 'center', marginTop: spacing.one },
     // What's New: the hold-hint card's shape with a small title over its lines.
     whatsNewBody: { flex: 1, gap: spacing.one },
-    whatsNewTitle: { color: t.colors.inkFaint, fontSize: 11 * t.scale, fontFamily: fonts.body, fontWeight: '600', letterSpacing: 1.2, textTransform: 'uppercase' },
+    whatsNewTitle: { color: t.colors.inkSoft, fontSize: 11 * t.scale, fontFamily: fonts.body, fontWeight: '600', letterSpacing: 1.2, textTransform: 'uppercase' },
     rested: { alignItems: 'center', gap: spacing.three, paddingTop: spacing.five, paddingBottom: spacing.four },
     restedArt: {
       width: '100%',
@@ -5030,11 +5030,11 @@ const makeStyles = (t: Theme) =>
     },
     restedTitle: { ...t.type.heading, color: t.colors.ink, letterSpacing: -0.3, textAlign: 'center' },
     restedLine: { color: t.colors.ink, fontSize: 17 * t.scale, lineHeight: 24 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
-    restedSub: { color: t.colors.inkFaint, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+    restedSub: { color: t.colors.skyInk, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     // The forward-view door on the rested screen: quiet soft ink, underlined like every other
     // tappable text action (TOD-18), a reassuring count that never becomes a list.
-    restedWaiting: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body, textAlign: 'center', textDecorationLine: 'underline' },
-    restedReopen: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.three },
+    restedWaiting: { color: t.colors.skyInk, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body, textAlign: 'center', textDecorationLine: 'underline' },
+    restedReopen: { color: t.colors.skyAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.three },
     reminderOffer: {
       alignSelf: 'stretch',
       alignItems: 'center',
@@ -5044,11 +5044,11 @@ const makeStyles = (t: Theme) =>
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: t.colors.line,
     },
-    reminderOfferText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, lineHeight: 21 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+    reminderOfferText: { color: t.colors.skyInk, fontSize: 15 * t.scale, lineHeight: 21 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     reminderOfferRow: { flexDirection: 'row', gap: spacing.five, alignItems: 'center' },
-    reminderOfferYes: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    reminderOfferNo: { color: t.colors.inkFaint, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    strategiseErr: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body },
+    reminderOfferYes: { color: t.colors.skyAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    reminderOfferNo: { color: t.colors.skyInk, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    strategiseErr: { color: t.colors.skyAccent, fontSize: 13 * t.scale, fontFamily: fonts.body },
     disabledBtn: { opacity: 0.5 },
     planItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
     planTitle: { color: t.colors.ink, fontSize: 16 * t.scale, flexShrink: 1, fontFamily: fonts.body },
@@ -5092,7 +5092,7 @@ const makeStyles = (t: Theme) =>
       gap: spacing.two,
     },
     sharedStripOverline: {
-      color: t.colors.inkFaint,
+      color: t.colors.skyInk,
       fontSize: 11 * t.scale,
       fontFamily: fonts.body,
       fontWeight: '600',
@@ -5157,7 +5157,7 @@ const makeStyles = (t: Theme) =>
       alignItems: 'center',
     },
     energyChoiceText: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    energyNotNow: { color: t.colors.inkFaint, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', paddingVertical: spacing.two },
+    energyNotNow: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', paddingVertical: spacing.two },
     alsoDidUnderList: { marginTop: spacing.three, marginBottom: spacing.two, alignItems: 'center' },
     selectTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.four, minHeight: 44 },
     moveToPresets:{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two, justifyContent: 'center', marginBottom: spacing.three },
@@ -5255,7 +5255,7 @@ const makeStyles = (t: Theme) =>
     wrapItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
     wrapCheck: { color: t.colors.doneText, fontSize: 16 * t.scale, fontWeight: '700', fontFamily: fonts.bodyBold },
     wrapItemText: { color: t.colors.inkSoft, fontSize: 16 * t.scale, flexShrink: 1, fontFamily: fonts.body },
-    wrapRoll: { color: t.colors.inkFaint, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, marginTop: spacing.two, fontFamily: fonts.body },
+    wrapRoll: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, marginTop: spacing.two, fontFamily: fonts.body },
     wrapBtn: { marginTop: spacing.three },
     wrapGoodnightQuiet: { marginTop: spacing.four, alignItems: 'flex-start', paddingVertical: spacing.two },
     wrapGoodnightQuietText: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },

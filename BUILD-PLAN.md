@@ -186,6 +186,23 @@ the ladder is fixed and readable, never randomised.
   (the sort summary and the affirmation) briefly lies over the lowest rows; and the gold ✦ is 2.5:1 in light mode
   (C8, #C19A4F to #B18D4A, shared with the per-task dots). Trigger: a keyboard or screen-reader user reports one, or
   the next change to TaskRow's keys, the Energy pills or the floatNote.
+- **Two contrast gaps the slice 3 test found and left (parked 2026-10-19, with slice 3 of `store-1.9`).** Both are
+  measured by `client/src/constants/palette.test.ts`'s model. (1) **With Quiet on, a task row sits straight on the
+  sky.** Quiet drops the row's card, so its grey words (a done title, the row note, "· Ours", the repeat mark, the
+  step count), its accent words ("a lot", the nudge time, "looks big"), its check ring and Quiet's hold-hint line
+  are all drawn on the living sky. In light mode the words measure 3.1 to 3.2:1, and the ring 2.1 to 2.5:1 in both
+  modes, where it needs 3:1. The a11y scout modelled Quiet only for the held card and the Menu pill, so its list
+  missed this. The fix follows slice 3's rule: those Quiet styles read `skyInk` and `skyAccent`, and the ring gets a
+  darker sky shade of its own, solved the same way. That makes Quiet's rows visibly firmer, so it is a taste call.
+  Trigger: Melroy's word (before the 1.9.0 builds, if he wants it in them), or the next change to Quiet. (2) **In
+  dark mode, pale words under the hero glow.** With the glow at full strength, inkSoft and the accent straight on
+  the dark sky measure 3.9 to 4.5:1 in six of the seven themes. A real line at the top of the screen sees about 80%
+  of the glow at the peak of its drift, which still leaves Dusk, Honey and Rose near 4.4:1 there (the date, the
+  greeting, Quiet's Menu). The web and iPhones only, since the pools are off on Android. Melroy's call kept dark mode
+  unchanged in this batch, so the test holds these ten pairs at today's ratio (`OPEN_IN_DARK`) and fails if one gets
+  worse. Either fix clears it: dark `skyInk` and `skyAccent` one step lighter (Dusk #B2A89D and #CE9CAC, solved like
+  the light ones), or the dark glow from 0.18 to 0.11 in `PHASE_POOLS` (`client/src/lib/phase.ts`). Trigger:
+  Melroy's word, or the next change to dark mode or the pools. Strike the `OPEN_IN_DARK` entries in the same commit.
 - **Store keywords, parked with the slice 8 listing work (2026-10-19, `store-1.9`).** (1) **`executive` and
   `function`** as hidden keywords in the second English set (`docs/appstore/listing-copy.md`). Close to clinical
   language, so out for now. Trigger: Apple Search Ads shows real popularity for "executive function" planner

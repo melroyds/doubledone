@@ -117,7 +117,7 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
               onChangeText={setAnswer}
               editable={!busy}
               placeholder={t('breakdown.optionalPlaceholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               style={styles.input}
               multiline
               accessibilityLabel={t('breakdown.answerA11y')}

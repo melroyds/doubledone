@@ -749,7 +749,7 @@ export default function SettingsScreen() {
                   if (feedbackState === 'error') setFeedbackState('idle');
                 }}
                 placeholder={t('settings.feedbackPlaceholder')}
-                placeholderTextColor={theme.colors.inkFaint}
+                placeholderTextColor={theme.colors.inkSoft}
                 multiline
                 editable={feedbackState !== 'sending'}
                 accessibilityLabel={t('settings.feedbackInputA11y')}

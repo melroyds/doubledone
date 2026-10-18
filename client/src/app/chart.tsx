@@ -234,7 +234,7 @@ export default function ChartScreen() {
           value={goal}
           onChangeText={setGoal}
           placeholder={t('chart.goalPlaceholder')}
-          placeholderTextColor={theme.colors.inkFaint}
+          placeholderTextColor={theme.colors.inkSoft}
           multiline
           accessibilityLabel={t('chart.goalA11yLabel')}
           editable={!busy}

@@ -695,7 +695,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
               editable={!busy}
               testID="capture-field"
               placeholder={t('capture.placeholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               style={styles.input}
               multiline
               textAlignVertical="top"

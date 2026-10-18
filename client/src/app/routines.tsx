@@ -632,7 +632,7 @@ export default function RoutinesScreen() {
               ref={nameInput}
               style={styles.input}
               placeholder={t('routines.namePlaceholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               value={name}
               onChangeText={(v) => {
                 setName(v);
@@ -662,7 +662,7 @@ export default function RoutinesScreen() {
               ref={stepsInput}
               style={[styles.input, styles.stepsInput]}
               placeholder={t('routines.stepsPlaceholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               value={stepsText}
               onChangeText={(v) => {
                 setStepsText(v);
@@ -864,7 +864,7 @@ export default function RoutinesScreen() {
                 ref={rhythmNameInput}
                 style={styles.input}
                 placeholder={t('routines.rhythmNamePlaceholder')}
-                placeholderTextColor={theme.colors.inkFaint}
+                placeholderTextColor={theme.colors.inkSoft}
                 value={rhythmName}
                 onChangeText={(v) => {
                   setRhythmName(v);

@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { border, fonts, PRESSED_OPACITY, radius, rgba, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, PILL_FILL_ALPHA, PRESSED_OPACITY, radius, rgba, spacing, type Theme } from '@/constants/theme';
 import { t } from '@/lib/locale';
 import { menuPillLabel } from '@/lib/menu-a11y';
 import { useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -46,13 +46,14 @@ const makeStyles = (t: Theme) =>
             gap: spacing.two,
             borderWidth: border.hair,
             borderColor: rgba(t.colors.ink, t.scheme === 'dark' ? 0.14 : 0.1), // derived so the pill follows the active theme
-            backgroundColor: rgba(t.colors.surface, 0.6),
+            backgroundColor: rgba(t.colors.surface, PILL_FILL_ALPHA), // the fill palette.test.ts composites
             borderRadius: radius.pill,
             paddingVertical: spacing.two,
             paddingHorizontal: 13,
           },
     dots: { flexDirection: 'row', gap: 3 },
     dot: { width: 4, height: 4, borderRadius: radius.pill, backgroundColor: t.colors.accent },
-    label: { color: t.colors.accent, fontSize: 13 * t.scale, fontWeight: '700', fontFamily: fonts.bodyBold },
+    // Accent words: on the pill's fill in Standard, straight on the sky in Quiet (which drops the fill).
+    label: { color: t.appearance === 'quiet' ? t.colors.skyAccent : t.colors.accentText, fontSize: 13 * t.scale, fontWeight: '700', fontFamily: fonts.bodyBold },
     pressed: { opacity: PRESSED_OPACITY },
   });

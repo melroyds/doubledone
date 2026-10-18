@@ -14,7 +14,7 @@ const hx = (c: string): HexColor => c as HexColor;
 // Appearance.getColorScheme() at load, which is unsafe in the headless widget task's JS context
 // and left the widget rendering blank on device. The widget needs only these four hues per scheme.
 const WIDGET_COLORS = {
-  light: { accent: '#946475', ink: '#2B2722', inkSoft: '#7A7066', bg: '#FAF6F1' }, // accent kept in sync with the deepened Dusk accent (the 'Today' header is accent-as-text, so it must clear AA)
+  light: { accent: '#865C6A', ink: '#2B2722', inkSoft: '#6F665C', bg: '#FAF6F1' }, // `accent` is Dusk's accentText (the 'Today' header is accent-as-text, so it must clear AA: the fill accent #946475 is 4.50:1 on bg, this is 5.2), and inkSoft is Dusk's 1.9.0 inkSoft
   dark: { accent: '#C68BA0', ink: '#F2EBE0', inkSoft: '#A89E93', bg: '#1B1917' }, // inkSoft kept in sync with the Dusk dark palette
 } as const;
 

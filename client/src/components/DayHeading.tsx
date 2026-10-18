@@ -131,7 +131,7 @@ const makeStyles = (t: Theme) =>
       justifyContent: 'center',
     },
     markTextCompact: { color: t.colors.accent, fontSize: 11 * t.scale, lineHeight: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    compactWeight: { color: t.colors.inkSoft, fontSize: 12.5 * t.scale, fontFamily: fonts.body, paddingBottom: 6 },
+    compactWeight: { color: t.colors.skyInk, fontSize: 12.5 * t.scale, fontFamily: fonts.body, paddingBottom: 6 },
     compactTrack: { flexDirection: 'row', height: 3, borderRadius: radius.pill, backgroundColor: t.colors.line, overflow: 'hidden' },
     compactFill: { backgroundColor: t.colors.accent }, // the same fill as Today's full gauge: one gauge, two sizes
     pressed: { opacity: PRESSED_OPACITY },

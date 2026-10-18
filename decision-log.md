@@ -10176,3 +10176,79 @@ the five languages. None matches the current paste sources. The break test gains
 groups: 49 of 49 caught, and the gate before this commit let 15 of those 16 through. Decided against: banning the
 verbs. "treat" and its translations are the medical disclaimer's own words, and banning them would force the one
 sentence the stores ask for to be reworded.
+
+## 2026-10-19: Today's words clear 4.5:1 on the real sky, and a test holds every colour to its surface (store 1.9, slice 3 and C10)
+
+**Decided (Melroy's decision 1, 2026-10-19): the colour proposal's "solved for both pools" variant, in light mode
+only.** That is the a11y scout's tokens plus the two sky tokens one step darker, because the scout's own sky values
+cleared Today's top half but measured 4.1 to 4.3:1 on the rested screen, where the rose light pool sits behind its
+lines. The proposal and its renders are in `docs/design-source/store-1.9/` and the session scratchpad
+(`colour/proposal.md`).
+
+**The palettes now live in a pure module, `client/src/constants/palette.ts`** (the `motion.ts` precedent), because
+`theme.ts` imports `react-native` and `global.css` and the test runner could never load it. `theme.ts` re-exports
+everything, so no import path changed. The module also holds what the test must composite exactly as the screen
+does: `quietTokens` (moved out of `buildTheme`), `shelfTint` (the held card's shelf, a literal that was copied in
+TaskRow and Today) and `PILL_FILL_ALPHA` (the Menu pill).
+
+**The tokens, light mode.**
+- **Three new text roles in `Palette`.** `skyInk` for words straight on the living sky, `accentText` for the accent
+  as words on a card, a tint, the shelf or a sheet, and `skyAccent` for accent words on the sky. The accent itself
+  stays for fills. Dusk: #574F48, #865C6A and #654950. Each Premium theme has its own, solved against the same
+  surfaces (`LIGHT_TEXT`). Honey's accent words go bronze (#856527), because a calm gold cannot clear 4.5:1 as text
+  on white, and its fills stay gold. In dark mode the three are simply inkSoft and the accent, their values before.
+- **The inkSoft floor nudge** (Dusk #7A7066 to #6F665C, and each Premium light inkSoft a step), **`repeat` retuned**
+  (Dusk #6E72A0 to #6B6F9B), and **darker check rings on the six Premium light themes** (inkFaint, 2.5 to 3.6:1 on a
+  card). Dusk's inkFaint keeps its value: it is no longer text on Today, TaskRow or the pill.
+
+**The roles, on Today, TaskRow, DayHeading and MenuPill.** C2: inkFaint stops being text, to inkSoft on a card and
+skyInk on the sky. C2b: the bare inkSoft lines on the sky become skyInk. C5: Quiet's held card gets an opaque wash in
+light mode (`mix(accentSoft, surface, 0.3)`), because at 0.78 the rose pool showed through it. C6: the accent as
+words becomes accentText, or skyAccent on the sky, including Quiet's Menu label and, a site the scout's list left
+out, the hero's words on the dark tint and in Quiet. C7: all 23 placeholders move from inkFaint to inkSoft. C9: the
+Dusk preset, which only the Settings swatch reads, now says what Dusk renders, and a test holds it. Plus the
+proposal's finds: BedtimeCapture's prompt, "Not tomorrow?" and its "Saved" line take the sky tokens and its Add label
+takes accentText, and the rotating foot phrase stops borrowing the task-dot colours (1.8 to 3.1:1 at night) for
+skyInk. The Android widget's inlined light hexes follow Dusk's new inkSoft and accentText, as its comment requires.
+The role changes apply in both schemes, so in dark mode the small capitals, the faint card lines and the
+placeholders lift to inkSoft: no token value changed there, but keeping inkFaint as text would have kept a failure
+(3.2:1 on a dark card) for the sake of "unchanged".
+
+**The test, `client/src/constants/palette.test.ts` (C10).** Every text token against every surface its role names,
+4.5:1, and the check and select rings 3:1, in all 14 palettes. The surfaces are composited as the screen does it:
+the sky is every stop of every phase plus both light pools at full strength (the glow over each top stop, the rose
+pool over each mid and bottom stop), the cards are surfaceCard over all of those, the shelf is its tint over a card,
+Quiet's held card is its wash over the sky, and the Menu pill is its fill over the top of the sky only, because it
+only ever sits in the header. The ROLES table is the contract: a colour gets a new surface by a row there. **Run
+first against today's tokens, it failed 95 pairs in 13 of the 14 palettes** (137 with the old inkFaint-as-text
+wiring added), every failing row of the scout's table among them. It also showed two things the scout's model did
+not: Today's bare text was 2.8:1, not 3.3, once the rose pool is in, and dark mode's bare words fall under 4.5:1
+beneath the glow. **With the new tokens: nothing fails in light mode.** Measured in the dev server, the date, the
+weight line and ENERGY render #574F48, the Menu label and Normal #865C6A, RIGHT NOW #6F665C, and the dark values are
+unchanged.
+
+**Held open, by Melroy's call:** dark mode keeps its values in this batch, so ten dark pairs (pale words straight on
+the sky under the glow, 3.9 to 4.5:1 at full strength, about 4.4:1 at a real line's worst moment in Dusk, Honey and
+Rose) sit in the test's `OPEN_IN_DARK` at today's ratio. The test fails if one gets worse, and fails when one is
+fixed, so it gets struck off. **Found and left:** with Quiet on, a row has no card, so its own grey words, accent
+words and check ring sit straight on the sky (3.1 to 3.2:1, and 2.1 to 2.5:1 for the ring). Both are in the
+BUILD-PLAN Backlog with the fixes, as Melroy's calls.
+
+**Decided against:**
+- **Lightening the sky.** inkSoft would need the sky's darkest stop near #F6F6F6, which deletes the sky, and the
+  scout's sky values would need the rose pool cut from 0.34 to about 0.02 on the rested screen, which deletes the pool.
+- **One darker inkSoft everywhere.** The shade the sky needs (#574F48, 8.0:1 on white) would turn every card's and
+  sheet's secondary grey into near-ink and flatten the hierarchy. The sky gets its own token, darker only there.
+- **A high-contrast mode.** AA is the baseline, not a setting, and this app removes settings rather than adding them
+  (the scout's Tier 4, a BUILD-PLAN Tier 4 setting that waits for a real ask, and on the 1.9 plan's skip-forever
+  list).
+- **The scout's sky values as rendered** (#625951 and #73515B in Dusk). They pass the top of Today and fail the
+  rested screen, the screen people see at night.
+- **Lifting dark mode now.** Melroy's call. The test holds the gap instead of hiding it.
+- **Modelling each line at its real distance from the glow** instead of the glow at full strength. Truer by a few
+  hundredths, but it ties the test to a layout that moves, and the light tokens clear the stricter model anyway. The
+  pill is the one exception, because the header is the only place it can be.
+- **Making the role changes light-only.** That would keep dark inkFaint as text (3.2:1 on a card) on purpose.
+- **The widget importing `palette.ts`.** The pure module makes it safe in principle, but the widget's headless
+  context has blanked before and needs a device test. It keeps its inlined hexes, now in sync.
+- **The gold ✦ (C8).** Tier 3, already parked.

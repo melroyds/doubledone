@@ -304,7 +304,7 @@ export default function WelcomeScreen() {
               onChangeText={setDump}
               editable={!busy}
               placeholder={t('welcome.capturePlaceholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               style={styles.input}
               multiline
               autoFocus

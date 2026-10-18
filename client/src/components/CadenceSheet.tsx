@@ -241,7 +241,7 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
         style={styles.sheetInput}
         value={draft}
         onChangeText={setDraft}
-        placeholderTextColor={theme.colors.inkFaint}
+        placeholderTextColor={theme.colors.inkSoft}
         returnKeyType="done"
         accessibilityLabel={t('repeat.titleInputA11y')}
       />
