@@ -10465,3 +10465,25 @@ at their ratios rounded down, and the BUILD-PLAN Backlog's contrast-gaps entry g
   it is instead of hiding it, the same way it holds the dark sky pairs.
 - **Floors from the review's own figures** (2.93 and 2.96 for Fog and Slate). They sit above the real ratios, 2.929
   and 2.955, so the held-open check would have failed on today's tokens.
+
+**Dark mode keeps the foot phrase's hues and the periwinkle phase dates (finding 4).** This corrects slices 3 and 4,
+which changed two dark-mode colours under the "dark mode unchanged" call without saying so. Slice 3 gave the foot
+phrase skyInk in both schemes, which in dark is the grey #A89E93, and slice 4 gave Break it down's later-phase dates
+inkSoft in both. The reasons given were light-mode numbers only (the dot hues at 1.8 to 3.1:1 on the light sky,
+`repeat` at 4.3:1 on light paper). In dark neither was failing: the five hues clear 4.99:1 on the sky below the
+glow, where the foot of Today sits, and dark `repeat` is 6.19:1 or more on the page and 5.66:1 or more on a sheet.
+So the change traded hue for grey with no contrast gain, which is a look Melroy never approved. Now
+`RotatingPhrase.tsx` reads `useTheme()` again and wears the hues in dark and skyInk in light, and `phaseDate` in
+`BreakdownReview.tsx` is `repeat` in dark and inkSoft in light. A new block in `palette.test.ts` holds both dark
+claims in all seven themes, so a dark retune that breaks one sends it to the light-mode role. Checked in the dev
+server: the foot line renders the dark gold #D6B36A in dark and #574F48 in light. With this, the slice entries'
+own summary of dark mode is true again: only the faint grey lines (inkFaint to inkSoft) get a touch lighter.
+A11Y-11 and A11Y-14 say so.
+
+**Decided against:**
+- **Keeping both changes and asking Melroy to approve them after the fact.** It would make him rule on two hue
+  losses that buy nothing in dark, inside a batch whose call was that dark stays as it was.
+- **Modelling the foot phrase under the full glow,** as the sky role does. Under the glow two hues fall to 3.83 and
+  3.93:1, but the foot of Today never sits there. In the dev server the glow ends about 330px down at the top of
+  its drift, RIGHT NOW starts at 351px, and the foot line comes after the whole list with only the optional links
+  below it, so even scrolled to the end it sits near the bottom of the screen.

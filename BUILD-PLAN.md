@@ -242,7 +242,7 @@ the ladder is fixed and readable, never randomised.
 - **Settle's guide words are in the task-dot hues (found and left 2026-10-19, with slice 4 of `store-1.9`).** In the
   Settle room the breathing guide's words and the rare affirmation wear the five per-task dot colours in turn,
   straight on the page. In light mode that is 2.4:1 (gold) to 4.3:1 (periwinkle) in every theme, under 4.5:1 for
-  all five. Dark mode clears it at 6.2:1 and up. Slice 3 took the same hues off Today's foot phrase, but in Settle the
+  all five. Dark mode clears it at 6.2:1 and up. Slice 3 took the same hues off Today's foot phrase in light mode, but in Settle the
   changing colour is part of the breath, so this is a taste call rather than a sweep fix. The fix: a darker text
   shade of each hue for light mode, solved to 4.5:1 on each theme's paper, or the room's own grey for the words.
   Trigger: Melroy's word, or the next change to Settle.

@@ -335,9 +335,11 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   phaseTitleWrap: { flex: 1 },
   phaseInput: { flex: 1 },
   phaseTitle: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-  // inkSoft, not the periwinkle: the dashed row has no fill, so the date sits on the sheet's paper, where `repeat`
-  // is 4.3:1 in the light themes (palette.test.ts holds `repeat` to cards and sheets). The weight still sets it apart.
-  phaseDate: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
+  // inkSoft in light mode, not the periwinkle: the dashed row has no fill, so the date sits on the sheet's paper,
+  // where `repeat` is 4.3:1 in the light themes (palette.test.ts holds `repeat` to cards and sheets). The weight
+  // still sets it apart. Dark keeps the periwinkle it always had (Melroy's call: dark mode unchanged in store 1.9),
+  // since dark `repeat` is 6.1:1 or more on the page and 5.6:1 or more on a sheet, which palette.test.ts holds.
+  phaseDate: { color: t.scheme === 'dark' ? t.colors.repeat : t.colors.inkSoft, fontSize: 13 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
   phasesNote: { color: t.colors.inkSoft, fontSize: 12 * t.scale, lineHeight: 17 * t.scale, fontFamily: fonts.body },
   pace: {
     color: t.colors.inkSoft,

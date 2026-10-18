@@ -3,13 +3,16 @@ import { Animated, Easing, Platform, StyleSheet } from 'react-native';
 
 import { fonts, motion, type Theme } from '@/constants/theme';
 import { t } from '@/lib/locale';
-import { useReducedMotion, useThemedStyles } from '@/lib/theme-provider';
+import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 // A calm, original (uncopyrighted) line at the foot of Today, in place of a single
 // fixed ethos. Set in the Newsreader serif italic so it reads like a quiet
-// inscription, distinct from the Atkinson body around it, in the sky's own ink
-// (skyInk): it sits straight on the living background, where the per-task dot hues
-// it used to borrow fell to 1.8:1 (gold) to 3.1:1 (periwinkle) at night. It
+// inscription, distinct from the Atkinson body around it. It sits straight on the
+// living background. In light mode it wears the sky's own ink (skyInk), because the
+// per-task dot hues it used to borrow fell to 1.8:1 (gold) to 3.1:1 (periwinkle) on
+// the light sky at night. Dark mode keeps the hues, one per phrase, as it always had
+// (Melroy's call: dark mode unchanged in store 1.9): on the dark sky below the glow,
+// where the foot of Today sits, all five clear 4.9:1 (palette.test.ts holds it). It
 // cross-fades slowly; with reduced motion it simply shows one and stays still.
 // Phrases are gentle and never instructive-shaming.
 const PHRASE_KEYS = [
@@ -25,6 +28,7 @@ const PHRASE_KEYS = [
 
 export function RotatingPhrase() {
   const styles = useThemedStyles(makeStyles);
+  const theme = useTheme();
   const reduced = useReducedMotion();
   // A varying start so each open opens on a different line; rotation continues
   // from there when motion is allowed.
@@ -52,8 +56,10 @@ export function RotatingPhrase() {
     return () => clearInterval(id);
   }, [reduced, opacity]);
 
+  const color = theme.scheme === 'dark' ? theme.colors.accents[i % theme.colors.accents.length] : theme.colors.skyInk;
+
   return (
-    <Animated.Text style={[styles.phrase, { opacity }]} accessibilityRole="text">
+    <Animated.Text style={[styles.phrase, { color, opacity }]} accessibilityRole="text">
       {t(PHRASE_KEYS[i])}
     </Animated.Text>
   );
@@ -62,7 +68,6 @@ export function RotatingPhrase() {
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
     phrase: {
-      color: t.colors.skyInk,
       fontFamily: fonts.sans,
       fontStyle: 'italic',
       fontSize: 15 * t.scale,

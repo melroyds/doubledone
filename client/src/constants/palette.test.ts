@@ -92,7 +92,7 @@ function surfaces(p: Palette, scheme: Scheme): Record<Surface, Sample[]> {
 // this table is the contract and the test holds it. [what it is, the token, its surfaces, the ratio it needs]
 const ROLES: [string, keyof Palette, Surface[], number][] = [
   ['primary words (titles, task names)', 'ink', ['sky', 'card', 'shelf', 'tint', 'quietHeld', 'surface', 'bg'], 4.5],
-  ['words straight on the sky: the date, the greeting, the weight line, Energy, Later, the rested screen, the foot phrase, the shared list\'s lines (on the page once a list is archived), and in Quiet the Right now frame (RIGHT NOW, the caret, an unavailable tool\'s name), which has no card there', 'skyInk', ['sky', 'bg'], 4.5],
+  ['words straight on the sky: the date, the greeting, the weight line, Energy, Later, the rested screen, the foot phrase (in light mode, see below for dark), the shared list\'s lines (on the page once a list is archived), and in Quiet the Right now frame (RIGHT NOW, the caret, an unavailable tool\'s name), which has no card there', 'skyInk', ['sky', 'bg'], 4.5],
   // Right now's frame is a card only in Standard. In Quiet its words are on the sky, so they take skyInk and
   // skyAccent above, never these two rows.
   ['secondary words on a card, the shelf, a tint, a sheet or the page, and every placeholder (the Right now frame in Standard only)', 'inkSoft', ['card', 'shelf', 'tint', 'quietHeld', 'surface', 'bg'], 4.5],
@@ -100,7 +100,7 @@ const ROLES: [string, keyof Palette, Surface[], number][] = [
   ['accent words straight on the sky: Reopen today, the reminder Yes, Quiet\'s Menu, + I also did that, the shared list\'s Restore, and in Quiet the Right now frame\'s tool and its "now" tag', 'skyAccent', ['sky', 'bg'], 4.5],
   ['the repeat mark, step counts and the tiny-step eyebrow on a card', 'repeat', ['card', 'surface'], 4.5],
   // Not words on the page: periwinkle is 4.3:1 on paper in the light themes, so the break-down review's phase dates
-  // (the one line that put it there) are inkSoft. The Calendar's ↻ beside a day's task is a symbol that screen
+  // (the one line that put it there) are inkSoft in light mode, and keep the periwinkle in dark. The Calendar's ↻ beside a day's task is a symbol that screen
   // readers skip, held as one.
   ['the Calendar\'s ↻ beside a day\'s task (a symbol, 3:1)', 'repeat', ['bg'], 3],
   ['Remove and Skip today, and Settings\' Delete in Quiet, which drops the cards', 'danger', ['card', 'shelf', 'quietHeld', 'surface', 'bg'], 4.5],
@@ -174,6 +174,26 @@ describe('contrast on the real surfaces, all 14 palettes', () => {
         }
       });
     }
+  }
+});
+
+describe('what dark mode keeps, because there it passes', () => {
+  // Melroy's call kept dark mode as it was in this batch, and two hues light mode had to give up stay in dark. The
+  // foot phrase wears the five task-dot hues in turn at the foot of Today, below the hero glow: the mid and bottom
+  // stops, and the rose pool over them. Break it down's later-phase dates wear `repeat` on the page and on a sheet.
+  // If a dark retune drops one under 4.5:1, it takes the light-mode role instead (skyInk, inkSoft).
+  const below = sky('dark').filter((b) => !b.top);
+  for (const theme of THEME_NAMES) {
+    it(theme, () => {
+      const p = paletteFor(theme, 'dark');
+      for (const hue of p.accents) {
+        const worst = Math.min(...below.map((b) => ratio(parse(hue).rgb, b.rgb)));
+        expect(worst, `the foot phrase in ${hue}`).toBeGreaterThanOrEqual(4.5);
+      }
+      for (const [name, color] of [['the page', p.bg], ['a sheet', p.surface]] as const) {
+        expect(ratio(parse(p.repeat).rgb, parse(color).rgb), `the phase dates on ${name}`).toBeGreaterThanOrEqual(4.5);
+      }
+    });
   }
 });
 
