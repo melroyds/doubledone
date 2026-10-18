@@ -192,7 +192,7 @@ GROUPS["keywords"] = [
 
 
 def main():
-    # The case names carry accented words; a Windows console defaults to cp1252.
+    # The case names carry accented words, and a Windows console defaults to cp1252.
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     which = sys.argv[1:] or list(GROUPS)

@@ -9,7 +9,7 @@
 // from the gated file and diff what was sent (a hand-retyped Italian listing once went live with a typo).
 // After any change to THIS file, run its break test too, `python scripts/check-listings-break.py`, which breaks
 // each rule once in a temporary copy and fails unless the gate fails for that reason. Three rules here passed
-// everything until the 2026-10-19 build review proved it by hand; the break test keeps that proof.
+// everything until the 2026-10-19 build review proved it by hand. The break test keeps that proof.
 //
 // The paste sources, and nothing else (the retired Play docs carry a "do not paste" banner and are not read):
 //   docs/play-store-submission-pack.md      Play English (en-AU): title, short and full description
@@ -52,8 +52,8 @@
 //      give a shared row today's date), "colleagues" (friends, Melroy 2026-10-18), the "nothing leaves your
 //      device" family in five languages (sync, Ours, a feedback note and the usage counts still run with AI
 //      off: the wordings that were really there by name, and their common rewordings by pattern, "nothing ...
-//      leaves or is sent" and "never leaves your device or phone" in each language; a pattern is a net, not a
-//      proof, so a native read still reads for the idea), "Private by default" (AI starts on), "third-party
+//      leaves or is sent" and "never leaves your device or phone" in each language, and a pattern is a net,
+//      not a proof, so a native read still reads for the idea), "Private by default" (AI starts on), "third-party
 //      trackers" (RevenueCat gets an install id on Android), "Export your data" (it exports tasks and what you
 //      finished), seven themes as Premium (Dusk is free), a comparison nobody can check, any accessibility
 //      claim, which nothing in the app has earned, and a clinical word in any of the five languages (anxiety,
@@ -200,7 +200,7 @@ const BANNED = [
   ['"colleagues" (friends with ADHD and OCD, Melroy 2026-10-18)', /colleague/i],
   ['"nothing you type leaves" (sync, Ours, a feedback note and the usage counts still run with AI off)', /nothing you type (?:leaves|is sent)/i],
   // The old wordings by name, then their rewordings by pattern: "nothing / no text / none of what you write", up to
-  // 40 characters, then "leaves / is sent / goes anywhere"; and "never / not / n't leave your (or the) device or phone".
+  // 40 characters, then "leaves / is sent / goes anywhere", and "never / not / n't leave your (or the) device or phone".
   [
     '"nothing leaves your device", or a rewording of it',
     /nothing leaves your device|nothing is sent anywhere|entirely on your device|\b(?:nothing|no text|none of (?:it|what you \w+))\b[^.\n]{0,40}\b(?:leaves?|is sent|goes anywhere)\b|(?:\bnever|\bnot|n['’]t) leaves? (?:your|the|this) (?:device|phone|iphone)\b/i,

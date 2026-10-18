@@ -10081,7 +10081,7 @@ the pill, and CaptureSheet's `seed()` only parks words while the sheet is hidden
 never raised the panel: shared words became the pill's draft dots behind the card, and the shortcut did nothing at
 all. Now the listener reads a `cardHeldRef`, closes the card, and the seed waits for the render that shows the
 sheet again, then rises and focuses as from a clear Today. The routing rule is the pure `seedRoute` in
-`lib/inbound.ts`, with tests. Manual case A11Y-13. (The review called the shortcut "Add a task"; its label is
+`lib/inbound.ts`, with tests. Manual case A11Y-13. (The review called the shortcut "Add a task". Its label is
 "Brain dump", which the case uses.)
 
 **Decided against:**
@@ -10116,7 +10116,8 @@ comes from already had one. **Left for Melroy:** the English, German, French and
 stores name Anthropic as the only place AI text goes and leave out the copy we keep without a name, account or IP
 address (the privacy policy's "The AI features" section, and `faqAiA` on the landing page). They are not false
 about what Anthropic does, and every language agrees across its two stores, so adding `faqAiA`'s copy sentence to
-them is a copy call, not a fix, and it would need the native read for three languages.
+them is a copy call, not a fix, and it would need the native read for three languages. Parked in the BUILD-PLAN
+Backlog, in the store keywords item, with a trigger.
 
 **French no longer says there is one reminder (finding 7).** Both French texts had a bullet that began "Rappel
 quotidien" and said there is one, a daily one. Both phone apps also have per-task reminders, Hold me to it and
@@ -10146,9 +10147,9 @@ it banned "every variant in five languages", and the rules were literals: "nothi
 leaves your phone", "your words never leave your device" and "nothing you write leaves your device" all passed, the
 overclaim that sat on both stores for two months. Now the old wordings stay banned by name, and their rewordings by
 pattern: in English, "nothing / no text / none of what you write" up to 40 characters before "leaves / is sent /
-goes anywhere", and "never / not / n't leave your (or the) device or phone"; in German, Spanish, French and Italian,
-each language's own "nothing ... is sent or leaves" and "never leaves your device or phone" (the German includes the
-recorded "nichts mehr irgendwohin geschickt"). The header now says what it does: a pattern is a net, not a proof,
+goes anywhere", and "never / not / n't leave your (or the) device or phone". In German, Spanish, French and
+Italian it catches each language's own "nothing ... is sent or leaves" and "never leaves your device or phone"
+(the German includes the recorded "nichts mehr irgendwohin geschickt"). The header now says what it does: a pattern is a net, not a proof,
 so the native read still reads for the idea. None of the patterns matches the current paste sources.
 
 **The break test is now in the repo: `scripts/check-listings-break.py`.** The slice 8 negative run and this
@@ -10157,8 +10158,8 @@ copies the four paste sources to a temporary folder, makes one change at a time,
 and counts a case as caught only when the gate fails for the EXPECTED reason, because a probe that merely pushes a
 description past 4,000 characters proves nothing (the first scratch run here had four of those). Each probe
 replaces a sentence for the same reason. It holds the 17 protected-claim cases and 16 nothing-leaves probes (eight
-English, eight across the four translations, both stores): 33 of 33 caught; the gate before this commit let 15 of
-the 16 probes through. The gate's header says to run it after any change to the gate. Decided against: running it
+English, eight across the four translations, both stores): 33 of 33 caught, and the gate before this commit let 15
+of the 16 probes through. The gate's header says to run it after any change to the gate. Decided against: running it
 in CI. It shells out once per case and proves the gate, not the copy, so it belongs with gate edits, which are rare;
 CI keeps running the gate itself on every push.
 
@@ -10170,8 +10171,8 @@ German, Spanish, French and Italian (Behandlung, Therapie, Symptom, tratamiento,
 thérapie, symptôme, trattamento, sintomo, and the Italian DDAI), nouns only, so the medical sentences' own verbs
 (behandelt, trata, traite, tratta) still pass. That makes slice 8's line true and carries it into the
 translations. The keyword fields also gain the two other words-ruled-out lists from slice 8, matched per keyword:
-competitor names (Apple 2.3.7; a dozen known ADHD and planner apps) and habit, streak, chore and reward words in
+competitor names (Apple 2.3.7, a dozen known ADHD and planner apps) and habit, streak, chore and reward words in
 the five languages. None matches the current paste sources. The break test gains the clinical (10) and keyword (6)
-groups: 49 of 49 caught; the gate before this commit let 15 of those 16 through. Decided against: banning the
+groups: 49 of 49 caught, and the gate before this commit let 15 of those 16 through. Decided against: banning the
 verbs. "treat" and its translations are the medical disclaimer's own words, and banning them would force the one
 sentence the stores ask for to be reworded.

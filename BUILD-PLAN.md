@@ -192,7 +192,13 @@ the ladder is fixed and readable, never randomised.
   searches after 1.9.0 is live, and Melroy's yes. (2) **Renaming the in-app purchase products**, since Apple
   searches their display names too. Trigger: the next IAP change in App Store Connect. (3) **Baseline the keyword
   reads** once 1.9.0 is live: Apple Search Ads keyword popularity (5 to 100) for the English set, and Play Console's
-  acquisition report by search term. Trigger: 1.9.0 live on both stores (plan step 15).
+  acquisition report by search term. Trigger: 1.9.0 live on both stores (plan step 15). (4) **The kept AI copy in
+  the listings' privacy lines** (added by the 2026-10-19 build review). The English, German, French and Italian
+  listings, on both stores, name Anthropic as where AI text goes and leave out the copy we keep without a name,
+  account or IP address, which the privacy policy and the landing page's `faqAiA` both state. Spanish carries it
+  ("Guardamos una copia sin nombre ni cuenta para mejorar los pasos."). Not false, and each language agrees across
+  its two stores, so adding `faqAiA`'s sentence is a copy call, and it needs the native read for three languages.
+  Trigger: Melroy's word before the listings are pasted (plan step 14), or the next listing edit.
 - **Two in-app lines the slice 5 truth pass found and left (parked 2026-10-19, with slice 5 of `store-1.9`).**
   (1) **The welcome's Premium fine print names our own price on an iPhone.** `welcome.premiumFine` ("A$5 a month,
   cancel anytime") shows wherever `STRIPE_HERE` is true, and that is iOS as well as the web, so an iPhone in the US
