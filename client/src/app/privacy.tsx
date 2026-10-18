@@ -80,6 +80,14 @@ export default function PrivacyScreen() {
           </Text>
         </View>
 
+        <Section styles={styles} heading="Speaking instead of typing">
+          On the web, the Speak button turns what you say into text using your browser&apos;s own speech recognition.
+          DoubleDone never receives the audio. The words simply land in the box, and stay on your device unless you
+          then choose Sort for me. Your browser decides where the recognition happens: Chrome sends the audio to
+          Google&apos;s speech service, and other browsers use their own maker&apos;s service or the device itself. In the phone
+          apps there is no Speak button; dictating with your keyboard&apos;s own microphone gives DoubleDone only the text.
+        </Section>
+
         <Section styles={styles} heading="Feature-usage counts">
           When you use certain features, the app tells our server the feature’s name so we can count how often it
           helps. Right now those features are the Settle breathing room (and whether you switched its breathing guide on
@@ -123,16 +131,6 @@ export default function PrivacyScreen() {
           keys we held for it are deleted. Deleting your account does the same.
         </Section>
 
-        <Section styles={styles} heading="The email list">
-          If you join the email list on doubledone.app, we keep your email address, the language you read the page in,
-          and the date you joined, so we can send you at most one short note a month about what changed in DoubleDone.
-          That is all they are used for, and they are never sold. The list is separate from the app: joining it does
-          not create an account, and it is never linked to one. Every note carries a one-tap way to leave, which
-          deletes your address from the list (our hosting provider&apos;s short-lived backups age out within 30 days). You
-          can also ask us to remove it at support@doubledone.app. To stop the form being misused, sign-ups are limited
-          per network address. We never keep that address, though like every request it can appear in our hosting
-          provider&apos;s request log for up to a week.
-        </Section>
 
         <Section styles={styles} heading="Keeping the service running">
           To keep DoubleDone up and within budget, our systems alert the owner when something needs attention, for

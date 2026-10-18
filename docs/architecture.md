@@ -291,7 +291,6 @@ D1 (`doubledone-telemetry`, binding `DB`) is bound only to the Worker. Its schem
 | `mcp_grants` | MCP OAuth custody: the user's Supabase refresh token, AES-GCM encrypted, plus a cached access token | User id and email |
 | `scrapbook_log` | One row per keepsake for the per-IP daily cap | IP, deleted after 24 hours |
 | `alerts_sent` | When each alarm kind last fired, for a 6-hour dedup | None |
-| `subscribers` | The landing page email list: address (lowercased), language, date joined, a random unsubscribe token. Single opt-in, nothing sent at sign-up; leaving deletes the row ([`subscribe.ts`](../server/src/subscribe.ts)) | Email address. No IP, no user id, never linked to an account |
 
 `review_otp` (the App Review relay) is created by its own code on first use rather than in the schema file.
 
@@ -351,7 +350,6 @@ flowchart LR
 | Purchases | The store's own entitlement on iOS and Android | No | `entitlements`, `trials`, `rc_events` | Stripe sees the Supabase user id in its metadata, and whatever the buyer enters at Checkout. RevenueCat sees the Supabase user id as its App User ID |
 | Web reminders | The subscription | No | `push_subs`, with no user id | The browser's push service delivers a push with no payload |
 | Feedback | No | No | Emailed to the support inbox with the platform name | Email delivery |
-| The email list (web landing page) | No | No | `subscribers`: email, language, date, token | None yet: nothing is sent at sign-up |
 
 ### What reaches the AI, and what never does
 

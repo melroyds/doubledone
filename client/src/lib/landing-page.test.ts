@@ -119,7 +119,6 @@ describe('renderPage: one whole page per language, from the catalogues', () => {
       expect(html.match(/<details>/g)).toHaveLength(FAQ.length);
       expect(html.match(/<h1[ >]/g)).toHaveLength(1);
       expect(html).toContain('href="/today" data-dd-begin');
-      expect(html).toContain(`<input type="hidden" name="locale" value="${loc}">`);
     });
   }
 
@@ -186,13 +185,15 @@ describe('buildLanding: what the build writes into index.html', () => {
     expect(outside).toContain('lang="en"');
     for (const l of ['de', 'es', 'fr', 'it']) expect(body).toContain(`<template id="ddl-t-${l}" lang="${l}">`);
   });
-  it('swaps the language in BEFORE wiring the form (a form swapped in later would post natively)', () => {
-    const script = body.slice(body.lastIndexOf('<script>'));
-    const localise = script.indexOf('function landingLocalise');
-    const forms = script.indexOf('function landingForms');
-    expect(localise).toBeGreaterThan(0);
-    expect(forms).toBeGreaterThan(localise);
-  });
+});
+
+describe('no email collection on the landing page (email is only ever used to sign in)', () => {
+  for (const loc of LANDING_LOCALES) {
+    it(`${loc}: no form, no email field, nothing posted anywhere`, () => {
+      const html = renderPage(loc);
+      expect(html).not.toMatch(/<form|type="email"|\/subscribe/);
+    });
+  }
 });
 
 describe('landingLocalise: the visitor’s language swapped in before the page shows', () => {

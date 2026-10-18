@@ -17,6 +17,7 @@
 //   - English is in the DOM. The other four languages ride in <template> elements, which are inert and not page
 //     text, so a crawler reads one clean English page. A visitor whose browser language is one of ours gets theirs
 //     swapped in by a tiny inline script before the page is shown (the boot hides the English until then).
+//   - No email collection here, by Melroy's rule (2026-10-18): email is only ever used to sign in.
 //
 // Pure: no React Native, no DOM. landingBoot is inlined by toString(), so it must stay self-contained (no imports,
 // no module constants inside it) and plain enough for any browser that runs the app.
@@ -28,7 +29,6 @@ export type LandingLocale = (typeof LANDING_LOCALES)[number];
 
 export const LANDING_ID = 'dd-landing';
 export const SITE = 'https://doubledone.app';
-export const API = 'https://api.doubledone.app';
 export const APP_STORE_URL = 'https://apps.apple.com/app/doubledone/id6790136615';
 export const PLAY_URL = 'https://play.google.com/store/apps/details?id=app.doubledone';
 /** The app's first-run flag (lib/storage.ts ONBOARDED_KEY). landingBoot repeats it as a literal; a test holds them equal. */
@@ -79,67 +79,6 @@ export function landingLocalise(w: any): void {
   h.classList.add('ddl-ready');
 }
 
-/** The email sign-up, without the app bundle. A form with JavaScript posts JSON and shows the reply in place; a
- *  form without it posts normally and the Worker redirects back to #ddl-thanks or #ddl-oops. The Worker's reply
- *  must carry subscribed === true, never just a 200 (the deployed Worker answers ANY unknown path with a 200).
- *  The button is never disabled while sending (that would drop keyboard focus to the page); a second press is
- *  simply ignored until the reply arrives. Self-contained for the same reason as the two above. */
-export function landingForms(w: any, api: string): void {
-  const forms = w.document.querySelectorAll('#dd-landing form.ddl-form');
-  for (let i = 0; i < forms.length; i++) {
-    const form = forms[i];
-    // With JavaScript the page says it in its own calm words; without, the browser's own check still runs.
-    form.setAttribute('novalidate', '');
-    let sending = false;
-    const input = form.querySelector('input[name="email"]');
-    const button = form.querySelector('button');
-    const status = form.querySelector('.ddl-status');
-    const say = (key: string) => {
-      status.textContent = status.getAttribute('data-' + key) || '';
-    };
-    input.addEventListener('input', () => input.removeAttribute('aria-invalid'));
-    form.addEventListener('submit', (ev: any) => {
-      ev.preventDefault();
-      if (sending) return;
-      const email = String(input.value || '').trim();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        input.setAttribute('aria-invalid', 'true');
-        say('invalid');
-        input.focus();
-        return;
-      }
-      input.removeAttribute('aria-invalid');
-      sending = true;
-      button.setAttribute('aria-disabled', 'true');
-      say('sending');
-      const hp = form.querySelector('input[name="website"]');
-      const loc = form.querySelector('input[name="locale"]');
-      w.fetch(api + '/subscribe', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: email, locale: loc ? loc.value : 'en', website: hp ? hp.value : '' }),
-      })
-        .then((r: any) => r.json().catch(() => null))
-        .then((j: any) => {
-          if (j && j.subscribed === true) {
-            say('done');
-            form.reset();
-          } else if (j && j.error === 'invalid') {
-            input.setAttribute('aria-invalid', 'true');
-            say('invalid');
-          } else {
-            say('error');
-          }
-        })
-        .catch(() => say('error'))
-        .then(() => {
-          sending = false;
-          button.removeAttribute('aria-disabled');
-        });
-    });
-  }
-}
-
 const ESC: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 /** HTML-escape text or an attribute value. */
 export function esc(s: string): string {
@@ -186,9 +125,6 @@ export function renderPage(loc: LandingLocale): string {
   const faq = FAQ.map(
     ([q, a]) => `<details><summary><h3>${t(q)}</h3></summary><p>${t(a)}</p></details>`,
   ).join('\n        ');
-  const statusAttrs = ['sending', 'done', 'invalid', 'error']
-    .map((k) => `data-${k}="${t(`landing.signup${k[0].toUpperCase()}${k.slice(1)}`)}"`)
-    .join(' ');
 
   return `<div class="ddl-page" id="ddl-page" lang="${loc}">
   <a class="ddl-skip" href="#ddl-main">${t('landing.skipToContent')}</a>
@@ -231,24 +167,6 @@ export function renderPage(loc: LandingLocale): string {
       <div class="ddl-qs">
         ${faq}
       </div>
-    </section>
-    <section class="ddl-signup" id="ddl-signup" aria-labelledby="ddl-sign-h">
-      <p class="ddl-label">${t('landing.signupLabel')}</p>
-      <h2 id="ddl-sign-h">${t('landing.signupHeading')}</h2>
-      <p>${t('landing.signupBody')}</p>
-      <form class="ddl-form" action="${API}/subscribe" method="post">
-        <label for="ddl-email">${t('landing.signupEmailLabel')}</label>
-        <div class="ddl-row">
-          <input id="ddl-email" type="email" name="email" autocomplete="email" inputmode="email" required maxlength="254" aria-describedby="ddl-status">
-          <button type="submit">${t('landing.signupButton')}</button>
-        </div>
-        <input type="hidden" name="locale" value="${loc}">
-        <div class="ddl-hp" aria-hidden="true"><label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
-        <p class="ddl-status" id="ddl-status" role="status" aria-live="polite" ${statusAttrs}></p>
-        <p class="ddl-thanks" id="ddl-thanks" tabindex="-1">${t('landing.signupDone')}</p>
-        <p class="ddl-oops" id="ddl-oops" tabindex="-1">${t('landing.signupError')}</p>
-        <p class="ddl-fine">${t('landing.signupPrivacy')} <a href="/privacy">${t('landing.signupPrivacyLink')}</a></p>
-      </form>
     </section>
     <section class="ddl-closing">
       <p class="ddl-closing-line">${t('welcome.closingLine')}</p>
@@ -358,18 +276,6 @@ html:not(.ddl-ready)[data-dd-lang]:not([data-dd-lang="en"]) #ddl-page{visibility
 #dd-landing details[open] summary::after{content:'\\2212';content:'\\2212' / ''}
 #dd-landing summary h3{font-family:'Atkinson Hyperlegible',ui-sans-serif,system-ui,sans-serif;font-size:18px;font-weight:700;line-height:1.4}
 #dd-landing details p{color:var(--body);font-size:17px;padding:0 0 20px;max-width:34em}
-#dd-landing .ddl-signup{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:28px 24px}
-#dd-landing .ddl-form{margin-top:20px}
-#dd-landing .ddl-form label{display:block;font-weight:700;font-size:15px;margin-bottom:8px}
-#dd-landing .ddl-row{display:flex;flex-wrap:wrap;gap:10px}
-#dd-landing .ddl-row input{flex:1 1 220px;min-height:50px;border-radius:12px;border:1.5px solid var(--soft);background:var(--bg);color:var(--ink);font:inherit;padding:0 14px}
-#dd-landing .ddl-row input[aria-invalid="true"]{border-color:var(--accent)}
-#dd-landing .ddl-row button{flex:1 1 auto;min-width:0;max-width:100%;white-space:normal;min-height:50px;border-radius:999px;border:0;background:var(--accent);color:var(--on-accent);font:inherit;font-weight:700;line-height:1.25;padding:8px 22px;cursor:pointer}
-#dd-landing .ddl-row button[aria-disabled="true"]{opacity:.6;cursor:default}
-#dd-landing .ddl-status{min-height:1.6em;margin-top:12px;color:var(--ink);font-size:16px}
-#dd-landing .ddl-thanks,#dd-landing .ddl-oops{display:none;margin-top:12px;font-size:16px;color:var(--ink)}
-#dd-landing .ddl-thanks:target,#dd-landing .ddl-oops:target{display:block}
-#dd-landing .ddl-hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 #dd-landing .ddl-fine{color:var(--soft);font-size:14px;line-height:1.55;margin-top:14px}
 #dd-landing .ddl-closing{text-align:center}
 #dd-landing .ddl-closing-line{font-size:clamp(26px,6vw,30px);line-height:1.2}
@@ -409,7 +315,7 @@ export function buildLanding(): LandingParts {
   const body = `<div id="${LANDING_ID}">
 ${renderPage('en')}
 ${templates}
-<script>(${landingLocalise.toString()})(window);(${landingForms.toString()})(window, ${JSON.stringify(API)});</script>
+<script>(${landingLocalise.toString()})(window);</script>
 </div>`;
   return { head, body };
 }

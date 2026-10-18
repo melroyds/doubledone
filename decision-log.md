@@ -9235,7 +9235,7 @@ require a trip to another room every Tuesday"), and shrinking it to a one-line l
 loses the tick from Today). It is already absent when nothing shared is due. Its ticks are not counted, so
 if this comes up again, count first (a bare-name beacon) and decide on the number.
 
-## 2026-10-18: the landing page Google can read, its questions, and an email list
+## 2026-10-18: the landing page Google can read, and its questions (the email list built, then removed)
 
 An external website audit (8 October) put it plainly: "Search can't see it." The web root was an empty
 `<div id="root">` until the JavaScript bundle ran, so Google indexed late and unreliably, link previews and most
@@ -9291,38 +9291,21 @@ none to give, never faked) and FAQPage (Google retired the FAQ result in 2026). 
 was 4.498:1 as text on paper, so the page deepens it a touch. German Begin's spoken name now starts with its
 visible word (voice control).
 
-**Decided: an email list, single opt-in, nothing sent at sign-up.** `POST /subscribe` keeps the address
-(lowercased), the page's language, the date and a random token in a new D1 `subscribers` table, and nothing else
-(no IP, no user id). Guards, cheapest first, before a byte of the body is read:
-- the Origin check;
-- a per-IP limiter (`SUBSCRIBE_LIMITER`, namespace 1004, 5 a minute, IPv6 keyed by its /64);
-- then a body capped at 4 KB with a counting reader (a chunked upload can't make the Worker buffer megabytes);
-- the honeypot;
-- a ceiling of 200 new rows a day.
-The reply carries `subscribed: true`, which the page requires (the deployed Worker answers any path with a 200). A
-no-JavaScript form post gets a 303 back to the page's thanks or sorry anchor.
+**Decided: no email list. Email is only ever used to sign in** (Melroy, 2026-10-18, after seeing it built and
+reviewed). A single opt-in list (`POST /subscribe` into a D1 `subscribers` table, a two-step unsubscribe, a
+rate limiter and a honeypot) was built, reviewed, and then removed whole: the page, the eleven strings in five
+catalogues, the Worker routes, the limiter binding and the table. **Why:** "Begin" is already zero friction for a
+free app with no account; a list with nothing planned to send is a duty without a use, and it would have needed a
+sender, a confirm-only first email (a forged Origin can put anyone's address on it) and Spam Act care before its
+first note. The rule now stands for the product: an email address is collected only for signing in. `server/`
+ends up identical to main, so this ships with no Worker deploy. (Melroy's follow-up question, a thank-you email
+when someone buys Premium, was answered against that rule: see the next entry if one is decided.)
 
-**Unsubscribe is two steps by design:** `GET /unsubscribe?t=` shows one "Leave the list" button and changes
-nothing, because corporate mail scanners open every link in a message; `POST` deletes (also the RFC 8058
-one-click target) and says truly whether a row went.
+**Decided: the privacy policy names Speak.** A new section, "Speaking instead of typing", in both copies: on the
+web the browser's own speech recognition does the work (Chrome sends the audio to Google's speech service, other
+browsers their maker's or the device), DoubleDone never receives audio, and in the phone apps there is no Speak
+button, only the keyboard's own dictation. `lib/speech.web.ts` had claimed the policy said this; it did not, found
+by the landing review. Approved by Melroy the same day.
 
-**Decided against** a confirmation email now: the Worker's only mail path, Cloudflare's `send_email`, reaches only
-verified addresses, Resend is not wired into the Worker, and a mail-on-request form is a way to mail anyone. An
-Origin can be forged, so the list proves nothing about consent: the first message must be CONFIRM-ONLY (Backlog).
-**Decided against** keeping a left address as a suppression row: leaving deletes it. The privacy policy gains "The
-email list" in both copies, a DRAFT for Melroy's OK like every legal change, worded so it agrees with the policy's
-own hosting section (request logs can hold the address for up to a week; D1 backups age out within 30 days).
-
-**My honest view, for Melroy to overrule:** the list is the weakest part of #1. "Begin" is already zero friction
-for a free app with no account, and a list with nothing planned to send is a duty without a use. It is built so
-it costs nothing to keep, and it is one section to delete if the answer is no.
-
-**Ships in this order, pre-decided:**
-1. Melroy's OK on the privacy text.
-2. The Worker deploy (his per-instance OK, from main, with `server/` identical on both branches). Prove it by
-   body, not status: `curl -s -X POST https://api.doubledone.app/subscribe` with no Origin must answer 403 JSON
-   `{"error":"forbidden origin"}`, where the old Worker says `200 doubledone-ai`.
-3. Only then the web push to main (his word).
-
-The other way round, every sign-up lands on the old Worker's catch-all for as long as the gap lasts. Nothing
-reaches production from this branch.
+**Ships:** Melroy looks at a Cloudflare preview of the branch first, then, on his word, `landing` merges to main
+and the push deploys the web. Nothing reaches production from this branch.

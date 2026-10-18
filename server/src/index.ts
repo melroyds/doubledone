@@ -32,7 +32,6 @@ import { handleAppleReconcile } from './revenuecat-api';
 import { handleReviewCode, handleReviewEmail } from './review-otp';
 import { handleCheckout, handleCloseBilling, handleEntitlement, handlePortal, handleWebhook } from './stripe';
 import { handleScrapbookPurge, type ScrapbookBucket, scrapbookOwner } from './scrapbook-purge';
-import { handleSubscribe, handleUnsubscribe, handleUnsubscribePage } from './subscribe';
 import { type D1LikeDatabase, extractUsage, logAiCall, logOutcome } from './telemetry';
 import { buildTriageRequest, parseTriageResponse, TRIAGE_MODEL } from './triage';
 
@@ -117,8 +116,6 @@ export interface Env {
   OTP_LIMITER?: RateLimitBinding;
   // Per-user limit on POST /account/close-billing (see stripe.ts handleCloseBilling).
   BILLING_LIMITER?: RateLimitBinding;
-  // The landing page's email list: a few sign-ups a minute per IP (subscribe.ts).
-  SUBSCRIBE_LIMITER?: RateLimitBinding;
   MCP_GRANT_KEY?: string;
   OAUTH_PROVIDER?: OAuthHelpers;
 }
@@ -217,18 +214,6 @@ const router = {
 
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: cors });
-    }
-
-    // The landing page's email list (subscribe.ts): store an address, nothing sent; and the way off it. Opening
-    // the unsubscribe link only shows a button (mail scanners open every link); the POST deletes.
-    if (pathname === '/subscribe' && request.method === 'POST') {
-      return handleSubscribe(request, env, cors, isAllowedOrigin, Date.now());
-    }
-    if (pathname === '/unsubscribe' && request.method === 'GET') {
-      return handleUnsubscribePage(request);
-    }
-    if (pathname === '/unsubscribe' && request.method === 'POST') {
-      return handleUnsubscribe(request, env);
     }
 
     if (pathname === '/health') {

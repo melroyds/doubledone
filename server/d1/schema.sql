@@ -214,13 +214,3 @@ create table if not exists rc_events (
 );
 create index if not exists rc_events_env on rc_events (environment, type);
 create index if not exists rc_events_user on rc_events (user_id);
-
--- The landing page's email list (2026-10-18, server/src/subscribe.ts). Single opt-in: nothing is sent at sign-up.
--- Holds the address, the page's language, when it joined, and a random token for the one-tap unsubscribe, which
--- DELETES the row. No IP, no user id. The Worker also creates it on first use (CREATE TABLE IF NOT EXISTS).
-create table if not exists subscribers (
-  email text primary key,
-  locale text not null,
-  created_at integer not null,
-  token text not null unique
-);
