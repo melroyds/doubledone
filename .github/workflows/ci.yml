@@ -96,7 +96,9 @@ jobs:
           test -f client/dist/img/badges/google-play-de.png
           # The redesign (2026-10-18): one action per platform, chosen by the boot before paint, and the six real
           # screens in every language and theme (the unit test checks all 60; this checks they reached the export).
-          grep -q 'data-platform' client/dist/index.html
+          ! grep -q 'You need to enable JavaScript' client/dist/index.html
+          # Run the boot that SHIPS (esbuild's output, not the test's transform) against fake phones and a laptop.
+          node scripts/check-landing-boot.mjs
           grep -q 'class="act-desktop"' client/dist/index.html
           test "$(ls client/dist/landing/*.webp | wc -l)" -eq 60
           # Self-hosted fonts: the files ship, and nothing in the page asks Google for them.

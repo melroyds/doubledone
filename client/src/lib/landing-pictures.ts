@@ -4,23 +4,23 @@ export const PICTURE_SIZES: Record<string, Record<string, [number, number]>> = {
   "rested": {
     "en": [
       320,
-      333
+      310
     ],
     "de": [
       320,
-      356
+      330
     ],
     "es": [
       320,
-      356
+      330
     ],
     "fr": [
       320,
-      356
+      330
     ],
     "it": [
       320,
-      356
+      330
     ]
   },
   "low": {
@@ -114,23 +114,23 @@ export const PICTURE_SIZES: Record<string, Record<string, [number, number]>> = {
   "ours": {
     "en": [
       320,
-      397
+      409
     ],
     "de": [
       320,
-      397
+      409
     ],
     "es": [
       320,
-      397
+      409
     ],
     "fr": [
       320,
-      414
+      478
     ],
     "it": [
       320,
-      397
+      409
     ]
   }
 };

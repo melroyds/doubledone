@@ -15,8 +15,9 @@
 //     A returning visitor therefore never sees a flash of the marketing page.
 //   - The same boot stamps data-platform (ios / android / desktop) so CSS shows ONE primary action: the phone's
 //     own store badge with "Or start in your browser" under it, or Begin on a laptop or tablet. All three are in
-//     the HTML (crawlable); without JavaScript, or on a browser it cannot place, the laptop version shows, so
-//     every visitor still has a way in.
+//     the HTML (crawlable); a browser it cannot place gets the laptop version. Without JavaScript the laptop
+//     version shows too, and its store badges are the way in: the browser app itself needs JavaScript, which a
+//     one-line note under Begin says (Begin would only bring the visitor back here).
 //   - Without JavaScript nothing is hidden: the static page is the visible default, which is what crawlers need.
 //   - The app's own index route (app/index.tsx) takes over once the bundle runs, via lib/landing-dom.ts: Begin
 //     (and the browser link) become a client-side navigation, and leaving "/" swaps the classes back.
@@ -165,7 +166,8 @@ export function renderPage(loc: LandingLocale): string {
   const badge = (store: 'appStore' | 'play', height: number) => {
     const ratio = store === 'appStore' ? badges.appStoreRatio : badges.playRatio;
     const href = store === 'appStore' ? APP_STORE_URL : PLAY_URL;
-    const alt = t(store === 'appStore' ? 'welcome.appStoreBadgeA11y' : 'welcome.playBadgeA11y');
+    // The name starts with the words printed on the badge in this language (WCAG 2.5.3, label in name).
+    const alt = t(store === 'appStore' ? 'landing.appStoreBadgeA11y' : 'landing.playBadgeA11y');
     return `<a class="ddl-badge" href="${href}"><img src="${badges[store]}" alt="${alt}" width="${Math.round(height * ratio)}" height="${height}"></a>`;
   };
   // The visible word is inside the accessible name (WCAG 2.5.3): "Begin" -> "Begin, open DoubleDone".
@@ -174,12 +176,14 @@ export function renderPage(loc: LandingLocale): string {
   const trust = `<p class="ddl-trust">${t('welcome.trustLine')}</p>`;
   /** The one action, by the same rule in the hero and the closing; only the hero carries the trust line and the
    *  laptop's "Also on" row. */
+  // Apple asks for one App Store badge per layout, so on an iPhone the closing repeats the action as a plain link.
+  const iosClosing = `<a class="ddl-browser" href="${APP_STORE_URL}">${t('welcome.appStoreBadgeA11y')}</a>`;
   const action = (hero: boolean) => `<div class="ddl-act">
-      <div class="act-ios">${badge('appStore', 56)}${browser}${hero ? trust : ''}</div>
+      <div class="act-ios">${hero ? badge('appStore', 56) : iosClosing}${browser}${hero ? trust : ''}</div>
       <div class="act-android">${badge('play', 56)}${browser}${hero ? trust : ''}</div>
       <div class="act-desktop">${begin}${
         hero
-          ? `${trust}<p class="ddl-also">${t('landing.alsoOn')}</p><div class="ddl-stores">${badge('appStore', 40)}${badge('play', 40)}</div>`
+          ? `<noscript><p class="ddl-trust ddl-noscript">${t('landing.noScript')}</p></noscript>${trust}<p class="ddl-also">${t('landing.alsoOn')}</p><div class="ddl-stores">${badge('appStore', 40)}${badge('play', 40)}</div>`
           : ''
       }</div>
     </div>`;
@@ -260,7 +264,7 @@ export function renderPage(loc: LandingLocale): string {
     <section aria-labelledby="ddl-day-h">
       <p class="ddl-kicker">${t('welcome.howLabel')}</p>
       <h2 id="ddl-day-h">${t('welcome.howHeadline')}</h2>
-      <ol class="ddl-steps">
+      <ol class="ddl-steps" role="list">
         ${steps}
       </ol>
       ${picture('rested')}
@@ -281,13 +285,13 @@ export function renderPage(loc: LandingLocale): string {
     </section>
     <section aria-labelledby="ddl-small-h">
       <h2 id="ddl-small-h">${t('landing.smallTitle')}</h2>
-      <ul class="ddl-list ddl-small">
+      <ul class="ddl-list ddl-small" role="list">
         ${small}
       </ul>
     </section>
     <section aria-labelledby="ddl-priv-h">
       <h2 id="ddl-priv-h">${t('landing.privTitle')}</h2>
-      <ul class="ddl-list">
+      <ul class="ddl-list" role="list">
         ${priv}
       </ul>
     </section>
@@ -312,7 +316,7 @@ export function renderPage(loc: LandingLocale): string {
     </nav>
     <p>${t('landing.footerLanguages')}</p>
     <p>${t('landing.footerMedical')}</p>
-    <p class="ddl-tm" lang="en">Apple, the Apple logo and iPhone are trademarks of Apple Inc., registered in the U.S. and other countries. App Store is a service mark of Apple Inc., registered in the U.S. and other countries. Google Play and the Google Play logo are trademarks of Google LLC.</p>
+    <p class="ddl-tm" lang="en">Apple, the Apple logo and iPhone are trademarks of Apple Inc., registered in the U.S. and other countries. App Store is a service mark of Apple Inc., registered in the U.S. and other countries. Google Play, the Google Play logo and Android are trademarks of Google LLC.</p>
   </footer>
 </div>`;
 }
@@ -359,7 +363,8 @@ const CSS = `
 html.dd-app #dd-landing{display:none!important}
 /* Keyed off "not the app", not "is the landing": with no JavaScript the boot never runs, and the page must still scroll. */
 html:not(.dd-app) #root{display:none!important}
-html:not(.dd-app),html:not(.dd-app) body{height:auto!important;min-height:100%;overflow:auto!important;overscroll-behavior-y:auto!important;background:${TOKENS.light.paper}}
+html:not(.dd-app),html:not(.dd-app) body{height:auto!important;min-height:100%;margin:0;overflow:auto!important;overscroll-behavior-y:auto!important;background:${TOKENS.light.paper}}
+html:not(.dd-app){-webkit-text-size-adjust:100%;text-size-adjust:100%}
 html:not(.ddl-ready)[data-dd-lang]:not([data-dd-lang="en"]) #ddl-page{visibility:hidden}
 #dd-landing{${vars(TOKENS.light)};
   background:var(--paper);color:var(--ink);font-family:${SANS};font-size:18px;line-height:27px;-webkit-font-smoothing:antialiased;-webkit-user-select:text;user-select:text;-webkit-touch-callout:default;min-height:100vh}
@@ -368,7 +373,7 @@ html:not(.ddl-ready)[data-dd-lang]:not([data-dd-lang="en"]) #ddl-page{visibility
   #dd-landing{${vars(TOKENS.dark)};color-scheme:dark}
 }
 #dd-landing *{box-sizing:border-box}
-#dd-landing .ddl-page{max-width:640px;margin:0 auto;padding:0 24px 48px}
+#dd-landing .ddl-page{max-width:688px;margin:0 auto;padding:0 24px 48px}
 #dd-landing p,#dd-landing h1,#dd-landing h2,#dd-landing h3,#dd-landing ul,#dd-landing ol,#dd-landing blockquote{margin:0;padding:0}
 #dd-landing h1,#dd-landing h2,#dd-landing h3{font-family:${SERIF};color:var(--ink);text-wrap:balance}
 #dd-landing p{text-wrap:pretty}
@@ -485,13 +490,15 @@ export function buildLanding(): LandingParts {
   const templates = LANDING_LOCALES.filter((l) => l !== 'en')
     .map((l) => `<template id="ddl-t-${l}" lang="${l}">${renderPage(l)}</template>`)
     .join('\n');
-  // The fonts are self-hosted (global.css @font-face, client/public/fonts). Preload only the three the first screen
-  // needs, the kicker's italic, the headline's and the body's, so the hero does not repaint from the fallback.
+  // The fonts are self-hosted (global.css @font-face, client/public/fonts). Preload the faces the first screen draws:
+  // the kicker's italic, the headline's 600, the body's 400, and the 700 of the wordmark, the Energy label and every
+  // action. The card title's Newsreader 500 (also every h2, below the fold) may swap in.
   const head = [
     `<link rel="canonical" href="${SITE}/" />`,
     '<link rel="preload" href="/fonts/newsreader-600.woff2" as="font" type="font/woff2" crossorigin />',
     '<link rel="preload" href="/fonts/newsreader-400-italic.woff2" as="font" type="font/woff2" crossorigin />',
     '<link rel="preload" href="/fonts/atkinson-400.woff2" as="font" type="font/woff2" crossorigin />',
+    '<link rel="preload" href="/fonts/atkinson-700.woff2" as="font" type="font/woff2" crossorigin />',
     `<script type="application/ld+json">${structuredData()}</script>`,
     `<style id="dd-landing-css">${landingCss()}</style>`,
     `<script id="dd-landing-boot">(${landingBoot.toString()})(window);</script>`,

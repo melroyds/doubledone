@@ -15,6 +15,7 @@ import {
   ONBOARDED_STORAGE_KEY,
   PICTURES,
   pickLocale,
+  pictureSize,
   pickPlatform,
   renderPage,
   structuredData,
@@ -22,6 +23,28 @@ import {
 } from './landing-page';
 
 const PUBLIC = join(__dirname, '..', '..', 'public');
+
+/** The words printed on Apple's and Google's official localised badges (the files in client/public/img/badges). */
+const BADGE_WORDS: Record<string, { appStore: string; play: string }> = {
+  en: { appStore: 'Download on the App Store', play: 'Get it on Google Play' },
+  de: { appStore: 'Laden im App Store', play: 'Jetzt bei Google Play' },
+  es: { appStore: 'Consíguelo en el App Store', play: 'Disponible en Google Play' },
+  fr: { appStore: "Télécharger dans l'App Store", play: 'Disponible sur Google Play' },
+  it: { appStore: 'Scarica su App Store', play: 'Disponibile su Google Play' },
+};
+
+/** Width and height of a WebP file from its header (simple lossy VP8, lossless VP8L, or extended VP8X). */
+function webpSize(file: string): [number, number] {
+  const b = readFileSync(file);
+  const kind = b.toString('ascii', 12, 16);
+  if (kind === 'VP8 ') return [b.readUInt16LE(26) & 0x3fff, b.readUInt16LE(28) & 0x3fff];
+  if (kind === 'VP8L') {
+    const bits = b.readUInt32LE(21);
+    return [(bits & 0x3fff) + 1, ((bits >> 14) & 0x3fff) + 1];
+  }
+  if (kind === 'VP8X') return [1 + b.readUIntLE(24, 3), 1 + b.readUIntLE(27, 3)];
+  throw new Error(`not a WebP: ${file}`);
+}
 
 // A window just big enough for the head boot: the classes and attributes it sets on <html>.
 function fakeWindow(opts: {
@@ -221,10 +244,48 @@ describe('renderPage: one whole page per language, from the catalogues', () => {
     expect(renderPage('en')).toContain('It&#39;s there for when your brain says you did nothing.');
   });
 
-  it('keeps French typography: a no-break space before ? and :', () => {
-    const html = renderPage('fr');
-    expect(html).not.toMatch(/[^ \s][?:](?=<\/(summary|p)>)/);
+  it('keeps French typography: a no-break space before ? : ! ; » and after «, in the visible text', () => {
+    const text = renderPage('fr')
+      .replace(/<([a-z0-9]+)\b[^>]*\blang="en"[^>]*>[\s\S]*?<\/\1>/g, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&#39;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&');
+    // Never [^...\s]: \s would swallow the plain space this test exists to reject.
+    expect(text).not.toMatch(/[^\u00a0\u202f][?:!;\u00bb]/);
+    expect(text).not.toMatch(/\u00ab[^\u00a0\u202f]/);
   });
+
+  for (const loc of LANDING_LOCALES) {
+    it(`${loc}: every list outside the drawn card keeps its list role (WebKit drops it under list-style:none)`, () => {
+      const html = renderPage(loc).replace(/<div class="ddl-card"[\s\S]*?<\/ul>/, '');
+      const lists = [...html.matchAll(/<(ol|ul)\b[^>]*>/g)].map((m) => m[0]);
+      expect(lists.length).toBeGreaterThanOrEqual(3);
+      for (const l of lists) expect(l).toContain('role="list"');
+    });
+
+    it(`${loc}: each badge's spoken name starts with the words printed on that badge (WCAG 2.5.3)`, () => {
+      const html = renderPage(loc);
+      const alts = [...html.matchAll(/<a class="ddl-badge" href="([^"]+)"><img src="[^"]+" alt="([^"]+)"/g)];
+      // Hero: one per phone version plus both on the laptop row; closing: Android's (the iPhone closing is a link).
+      expect(alts.length).toBe(5);
+      for (const [, href, alt] of alts) {
+        const printed = href.includes('apps.apple.com') ? BADGE_WORDS[loc].appStore : BADGE_WORDS[loc].play;
+        expect(alt.replace(/&#39;/g, "'").toLowerCase().startsWith(printed.toLowerCase())).toBe(true);
+      }
+    });
+
+    it(`${loc}: one App Store badge per layout (Apple's rule): the iPhone closing is a plain link`, () => {
+      const html = renderPage(loc);
+      expect(html.match(/src="\/img\/badges\/app-store-/g)).toHaveLength(2);
+    });
+
+    it(`${loc}: without JavaScript, the hero says the browser version needs it (Begin would loop back here)`, () => {
+      const html = renderPage(loc);
+      expect(html.match(/<noscript>/g)).toHaveLength(1);
+      expect(html.indexOf('<noscript>')).toBeLessThan(html.indexOf('id="ddl-promise-h"'));
+    });
+  }
 
   it('marks the English-only developer docs as English for the other four languages', () => {
     expect(renderPage('en')).not.toContain('hreflang');
@@ -240,6 +301,16 @@ describe('the files the page points at are really there', () => {
         for (const theme of ['light', 'dark'])
           if (!existsSync(join(PUBLIC, 'landing', `${name}-${theme}-${loc}.webp`))) missing.push(`${name}-${theme}-${loc}`);
     expect(missing).toEqual([]);
+  });
+  it('every picture box is the size of its real file (read from the WebP header), so nothing jumps as it loads', () => {
+    const off: string[] = [];
+    for (const loc of LANDING_LOCALES)
+      for (const name of Object.keys(PICTURES) as (keyof typeof PICTURES)[]) {
+        const [w, h] = webpSize(join(PUBLIC, 'landing', `${name}-light-${loc}.webp`));
+        const [bw, bh] = pictureSize(name, loc);
+        if (Math.abs(bh - Math.round((bw * h) / w)) > 1) off.push(`${name}-${loc}: box ${bw}x${bh}, file ${w}x${h}`);
+      }
+    expect(off).toEqual([]);
   });
   it('every badge', () => {
     for (const b of Object.values(BADGES)) {
@@ -268,6 +339,9 @@ describe('the page without JavaScript, and by voice', () => {
     expect(css).toContain('html:not(.dd-app) #root{display:none!important}');
     expect(css).toContain('html:not(.dd-app),html:not(.dd-app) body{height:auto!important');
     expect(css).not.toMatch(/html\.dd-landing[ ,]/);
+  });
+  it('resets the body margin itself, so the page does not paint with 8px more and jump when the app loads', () => {
+    expect(landingCss()).toMatch(/html:not\(\.dd-app\),html:not\(\.dd-app\) body\{[^}]*margin:0/);
   });
   it('shows the laptop version unless the boot named a phone, so a no-JS visitor still gets Begin', () => {
     const css = landingCss();

@@ -173,6 +173,19 @@ the ladder is fixed and readable, never randomised.
 ## Backlog (deferred, with triggers)
 
 - **MCP: stepped tasks (Melroy, 2026-10-18, NEXT after the landing).** An AI assistant cannot make either kind of stepped task. (a) Track in steps (`slices` {total, done}): `add_task` / `update_task` take only a title, a date and a repeat. (b) Break it down: `break_down` proposes, then the assistant calls `add_task` per step, so the steps are plain, unlinked tasks (no `parent_id`, the big task never hidden as `silent_parent`) and ticking the last one never closes the big task, unlike the app. Plan: design check first (how the app links steps, what closes the parent, minutes and dates), then a `steps` option on add_task/update_task and an accept-the-plan tool that writes linked steps exactly as the app does, with the REST API at parity, contract tests, docs/mcp.md and the OpenAPI version. Needs a Worker deploy, so Melroy's per-instance word.
+- **Store copy still carries two claims the landing review corrected (2026-10-18).** "nobody can make your morning
+  heavier" (docs/appstore/listing-copy.md:49 and :94, docs/play-store-submission-pack.md:191) and one Spanish
+  vosotros line ("llega a vuestros dos Hoy", docs/play-store-listings-localised.md:189, docs/launch/ours/play-release-notes.md:48).
+  Trigger: the next App Store or Play listing edit; paste from the corrected file.
+- **`shared_tasks.created_by` syncs to every phone (2026-10-18).** `ours-sync.ts` pulls shared rows with
+  `select('*')`, so the adding account's id lands on both devices although the app never shows it. Narrow the
+  select to the columns the app uses. Trigger: the next Ours sync change (needs its own tests).
+- **Settings delete confirm, shared lists (2026-10-18).** The in-app delete confirm says it deletes everything
+  synced; for a user in a shared list, add a line that what they added stays for the other person (as the policy
+  now says). Trigger: the next Settings or Ours build.
+- **The Calendar shows a hidden broken-down parent as planned (found by the MCP design check, 2026-10-18).**
+  `scheduledByDay` (client/src/lib/calendar.ts) has no `silentParent` check, unlike every other read. Trigger: the
+  MCP stepped-tasks work, which touches the same rows.
 - **German Ours wording, small (native reviewer, 2026-10-18).** ours.handled 'In unserer Liste erledigt.' and ours.shareTo 'In unsere Liste teilen' use the name in lower case and the second is slightly unidiomatic ('Zu Unserer Liste hinzufügen'). Trigger: the next German copy pass.
 
 - **The landing page's carry-list (parked 2026-10-18, with the landing page build).** (1) **Per-language URLs with hreflang** (/de/, /es/, /fr/, /it/ as their own static pages), so the four translations can rank in their own markets; today they swap in for visitors but a crawler reads English. **Trigger:** a deliberate push outside AU/US/UK, or Search Console showing real non-English impressions. (2) **"je nach zu viel" in German** (the German reviewer: a native first reads "depending on"); it is shared by the hero, the footer and the Play listing, so change all of them together. **Trigger:** the next German copy pass. (3) **Count landing Begin taps** (a bare-name beacon, like the others), so the Path C test has a top-of-funnel number. **Trigger:** the Instagram test starts.

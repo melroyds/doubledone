@@ -52,15 +52,14 @@ export default function PrivacyScreen() {
         </Section>
 
         <Section styles={styles} heading="Shared lists: who did what">
-          DoubleDone does not record which of you did what. There is no column for it, so who added, ticked or removed
-          something is not withheld from you, it is not stored at all and cannot be worked out later.
+          Nothing on a shared list says which of you did what, and DoubleDone keeps no record of who ticked or removed something. Our server does note which account added each item, only so a report of misuse can be acted on, and the app never shows it. If you delete your account, that note is erased and what you added stays on the list for the other person.
         </Section>
 
         <Section styles={styles} heading="Leaving, removing, deleting">
           Leaving a shared list closes it rather than deleting it: you can both still read everything, and neither of
           you can take the other&apos;s words away. Something removed from a shared list keeps its wording for up to
           thirty days so the other person can put it back, and is then blanked. Deleting a shared list for good removes
-          it and everything on it for both of you, and cannot be undone. If you delete your account, what you added to a shared list stays on that list for the other person.
+          it and everything on it for both of you, and cannot be undone.
         </Section>
 
         <View style={styles.section}>
@@ -164,7 +163,7 @@ export default function PrivacyScreen() {
           export your tasks and what you&apos;ve finished as a file at any time. And if you sync, you can permanently delete your account and
           everything synced to it from Settings. Two small records are kept: a billing record, if you ever subscribed (see Payment events), and, if you
           ever started the free trial, a note that you did (an internal number and two dates, nothing you
-          wrote), so a trial is used once.
+          wrote), so a trial is used once. What you added to a shared list stays on that list for the other person (see Shared lists).
         </Section>
 
         <Section styles={styles} heading="Your privacy under Australian law">

@@ -439,7 +439,9 @@ export default function WelcomeScreen() {
             The four leads are ordered so that stopping early still leaves you with something true:
             what it is, what arrives by itself, what deliberately does NOT, and the rule that makes it
             safe. The third is the one that matters most to a person hearing "shared" and bracing:
-            your partner cannot make your morning heavier. */}
+            everything undated stays on the list, however long it gets, so your day stays yours. (It
+            used to promise "nobody can make your morning heavier", which was false: your person CAN date a
+            row for today. Corrected 2026-10-18.) */}
         {step === 'shared' && (
           <View style={styles.block}>
             <Text style={styles.h1}>{t('welcome.sharedHeading')}</Text>

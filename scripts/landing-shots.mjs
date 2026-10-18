@@ -56,12 +56,13 @@ const BREAKDOWN_STEPS = {
   fr: [["Retrouver l'avis d'impôt", 2], ['Rassembler les reçus', 15], ['Remplir les revenus', 20], ['Relire et envoyer', 15]],
   it: [['Trovare il riepilogo', 2], ['Mettere insieme le ricevute', 15], ['Compilare i redditi', 20], ['Ricontrollare e inviare', 15]],
 };
+// Four rows: the picture ends under the fourth with room to spare, and no fifth row peeks in at the edge.
 const OURS_ROWS = {
-  en: ['Bin night', 'Pick up the parcel', 'Cat food, the kidney one', 'Ask about the gutter', 'Batteries, the small ones'],
-  de: ['M\u00fcll rausstellen', 'Paket abholen', 'Katzenfutter, das f\u00fcr die Nieren', 'Wegen der Dachrinne fragen', 'Batterien, die kleinen'],
-  es: ['Sacar la basura', 'Recoger el paquete', 'Comida del gato, la de ri\u00f1\u00f3n', 'Preguntar por el canal\u00f3n', 'Pilas, las peque\u00f1as'],
-  fr: ['Sortir les poubelles', 'R\u00e9cup\u00e9rer le colis', 'Les croquettes du chat, celles pour les reins', 'Demander pour la goutti\u00e8re', 'Des piles, les petites'],
-  it: ['Portare fuori la spazzatura', 'Ritirare il pacco', 'Cibo del gatto, quello per i reni', 'Chiedere della grondaia', 'Pile, quelle piccole'],
+  en: ['Bin night', 'Pick up the parcel', 'Cat food, the kidney one', 'Ask about the gutter'],
+  de: ['M\u00fcll rausstellen', 'Paket abholen', 'Katzenfutter, das f\u00fcr die Nieren', 'Wegen der Dachrinne fragen'],
+  es: ['Sacar la basura', 'Recoger el paquete', 'Comida del gato, la de ri\u00f1\u00f3n', 'Preguntar por el canal\u00f3n'],
+  fr: ['Sortir les poubelles', 'R\u00e9cup\u00e9rer le colis', 'Les croquettes du chat, celles pour les reins', 'Demander pour la goutti\u00e8re'],
+  it: ['Portare fuori la spazzatura', 'Ritirare il pacco', 'Cibo del gatto, quello per i reni', 'Chiedere della grondaia'],
 };
 // The other finished days in the Calendar (only their dots show), one plain task each.
 const OTHER_DAYS = {
@@ -121,7 +122,8 @@ const SHOTS = {
     async crop(page, loc) {
       const art = await box(page.locator(`img[alt="${tr(loc, 'closeDay.artAlt')}"]`).first());
       const sub = await box(page.getByText(tr(loc, 'closeDay.restedSub'), { exact: true }).first());
-      return { x: art.x - 20, y: art.y - 16, w: art.width + 40, h: sub.y + sub.height + 20 - (art.y - 16) };
+      // The board's region (x 12, 366 wide): the screen's text runs wider than the art, so the crop follows the text.
+      return { x: 12, y: art.y - 16, w: 366, h: sub.y + sub.height + 20 - (art.y - 16) };
     },
   },
   // P2: "Here's the plan" for Do my taxes (the break-down plan, served from a fixture).
@@ -189,15 +191,19 @@ const SHOTS = {
     ours: true,
     tasks: () => [],
     async crop(page, loc) {
+      // Both tab words: in French they wrap onto two rows, so the top follows whichever sits higher.
+      const today = await box(page.getByText(tr(loc, 'common.today'), { exact: true }).first());
       const name = await box(page.getByText(tr(loc, 'ours.presetJustUs'), { exact: true }).first());
-      const fourth = await box(page.getByText(OURS_ROWS[loc][3], { exact: true }).first());
-      return { x: 12, y: name.y - 16, w: 366, h: fourth.y + fourth.height + 20 - (name.y - 16) };
+      const fourth = await cardOf(page.getByText(OURS_ROWS[loc][3], { exact: true }).first());
+      const top = Math.min(today.y, name.y) - 16;
+      return { x: 12, y: top, w: 366, h: fourth.y + fourth.height + 16 - top };
     },
   },
   // P6: the Calendar on a finished Sunday: Do my taxes, three weeks old, as the big one.
   calendar: {
     route: '/lookback',
     hour: 18,
+    viewportH: 1000,
     tasks: (loc) => {
       const c = cast(loc);
       const o = OTHER_DAYS[loc];
@@ -327,7 +333,7 @@ async function stubNetwork(page, loc, shot) {
 async function shoot(browser, name, loc, theme, rect) {
   const shot = SHOTS[name];
   const ctx = await browser.newContext({
-    viewport: { width: 390, height: 844 },
+    viewport: { width: 390, height: shot.viewportH ?? 844 },
     deviceScaleFactor: 2,
     colorScheme: theme,
     locale: LOCALE_TAG[loc],
@@ -371,10 +377,15 @@ async function shoot(browser, name, loc, theme, rect) {
   await page.evaluate(() => document.activeElement && document.activeElement.blur && document.activeElement.blur());
   const r = rect ?? (await shot.crop(page, loc));
   const clip = { x: Math.max(0, Math.round(r.x)), y: Math.max(0, Math.round(r.y)), width: Math.round(r.w), height: Math.round(r.h) };
+  const vp = page.viewportSize();
+  if (clip.x + clip.width > vp.width || clip.y + clip.height > vp.height) {
+    throw new Error(`${name} ${loc}: the crop runs past the ${vp.width}x${vp.height} viewport (${JSON.stringify(clip)})`);
+  }
   const file = path.join(TMP, `${name}-${theme}-${loc}.png`);
-  await page.screenshot({ path: file, clip });
+  const png = await page.screenshot({ path: file, clip });
   await ctx.close();
-  return r;
+  // The PNG's own size (IHDR, bytes 16 to 23), so the page reserves what the file really is.
+  return { ...r, imgW: png.readUInt32BE(16), imgH: png.readUInt32BE(20) };
 }
 
 async function run() {
@@ -390,8 +401,8 @@ async function run() {
         const rect = await shoot(browser, name, loc, 'light');
         await shoot(browser, name, loc, 'dark', rect);
         sizes[name] = sizes[name] ?? {};
-        sizes[name][loc] = [320, Math.round((320 * Math.round(rect.h)) / Math.round(rect.w))];
-        console.log(`  ✓ ${name} ${loc} (${Math.round(rect.w)} x ${Math.round(rect.h)})`);
+        sizes[name][loc] = [320, Math.round((320 * rect.imgH) / rect.imgW)];
+        console.log(`  ✓ ${name} ${loc} (${rect.imgW / 2} x ${rect.imgH / 2})`);
       }
     }
   } finally {

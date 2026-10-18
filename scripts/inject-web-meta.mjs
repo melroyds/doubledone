@@ -117,6 +117,15 @@ if (!html.includes('id="dd-landing"')) {
     process.exit(1);
   }
   html = html.replace('</head>', () => `  ${head}\n  </head>`).replace(/<body[^>]*>/, (tag) => `${tag}\n${body}\n`);
+  // Expo's template ends the page with a bare "You need to enable JavaScript to run this app." for no-JS visitors.
+  // The landing is the no-JS page now (with its own calm note under Begin), so the template's line would sit
+  // unstyled under the footer and be a crawler's last words. Remove it, loudly if the template ever changes.
+  const NOSCRIPT = /<noscript>\s*You need to enable JavaScript to run this app\.\s*<\/noscript>\s*/;
+  if (!NOSCRIPT.test(html)) {
+    console.error("inject-web-meta: the export template's <noscript> line was not found; check the export");
+    process.exit(1);
+  }
+  html = html.replace(NOSCRIPT, () => '');
   if (!html.includes('id="dd-landing"') || !html.includes('id="dd-landing-boot"')) {
     console.error('inject-web-meta: the landing page did not land in the export');
     process.exit(1);

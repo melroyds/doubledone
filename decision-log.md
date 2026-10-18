@@ -9450,3 +9450,49 @@ docs/i18n/catalogue-review-2026-10-18.md):
 everything else (no spend, no feature counts), pins the clock to Sunday 18 October 2026 in Melbourne and
 Math.random, and runs Settle on the real clock with reduced motion (a fake clock freezes its animation where the
 guide word is still invisible).
+
+## 2026-10-18: the landing redesign's adversarial review, and what it changed
+
+Six reviewers (truth, accessibility, engineering, legal and store rules, catalogue regressions, visual fidelity),
+each finding re-checked by a skeptic told to refute it: 31 findings, 26 confirmed (3 major), 5 refuted. All 26 fixed
+on `landing-v2`.
+
+**The privacy policy, two more fixes (Melroy approved both, both copies).** (1) The shared-lists paragraph said no
+record exists of who added, ticked or removed something. False since August: `shared_tasks.created_by` notes the
+adding account (the decision log of 2026-08-13 already narrowed the store copy to "says, not records"; the policy
+never followed). Now: nothing on the list says who did what, no record of who ticked or removed, the server notes
+who added each item only so a misuse report can be acted on, the app never shows it, and deleting the account
+erases that note while the words stay. (2) "Your control" now says what you added to a shared list stays for the
+other person, so the deletion paragraph no longer contradicts it. **Decided against, for now:** stopping
+`created_by` from syncing to phones (it rides `select('*')` but is never shown); parked in the Backlog.
+
+**Copy, decided:**
+- The hero trust line said your list "stays" on your device while AI starts on: it now says it "lives" there (a claim
+  about storage), in all five languages, matching the policy and the privacy section.
+- The privacy section names Speak on the web (Chrome sends the audio to Google), which the policy already disclosed.
+- The AI consent card said nothing else ever leaves your device; it now says nothing else goes to an AI.
+- Turn AI off said nothing you write goes to an AI, false while an MCP assistant is connected (it reads tasks
+  server-side and never sees the device switch). Now "The app's AI features send nothing you write", plus, for a
+  signed-in user, a line that a connected assistant keeps its access until Disconnect AI connectors.
+- The welcome's Ours step still promised "nobody can make your morning heavier" (the claim the truth check had
+  already corrected on the landing): now the same honest line.
+- German Ours capitalised in the last two places ("In Unserer Liste").
+
+**Store rules:** one App Store badge per layout (Apple): the iPhone closing repeats the action as a plain link;
+Android is now credited in the trademark line beside Google Play (Google's brand rule). Each badge's spoken name
+now starts with the words printed on that badge (WCAG 2.5.3), from new landing.* keys.
+
+**Engineering:** the page resets the body margin itself (it painted 8px wider until the app bundle arrived, then
+jumped); the column is 640 of content on a laptop (the gutters were eating it, so the English headline wrapped);
+lists keep `role="list"` (WebKit drops list semantics under list-style:none, so VoiceOver lost "1 of 3"); the bold
+face is preloaded; without JavaScript the template's bare "enable JavaScript" line is gone and a calm note under
+Begin says the browser version needs it (Begin would only loop back to the landing); CI now RUNS the shipped boot
+(`scripts/check-landing-boot.mjs`) instead of grepping a string the stylesheet always contains; the French spacing
+test now rejects a plain space (its old class let one through); the capture script refuses a crop that runs past
+the viewport (Playwright trimmed it silently, so the German Calendar box was 3px too tall) and records each size
+from the PNG it wrote, and a test compares every reserved box with its WebP header. The Close-the-day crop follows
+the screen's text, and the shared-list crop keeps both tab words (French wraps them) and the whole fourth row.
+
+**Refuted (no change):** that the first brain dump can land elsewhere (only by choosing Sort for me, which the next
+sentence names); the English docs link needs more than hreflang; Turn AI off as a per-device switch needs saying;
+straight apostrophes beside curly quotes; the intro-to-first-moment spacing.
