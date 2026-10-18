@@ -107,6 +107,13 @@ export default function PrivacyScreen() {
           list of names and drops everything else.
         </Section>
 
+        <Section styles={styles} heading="Visits to the website">
+          Cloudflare, which hosts doubledone.app, counts visits to the website and the web app for us: the page
+          opened, the site that linked you here, your country, your kind of browser and device, and how quickly the
+          page loaded. It uses no cookies, doesn&apos;t follow you to other sites, and we only ever see totals. The
+          phone apps don&apos;t include it.
+        </Section>
+
         <Section styles={styles} heading="Payment events">
           Payments for Premium are processed by Stripe (on our website), by Apple (on iPhone and iPad) or by Google
           Play (in the Android app), never by us. We never see or store your card details. In the iPhone, iPad and

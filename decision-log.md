@@ -9350,3 +9350,26 @@ calmer kind of to-do", which named nothing anyone searches for. Melroy's yes.
 **Found, for Melroy:** the live site also loads Cloudflare Web Analytics (`static.cloudflareinsights.com`, the
 Pages project's toggle), and the privacy policy does not mention it. Cookieless and run by the host, but still
 unstated. His call: switch it off, or say it in the policy.
+
+## 2026-10-18: Cloudflare Web Analytics stays on, and the privacy policy names it
+
+**Decided: keep Web Analytics on and say so in the policy** (Melroy's yes, after first agreeing to switch it off).
+The new section "Visits to the website", in both copies (`client/public/privacy.html` and the in-app
+`privacy.tsx`), says Cloudflare counts visits to the website and the web app: the page, the referring site, the
+country, the browser and device, and load time, with no cookies, no following anyone to other sites, totals only,
+and not in the phone apps. Every claim was checked against Cloudflare's own docs on the day: the beacon stores
+nothing in the browser, the IP is discarded at the nearest data centre, and the dimensions are country, host,
+path, referrer, device type, browser and OS.
+
+**Why:** our own beacon counts about twenty named features inside the app and nothing else. It cannot see the
+landing page at all: no visits, no referrer, no country. With the crawlable landing just shipped and a redesign
+next, switching off the only landing measurement would ship the redesign with no before and after. The privacy
+cost is small (cookieless, aggregate, from the host that already sees every request); the real fault was that
+the policy never named it, and one paragraph closes that.
+
+**Decided against:** switching it off (my first pick, reversed on Melroy's challenge) and the "Enable, excluding
+visitor data in the EU" option (it still runs everywhere else, so the policy line is needed either way).
+
+**Correction:** the entry above says the beacon came from "the Pages project's toggle". It does not. It appears on
+doubledone.app and not on doubledone.pages.dev, which serve the same build, so it is the doubledone.app zone's Web
+Analytics automatic setup (Analytics & logs, Web analytics, Manage site). The Pages Metrics switch is not the source.
