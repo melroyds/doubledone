@@ -281,12 +281,15 @@ array is written in:
 |---|---|---|---|
 | 1 | `welcome` | Today is finite and achievable. | The promise. Best first impression. |
 | 2 | `today-light` | Only today, sized to feel possible. | The core idea, in one look. |
-| 3 | `ours-room` | One shared list. Never a scoreboard. | **What 1.3.x is for.** Play weights the early ones. |
-| 4 | `lookback-light` | Everything you finish, you keep. | The emotional payoff. |
-| 5 | `ours-when` | A shared day, set from either phone. | What 1.3.1 specifically adds. |
-| 6 | `today-dark` | A calm home screen, day or night. | Proves the night face. |
-| 7 | `settle-light` | A quiet room, for when today gets loud. | The most distinctive screen in the app. |
-| 8 | `settings-light` | AI that helps. One tap turns it off. | The privacy proof, for the wary. |
+| 3 | `capture` | Empty your head in one go. | Today v3's headline: the + and the panel it raises, with no Speak. |
+| 4 | `ours-room` | One shared list. Never a scoreboard. | A joined room ("Kept with Sam"). Play weights the early ones. |
+| 5 | `lookback-light` | Everything you finish, you keep. | The emotional payoff. |
+| 6 | `ours-when` | A shared day, set from either phone. | A shared row given a day. |
+| 7 | `today-dark` | A calm home screen, day or night. | Proves the night face. |
+| 8 | `settle-light` | A quiet room, for when today gets loud. | The most distinctive screen in the app. |
+
+*Corrected 2026-10-19 to the order `PLAY_SHOTS` in `scripts/play-assets.mjs` has held since the Today v3 shots
+(`36cf47a`): `capture` took slot 3, and `settings-light` left the set.*
 
 Sizes, all well inside Play's limits (min 320px, max 3840px, 8MB): `phone/` 1080x1920,
 `tablet7/` 1200x1920, `tablet10/` 1600x2560. Same eight names in each.

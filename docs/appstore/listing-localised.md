@@ -69,8 +69,10 @@ clinical words. Apple searches the name, subtitle and keyword field only, never 
 3. **Add the localisation in App Store Connect** (App Store tab, the 1.9.0 version, the language menu). Spanish
    goes in twice, the same text under **Spanish (Mexico)** and **Spanish (Spain)**.
 4. **Each localisation has its own fields:** name, subtitle, keywords, promotional text, description, What's New
-   (from `docs/release-notes/1.9.0.md`, nothing inherits it) and the Privacy Policy URL
-   (`https://doubledone.app/privacy`).
+   (from `docs/release-notes/1.9.0.md`, nothing inherits it), the Support URL (`https://doubledone.app/support`,
+   required, and a new localisation starts empty), the Marketing URL (`https://doubledone.app`) and the Privacy
+   Policy URL (`https://doubledone.app/privacy`, set per language on the App Privacy page). Save before switching
+   the language menu or the page.
 5. **Print each field from this file and diff what was sent.** Never retype, and never edit these through a shell
    heredoc: that is how every non-English release note in this repo was once ascii-fied.
 6. **Screenshots stay English** this version. ASC falls back to the English set, so nothing is needed there.

@@ -493,8 +493,10 @@ Short description: 74 characters. "Cose da fare" names the category, "per ADHD e
    silently ascii-fied that way (`Muelltonne`, `manana`, `partagee`, `puo`) and came one paste from
    shipping. Use an editor that writes UTF-8, then re-run the gate.
 4. **The screenshots stay English.** There are no localised store slides, and the localised raw shots
-   in `docs/screenshots/i18n/` still have English task text seeded into them. Leave each localised
-   listing's existing screenshots alone rather than uploading English-content slides to it.
+   in `docs/screenshots/i18n/` still have English task text seeded into them. Each localised
+   listing holds its own copy of the English STORE slides (`docs/play-store/`), so when one changes, swap it in
+   every listing, keeping its place (1.9.0: capture in slot 3, ours-room in slot 4). Never upload the localised
+   raw shots, and if a language turns out to show no slides of its own, leave it and say so.
 
 ## What is deliberately not here
 
