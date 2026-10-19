@@ -306,9 +306,12 @@ Only English is required to reach Ready to Submit. You have `es`, `fr` and `it` 
 
 These are your answers. Everything is traced to code.
 
+**Checked against the console on 2026-10-19:** until then App Privacy held only five of these (Email Address, Other User Content, User ID, Device ID, Purchase History). Product Interaction, Photos or Videos, Customer Support, Name and Other User Content's Analytics purpose were added at the 1.9.0 console run. Photos or Videos is **linked** because the scan request carries the user's sign-in token, even though the photo is never stored: Apple counts data as linked unless it is de-identified before it leaves the device.
+
 | Apple data type | Collected | Linked to identity | Tracking | Purpose |
 |---|---|---|---|---|
 | Contact Info, Email Address | Yes | **Yes** | No | App Functionality |
+| Contact Info, Name (the shared-list label, added 2026-10-19) | Yes | **Yes** | No | App Functionality |
 | User Content, Other User Content (task text) | Yes | **Yes** | No | App Functionality, Analytics |
 | User Content, **Photos or Videos** | **Yes** | **Yes** | No | App Functionality |
 | User Content, Customer Support | Yes | No | No | App Functionality |
