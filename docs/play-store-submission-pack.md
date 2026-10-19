@@ -119,11 +119,15 @@ data-deletion URL. No ads, no third-party analytics/trackers, no advertising ID.
 > counts) is the app's first opt-in-free collection, and the live Data Safety form does not declare it.
 > Add the **App activity > App interactions** row below in the Play Console BEFORE promoting any build
 > containing the beacon (v22+). Google cross-checks the form against the policy URL and app behaviour;
-> the policy already discloses it (doubledone.app/privacy, "Feature-usage counts"). Apple's label needs
-> no change: ASC already declares Usage Data > Product Interaction (not linked) for /outcome.
+> the policy already discloses it (doubledone.app/privacy, "Feature-usage counts"). **Corrected 2026-10-19:**
+> this line used to say Apple's label needed no change because ASC already declared Usage Data > Product
+> Interaction. It did not: the App Privacy page, published in July, listed five types and no Product
+> Interaction, so 1.7.0 and 1.8.0 shipped the counts undeclared on iOS. It was added at the 1.9.0 console run
+> (Analytics, not linked), with Photos or Videos, Customer Support and Name. Never trust this doc over the console.
 
 | Data type | Collected | Shared | Optional? | Purpose | Note |
 |---|---|---|---|---|---|
+| Personal info > Name | Yes | No | Optional | App functionality | Added 2026-10-19: the name a person gives themselves on a shared list (Ours, `pair_members.label`, at most 40 characters, "me" by default), stored with the account and shown to their partner. Not processed ephemerally. |
 | App activity > App interactions | Yes | No | **No** | Analytics | The feature-usage beacon (2026-08-01): opening Settle sends the feature's name (plus the guide's on/off) to our Worker, stored as an event name + the DAY only. No user_id, no IP stored, no content, closed server-side allowlist, not optional (no setting, by design). Disclosed in the policy's "Feature-usage counts". |
 | Personal info > Email address | Yes | No | Optional | Account management | Only if the user turns on sync. OTP sign-in, no password. Supabase (Sydney). Deletable in-app. |
 | App activity > Other user content (task text) | Yes | **Yes** | Optional | App functionality, personalization | Two opt-in flows: sync (to Supabase) and AI (to Anthropic). "Shared" because text leaves to Anthropic when AI is on. AI off = nothing sent. Pseudonymous AI-call copy in D1, no user_id, no IP. Since 2026-07-12 the weekly scrapbook keepsake (a short caption derived from finished tasks, plus its image link) also syncs to Supabase under the same sync opt-in. |

@@ -240,7 +240,7 @@ Repo root: `C:\Users\molte\Dropbox\Claude Output\Product Manager Portfolio\Doubl
       1. The en-AU title, short and full descriptions.
       2. The four translations' title and full-description fixes.
       3. The capture slide in each locale.
-      4. Store settings, then Manage tags: up to five from Google's own list. To-do list, task management and planner types, never habit tracker.
+      4. Store settings, then Manage tags: up to five from Google's own list. To-do list, task management and planner types, never habit tracker. **Corrected at the console, 2026-10-19:** Google's list has no to-do, task or planner tags. The Productivity family is only Productivity, Calendar and Notebook. The live five were Calendar, Personal assistant, Productivity, Self-help and Tools, judged close to the best available, with Tools to House & home as the one optional swap (the shared household list). Never Habit tracker, Meditation or Sleep.
       5. App content, Health apps: confirm the answer still fits, since the title names an audience, not a condition being treated.
       6. Release notes, one paste.
 15. **After live:**
