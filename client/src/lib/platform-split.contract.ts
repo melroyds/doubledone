@@ -18,6 +18,10 @@ import type * as PurchasesAndroid from './purchases.android';
 import type * as PurchasesIos from './purchases.ios';
 import type * as StorefrontBase from './storefront';
 import type * as StorefrontAndroid from './storefront.android';
+// store-review inverts purchases' shape (the base is the REAL native half, the .web.ts the stub), so
+// ESLint's resolver reads the bare './store-review' as the .web.ts file, and this pair as a duplicate.
+import type * as StoreReviewBase from './store-review';
+import type * as StoreReviewWeb from './store-review.web';
 /* eslint-enable import/no-duplicates */
 
 type Widen<T> = T extends boolean ? boolean : T;
@@ -30,8 +34,10 @@ type Holds<T extends true> = T;
 export type PurchasesIosKeys = Holds<SameKeys<typeof PurchasesBase, typeof PurchasesIos>>;
 export type PurchasesAndroidKeys = Holds<SameKeys<typeof PurchasesBase, typeof PurchasesAndroid>>;
 export type StorefrontAndroidKeys = Holds<SameKeys<typeof StorefrontBase, typeof StorefrontAndroid>>;
+export type StoreReviewWebKeys = Holds<SameKeys<typeof StoreReviewBase, typeof StoreReviewWeb>>;
 
 // Same types for every shared name. A mismatch makes the union `boolean`, which is not `true`.
 export type PurchasesIosTypes = Holds<SameTypes<typeof PurchasesBase, typeof PurchasesIos>>;
 export type PurchasesAndroidTypes = Holds<SameTypes<typeof PurchasesBase, typeof PurchasesAndroid>>;
 export type StorefrontAndroidTypes = Holds<SameTypes<typeof StorefrontBase, typeof StorefrontAndroid>>;
+export type StoreReviewWebTypes = Holds<SameTypes<typeof StoreReviewBase, typeof StoreReviewWeb>>;

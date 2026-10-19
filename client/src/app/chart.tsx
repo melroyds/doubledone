@@ -234,7 +234,7 @@ export default function ChartScreen() {
           value={goal}
           onChangeText={setGoal}
           placeholder={t('chart.goalPlaceholder')}
-          placeholderTextColor={theme.colors.inkFaint}
+          placeholderTextColor={theme.colors.inkSoft}
           multiline
           accessibilityLabel={t('chart.goalA11yLabel')}
           editable={!busy}
@@ -398,7 +398,7 @@ const makeStyles = (t: Theme) =>
     byWhenLabel: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },
     spinner: { marginTop: spacing.five },
-    error: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, marginTop: spacing.four, lineHeight: 22 * t.scale },
+    error: { color: t.colors.accentText, fontSize: 15 * t.scale, fontFamily: fonts.body, marginTop: spacing.four, lineHeight: 22 * t.scale },
     result: { marginTop: spacing.five, gap: spacing.two },
     heading: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', lineHeight: 26 * t.scale, marginBottom: spacing.two },
     stepRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three, paddingVertical: spacing.three },
@@ -415,7 +415,7 @@ const makeStyles = (t: Theme) =>
     checkMark: { color: t.colors.onAccent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     stepTitleWrap: { flex: 1 },
     stepTitle: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale },
-    stepTitleOff: { color: t.colors.inkFaint, textDecorationLine: 'line-through' },
+    stepTitleOff: { color: t.colors.inkSoft, textDecorationLine: 'line-through' },
     stepInput: {
       flex: 1,
       color: t.colors.ink,

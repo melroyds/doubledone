@@ -1,14 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, type AccessibilityActionEvent, Animated, BackHandler, Easing, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
-import { border, cardShadow, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
+import { border, cardShadow, fonts, PRESSED_OPACITY, radius, shelfTint, spacing, type Theme } from '@/constants/theme';
 import { forSpeech, LEFT_OFF_MAX } from '@/lib/leftoff';
 import { fmt, t } from '@/lib/locale';
 import { formatNudgeTime } from '@/lib/nudge';
 import { type LeftOff, type Slices } from '@/lib/tasks';
 
 import { PRESS_NOW, PRESS_SETTLE_MS } from './press-now';
+import { rowDoor } from './row-door';
 import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 import { CheckCircle } from './CheckCircle';
@@ -108,6 +110,19 @@ function LeftOffMark({ color, size }: { color: string; size: number }) {
   );
 }
 
+/** Move focus to a node: the web's own focus (without a scroll, the caller has scrolled), or a screen reader's. */
+function focusOn(node: View | null) {
+  if (!node) return;
+  if (Platform.OS === 'web') (node as unknown as HTMLElement).focus?.({ preventScroll: true });
+  else AccessibilityInfo.sendAccessibilityEvent(node, 'focus');
+}
+// When focus moves in and out of a held card (K3). The web moves it once the card's layout settles, and
+// brings it back sooner than an open, so a hold on another row (this card closes as that one opens) ends on
+// the new card. A screen reader needs the new element in its tree first (CaptureSheet's 220 to 300), and on
+// native only Close, Escape and back bring focus home, which never coincide with another card opening.
+const FOCUS_OPEN_MS = Platform.OS === 'web' ? 60 : 250;
+const FOCUS_BACK_MS = Platform.OS === 'web' ? 30 : 250;
+
 export function TaskRow({
   title,
   done,
@@ -191,9 +206,11 @@ export function TaskRow({
   const draft = useRef({ open: false, title: '', line: '' });
   const onSaveEditLatest = useRef(onSaveEdit);
   const onRenameLatest = useRef(onRename);
+  const onKeepLatest = useRef(onKeep);
   useEffect(() => {
     onSaveEditLatest.current = onSaveEdit;
     onRenameLatest.current = onRename;
+    onKeepLatest.current = onKeep;
   });
   const eligible = Boolean(onSaveEdit);
   const showLeftOff = eligible && Boolean(leftOff?.text) && !done;
@@ -206,13 +223,71 @@ export function TaskRow({
   // Native RN nodes have no scrollIntoView, so this no-ops there; the native pass
   // belongs to the held-card redesign.
   const cardRef = useRef<View>(null);
+  // Focus follows the card (store 1.9, slice 2, K3). Opening one swaps this row's branch, so the focused row
+  // unmounted: the web's focus fell to <body> and a screen reader's jumped away. On open, focus now lands on
+  // the card's title. On close it comes back to the row, but only when it was inside the card, so a tap on
+  // another row is never yanked back here. The web knows by watching focus (focusInCard, set by the card).
+  // Native cannot see a screen reader's focus, so there the card's own ways out bring it home: Close, Escape
+  // and back (closedFromCard). An action that opens a sheet leaves focus to the sheet on both.
+  const rowRef = useRef<View>(null);
+  const titleFocusRef = useRef<View>(null);
+  const focusInCard = useRef(false);
+  const closedFromCard = useRef(false);
+  const wasOpen = useRef(Boolean(confirming));
   useEffect(() => {
-    if (!confirming) return;
+    const was = wasOpen.current;
+    wasOpen.current = Boolean(confirming);
+    if (confirming) {
+      if (!was) {
+        focusInCard.current = false;
+        closedFromCard.current = false;
+      }
+      const id = setTimeout(() => {
+        (cardRef.current as unknown as { scrollIntoView?: (opts?: unknown) => void } | null)?.scrollIntoView?.({ block: 'nearest' });
+        // A row that MOUNTS with its card open (Today remounts on an appearance switch, under Settings) is the
+        // same open, not a new one, and must not pull focus off the screen in front.
+        if (!was) focusOn(titleFocusRef.current);
+      }, FOCUS_OPEN_MS); // after the card's layout settles
+      return () => clearTimeout(id);
+    }
+    if (!was) return;
+    const back = Platform.OS === 'web' ? focusInCard.current : closedFromCard.current;
+    focusInCard.current = false;
+    closedFromCard.current = false;
+    if (!back) return;
     const id = setTimeout(() => {
-      (cardRef.current as unknown as { scrollIntoView?: (opts?: unknown) => void } | null)?.scrollIntoView?.({ block: 'nearest' });
-    }, 60); // after the card's layout settles
+      // Something else took focus meanwhile (a sheet the action opened, another row): leave it there.
+      if (Platform.OS === 'web' && typeof document !== 'undefined' && document.activeElement && document.activeElement !== document.body) return;
+      focusOn(rowRef.current);
+    }, FOCUS_BACK_MS);
     return () => clearTimeout(id);
   }, [confirming]);
+  // The card's other ways out (K4): Escape on the web (keyup on the window, the CaptureSheet pattern, so a Modal
+  // above the card closes alone) and Android's back. VoiceOver's escape scrub is on the card itself. Only while
+  // this screen is in front: a Today buried under Premium must not swallow Premium's back.
+  useFocusEffect(
+    useCallback(() => {
+      if (!confirming) return;
+      const keep = () => {
+        const fn = onKeepLatest.current;
+        if (!fn) return false;
+        closedFromCard.current = true;
+        fn();
+        return true;
+      };
+      if (Platform.OS === 'android') {
+        const sub = BackHandler.addEventListener('hardwareBackPress', keep);
+        return () => sub.remove();
+      }
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        const onKey = (e: globalThis.KeyboardEvent) => {
+          if (e.key === 'Escape') keep();
+        };
+        window.addEventListener('keyup', onKey);
+        return () => window.removeEventListener('keyup', onKey);
+      }
+    }, [confirming]),
+  );
   // The open (design v2): the card rises in over 180ms with a 4px settle; the fold fades in
   // over 160ms. Reduce-motion is a DESIGNED state, not an absence: a single 90ms dissolve,
   // no translate. useState initializers for Animated values, Bloom's compiler-safe pattern.
@@ -399,6 +474,52 @@ export function TaskRow({
     (note ? `, ${note}` : '') +
     (inert ? `. ${inert}` : '');
 
+  // The hold's other doors (store 1.9, slice 2). The long-press is the only way into this task's card, and
+  // the card is the way into half the app, so each pointer-free reader gets one of its own:
+  // - S1, native screen readers: a "longpress" action named "Options". Android maps it to its long-click, so
+  //   TalkBack's double-tap-and-hold and its Actions menu both work; VoiceOver lists it in the Actions rotor.
+  //   RN-web ignores it, which is why the web needs the next two.
+  // - K1, the web: right-click, the Menu key and Shift+F10 (`rowDoor`).
+  // - K2, the web: an "Options for <task>" button that is invisible until it holds keyboard focus, the way in
+  //   on a Mac, which has no Menu key. Pointer and touch never meet it.
+  const rowActions = onLongPress ? [{ name: 'longpress', label: t('today.rowOptions') }] : undefined;
+  function onRowAction(e: AccessibilityActionEvent) {
+    if (e.nativeEvent.actionName === 'longpress') onLongPress?.();
+  }
+  const door = rowDoor(onLongPress);
+  const optionsEl =
+    Platform.OS === 'web' && onLongPress ? (
+      <Pressable
+        onPress={onLongPress}
+        accessibilityRole="button"
+        accessibilityLabel={t('today.rowOptionsA11y', { title })}
+        // RN-web hands Pressable's style a `focused` flag that React Native's own types do not declare.
+        style={(state) => ((state as { focused?: boolean }).focused ? styles.optionsShown : styles.optionsHidden)}
+      >
+        <Text style={styles.optionsLabel}>{t('today.rowOptions')}</Text>
+      </Pressable>
+    ) : null;
+  // The open card watches focus on the web (K3): in when anything inside it takes focus, out only when focus
+  // moves somewhere else that is real. A focus that simply vanished (the button pressed was removed) keeps it in.
+  const cardFocusWatch =
+    Platform.OS === 'web'
+      ? {
+          onFocus: () => {
+            focusInCard.current = true;
+          },
+          onBlur: (e: { nativeEvent?: unknown }) => {
+            if ((e.nativeEvent as { relatedTarget?: unknown } | undefined)?.relatedTarget) focusInCard.current = false;
+          },
+        }
+      : null;
+  // VoiceOver's two-finger escape scrub on the open card is its Close (K4).
+  const onCardEscape = onKeep
+    ? () => {
+        closedFromCard.current = true;
+        onKeep();
+      }
+    : undefined;
+
   // The contract's line, INSIDE the cell border (Melroy's device verdict, 2026-08-30, superseding
   // the separate strip above the row): the held task and the words about it are ONE bordered
   // thing, so the title never appears twice. Tap the line for Focus; "Let it go" stays one
@@ -441,6 +562,7 @@ export function TaskRow({
   if (selecting) {
     return (
       <Pressable
+        ref={rowRef}
         onPress={onSelect}
         style={({ pressed }) => [styles.row, !recurring && styles.rowUnique, selected && styles.rowSelected, pressed && styles.pressed]}
         accessibilityRole="checkbox"
@@ -495,7 +617,22 @@ export function TaskRow({
     const skips = recurring && !removesWholeSeries;
     const terminalRow = (
       <View style={styles.terminalRow}>
-        <Pressable onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onKeep && (() => act(onKeep))} accessibilityRole="button" accessibilityLabel={t('common.close')} hitSlop={{ top: 12, bottom: 12 }}>
+        <Pressable
+          onPressIn={markPress}
+          onPressOut={releasePress}
+          {...PRESS_NOW}
+          onPress={
+            onKeep &&
+            (() =>
+              act(() => {
+                closedFromCard.current = true; // focus goes home to the row (K3)
+                onKeep();
+              }))
+          }
+          accessibilityRole="button"
+          accessibilityLabel={t('common.close')}
+          hitSlop={{ top: 12, bottom: 12 }}
+        >
           <Text style={styles.close}>{t('common.close')}</Text>
         </Pressable>
         {onSelectMore && (
@@ -528,8 +665,13 @@ export function TaskRow({
 
     if (done) {
       return (
-        <Animated.View ref={cardRef} style={[styles.row, styles.confirmRow, styles.confirmColumn, riseStyle]}>
-          <View style={styles.doneTitleRow}>
+        <Animated.View ref={cardRef} style={[styles.row, styles.confirmRow, styles.confirmColumn, riseStyle]} {...cardFocusWatch} onAccessibilityEscape={onCardEscape}>
+          {/* The focus target on open (K3): focusable by script only on the web, one spoken element on native. */}
+          <View
+            ref={titleFocusRef}
+            style={styles.doneTitleRow}
+            {...(Platform.OS === 'web' ? { tabIndex: -1 as const } : { accessible: true, accessibilityLabel: title })}
+          >
             <Text style={styles.doneCheck} accessible={false} importantForAccessibility="no">✓</Text>
             <Text style={[styles.confirmTitle, styles.confirmTitleDone]} numberOfLines={2}>{title}</Text>
           </View>
@@ -580,7 +722,7 @@ export function TaskRow({
     // action names on the closed card, which made it read as a control panel.
     const foldCount = [onShareToOurs, onNudge, onHold, canPin].filter(Boolean).length;
     return (
-      <Animated.View ref={cardRef} style={[styles.row, styles.confirmRow, styles.confirmColumn, riseStyle]}>
+      <Animated.View ref={cardRef} style={[styles.row, styles.confirmRow, styles.confirmColumn, riseStyle]} {...cardFocusWatch} onAccessibilityEscape={onCardEscape}>
         {editingTitle != null && onRename ? (
           <>
             <TextInput
@@ -646,7 +788,10 @@ export function TaskRow({
           // The title is the edit control: tap the thing to change the thing, no extra button on an
           // already-full card. The faint underline is the whole affordance; onRename absent leaves it plain.
           <View style={styles.titleLine}>
+            {/* Focus lands here on open (K3). Without onRename it is disabled, which on the web is tabIndex -1:
+                out of the Tab order, still focusable by script, and a screen reader reads the title. */}
             <Pressable
+              ref={titleFocusRef}
               onPress={onRename ? () => openEditor('title') : undefined}
               disabled={!onRename}
               accessibilityRole={onRename ? 'button' : undefined}
@@ -939,18 +1084,20 @@ export function TaskRow({
                     hitSlop={{ top: 6, bottom: 6 }}
                   >
                     {/* Dimmed, not hidden, for a free user; the honey ✦ is the premium mark
-                        (never a lock: locks read as denial). Pinned reads as a settled state. */}
+                        (never a lock: locks read as denial). Pinned reads as a settled state.
+                        Dimmed by COLOUR, not opacity (C4): this is a live control (it opens Premium), and
+                        0.6 opacity took its sub-label to 2.3:1. The ✦ keeps its full gold as the signal. */}
                     <View style={styles.pinLead}>
                       <Text style={[styles.actionLabel, pinned && styles.pinnedLabel, pinDim && styles.premiumDim]}>
                         {pinned ? t('today.pinnedTick') : t('today.pin')}
                       </Text>
                       {!pinned && (
-                        <Text style={[styles.premiumStar, pinDim && styles.premiumDim]} accessible={false} importantForAccessibility="no">
+                        <Text style={styles.premiumStar} accessible={false} importantForAccessibility="no">
                           ✦
                         </Text>
                       )}
                     </View>
-                    <Text style={[styles.actionSub, pinDim && styles.premiumDim]}>{t('today.pinHint')}</Text>
+                    <Text style={styles.actionSub}>{t('today.pinHint')}</Text>
                   </Pressable>
                 )}
               </Animated.View>
@@ -968,11 +1115,15 @@ export function TaskRow({
     const rest = Math.max(0, slices.total - slices.done);
     // Calm by default: tap to advance a slice, hold to reveal the step-back / remove
     // controls. No always-on minus cluttering the row.
-    return (
+    const sliceEl = (
       <Pressable
+        ref={rowRef}
         onPress={onAdvance}
         onLongPress={onLongPress}
         delayLongPress={400}
+        {...door}
+        accessibilityActions={rowActions}
+        onAccessibilityAction={onRowAction}
         style={({ pressed }) => [styles.row, styles.rowUnique, styles.sliceColumn, held && styles.rowHeld, pressed && styles.pressed]}
         accessibilityRole="button"
         aria-checked={complete}
@@ -1003,6 +1154,16 @@ export function TaskRow({
         {!complete && <Text style={styles.sliceAdjustHint}>{t('today.holdToAdjust')}</Text>}
       </Pressable>
     );
+    // The Options button cannot sit inside the row's own Pressable (a button in a button), so on the web the
+    // row gains a plain wrapper to hold the two side by side. Native keeps the Pressable as the root.
+    return optionsEl ? (
+      <View>
+        {sliceEl}
+        {optionsEl}
+      </View>
+    ) : (
+      sliceEl
+    );
   }
 
   // AI triage flagged this as too big to just do: same tappable row, with a calm,
@@ -1012,9 +1173,13 @@ export function TaskRow({
     return (
       <View style={[styles.row, !recurring && styles.rowUnique, pinned && styles.rowPinned, held && !pinned && styles.rowHeld, styles.suggestColumn]}>
         <Pressable
+          ref={rowRef}
           onPress={onToggle}
           onLongPress={onLongPress}
           delayLongPress={400}
+          {...door}
+          accessibilityActions={rowActions}
+          onAccessibilityAction={onRowAction}
           style={({ pressed }) => [styles.suggestMain, pressed && styles.pressed]}
           accessibilityRole="checkbox"
           aria-checked={done}
@@ -1040,6 +1205,7 @@ export function TaskRow({
           </Pressable>
         )}
         {holdLineEl}
+        {optionsEl}
       </View>
     );
   }
@@ -1053,9 +1219,13 @@ export function TaskRow({
           {t('today.tinyStepEyebrow', { parent: tinyParent })}
         </Text>
         <Pressable
+          ref={rowRef}
           onPress={onToggle}
           onLongPress={onLongPress}
           delayLongPress={400}
+          {...door}
+          accessibilityActions={rowActions}
+          onAccessibilityAction={onRowAction}
           style={({ pressed }) => [styles.tinyMain, pressed && styles.pressed]}
           accessibilityRole="checkbox"
           aria-checked={done}
@@ -1065,6 +1235,7 @@ export function TaskRow({
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
           {showLeftOff ? <LeftOffMark color={theme.colors.inkSoft} size={16 * theme.scale} /> : null}
         </Pressable>
+        {optionsEl}
       </View>
     );
   }
@@ -1077,9 +1248,13 @@ export function TaskRow({
     return (
       <View style={[styles.row, !recurring && !plain && styles.rowUnique, pinned && styles.rowPinned, !pinned && styles.rowHeld]}>
         <Pressable
+          ref={rowRef}
           onPress={inert ? undefined : onToggle}
           onLongPress={onLongPress}
           delayLongPress={400}
+          {...door}
+          accessibilityActions={rowActions}
+          onAccessibilityAction={onRowAction}
           hitSlop={{ top: 8, bottom: 4 }}
           style={({ pressed }) => [styles.rowMain, pressed && !inert && styles.pressed]}
           accessibilityRole="checkbox"
@@ -1099,15 +1274,20 @@ export function TaskRow({
           <Text style={styles.rowNote} accessible={false} importantForAccessibility="no">{note ?? inert}</Text>
         ) : null}
         {holdLineEl}
+        {optionsEl}
       </View>
     );
   }
 
-  return (
+  const rowEl = (
     <Pressable
+      ref={rowRef}
       onPress={inert ? undefined : onToggle}
       onLongPress={onLongPress}
       delayLongPress={400}
+      {...door}
+      accessibilityActions={rowActions}
+      onAccessibilityAction={onRowAction}
       style={({ pressed }) => [
         styles.row,
         !recurring && !plain && styles.rowUnique,
@@ -1152,13 +1332,22 @@ export function TaskRow({
       ) : null}
     </Pressable>
   );
+  // As on the sliced row: a plain wrapper on the web holds the row and its Options button side by side.
+  return optionsEl ? (
+    <View>
+      {rowEl}
+      {optionsEl}
+    </View>
+  ) : (
+    rowEl
+  );
 }
 
 const makeStyles = (t: Theme) => {
   // The hero (Break it down) fills in light, tints in dark, and drops its fill entirely in Quiet, so the
   // text colour on it follows: white on the light fill, accent on the dark tint / in Quiet. Computed once
   // so heroLabel and heroSub can't drift apart.
-  const heroText = t.appearance === 'quiet' ? t.colors.accent : t.scheme === 'dark' ? t.colors.accent : t.colors.onAccent;
+  const heroText = t.appearance === 'quiet' ? t.colors.accentText : t.scheme === 'dark' ? t.colors.accentText : t.colors.onAccent;
   return StyleSheet.create({
     // Quiet strips the card to whitespace + a 5%-ink bottom hairline; standard keeps the soft floating card.
     // The row's CONTENT line. Everything that used to sit directly on `row` lives here now, so a
@@ -1166,7 +1355,7 @@ const makeStyles = (t: Theme) => {
     rowMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four, alignSelf: 'stretch' },
     // Quiet, and in the body colour: this is a fact about the row, not an alarm about it.
     rowNote: {
-      color: t.colors.inkFaint,
+      color: t.colors.inkSoft,
       fontSize: 13 * t.scale,
       fontFamily: fonts.body,
       marginTop: spacing.one,
@@ -1211,13 +1400,13 @@ const makeStyles = (t: Theme) => {
     holdLineMain: { flex: 1, minHeight: 36, justifyContent: 'center' },
     holdLineText: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
     holdLineLetGo: { minHeight: 36, justifyContent: 'center' },
-    holdLineLetGoText: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    holdLineLetGoText: { color: t.colors.accentText, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     holdLineClosed: { marginLeft: 0, backgroundColor: `${t.colors.done}26`, justifyContent: 'center', borderRadius: radius.md, paddingHorizontal: spacing.three },
     holdClosedText: { color: t.colors.doneText, fontFamily: fonts.sans, fontStyle: 'italic', fontSize: 14 * t.scale, textAlign: 'center', flex: 1, paddingVertical: spacing.one },
     // A quiet accent tag (never danger red): the app agreeing this task is a lot, sized small so it never scolds.
     // "a lot" tag: a soft accent pill in standard; plain accent text (no pill chrome) in quiet.
     bigMark: {
-      color: t.colors.accent,
+      color: t.colors.accentText,
       fontSize: 11 * t.scale,
       fontFamily: fonts.bodyBold,
       fontWeight: '700',
@@ -1247,7 +1436,7 @@ const makeStyles = (t: Theme) => {
       ...(Platform.OS === 'web' ? { outlineStyle: 'solid' as const, outlineWidth: 0 } : null),
     },
     doneTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, paddingHorizontal: spacing.two, paddingBottom: spacing.one },
-    doneCheck: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    doneCheck: { color: t.colors.accentText, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     titleLine: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.two },
     // "Where you left off" (2026-10-04, the handoff's L1 and E1). Faint by size, regular weight and its place
     // under a 22pt serif, never by a colour that fails: inkSoft on the card face, ink on the Quiet wash.
@@ -1287,7 +1476,7 @@ const makeStyles = (t: Theme) => {
     fieldFocused: t.appearance === 'quiet' ? { borderWidth: border.thin, borderColor: t.colors.accent } : { borderBottomWidth: border.thin, borderColor: t.colors.accent },
     titleGrow: { flexShrink: 1 },
     titleCount: { ...t.type.label, color: t.colors.inkSoft, paddingTop: 2 },
-    titleCountLive: { color: t.colors.accent },
+    titleCountLive: { color: t.colors.accentText },
     confirmTitleDone: { color: t.colors.inkSoft, paddingHorizontal: 0, paddingBottom: 0, flexShrink: 1 },
     // The done card's inscription: the serif voice (like Today's rotating line), above the shelf.
     doneIsDone: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', textAlign: 'center', paddingTop: spacing.two, paddingBottom: spacing.one },
@@ -1315,7 +1504,7 @@ const makeStyles = (t: Theme) => {
         : { backgroundColor: t.scheme === 'dark' ? t.colors.accentSoft : t.colors.accent, borderRadius: radius.sm },
     heroLabel: { color: heroText, fontWeight: '700' },
     // The hero seat once the copy exists: a settled fact, in the quiet voice, not a dead button.
-    broughtLabel: { color: t.colors.inkFaint },
+    broughtLabel: { color: t.colors.inkSoft },
     // The quiet wash, on the row's OWN surface. It was a wrapper with its own border, which drew a
     // second ring around the card and read as a rendering fault rather than a signal: Melroy's first
     // question on seeing it was "what does the outer boundary mean?", which is the whole verdict.
@@ -1331,20 +1520,20 @@ const makeStyles = (t: Theme) => {
       backgroundColor: t.colors.accentSoft,
     },
     // The faint "· Ours" on YOUR copy. Quiet enough to be a fact and not a badge.
-    originMark: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginLeft: spacing.two },
+    originMark: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, marginLeft: spacing.two },
     // Ink on light (the accent on its own wash is 4.0:1, under AA for text this small), the accent on dark (4.9:1).
-    justAddedMark: { color: t.scheme === 'dark' ? t.colors.accent : t.colors.ink, fontSize: 11 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    heroSub: { color: heroText, opacity: 0.82 },
+    justAddedMark: { color: t.scheme === 'dark' ? t.colors.accentText : t.colors.ink, fontSize: 11 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    // Full strength (C3): the 0.82 fade took it under 4.5:1 on the hero fill in both schemes (3.8 to 4.8).
+    heroSub: { color: heroText },
     // Mark-as-a-lot, active: the row tints and its text lifts to accent, the app quietly agreeing.
     actionRowActive: t.appearance === 'quiet' ? {} : { backgroundColor: t.colors.accentSoft, borderRadius: radius.sm },
-    actionLabelActive: { color: t.colors.accent },
+    actionLabelActive: { color: t.colors.accentText },
     // The More disclosure: the label plus a faint preview of what is inside, and a caret that flips.
     moreLead: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, flexShrink: 1 },
-    moreLabel: { ...t.type.label, color: t.colors.accent },
-    moreCaret: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    moreLabel: { ...t.type.label, color: t.colors.accentText },
+    moreCaret: { color: t.colors.accentText, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     // The revealed More items sit slightly indented, so they read as belonging under the disclosure.
     moreItem: { paddingLeft: spacing.four },
-    controlOff: { color: t.colors.inkFaint },
     // The rail (v2): one segmented hairline-bordered control, the card's ONLY bordered element
     // because it is the only act-and-stay element. In Quiet the border goes (whitespace
     // separates the two labels), same heights, same targets.
@@ -1352,7 +1541,9 @@ const makeStyles = (t: Theme) => {
       t.appearance === 'quiet'
         ? { flexDirection: 'row', alignItems: 'stretch', minHeight: 44 }
         : { flexDirection: 'row', alignItems: 'stretch', minHeight: 44, borderWidth: border.hair, borderColor: t.colors.line, borderRadius: radius.sm, overflow: 'hidden' },
-    railCell: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.one },
+    // The rail clips its cells (overflow hidden for the rounded border), which cut the browser's focus ring off
+    // Move up and Move down. Drawn 2 inside the cell instead, it is whole (K6, the web only).
+    railCell: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.one, ...(Platform.OS === 'web' ? { outlineOffset: -2 } : null) },
     railDivider: t.appearance === 'quiet' ? { width: spacing.three } : { width: border.hair, backgroundColor: t.colors.line },
     railLabel: { ...t.type.label, color: t.colors.ink },
     // Dim in place, never remove: the card must not reshape under a hovering finger.
@@ -1361,8 +1552,26 @@ const makeStyles = (t: Theme) => {
     // thing to honey every palette carries) marks premium without a lock.
     pinLead: { flexDirection: 'row', alignItems: 'center', gap: spacing.one },
     premiumStar: { color: t.colors.accents[2], fontSize: 12 * t.scale },
-    premiumDim: { opacity: 0.6 },
-    pinnedLabel: { color: t.colors.accent },
+    premiumDim: { color: t.colors.inkSoft },
+    // The web's keyboard-only Options button (K2). At rest it is the screen-reader-only recipe (Today's srOnly)
+    // and takes no pointer, so a mouse or a finger never meets it. With keyboard focus it shows as a small chip
+    // at the row's top right, in ink on the solid surface, which clears 4.5:1 in every theme.
+    optionsHidden: { position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' },
+    optionsShown: {
+      position: 'absolute',
+      top: spacing.two,
+      right: spacing.two,
+      zIndex: 1,
+      minHeight: 32,
+      justifyContent: 'center',
+      paddingHorizontal: spacing.three,
+      borderRadius: radius.pill,
+      borderWidth: border.thin,
+      borderColor: t.colors.accent,
+      backgroundColor: t.colors.surface,
+    },
+    optionsLabel: { ...t.type.label, color: t.colors.ink },
+    pinnedLabel: { color: t.colors.accentText },
     // The shelf (v2): the card's floor. A quiet surface-tint band flush to the card's edges,
     // rounded into its bottom corners, holding Close (easy thumb), Select more, Remove (far).
     // Quiet keeps its chrome-free hairline instead of a band.
@@ -1394,9 +1603,9 @@ const makeStyles = (t: Theme) => {
             borderColor: t.colors.line,
             borderBottomLeftRadius: radius.md,
             borderBottomRightRadius: radius.md,
-            backgroundColor: t.scheme === 'dark' ? 'rgba(0,0,0,0.16)' : 'rgba(43,39,34,0.035)',
+            backgroundColor: shelfTint(t.scheme),
           },
-    close: { ...t.type.label, color: t.colors.accent, fontWeight: '700' },
+    close: { ...t.type.label, color: t.colors.accentText, fontWeight: '700' },
     selectMore: { ...t.type.label, color: t.colors.inkSoft },
     remove: { ...t.type.label, color: t.colors.danger },
     rowSelected: { borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
@@ -1417,12 +1626,12 @@ const makeStyles = (t: Theme) => {
     textDone: { color: t.colors.inkSoft },
     repeatMark: { color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     heldDot: { width: 8, height: 8, borderRadius: 999, backgroundColor: t.colors.accent, marginLeft: 6, alignSelf: 'center' },
-    heldLabel: { color: t.colors.accent },
-    nudgeMark: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    heldLabel: { color: t.colors.accentText },
+    nudgeMark: { color: t.colors.accentText, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     suggestColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
     suggestMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
     suggestHintBtn: { alignSelf: 'flex-start' },
-    suggestHint: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    suggestHint: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     tinyColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
     tinyMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
     tinyEyebrow: { ...t.type.eyebrow, color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat },
@@ -1434,7 +1643,7 @@ const makeStyles = (t: Theme) => {
       fontFamily: fonts.bodyBold,
       fontWeight: t.appearance === 'quiet' ? '600' : '700',
     },
-    sliceAdjustHint: { color: t.colors.inkFaint, fontSize: 11 * t.scale, fontFamily: fonts.body, marginTop: spacing.half },
+    sliceAdjustHint: { color: t.colors.inkSoft, fontSize: 11 * t.scale, fontFamily: fonts.body, marginTop: spacing.half },
     track: {
       flexDirection: 'row',
       height: 4,

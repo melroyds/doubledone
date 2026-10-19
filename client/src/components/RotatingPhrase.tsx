@@ -6,10 +6,15 @@ import { t } from '@/lib/locale';
 import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 // A calm, original (uncopyrighted) line at the foot of Today, in place of a single
-// fixed ethos. Each carries one of the desaturated Dusk accent hues, set in the
-// Newsreader serif italic so it reads like a quiet inscription, distinct from the
-// Atkinson body around it. It cross-fades slowly; with reduced motion it simply
-// shows one and stays still. Phrases are gentle and never instructive-shaming.
+// fixed ethos. Set in the Newsreader serif italic so it reads like a quiet
+// inscription, distinct from the Atkinson body around it. It sits straight on the
+// living background. In light mode it wears the sky's own ink (skyInk), because the
+// per-task dot hues it used to borrow fell to 1.8:1 (gold) to 3.1:1 (periwinkle) on
+// the light sky at night. Dark mode keeps the hues, one per phrase, as it always had
+// (Melroy's call: dark mode unchanged in store 1.9): on the dark sky below the glow,
+// where the foot of Today sits, all five clear 4.9:1 (palette.test.ts holds it). It
+// cross-fades slowly; with reduced motion it simply shows one and stays still.
+// Phrases are gentle and never instructive-shaming.
 const PHRASE_KEYS = [
   'welcome.handoffEthos', // today is finite and achievable
   'today.phraseOneThing',
@@ -51,7 +56,7 @@ export function RotatingPhrase() {
     return () => clearInterval(id);
   }, [reduced, opacity]);
 
-  const color = theme.colors.accents[i % theme.colors.accents.length];
+  const color = theme.scheme === 'dark' ? theme.colors.accents[i % theme.colors.accents.length] : theme.colors.skyInk;
 
   return (
     <Animated.Text style={[styles.phrase, { color, opacity }]} accessibilityRole="text">

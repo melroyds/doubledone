@@ -65,6 +65,19 @@ describe('the beacon (the few events that leave the device)', () => {
     expect(beaconRequest('rooms.opened')).toBeNull();
   });
 
+  // The review ask (2026-10-19): the store it was asked of, and nothing else. The card's own outcome is
+  // unknowable, and the two failure names stay on the device.
+  it('sends review.asked with its store only, and nothing for a store it does not know', () => {
+    expect(beaconRequest('review.asked', { store: 'ios' })?.init.body).toBe('{"name":"review.asked","props":{"store":"ios"}}');
+    expect(beaconRequest('review.asked', { store: 'android', version: '1.9.0', closes: 5 })?.init.body).toBe(
+      '{"name":"review.asked","props":{"store":"android"}}',
+    );
+    expect(beaconRequest('review.asked', { store: 'web' })).toBeNull();
+    expect(beaconRequest('review.asked')).toBeNull();
+    expect(beaconRequest('review.unavailable')).toBeNull();
+    expect(beaconRequest('review.failed')).toBeNull();
+  });
+
   it('keeps the Goodnight note and the retired names on the device', () => {
     expect(beaconRequest('closeday.noted')).toBeNull();
     expect(beaconRequest('hold.opened')).toBeNull();
@@ -75,10 +88,10 @@ describe('the beacon (the few events that leave the device)', () => {
     expect(beaconRequest('task.toggled', { done: true })).toBeNull();
   });
 
-  it('the allowlist is exactly these twenty (growing it is a deliberate act)', () => {
-    // settle.* (2026-08), hold.* (2026-08-22), the held-card usage set (2026-08-22), and the
-    // telemetry review's three (2026-10-04): each addition pairs with the Worker allowlist AND the
-    // privacy policy in the same commit.
+  it('the allowlist is exactly these twenty-one (growing it is a deliberate act)', () => {
+    // settle.* (2026-08), hold.* (2026-08-22), the held-card usage set (2026-08-22), the telemetry
+    // review's three (2026-10-04) and review.asked (2026-10-19): each addition pairs with the Worker
+    // allowlist AND the privacy policy in the same commit.
     expect([...BEACON_EVENTS].sort()).toEqual([
       'breakdown.started',
       'bulk.big',
@@ -92,6 +105,7 @@ describe('the beacon (the few events that leave the device)', () => {
       'leftoff.saved.focus',
       'nudge.set',
       'offplan.logged',
+      'review.asked',
       'rooms.opened',
       'settle.guide',
       'settle.opened',

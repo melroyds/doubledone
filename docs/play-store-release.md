@@ -107,6 +107,12 @@ flag stale dates.
 
 ## 4. Store listing
 
+> **Do not paste from this section (retired 2026-10-19).** It is the original 2026-06 draft, kept for the record. Its listing text is out of date (it still
+> carries lines the code proved false) and the gate no longer reads it. The paste sources are
+> [play-store-submission-pack.md](play-store-submission-pack.md) (English) and
+> [play-store-listings-localised.md](play-store-listings-localised.md) (de, es, fr, it), checked by
+> `node scripts/check-listings.mjs --play`.
+
 - **Name**: DoubleDone
 - **Short description** (<=80 chars): `A calm, ADHD-friendly to-do app with AI task breakdown.`
 - **Full description** (the original 2026-06 draft, kept for the record; the current paste source is in

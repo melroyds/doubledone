@@ -205,16 +205,16 @@ const makeStyles = (t: Theme) =>
       paddingTop: spacing.five,
       paddingBottom: spacing.three,
     },
-    headerLink: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    headerLink: { color: t.colors.accentText, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     headerTitle: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
     headerSpacer: { width: 52 },
     prompt: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.four, paddingHorizontal: spacing.five },
     promptTitle: { ...t.type.subheading, color: t.colors.ink, textAlign: 'center' },
     // Over the live viewfinder, so the disclosure is present at the moment the shutter is
     // available, not only behind a permission prompt somebody already dismissed.
-    viewfinderNote: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body, textAlign: 'center', paddingHorizontal: spacing.five, paddingBottom: spacing.three },
+    viewfinderNote: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body, textAlign: 'center', paddingHorizontal: spacing.five, paddingBottom: spacing.three },
     promptHint: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', lineHeight: 22 * t.scale },
-    linkBtnText: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    linkBtnText: { color: t.colors.accentText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     cameraWrap: { flex: 1 },
     camera: { flex: 1 },
     controls: {
@@ -246,7 +246,7 @@ const makeStyles = (t: Theme) =>
     shutterInner: { width: 56, height: 56, borderRadius: 28, backgroundColor: t.colors.accent },
     controlsSpacer: { width: 64 },
     footerNote: {
-      color: t.colors.inkFaint,
+      color: t.colors.inkSoft,
       fontSize: 12 * t.scale,
       fontFamily: fonts.body,
       textAlign: 'center',
@@ -254,7 +254,7 @@ const makeStyles = (t: Theme) =>
       paddingBottom: spacing.three,
     },
     error: {
-      color: t.colors.accent,
+      color: t.colors.accentText,
       fontSize: 14 * t.scale,
       fontFamily: fonts.body,
       textAlign: 'center',

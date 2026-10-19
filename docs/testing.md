@@ -160,8 +160,11 @@ These touch live systems or store copy, so they sit outside the gates.
   It probes PostgREST with the publishable key from `client/.env` and reads the error codes. It writes
   nothing and never prints the key. Run it after applying a migration. It only knows the objects named
   in its `CHECKS` list, so a new migration adds its objects there.
-- **`node scripts/check-listings.mjs`** gates the Google Play listing copy: character limits, real
-  diacritics, protected claims kept, and no price, currency, Stripe or web checkout.
+- **`node scripts/check-listings.mjs`** gates both stores' listing copy (`--play` or `--appstore` for one,
+  and CI runs both): character limits and recorded counts, real diacritics, French no-break spaces, neutral
+  Spanish, the protected claims (privacy and Terms URLs, both medical sentences, free forever), keywords that
+  never repeat the name or subtitle, no price or other biller, nothing an iPhone lacks on the App Store page
+  (the widget, Speak, the web, Android), and none of the claims the code has proved false.
 - **`scripts/verify-*.mjs`** are one-off Playwright walkthroughs against the local dev server, kept from
   specific changes. They are not part of any gate.
 

@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Bloom, type BloomData } from '@/components/Bloom';
 import { BedtimeCapture } from '@/components/BedtimeCapture';
-import { CaptureSheet, type CaptureSheetHandle, restingListPad, restingPanelHeight } from '@/components/CaptureSheet';
+import { CaptureSheet, type CaptureSheetHandle, pillClearance, restingListPad, restingPanelHeight } from '@/components/CaptureSheet';
 import { DayHeading } from '@/components/DayHeading';
 import { MenuPill } from '@/components/MenuPill';
 import { CameraCapture } from '@/components/CameraCapture';
@@ -20,7 +20,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { PRESS_NOW, PRESS_SETTLE_MS } from '@/components/press-now';
 import { RotatingPhrase } from '@/components/RotatingPhrase';
 import { TaskRow } from '@/components/TaskRow';
-import { border, cardShadow, fonts, layout, motion, PRESSED_OPACITY, radius, rgba, spacing, type Theme } from '@/constants/theme';
+import { border, cardShadow, fonts, layout, motion, PRESSED_OPACITY, radius, rgba, shelfTint, spacing, type Theme } from '@/constants/theme';
 import {
   clarify,
   combine,
@@ -53,7 +53,7 @@ import { addDaysISO, daysBetween, formatTodayLabel, friendlyDate, fromISODate, i
 import { type DayEnergy, type DayTool, dayTools, occupantTool, planEnergyFromDay, toolGate } from '@/lib/day-tools';
 import { dayWeight, heavyAt, weightedLoad } from '@/lib/estimate';
 import { dayCleared, dayClosed, stepsLanded, taskDone } from '@/lib/haptics';
-import { subscribeInbound, takeInbound } from '@/lib/inbound';
+import { seedRoute, subscribeInbound, takeInbound } from '@/lib/inbound';
 import { aiLanguage, fmt, t } from '@/lib/locale';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
@@ -75,8 +75,10 @@ import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } f
 import { spreadDueDates } from '@/lib/spread';
 import { decideRenewalNotice } from '@/lib/renewal';
 import { type HoldContract, holdRequiresSwap, holdStepAt } from '@/lib/hold';
-import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHold, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursMine, loadOursSeen, loadOursTasks, loadReminderHour, loadRenewalMemory, loadUpdateMentioned, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHold, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveRenewalMemory, saveUpdateMentioned, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
+import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHold, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursMine, loadOursSeen, loadOursTasks, loadReminderHour, loadRenewalMemory, loadReviewMemory, loadReviewQuietDate, loadUpdateMentioned, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHold, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveRenewalMemory, saveReviewMemory, saveReviewQuietDate, saveUpdateMentioned, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
 import { restedOffer } from '@/lib/offers';
+import { countClose, markAsked, REVIEW_DELAY_MS, shouldAskForReview, stillTheNightToAsk } from '@/lib/review';
+import { REVIEW_SUPPORTED, requestReviewCard, reviewCardAvailable } from '@/lib/store-review';
 import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/plan-day';
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
 import { authHeader, isSyncConfigured, supabase } from '@/lib/supabase';
@@ -320,6 +322,17 @@ export default function TodayScreen() {
   const affirmCount = useRef(0); // rotates the completion affirmation through the pool (lib/celebrate)
   const tinyBusy = useRef(false); // guards the make-it-tiny AI call from a double-fire
   const [reentry, setReentry] = useState(false);
+  // The calm review ask's one pending timer (lib/review.ts), and whether Today has focus right now, which
+  // the timer re-checks when it fires. Cleared on blur, on reopening the day and on unmount.
+  const reviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const todayFocused = useRef(false);
+  // One store request at a time: set before askTheStore's first await, so a second timer that slips through
+  // can never reach the stamp while the first is still asking (two Goodnight taps, the 2026-10-19 review).
+  const reviewAsking = useRef(false);
+  // Whether an offer has been on the rested screen since Goodnight was pressed (set by a layout effect below the
+  // hoisted `tonightOffer`, reset by maybeAskForReview). The timer reads it, because the Goodnight closure only
+  // knew the offer from BEFORE the press.
+  const offerShownSinceGoodnight = useRef(false);
   const [didOpen, setDidOpen] = useState(false);
   const [didText, setDidText] = useState('');
   const [closeNote, setCloseNote] = useState('');
@@ -619,6 +632,7 @@ export default function TodayScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
+      todayFocused.current = true;
       setVisit((n) => n + 1);
       setToday((prev) => (toISODate(prev) === toISODate(new Date()) ? prev : new Date()));
       void loadTasks().then((stored) => {
@@ -683,11 +697,18 @@ export default function TodayScreen() {
         if (isReentry(last, today, REENTRY_GAP_DAYS)) {
           setReentry(true);
           track('reentry.shown');
+          // Coming back after time away is a tender day: the review ask keeps quiet until tomorrow.
+          if (REVIEW_SUPPORTED) void saveReviewQuietDate(toISODate(today));
         }
         void saveLastOpen(toISODate(today));
       });
       return () => {
         active = false;
+        todayFocused.current = false;
+        if (reviewTimer.current) {
+          clearTimeout(reviewTimer.current);
+          reviewTimer.current = null;
+        }
       };
     }, [today, session]),
   );
@@ -709,6 +730,7 @@ export default function TodayScreen() {
   useEffect(
     () => () => {
       if (tuckTimer.current) clearTimeout(tuckTimer.current);
+      if (reviewTimer.current) clearTimeout(reviewTimer.current);
     },
     [],
   );
@@ -987,6 +1009,13 @@ export default function TodayScreen() {
   // callback-ref flush cured the launch-week "share only works when the box is already
   // open" bug; do not go back to flushing from an effect.
   const pendingSeed = useRef<string | null | undefined>(undefined); // undefined = nothing parked
+  // A share, or the launcher's "Brain dump" shortcut, while a task's card is HELD. Store 1.9 hides the pill for a
+  // held card, and CaptureSheet's seed() only parks the words while it is hidden, so the panel never rose and the
+  // shortcut did nothing at all (the 2026-10-19 review). The card closes first, and the seed waits here for the render that
+  // shows the sheet again (the effect below `cardHeld`). Select mode and a closed day still park, as they always
+  // have. `cardHeldRef` is how the focus-scoped listener, which keeps its first render's closure, reads the card.
+  const cardHeldRef = useRef(false);
+  const seedAfterCard = useRef<{ text: string | null } | null>(null);
   // Only the Today ON SCREEN listens. A second Today can sit under the stack (Chart and Premium used to
   // replace themselves with one), and a broadcast went to whichever had subscribed first: the Menu's
   // Repeating card opened a drawer nobody could see. Unfocused, an intent simply waits, and the Today you
@@ -1013,8 +1042,12 @@ export default function TodayScreen() {
         }
         // The composer is always there (it stays mounted), so a seed goes straight in and focuses it.
         const text = i.kind === 'capture' ? i.text : null;
-        if (sheetRef.current) {
-          sheetRef.current.seed(text, true);
+        const route = seedRoute(cardHeldRef.current, sheetRef.current != null);
+        if (route === 'after-card') {
+          seedAfterCard.current = { text };
+          setConfirmingId(null);
+        } else if (route === 'now') {
+          sheetRef.current?.seed(text, true);
         } else {
           pendingSeed.current = text;
         }
@@ -1057,6 +1090,16 @@ export default function TodayScreen() {
   const isLowDay = lowDayDate === toISODate(today);
   const windDown = isWindDownTime(today); // evening: a gentle in-app nudge toward closing the day
   const todayDone = useMemo(() => completionsByDay(tasks).get(toISODate(today)) ?? [], [tasks, today]);
+  // The rested screen's ONE offer tonight, decided once by the pure `restedOffer` rules. Hoisted so the
+  // four offer blocks and the review ask all read the same answer, with no drift between copies of it.
+  const tonightOffer = restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning, hasSharedList: oursPairId != null });
+  // The review timer's view of the screen. The Goodnight closure reads `tonightOffer` from before the press, so a
+  // Goodnight note that is the week's third finish (the scrapbook rung), or an update status landing inside the
+  // 1.2s, puts an offer on the rested screen the gates never saw. Sticky until the next Goodnight resets it, so an
+  // offer answered inside that second still counts as tonight's one ask (lib/review.ts `stillTheNightToAsk`).
+  useLayoutEffect(() => {
+    if (tonightOffer !== null) offerShownSinceGoodnight.current = true;
+  }, [tonightOffer]);
   // One-off, undone tasks on Today: the ones Strategise can re-spread (recurring stay by cadence).
   const spreadable = visible.filter((t) => !isRecurring(t) && !isDoneOn(t, today));
   // The shared rows that have a day, and whose day is today. Deliberately derived SEPARATELY from
@@ -1077,6 +1120,38 @@ export default function TodayScreen() {
     }),
   );
   const sharedForToday = sharedTasks.filter((row) => sharedDueOn(row, toISODate(today), today) && !heldCopies.has(row.id));
+  // A card is held, so the pill steps aside (store 1.9, slice 2, P1), exactly as it does for select mode: it sat on
+  // the card's shelf, right over "Select several". Only for a card that is ON the screen, though. An id whose row
+  // has gone (removed on another device, a Done line folded shut) must never leave the day with no way to add.
+  const cardHeld =
+    confirmingId != null &&
+    (rows.some((r) => r.id === confirmingId) ||
+      (tuckOpen && tuckedRows.some((r) => r.id === confirmingId)) ||
+      upcoming.some((r) => r.id === confirmingId) ||
+      sharedForToday.some((r) => r.id === confirmingId));
+  const pillHidden = selectMode || isClosed || cardHeld;
+  useLayoutEffect(() => {
+    cardHeldRef.current = cardHeld;
+  }, [cardHeld]);
+  // The inbound seed that closed a held card (above, at the listener) lands once the card is gone. By then the
+  // sheet's handle has been rebuilt with the pill showing again, so seed() rises and focuses as it does from a
+  // clear Today. A setTimeout alone could still reach the handle from the hidden render.
+  useEffect(() => {
+    const parked = seedAfterCard.current;
+    if (cardHeld || !parked) return;
+    seedAfterCard.current = null;
+    if (sheetRef.current) sheetRef.current.seed(parked.text, true);
+    else pendingSeed.current = parked.text;
+  }, [cardHeld]);
+  // The hold-hint's tip. On the web it names right-click too, the pointer's own way to hold (K7).
+  const holdTip =
+    Platform.OS === 'web'
+      ? aiEnabled
+        ? t('today.holdHintWeb')
+        : t('today.holdHintNoAiWeb')
+      : aiEnabled
+        ? t('today.holdHint')
+        : t('today.holdHintNoAi');
   // Copies whose shared row has been taken off the list. A fact on the row, never a prompt: the
   // task is yours and stays yours, and Remove is already on its held card if you want it gone.
   const originGone = oursPairId ? removedOrigins(tasks, sharedTasks, oursPairId) : new Set<string>();
@@ -1796,9 +1871,86 @@ export default function TodayScreen() {
   }
 
   function reopenDay() {
+    if (reviewTimer.current) {
+      clearTimeout(reviewTimer.current);
+      reviewTimer.current = null;
+    }
     setClosedDate(null);
     void saveClosedDate(null);
     track('day.reopened');
+  }
+
+  /**
+   * The calm review ask, after Goodnight (Melroy's call 2026-10-19; every gate and its reason is in
+   * lib/review.ts). Counts tonight's close, and only if every gate holds asks the STORE for its own card
+   * REVIEW_DELAY_MS after the rested screen lands. Not a word of ours before the card or after it. The
+   * offer, the energy and the weight are read from this render, the same answers the rested screen shows.
+   * Native only: on the web REVIEW_SUPPORTED is false, so nothing is counted or written.
+   */
+  async function maybeAskForReview(finishedTonight: number, iso: string) {
+    if (!REVIEW_SUPPORTED) return;
+    if (reviewTimer.current) clearTimeout(reviewTimer.current);
+    reviewTimer.current = null;
+    // Before the first await, so the closed render that follows can set it again if it shows an offer.
+    offerShownSinceGoodnight.current = tonightOffer !== null;
+    const hour = new Date().getHours();
+    const memory = countClose(await loadReviewMemory(), iso);
+    await saveReviewMemory(memory);
+    const quietISO = await loadReviewQuietDate();
+    const version = runningVersion(Application.nativeApplicationVersion, Constants.expoConfig?.version);
+    const ask = shouldAskForReview({
+      supported: REVIEW_SUPPORTED,
+      memory,
+      todayISO: iso,
+      hour,
+      finishedTonight,
+      energy: dayEnergy,
+      heavy: dayIsHeavy,
+      quietISO,
+      otherOffer: tonightOffer,
+      version,
+      now: nowMs(),
+    });
+    if (!ask || !todayFocused.current) return;
+    // A second Goodnight call (a double tap while the close fades) awaited alongside this one, so the clear at
+    // the top found nothing. Clear again here, so only one timer is ever pending.
+    if (reviewTimer.current) clearTimeout(reviewTimer.current);
+    reviewTimer.current = setTimeout(() => {
+      reviewTimer.current = null;
+      void askTheStore(iso, version);
+    }, REVIEW_DELAY_MS);
+  }
+
+  /**
+   * The timer's moment, re-checked because 1.2s is long enough for it to stop being the moment: the
+   * app is still in front, Today still has focus, and the day is still closed (not reopened). Then the
+   * store must say it can show a card: "unavailable" (TestFlight, no Play Store) is NOT stamped, so a
+   * TestFlight phone keeps its ask for the App Store build. Last, `stillTheNightToAsk` on a FRESH read
+   * of the memory: no offer reached the rested screen since Goodnight, and no other ask went out on this
+   * version. One ask at a time (`reviewAsking`), and the stamp goes down BEFORE the request, so a throw
+   * can never become a retry.
+   */
+  async function askTheStore(iso: string, version: string) {
+    const stillTheMoment = () => AppState.currentState === 'active' && todayFocused.current;
+    if (!stillTheMoment()) return;
+    if (offerShownSinceGoodnight.current) return; // an early out; the fresh check below is the real one
+    if (reviewAsking.current) return;
+    reviewAsking.current = true;
+    try {
+      if ((await loadClosedDate()) !== iso) return;
+      if (!(await reviewCardAvailable())) {
+        track('review.unavailable');
+        return;
+      }
+      if (!stillTheMoment()) return;
+      const memory = await loadReviewMemory();
+      if (!stillTheNightToAsk({ offerShown: offerShownSinceGoodnight.current, memory, version, now: nowMs() })) return;
+      await saveReviewMemory(markAsked(memory, nowMs(), version));
+      track('review.asked', { store: Platform.OS });
+      if (!(await requestReviewCard())) track('review.failed');
+    } finally {
+      reviewAsking.current = false;
+    }
   }
 
   // A low-capacity day: one tap recalibrates the weight gauge to a gentler target and
@@ -1818,6 +1970,8 @@ export default function TodayScreen() {
     if (level === 'low') {
       setLowDayDate(iso);
       void saveLowDayDate(iso);
+      // A Low day stays quiet for the review ask all day, even if the pill later moves back up.
+      if (REVIEW_SUPPORTED) void saveReviewQuietDate(iso);
       affirm(t('today.lowDayAffirm')); // the same warm permission the low-day toggle gave
     } else {
       setLowDayDate(null);
@@ -1951,6 +2105,8 @@ export default function TodayScreen() {
   // it (the user accepts). Never rearranges the day on its own.
   async function runStrategise() {
     if (strategising) return;
+    // Reaching for Lighten means the day felt like too much: the review ask keeps quiet tonight.
+    if (REVIEW_SUPPORTED) void saveReviewQuietDate(toISODate(today));
     setStrategiseError(null);
     setStrategising(true);
     try {
@@ -2901,7 +3057,9 @@ export default function TodayScreen() {
       <LivingBackground />
       <ScrollView
         ref={scrollRef}
-        style={styles.scroll}
+        // The web gets the pill's band as scroll padding (P2): a row focused by Tab, or a held card scrolled into
+        // view, stops above the pill instead of under it. React Native's style types do not know the CSS property.
+        style={[styles.scroll, Platform.OS === 'web' ? ({ scrollPaddingBottom: pillClearance(insets.bottom) } as object) : null]}
         // While the panel is up the day behind it is out of reach: the panel is a modal region.
         accessibilityElementsHidden={sheetOpen}
         importantForAccessibility={sheetOpen ? 'no-hide-descendants' : 'auto'}
@@ -2936,6 +3094,20 @@ export default function TodayScreen() {
             so closing the day hid the diagnostic, and a diagnostic a state gate can suppress is not
             one. Nothing above it can gate it now. */}
         {debugOn ? <DebugPanel /> : null}
+        {/* The first Tab stop of the day, the web only (K8). The pill is drawn after the list, so for a keyboard
+            "Add a task" was the LAST stop, after every row, Later and the footer links. Invisible until it holds
+            focus, and only while the pill itself is there to open. */}
+        {Platform.OS === 'web' && !pillHidden && (
+          <Pressable
+            onPress={() => sheetRef.current?.open()}
+            accessibilityRole="button"
+            accessibilityLabel={t('capture.openA11y')}
+            // RN-web hands Pressable's style a `focused` flag that React Native's own types do not declare.
+            style={(state) => ((state as { focused?: boolean }).focused ? [styles.skipAdd, { top: insets.top + spacing.one }] : styles.srOnlyPress)}
+          >
+            <Text style={styles.skipAddText}>{t('capture.openA11y')}</Text>
+          </Pressable>
+        )}
 
         <View style={styles.topBar}>
           <Text style={styles.date}>{formatTodayLabel(today)}</Text>
@@ -3156,7 +3328,7 @@ export default function TodayScreen() {
             {/* At most ONE lifeline offer, ever, decided by the pure `restedOffer` rules: the app is
                 so calm that its own opt-in lifelines are invisible (a returning user asked for four
                 things that already existed), but the goodnight screen must never become a pitch. */}
-            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning, hasSharedList: oursPairId != null }) === 'reminder' && (
+            {tonightOffer === 'reminder' && (
               <View style={styles.reminderOffer}>
                 <Text style={styles.reminderOfferText}>{t('reminders.offerText')}</Text>
                 <View style={styles.reminderOfferRow}>
@@ -3169,7 +3341,7 @@ export default function TodayScreen() {
                 </View>
               </View>
             )}
-            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning, hasSharedList: oursPairId != null }) === 'widget' && (
+            {tonightOffer === 'widget' && (
               <View style={styles.reminderOffer}>
                 {widgetHowShown ? (
                   <Text style={styles.reminderOfferText}>{t('reminders.widgetOfferHow')}</Text>
@@ -3193,7 +3365,7 @@ export default function TodayScreen() {
                 second framing is a demand and this screen exists to make none. "Not now" costs
                 nothing and is never remembered: the fortnight brake is the only thing that decides
                 whether it is ever said again. */}
-            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning, hasSharedList: oursPairId != null }) === 'update' && (
+            {tonightOffer === 'update' && (
               <View style={styles.reminderOffer}>
                 <Text style={styles.reminderOfferText}>{t('updates.offer')}</Text>
                 <View style={styles.reminderOfferRow}>
@@ -3206,7 +3378,7 @@ export default function TodayScreen() {
                 </View>
               </View>
             )}
-            {restedOffer({ reminderOn, reminderOfferMade, widgetSupported: WIDGETS_SUPPORTED, widgetPlaced, widgetOfferMade, aiEnabled, weekFinishes, scrapbookMade, scrapbookOfferMade, updateWorthMentioning, hasSharedList: oursPairId != null }) === 'scrapbook' && (
+            {tonightOffer === 'scrapbook' && (
               <View style={styles.reminderOffer}>
                 <Text style={styles.reminderOfferText}>{t('today.scrapbookOffer')}</Text>
                 <View style={styles.reminderOfferRow}>
@@ -3255,11 +3427,13 @@ export default function TodayScreen() {
               void saveHoldHintSeen();
             }}
             accessibilityRole="button"
-            accessibilityLabel={t('today.holdHintDismissA11y')}
+            // The tip itself, then what the press does (K7). The label used to be the dismiss alone, so a
+            // screen reader heard "Got it, hide this tip" and never the tip.
+            accessibilityLabel={`${holdTip} ${t('today.holdHintDismissA11y')}`}
             style={styles.holdHint}
           >
             {theme.appearance === 'quiet' && <View style={styles.holdHintDot} />}
-            <Text style={styles.holdHintText}>{aiEnabled ? t('today.holdHint') : t('today.holdHintNoAi')}</Text>
+            <Text style={styles.holdHintText}>{holdTip}</Text>
             <Text style={styles.holdHintDismiss}>{t('common.gotIt')}</Text>
           </Pressable>
         )}
@@ -3555,7 +3729,7 @@ export default function TodayScreen() {
       <CaptureSheet
         ref={attachSheet}
         heading={t('ours.addTo', { name: t('common.today') })}
-        hidden={selectMode || isClosed}
+        hidden={pillHidden}
         onOpenChange={onSheetOpenChange}
         onCapture={captureFromComposer}
         onBiteElephant={biteElephant}
@@ -3855,7 +4029,7 @@ export default function TodayScreen() {
               value={didText}
               onChangeText={setDidText}
               placeholder={t('today.didPlaceholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               autoFocus
               returnKeyType="done"
               onSubmitEditing={() => logDidIt(didText)}
@@ -3887,7 +4061,7 @@ export default function TodayScreen() {
               value={combineTitle}
               onChangeText={setCombineTitle}
               placeholder={t('today.combinePlaceholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               returnKeyType="done"
               onSubmitEditing={combineAccept}
               accessibilityLabel={t('today.combineInputA11y')}
@@ -3935,7 +4109,7 @@ export default function TodayScreen() {
               value={manualBdText}
               onChangeText={setManualBdText}
               placeholder={t('breakdown.manualPlaceholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               multiline
               accessibilityLabel={t('breakdown.manualInputA11y')}
             />
@@ -4215,7 +4389,7 @@ export default function TodayScreen() {
                 value={closeNote}
                 onChangeText={setCloseNote}
                 placeholder={t('closeDay.notePlaceholder')}
-                placeholderTextColor={theme.colors.inkFaint}
+                placeholderTextColor={theme.colors.inkSoft}
                 returnKeyType="done"
                 accessibilityLabel={t('closeDay.noteA11y')}
               />
@@ -4235,6 +4409,8 @@ export default function TodayScreen() {
                   setClosedDate(toISODate(today));
                   void saveClosedDate(toISODate(today));
                   dayClosed(reduced); // the gentle close: a warm, soft confirmation
+                  // Counted, then maybe the store's own card ~1.2s after the rested screen (lib/review).
+                  void maybeAskForReview(todayDone.length + (note ? 1 : 0), toISODate(today));
                 };
                 // Quiet renders the close as a plain accent text link, matching the rest of
                 // the borderless surface; Standard keeps the filled primary button.
@@ -4561,8 +4737,8 @@ const makeStyles = (t: Theme) =>
       paddingVertical: spacing.three,
       marginTop: spacing.two,
     },
-    restNoteTitle: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    restNoteBody: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
+    restNoteTitle: { color: t.colors.skyInk, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    restNoteBody: { color: t.colors.skyInk, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
     screen: { flex: 1, backgroundColor: 'transparent' }, // the LivingBackground shows through
     scroll: { flex: 1 },
     content: {
@@ -4573,8 +4749,8 @@ const makeStyles = (t: Theme) =>
       alignSelf: 'center',
     },
     topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.one },
-    date: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    spine: { color: t.colors.inkSoft, fontSize: 16 * t.scale, marginTop: spacing.two, marginBottom: spacing.six, fontFamily: fonts.body },
+    date: { color: t.colors.skyInk, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    spine: { color: t.colors.skyInk, fontSize: 16 * t.scale, marginTop: spacing.two, marginBottom: spacing.six, fontFamily: fonts.body },
     list: { gap: spacing.two },
     // The Done today line: a hairline, the words and a caret in soft ink, the whole row a 44pt tap.
     doneLine: {
@@ -4587,11 +4763,26 @@ const makeStyles = (t: Theme) =>
       borderTopWidth: border.hair,
       borderTopColor: t.appearance === 'quiet' ? t.quiet.hairline : t.colors.line,
     },
-    doneLineText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    doneLineCaret: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    doneLineText: { color: t.colors.skyInk, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    doneLineCaret: { color: t.colors.skyInk, fontSize: 15 * t.scale, fontFamily: fonts.body },
     tuckedList: { marginTop: spacing.two },
     srOnly: { position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0 },
-    calmNote: { color: t.colors.inkSoft, fontSize: 16 * t.scale, marginTop: spacing.five, lineHeight: 24 * t.scale, fontFamily: fonts.body },
+    // The same, for a control that only keyboard focus reveals: it also takes no pointer, so no tap lands on it.
+    srOnlyPress: { position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' },
+    // "Add a task" while it holds keyboard focus (K8): the pill's own accent and words, in the room above the date
+    // (36 tall, so it clears the date line; only a keyboard reaches it, so it needs no 44pt touch target).
+    skipAdd: {
+      position: 'absolute',
+      left: spacing.five,
+      zIndex: 2,
+      minHeight: 36,
+      justifyContent: 'center',
+      paddingHorizontal: spacing.five,
+      borderRadius: radius.pill,
+      backgroundColor: t.colors.accent,
+    },
+    skipAddText: { color: t.colors.onAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    calmNote: { color: t.colors.skyInk, fontSize: 16 * t.scale, marginTop: spacing.five, lineHeight: 24 * t.scale, fontFamily: fonts.body },
     emptyState: { alignItems: 'center' },
     emptyArt: { width: '100%', maxWidth: 420, aspectRatio: 16 / 9, borderRadius: radius.lg, marginTop: spacing.five, overflow: 'hidden' },
     emptyNote: { textAlign: 'center' },
@@ -4599,12 +4790,12 @@ const makeStyles = (t: Theme) =>
     later: { marginTop: spacing.seven, gap: spacing.two },
     laterHeading: {
       ...t.type.eyebrow,
-      color: t.colors.inkFaint,
+      color: t.colors.skyInk,
       textTransform: 'uppercase',
       marginBottom: spacing.one,
     },
     laterItem: { gap: spacing.two },
-    laterDate: { color: t.colors.inkSoft, fontSize: 13 * t.scale, marginTop: spacing.two, fontFamily: fonts.body },
+    laterDate: { color: t.colors.skyInk, fontSize: 13 * t.scale, marginTop: spacing.two, fontFamily: fonts.body },
     footer: {
       paddingHorizontal: spacing.five,
       paddingTop: spacing.three,
@@ -4621,8 +4812,8 @@ const makeStyles = (t: Theme) =>
     },
     ethos: { marginTop: spacing.three, alignItems: 'center' },
     optionalLinks: { marginTop: spacing.four, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: spacing.five },
-    optLink: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', textDecorationLine: 'underline' },
-    optFaint: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center', textDecorationLine: 'underline' },
+    optLink: { color: t.colors.skyInk, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', textDecorationLine: 'underline' },
+    optFaint: { color: t.colors.skyInk, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center', textDecorationLine: 'underline' },
     // The select shelf card (congruency pass): the held-card-v2 family. Standard wears the
     // card surface + hairline + shadow; Quiet keeps its single accentSoft wash, no chrome.
     selectShelfCard:
@@ -4653,7 +4844,7 @@ const makeStyles = (t: Theme) =>
       t.appearance === 'quiet'
         ? { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three, paddingHorizontal: spacing.two }
         : { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three, paddingHorizontal: spacing.three, borderRadius: radius.sm, backgroundColor: t.colors.accentSoft },
-    combineHeroLabel: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    combineHeroLabel: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     combineHeroSub: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body, textAlign: 'right', flexShrink: 1 },
     // The shelf: the same floor as the held card (band + hairline, rounded into the corners).
     selectShelf:
@@ -4673,7 +4864,7 @@ const makeStyles = (t: Theme) =>
             borderColor: t.colors.line,
             borderBottomLeftRadius: radius.md,
             borderBottomRightRadius: radius.md,
-            backgroundColor: t.scheme === 'dark' ? 'rgba(0,0,0,0.16)' : 'rgba(43,39,34,0.035)',
+            backgroundColor: shelfTint(t.scheme),
           },
     selectCancelText: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     removeStack: { alignItems: 'flex-end' },
@@ -4683,17 +4874,17 @@ const makeStyles = (t: Theme) =>
     sliceEditStepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.four, marginVertical: spacing.four },
     sliceStepBtn: { width: 44, height: 44, borderRadius: radius.pill, borderWidth: border.hair, borderColor: t.colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: t.colors.surface },
     sliceStepBtnOff: { opacity: 0.4 },
-    sliceStepGlyph: { fontSize: 26 * t.scale, lineHeight: 30 * t.scale, color: t.colors.accent, fontFamily: fonts.body },
+    sliceStepGlyph: { fontSize: 26 * t.scale, lineHeight: 30 * t.scale, color: t.colors.accentText, fontFamily: fonts.body },
     sliceNowRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.two },
     sliceNow: { color: t.colors.ink, fontFamily: fonts.bodyBold, fontWeight: '700', fontSize: 15 * t.scale },
-    sliceUndo: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '600', fontSize: 14 * t.scale },
+    sliceUndo: { color: t.colors.accentText, fontFamily: fonts.bodyBold, fontWeight: '600', fontSize: 14 * t.scale },
     doorAltRow: { borderTopWidth: border.hair, borderTopColor: t.colors.line, marginTop: spacing.four, paddingTop: spacing.three, alignItems: 'center', gap: 2 },
     doorAltLabel: { color: t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    doorAltSub: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body },
+    doorAltSub: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body },
     sliceStepValue: { ...t.type.heading, color: t.colors.ink, minWidth: 110, textAlign: 'center' },
     selectDone: { color: t.colors.doneText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     selectRemove: { color: t.colors.danger, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', textAlign: 'right' },
-    sortSummary: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginBottom: spacing.two },
+    sortSummary: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginBottom: spacing.two },
     affirmation: { color: t.colors.doneText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center', marginBottom: spacing.two },
     // The Remove undo bar: Routines' shape, the app's one destructive-action pattern.
     undoBar: {
@@ -4709,7 +4900,7 @@ const makeStyles = (t: Theme) =>
       marginBottom: spacing.three,
     },
     undoText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
-    undoAction: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
+    undoAction: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
     toolPremiumMark: { color: t.colors.accents[2], fontSize: 12 * t.scale, marginLeft: spacing.one },
     dockSpacer: { height: spacing.four }, // the composer is one line now; a breath under the last row is enough
     holdHint: {
@@ -4725,7 +4916,7 @@ const makeStyles = (t: Theme) =>
     },
     holdHintDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: t.colors.accent },
     holdHintText: { flex: 1, color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },
-    holdHintDismiss: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    holdHintDismiss: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     reentry: {
       backgroundColor: t.colors.accentSoft,
       borderRadius: radius.lg,
@@ -4748,13 +4939,13 @@ const makeStyles = (t: Theme) =>
       overflow: 'hidden',
     },
     weightFill: { backgroundColor: t.colors.accent },
-    weightLabel: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
+    weightLabel: { color: t.colors.skyInk, fontSize: 13 * t.scale, fontFamily: fonts.body },
     // The Energy pills: a segmented day-state beside the gauge. Selected = accent on accent-tint
     // with a soft accent border; unselected = plain soft ink, no border (the design's own spec).
     // The pills' visible header, in the same overline voice as RIGHT NOW: without it, three bare
     // words under the greeting read as lost text (real-user report, 2026-07-26).
     energyOverline: {
-      color: t.colors.inkFaint,
+      color: t.colors.skyInk,
       fontSize: 10.5 * t.scale,
       fontFamily: fonts.bodyBold,
       fontWeight: '700',
@@ -4778,11 +4969,11 @@ const makeStyles = (t: Theme) =>
             borderColor: 'transparent',
           },
     energyPillOn: t.appearance === 'quiet' ? {} : { backgroundColor: t.colors.accentSoft, borderColor: rgba(t.colors.accent, 0.4) },
-    energyPillText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
+    energyPillText: { color: t.colors.skyInk, fontSize: 14 * t.scale, fontFamily: fonts.body },
     energyPillTextOn:
       t.appearance === 'quiet'
         ? { color: t.colors.ink, fontFamily: fonts.bodyBold, fontWeight: '700' }
-        : { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '600' },
+        : { color: t.colors.accentText, fontFamily: fonts.bodyBold, fontWeight: '600' },
     // The day tools' card under Energy (the Today v3 handoff): the Right-now slot + caret on one row, and
     // the tools opening DOWNWARD inside the same card behind a hairline. The slot occupant is the one
     // accent-weight thing in it. Quiet keeps the structure and drops the card chrome.
@@ -4802,32 +4993,43 @@ const makeStyles = (t: Theme) =>
     frameResting: { opacity: 0.45 },
     rightNowRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
     rightNowSlot: { flex: 1, paddingVertical: spacing.one },
+    // The frame's words follow its surface. In Standard they sit on the card (inkSoft, accentText). Quiet drops
+    // the card, so they sit straight on the living sky, like ENERGY above them, and take the sky's own roles:
+    // inkSoft and accentText measured 3.3 to 4.1:1 there in light mode. Dark is unchanged, since the sky roles
+    // are inkSoft and the accent in dark.
     rightNowOverline: {
-      color: t.colors.inkFaint,
+      color: t.appearance === 'quiet' ? t.colors.skyInk : t.colors.inkSoft,
       fontSize: 10.5 * t.scale,
       fontFamily: fonts.bodyBold,
       fontWeight: '700',
       letterSpacing: 1.2,
       textTransform: 'uppercase',
     },
-    rightNowName: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', marginTop: 2 },
+    rightNowName: {
+      color: t.appearance === 'quiet' ? t.colors.skyAccent : t.colors.accentText,
+      fontSize: 17 * t.scale,
+      fontFamily: fonts.bodyBold,
+      fontWeight: '700',
+      marginTop: 2,
+    },
     caretBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-    caretText: { color: t.colors.inkSoft, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    caretText: { color: t.appearance === 'quiet' ? t.colors.skyInk : t.colors.inkSoft, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     toolsPanel: { paddingRight: spacing.three, paddingBottom: spacing.one },
     toolsDivider: { height: border.hair, backgroundColor: t.colors.line, marginTop: 6, marginBottom: 2, marginRight: spacing.one },
     // The shrunk heading's bar, outside the scroll while the composer is open.
     toolRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
     toolName: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', flexShrink: 1 },
-    // Quiet-unavailable: lowered contrast, no lock, no border, no strikethrough. Present, resting.
-    toolNameQuiet: { color: t.colors.inkFaint, fontFamily: fonts.body, fontWeight: '400' },
-    toolNowTag: { color: t.colors.accent, fontSize: 12 * t.scale, fontFamily: fonts.body },
-    toolHintLine: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two },
-    windDown: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+    // Quiet-unavailable: lowered contrast, no lock, no border, no strikethrough. Present, resting. It also
+    // overrides rightNowName for an unavailable occupant, so it follows the same surface rule as the frame.
+    toolNameQuiet: { color: t.appearance === 'quiet' ? t.colors.skyInk : t.colors.inkSoft, fontFamily: fonts.body, fontWeight: '400' },
+    toolNowTag: { color: t.appearance === 'quiet' ? t.colors.skyAccent : t.colors.accentText, fontSize: 12 * t.scale, fontFamily: fonts.body },
+    toolHintLine: { color: t.colors.skyInk, fontSize: 13 * t.scale, fontFamily: fonts.body, marginBottom: spacing.two },
+    windDown: { color: t.colors.skyInk, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     // The evening door to Settle: a soft pressable sentence under the wind-down line.
-    windDownSettle: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, fontStyle: 'italic', textAlign: 'center', marginTop: spacing.one },
+    windDownSettle: { color: t.colors.skyInk, fontSize: 13 * t.scale, fontFamily: fonts.body, fontStyle: 'italic', textAlign: 'center', marginTop: spacing.one },
     // What's New: the hold-hint card's shape with a small title over its lines.
     whatsNewBody: { flex: 1, gap: spacing.one },
-    whatsNewTitle: { color: t.colors.inkFaint, fontSize: 11 * t.scale, fontFamily: fonts.body, fontWeight: '600', letterSpacing: 1.2, textTransform: 'uppercase' },
+    whatsNewTitle: { color: t.colors.inkSoft, fontSize: 11 * t.scale, fontFamily: fonts.body, fontWeight: '600', letterSpacing: 1.2, textTransform: 'uppercase' },
     rested: { alignItems: 'center', gap: spacing.three, paddingTop: spacing.five, paddingBottom: spacing.four },
     restedArt: {
       width: '100%',
@@ -4839,11 +5041,11 @@ const makeStyles = (t: Theme) =>
     },
     restedTitle: { ...t.type.heading, color: t.colors.ink, letterSpacing: -0.3, textAlign: 'center' },
     restedLine: { color: t.colors.ink, fontSize: 17 * t.scale, lineHeight: 24 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
-    restedSub: { color: t.colors.inkFaint, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+    restedSub: { color: t.colors.skyInk, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     // The forward-view door on the rested screen: quiet soft ink, underlined like every other
     // tappable text action (TOD-18), a reassuring count that never becomes a list.
-    restedWaiting: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body, textAlign: 'center', textDecorationLine: 'underline' },
-    restedReopen: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.three },
+    restedWaiting: { color: t.colors.skyInk, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body, textAlign: 'center', textDecorationLine: 'underline' },
+    restedReopen: { color: t.colors.skyAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.three },
     reminderOffer: {
       alignSelf: 'stretch',
       alignItems: 'center',
@@ -4853,19 +5055,19 @@ const makeStyles = (t: Theme) =>
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: t.colors.line,
     },
-    reminderOfferText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, lineHeight: 21 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+    reminderOfferText: { color: t.colors.skyInk, fontSize: 15 * t.scale, lineHeight: 21 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     reminderOfferRow: { flexDirection: 'row', gap: spacing.five, alignItems: 'center' },
-    reminderOfferYes: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    reminderOfferNo: { color: t.colors.inkFaint, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    strategiseErr: { color: t.colors.accent, fontSize: 13 * t.scale, fontFamily: fonts.body },
+    reminderOfferYes: { color: t.colors.skyAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    reminderOfferNo: { color: t.colors.skyInk, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    strategiseErr: { color: t.colors.skyAccent, fontSize: 13 * t.scale, fontFamily: fonts.body },
     disabledBtn: { opacity: 0.5 },
     planItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.three },
     planTitle: { color: t.colors.ink, fontSize: 16 * t.scale, flexShrink: 1, fontFamily: fonts.body },
-    planWhen: { color: t.colors.accent, fontSize: 14 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
+    planWhen: { color: t.colors.accentText, fontSize: 14 * t.scale, fontWeight: '600', fontFamily: fonts.bodyBold },
     // "Plan my order" (premium): the big PremiumButton (the DoubleDone Premium gradient), the premium signal on Today.
     // Quiet's replacement for the PremiumButton gradient: "Plan my day" as a plain accent text action.
     seqItem: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.three },
-    seqNum: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', minWidth: 16, textAlign: 'center', marginTop: 1 },
+    seqNum: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', minWidth: 16, textAlign: 'center', marginTop: 1 },
     seqText: { flex: 1, gap: 1 },
     // The per-row edit controls. Quiet by default (soft ink, not the accent) so the proposal still
     // reads as a plan rather than a form, and content-sized so a long title never squeezes them out.
@@ -4887,7 +5089,7 @@ const makeStyles = (t: Theme) =>
     },
     planChipOn: { borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
     planChipText: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    planChipTextOn: { color: t.colors.accent, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    planChipTextOn: { color: t.colors.accentText, fontFamily: fonts.bodyBold, fontWeight: '700' },
     seqReason: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale },
     planDismiss: { color: t.colors.inkSoft, fontSize: 15 * t.scale, textAlign: 'center', marginTop: spacing.two, fontFamily: fonts.body },
     pressed: { opacity: PRESSED_OPACITY },
@@ -4901,7 +5103,7 @@ const makeStyles = (t: Theme) =>
       gap: spacing.two,
     },
     sharedStripOverline: {
-      color: t.colors.inkFaint,
+      color: t.colors.skyInk,
       fontSize: 11 * t.scale,
       fontFamily: fonts.body,
       fontWeight: '600',
@@ -4912,7 +5114,7 @@ const makeStyles = (t: Theme) =>
     floatNoteWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', paddingHorizontal: spacing.five },
     floatNote: { maxWidth: layout.maxContentWidth - 48, backgroundColor: t.colors.surfaceCard, borderRadius: radius.lg, paddingHorizontal: spacing.four, paddingTop: spacing.two, gap: 2 },
     // display none (not unmount): BrainDump keeps its typed text while the panel is away.
-    alsoDidLink: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    alsoDidLink: { color: t.colors.skyAccent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     didTitle: { ...t.type.subheading, color: t.colors.ink, letterSpacing: -0.3 },
     didHint: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body },
     didInput: {
@@ -4966,7 +5168,7 @@ const makeStyles = (t: Theme) =>
       alignItems: 'center',
     },
     energyChoiceText: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    energyNotNow: { color: t.colors.inkFaint, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', paddingVertical: spacing.two },
+    energyNotNow: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center', paddingVertical: spacing.two },
     alsoDidUnderList: { marginTop: spacing.three, marginBottom: spacing.two, alignItems: 'center' },
     selectTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.four, minHeight: 44 },
     moveToPresets:{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two, justifyContent: 'center', marginBottom: spacing.three },
@@ -4977,7 +5179,7 @@ const makeStyles = (t: Theme) =>
     combineItem: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
     focusPickList: { marginTop: spacing.five, gap: spacing.four, alignItems: 'center' },
     focusPickItem: { paddingVertical: spacing.two, paddingHorizontal: spacing.three },
-    focusPickItemText: { color: t.colors.accent, fontFamily: fonts.sans, fontSize: 22 * t.scale, textAlign: 'center' },
+    focusPickItemText: { color: t.colors.accentText, fontFamily: fonts.sans, fontSize: 22 * t.scale, textAlign: 'center' },
     // The "not sure?" helper in the Focus picker: softer than the task choices, so it reads
     // as an offer beside them, not another task. The hairline pill (Melroy, device round:
     // plain italic text wasn't dynamic enough) makes it read as tappable without shouting.
@@ -5025,7 +5227,7 @@ const makeStyles = (t: Theme) =>
     focusExit: { position: 'absolute', top: spacing.seven, left: spacing.five, zIndex: 1 },
     focusExitText: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     focusBody: { alignItems: 'center', gap: spacing.four, maxWidth: 440, width: '100%' },
-    focusLabel: { ...t.type.eyebrow, color: t.colors.accent, textTransform: 'uppercase' },
+    focusLabel: { ...t.type.eyebrow, color: t.colors.accentText, textTransform: 'uppercase' },
     focusTitle: { color: t.colors.ink, fontSize: 30 * t.scale, lineHeight: 38 * t.scale, fontFamily: fonts.sans, fontWeight: '600', textAlign: 'center', letterSpacing: -0.3 },
     focusStep: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body },
     focusEmptyNote: { color: t.colors.inkSoft, fontSize: 16 * t.scale, lineHeight: 24 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
@@ -5064,8 +5266,8 @@ const makeStyles = (t: Theme) =>
     wrapItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
     wrapCheck: { color: t.colors.doneText, fontSize: 16 * t.scale, fontWeight: '700', fontFamily: fonts.bodyBold },
     wrapItemText: { color: t.colors.inkSoft, fontSize: 16 * t.scale, flexShrink: 1, fontFamily: fonts.body },
-    wrapRoll: { color: t.colors.inkFaint, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, marginTop: spacing.two, fontFamily: fonts.body },
+    wrapRoll: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, marginTop: spacing.two, fontFamily: fonts.body },
     wrapBtn: { marginTop: spacing.three },
     wrapGoodnightQuiet: { marginTop: spacing.four, alignItems: 'flex-start', paddingVertical: spacing.two },
-    wrapGoodnightQuietText: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    wrapGoodnightQuietText: { color: t.colors.accentText, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
   });

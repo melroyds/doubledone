@@ -809,7 +809,7 @@ export default function OursScreen() {
               autoFocus
               maxLength={40}
               placeholder={t('ours.namePlaceholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               style={styles.input}
               accessibilityLabel={t('ours.namePlaceholder')}
             />
@@ -846,7 +846,7 @@ export default function OursScreen() {
               autoFocus
               maxLength={40}
               placeholder={t('ours.yourNamePlaceholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               style={styles.input}
               accessibilityLabel={t('ours.yourName')}
             />
@@ -1036,7 +1036,7 @@ export default function OursScreen() {
               onChangeText={setName}
               maxLength={40}
               placeholder={t('ours.namePlaceholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               style={styles.input}
               accessibilityLabel={t('ours.namePlaceholder')}
             />
@@ -1048,7 +1048,7 @@ export default function OursScreen() {
             onChangeText={setMyLabel}
             maxLength={40}
             placeholder={t('ours.yourNamePlaceholder')}
-            placeholderTextColor={theme.colors.inkFaint}
+            placeholderTextColor={theme.colors.inkSoft}
             style={styles.input}
             accessibilityLabel={t('ours.yourName')}
           />
@@ -1061,7 +1061,7 @@ export default function OursScreen() {
               if (failure === 'bad-email' || failure === 'own-email') setFailure(null);
             }}
             placeholder={t('ours.theirEmailPlaceholder')}
-            placeholderTextColor={theme.colors.inkFaint}
+            placeholderTextColor={theme.colors.inkSoft}
             style={styles.input}
             keyboardType="email-address"
             autoCapitalize="none"
@@ -1093,7 +1093,7 @@ export default function OursScreen() {
               if (failure === 'invalid-code') setFailure(null);
             }}
             placeholder={t('ours.codePlaceholder')}
-            placeholderTextColor={theme.colors.inkFaint}
+            placeholderTextColor={theme.colors.inkSoft}
             style={[styles.input, styles.codeInput]}
             autoCapitalize="characters"
             autoCorrect={false}
@@ -1108,7 +1108,7 @@ export default function OursScreen() {
             onChangeText={setMyLabel}
             maxLength={40}
             placeholder={t('ours.yourNamePlaceholder')}
-            placeholderTextColor={theme.colors.inkFaint}
+            placeholderTextColor={theme.colors.inkSoft}
             style={styles.input}
             accessibilityLabel={t('ours.yourName')}
           />
@@ -1182,7 +1182,7 @@ const makeStyles = (t: Theme) =>
     title: { ...t.type.title, color: t.colors.ink },
     lead: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 24 * t.scale },
     label: { color: t.colors.ink, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', marginTop: spacing.three },
-    hint: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 19 * t.scale },
+    hint: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, lineHeight: 19 * t.scale },
     input: {
       backgroundColor: t.colors.surface,
       borderWidth: border.hair,
@@ -1208,9 +1208,9 @@ const makeStyles = (t: Theme) =>
     codeInput: { fontSize: 22 * t.scale, letterSpacing: 3, textAlign: 'center' },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },
     actions: { gap: spacing.three, marginTop: spacing.four },
-    link: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+    link: { color: t.colors.accentText, fontSize: 15 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     waiting: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, lineHeight: 22 * t.scale, marginTop: spacing.four },
-    quietAction: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    quietAction: { color: t.colors.accentText, fontSize: 15 * t.scale, fontFamily: fonts.body },
     reopenHaveCode: { marginTop: spacing.three },
     // Two margins of two: on the waiting screen this sits directly over the quiet "Get a new code",
     // and with less the two hit areas touched.
@@ -1224,7 +1224,7 @@ const makeStyles = (t: Theme) =>
       marginTop: spacing.two,
     },
     beatText: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale },
-    beatAction: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body },
+    beatAction: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.body },
     leaveBlock: { marginTop: spacing.six, gap: spacing.one },
     // The archive. Quiet rows, purpose and closed-month only: no counts, nothing that turns a
   // relationship that ended into a scoreboard.
@@ -1233,7 +1233,7 @@ const makeStyles = (t: Theme) =>
   archiveRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
   archiveMain: { flex: 1 },
   archiveName: { color: t.colors.ink, fontSize: 16 * t.scale, fontFamily: fonts.body },
-  archiveWhen: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.half },
+  archiveWhen: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.half },
   archiveAction: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
-  error: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.four },
+  error: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.four },
   });

@@ -8,6 +8,7 @@ import { deserialize, SEED, serialize, type Task } from './tasks';
 import { track } from './telemetry';
 import { NO_RENEWAL_MEMORY, type RenewalMemory } from './renewal';
 import { type HoldContract } from './hold';
+import { FRESH_REVIEW_MEMORY, parseReviewMemory, type ReviewMemory, serializeReviewMemory } from './review';
 
 // Versioned so a future shape change can migrate rather than silently drop data.
 const STORAGE_KEY = 'doubledone.tasks.v1';
@@ -44,6 +45,8 @@ const OURS_TUCKED_KEY = 'doubledone.oursTucked.v1'; // closed lists you have put
 const OURS_SEEN_KEY = 'doubledone.oursSeen.v2'; // when you last looked at each shared list, by pair id
 const OURS_MINE_KEY = 'doubledone.oursMine.v1'; // shared rows YOU changed from outside the room, by pair id
 const UPDATE_MENTIONED_KEY = 'doubledone.updateMentioned.v1'; // when the goodnight screen last mentioned a newer build
+const REVIEW_KEY = 'doubledone.review.v1'; // what this device remembers about asking the store for its rating card (lib/review)
+const REVIEWQUIET_KEY = 'doubledone.reviewquiet.v1'; // an ISO date: the review ask keeps quiet today (a tender day)
 
 /**
  * Load Today's tasks. On a brand-new install (nothing ever stored) seed once so
@@ -681,6 +684,50 @@ export async function saveUpdateMentioned(at: number): Promise<void> {
     await AsyncStorage.setItem(UPDATE_MENTIONED_KEY, String(at));
   } catch {
     // best effort, like every other saver here
+  }
+}
+
+/**
+ * What this device remembers about asking the store for its rating card: a count of closed days, two
+ * dates and the last ask (lib/review). Deliberately NOT in `wipeLocalData`, for the same reason as the
+ * update mention above: it is device state, not personal data, and clearing it on account deletion
+ * would re-arm an ask the stores themselves already counted. Only native ever writes it (the web's
+ * REVIEW_SUPPORTED is false).
+ */
+export async function loadReviewMemory(): Promise<ReviewMemory> {
+  try {
+    return parseReviewMemory(await AsyncStorage.getItem(REVIEW_KEY));
+  } catch {
+    return FRESH_REVIEW_MEMORY;
+  }
+}
+
+export async function saveReviewMemory(memory: ReviewMemory): Promise<void> {
+  try {
+    await AsyncStorage.setItem(REVIEW_KEY, serializeReviewMemory(memory));
+  } catch {
+    // best effort: a lost write costs one counted close, never a second ask (the stores cap that too)
+  }
+}
+
+/**
+ * The day the review ask keeps quiet: a tender day (Settle opened, Lighten run, Low chosen, a return
+ * after time away). One ISO string, so Settle and Today can never race a read-modify-write, and it
+ * expires by comparison like the low-day flag. Kept out of `wipeLocalData` with the review memory.
+ */
+export async function loadReviewQuietDate(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(REVIEWQUIET_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export async function saveReviewQuietDate(iso: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(REVIEWQUIET_KEY, iso);
+  } catch {
+    // best effort
   }
 }
 

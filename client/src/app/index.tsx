@@ -256,7 +256,7 @@ const makeStyles = (t: Theme) => {
 
     // hero
     hero: { paddingTop: spacing.five, paddingBottom: spacing.six },
-    kicker: { color: t.colors.accent, fontSize: 19 * t.scale, lineHeight: 25 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', marginBottom: spacing.three },
+    kicker: { color: t.colors.accentText, fontSize: 19 * t.scale, lineHeight: 25 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', marginBottom: spacing.three },
     h1: { color: t.colors.ink, fontSize: 42 * t.scale, lineHeight: 46 * t.scale, fontFamily: fonts.sans, fontWeight: '600', letterSpacing: -0.6 },
     sub: { color: inkBody, fontSize: 19 * t.scale, lineHeight: 30 * t.scale, fontFamily: fonts.body, marginTop: spacing.four, maxWidth: 440 },
     cta: { marginTop: spacing.five },
@@ -284,7 +284,7 @@ const makeStyles = (t: Theme) => {
     taskDone: { color: t.colors.inkSoft, textDecorationLine: 'line-through' },
     rule: { height: 1, backgroundColor: t.colors.line, marginVertical: spacing.three },
     ruleSoft: { height: 1, backgroundColor: t.colors.line, opacity: 0.5, marginVertical: spacing.three },
-    todayFoot: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', marginTop: spacing.four },
+    todayFoot: { color: t.colors.accentText, fontSize: 16 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', marginTop: spacing.four },
 
     // the promise
     promise: { marginTop: spacing.six, borderTopWidth: border.hair, borderTopColor: t.colors.line, paddingTop: spacing.five },
@@ -298,7 +298,7 @@ const makeStyles = (t: Theme) => {
     steps: { marginTop: spacing.four },
     step: { flexDirection: 'row', gap: spacing.four, paddingVertical: spacing.five, borderTopWidth: border.hair, borderTopColor: t.colors.line, alignItems: 'flex-start' },
     stepFirst: { borderTopWidth: 0 },
-    stepN: { color: t.colors.inkFaint, fontSize: 40 * t.scale, lineHeight: 42 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
+    stepN: { color: t.colors.inkSoft, fontSize: 40 * t.scale, lineHeight: 42 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
     stepText: { flex: 1 },
     stepTitle: { color: t.colors.ink, fontSize: 23 * t.scale, lineHeight: 28 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
     stepBody: { color: inkBody, fontSize: 17 * t.scale, lineHeight: 27 * t.scale, fontFamily: fonts.body, marginTop: spacing.two },
@@ -317,13 +317,13 @@ const makeStyles = (t: Theme) => {
     appStoreBadge: { width: 144, height: 48 },
     playBadge: { width: 140, height: 54 },
     badgePressed: { opacity: 0.7 },
-    storeFine: { color: t.colors.inkFaint, fontSize: 11 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.three },
+    storeFine: { color: t.colors.inkSoft, fontSize: 11 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.three },
     closingLine: { color: t.colors.ink, fontSize: 30 * t.scale, lineHeight: 36 * t.scale, fontFamily: fonts.sans, fontWeight: '600', textAlign: 'center', marginBottom: spacing.five },
 
     // footer
     footer: { borderTopWidth: border.hair, borderTopColor: t.colors.line, paddingTop: spacing.five },
     footWho: { color: t.colors.inkSoft, fontSize: 15 * t.scale, lineHeight: 24 * t.scale, fontFamily: fonts.body, maxWidth: 420 },
     footMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, marginTop: spacing.four },
-    footFine: { color: t.colors.inkFaint, fontSize: 13 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body, marginTop: spacing.three },
+    footFine: { color: t.colors.inkSoft, fontSize: 13 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body, marginTop: spacing.three },
   });
 };

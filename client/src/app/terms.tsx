@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink } from '@/components/BackLink';
 import { fonts, spacing, type Theme } from '@/constants/theme';
+import { IAP_AVAILABLE } from '@/lib/purchases';
 import { PLAY_COPY, SELLS_HERE } from '@/lib/storefront';
 import { useThemedStyles } from '@/lib/theme-provider';
 
@@ -24,7 +25,7 @@ export default function TermsScreen() {
         <BackLink fallback="/settings" />
 
         <Text style={styles.title}>Terms</Text>
-        <Text style={styles.updated}>Last updated 1 October 2026.</Text>
+        <Text style={styles.updated}>Last updated 19 October 2026.</Text>
 
         <Text style={styles.lead}>
           These are the plain terms for using DoubleDone. No wall of legalese, just what you can expect from us and what
@@ -44,6 +45,18 @@ export default function TermsScreen() {
           cannot promise it will never be down.
         </Section>
 
+        {/* The same words on every platform, so it sits outside the storefront branch below. Approved by Melroy
+            word for word on 2026-10-19 (store 1.9, slice 6). It names no condition next to "cure": to this
+            audience that reads as calling autism something to be cured. */}
+        <Section styles={styles} heading="Not medical care">
+          DoubleDone is a to-do app. It is not a medical device, and it does not diagnose, treat, cure or prevent any
+          condition. Nothing in it is medical, psychological or other professional advice, including the steps, plans
+          and suggestions its AI features write, and it is not a substitute for care from a qualified health
+          professional. Settle and its breathing guide are a quiet pause, not a treatment. For advice about your
+          health, talk to a health professional. If you are in crisis or worried about your safety, call your local
+          emergency number (000 in Australia).
+        </Section>
+
         {/* Three versions, one per storefront (lib/storefront). Android sells only through Google Play, so
             its terms carry no figure of ours: the price is Play's own, in the buyer's currency, shown before
             they buy. Its Stripe and Apple lines say only how to CANCEL, never how to buy (Play's Payments
@@ -60,6 +73,21 @@ export default function TermsScreen() {
             support@doubledone.app and we will cancel it for you, or cancel it by signing in on the DoubleDone website
             with the same email. If you subscribed on an iPhone or iPad, Apple handles it, and you cancel it in your
             Apple ID subscription settings. We will give reasonable notice of any price change.
+          </Section>
+        ) : SELLS_HERE && IAP_AVAILABLE ? (
+          // The iPhone and iPad app (Melroy's wording, 2026-10-19): Apple prices Premium in each country's own
+          // currency, so this paragraph names no figure of ours and no website price, the same rule Android's
+          // follows. The web keeps the Stripe figures in the branch below.
+          <Section styles={styles} heading="Premium and billing">
+            Premium is optional. In this app it is sold through the App Store. The price is shown in the App Store
+            before you buy, in your own currency, and it is charged to your Apple ID every month or every year,
+            depending on the plan you choose. It renews automatically until you cancel, and you can cancel any time in
+            your Apple ID subscription settings. You keep Premium until the end of the period you have already paid
+            for. Each account can also have Premium free for 30 days, once, with no card and no charge. That month is
+            not a subscription and never becomes one. If you subscribed somewhere else, that store handles the
+            billing. If Stripe bills you, email support@doubledone.app and we will cancel it for you. If you
+            subscribed through Google Play, cancel it in the Play Store. We will give reasonable notice of any price
+            change.
           </Section>
         ) : SELLS_HERE ? (
           <Section styles={styles} heading="Premium and billing">
@@ -154,10 +182,10 @@ const makeStyles = (t: Theme) =>
     scroll: { flex: 1 },
     content: { paddingHorizontal: spacing.five, paddingBottom: spacing.seven, maxWidth: 640, width: '100%', alignSelf: 'center' },
     title: { ...t.type.title, color: t.colors.ink, marginTop: spacing.three },
-    updated: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.two },
+    updated: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.two },
     lead: { color: t.colors.ink, fontSize: 16 * t.scale, lineHeight: 24 * t.scale, fontFamily: fonts.body, marginTop: spacing.five },
     section: { marginTop: spacing.five, gap: spacing.two },
     heading: { color: t.colors.ink, fontSize: 18 * t.scale, fontWeight: '700', fontFamily: fonts.bodyBold },
     body: { color: t.colors.inkSoft, fontSize: 15 * t.scale, lineHeight: 23 * t.scale, fontFamily: fonts.body },
-    footnote: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.seven },
+    footnote: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, textAlign: 'center', marginTop: spacing.seven },
   });

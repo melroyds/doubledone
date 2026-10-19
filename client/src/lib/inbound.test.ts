@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { cleanSharedText, setInbound, shareTextFromParams, subscribeInbound, takeInbound } from './inbound';
+import { cleanSharedText, seedRoute, setInbound, shareTextFromParams, subscribeInbound, takeInbound } from './inbound';
 
 // The bridge is module-level state, so drain it between tests to keep them independent.
 afterEach(() => {
@@ -73,5 +73,18 @@ describe('shareTextFromParams (the web share_target rule, mirrors native text ??
   it('takes the first value when a router param arrives as an array', () => {
     expect(shareTextFromParams({ text: ['first', 'second'] })).toBe('first');
     expect(shareTextFromParams({ text: [], url: 'https://x.example' })).toBe('https://x.example');
+  });
+});
+
+describe('seedRoute (where a share or the "Brain dump" shortcut goes on Today)', () => {
+  it('closes a held card first, because a hidden sheet only parks the words and never rises', () => {
+    expect(seedRoute(true, true)).toBe('after-card');
+    // Even before the sheet has mounted: the card goes, and the seed lands once it can.
+    expect(seedRoute(true, false)).toBe('after-card');
+  });
+
+  it('goes straight in with no card held, and waits for the mount on a cold start', () => {
+    expect(seedRoute(false, true)).toBe('now');
+    expect(seedRoute(false, false)).toBe('pending');
   });
 });

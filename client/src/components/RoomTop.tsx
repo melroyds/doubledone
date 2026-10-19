@@ -138,7 +138,7 @@ const makeStyles = (t: Theme) =>
   StyleSheet.create({
     backWrap: { paddingHorizontal: spacing.five, maxWidth: layout.maxContentWidth, width: '100%', alignSelf: 'center' },
     back: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start', paddingRight: spacing.three },
-    backText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    backText: { color: t.colors.accentText, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     pressed: { opacity: PRESSED_OPACITY },
     // The band does NOT scale with text: it is a picture, and a taller picture at Large text would only push
     // the room further down the screen.

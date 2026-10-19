@@ -54,7 +54,7 @@ export function BedtimeCapture({ onCapture, today }: Props) {
         value={value}
         onChangeText={onType}
         placeholder={t('closeDay.bedtimePlaceholder')}
-        placeholderTextColor={theme.colors.inkFaint}
+        placeholderTextColor={theme.colors.inkSoft}
         style={styles.input}
         multiline
         textAlignVertical="top"
@@ -121,7 +121,7 @@ const makeStyles = (t: Theme) =>
   StyleSheet.create({
     wrap: { width: '100%', maxWidth: layout.cardMediaWidth, gap: spacing.three, marginTop: spacing.two },
     prompt: {
-      color: t.colors.inkSoft,
+      color: t.colors.skyInk,
       fontSize: 15 * t.scale,
       lineHeight: 21 * t.scale,
       fontFamily: fonts.body,
@@ -150,9 +150,9 @@ const makeStyles = (t: Theme) =>
       paddingHorizontal: spacing.four,
       paddingVertical: spacing.three,
     },
-    addText: { color: t.colors.accent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    later: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, fontWeight: '500' },
-    saved: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
+    addText: { color: t.colors.accentText, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    later: { color: t.colors.skyInk, fontSize: 14 * t.scale, fontFamily: fonts.body, fontWeight: '500' },
+    saved: { color: t.colors.skyAccent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center' },
     pressed: { opacity: PRESSED_OPACITY },
     disabled: { opacity: 0.5 },
     pickerRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.five },
@@ -166,5 +166,5 @@ const makeStyles = (t: Theme) =>
       gap: spacing.three,
     },
     pickerTitle: { color: t.colors.ink, fontSize: 18 * t.scale, fontFamily: fonts.sans, fontWeight: '600' },
-    pickerTomorrow: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center' },
+    pickerTomorrow: { color: t.colors.accentText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center' },
   });

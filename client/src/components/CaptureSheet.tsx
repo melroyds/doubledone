@@ -29,7 +29,7 @@ import { BrainDump, type BrainDumpHandle } from './BrainDump';
 type BrainDumpProps = ComponentProps<typeof BrainDump>;
 
 type Props = Omit<BrainDumpProps, 'onRequestClose' | 'onDraftChange' | 'onFocusChange'> & {
-  /** Select mode, a closed day, an archived list: no pill, and the panel is shut. The words are kept. */
+  /** Select mode, a held card, a closed day, an archived list: no pill, and the panel is shut. The words are kept. */
   hidden?: boolean;
   /** The panel opened or closed (the parent clears its just-added tint on close). Reported on a change. */
   onOpenChange?: (open: boolean) => void;
@@ -60,6 +60,15 @@ function webInert(on: boolean): object | null {
 /** The pill's bottom edge, from the screen's foot. */
 export function pillBottom(insetBottom: number): number {
   return Math.max(34, insetBottom);
+}
+
+/**
+ * The band at the screen's foot that the pill owns: its bottom edge, its height, and an 8 gap above it. 90
+ * on a phone with no home bar. The lists give it to the web as scroll padding, so a row focused by Tab, or a
+ * held card scrolled into view, stops above the pill and never parks under it (store 1.9, slice 2, P2).
+ */
+export function pillClearance(insetBottom: number): number {
+  return pillBottom(insetBottom) + PILL_H + 8;
 }
 
 /**

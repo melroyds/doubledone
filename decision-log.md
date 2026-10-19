@@ -9778,3 +9778,762 @@ after the other ticked the last part still springs back, now to done rather than
 Decided against: closing a repeating task this way (a repeat closes by the day, and a `done` series vanishes from
 every agent read), touching a tombstone, and recomputing `done` downward when the merged count is short of the total
 (a task can be done with parts left: Done in Focus fills them, but an old row may not have).
+
+## 2026-10-19: the calm review ask, built (store 1.9, slice 1): the store's own card after Goodnight, and not a word of ours
+
+**Decided (Melroy's calls 4 and 5, 2026-10-19): ask once, at the end of a good day, using the store's card and
+nothing else.** About 1.2s after Goodnight lands the rested screen, Today hands the store one request
+(`expo-store-review`). Every gate lives in the pure `client/src/lib/review.ts`, one test each in `review.test.ts`:
+- **Earned:** five distinct closed days, the first counted one 14 or more days ago. Never consecutive, never
+  shown, never reset, so it is not a streak. It counts from this build's first close, for everyone, so a loyal user
+  waits about two weeks after updating. Only a day later than the last counted one counts, so a reopened and
+  re-closed day is one close and a clock moved backwards cannot count days twice.
+- **Something finished tonight** (today's finished tasks plus the Goodnight note).
+- **Not a tender day:** not Low, and not a day marked quiet. The quiet date (`doubledone.reviewquiet.v1`) is
+  written by four things: opening Settle, running Lighten, choosing Low (it holds even if the pill moves back), and
+  coming back after four or more days away.
+- **Nothing else asked tonight:** the rested screen's own offer is null. `restedOffer` is now hoisted into one
+  `tonightOffer`, read by the four offer blocks and the ask alike, so they can never disagree.
+- **Not a heavy day, and the evening: 17:00 to 01:59** (the plan's change from the scout's 23:59: a good day closed
+  at 00:30 is a normal close for a night owl, and the other gates already keep a bad night out).
+- **Caps:** never twice on one app version, and 180 days apart, so at most two a year, under Apple's three. A last
+  ask stamped in the future means no.
+- **Still the moment when the timer fires:** the app is active, Today has focus, the stored closed date is still
+  tonight. The timer is cleared on blur, on Reopen today and on unmount.
+- **Stamp before the call**, so a throw can never become a retry loop. "Unavailable" (TestFlight, no Play Store) is
+  not stamped, so a TestFlight phone keeps its ask for the App Store build.
+
+**The two traps, built around:** the package's native entry throws at import on a binary without the module, so
+`client/src/lib/store-review.ts` imports it lazily inside try/catch (a top-level import would crash Today at
+launch). And `requestReview()` falls back to opening the store page when app.json has `ios.appStoreUrl` or
+`android.playStoreUrl`, so neither key is ever added and `hasAction()` is never called. The only gate is
+`isAvailableAsync()`. `store-review.web.ts` is the inert web half (`REVIEW_SUPPORTED = false`), never imports the
+package, and the platform-split contract holds the pair identical. Verified from exports: the web bundle contains
+no `StoreReview` at all and its stub resolves false, and the Android bundle reaches the package only through
+Metro's async require. `npx expo install` chose `~56.0.4`, inside SDK 56's `~56.0.3` line. No config plugin, no
+app.json change, but it needs the 1.9.0 native builds to reach phones.
+
+**The counter (call 5): `review.asked` leaves the device with its store, and nothing else.** The Worker folds it
+into `review.asked.ios` / `review.asked.android` (a bad or missing store is dropped, and the bare name is never
+stored). It counts our asks, never a shown card and never a rating, because neither store reports either. Why it
+earns a beacon: a gate this strict can silently never open, and neither console can tell "never asked" from
+"asked and ignored". `review.unavailable` and `review.failed` stay on the device. Both privacy copies name it, with
+Last updated moved to 19 October 2026. The client can ship before the Worker (an older Worker drops unknown names
+with a 200), and nothing can send it for 14 days after the release anyway. The Worker deploy waits for Melroy's
+word. Both review keys stay out of `wipeLocalData`, like the update mention: device state, not personal data, and
+clearing them would re-arm an ask the stores already counted.
+
+**Corrected: `docs/growth-plan.md`'s 2026-08-03 plan for this.** Its house-voice line before the sheet ("If
+DoubleDone is helping, a review helps others like you find it") is a custom pre-prompt, which Apple 5.6.1
+disallows and Google bans before its card, and "if it is helping" is sentiment filtering. "Dismiss is forever"
+cannot be built, because neither store reports a dismiss. With no copy of ours there are no catalogue keys: the OS
+localises its own card.
+
+**Decided against:**
+- **Our own line before the card**, of any kind, including "Enjoying DoubleDone?" (Apple 5.6.1, Google's rules,
+  and Skip forever).
+- **A Rate button that calls the API.** Once a store's quota says no it does nothing, so it reads as broken. A
+  Settings link to the store listing, never the API, is parked in the BUILD-PLAN Backlog (trigger: ratings flat 60
+  days after the asks begin).
+- **Bloom, Calendar or the keepsake as the trigger.** The Bloom lands mid-flow and would turn recognition into a
+  toll, where rejection sensitivity bites. The keepsake is AI-only and collides with its own share sheet. A Calendar
+  visit is often mid-task now that it plans ahead.
+- **Holding the ask back from people who sent feedback.** That is sentiment filtering, the thing Apple's Section 3
+  forbids. Timing by behaviour at a calm pause is what both stores recommend. Asking someone's mood first is not.
+- **Counting from install time.** Install age says nothing about whether the daily loop is being used, so a
+  months-old install that never closes a day would be asked. Closed days are the behaviour the ask is earned by.
+- **A kill switch.** Both stores cap the card themselves, so the worst bug is a wasted ask, not a nagging app, and
+  the 14-day earn after an update works as a staged rollout on its own.
+
+## 2026-10-19: every way into a task's card that needs no finger, built (store 1.9, slice 2): no colour change yet
+
+**Decided (Melroy's calls 2 and 3, 2026-10-19): the held card gets a door for every reader who cannot hold, and the
+pill steps aside while a card is open.** The a11y scout proved from source that RN-web never fires `onLongPress`
+from a keyboard and drops `accessibilityActions`, so on the web no keyboard or screen-reader user could open a
+task's card at all, and on the phones the hold worked only by gesture pass-through. The card is the door to half the
+app. What `client/src/components/TaskRow.tsx` now does, on all five long-press branches (plain, in steps, "looks
+big", a tiny step, a held row):
+- **Native screen readers (S1):** one `accessibilityActions` entry, `longpress` labelled "Options". Android maps it
+  to its long-click, so TalkBack's double-tap-and-hold and its Actions menu both open the card; VoiceOver lists it in
+  the Actions rotor. The sliced row's spoken "hold to adjust" finally has a real path.
+- **The web keyboard and mouse (K1):** `rowDoor()` in the new `client/src/components/row-door.ts` adds right-click,
+  the Menu key and Shift+F10, with `aria-keyshortcuts`. A contextmenu the press responder already prevented (a touch
+  hold, which opens the card itself) is skipped, and the one a browser sends after a key open is swallowed, so one
+  gesture never opens the card twice or shows the browser's menu over it. The key test is pure, in
+  `client/src/lib/row-options.ts` with its tests.
+- **The Mac path (K2):** a web-only "Options for {title}" button after each row, invisible and untouchable until
+  keyboard focus reveals it as a small chip, because a Mac has no Menu key. The plain and sliced rows gain a plain
+  wrapper View on the web only, since a button cannot sit inside the row's own Pressable.
+- **Focus follows the card (K3):** on open, focus lands on the card's title (web focus, or the screen reader's).
+  On close it comes back to the row only when it was inside the card: the web watches focus, and native, which
+  cannot see a screen reader's focus, counts only the card's own ways out. An action that opens a sheet keeps the
+  focus the sheet took, and a row that mounts already open (an appearance remount under Settings) never pulls focus.
+- **The other ways out (K4):** Escape on the web (keyup on the window, so a Modal above closes alone), VoiceOver's
+  escape scrub, and Android's back, all inside `useFocusEffect` so a Today buried under Premium never swallows
+  Premium's back.
+- **K6, C3, C4:** the rail's cells draw the browser's focus ring 2 inside (the rail clipped it; checked in an
+  export, all four sides show). The hero's sub-label loses its 0.82 fade. The free Pin is dimmed by inkSoft colour
+  instead of 0.6 opacity on a live control, and the ✦ keeps its full gold. No colour token changed.
+
+On Today (`client/src/app/today.tsx`) and the Ours list: **the pill steps aside while a card is held (P1)**, exactly
+as for select mode, because it sat on the card's shelf, right over "Select several". One refinement over the plan's
+`confirmingId != null`: only for a card actually on the screen, so an id whose row has gone (removed on another
+device, a Done line folded shut) can never leave the day with no way to add. **The web lists carry the pill's band
+as `scrollPaddingBottom` (P2)**, from the new `pillClearance()` beside `pillBottom` in `CaptureSheet.tsx` (90 on a
+phone with no home bar), so a row reached by Tab stops above the pill: in the export a row parked under it was
+scrolled clear. **"Add a task" is the first Tab stop (K8)**, focus-revealed above the date line, offered only while
+the pill itself is (it was the last stop, after every row). **The hold-hint is heard in full (K7):** its label is
+the tip, then "Got it, hide this tip", and the web's tip names right-click.
+
+New strings in all five catalogues: `today.rowOptions`, `today.rowOptionsA11y`, `today.holdHintWeb` and
+`today.holdHintNoAiWeb` (neutral Spanish, French no-break space before the colon). Manual cases A11Y-04 to 10 and
+A11Y-12. Verified in a production export served locally: Shift+F10, right-click and the Options button each open the
+card with focus on its title, Escape and Close return focus to the row, Select several lands focus on the selected
+row, the pill is gone while a card is open, and nothing ticks by accident. The phone halves need the 1.9.0 build
+and the A11Y-07 and A11Y-08 device pass.
+
+**Decided against:**
+- **A visible "…" button on every row.** It would put a control on every row for everybody, on the screen briefed
+  to be calm, to serve readers the invisible button and the screen-reader action already serve (the scout's Tier 4).
+- **Measuring the card and scrolling it clear of the pill** (the `liftAboveKeyboard` pattern) instead of stepping
+  the pill aside. More code, different on native and the web, and the pill would still cover the shelf on native,
+  where nothing scrolls a held card. Stepping aside mirrors select mode and is one prop.
+- **A native-only fix.** `accessibilityActions` alone leaves the web, where the audit found the gap, exactly
+  as broken, because RN-web ignores it.
+- **Space toggling a row (K5), arrow keys in Energy, the floatNote overlay and the ✦ gold (C8).** Tier 3, parked in
+  the BUILD-PLAN Backlog with a trigger. Enter already ticks a row.
+- **Any accessibility claim in copy.** Until the VoiceOver and TalkBack device pass and the contrast work (slice 3)
+  land, no listing or landing line says accessible, WCAG or screen-reader friendly, and slice 8's gate bans them.
+- **The contrast tokens and their test (C10) in this slice.** They change how Today looks, so they wait for
+  Melroy's before/after look (slice 3).
+
+## 2026-10-19: the app stops making the claims the store pages got wrong (store 1.9, slice 5): three truth strings
+
+**Decided: the in-app twins of the listing scout's false claims get the same fix, in all five catalogues.** The
+listing truth pass (`docs/design-source/store-1.9/listings.md`) found the stores overclaiming, and the plan's slice
+5 carries the same claims inside the app. Each was re-checked against the code before it changed:
+- **`welcome.handoffFineNoAi`** (the welcome's last screen, shown only with AI off): "Private by default, nothing
+  leaves your device" becomes "Private by default: your tasks stay on this device. Want them on your phone and your
+  laptop too? Sign in to sync, always optional." With AI off the feature-usage beacon still sends its bare counts
+  (`telemetry.ts` never reads `aiEnabled`), and a feedback note the person chooses to send leaves too, so "nothing
+  leaves" was false. The tasks themselves do stay, which is the claim now made.
+- **`premium.featureThemes`** (the Premium screen's list): "Seven calm colour themes to make it yours" becomes "Six
+  more calm colour themes". Dusk is free for everyone, so Premium adds six (`THEME_PRESETS` holds seven).
+- **`welcome.premiumColourWhat`** (the welcome's Premium step with AI off): "seven calm palettes..." becomes "six more
+  calm palettes for the whole app, yours to choose." The same seven-as-Premium claim under the Premium heading. The
+  plan named only the first two strings, and the re-check found this one.
+- **Translations:** German, neutral Spanish (tú, never vosotros or ustedes), French (U+00A0 before the colon and
+  the question mark) and Italian, in the app's register and its own words for tasks. They join the batch's one
+  native read (`scripts/gen-i18n-review.py`) with the rest of store 1.9.
+
+**Checked and left, because they are true:** `settings.colourThemeHintFree` (it counts all seven and says Premium
+unlocks the others); the free-month link (`trialSlot` hides it until sign-in, so it never promises a month to
+someone who cannot start one); `settings.aiOffNote`; "Pin today's one thing", already the paywall's wording; and
+"Export your data", which sits over a hint naming exactly what the file holds. The 2026-06-28 linked set (the capture
+line, the handoff line and the Settings card) still agrees after the change.
+
+**Decided against:**
+- **"Nothing you write leaves this device", or any softer "nothing leaves".** Still false, because a feedback note
+  is something you write and it leaves. Naming the tasks is the true claim, so the line names them.
+- **Dropping "Private by default".** The 2026-06-28 honesty decision keeps the phrase for the AI-off screen only, and
+  this line shows only with AI off. The App Store gate in slice 8 bans it in listings, where AI starts on.
+- **Fixing the iPhone's A$5 in the welcome's Premium fine print here.** `welcome.premiumFine` shows on iOS too,
+  because `STRIPE_HERE` lets iOS show our own figures by design, so changing it is a policy call and not a string.
+  Parked in the BUILD-PLAN Backlog with a trigger, beside the capture line on a signed-in replay.
+- **Changing `colourThemeHintFree`.** True as written, and the Settings picker is where the seven are counted.
+- **Regenerating `docs/i18n/review-data.json` now.** The plan does one native read for the whole batch, in one pass.
+
+Manual cases ONB-03 and PREM-01 now quote the new words, and the suite is regenerated.
+
+## 2026-10-19: the Terms say plainly that DoubleDone is not medical care (store 1.9, slice 6)
+
+**Decided (Melroy's call 8, 2026-10-19: approved word for word, the crisis sentence included): a "Not medical
+care" section in the Terms, straight after "Using DoubleDone", in both `client/public/terms.html` and
+`client/src/app/terms.tsx`.** The store pages name ADHD, autism and OCD (and slice 8 puts ADHD in the name), the AI
+features write steps and plans, and Settle carries a breathing guide, so the Terms now say what the app is not: a
+to-do app, not a medical device, not professional advice of any kind (what the AI writes included), not a substitute
+for a qualified health professional, and Settle a quiet pause rather than a treatment. Then one line to talk to a
+health professional, and one for a crisis: call the local emergency number (000 in Australia). Google's Health apps
+policy asks apps to remind people to see a professional, and under the TGA rules what a product is for is judged
+from its claims and advertising, so this clause backs up the claims discipline (no "treatment", "therapy",
+"symptoms" or "ADHD management" in any visible field) and does not replace it.
+- **The same words everywhere.** In the app the section sits outside the storefront branch, so iOS, Android and the
+  web read it identically. A check against both files confirmed the text matches the approved wording exactly once
+  whitespace is collapsed, and that it sits right after "Using DoubleDone".
+- "Last updated" is 19 October 2026 on both copies. English only, like the rest of the legal pages, and still a
+  draft pending the lawyer's review, like the rest of the Terms. Manual case LEG-06.
+
+**Decided against:**
+- **Naming ADHD, autism or OCD beside "cure".** To this audience that reads as calling autism something to be cured,
+  so the clause says "any condition".
+- **Leaving out the crisis sentence.** It adds no feature and costs one line, and someone who opens the Terms on a
+  bad night may need exactly that line. Melroy approved it.
+- **A version per storefront.** What the app is medically does not depend on who sells Premium, so it does not
+  belong inside the billing branch, where Android would read different words.
+- **Translating it now.** The legal pages are English only, on every platform.
+
+## 2026-10-19: the store pages tell the truth, the name says what the app is, and a gate holds both stores (store 1.9, slice 8)
+
+**Decided (Melroy's calls 6, 7 and 9, 2026-10-19).** The paste sources for both stores are rewritten, and
+`scripts/check-listings.mjs` gains an App Store mode and runs in CI. On 2026-10-19 the live App Store subtitle was
+still `A calmer kind of to-do list` and the live Play short description still the older "Shows only today" line,
+so the 2026-08-16 rewrite never reached either store, and the App Store page had carried an A$ price on the US
+store, "colleagues", "your person cannot make your morning heavier" and "nothing you type leaves your device" for
+two months. No script read the App Store copy at all, which is how those survived.
+- **The name and title: `DoubleDone: ADHD To-Do List`, the same on both stores**, with the App Store subtitle
+  `Calm planner, nothing overdue`. The name is the heaviest ranking field on both stores, `DoubleDone` alone named
+  nothing anybody searches yet, and every competitor puts the category or ADHD in its name. The subtitle spends its
+  room on the promise no competitor makes (nothing is ever overdue) plus the category word the name lacks. The
+  home-screen label stays DoubleDone (`app.json` `name`). The fallback is pre-decided: `DoubleDone: Calm To-Do List`
+  with `For ADHD. Nothing overdue.`, a metadata-only resubmit. Each localisation gets its own name in its own
+  words (`ADHS To-do-Liste`, `tareas para TDAH`, `liste de tâches`, `lista cose da fare`), and Play's localised
+  titles match them, one name per language on both stores, which the gate checks.
+- **The keyword strategy.** Apple searches only the name, the subtitle and the 100-character field, and combines
+  words across them within a localisation, so the field never repeats a word from the other two, has no spaces and
+  uses singular forms (all gated). The English field is spent on the category and audience words
+  (`todo,task,manager,daily,organizer,routine,autism,audhd,ocd,neurodivergent,brain,dump,breakdown,focus`), and a
+  second English localisation with the same visible text carries a second set (`shared`, `couples`, `household`,
+  `partner` and nine more), because Australia and the five European stores also search English (U.K.) by industry
+  observation. Which slot it takes (en-GB or en-AU) depends on the Primary Language, which nobody has written down,
+  so it is drafted for both and picked at paste time after reading ASC. The field is also held to 100 UTF-8 bytes,
+  the stricter reading, so an accented letter can never tip it over.
+- **App Store localisations (call 7):** de-DE, fr-FR, it-IT, and one neutral Spanish text for es-MX and es-ES, in
+  the new `docs/appstore/listing-localised.md`. Adapted from the natively reviewed Play listings, not translated
+  from the English page: the widget and Google Play out, the Apple billing paragraph built from the paywall's own
+  `appleRenewalTerms` and `trialNoCard`, the Terms URL, the founder line, and both medical sentences in. They ship
+  with 1.9.0 only if the native read is back by submit day, else at the next version, decided now.
+- **The medical line, both stores, every language (call 9):** "For medical advice, talk to a health professional."
+  follows the not-a-medical-device sentence, and the gate pins both sentences per language.
+- **Every claim checked against the code for the platform that store serves.** The three the scouts had not
+  confirmed: Scan from a photo works on both phones (an in-app viewfinder with a gallery fallback, Premium, AI on;
+  the titles land in the capture panel to check), so it stays on both stores; "What fits right now?" is a free 15
+  picks a month and unlimited with Premium, so "without limits" and "unlimited picks" are true; and the monthly
+  scrapbook is hidden with AI off (`lookback.tsx`), so every listing now calls it an AI scrapbook and names
+  Cloudflare, whose models draw the picture. The App Store page names no widget (Android only), no Speak (the web
+  only), no web, Android, Google or price, and the gate fails on each.
+- **The Play translations:** the "private by default" headings, the AI-off "no text leaves" lines, "no third-party
+  trackers" and "export your data" replaced from the landing strings (`privTitle`, `priv2`, `priv3`, `priv4`);
+  Lighten today as a suggestion that moves nothing until you say yes, in all four; the two Spanish vosotros lines and
+  "carga la mañana" gone, so one neutral text now serves es-ES and es-419 (the live es-419 had no source in the
+  repo); Italian says La nostra lista everywhere; and German "je nach zu viel" became "jemals nach zu viel" in the
+  listing and in the five catalogue lines that share it, together, as the Backlog said. Each gained a title, the
+  founder line and a Premium paragraph from `faqFreeA` without its free-month sentence. The second, never-shipped
+  English short description is deleted, and the gate fails if an English block comes back to that file.
+- **The gate:** caps and recorded counts, diacritics, U+00A0 in French, neutral Spanish, the protected claims, the
+  App Store's platform rules, Play's no-other-biller and no-trial rules, and a banned list of every phrase the code
+  proved false, in five languages where a translation carried it. A negative run broke each rule once in a scratch
+  copy (29 cases) and the gate caught all of them. The retired paste sources
+  (`docs/play-resubmission-walkthrough.md`, section 4 of `docs/play-store-release.md`) carry a "do not paste"
+  banner and are no longer read.
+
+**Decided against:**
+- **Competitor names in any keyword field.** Apple 2.3.7, and Tiimo's French page shows what it looks like.
+- **Habit and streak words** (`habit`, `streak`, `chores`, `reward`). They rank DoubleDone for exactly the
+  products it refuses to be, so those installs churn and the reviews sting.
+- **Clinical words** (`anxiety`, `therapy`, `treatment`, `symptom`, the Italian `DDAI`). Under the TGA rules what a
+  product is for is judged from its claims, and the gate now bans the English ones in every field.
+- **The bare word `calm` as a keyword.** It sits in the subtitle anyway, and alone it mostly brings people looking
+  for the Calm meditation app.
+- **`executive` and `function` in the second set.** Close to clinical language; parked in the Backlog with a
+  trigger.
+- **The alternative subtitle `Daily planner for overwhelm`.** It names the feeling, but spends the field on a word
+  ("overwhelm") the second set can carry, and drops the promise nobody else makes.
+- **Two Spanish texts.** The 2026-10-18 neutral rule: one tú text reads as home in Spain and Latin America, and two
+  copies drift.
+- **Trial wording on Play, in any language.** Google gives "Try Premium free" as its own example of a violation, so
+  the Premium paragraph there names the extras and nothing about a free month, and the gate bans it.
+- **Rewording "straight into tasks" for Scan.** It is the paywall's own line, and true in the sense that matters
+  (nobody types the list); the listing doc records what it means.
+- **Localised screenshots now.** ASC falls back to the English set; they are parked with the next iOS version.
+
+The localised texts and every changed non-English line join the batch's one native read. Nothing was pasted into
+either console, and none of this reaches a store until Melroy pastes it at plan step 14.
+
+## 2026-10-19: the store 1.9 build review's fixes (ten findings, all minor, each fixed on `store-1.9`)
+
+The adversarial review of the branch confirmed ten findings, none a blocker. Each is fixed in its own commit (two
+share one, below), and this entry records what changed, what it corrects in the slice entries above, and what was
+left.
+
+**The review ask re-reads the evening when its timer fires (findings 1 and 2).** This corrects slice 1's "so they
+can never disagree". The Goodnight closure read `tonightOffer` from BEFORE the press, so a Goodnight note that was
+the week's third finish opened the scrapbook rung after the gates had passed, and an update status landing inside
+the 1.2s did the same with the update rung: the card would have landed on an offer, against call 4 and REV-06. And
+a double tap on Goodnight (the close Modal fades, so the button stays live) left two timers pending, and both
+stamped, counted `review.asked` and asked the store. Now, in `client/src/app/today.tsx`:
+- `offerShownSinceGoodnight`, a ref a layout effect sets whenever the rested screen's offer is not null, reset on
+  each Goodnight. Sticky, so an offer answered inside that second still counts as tonight's one ask.
+- `stillTheNightToAsk` in `lib/review.ts` (pure, with tests), run on a FRESH read of the memory just before the
+  stamp: no offer since the press, and the caps (this version never asked, 180 days apart) on what is stored now.
+  The caps are one shared `capsAllow`, so the two checks cannot drift.
+- One pending timer (cleared again right before a new one is set) and one ask in flight (`reviewAsking`).
+Manual cases REV-07 (the note opens the scrapbook offer, no card) and REV-08 (a double tap asks once).
+
+**Decided against:**
+- **Working the offer out from `[...tasks, did]` in Goodnight and passing it in.** Cheaper, but blind to the update
+  status landing inside the window. The ref sees whatever the screen really shows.
+- **A fresh memory read without the in-flight guard.** A second timer can read the memory before the first has
+  saved its stamp, because `reviewCardAvailable()` is awaited in between.
+
+**A share or the "Brain dump" shortcut closes a held card first (finding 3).** Slice 2's P1 made a held card hide
+the pill, and CaptureSheet's `seed()` only parks words while the sheet is hidden. So a share, or the launcher's
+"Brain dump" shortcut, arriving while a card was still held (a card survives the app going to the background)
+never raised the panel: shared words became the pill's draft dots behind the card, and the shortcut did nothing at
+all. Now the listener reads a `cardHeldRef`, closes the card, and the seed waits for the render that shows the
+sheet again, then rises and focuses as from a clear Today. The routing rule is the pure `seedRoute` in
+`lib/inbound.ts`, with tests. Manual case A11Y-13. (The review called the shortcut "Add a task". Its label is
+"Brain dump", which the case uses.)
+
+**Decided against:**
+- **Deferring the seed for select mode and a closed day too.** CaptureSheet parks on purpose there and never rises
+  later by itself, so only a held card, which the app can let go of for the person, waits for the next render.
+- **A `setTimeout(0)` before seeding.** It can still reach the handle built in the hidden render.
+
+**The privacy line about the review card says only what the app is told (finding 4).** Slice 1's line ended "we
+never learn whether you rated or what you wrote", and the second half was false: App Store Connect and the Play
+Console show the developer every written review, under the reviewer's store nickname, and let us reply. Both copies
+now say the app is never told whether you rated, and that a review you choose to write is posted on the store,
+where we can read it and reply like any public review, but nothing links it to the count. Last updated stays 19
+October 2026 (the line has not shipped). PRV-02 quotes the new words. Decided against: dropping the sentence
+about written reviews. Leaving it out would let the parenthesis read as "we never see your review", the overclaim
+this batch exists to remove.
+
+**The welcome's handoff line on a signed-in replay is parked with the capture lines (finding 5).** Slice 5's new
+`welcome.handoffFineNoAi` ("your tasks stay on this device ... Sign in to sync"), and `handoffFineAi` beside it, are
+wrong for a signed-in, syncing user who replays the welcome from Settings, the same replay problem slice 5 parked
+for the two capture lines, but the Backlog entry named only those two. All four now sit in one Backlog item, with
+the fix spelled out (read the session as Settings does, a signed-in variant with no on-this-device claim and no
+sign-in invite, five catalogues, a manual case) under the same trigger, the next welcome copy change. Decided
+against: building the signed-in variants on this branch. It is new copy in five languages for a replay path few
+people take, the native read is already the batch's long pole, and the first-run line, which everyone sees, is
+true as written.
+
+**Spanish says the same thing on both stores again (finding 6).** The Spanish App Store bullet, adapted from the
+Spanish Play text, had dropped its last sentence, "Guardamos una copia sin nombre ni cuenta para mejorar los
+pasos.", so the two stores told a Spanish reader different things about where an AI request goes. It is back,
+word for word (the description is now 3,981 of 4,000), and needs no new native read, because the Play text it
+comes from already had one. **Left for Melroy:** the English, German, French and Italian privacy lines on both
+stores name Anthropic as the only place AI text goes and leave out the copy we keep without a name, account or IP
+address (the privacy policy's "The AI features" section, and `faqAiA` on the landing page). They are not false
+about what Anthropic does, and every language agrees across its two stores, so adding `faqAiA`'s copy sentence to
+them is a copy call, not a fix, and it would need the native read for three languages. Parked in the BUILD-PLAN
+Backlog, in the store keywords item, with a trigger.
+
+**French no longer says there is one reminder (finding 7).** Both French texts had a bullet that began "Rappel
+quotidien" and said there is one, a daily one. Both phone apps also have per-task reminders, Hold me to it and
+Rhythms (`scheduleNudge`, `scheduleHold`, `scheduleRhythm` in `lib/reminders.ts`), which the French catalogue
+itself names (`faqWhereA`). Slice 8's truth pass carried the line into the new App Store French unchanged. Both now
+say "Des rappels tout doux, seulement ceux que tu demandes, jamais une échéance.", the idea the German, Spanish and
+Italian lines carry, on both stores (App Store 3,956 of 4,000, Play 3,846). The line joins the batch's one native
+read with the rest of the French texts. Decided against: a longer App Store variant that also names Tiens-moi à
+ça, because one French line on both stores cannot drift apart.
+
+**The gate holds the six-character code and all three medical sentences, on both stores (finding 8).** Play's
+code check was `/sechs|seis|six|sei\b/`, and slice 8 gave every Play text a Premium line naming "six more colour
+themes", so it passed with the code sentence gone. The App Store had no code check at all, though the header said
+it did. And the medical rules pinned only the first and last sentences, so "It does not diagnose, treat, cure or
+prevent any condition..." could be cut silently. Now `checkLongCopy`, which both stores run, checks the code by its
+phrase in each language (`six-character code`, `Code aus sechs Zeichen`, `código de seis caracteres`, `code de six
+caractères`, `codice di sei caratteri`) and all three medical sentences word for word. That made a gap visible:
+the English App Store page was the one listing that never named the code, so it now ends its Ours paragraph with
+"It starts with a six-character code.", paid for by two trims ("between" became "for", "the shared list" became
+"the list"), 3,997 of 4,000. A scratch break test (copies of the four paste sources, every recorded count
+re-measured after each change so only the rule under test can fail) removed the code from all ten texts and the
+diagnose sentence from six: the new gate fails all 17, the old one missed 16. Decided against: the bare-number
+check kept beside the phrase, which proves nothing once a number appears anywhere else in the text.
+
+**The "nothing leaves your device" ban catches the family, not one wording (finding 9).** The gate's header claimed
+it banned "every variant in five languages", and the rules were literals: "nothing leaves the device", "nothing
+leaves your phone", "your words never leave your device" and "nothing you write leaves your device" all passed, the
+overclaim that sat on both stores for two months. Now the old wordings stay banned by name, and their rewordings by
+pattern: in English, "nothing / no text / none of what you write" up to 40 characters before "leaves / is sent /
+goes anywhere", and "never / not / n't leave your (or the) device or phone". In German, Spanish, French and
+Italian it catches each language's own "nothing ... is sent or leaves" and "never leaves your device or phone"
+(the German includes the recorded "nichts mehr irgendwohin geschickt"). The header now says what it does: a pattern is a net, not a proof,
+so the native read still reads for the idea. None of the patterns matches the current paste sources.
+
+**The break test is now in the repo: `scripts/check-listings-break.py`.** The slice 8 negative run and this
+review's probes were by-hand scratch runs nobody kept, which is how three rules could pass everything. The script
+copies the four paste sources to a temporary folder, makes one change at a time, re-measures every recorded count,
+and counts a case as caught only when the gate fails for the EXPECTED reason, because a probe that merely pushes a
+description past 4,000 characters proves nothing (the first scratch run here had four of those). Each probe
+replaces a sentence for the same reason. It holds the 17 protected-claim cases and 16 nothing-leaves probes (eight
+English, eight across the four translations, both stores): 33 of 33 caught, and the gate before this commit let 15
+of the 16 probes through. The gate's header says to run it after any change to the gate. Decided against: running it
+in CI. It shells out once per case and proves the gate, not the copy, so it belongs with gate edits, which are rare;
+CI keeps running the gate itself on every push.
+
+**Clinical words are banned in all five languages, and the keyword fields hold slice 8's other rules (finding 10).**
+Slice 8's entry says the gate bans the English clinical words in every field, but `anxiety` was not in the rule,
+and the rule was English only, so "eine Therapie ... gegen Symptome" and "un tratamiento para tus síntomas" passed,
+in the translations where native-read rewrites happen. The rule now adds `anxiety` and the clinical nouns in
+German, Spanish, French and Italian (Behandlung, Therapie, Symptom, tratamiento, terapia, síntoma, traitement,
+thérapie, symptôme, trattamento, sintomo, and the Italian DDAI), nouns only, so the medical sentences' own verbs
+(behandelt, trata, traite, tratta) still pass. That makes slice 8's line true and carries it into the
+translations. The keyword fields also gain the two other words-ruled-out lists from slice 8, matched per keyword:
+competitor names (Apple 2.3.7, a dozen known ADHD and planner apps) and habit, streak, chore and reward words in
+the five languages. None matches the current paste sources. The break test gains the clinical (10) and keyword (6)
+groups: 49 of 49 caught, and the gate before this commit let 15 of those 16 through. Decided against: banning the
+verbs. "treat" and its translations are the medical disclaimer's own words, and banning them would force the one
+sentence the stores ask for to be reworded.
+
+## 2026-10-19: Today's words clear 4.5:1 on the real sky, and a test holds every colour to its surface (store 1.9, slice 3 and C10)
+
+**Decided (Melroy's decision 1, 2026-10-19): the colour proposal's "solved for both pools" variant, in light mode
+only.** That is the a11y scout's tokens plus the two sky tokens one step darker, because the scout's own sky values
+cleared Today's top half but measured 4.1 to 4.3:1 on the rested screen, where the rose light pool sits behind its
+lines. The proposal and its renders are in `docs/design-source/store-1.9/` and the session scratchpad
+(`colour/proposal.md`).
+
+**The palettes now live in a pure module, `client/src/constants/palette.ts`** (the `motion.ts` precedent), because
+`theme.ts` imports `react-native` and `global.css` and the test runner could never load it. `theme.ts` re-exports
+everything, so no import path changed. The module also holds what the test must composite exactly as the screen
+does: `quietTokens` (moved out of `buildTheme`), `shelfTint` (the held card's shelf, a literal that was copied in
+TaskRow and Today) and `PILL_FILL_ALPHA` (the Menu pill).
+
+**The tokens, light mode.**
+- **Three new text roles in `Palette`.** `skyInk` for words straight on the living sky, `accentText` for the accent
+  as words on a card, a tint, the shelf or a sheet, and `skyAccent` for accent words on the sky. The accent itself
+  stays for fills. Dusk: #574F48, #865C6A and #654950. Each Premium theme has its own, solved against the same
+  surfaces (`LIGHT_TEXT`). Honey's accent words go bronze (#856527), because a calm gold cannot clear 4.5:1 as text
+  on white, and its fills stay gold. In dark mode the three are simply inkSoft and the accent, their values before.
+- **The inkSoft floor nudge** (Dusk #7A7066 to #6F665C, and each Premium light inkSoft a step), **`repeat` retuned**
+  (Dusk #6E72A0 to #6B6F9B), and **darker check rings on the six Premium light themes** (inkFaint, 2.5 to 3.6:1 on a
+  card). Dusk's inkFaint keeps its value: it is no longer text on Today, TaskRow or the pill.
+
+**The roles, on Today, TaskRow, DayHeading and MenuPill.** C2: inkFaint stops being text, to inkSoft on a card and
+skyInk on the sky. C2b: the bare inkSoft lines on the sky become skyInk. C5: Quiet's held card gets an opaque wash in
+light mode (`mix(accentSoft, surface, 0.3)`), because at 0.78 the rose pool showed through it. C6: the accent as
+words becomes accentText, or skyAccent on the sky, including Quiet's Menu label and, a site the scout's list left
+out, the hero's words on the dark tint and in Quiet. C7: all 23 placeholders move from inkFaint to inkSoft. C9: the
+Dusk preset, which only the Settings swatch reads, now says what Dusk renders, and a test holds it. Plus the
+proposal's finds: BedtimeCapture's prompt, "Not tomorrow?" and its "Saved" line take the sky tokens and its Add label
+takes accentText, and the rotating foot phrase stops borrowing the task-dot colours (1.8 to 3.1:1 at night) for
+skyInk. The Android widget's inlined light hexes follow Dusk's new inkSoft and accentText, as its comment requires.
+The role changes apply in both schemes, so in dark mode the small capitals, the faint card lines and the
+placeholders lift to inkSoft: no token value changed there, but keeping inkFaint as text would have kept a failure
+(3.2:1 on a dark card) for the sake of "unchanged".
+
+**The test, `client/src/constants/palette.test.ts` (C10).** Every text token against every surface its role names,
+4.5:1, and the check and select rings 3:1, in all 14 palettes. The surfaces are composited as the screen does it:
+the sky is every stop of every phase plus both light pools at full strength (the glow over each top stop, the rose
+pool over each mid and bottom stop), the cards are surfaceCard over all of those, the shelf is its tint over a card,
+Quiet's held card is its wash over the sky, and the Menu pill is its fill over the top of the sky only, because it
+only ever sits in the header. The ROLES table is the contract: a colour gets a new surface by a row there. **Run
+first against today's tokens, it failed 95 pairs in 13 of the 14 palettes** (137 with the old inkFaint-as-text
+wiring added), every failing row of the scout's table among them. It also showed two things the scout's model did
+not: Today's bare text was 2.8:1, not 3.3, once the rose pool is in, and dark mode's bare words fall under 4.5:1
+beneath the glow. **With the new tokens: nothing fails in light mode.** Measured in the dev server, the date, the
+weight line and ENERGY render #574F48, the Menu label and Normal #865C6A, RIGHT NOW #6F665C, and the dark values are
+unchanged.
+
+**Held open, by Melroy's call:** dark mode keeps its values in this batch, so ten dark pairs (pale words straight on
+the sky under the glow, 3.9 to 4.5:1 at full strength, about 4.4:1 at a real line's worst moment in Dusk, Honey and
+Rose) sit in the test's `OPEN_IN_DARK` at today's ratio. The test fails if one gets worse, and fails when one is
+fixed, so it gets struck off. **Found and left:** with Quiet on, a row has no card, so its own grey words, accent
+words and check ring sit straight on the sky (3.1 to 3.2:1, and 2.1 to 2.5:1 for the ring). Both are in the
+BUILD-PLAN Backlog with the fixes, as Melroy's calls.
+
+**Decided against:**
+- **Lightening the sky.** inkSoft would need the sky's darkest stop near #F6F6F6, which deletes the sky, and the
+  scout's sky values would need the rose pool cut from 0.34 to about 0.02 on the rested screen, which deletes the pool.
+- **One darker inkSoft everywhere.** The shade the sky needs (#574F48, 8.0:1 on white) would turn every card's and
+  sheet's secondary grey into near-ink and flatten the hierarchy. The sky gets its own token, darker only there.
+- **A high-contrast mode.** AA is the baseline, not a setting, and this app removes settings rather than adding them
+  (the scout's Tier 4, a BUILD-PLAN Tier 4 setting that waits for a real ask, and on the 1.9 plan's skip-forever
+  list).
+- **The scout's sky values as rendered** (#625951 and #73515B in Dusk). They pass the top of Today and fail the
+  rested screen, the screen people see at night.
+- **Lifting dark mode now.** Melroy's call. The test holds the gap instead of hiding it.
+- **Modelling each line at its real distance from the glow** instead of the glow at full strength. Truer by a few
+  hundredths, but it ties the test to a layout that moves, and the light tokens clear the stricter model anyway. The
+  pill is the one exception, because the header is the only place it can be.
+- **Making the role changes light-only.** That would keep dark inkFaint as text (3.2:1 on a card) on purpose.
+- **The widget importing `palette.ts`.** The pure module makes it safe in principle, but the widget's headless
+  context has blanked before and needs a device test. It keeps its inlined hexes, now in sync.
+- **The gold ✦ (C8).** Tier 3, already parked.
+
+## 2026-10-19: Every screen's words take the colour roles, and a scan holds them there (store 1.9, slice 4)
+
+**Decided: the app-wide sweep, slice 4 of the 1.9 plan, with the roles slice 3 set on Today.** Settings, the
+Calendar, Ours (the setup screens and the shared list), Premium, Privacy, Terms, the welcome, sign-in, the rooms,
+Settle, and every sheet (the capture panel, the When sheet, Break it down's questions and review, the date picker,
+the camera, and Today's own Plan, Focus, slice and close-the-day cards). Colour only: no string changed, so the
+Premium screen's Android price rule is untouched.
+- **inkFaint is never words.** 42 lines of grey words move to inkSoft on paper, a card or a sheet, and to skyInk on
+  the shared list's sky. Two dead style entries that still named it (`cadenceNote` in the shared list, `controlOff`
+  in TaskRow) are deleted.
+- **The accent is never a text colour.** 90 accent words move: 87 to accentText, and 3 to skyAccent where they sit
+  straight on the sky. The four "ink on light, the accent on dark" ternaries (Chip, the capture panel's and the When sheet's
+  day chips, the welcome's chosen card) now name accentText for dark. Same value, since dark accentText is the
+  accent, so the scan needs no exceptions for them. `quietTokens.link` follows (unused today, but it is words).
+- **The shared list sits on Today's sky,** so its bare lines take the sky tokens: the date, the line under the
+  heading, "Kept with", the empty line, the offline and unsynced notes, Recently removed and its rows and hint
+  (skyInk), and Restore with the waiting line's "Get a new code" (skyAccent). An archived list shows the same lines on
+  the page, where skyInk is 7.3:1, darker than the rooms' grey and still quieter than a title.
+- **Found on the way.** "+ I also did that" under Today's list is accent words straight on the sky, missed by the
+  scout's list and by slice 3, now skyAccent. The "!" in the heading's tint (Today and Ours) is accent words on the
+  accent tint, 4.0:1 in Dusk, now accentText. Break it down's later-phase dates were `repeat` on the sheet's paper,
+  4.3:1 in the light themes, now inkSoft (the weight still sets them apart).
+
+**The guard, `client/src/constants/colour-sites.test.ts`.** It reads every source file and fails on (1) any
+placeholder in inkFaint, with no exceptions, (2) any inkFaint not on its list of non-words (three rings, four
+disabled controls, two decorations and one underline, each with its reason), and (3) any `color:` that names the accent
+itself, outside its list of two (the logo's second tick, a logotype, and Premium's spinner). A listed use that goes
+away fails too, so the lists only hold what is there. Entries are a file and a style key, never a line number, so an
+edit above them does not break the scan. **Run against the code before this sweep it failed 44 inkFaint sites and
+90 accent sites** (the scout counted 65 and 112 before slice 3 took Today, TaskRow and the placeholders).
+
+**`palette.test.ts` widens to the new surfaces.** skyInk and skyAccent are also held on the page (the archived list),
+inkSoft and accentText already were. `danger` gains the page (Settings in Quiet drops its cards). `repeat` stays
+words only on cards and sheets, and the Calendar's ↻ beside a day's task, which screen readers skip, is held as a
+symbol at 3:1 on the page. Both tests pass in all 14 palettes, with the dark gaps still in `OPEN_IN_DARK`.
+
+**Decided against:**
+- **A `repeatText` token, or retuning `repeat` again,** for the phase dates. One line, and Melroy approved the
+  `repeat` value in decision 1. inkSoft is the secondary role and it already passes.
+- **Line numbers in the lists.** They drift with every edit, which turns a guard into noise. The style key is stable.
+- **An allowlist for placeholders.** The plan banned inkFaint placeholders outright, and an empty field's hint is the
+  one line that says what the field is for.
+- **Scanning for inkSoft straight on the sky.** A file scan cannot know what a style is drawn over. The ROLES table
+  says which surfaces each role may sit on, and the sweep used it, screen by screen.
+- **Scanning `color` props.** A spinner's colour and the drawn pin are graphics, not words.
+- **Making the selected chips accentText in light mode.** The Chip rule (ink on the tint) is stronger than it needs to
+  be, and changing it is a look, not a fix.
+- **Settle's guide words, now.** They wear the five task-dot hues in turn on the page, 2.4 to 4.3:1 in light mode, and
+  the changing colour is part of the breath. A taste call, parked in the Backlog with a trigger.
+- **Recolouring the gold ✦.** C8, Tier 3, still parked.
+
+## 2026-10-19: an iPhone shows only Apple's price, so the welcome's A$5 is the web's alone (store 1.9)
+
+**Decided (Melroy's call, 2026-10-19): on an iPhone the welcome's Premium fine print carries no figure of ours.** It
+read "A$5 a month, cancel anytime" wherever `STRIPE_HERE` was true, and that switch is true on iOS by design, so a
+US iPhone read A$5 in the welcome while its own Premium screen showed Apple's US$ price. The rule is now that a
+price of ours (A$5, A$50, the Stripe prices) shows only where no store sells, which is the web alone. A store
+build, iOS or Android, prices Premium from the store's own string, in the buyer's currency, on the Premium screen
+and nowhere else. The web keeps its Stripe figure, and Android showed none already.
+- **How:** `welcomeFineKey(iapAvailable, stripeHere)` in `lib/premium-ui.ts` picks `welcome.premiumFine` only when
+  `STRIPE_HERE && !IAP_AVAILABLE`, and `welcome.tsx` asks it. `IAP_AVAILABLE` (lib/purchases) is the compile-time
+  "a store sells here" fact the Premium screen's price line, `premiumPrimaryAction` and `trialSlot` already read,
+  so the welcome now follows the same rule the paywall does.
+- **The test, like Android's:** `premium-ui.test.ts` reads every key an iPhone gets from `storeCopyKeys(false)`
+  and `welcomeFineKey`, in all five catalogues, and fails on a currency figure or a dollar word. Run against the
+  old condition it failed, and a second test proves the rule can see the web's A$5 in every language. The
+  catalogue lines are unchanged, so there is nothing new for the native read.
+- Manual case PREM-61, and the suite regenerated. It reaches iPhones with the 1.9.0 build.
+
+**Decided against:**
+- **A fourth storefront switch and a `storefront.ios.ts`.** It would add a third platform file whose only job is
+  a value `IAP_AVAILABLE` already answers, and a third file to keep in step through the contract. The STRIPE_HERE
+  note in `lib/storefront.ts` now says a price of ours also needs a build where no store sells.
+- **`Platform.OS === 'ios'` in the screen.** The storefront rules are compile-time and tested in pure logic on
+  purpose. A runtime check in the screen is the scatter of conditions `storeCopyKeys` was built to end.
+- **Dropping "Annual · save 17%" on the iPhone in the same change.** It is not a price, Path A kept it on iOS on
+  purpose (2026-10-01), and Melroy's call named the welcome's figure. Apple rounds each storefront's price on its
+  own, so it may not be 17% everywhere. Parked in the Backlog with a trigger.
+- **Rewriting the iPhone's Terms, which name the website's A$5 and A$50.** True about the website, but it is the
+  last A$ figure an iPhone shows. It is legal text, so it waits for Melroy's word, parked in the Backlog with a
+  draft of the fix and a trigger before the 1.9.0 iOS build.
+
+## 2026-10-19: the App Store gets six captioned slides, and neither store shows a Speak button (store 1.9)
+
+**Decided: a `STORE=ios` mode inside `scripts/play-assets.mjs`,** not a fourth generator. It reuses the Play
+harness and writes six slides at three sizes from one raw capture per shot (440x956 at scale 3, so 1320x2868):
+`docs/appstore/captioned/{6.9,6.5,6.3}/en/01-today.jpeg` to `06-ours.jpeg`, at 1320x2868, 1284x2778 and 1206x2622,
+numbered so the file order is the upload order. Play's output is unchanged when `STORE` is unset.
+- **The six, in order:** Today ("Only today, / sized to feel possible."), the held card on a three-week-old "Do my
+  taxes" ("Too big to start? / Break it down."), the Calendar ("See everything / you actually did."), the capture
+  panel with three lines typed ("Empty your head / in one go."), Settle in dark ("A quiet room / for loud days.")
+  and a joined Ours room ("One shared list. / Never a scoreboard."). Apple shows the first three in search, so they
+  are the promise, the moment you are stuck and the payoff. Each caption was checked against the code: Break down
+  is on every held card, free, with AI on or off. The box takes many lines and offers "Add 3". Settle is ungated.
+  Nothing on the shared list counts who did what.
+- **The slide:** a frameless screen card at 76% of the slide's height, corner radius 5.5% of its width, a hairline
+  edge and Play's shadow, under a two-line caption at 7.5% of the slide width, on Play's warm gradient. Every
+  measure is a proportion, so one template draws all three sizes.
+- **The captions** live in `docs/appstore/captions.json`, English only. A gate runs before any browser starts and
+  fails on a missing caption, a dash, "!", a digit, a currency, Android, Google, Play or Stripe, Speak or the widget,
+  a French line without its no-break space, or more than two lines. Tested against 16 inputs, good and bad. Play's
+  own captions go through it too, and pass.
+- **The layout guard fails, never warns.** A caption line that wraps, or a caption that runs into the screen card,
+  stops the run. Proven with a deliberately long line. Every JPEG's own size header (SOFn) is read back and must
+  match its slot exactly, the 2026-08-17 rule that a file can be named right and sized wrong.
+- **The hardening, copied from `landing-shots.mjs` (not imported, per the 2026-08-16 rule):** the clock pinned to
+  Sunday 18 October 2026 at 14:00 in Melbourne, except Settle, whose breathing a fake clock freezes. `pinRandom`
+  and the reminder-offer seed. The AI host refused outright, so no run spends AI even against a production export.
+  The browser locale from `LOCALE_TAG` and the Melbourne timezone. Waits by catalogue string or fixture title,
+  through the esbuild `translate` bundle, never by English UI copy. Sample tasks from the landing cast and the
+  landing tables, so another language can render once its captions exist.
+
+**Two truth bugs on the live listings, fixed in both stores' pictures:**
+- **Speak.** The web build draws a Speak button that no phone has (`speech.ts` is a stub on native), and both
+  stores' capture slides showed it. Speech recognition is now deleted before the app boots, and the run fails if
+  the capture panel still shows Speak.
+- **"Waiting for your person · Get a new code"** on Play's Ours slide, because the fixture answered with one member.
+  The fixture is now two people (partner "Sam"), the room reads "Kept with Sam", and the run fails if it waits.
+
+**Play: two slides regenerated, `capture` and `ours-room`, in all three sizes.** Play's capture caption is now
+"Empty your head in one go." The old "Empty your head. One tap to add." stretched it, because the + opens the box
+and Add is a second tap. Play holds a copy of the English set in each of its six listings, so "every Play locale"
+means replacing those two files in all six, which `docs/play-store-submission-pack.md` now says. A new `NAMES`
+filter regenerates only the named slides, and skips the icon and the feature graphic. Play now gets the same
+hardening, the pinned clock included, so the two new slides read "Sunday 18 October" beside six older ones that
+read 27 September. Nobody shopping will compare dates, and the full set is parked.
+
+**The bottom-left smudge** on the old `ours-room.jpeg` (a blurred grey square near the corner) is in none of the
+eight new raw captures, checked by eye and by the corner's spread. Its cause was never reproduced. The
+`#error-toast` hide stays, and manual case DEP-04 asks for a look at every corner.
+
+**Two composition calls made while looking:** the held card is scrolled so the Right now card sits whole under the
+top edge (`topAnchor`), because scrolling to the end left a sliver of it across the top. The shared list got a
+sixth row, so the room reads lived-in. The Calendar slide ends on the Scrapbook heading and the top of its card,
+which is the real screen at that height, and is left for Melroy's look.
+
+**Decided against:**
+- **A bezel.** A plain dark phone body reads as another platform's device (2.3.10), and the icon and name already
+  sit right above the shots in the listing. Frameless says "this app" without saying "this phone".
+- **iPad shots.** `client/app.json` has `supportsTablet: false`, and Apple only asks for iPad shots when the app
+  supports iPadOS.
+- **The welcome screen first.** It is title art, which 2.3.3 bars ("not merely the title art"), and its words now
+  live in the captions.
+- **Ours third,** which would match the `couples`, `shared` and `household` keywords. Couples are the smaller
+  audience and Ours needs a sign-in. A Product Page Optimization test settles the slot without a new version.
+- **The "Here's the plan" sheet for slot 2.** It shows the result, but only for AI-on users. The held card is
+  true for everyone.
+- **Captions in catalogue `storeShots.*` keys now.** Strings phones never show should not ship to phones. They
+  move into the catalogues with the localised sets.
+- **Localised slides in this version.** ASC shows the English set in every storefront, the captions would need a
+  native read first, and the German lines are the likeliest to trip the wrap guard.
+- **"Just today. Nothing is ever overdue."** for slot 1. True, but it repeats the subtitle that sits right above
+  it in search. And **"never the whole list"**, which is false: every undated task shows on Today.
+- **A shared module with `landing-shots.mjs`.** The 2026-08-16 rule stands: loud, greppable duplication over a
+  quiet import that breaks both at once.
+- **Regenerating the whole Play set.** Only the two untrue slides changed. The rest is parked with a trigger.
+- **Writing into `docs/appstore/*.jpeg`.** `scripts/social-slides.mjs` reads those plain shots, so the script
+  refuses any App Store path outside `captioned/`.
+
+Manual case DEP-04 (look at all eight at real phone size before upload), and the suite regenerated (523 cases).
+`node scripts/check-listings.mjs` still passes with the new Screenshots section.
+
+## 2026-10-19: the store 1.9 colour and copy review's fixes (nine findings, all minor, each fixed on `store-1.9`)
+
+A second adversarial review of the branch, after the colour slices, the listings' kept-copy sentence and the
+release commit, confirmed nine findings, none a blocker. Each is fixed in its own commit, and this entry records
+the calls inside them and what each corrects in the entries above.
+
+**Quiet's Right now frame takes the sky roles (finding 1).** This corrects slice 3's list. The a11y scout filed
+RIGHT NOW, the occupant's name, the caret, the tools panel's unavailable names and its "now" tag as words on a
+card, which is only true in Standard: Quiet drops the frame's card, so they sit straight on the living sky. In
+light mode, with the real geometry on a 390 x 844 phone, inkSoft and accentText measured 3.9 to 4.1:1 where the
+frame rests and 3.3 to 3.4:1 scrolled under the rose pool. In Quiet those five styles now read `skyInk` and
+`skyAccent` (Dusk #574F48 and #654950, checked in the dev server), and Standard keeps inkSoft and accentText.
+Dark mode is unchanged, because the sky roles are inkSoft and the accent there. The ROLES rows in
+`palette.test.ts` now say the frame is a card in Standard only.
+
+**Decided against:**
+- **Parking it with the Quiet rows' taste call.** The rows were parked because firming every row changes how Quiet
+  reads. The frame is a handful of labels right under ENERGY, which already takes skyInk in Quiet, so leaving it
+  pale kept a known AA failure for no look worth keeping. The parked rows entry now says the frame is done.
+- **Giving Quiet's frame back a card.** Quiet is borderless on purpose, and the roles exist so a surface change is
+  never needed to fix a word.
+
+**The colour scan reads every mention of the accent (finding 2).** This corrects slice 4's guard. It matched only
+a line where `color:` and `colors.accent` sat together, so a colour that reached words through a variable passed:
+TaskRow's `heroText` held the accent for Break it down's words on main, and putting that line back passed the old
+scan. Slice 3 had fixed the site before the guard existed, so the guard's "failed 90 accent sites" proof never
+covered that shape. Now `colour-sites.test.ts` reads the accent the way it reads inkFaint, at every mention, and
+lets a mention off only when its own line assigns it to a fill or an edge (backgroundColor, borderColor, the four
+side borders, textDecorationColor, stopColor, shadowColor) or to a graphic's own prop (`color={` on a spinner or
+the drawn pin). Proved by putting main's `heroText` line back: the new scan fails on it. A small test pins how the
+reader classifies the shapes the screens use, ternaries included.
+
+**Decided against:**
+- **Following the variable to where it is used.** A file scan cannot trace data flow without a parser, and the
+  rule is simpler than the trace: the accent itself is a fill, so any other use names a text role or is listed.
+- **Reading a key from the line above** for a mention on a line of its own. It would let a multi-line ternary hide
+  a text use. Such a mention counts until it is listed or rewritten.
+
+**The ring on the accent tint is modelled, and held open in dark (finding 3).** This corrects slice 3's test, which
+held inkFaint to 3:1 on a card only while its comment said every ring is held "on the surfaces the app really draws
+it on". A pinned row sits on solid accentSoft with its ring always empty, and an Ours row changed since you looked
+sits on the opaque wash, so the ring row now names the tint as well. Light mode passes at 3.07 to 3.24:1. Dark
+inkFaint measures 2.78 (Dusk), 2.80 (Rose), 2.93 (Fog) and 2.96 (Slate), so those four pairs join `OPEN_IN_DARK`
+at their ratios rounded down, and the BUILD-PLAN Backlog's contrast-gaps entry gains them as gap (3).
+
+**Decided against:**
+- **Lifting dark inkFaint now.** Melroy's call kept dark mode's values in this batch. The test holds the gap where
+  it is instead of hiding it, the same way it holds the dark sky pairs.
+- **Floors from the review's own figures** (2.93 and 2.96 for Fog and Slate). They sit above the real ratios, 2.929
+  and 2.955, so the held-open check would have failed on today's tokens.
+
+**Dark mode keeps the foot phrase's hues and the periwinkle phase dates (finding 4).** This corrects slices 3 and 4,
+which changed two dark-mode colours under the "dark mode unchanged" call without saying so. Slice 3 gave the foot
+phrase skyInk in both schemes, which in dark is the grey #A89E93, and slice 4 gave Break it down's later-phase dates
+inkSoft in both. The reasons given were light-mode numbers only (the dot hues at 1.8 to 3.1:1 on the light sky,
+`repeat` at 4.3:1 on light paper). In dark neither was failing: the five hues clear 4.99:1 on the sky below the
+glow, where the foot of Today sits, and dark `repeat` is 6.19:1 or more on the page and 5.66:1 or more on a sheet.
+So the change traded hue for grey with no contrast gain, which is a look Melroy never approved. Now
+`RotatingPhrase.tsx` reads `useTheme()` again and wears the hues in dark and skyInk in light, and `phaseDate` in
+`BreakdownReview.tsx` is `repeat` in dark and inkSoft in light. A new block in `palette.test.ts` holds both dark
+claims in all seven themes, so a dark retune that breaks one sends it to the light-mode role. Checked in the dev
+server: the foot line renders the dark gold #D6B36A in dark and #574F48 in light. With this, the slice entries'
+own summary of dark mode is true again: only the faint grey lines (inkFaint to inkSoft) get a touch lighter.
+A11Y-11 and A11Y-14 say so.
+
+**Decided against:**
+- **Keeping both changes and asking Melroy to approve them after the fact.** It would make him rule on two hue
+  losses that buy nothing in dark, inside a batch whose call was that dark stays as it was.
+- **Modelling the foot phrase under the full glow,** as the sky role does. Under the glow two hues fall to 3.83 and
+  3.93:1, but the foot of Today never sits there. In the dev server the glow ends about 330px down at the top of
+  its drift, RIGHT NOW starts at 351px, and the foot line comes after the whole list with only the optional links
+  below it, so even scrolled to the end it sits near the bottom of the screen.
+
+**The iOS build step names the Terms decision, and PREM-61 says what it covers (finding 5).** The in-app Terms
+still name the website's A$5 and A$50 on an iPhone, in the "Premium and billing" branch the web and iOS share. The
+Backlog item that parks it is triggered "before the 1.9.0 iOS build is queued", but step (12), the list a cold
+session follows to queue builds, never named it. It does now, before the iOS command. PREM-61 claimed "the only
+price an iPhone shows is Apple's own", which is false on 1.9.0 while the Terms keep the website figure, so it now
+says the welcome shows no price of ours, the Premium screen shows Apple's, and the case does not cover the Terms.
+
+**Decided against:** splitting `terms.tsx` into an iOS variant now. It is legal text, and every Terms change waits
+for Melroy's word. The draft of the fix stays in the Backlog item.
+
+**The release notes say "darker" of the light theme only (finding 6).** Every Apple block said grey and coloured
+words are darker "most of all in the light theme", and every Play block "across the app, most of all in the light
+theme", which tells a dark-mode reader their words got darker. In dark mode no token went darker: skyInk is
+inkSoft, accentText and skyAccent are the accent, and the only change there is inkFaint text lifting to inkSoft,
+which is lighter. Each opening now starts "In the light theme" in its own language, the Honey clause folds into
+that sentence, and the counts are re-measured (Apple 715 to 835, Play 390 to 482). The content checks re-ran clean.
+The notes were still waiting on their native read, so the new lines simply join it.
+
+**Decided against:** a sentence about dark mode's lighter grey. It is the smallest visible change in the batch,
+and the cap on Play's French leaves 18 characters.
+
+**The cut table reaches the App Review notes (finding 7).** The table said a failed A11Y-07 cuts the "With
+VoiceOver on" sentence from all five Apple blocks, but the App Review notes say separately that 1.9.0 "gives
+VoiceOver an Options action on every task", and DEP-05 diffed What's New only. So a failed check would have told
+the reviewer about a feature that does not work. The A11Y-07 row now names the notes, a line under the table says
+what their paragraph becomes and that the count drops from 2646 to 2594, DEP-05 diffs the notes too, and step
+(14) in BUILD-PLAN pastes them after the cut table.
+
+**The French Ours line loses its stray "la" on both stores (finding 8).** "L'un ou l'autre la coche, elle est faite
+pour les deux." has the slip the native read fixed in Spanish and Italian: the nearest feminine nouns before "la
+coche" are "la tienne" (ta journée) and "la liste", so it reads as one of you ticking your day, or the list. Both
+French listings now say "La coche de l'un ou de l'autre vaut pour les deux.", the Italian fix's shape and 5
+characters shorter, which the App Store's French needed at 3999 / 4000 (now 3994, Play 3950). The gate passes on
+both stores. The French reader passed the old sentence, so the new one goes back to them before paste day
+(BUILD-PLAN says so beside the pending native read).
+
+**Decided against:**
+- **"L'un ou l'autre coche une tâche, ..."** It names the task, but adds 7 characters and breaks the App Store's
+  4000 cap.
+- **Changing the app's French `sharedLead2` in the same commit.** It has the same construction, but the French
+  reader approved it as written, and the app's line should follow their word on the new one, not run ahead of it.
+
+**The Italian native-read fix reaches the app's welcome (finding 9).** The reader rejected "La spunta uno dei due,
+e vale per entrambi." in the listings because the feminine "La" could only point back to the list, and 8b5f9f2
+fixed it there. The welcome's `welcome.sharedLead2` in `it.ts` carried the same sentence, rendered right after
+`sharedLead1`'s "Una lista ... la casa, la spesa", and never changed, so the app kept the wording the reader turned
+down. It now reads "La spunta di uno dei due vale per entrambi.", the reader's own words, and the Italian
+native-read note in the Play listings doc records it. The French welcome line (`fr.ts`, "L'un ou l'autre la
+coche") stays as the French reader approved it, until their word on the new listing sentence (finding 8).

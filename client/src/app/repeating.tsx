@@ -233,7 +233,7 @@ const makeStyles = (t: Theme) =>
       paddingVertical: spacing.three,
     },
     undoText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
-    undoAction: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
+    undoAction: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold },
     empty: { marginTop: spacing.three },
     group: { gap: 10, marginTop: spacing.three },
     groupHeading: { color: t.colors.inkSoft, fontSize: 13 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
@@ -265,7 +265,7 @@ const makeStyles = (t: Theme) =>
       paddingLeft: TICK + spacing.three,
     },
     cadence: { flexGrow: 1, flexShrink: 1, color: t.colors.inkSoft, fontSize: 13 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body },
-    editAction: { color: t.colors.accent, fontSize: 13 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body },
+    editAction: { color: t.colors.accentText, fontSize: 13 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body },
     removeAction: { color: t.colors.danger, fontSize: 13 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body },
     // Fainter than the list and set apart from it: a clarification, not a warning, and nothing here is wrong.
     note: { color: t.colors.inkSoft, fontSize: 13.5 * t.scale, lineHeight: 13.5 * 1.55 * t.scale, fontFamily: fonts.body, marginTop: spacing.three, paddingHorizontal: spacing.half },

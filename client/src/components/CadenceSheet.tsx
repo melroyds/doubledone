@@ -241,7 +241,7 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
         style={styles.sheetInput}
         value={draft}
         onChangeText={setDraft}
-        placeholderTextColor={theme.colors.inkFaint}
+        placeholderTextColor={theme.colors.inkSoft}
         returnKeyType="done"
         accessibilityLabel={t('repeat.titleInputA11y')}
       />
@@ -433,7 +433,7 @@ const makeStyles = (t: Theme) =>
     // The zone labels. `zoneLive` is the sheet's ONE accent label, marking the moment the day zone
     // stopped asking "which day" and started asking "from when".
     zone: { ...t.type.caption, color: t.colors.inkSoft, marginTop: spacing.two, textTransform: 'uppercase', letterSpacing: 0.8 },
-    zoneLive: { color: t.colors.accent },
+    zoneLive: { color: t.colors.accentText },
     // The start row survives for the drawer and is hidden (not unmounted) on the shared surface,
     // whose day zone above already owns the same value. Unmounting it would drop the inline picker.
     hidden: { display: 'none' },
@@ -464,7 +464,7 @@ const makeStyles = (t: Theme) =>
     },
     dayOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
     dayText: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
-    dayTextOn: { color: t.scheme === 'dark' ? t.colors.accent : t.colors.ink, fontFamily: fonts.bodyBold, fontWeight: '700' }, // the Chip rule
+    dayTextOn: { color: t.scheme === 'dark' ? t.colors.accentText : t.colors.ink, fontFamily: fonts.bodyBold, fontWeight: '700' }, // the Chip rule
     // A calendar-shaped grid rather than a stepper: reaching the 28th by tapping + twenty-six times
     // is not a picker, it is a punishment. Seven across on a phone, so it reads as a month.
     monthDays: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two, marginTop: spacing.three },
@@ -501,7 +501,7 @@ const makeStyles = (t: Theme) =>
     },
     startBtnText: { color: t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.body },
     // The surface-specific promise (Ours). A fact, in the quiet voice, never a warning.
-    note: { color: t.colors.inkFaint, fontSize: 13 * t.scale, lineHeight: 19 * t.scale, fontFamily: fonts.body, marginTop: spacing.four },
+    note: { color: t.colors.inkSoft, fontSize: 13 * t.scale, lineHeight: 19 * t.scale, fontFamily: fonts.body, marginTop: spacing.four },
     // Wraps rather than overflowing. The commit button names the cadence, so it grows with the
     // wording (German runs long), and unbounded it pushed Cancel off the screen edge: the way OUT of
     // the sheet, gone. Cancel never shrinks; the naming button gives way instead.

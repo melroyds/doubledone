@@ -321,7 +321,7 @@ const makeStyles = (t: Theme) =>
     // stress size), the sign drops to its own line and stays right, held there by marginLeft auto.
     topRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: spacing.four, rowGap: spacing.one },
     topLink: { minHeight: 44, justifyContent: 'center' },
-    back: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    back: { color: t.colors.accentText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     sign: { minHeight: 44, marginLeft: 'auto', paddingHorizontal: spacing.one, flexDirection: 'row', alignItems: 'center', gap: spacing.two },
     signLabel: { color: t.colors.ink, fontSize: 15 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body },
     title: { color: t.colors.ink, fontSize: 32 * t.scale, lineHeight: 36 * t.scale, fontFamily: fonts.sans, fontWeight: '500', marginTop: spacing.two },

@@ -28,5 +28,5 @@ export function BackLink({ label, fallback = '/' }: { label?: string; fallback?:
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
-    back: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    back: { color: t.colors.accentText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
   });

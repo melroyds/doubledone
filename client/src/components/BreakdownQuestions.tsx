@@ -117,7 +117,7 @@ export function BreakdownQuestions({ task, questions, busy, error, onSubmit, onC
               onChangeText={setAnswer}
               editable={!busy}
               placeholder={t('breakdown.optionalPlaceholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               style={styles.input}
               multiline
               accessibilityLabel={t('breakdown.answerA11y')}
@@ -193,11 +193,11 @@ const makeStyles = (t: Theme) => StyleSheet.create({
     gap: 2,
   },
   altLabel: { color: t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-  altSub: { color: t.colors.inkFaint, fontSize: 12 * t.scale, fontFamily: fonts.body },
+  altSub: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body },
   waitNote: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', lineHeight: 20 * t.scale, marginTop: spacing.two },
-  errorNote: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', lineHeight: 20 * t.scale, marginTop: spacing.two },
+  errorNote: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.body, textAlign: 'center', lineHeight: 20 * t.scale, marginTop: spacing.two },
   disclosure: {
-    color: t.colors.inkFaint,
+    color: t.colors.inkSoft,
     fontSize: 12 * t.scale,
     fontFamily: fonts.body,
     textAlign: 'center',

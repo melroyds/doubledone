@@ -7,6 +7,8 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { triage } from '@/lib/ai';
 import { t } from '@/lib/locale';
+import { welcomeFineKey } from '@/lib/premium-ui';
+import { IAP_AVAILABLE } from '@/lib/purchases';
 import { STRIPE_HERE } from '@/lib/storefront';
 import { enableDailyReminder } from '@/lib/reminders';
 import { reminderReasonLine } from '@/lib/reminders-types';
@@ -304,7 +306,7 @@ export default function WelcomeScreen() {
               onChangeText={setDump}
               editable={!busy}
               placeholder={t('welcome.capturePlaceholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               style={styles.input}
               multiline
               autoFocus
@@ -466,9 +468,10 @@ export default function WelcomeScreen() {
                 </View>
               ))}
             </View>
-            {/* Android never shows a price of ours (lib/storefront STRIPE_HERE): Play's own price is on the
-                Premium screen, in the buyer's currency. So its fine print carries none. */}
-            <Text style={styles.fine}>{STRIPE_HERE ? t('welcome.premiumFine') : t('welcome.premiumFinePlain')}</Text>
+            {/* Only the web shows our own price (A$5, the Stripe one). A store build, iOS or Android, shows
+                the store's own price on the Premium screen, in the buyer's currency, so its fine print
+                carries none (lib/premium-ui welcomeFineKey). */}
+            <Text style={styles.fine}>{t(welcomeFineKey(IAP_AVAILABLE, STRIPE_HERE))}</Text>
           </View>
         )}
 
@@ -571,18 +574,18 @@ const makeStyles = (t: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: t.colors.bg, paddingHorizontal: spacing.five },
     topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 26 },
-    back: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    back: { color: t.colors.accentText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     skip: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
     content: { flexGrow: 1, justifyContent: 'space-between', maxWidth: 480, width: '100%', alignSelf: 'center', paddingVertical: spacing.four },
     block: { gap: spacing.three },
     banner: { width: '100%', aspectRatio: 16 / 9, borderRadius: radius.lg, overflow: 'hidden', marginBottom: spacing.two },
     bannerImg: { position: 'absolute', width: '100%', height: '100%' },
     brand: { ...t.type.display, color: t.colors.ink, letterSpacing: -0.5 },
-    tagline: { color: t.colors.accent, fontSize: 20 * t.scale, fontFamily: fonts.sans, fontWeight: '400' },
+    tagline: { color: t.colors.accentText, fontSize: 20 * t.scale, fontFamily: fonts.sans, fontWeight: '400' },
     h1: { color: t.colors.ink, fontSize: 30 * t.scale, fontFamily: fonts.sans, fontWeight: '400', letterSpacing: -0.3, lineHeight: 36 * t.scale },
     lead: { color: t.colors.inkSoft, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 26 * t.scale },
-    speak: { color: t.colors.inkFaint, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
-    optOut: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center' },
+    speak: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.one },
+    optOut: { color: t.colors.accentText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', textAlign: 'center' },
     fine: { color: t.colors.inkSoft, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 26 * t.scale, marginTop: spacing.two },
     input: {
       minHeight: 150,
@@ -613,10 +616,10 @@ const makeStyles = (t: Theme) =>
     // A list marker, not a tick box: the ring was a near-replica of Today's checkbox on rows that
     // ignore taps (the 2026-09-21 flow audit). A dot says "here is what you wrote", nothing more.
     revealCheck: { width: 8, height: 8, borderRadius: radius.pill, backgroundColor: t.colors.inkFaint, marginTop: 9, marginLeft: 7, marginRight: 7 },
-    tryAgain: { color: t.colors.accent, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.two },
+    tryAgain: { color: t.colors.accentText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.two },
     revealText: { flexShrink: 1 },
     revealTitle: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 24 * t.scale },
-    revealHint: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.half },
+    revealHint: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.body, marginTop: spacing.half },
     laterLine: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.three },
     netList: { marginTop: spacing.two },
     // The finished-tasks choice: two cards, the chosen one wearing the accent edge and tint.
@@ -639,7 +642,7 @@ const makeStyles = (t: Theme) =>
     previewTuck: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: border.hair, borderTopColor: t.colors.line, paddingTop: spacing.two },
     previewTuckText: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     choiceName: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    choiceNameOn: { color: t.scheme === 'dark' ? t.colors.accent : t.colors.ink },
+    choiceNameOn: { color: t.scheme === 'dark' ? t.colors.accentText : t.colors.ink },
     choiceWhat: { color: t.colors.inkSoft, fontSize: 15 * t.scale, lineHeight: 21 * t.scale, fontFamily: fonts.body },
     onTint: { color: t.colors.ink }, // on the chosen card's accent tint, soft ink falls under AA in light
     netRow: {
@@ -651,13 +654,13 @@ const makeStyles = (t: Theme) =>
       borderTopColor: t.colors.line,
       paddingVertical: spacing.three,
     },
-    netName: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic' },
+    netName: { color: t.colors.accentText, fontSize: 17 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic' },
     netWhat: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body, flexShrink: 1 },
     // The closing benediction: lifted out of the list with real breathing room and a small centred accent
     // rule, then the line itself centred and at the tagline's 20px (no longer the smallest thing on the page).
     inscriptionRule: { width: 32, height: 2, borderRadius: radius.pill, backgroundColor: t.colors.accent, opacity: 0.5, alignSelf: 'center', marginTop: spacing.six },
     inscription: {
-      color: t.colors.accent,
+      color: t.colors.accentText,
       fontSize: 20 * t.scale,
       lineHeight: 28 * t.scale,
       fontFamily: fonts.sans,
@@ -668,13 +671,13 @@ const makeStyles = (t: Theme) =>
     },
     check: { width: 44, height: 44, borderRadius: radius.pill, backgroundColor: t.colors.done, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.one },
     checkMark: { color: t.colors.onDone, fontSize: 24 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
-    ethos: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', marginTop: spacing.two },
+    ethos: { color: t.colors.accentText, fontSize: 17 * t.scale, fontFamily: fonts.sans, fontStyle: 'italic', marginTop: spacing.two },
     // The lifeline offer: an aside on the handoff screen, not a form. Deliberately quieter than the
     // Begin button, because the way out of onboarding must stay the loudest thing here.
     lifeline: { marginTop: spacing.four, gap: spacing.two },
     lifelineAsk: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 26 * t.scale },
     lifelineRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.five },
-    lifelineYes: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    lifelineYes: { color: t.colors.accentText, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     lifelineNo: { color: t.colors.inkSoft, fontSize: 17 * t.scale, fontFamily: fonts.body },
     lifelineDone: { color: t.colors.inkSoft, fontSize: 16 * t.scale, fontFamily: fonts.body, marginTop: spacing.three },
     footer: { marginTop: spacing.five, gap: spacing.four },

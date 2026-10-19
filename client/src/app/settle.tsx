@@ -36,7 +36,9 @@ import {
   WORD_FADE_MS,
   WORD_FADE_REDUCED_MS,
 } from '@/lib/settle';
-import { loadSettleGuide, saveSettleGuide } from '@/lib/storage';
+import { toISODate } from '@/lib/day';
+import { loadSettleGuide, saveReviewQuietDate, saveSettleGuide } from '@/lib/storage';
+import { REVIEW_SUPPORTED } from '@/lib/store-review';
 import { track } from '@/lib/telemetry';
 import { useReducedMotion, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
@@ -104,6 +106,8 @@ export default function Settle() {
   useEffect(() => {
     openedAtRef.current = Date.now();
     track('settle.opened');
+    // A day that needed this room is a tender one: the review ask keeps quiet until tomorrow (lib/review).
+    if (REVIEW_SUPPORTED) void saveReviewQuietDate(toISODate(new Date()));
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(breath, { toValue: 1, duration: SWELL_MS, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
@@ -345,7 +349,7 @@ const makeStyles = (th: Theme) =>
     // The inscription's own voice (RotatingPhrase): serif italic, accent-coloured at render.
     guideWord: { fontSize: 17 * th.scale, fontFamily: fonts.sans, fontStyle: 'italic', textAlign: 'center', letterSpacing: 0.2 },
     affirmation: { fontSize: 16 * th.scale, fontFamily: fonts.sans, fontStyle: 'italic', textAlign: 'center', letterSpacing: 0.2, maxWidth: 280 },
-    leavingLine: { color: th.colors.inkFaint, fontSize: 15 * th.scale, fontFamily: fonts.body, fontStyle: 'italic', textAlign: 'center' },
+    leavingLine: { color: th.colors.inkSoft, fontSize: 15 * th.scale, fontFamily: fonts.body, fontStyle: 'italic', textAlign: 'center' },
     guidePill: {
       alignSelf: 'center',
       paddingHorizontal: spacing.four,
@@ -354,6 +358,6 @@ const makeStyles = (th: Theme) =>
       minHeight: 36,
       justifyContent: 'center',
     },
-    guidePillText: { color: th.colors.inkFaint, fontSize: 13 * th.scale, fontFamily: fonts.body, letterSpacing: 0.4 },
+    guidePillText: { color: th.colors.inkSoft, fontSize: 13 * th.scale, fontFamily: fonts.body, letterSpacing: 0.4 },
     pressed: { opacity: PRESSED_OPACITY },
   });

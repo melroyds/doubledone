@@ -695,7 +695,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
               editable={!busy}
               testID="capture-field"
               placeholder={t('capture.placeholder')}
-              placeholderTextColor={theme.colors.inkFaint}
+              placeholderTextColor={theme.colors.inkSoft}
               style={styles.input}
               multiline
               textAlignVertical="top"
@@ -861,11 +861,11 @@ const makeStyles = (t: Theme) => {
     },
     hintSeat: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 2 },
     aiNote: { color: t.colors.inkSoft, fontSize: 12.5 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body },
-    error: { color: t.colors.accent, fontSize: 13 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body },
+    error: { color: t.colors.accentText, fontSize: 13 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body },
     tools: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 4, minHeight: 44 },
     toolsGap: { flex: 1 },
     tool: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.two, paddingHorizontal: 6 },
-    toolText: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    toolText: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.colors.accent },
     busyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
     note: { flexShrink: 1, minWidth: 140, color: t.colors.inkSoft, fontSize: 12.5 * t.scale, lineHeight: 17.5 * t.scale, fontFamily: fonts.body, textAlign: 'right' },
@@ -883,8 +883,8 @@ const makeStyles = (t: Theme) => {
       borderWidth: border.hair,
       borderColor: t.colors.line,
     },
-    whenOverline: { ...overline, color: t.colors.inkFaint, fontSize: 10.5 * t.scale, letterSpacing: 1 },
-    whenValue: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', flexShrink: 1 },
+    whenOverline: { ...overline, color: t.colors.inkSoft, fontSize: 10.5 * t.scale, letterSpacing: 1 },
+    whenValue: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', flexShrink: 1 },
     whenCaret: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body },
     addBtn: {
       minWidth: 76,
@@ -905,7 +905,7 @@ const makeStyles = (t: Theme) => {
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
     detailRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
     detailValue: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body },
-    changeLink: { color: t.colors.accent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    changeLink: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     weekdays: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two, marginTop: spacing.one },
     // Thirty-one cells never fit on one line; the row wraps rather than squashing every cell.
     monthDays: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two, marginTop: spacing.one },
@@ -921,7 +921,7 @@ const makeStyles = (t: Theme) => {
     },
     dayOn: { backgroundColor: t.colors.accentSoft, borderColor: t.colors.accent },
     dayText: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
-    dayTextOn: { color: t.scheme === 'dark' ? t.colors.accent : t.colors.ink, fontWeight: '700' }, // the Chip rule: the accent on its tint is under AA on light
+    dayTextOn: { color: t.scheme === 'dark' ? t.colors.accentText : t.colors.ink, fontWeight: '700' }, // the Chip rule: the accent on its tint is under AA on light
     stepsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.two },
     stepperRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
     stepBtn: {
@@ -939,7 +939,7 @@ const makeStyles = (t: Theme) => {
     // Quiet-unavailable (the constant-frame treatment): the control keeps its place at lowered
     // contrast; the line below says why. Never absent, never locked.
     quiet: { opacity: 0.45 },
-    stepsHint: { color: t.colors.inkFaint, fontSize: 13 * t.scale, fontFamily: fonts.body },
+    stepsHint: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
     pressed: { opacity: PRESSED_OPACITY },
     dim: { opacity: 0.45 },
     pickerRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.five },
@@ -964,6 +964,6 @@ const makeStyles = (t: Theme) => {
       paddingHorizontal: spacing.four,
       paddingVertical: spacing.two,
     },
-    kbDone: { color: t.colors.accent, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    kbDone: { color: t.colors.accentText, fontSize: 17 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
   });
 };
