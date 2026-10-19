@@ -10537,3 +10537,35 @@ fixed it there. The welcome's `welcome.sharedLead2` in `it.ts` carried the same 
 down. It now reads "La spunta di uno dei due vale per entrambi.", the reader's own words, and the Italian
 native-read note in the Play listings doc records it. The French welcome line (`fr.ts`, "L'un ou l'autre la
 coche") stays as the French reader approved it, until their word on the new listing sentence (finding 8).
+
+## 2026-10-19: `expo-store-review` pinned to exactly 56.0.3, because 56.0.4 does not compile on our Expo (store 1.9)
+
+**What broke.** The first iOS 1.9.0 build (build number 42) failed in Xcode with `cannot find 'SceneGeometry' in
+scope`. `expo-store-review` 56.0.4, published 17 August 2026, swapped its own foreground-scene lookup for a
+`SceneGeometry.foregroundScene()` helper from `expo-modules-core`, and our `expo-modules-core` is 56.0.17 (June),
+which has no such helper. The newer cores that do have it started at 56.0.24 (17 August, the same day). Expo
+56.0.12 lists `expo-store-review ~56.0.3`, and the tilde let npm resolve 56.0.4, so neither `expo install` nor CI
+could catch it: CI never compiles Swift, and the Android build compiled fine because Android has no such call.
+
+**The fix: `"expo-store-review": "56.0.3"`, exact.** Checked file by file against 56.0.4 before choosing it:
+- the JavaScript build is identical, so `lib/store-review.ts` and the web are untouched;
+- the Android code is identical apart from the version string, so Android versionCode 36, built minutes earlier
+  with 56.0.4, behaves the same and is NOT rebuilt;
+- the podspec (iOS 16.4) and the exceptions file are identical, and so is the TestFlight check behind
+  `isAvailableAsync`;
+- the only difference is the scene lookup, which 56.0.3 does inline: the foreground-active scene first, then a
+  foreground-inactive one, else nil. That is exactly what the newer helper wraps.
+
+It is the only native package added since 1.8.0 (iOS build 41 compiled), checked by diffing the lockfile's expo,
+react-native and RevenueCat versions between `13348bb` and now. npm installs it under `client/node_modules`
+rather than the root. iOS autolinking resolves that one copy (56.0.3), and the lockfile's sha512 matches the
+tarball that was read.
+
+**Decided against:**
+- **Moving `expo` to a newer 56 patch to get `SceneGeometry`.** It would move every native module on the eve of
+  a store release, to fix one function we can have from a version that already exists.
+- **Keeping `~56.0.3`.** A tilde resolves straight back to 56.0.4. The pin has to be exact.
+- **A patch-package edit of 56.0.4.** It adds a moving part for a result that 56.0.3 gives as published.
+
+**When to unpin.** At the next Expo upgrade, whenever its `expo-modules-core` is 56.0.24 or later (or a new SDK).
+Then `npx expo install expo-store-review` and let it choose. The gotcha is in the local CLAUDE.md.
