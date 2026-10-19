@@ -10569,3 +10569,37 @@ tarball that was read.
 
 **When to unpin.** At the next Expo upgrade, whenever its `expo-modules-core` is 56.0.24 or later (or a new SDK).
 Then `npx expo install expo-store-review` and let it choose. The gotcha is in the local CLAUDE.md.
+
+## 2026-10-19: the App Store's new header and search results images, made as stills and held until 1.9.0 is approved
+
+**What Apple added.** On 5 October 2026 App Store Connect gained two optional creative assets for iOS 27 and later:
+a product page header (21:9, 3840 x 1646) and a search results card (3:2, up to 3840 x 2560), each a still or a
+looping muted video. They are reviewed under the new guideline 2.3.14 (they must relate to the app, with no prices,
+URLs, other platforms or awards, and suit all ages), and they can be submitted on their own through the Asset
+Library, so no app version carries them. Researched before any design (two agents, Apple's specification and
+best-practice pages plus practitioners): the icon, name and Get button sit BELOW the header, the header's safe area
+is only its centre 1646 x 661, and the search card's about its centre 2168 x 1030.
+
+**What was made** (`scripts/appstore-creative.mjs`, outputs in `docs/appstore/creative/`):
+- **The header carries no text and no logo.** It shows three task rows drawn the way the app draws them, with the
+  mauve tick, the periwinkle one-off border and the mauve +, on the six slides' warm ground with the app's own peach
+  and rose light pools. Two rows are done and one is open. With no words, one file serves all seven localisations.
+- **The search card is one big phone and one line,** Apple's "state the obvious": the approved first caption, "Only
+  today, sized to feel possible.", beside the real Today capture. It goes on the two English localisations only; the
+  other five keep the screenshot row.
+- **Formats.** Each comes as a .png, which Chrome writes as true RGB with no alpha, and as a .jpg, because the
+  header slot refused the .jpeg extension the screenshots accept.
+
+**Decided against:**
+- **A logo or wordmark in the header.** The brand sits directly below it, and the early audit of live headers found
+  most repeated the app's name there. Melroy asked; the answer is to judge it in App Store Connect's Preview, and a
+  mark-only version is a few minutes' work if the brand reads as missing.
+- **Sage ticks.** The first draft used them. The app has drawn the tick in the accent since 2026-09-26, so the
+  header would have shown a look the app no longer has.
+- **A Veo video.** One was generated from a sky-only start frame (made so the card could be laid back on exactly,
+  checked at 47 dB PSNR against the still). It came back muddy grey-brown with a hard-edged sun disc and contour
+  banding, its first frame far from the one supplied, so it was scrapped.
+- **Riding the 1.9.0 submission.** That submission already carries the new "ADHD" name, and a brand-new asset type
+  should not be able to hold it. They go in through the Asset Library once 1.9.0 is approved (Backlog).
+- **iPad screenshots,** asked for the same evening. The app is iPhone-only (`supportsTablet` false), so they would
+  show what no iPad user sees (Backlog).

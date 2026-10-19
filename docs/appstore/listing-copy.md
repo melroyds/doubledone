@@ -21,6 +21,11 @@ mention of the web, Android, Google or a price. The four localisations (de, es-M
 2. **In App Store Connect, read two things first:** App Information, then Primary Language, and the live Keywords
    field on the current version. The primary language decides which slot the second keyword set goes into (below).
    The keyword field in this file's previous version was never confirmed against ASC.
+   **Read by Melroy on 2026-10-19, before the 1.9.0 paste:** Primary Language is English (U.S.), so the second
+   set goes into English (U.K.). The live 1.8.0 keyword field (94 bytes), the baseline for the after-release
+   search check: `adhd,focus,planner,tasks,routine,autism,neurodivergent,overwhelm,shared,couples,household,calm`.
+   1.9.0 keeps autism, focus, neurodivergent and routine, drops adhd, calm and planner (now in the name and
+   subtitle) and tasks (the new set has task), and moves shared, couples, household and overwhelm to the U.K. set.
 3. **Print each field from this file and diff what was sent.** Never retype a field.
 
 ## English, the primary listing (`en`)

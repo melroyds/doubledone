@@ -208,6 +208,26 @@ the ladder is fixed and readable, never randomised.
 - ~~**1. A telemetry review of the untouched features, then one build that fixes it all (web and mobile).**~~ **BUILT 2026-10-04 on main (`ccc698e`), not deployed;** the deploy order is the IMMEDIATE NEXT ACTION at the top, and the readings are in the decision log. *(The original entry follows.)* Found 2026-10-03: "+ I also did that" calls `track('offplan.logged')`, but that name was never added to the beacon allowlist (`BEACON_EVENTS` in `client/src/lib/telemetry.ts` and `APP_EVENTS` in `server/src/events.ts`), so it only ever reached the device's console, and Melroy was about to remove a feature with no data either way. **The job:** list every `track()` call in the client against both allowlists and the privacy policy's "Feature-usage counts" section; decide per feature whether it earns a count (a count answers a real keep, change or remove question); add the chosen names to BOTH allowlists and name them in the policy (in-app `privacy.tsx` and `public/privacy.html`) in the same commit; one Worker deploy (on Melroy's OK), then the client in the next build. **Pre-decided for "I also did that":** once it is counted, 3 weeks of data, and fewer than 5 uses across everyone means it goes (for scale: reorder logged 56 in a similar window). **Trigger:** Path A live on Play.
 - **2. A Premium notes sub-system: date-stamped, annotated notes, like a project tracker.** **DONE 2026-10-04: reviewed as booked, reshaped into ONE free line per task ("Where you left off"), built, and live on the web (`17cc806`, decision log same day); its Tier 2 is the entry below.** *(The original entry follows.)* Melroy's idea, 2026-10-03. **First step is an adversarial review of the IDEA, not a build**, booked for **Sunday 4 October 2026**. The review must take on, at least: the spine (today is finite; does a running log of notes add a second list to manage?), the "never shame the backlog" rule (a dated trail can read as a record of what did not happen), where notes live (on a task, a day, or a project, and whether "project" brings back the folder overhead the app avoids, the same tension as categories), what is Premium and what stays free, sync and privacy (note text is user content: Supabase sync and the AI's reach), the moat (does it feed the completion flywheel or sit beside it), and the cheapest test that would tell us people want it before anything is built. **Trigger:** Melroy runs it on Sunday 4 October 2026.
 
+- **App Store screenshots for iPhone Duo (parked 2026-10-19, at the 1.9.0 console run).** App Store Connect's Media
+  Manager now has an optional "iPhone Duo" slot taking near-square shots (2034 x 1398, 1398 x 2034, 2853 x 2007,
+  2007 x 2853): a foldable opened flat. Left empty on purpose. Our six slides are tall phone shapes, and an honest
+  Duo set means capturing the app actually running at that shape, which nobody has seen or tested. Trigger: Duo
+  shows up in App Store Connect's device analytics with a real share of DoubleDone's views, or Apple makes the slot
+  required. When picked up: first look at how the app lays out unfolded, then a captured set, never letterboxed
+  phone slides.
+- **iPad support, and with it iPad screenshots (asked 2026-10-19, declined for now).** `ios.supportsTablet` is false,
+  so DoubleDone runs on an iPad in a scaled iPhone window and App Store Connect offers no iPad slot. A 13-inch shot
+  of the app filling an iPad screen would show what no iPad user sees (2.3.3). The 1.3-era `docs/appstore/ipad-13/`
+  set was made and deliberately never used (`4b27d3b`). Trigger: a decision to support iPad, which is a feature
+  (layouts at iPad width, tested, then an iPad review), and only then a captured iPad set.
+- **App Store product page header and search results images (made 2026-10-19, not yet uploaded).** The still pair in
+  `docs/appstore/creative/` (header 3840 x 1646, text-free, for all seven localisations; search 3840 x 2560 with the
+  approved "Only today, sized to feel possible." caption, for the two English localisations only), as .png (RGB, no
+  alpha) and .jpg, because the header slot refused a .jpeg. Apple lets them go in on their own through the Asset
+  Library, reviewed against the live version, so they wait until 1.9.0 is approved rather than riding a submission
+  that already carries the new "ADHD" name. The video version was tried with Veo and scrapped (muddy colour, a hard
+  sun disc, banding). Trigger: 1.9.0 approved on the App Store; then upload, check Preview in light and dark, and
+  settle the brand-in-header question by eye there.
 - **A Settings "Rate DoubleDone" link (parked 2026-10-19, with the review ask on `store-1.9`).** A plain link
   that opens the store listing (`STORE_URLS` in `client/src/lib/updates.ts`, plus `?action=write-review` on iOS),
   NEVER the review API: a button that calls the API looks broken once the store's quota says no. Trigger: ratings
