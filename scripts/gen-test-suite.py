@@ -771,7 +771,7 @@ CASES = [
 
     # --- Accessibility --------------------------------------------------------
     ("I18N-02", "Languages", "P2", "German is a supported language on the phones",
-     "PREREQ: a store build made after 2026-10-05 (it is native config, so web and older builds cannot show it). Set the phone's language to German, open DoubleDone. On iOS also open Settings -> DoubleDone -> Language.",
+     "PREREQ: a store build made after 2026-10-05 (it is native config, so web and older builds cannot show it). Set the phone's language to German, open DoubleDone. On iOS also open Settings -> Apps -> DoubleDone -> Language. iOS shows that row only when the phone has two or more languages under Settings -> General -> Language & Region, so add Deutsch there first and choose 'Keep English' (Melroy's iPhone, 2026-10-19).",
      "The app is in German throughout (it already was: the app follows the phone's language). New with this build: iOS lists Deutsch beside English, Italiano, Español and Français in the app's own language setting, and choosing it switches the app; Android 13+ app languages offer Deutsch too; and once the build is live, the App Store page's Languages line includes German.", "Both"),
     ("A11Y-01", "Accessibility", "P2", "Screen reader (TalkBack)",
      "Enable TalkBack, navigate Today and capture.",
@@ -816,7 +816,7 @@ CASES = [
      "It reads the whole tip, then 'Got it, hide this tip', and activating it hides the tip for good. On the web the tip, seen and heard, also says 'or right-click it', in every language. With AI off it is the no-AI wording (no 'make it tiny').", "iOS + Android + Web"),
     ("A11Y-13", "Accessibility", "P1", "A share or the 'Brain dump' shortcut closes a held card and opens the capture panel",
      "PREREQ: the 1.9.0 build. On Today hold a task so its card opens, then switch to another app (DoubleDone goes to the background with the card still open). Select some text in a browser or Notes, Share it and pick DoubleDone. Then hold a task again, go to the home screen, long-press the DoubleDone icon and tap the 'Brain dump' shortcut. Last, enter select mode ('Select several') and share text in again.",
-     "Both times the card closes by itself and the capture panel rises with the keyboard up: the shared words are in the field, ready to add, and the shortcut gives an empty field ready to type. Nothing is added without a tap. In select mode the share waits as the pill's draft dots, as before, and is in the panel once select mode ends and the pill is opened.", "iOS + Android"),
+     "Both times the card closes by itself and the capture panel rises with the keyboard up: the shared words are in the field, ready to add, and the shortcut opens the field ready to type. The shortcut never clears waiting words (BrainDump's seed(null) only focuses), so if the shared text was not added it is still there, which is right; it is empty only when nothing was waiting. Nothing is added without a tap. In select mode the share waits as the pill's draft dots, as before, and is in the panel once select mode ends and the pill is opened.", "iOS + Android"),
     # The app-wide colour sweep (store 1.9, slice 4). The roles are held by client/src/constants/colour-sites.test.ts
     # and the ratios by palette.test.ts. This is the human look neither can give.
     ("A11Y-14", "Accessibility", "P2", "The small grey and accent words on every other screen read clearly, in Dusk, Honey and dark",
