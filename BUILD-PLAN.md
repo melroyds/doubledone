@@ -203,6 +203,26 @@ the ladder is fixed and readable, never randomised.
 
 ## Backlog (deferred, with triggers)
 
+- **App Store screenshots for iPhone Duo (parked 2026-10-19, at the 1.9.0 console run).** App Store Connect's Media
+  Manager now has an optional "iPhone Duo" slot taking near-square shots (2034 x 1398, 1398 x 2034, 2853 x 2007,
+  2007 x 2853): a foldable opened flat. Left empty on purpose. Our six slides are tall phone shapes, and an honest
+  Duo set means capturing the app actually running at that shape, which nobody has seen or tested. Trigger: Duo
+  shows up in App Store Connect's device analytics with a real share of DoubleDone's views, or Apple makes the slot
+  required. When picked up: first look at how the app lays out unfolded, then a captured set, never letterboxed
+  phone slides.
+- **iPad support, and with it iPad screenshots (asked 2026-10-19, declined for now).** `ios.supportsTablet` is false,
+  so DoubleDone runs on an iPad in a scaled iPhone window and App Store Connect offers no iPad slot. A 13-inch shot
+  of the app filling an iPad screen would show what no iPad user sees (2.3.3). The 1.3-era `docs/appstore/ipad-13/`
+  set was made and deliberately never used (`4b27d3b`). Trigger: a decision to support iPad, which is a feature
+  (layouts at iPad width, tested, then an iPad review), and only then a captured iPad set.
+- **App Store product page header and search results images (made 2026-10-19, not yet uploaded).** The still pair in
+  `docs/appstore/creative/` (header 3840 x 1646, text-free, for all seven localisations; search 3840 x 2560 with the
+  approved "Only today, sized to feel possible." caption, for the two English localisations only), as .png (RGB, no
+  alpha) and .jpg, because the header slot refused a .jpeg. Apple lets them go in on their own through the Asset
+  Library, reviewed against the live version, so they wait until 1.9.0 is approved rather than riding a submission
+  that already carries the new "ADHD" name. The video version was tried with Veo and scrapped (muddy colour, a hard
+  sun disc, banding). Trigger: 1.9.0 approved on the App Store; then upload, check Preview in light and dark, and
+  settle the brand-in-header question by eye there.
 - **A Settings "Rate DoubleDone" link (parked 2026-10-19, with the review ask on `store-1.9`).** A plain link
   that opens the store listing (`STORE_URLS` in `client/src/lib/updates.ts`, plus `?action=write-review` on iOS),
   NEVER the review API: a button that calls the API looks broken once the store's quota says no. Trigger: ratings
