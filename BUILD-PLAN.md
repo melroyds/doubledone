@@ -203,7 +203,12 @@ the ladder is fixed and readable, never randomised.
 
 ## Backlog (deferred, with triggers)
 
-- **Later folds by month, so the far future stops looming (asked by Melroy 2026-10-24, with a screenshot).** Today's
+- ~~**Later folds by month, so the far future stops looming**~~ **BUILT 2026-10-25 on branch `later-folds`, not
+  pushed (decision log, same day): `groupLater()` and `laterFoldKey()` in `client/src/lib/today.ts`, the folds in
+  `today.tsx`, seven strings in all five catalogues natively read (Italian fixed to "in {month}"), the review's
+  seven fixes, manual cases TOD-38 to TOD-40 and MCP-27. Waits for Melroy's word on the push (the web deploy), the
+  Worker deploy (the MCP `add_task` nudge) and the next store build (the phones).** *(The original entry follows.)*
+  (Asked by Melroy 2026-10-24, with a screenshot.) Today's
   Later list is every future-dated one-off with no horizon: `upcomingTasks()` in `client/src/lib/today.ts` returns
   them all and `today.tsx` draws each as a full TaskRow. One bank promotion became 13 rows running to mid-December,
   which Melroy called intimidating, and the list grows without limit as people date things further out. That breaks
