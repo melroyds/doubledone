@@ -208,6 +208,24 @@ the ladder is fixed and readable, never randomised.
 - ~~**1. A telemetry review of the untouched features, then one build that fixes it all (web and mobile).**~~ **BUILT 2026-10-04 on main (`ccc698e`), not deployed;** the deploy order is the IMMEDIATE NEXT ACTION at the top, and the readings are in the decision log. *(The original entry follows.)* Found 2026-10-03: "+ I also did that" calls `track('offplan.logged')`, but that name was never added to the beacon allowlist (`BEACON_EVENTS` in `client/src/lib/telemetry.ts` and `APP_EVENTS` in `server/src/events.ts`), so it only ever reached the device's console, and Melroy was about to remove a feature with no data either way. **The job:** list every `track()` call in the client against both allowlists and the privacy policy's "Feature-usage counts" section; decide per feature whether it earns a count (a count answers a real keep, change or remove question); add the chosen names to BOTH allowlists and name them in the policy (in-app `privacy.tsx` and `public/privacy.html`) in the same commit; one Worker deploy (on Melroy's OK), then the client in the next build. **Pre-decided for "I also did that":** once it is counted, 3 weeks of data, and fewer than 5 uses across everyone means it goes (for scale: reorder logged 56 in a similar window). **Trigger:** Path A live on Play.
 - **2. A Premium notes sub-system: date-stamped, annotated notes, like a project tracker.** **DONE 2026-10-04: reviewed as booked, reshaped into ONE free line per task ("Where you left off"), built, and live on the web (`17cc806`, decision log same day); its Tier 2 is the entry below.** *(The original entry follows.)* Melroy's idea, 2026-10-03. **First step is an adversarial review of the IDEA, not a build**, booked for **Sunday 4 October 2026**. The review must take on, at least: the spine (today is finite; does a running log of notes add a second list to manage?), the "never shame the backlog" rule (a dated trail can read as a record of what did not happen), where notes live (on a task, a day, or a project, and whether "project" brings back the folder overhead the app avoids, the same tension as categories), what is Premium and what stays free, sync and privacy (note text is user content: Supabase sync and the AI's reach), the moat (does it feed the completion flywheel or sit beside it), and the cheapest test that would tell us people want it before anything is built. **Trigger:** Melroy runs it on Sunday 4 October 2026.
 
+- **Later folds by month, so the far future stops looming (asked by Melroy 2026-10-24, with a screenshot).** Today's
+  Later list is every future-dated one-off with no horizon: `upcomingTasks()` in `client/src/lib/today.ts` returns
+  them all and `today.tsx` draws each as a full TaskRow. One bank promotion became 13 rows running to mid-December,
+  which Melroy called intimidating, and the list grows without limit as people date things further out. That breaks
+  the spine one scroll below Today. Folding is safe because a dated task already lands on Today on its own day, so
+  Later's job is reassurance, not planning. **Decided shape (Path B, Claude's pick, Melroy to confirm):** the next 7
+  days stay in full, as now; beyond that, one quiet fold per calendar month to the end of this year ("November · 6
+  things"), then one "Next year and beyond · n" fold; every fold starts closed each time Today opens (remembering an
+  open fold would rebuild the wall unasked); tapping a fold opens that month inline with the same rows and actions;
+  one calm line under Later says each task comes to Today on its day. Decided against: a separate Upcoming planning
+  screen (a second list to manage, against the spine), and a bare "12 more ahead, see Calendar" cap (it sends people
+  away just to peek). **The upstream half:** the ING rows were five near-identical tasks a month, exactly what Count
+  it in parts is for, and MCP `add_task` has taken `parts` since 2026-10-18. So the `add_task` tool description
+  should tell agents to use `parts` rather than creating several copies of one task on one date (a Worker deploy, on
+  Melroy's word). Build notes: a pure `groupLater(tasks, today)` beside `upcomingTasks()` with co-located tests
+  (month and year boundaries, a 7-day band that crosses a month, a fold of one, nothing beyond the band), new strings
+  in all five catalogues with a native read, a manual case in `scripts/gen-test-suite.py`, the web first, the phones
+  with the next store build. Trigger: Melroy's go, or the next Today change, whichever comes first.
 - **App Store screenshots for iPhone Duo (parked 2026-10-19, at the 1.9.0 console run).** App Store Connect's Media
   Manager now has an optional "iPhone Duo" slot taking near-square shots (2034 x 1398, 1398 x 2034, 2853 x 2007,
   2007 x 2853): a foldable opened flat. Left empty on purpose. Our six slides are tall phone shapes, and an honest
