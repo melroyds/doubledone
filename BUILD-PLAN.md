@@ -208,7 +208,7 @@ the ladder is fixed and readable, never randomised.
   them all and `today.tsx` draws each as a full TaskRow. One bank promotion became 13 rows running to mid-December,
   which Melroy called intimidating, and the list grows without limit as people date things further out. That breaks
   the spine one scroll below Today. Folding is safe because a dated task already lands on Today on its own day, so
-  Later's job is reassurance, not planning. **Decided shape (Path B, Claude's pick, Melroy to confirm):** the next 7
+  Later's job is reassurance, not planning. **Decided shape (Path B, CONFIRMED by Melroy 2026-10-24: "I like your recommendation"; build it next session, not before, and the ING rows were machine-made but stand as the illustration):** the next 7
   days stay in full, as now; beyond that, one quiet fold per calendar month to the end of this year ("November · 6
   things"), then one "Next year and beyond · n" fold; every fold starts closed each time Today opens (remembering an
   open fold would rebuild the wall unasked); tapping a fold opens that month inline with the same rows and actions;
