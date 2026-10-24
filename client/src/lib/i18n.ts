@@ -166,6 +166,16 @@ export function formatWrittenOn(loc: string, iso: string, width: 'short' | 'long
   }
 }
 
+/** A month's full name ("November", "novembre"), per locale, in the locale's own case: French, Spanish and Italian
+ *  write it lowercase, so a call site that leads a line with it capitalises. DateTimeFormat is Hermes-safe. */
+export function formatMonth(loc: string, date: Date): string {
+  try {
+    return new Intl.DateTimeFormat(loc, { month: 'long' }).format(date);
+  } catch {
+    return '';
+  }
+}
+
 /** "27 June" style, per locale. Replaces the hardcoded MONTH_NAMES table. */
 export function formatMonthDay(loc: string, date: Date): string {
   return new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'long' }).format(date);

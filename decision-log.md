@@ -10603,3 +10603,71 @@ is only its centre 1646 x 661, and the search card's about its centre 2168 x 103
   should not be able to hold it. They go in through the Asset Library once 1.9.0 is approved (Backlog).
 - **iPad screenshots,** asked for the same evening. The app is iPhone-only (`supportsTablet` false), so they would
   show what no iPad user sees (Backlog).
+
+## 2026-10-25: Later folds the far future by month, so the list below Today stays calm
+
+**Why.** Melroy sent a screenshot of Today's Later list on 2026-10-24: one bank promotion had become 13 full rows
+running to mid-December, and he called it intimidating. `upcomingTasks()` returned every future-dated one-off with no
+horizon, and Today drew each as a full row, so the list grew without limit as people dated things further out. That
+broke the spine one scroll below Today: today is finite, and nothing should make the full list loom.
+
+**Why folding is safe.** A dated task already lands on Today on its own day, which is the app's core promise. Later
+does not need to show everything to keep anyone safe. Its job is reassurance, not planning.
+
+**What was built (Melroy confirmed the shape on 2026-10-24, "I like your recommendation"):**
+- **The next seven days stay in full,** as before (`LATER_NEAR_DAYS = 7` in `client/src/lib/today.ts`).
+- **Past them, one closed line per calendar month to the end of this year,** then **one "Next year and beyond" line**
+  for everything after. `groupLater()` does the split, a pure function beside `upcomingTasks()`, with tests for month
+  and year boundaries, a week that crosses a month and a year, a fold of one, no fold at all, and the 13-row example.
+- **The lines copy the "Done today" fold exactly:** "November · 6", the same caret, `aria-expanded`, and a spoken
+  label in the same pattern ("Later in November: 6. Show them"). The count is a bare number, so no plural rule is
+  needed (Hermes has no `Intl.PluralRules`). Month names come from `Intl.DateTimeFormat` (`fmt.month`, Hermes-safe):
+  capitalised on the line, the language's own case mid-sentence in the spoken label.
+- **Every fold starts closed each time Today opens:** the open set resets in the focus effect and in the warm-resume
+  listener, and is keyed to the day. Remembering an open fold would rebuild the wall unasked.
+- **A fold holding the task whose card is open stays drawn,** so a held card never disappears under its own fold.
+- **One calm line under the heading, "Each one comes to Today on its day.",** shown only when something is folded.
+- **`upcoming` stays whole.** Only the drawing is split, so the rested screen's "waiting for the days ahead" count
+  and the held-card check read exactly what they always did.
+- **The upstream half:** the MCP `add_task` description now tells agents that the same thing done several times by
+  one date is ONE task with `parts`, never several near-identical copies (the ING rows were five copies a month). It
+  reaches agents only with a Worker deploy, on Melroy's word (MCP-27).
+- New strings in all five catalogues, natively read; manual cases TOD-38 to TOD-40 and MCP-27.
+
+**One deviation from the confirmed wording, recorded so it is a decision and not drift.** The proposal Melroy
+approved quoted the line as "November · 6 things". It ships as **"November · 6"**, copying "Done today · 6" exactly,
+for three reasons: the two folds on Today then read as one family; a bare count needs no plural rule (the noun would
+need plural forms in five languages on an engine without `Intl.PluralRules`); and the spoken label already carries the
+meaning ("Later in November: 6. Show them"). If Melroy wants the noun, it is one catalogue change per language.
+
+**What the review caught, and what changed (one native reader per language, a correctness and a product review,
+2026-10-25):**
+- **Italian:** "Più avanti **in** {month}", not "a": the bare "a" reads as a mistake before aprile and agosto, which
+  need "ad". German, French and Spanish were approved as written.
+- **A typed edit could be lost (major).** A fold kept drawn only because its card was held collapsed in the same render
+  the card closed, which unmounted the row before it could save a typed rename or hand focus back. Now a fold holding
+  the open card, or in select mode a selected task, is OPEN, not merely drawn: its line reads open, a tap on it does
+  nothing until the card or the selection is done, and a reset keeps it open, so closing the card leaves it open.
+- **Folds closed when Today had not been opened.** The reset sat in a focus effect that also re-runs on a session
+  refresh (TOKEN_REFRESHED, about hourly) and in a resume listener that also fires on iOS's inactive pass
+  (Notification Centre, a call banner, a system sheet). It now has its own focus effect with no dependencies, and the
+  resume reset fires only on background to active.
+- **Selected rows could hide inside a closed fold,** so a bulk Done could finish tasks nobody could see. Covered by
+  the same lock.
+- **Move to a date past the seven days** made the row vanish into a closed fold without a word. The fold it lands in
+  now opens for that visit (`laterFoldKey()`, the one rule `groupLater()` also uses), so the row reappears under its
+  date as it always did.
+- **The beyond fold mixed years with no year on any date.** A date outside this year now shows its year.
+- **The manual cases** described results tied to the day they were written, and MCP-27 counted parts down instead of
+  up. They now describe results relative to their own setup.
+- **The fold toggle is logged on the device** (`later_fold.toggled`, like `done_line.toggled`) but not counted by the
+  beacon (see below).
+
+**Decided against:**
+- **A separate Upcoming planning screen.** The most power, but it builds a second list to manage, against the spine.
+- **A bare cap, "12 more ahead, see Calendar".** Cheapest, but it sends people to another screen just to peek.
+- **Hiding the next seven days too.** Folding next Tuesday's tickets would make people go looking, and having to look
+  is its own anxiety.
+- **Remembering which folds were open.** It would quietly rebuild the wall the folds exist to remove.
+- **Counting fold opens in the feature-usage beacon.** It would need a new allowlisted name, a privacy-policy line
+  and a Worker deploy for a question nobody has asked yet. Trigger: a real question about whether people open them.

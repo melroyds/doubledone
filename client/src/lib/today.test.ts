@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { type Recurrence } from './recurrence';
-import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, hasActiveTinyChild, healStuckParents, holdSecond, isDoneOn, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, settleCompletions, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, type Scheduled, upcomingTasks, tuckFinished } from './today';
+import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, groupLater, hasActiveTinyChild, LATER_NEAR_DAYS, laterFoldKey, healStuckParents, holdSecond, isDoneOn, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, settleCompletions, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, type Scheduled, upcomingTasks, tuckFinished } from './today';
 
 const today = new Date(2026, 5, 17);
 const iso = '2026-06-17';
@@ -307,6 +307,68 @@ describe('tasksForToday', () => {
       { id: 'step', done: false, parentId: 'parent' },
     ];
     expect(tasksForToday(tasks, today).map((t) => t.id)).toEqual(['step']);
+  });
+});
+
+describe('groupLater (Later folds by month, Melroy 2026-10-24)', () => {
+  // Today is Sun 25 Oct 2026, so the seven days in full run to Sun 1 Nov.
+  const sun = new Date(2026, 9, 25);
+  const ids = (list: { id: string }[]) => list.map((t) => t.id);
+  const task = (id: string, due: string) => ({ id, done: false, due });
+
+  it('keeps the next seven days in full and folds the rest of the year by month, in date order', () => {
+    const later = groupLater([task('tix', '2026-10-27'), task('edge', '2026-11-01'), task('nov', '2026-11-10'), task('nov2', '2026-11-15'), task('dec', '2026-12-10')], sun);
+    expect(ids(later.near)).toEqual(['tix', 'edge']);
+    expect(later.folds.map((f) => [f.key, f.kind, ids(f.tasks)])).toEqual([
+      ['2026-11', 'month', ['nov', 'nov2']],
+      ['2026-12', 'month', ['dec']],
+    ]);
+  });
+
+  it('puts everything from next year on into one beyond fold, after the months', () => {
+    const later = groupLater([task('dec', '2026-12-31'), task('jan', '2027-01-02'), task('far', '2028-06-01')], sun);
+    expect(later.folds.map((f) => f.key)).toEqual(['2026-12', 'beyond']);
+    expect(ids(later.folds[1].tasks)).toEqual(['jan', 'far']);
+  });
+
+  it('lets the seven days cross into next month, and into next year in late December', () => {
+    expect(ids(groupLater([task('n3', '2026-11-03'), task('n2', '2026-11-02')].sort((a, b) => a.due.localeCompare(b.due)), new Date(2026, 9, 27)).near)).toEqual(['n2', 'n3']);
+    const dec = groupLater([task('ny', '2027-01-03'), task('ny2', '2027-01-10')], new Date(2026, 11, 29));
+    expect(ids(dec.near)).toEqual(['ny']);
+    expect(dec.folds.map((f) => [f.key, ids(f.tasks)])).toEqual([['beyond', ['ny2']]]);
+  });
+
+  it('folds a month that holds a single task, and draws no fold at all when nothing is past the week', () => {
+    expect(groupLater([task('one', '2026-11-20')], sun).folds.map((f) => [f.key, f.tasks.length])).toEqual([['2026-11', 1]]);
+    const near = groupLater([task('a', '2026-10-26'), task('b', '2026-10-30')], sun);
+    expect(near.folds).toEqual([]);
+    expect(ids(near.near)).toEqual(['a', 'b']);
+  });
+
+  it('skips a task with no date rather than guessing where it goes', () => {
+    expect(groupLater([{ id: 'x', done: false }], sun)).toEqual({ near: [], folds: [] });
+  });
+
+  it('turns the example that prompted it, 13 rows to mid-December, into 1 row and 2 lines', () => {
+    const ing = ['2026-10-27', '2026-11-10', ...Array(5).fill('2026-11-15'), '2026-12-10', ...Array(5).fill('2026-12-15')].map((d, i) => task(`t${i}`, d));
+    const later = groupLater(ing, sun);
+    expect(later.near).toHaveLength(1);
+    expect(later.folds.map((f) => [f.key, f.tasks.length])).toEqual([
+      ['2026-11', 6],
+      ['2026-12', 6],
+    ]);
+  });
+
+  it('names the fold a date lands in, the rule a Move to uses to open it', () => {
+    expect(laterFoldKey('2026-11-01', sun)).toBeNull(); // the seventh day, still in full
+    expect(laterFoldKey('2026-10-20', sun)).toBeNull(); // earlier than today: never a fold
+    expect(laterFoldKey('2026-11-02', sun)).toBe('2026-11');
+    expect(laterFoldKey('2026-12-31', sun)).toBe('2026-12');
+    expect(laterFoldKey('2027-01-01', sun)).toBe('beyond');
+  });
+
+  it('uses a seven-day band by default', () => {
+    expect(LATER_NEAR_DAYS).toBe(7);
   });
 });
 

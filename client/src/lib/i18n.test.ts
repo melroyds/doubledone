@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   aiLanguageFor,
+  formatMonth,
   formatMonthDay,
   formatNumber,
   formatRelativeDay,
@@ -91,6 +92,13 @@ describe('Intl date / number helpers', () => {
     expect(formatRelativeDay('en', new Date(2026, 5, 28), today)).toBe('tomorrow');
     expect(formatRelativeDay('en', new Date(2026, 5, 26), today)).toBe('yesterday');
     expect(formatRelativeDay('en', new Date(2026, 5, 30), today)).toMatch(/30/);
+  });
+  it('names a month per locale, in that locale case (the Later folds capitalise it themselves)', () => {
+    expect(formatMonth('en', new Date(2026, 10, 1))).toBe('November');
+    expect(formatMonth('de', new Date(2026, 10, 1))).toBe('November');
+    expect(formatMonth('fr', new Date(2026, 10, 1))).toBe('novembre');
+    expect(formatMonth('es', new Date(2026, 10, 1))).toBe('noviembre');
+    expect(formatMonth('it', new Date(2026, 10, 1))).toBe('novembre');
   });
   it('formats month-day, weekday, time and number per locale', () => {
     expect(formatMonthDay('en', new Date(2026, 5, 27))).toMatch(/27/);

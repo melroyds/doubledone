@@ -95,7 +95,7 @@ import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
 import { useReducedMotion, useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { usePremium } from '@/lib/premium-provider';
-import { applyManualOrder, deferTo, hasActiveTinyChild, healStuckParents, holdSecond, isDoneOn, isRecurring, pinFirst, renameTask, setBig, setLeftOff, setPin, setSequence, settleCompletions, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, tuckFinished, UNDO_REMOVE_MS, upcomingTasks } from '@/lib/today';
+import { applyManualOrder, deferTo, groupLater, hasActiveTinyChild, laterFoldKey, healStuckParents, holdSecond, isDoneOn, isRecurring, pinFirst, renameTask, setBig, setLeftOff, setPin, setSequence, settleCompletions, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, tuckFinished, UNDO_REMOVE_MS, upcomingTasks } from '@/lib/today';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
 import emptyArt from '../../assets/images/empty.jpg';
@@ -446,6 +446,12 @@ export default function TodayScreen() {
   const holdClosingRef = useRef<string | null>(null);
   // Open for TODAY only: keyed to the day, so a line that emptied, or a new morning, starts closed again.
   const [tuckOpenOn, setTuckOpenOn] = useState<string | null>(null);
+  // Later's folds that are open, for TODAY only and only until Today is next opened: every fold starts closed each
+  // time Today opens (Melroy, 2026-10-24), so the far future never rebuilds itself into a wall unasked.
+  const [laterOpen, setLaterOpen] = useState<{ on: string; keys: string[] }>({ on: '', keys: [] });
+  // The folds a reset must keep open (the one holding an open card, and in select mode any holding a selected task),
+  // read by the focus and resume resets, which keep their first render's closure.
+  const laterLockedRef = useRef<string[]>([]);
   const [tuckSaid, setTuckSaid] = useState({ text: '', n: 0 });
   const doneLineRef = useRef<View>(null);
   // A double tap on Ours must not push the room twice.
@@ -850,6 +856,24 @@ export default function TodayScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, hold, loaded]);
 
+  // Every Later fold starts closed each time Today opens (Melroy, 2026-10-24), apart from the ones a reset must keep.
+  // Its own focus effect with no deps: the one above also re-runs on a session refresh (TOKEN_REFRESHED, about
+  // hourly), and that is not an opening. Likewise only a return from the BACKGROUND counts, never iOS's 'inactive'
+  // pass for Notification Centre, a call banner or a system sheet, which never leaves the screen (review, 2026-10-25).
+  useFocusEffect(
+    useCallback(() => {
+      setLaterOpen({ on: toISODate(new Date()), keys: laterLockedRef.current });
+    }, []),
+  );
+  useEffect(() => {
+    let prev = AppState.currentState;
+    const sub = AppState.addEventListener('change', (next) => {
+      if (prev === 'background' && next === 'active') setLaterOpen({ on: toISODate(new Date()), keys: laterLockedRef.current });
+      prev = next;
+    });
+    return () => sub.remove();
+  }, []);
+
   // Sweep elapsed "remind me" nudges whenever the app returns to the foreground, so a bell
   // whose time passed while the app was backgrounded clears on return. The load sweep covers
   // a cold open, this covers a warm resume (which does not re-fire useFocusEffect). Reads the
@@ -1084,6 +1108,17 @@ export default function TodayScreen() {
   // The current week's deduped finishes: the scrapbook's raw material, read by the earned-moment mention.
   const weekFinishes = weekTitles(completionsByDay(tasks), weekStartISO(today)).length;
   const upcoming = upcomingTasks(tasks, today);
+  // The same list, split for drawing only: `upcoming` stays whole, so the rested screen's count and the held-card
+  // check read exactly what they always did.
+  const later = groupLater(upcoming, today);
+  const laterOpenKeys = laterOpen.on === toISODate(today) ? laterOpen.keys : [];
+  // A fold holding the task whose card is open, or (in select mode) a selected task, is open whatever the state says:
+  // otherwise a card or a selection could sit inside a closed fold, and closing the card would unmount its row in
+  // the same render, before the row could save a typed edit or hand focus back (review, 2026-10-25).
+  const laterLocked = later.folds
+    .filter((fold) => fold.tasks.some((task) => task.id === confirmingId || (selectMode && selected.includes(task.id))))
+    .map((fold) => fold.key);
+  const laterLockedKey = laterLocked.join(',');
   const allDone = loaded && visible.length > 0 && visible.every((t) => isDoneOn(t, today));
   // Closed when the stored close-date is today's; it self-clears when the date rolls over.
   const isClosed = closedDate === toISODate(today);
@@ -1133,6 +1168,9 @@ export default function TodayScreen() {
   useLayoutEffect(() => {
     cardHeldRef.current = cardHeld;
   }, [cardHeld]);
+  useLayoutEffect(() => {
+    laterLockedRef.current = laterLockedKey ? laterLockedKey.split(',') : [];
+  }, [laterLockedKey]);
   // The inbound seed that closed a held card (above, at the listener) lands once the card is gone. By then the
   // sheet's handle has been rebuilt with the pill showing again, so seed() rises and focuses as it does from a
   // clear Today. A setTimeout alone could still reach the handle from the hidden render.
@@ -1705,6 +1743,13 @@ export default function TodayScreen() {
     const set = new Set(ids);
     commit(tasks.map((t) => (set.has(t.id) && !isRecurring(t) ? clearNudgeIfAny({ ...deferTo(t, iso), updatedAt: now }) : t)));
     track('bulk.moved', { count: ids.length });
+    // A move past the seven days lands in a fold: open it for this visit, so the row reappears under its date as it
+    // always did, instead of vanishing into a closed line without a word (review, 2026-10-25).
+    const landing = laterFoldKey(iso, today);
+    if (landing) {
+      const day = toISODate(today);
+      setLaterOpen((prev) => ({ on: day, keys: prev.on === day ? [...new Set([...prev.keys, landing])] : [landing] }));
+    }
     setMoveIds(null);
     dismissActions();
   }
@@ -3046,6 +3091,55 @@ export default function TodayScreen() {
     );
   }
 
+  // One Later row, with its date above it when the day changes. Shared by the next seven days and the month
+  // folds, so a task in an opened fold is the very same row as one in the week ahead.
+  function laterRowFor(task: Task, i: number, list: Task[]) {
+    return (
+      <View key={task.id} style={styles.laterItem}>
+        {(i === 0 || list[i - 1].due !== task.due) && task.due && (
+          <Text style={styles.laterDate}>
+            {task.due.slice(0, 4) === String(today.getFullYear()) ? friendlyDate(task.due, today) : fmt.writtenOn(task.due)}
+          </Text>
+        )}
+        {/* A Later task holds into the SAME card as a Today one, which is a net gain: the old
+            bar's single-task actions searched only Today, so they were already silently dead
+            here. Move to… is the honest way to re-date it. No Tomorrow (an ambiguous pull
+            backward on a future task), no Remind me (the presets are today-shaped), no Pin
+            (Today-only by design). */}
+        <TaskRow
+          title={task.title}
+          done={isDoneOn(task, today)}
+          onToggle={() => toggle(task.id)}
+          onLongPress={() => onRowLongPress(task.id)}
+          confirming={confirmingId === task.id}
+          onRemove={() => removeTask(task.id)}
+          onKeep={() => setConfirmingId(null)}
+          recurring={isRecurring(task)}
+          slices={task.slices ?? undefined}
+          onAdvance={() => step(task.id, 1)}
+          onRetreat={() => step(task.id, -1)}
+          onBreakdown={aiEnabled ? () => breakdownExisting(fresh(task).title, task.id) : () => openManualBreakdown(task.id, fresh(task).title)}
+          onMakeTiny={aiEnabled ? () => makeTiny(task.id, fresh(task).title) : undefined}
+          onBig={() => bigRow(fresh(task))}
+          onSelectMore={() => selectFromRow(task.id)}
+          onRename={(title) => renameRow(task.id, title)}
+          leftOff={isRecurring(task) ? undefined : task.leftOff}
+          onSaveEdit={isRecurring(task) || isDoneOn(task, today) ? undefined : (title, line, announce) => saveEditRow(task.id, title, line, announce)}
+          onEditorFocus={revealField}
+          onSteps={!isRecurring(task) ? () => openSliceEdit(task.id) : undefined}
+          onMoveTo={!isRecurring(task) ? () => setMoveIds([task.id]) : undefined}
+          origin={task.sharedRef ? `· ${t('ours.defaultName')}` : undefined}
+          note={originGone.has(task.id) ? (oursName ? t('ours.noLongerOnNamed', { name: oursName }) : t('ours.noLongerOn')) : undefined}
+          onShareToOurs={oursPairId && !task.sharedRef && !sharedToOurs.has(task.id) && !isDoneOn(task, today) ? () => void shareToOurs(fresh(task)) : undefined}
+          selecting={selectMode}
+          selected={selected.includes(task.id)}
+          onSelect={() => toggleSelect(task.id)}
+          big={task.big}
+        />
+      </View>
+    );
+  }
+
   return (
     // Keyed by appearance: switching Standard <-> Quiet remounts Today's subtree so native
     // lays it out fresh. Without this, a toggle made on the Settings screen re-styles Today
@@ -3524,48 +3618,53 @@ export default function TodayScreen() {
         {upcoming.length > 0 && (
           <View style={styles.later}>
             <Text style={styles.laterHeading}>{t('today.laterHeading')}</Text>
-            {upcoming.map((task, i) => (
-              <View key={task.id} style={styles.laterItem}>
-                {(i === 0 || upcoming[i - 1].due !== task.due) && task.due && (
-                  <Text style={styles.laterDate}>{friendlyDate(task.due, today)}</Text>
-                )}
-                {/* A Later task holds into the SAME card as a Today one, which is a net gain: the old
-                    bar's single-task actions searched only Today, so they were already silently dead
-                    here. Move to… is the honest way to re-date it. No Tomorrow (an ambiguous pull
-                    backward on a future task), no Remind me (the presets are today-shaped), no Pin
-                    (Today-only by design). */}
-                <TaskRow
-                  title={task.title}
-                  done={isDoneOn(task, today)}
-                  onToggle={() => toggle(task.id)}
-                  onLongPress={() => onRowLongPress(task.id)}
-                  confirming={confirmingId === task.id}
-                  onRemove={() => removeTask(task.id)}
-                  onKeep={() => setConfirmingId(null)}
-                  recurring={isRecurring(task)}
-                  slices={task.slices ?? undefined}
-                  onAdvance={() => step(task.id, 1)}
-                  onRetreat={() => step(task.id, -1)}
-                  onBreakdown={aiEnabled ? () => breakdownExisting(fresh(task).title, task.id) : () => openManualBreakdown(task.id, fresh(task).title)}
-                  onMakeTiny={aiEnabled ? () => makeTiny(task.id, fresh(task).title) : undefined}
-                  onBig={() => bigRow(fresh(task))}
-                  onSelectMore={() => selectFromRow(task.id)}
-                  onRename={(title) => renameRow(task.id, title)}
-                  leftOff={isRecurring(task) ? undefined : task.leftOff}
-                  onSaveEdit={isRecurring(task) || isDoneOn(task, today) ? undefined : (title, line, announce) => saveEditRow(task.id, title, line, announce)}
-                  onEditorFocus={revealField}
-                  onSteps={!isRecurring(task) ? () => openSliceEdit(task.id) : undefined}
-                  onMoveTo={!isRecurring(task) ? () => setMoveIds([task.id]) : undefined}
-                  origin={task.sharedRef ? `· ${t('ours.defaultName')}` : undefined}
-                  note={originGone.has(task.id) ? (oursName ? t('ours.noLongerOnNamed', { name: oursName }) : t('ours.noLongerOn')) : undefined}
-                  onShareToOurs={oursPairId && !task.sharedRef && !sharedToOurs.has(task.id) && !isDoneOn(task, today) ? () => void shareToOurs(fresh(task)) : undefined}
-                  selecting={selectMode}
-                  selected={selected.includes(task.id)}
-                  onSelect={() => toggleSelect(task.id)}
-                  big={task.big}
-                />
-              </View>
-            ))}
+            {/* LATER FOLDS (Melroy, 2026-10-24). The next seven days stay in full; past them, one closed line per month
+                to the end of the year, then one for everything after. A dated task still lands on Today on its own
+                day, so folding hides nothing for good, and the line under the heading says so. Every fold starts
+                closed each time Today opens. A fold holding the task whose card is open stays drawn, so a held card
+                never disappears under its own fold. */}
+            {later.folds.length > 0 && <Text style={styles.laterNote}>{t('today.laterFoldNote')}</Text>}
+            {later.near.map((task, i) => laterRowFor(task, i, later.near))}
+            {later.folds.map((fold) => {
+              const locked = laterLocked.includes(fold.key);
+              const open = locked || laterOpenKeys.includes(fold.key);
+              const count = String(fold.tasks.length);
+              const month = fold.kind === 'month' ? fmt.month(fromISODate(`${fold.key}-01`)) || fold.key : '';
+              const line =
+                fold.kind === 'month'
+                  ? t('today.laterMonthLine', { month: month.charAt(0).toUpperCase() + month.slice(1), count })
+                  : t('today.laterBeyondLine', { count });
+              const label =
+                fold.kind === 'month'
+                  ? t(open ? 'today.laterMonthHideA11y' : 'today.laterMonthShowA11y', { month, count })
+                  : t(open ? 'today.laterBeyondHideA11y' : 'today.laterBeyondShowA11y', { count });
+              return (
+                <View key={fold.key} style={styles.laterFold}>
+                  <Pressable
+                    onPress={() => {
+                      // A fold holding an open card or a selection stays open until that is done.
+                      if (locked) return;
+                      setLaterOpen({
+                        on: toISODate(today),
+                        keys: open ? laterOpenKeys.filter((key) => key !== fold.key) : [...laterOpenKeys, fold.key],
+                      });
+                      track('later_fold.toggled', { open: !open, kind: fold.kind });
+                    }}
+                    accessibilityRole="button"
+                    aria-expanded={open}
+                    accessibilityLabel={label}
+                    hitSlop={4}
+                    style={({ pressed }) => [styles.doneLine, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.doneLineText}>{line}</Text>
+                    <Text style={styles.doneLineCaret} accessible={false} importantForAccessibility="no">
+                      {open ? '˄' : '˅'}
+                    </Text>
+                  </Pressable>
+                  {open && fold.tasks.map((task, i) => laterRowFor(task, i, fold.tasks))}
+                </View>
+              );
+            })}
           </View>
         )}
         {/* FROM OURS. The shared rows that have a day, and whose day is today: a repeat you two
@@ -4796,6 +4895,8 @@ const makeStyles = (t: Theme) =>
     },
     laterItem: { gap: spacing.two },
     laterDate: { color: t.colors.skyInk, fontSize: 13 * t.scale, marginTop: spacing.two, fontFamily: fonts.body },
+    laterNote: { color: t.colors.skyInk, fontSize: 13 * t.scale, fontFamily: fonts.body, marginBottom: spacing.one },
+    laterFold: { gap: spacing.two },
     footer: {
       paddingHorizontal: spacing.five,
       paddingTop: spacing.three,

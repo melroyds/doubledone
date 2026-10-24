@@ -278,6 +278,48 @@ export function upcomingTasks<T extends Scheduled>(tasks: T[], date: Date): T[] 
     .sort((a, b) => (a.due ?? '').localeCompare(b.due ?? ''));
 }
 
+/** How many days ahead Later shows every task in full. Past it, tasks fold away by month (Melroy, 2026-10-24). */
+export const LATER_NEAR_DAYS = 7;
+
+/** One folded line of Later: a calendar month of this year ('YYYY-MM'), or everything from next year on. */
+export type LaterFold<T> = { key: string; kind: 'month' | 'beyond'; tasks: T[] };
+
+/**
+ * Split the Later list so the far future stops looming. Tasks due within `nearDays` of today stay in full; the
+ * rest of this calendar year folds by month, in date order; anything in a later year shares one "beyond" fold.
+ * Folding hides nothing for good: a dated task still lands on Today on its own day. Expects `upcomingTasks`
+ * output (future, not done, soonest first) and keeps that order inside every group.
+ */
+/** Which fold a 'YYYY-MM-DD' falls in, seen from `date`: null inside the seven days (or earlier), the 'YYYY-MM' of a
+ *  month of this year, or 'beyond' for a later year. One rule, so a move into a fold opens the same fold it lands in. */
+export function laterFoldKey(iso: string, date: Date, nearDays: number = LATER_NEAR_DAYS): string | null {
+  if (iso <= addDaysISO(date, nearDays)) return null;
+  return iso.slice(0, 4) === String(date.getFullYear()) ? iso.slice(0, 7) : 'beyond';
+}
+
+export function groupLater<T extends Scheduled>(upcoming: T[], date: Date, nearDays: number = LATER_NEAR_DAYS): { near: T[]; folds: LaterFold<T>[] } {
+  const near: T[] = [];
+  const months = new Map<string, T[]>();
+  const beyond: T[] = [];
+  for (const task of upcoming) {
+    const due = task.due;
+    if (due == null) continue;
+    const key = laterFoldKey(due, date, nearDays);
+    if (key == null) {
+      near.push(task);
+    } else if (key !== 'beyond') {
+      const month = months.get(key);
+      if (month) month.push(task);
+      else months.set(key, [task]);
+    } else {
+      beyond.push(task);
+    }
+  }
+  const folds: LaterFold<T>[] = [...months.keys()].sort().map((key) => ({ key, kind: 'month', tasks: months.get(key) ?? [] }));
+  if (beyond.length > 0) folds.push({ key: 'beyond', kind: 'beyond', tasks: beyond });
+  return { near, folds };
+}
+
 type Parentable = Scheduled & {
   id: string;
   title: string;

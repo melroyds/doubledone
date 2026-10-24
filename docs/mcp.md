@@ -167,7 +167,11 @@ asking first. The tools that write carry the protocol's cautious defaults.
 - `parts` (optional): a whole number from 2 to 50, to track the task in parts, the app's **Track
   in steps** (a ten-episode series is 10 parts). It starts at none done. Not with `repeat`, because
   a repeat is ticked by the day. A `due` day is fine. See [Parts](#parts). For a task made of
-  *different* steps, use [`add_steps`](#add_steps) instead.
+  *different* steps, use [`add_steps`](#add_steps) instead. **The same thing done several times by
+  one date is ONE task in parts**, never several near-identical copies: five card purchases due in
+  November is `parts: 5`, not five tasks. The tool's own description says so from the Worker
+  deploy after 2026-10-25 (MCP-27 checks it), because copies crowd the app's Later list, which folds
+  the far future by month to stay calm.
 - With neither `due` nor `repeat`, the task is undated, which puts it on your Today.
 
 Replies `Added "Book the dentist" to today. [mcp-…]`, `Added "Renew the rego" for 2026-10-20.

@@ -139,7 +139,7 @@ export const TOOLS = [
   {
     name: 'add_task',
     description:
-      "Add a task to the user's DoubleDone. By default it lands on today. Optionally schedule it for a future day (`due`) OR make it repeat (`repeat`), never both, and optionally track it in `parts`. The reply ends with the new task's id in square brackets.",
+      "Add a task to the user's DoubleDone. By default it lands on today. Optionally schedule it for a future day (`due`) OR make it repeat (`repeat`), never both, and optionally track it in `parts`. If the user needs the same thing done several times by one date (for example five card purchases in November), add ONE task with `parts` (5), never several near-identical copies: copies crowd the app's calm Later list, and parts tick down in one row. The reply ends with the new task's id in square brackets.",
     inputSchema: {
       type: 'object',
       properties: {
