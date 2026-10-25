@@ -4,16 +4,17 @@
     python scripts/store-ranks.py --append        # ...and append it to docs/store-search-ranks.md
     python scripts/store-ranks.py --from-json F   # render a saved run (F) instead of measuring
 
-A PROXY, read it as one. The App Store column is the iTunes Search API (up to 200 iPhone apps, unpersonalised), close
-to but not the same as search on a phone. The Play column is the public search page's first page (about 30 apps), so
-"not in 30" means off the first page, not unranked. Same terms, same countries, every run, so runs compare like for
-like. Writes nothing but the doc; needs no key. About four minutes: the Search API is rate limited, so it paces itself.
+A PROXY, read it as one. It is the iTunes Search API (up to 200 iPhone apps, unpersonalised), close to but not the
+same as search on a phone. Same terms, same countries, every run, so runs compare like for like. Writes nothing but
+the doc; needs no key. About four minutes: the Search API is rate limited, so it paces itself.
+
+Google Play is NOT measured (since 2026-10-25): Play's robots.txt disallows /store/search, so read the Play Console's
+store listing acquisition report by search term instead. The 2026-10-25 baseline's Play column stays as recorded.
 """
 import argparse
 import datetime
 import json
 import pathlib
-import re
 import sys
 import time
 import urllib.parse
@@ -21,7 +22,7 @@ import urllib.request
 
 APPLE_ID = 6790136615
 PLAY_ID = "app.doubledone"
-UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
+UA = "doubledone-store-ranks/1.0 (+https://github.com/melroyds/doubledone)"
 DOC = pathlib.Path(__file__).resolve().parent.parent / "docs" / "store-search-ranks.md"
 
 # Never edit these between runs without starting a new baseline: the point is comparing like with like.
@@ -57,24 +58,12 @@ def apple(term, country):
     return {"error": err}
 
 
-def play(term, country, hl):
-    q = urllib.parse.urlencode({"q": term, "c": "apps", "hl": hl, "gl": country.upper()})
-    try:
-        page = get("https://play.google.com/store/search?" + q)
-    except Exception as e:
-        return {"error": str(e)}
-    ids = []
-    for m in re.finditer(r"/store/apps/details\?id=([A-Za-z0-9_.]+)", page):
-        if m.group(1) not in ids:
-            ids.append(m.group(1))
-    return {"rank": ids.index(PLAY_ID) + 1 if PLAY_ID in ids else None, "of": len(ids)}
-
 
 def measure():
     rows = []
     for country, hl, terms in SETS:
         for term in terms:
-            rows.append({"country": country, "term": term, "apple": apple(term, country), "play": play(term, country, hl)})
+            rows.append({"country": country, "term": term, "apple": apple(term, country)})
             print(".", end="", file=sys.stderr, flush=True)
             time.sleep(3.5)
     print(file=sys.stderr)
@@ -88,8 +77,13 @@ def cell(r):
 
 
 def render(rows, date):
-    out = [f"### {date}", "", "| Store | Search | App Store | Google Play |", "|---|---|---|---|"]
-    out += [f"| {r['country'].upper()} | {r['term']} | {cell(r['apple'])} | {cell(r['play'])} |" for r in rows]
+    # The 2026-10-25 baseline carried a Play column; later runs do not (see the docstring).
+    if any("play" in r for r in rows):
+        out = [f"### {date}", "", "| Store | Search | App Store | Google Play |", "|---|---|---|---|"]
+        out += [f"| {r['country'].upper()} | {r['term']} | {cell(r['apple'])} | {cell(r['play']) if 'play' in r else 'n/a'} |" for r in rows]
+    else:
+        out = [f"### {date}", "", "| Store | Search | App Store |", "|---|---|---|"]
+        out += [f"| {r['country'].upper()} | {r['term']} | {cell(r['apple'])} |" for r in rows]
     return "\n".join(out) + "\n"
 
 

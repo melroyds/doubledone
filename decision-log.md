@@ -10802,3 +10802,24 @@ pass (Apple offer codes, RevenueCat, every alternative, then a sceptical critiqu
 - **Promotional, win-back or introductory offers.** All renew into a full-price charge.
 - **Earning it on the web for use in the app,** which sends iPhone users out of the app, and **sending it by email,**
   which breaks the rule that email is only for sign-in.
+
+## 2026-10-25: the positioning one-pager, the rank script's Play column retired, and the Golden Path growth chapter
+
+**The positioning one-pager (Ruana Soul item 7)** is a private artifact, kept out of this public repo because it
+carries competitor prices. Its line: "Nothing is ever overdue. A list for today, never a timeline to fill." What it
+taught, worth keeping here: a three-lens fact-check and red team rejected the first headline ("Not a schedule to
+keep"), which failed the moment anyone opened the leading rival's list view, narrowed three of DoubleDone's own claims
+that went further than the code (it has timed reminders, so "no start times", not "no clock"; Today is weighed in
+words, not capped; only Routines and Rhythms cannot count a streak), and made the "their users are asking" section
+list the big requests DoubleDone does not answer beside the ones it does.
+
+**The rank script no longer reads Google Play.** A review before publishing the script found that Play's robots.txt
+disallows `/store/search`, and the script also sent a browser User-Agent. `scripts/store-ranks.py` now measures the
+App Store only (Apple's public Search API) with an honest User-Agent, Play is read in its Console's acquisition report
+by search term, and the 2026-10-25 baseline's Play column stays as recorded.
+
+**The Golden Path gained a going-to-market chapter** (`GROWTH.md` in the public golden-path repo, PLAYBOOK section 10),
+distilled from DoubleDone's landing, listing, search, screenshot, ratings, attribution, positioning and feedback
+lessons, at Melroy's ask. Three reviewers checked it before it went public. Decided against putting there: the
+agency's name or prices, competitor prices, any id or link, and dated admissions about DoubleDone's past listing or
+privacy-label mistakes, which are recorded here and need not be advertised.

@@ -5,8 +5,10 @@
 time. Ruana's keyword check, item 4 of Tier 1.*
 
 **Read it as a proxy.** The App Store column is the iTunes Search API (up to 200 iPhone apps, unpersonalised): close
-to search on a phone, not the same. The Play column is the first page of the public search (about 30 apps), so
-"not in 30" means off the first page, not unranked. Bold is a rank. Store search moves for about two to four weeks
+to search on a phone, not the same. The Play column, in the 2026-10-25 baseline only, was the first page of the
+public search (about 30 apps), so "not in 30" meant off the first page, not unranked. **Later runs measure the App
+Store only:** Play's robots.txt disallows `/store/search`, so Play is read in its Console's acquisition report by
+search term instead. Bold is a rank. Store search moves for about two to four weeks
 after a metadata change, so judge a listing change from the second rerun, not the first.
 
 **The other half of the check lives in the consoles,** and is not here: Play Console's acquisition report broken down
