@@ -56,9 +56,9 @@ deploy-web and CI green; the live bundle carries the card, the note screen, `/gi
 booking link (the GitHub repo variable `EXPO_PUBLIC_BOOKING_URL`); /privacy has "A note to us", dated 25 October;
 `/note` renders its signed-out state. The privacy section was approved by Melroy, and the strings were native-read
 before `be22a5c`. Nobody sees the Today card for a week: it waits seven days from each device's first open of this
-build, and only on the open after a stored yes. The Settings line and the note screen are live at once. Still to do:
-the EAS env entry for `EXPO_PUBLIC_BOOKING_URL` before the next store builds, and a phone pass of MON-01 to MON-10
-with that build. Phase 2 (people already paying) is in the Backlog entry below.
+build, and only on the open after a stored yes. The Settings line and the note screen are live at once. The booking link
+is in EAS env too (production and preview, set the same evening), so the next store builds carry it. Still to do: a
+phone pass of MON-01 to MON-10 with that build. Phase 2 (people already paying) is in the Backlog entry below.
 
 **LIVE ON THE WEB 2026-10-25: drag a task by its grip** (main `865d1f6`, Melroy's "Merge to main", which also took
 the privacy policy's new feature-usage line, both copies, dated 25 October; deploy-web and CI green, and the live
