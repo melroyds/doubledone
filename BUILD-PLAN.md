@@ -209,6 +209,13 @@ the ladder is fixed and readable, never randomised.
 
 ## Backlog (deferred, with triggers)
 
+- **One campaign label per channel, passed through the website (parked 2026-10-25, Ruana item 10).** Today the
+  website's badges carry one label, `website` (`client/src/lib/store-links.ts`), and which post sent a visitor is
+  Cloudflare Web Analytics' referrer question. The precise version: a link like `doubledone.app/?ref=instagram`
+  whose label the landing passes on into the badges' `ct` and `utm_campaign`, from a fixed list of labels (never
+  free text, never stored). Parked because Apple shows nothing for a campaign under five first-time downloads.
+  Trigger: any one channel sending about 50 visits a week in Cloudflare Web Analytics, or Melroy starting to post
+  on a schedule (Ruana item 9).
 - ~~**Later folds by month, so the far future stops looming**~~ **LIVE ON THE WEB 2026-10-25 (main `e5d8913`, Melroy's "Main please"; the live bundle checked for the note, the
   fold keys and Italian's "in {month}"). Built the same day (decision log): `groupLater()` and `laterFoldKey()` in `client/src/lib/today.ts`, the folds in
   `today.tsx`, seven strings in all five catalogues natively read (Italian fixed to "in {month}"), the review's
@@ -244,7 +251,10 @@ the ladder is fixed and readable, never randomised.
   of the app filling an iPad screen would show what no iPad user sees (2.3.3). The 1.3-era `docs/appstore/ipad-13/`
   set was made and deliberately never used (`4b27d3b`). Trigger: a decision to support iPad, which is a feature
   (layouts at iPad width, tested, then an iPad review), and only then a captured iPad set.
-- **App Store product page header and search results images (made 2026-10-19, not yet uploaded).** The still pair in
+- ~~**App Store product page header and search results images**~~ **DONE: Melroy put them in with the 1.9.0
+  submission (told 2026-10-25), so they went live with 1.9.0 rather than through the Asset Library afterwards, as
+  planned below. When a new version is created, check the Header and Search Results tab shows them carried over;
+  never re-add them. They show only on iOS 27 and later.** *(The original entry follows.)* The still pair in
   `docs/appstore/creative/` (header 3840 x 1646, text-free, for all seven localisations; search 3840 x 2560 with the
   approved "Only today, sized to feel possible." caption, for the two English localisations only), as .png (RGB, no
   alpha) and .jpg, because the header slot refused a .jpeg. Apple lets them go in on their own through the Asset

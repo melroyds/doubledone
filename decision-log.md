@@ -10706,3 +10706,35 @@ was right and the tool (unfold) was wrong.
 - **Flashing or highlighting the month line.** Motion as the message, and a highlight is invisible to a screen reader.
 - **Saying it for every move,** including a move within seven days. The row appears under its date there, and a line
   for every move would make the confirmation noise.
+
+## 2026-10-25: the website's store badges carry a campaign label, so each store can say an install came from here
+
+**Why.** Ruana's item 10: nothing told us where an install came from. Cloudflare Web Analytics counts visits to
+doubledone.app and their referrers, and each store counts installs, but little joined the two. Apple's own "Web
+Referrer" source credits a download to a website only when the visitor came through Safari, and Play credits an
+untagged link to nothing, so "does the website sell the app" had no real answer.
+
+**What was built:**
+- **`client/src/lib/store-links.ts`,** one pure copy of the two store links, used by the static landing (built in
+  node by `inject-web-meta.mjs`) and the app's own welcome page (`client/src/app/index.tsx`), which until now each
+  held its own literals.
+- **Apple:** a campaign link (`pt` the account's provider token, `ct=website`, `mt=8`), read in App Store Connect
+  under Analytics, Metrics, Add Filter, Campaign. **Google Play:** `utm_source=doubledone.app`, `utm_medium=website`,
+  `utm_campaign=website`, URL-encoded inside one `referrer`, read in Play Console's acquisition report (tracked
+  channels, UTM). The landing escapes both into its HTML.
+- **The label names the channel, never the person.** No id, no cookie, nothing set or read back by us, and the stores
+  report it only in aggregate (Apple hides a campaign under five first-time downloads). So the privacy policy needs
+  no new line: we collect nothing new, and no new processor is involved.
+- **The update nudge stays untagged** (`STORE_URLS` in `lib/updates.ts`): it sends people who already have the app,
+  and counting them would read as acquisition. A test holds it untagged.
+
+**Decided against:**
+- **One label per page or post** (`doubledone.app/?ref=instagram` passed through to `ct=instagram`). It is the
+  precise version, but Apple shows nothing for a campaign under five first-time downloads, so at today's volumes it
+  buys precision the numbers cannot show yet, and the referrer half of the question is already Cloudflare's. Parked
+  in the Backlog with a trigger.
+- **Tagging the in-app links,** the update nudge (above) and any future "Rate DoubleDone" link. Both send existing
+  users.
+- **Reading the Play install referrer in the app** (`getInstallReferrerAsync`). `expo-application` already links
+  Google's referrer library on Android, unused, so the cost is not a new SDK but a new data flow out of the app, for
+  a number Play Console already shows.

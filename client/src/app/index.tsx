@@ -8,6 +8,7 @@ import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { t } from '@/lib/locale';
 import { hasStaticLanding, hideStaticLanding, showStaticLanding } from '@/lib/landing-dom';
 import { loadOnboarded } from '@/lib/storage';
+import { APP_STORE_URL, PLAY_URL } from '@/lib/store-links';
 import { useThemedStyles } from '@/lib/theme-provider';
 
 // The web first-touch front door (the completeness audit's Tier-1 conversion gap). The app itself lives at
@@ -188,11 +189,12 @@ export default function Landing() {
           <Text style={styles.trust}>{t('welcome.trustLine')}</Text>
           {/* The stores (launched worldwide 2026-07-31). Official badge artwork, per both brand
               guidelines; the country-less links open each visitor's own storefront in their own
-              language. This page is unreachable on native (the redirect above), so the Play badge
-              can never appear inside the iOS app, which App Review would reject. */}
+              language, and carry the website's campaign label (lib/store-links). This page is
+              unreachable on native (the redirect above), so the Play badge can never appear inside
+              the iOS app, which App Review would reject. */}
           <View style={styles.storeRow}>
             <Pressable
-              onPress={() => Linking.openURL('https://apps.apple.com/app/doubledone/id6790136615')}
+              onPress={() => Linking.openURL(APP_STORE_URL)}
               accessibilityRole="link"
               accessibilityLabel={t('welcome.appStoreBadgeA11y')}
               style={({ pressed }) => [pressed && styles.badgePressed]}
@@ -200,7 +202,7 @@ export default function Landing() {
               <Image source={require('../../assets/store/app-store-badge.svg')} style={styles.appStoreBadge} resizeMode="contain" />
             </Pressable>
             <Pressable
-              onPress={() => Linking.openURL('https://play.google.com/store/apps/details?id=app.doubledone')}
+              onPress={() => Linking.openURL(PLAY_URL)}
               accessibilityRole="link"
               accessibilityLabel={t('welcome.playBadgeA11y')}
               style={({ pressed }) => [pressed && styles.badgePressed]}
