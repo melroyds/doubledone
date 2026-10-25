@@ -76,6 +76,7 @@ type Props = {
   onHoldRelease?: () => void; // held rows: the contract line's one-tap, uninterrogated "Let it go"
   holdClosed?: boolean; // the contract just COMPLETED on this row: the sage closing line plays inside the cell
   holdCloseFade?: Animated.Value; // the screen owns the closing beat's clock; the row just wears its opacity
+  gripInset?: boolean; // Today lays a drag grip over this row's right edge (DragGrip): keep the content clear of it
 };
 
 // The pin mark, DRAWN, not typed: a plain thumbtack in the accent colour. It replaces the ★
@@ -179,6 +180,7 @@ export function TaskRow({
   onHoldRelease,
   holdClosed,
   holdCloseFade,
+  gripInset,
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
@@ -494,7 +496,7 @@ export function TaskRow({
         accessibilityRole="button"
         accessibilityLabel={t('today.rowOptionsA11y', { title })}
         // RN-web hands Pressable's style a `focused` flag that React Native's own types do not declare.
-        style={(state) => ((state as { focused?: boolean }).focused ? styles.optionsShown : styles.optionsHidden)}
+        style={(state) => ((state as { focused?: boolean }).focused ? [styles.optionsShown, gripInset && styles.optionsBesideGrip] : styles.optionsHidden)}
       >
         <Text style={styles.optionsLabel}>{t('today.rowOptions')}</Text>
       </Pressable>
@@ -1124,7 +1126,7 @@ export function TaskRow({
         {...door}
         accessibilityActions={rowActions}
         onAccessibilityAction={onRowAction}
-        style={({ pressed }) => [styles.row, styles.rowUnique, styles.sliceColumn, held && styles.rowHeld, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.row, styles.rowUnique, styles.sliceColumn, held && styles.rowHeld, gripInset && styles.rowGrip, pressed && styles.pressed]}
         accessibilityRole="button"
         aria-checked={complete}
         accessibilityLabel={
@@ -1171,7 +1173,7 @@ export function TaskRow({
   // toggle and the prompt are siblings, never a Pressable nested in a Pressable.
   if (suggestBreakdown && !done) {
     return (
-      <View style={[styles.row, !recurring && styles.rowUnique, pinned && styles.rowPinned, held && !pinned && styles.rowHeld, styles.suggestColumn]}>
+      <View style={[styles.row, !recurring && styles.rowUnique, pinned && styles.rowPinned, held && !pinned && styles.rowHeld, styles.suggestColumn, gripInset && styles.rowGrip]}>
         <Pressable
           ref={rowRef}
           onPress={onToggle}
@@ -1214,7 +1216,7 @@ export function TaskRow({
   // 2-minute step, so the link is never lost. Periwinkle, matching the one-off border.
   if (tinyParent && !done) {
     return (
-      <View style={[styles.row, styles.rowUnique, styles.tinyColumn]}>
+      <View style={[styles.row, styles.rowUnique, styles.tinyColumn, gripInset && styles.rowGrip]}>
         <Text style={styles.tinyEyebrow} numberOfLines={1}>
           {t('today.tinyStepEyebrow', { parent: tinyParent })}
         </Text>
@@ -1292,6 +1294,7 @@ export function TaskRow({
         styles.row,
         !recurring && !plain && styles.rowUnique,
         pinned && styles.rowPinned,
+        gripInset && styles.rowGrip,
         pressed && !inert && styles.pressed,
       ]}
       accessibilityRole="checkbox"
@@ -1382,6 +1385,8 @@ const makeStyles = (t: Theme) => {
             boxShadow: cardShadow(t),
           }),
     },
+    // Room at the right edge for Today's drag grip (DragGrip, 44 wide), so no title or mark runs under it.
+    rowGrip: { paddingRight: 44 },
     // One-off (unique): a thick periwinkle border in standard; in quiet, whitespace alone (no chrome).
     rowUnique: t.appearance === 'quiet' ? {} : { borderColor: t.colors.repeat, borderWidth: border.thick },
     // The day's one pinned priority: an accent border + tint in standard; in quiet, a faint tint + the star.
@@ -1570,6 +1575,8 @@ const makeStyles = (t: Theme) => {
       borderColor: t.colors.accent,
       backgroundColor: t.colors.surface,
     },
+    // Clear of Today's drag grip, which is drawn over the row's right 44 (DragGrip).
+    optionsBesideGrip: { right: 44 + spacing.two },
     optionsLabel: { ...t.type.label, color: t.colors.ink },
     pinnedLabel: { color: t.colors.accentText },
     // The shelf (v2): the card's floor. A quiet surface-tint band flush to the card's edges,

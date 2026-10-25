@@ -10892,3 +10892,55 @@ on a Google Calendar booking page, which is Google's and works under Google's pr
 Refuted and left: the once-per-launch read racing the session (it cannot, the reads share one queue), a declined
 note re-showing the offer (keeping it open lets someone hit by a hiccup write again), and the noteCheck row's
 length being joinable to a gift by time (the same operator already has the email).
+
+## 2026-10-25: drag a task by its grip, and the "buttons, never drag" rule narrowed
+
+**Why.** Testers reported that a hold no longer moved a task, and Melroy missed it too: "Is there a chance to bring
+back hooks on the side of the rows to differentiate between opening the card and intending to drag it up and down?"
+Since 2026-08-04 the only way to reorder was the held card's Move up / Move down, which is three taps and a card for
+one place, and the hold had come to mean "open the card", so a hold could never mean "move" as well.
+
+**Decided (Melroy: "Yeah, do drag handles please", built on branch `drag-handles`, web first):**
+- **A six-dot grip at the right edge of each open row on Today.** Press it and drag: the row lifts and follows, the
+  rows it passes slide aside, and the drop settles into the gap, then writes through the same `setSequence` as the
+  rail, so a dragged order persists exactly like a nudged one (on this device: the order is local-only, and survives
+  a sync). A hold anywhere else still opens the card, so the two intents never share a gesture. The grip is a
+  44-wide target the full height of the row.
+- **A finger rests on the grip for 150ms before the row lifts; a mouse picks it up at once.** The right edge of the
+  list is where a thumb scrolls, so a finger that moves first is scrolling, and the grip lets the list have it (a
+  phone browser, whose touch the grip has to hold, scrolls the list itself for the whole swipe). The list is locked
+  once the drag has taken, while the finger is still, and on the phones the lock is set straight on the native list
+  (a frame, not a render of all of Today), with the pre-arm drift held to 4 points, under Android's 8dp slop, so the
+  list cannot take the touch first. The review that found this
+  (three reviewers and a sceptic each, the same day) also found the drag following a second finger, a press that
+  began elsewhere turning into a drag by crossing a grip, and the web hiding its scrollbar (a sideways lurch) to
+  lock the list; all fixed: it follows the finger that took the grip, claims only at the start, and the web holds
+  the wheel instead. Every move re-reads the rows, so a task folding away or the undo bar going mid-drag can no
+  longer carry the row off the finger or lose the drop.
+- **No grip while VoiceOver or TalkBack runs, in the phone apps:** TalkBack hands a two-finger scroll to the app as
+  a one-finger touch, which a grip would take for a drag. A browser cannot tell a screen reader is running, so the
+  web keeps its grips, hidden from it (the known cost: explore-by-touch over the grip lane in a phone browser lands
+  on the list, not the row). No grip either where there is nowhere to move a task. The carried row keeps its grip
+  until the drop, so a task folding away mid-drag can never leave a drag with no end.
+- **The rail stays.** Move up / Move down on the card is still the path for a screen reader, a keyboard and an
+  unsteady hand, so the grip is hidden from assistive tech instead of being a second, worse door to the same thing.
+  That is what narrows the old rule rather than breaking it: nobody NEEDS to drag.
+- **The same limits as the rail:** no grip on the pinned task, the held one, a finished one, the row whose card is
+  open, or in select mode, and nothing can be dropped above the pinned or held block.
+- **Both counted:** a new bare `task.dragged` beside the rail's `task.reordered`, so the two can be read side by
+  side before either is judged. It needs the Worker's allowlist (deploy) and a line in the privacy policy's
+  feature-usage list, drafted on this branch in both copies, which needs **Melroy's OK before the merge.**
+- **One light haptic on the pick-up** (none on the drop, none under reduced motion), and under reduced motion no
+  lift and no slide: the gap opens at once.
+- **The web measures the rows from the page at each drag's start.** Its onLayout fires on a size change only, so a
+  row a drag moved kept reporting its old place, and a plain click on a grip moved a row (found in the browser pass,
+  fixed before commit). Native reports a move as a layout.
+
+**Decided against:**
+- **Long-press to drag,** the old shape: the hold is the card's door, and one gesture cannot mean both.
+- **Dragging the whole row,** which steals every scroll that starts on a row.
+- **A focusable grip with arrow keys:** the card's rail already is the keyboard path, and a hidden-but-focusable
+  control is worse than none.
+- **Auto-scroll at the list's edge,** deferred to the Backlog: Today is sized to be doable, and a move longer than a
+  screen still has the rail. Trigger: a report of a list too long to drag across.
+- **Drag in the shared list, Routines or the Later folds:** Today first; each of those has its own order rules.

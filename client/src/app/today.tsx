@@ -8,6 +8,8 @@ import { Bloom, type BloomData } from '@/components/Bloom';
 import { BedtimeCapture } from '@/components/BedtimeCapture';
 import { CaptureSheet, type CaptureSheetHandle, pillClearance, restingListPad, restingPanelHeight } from '@/components/CaptureSheet';
 import { DayHeading } from '@/components/DayHeading';
+import { DragGrip } from '@/components/DragGrip';
+import { DragSlot } from '@/components/DragSlot';
 import { MenuPill } from '@/components/MenuPill';
 import { CameraCapture } from '@/components/CameraCapture';
 import { type BreakdownAnswers, BreakdownQuestions } from '@/components/BreakdownQuestions';
@@ -55,7 +57,8 @@ import { phaseGreeting } from '@/lib/phase';
 import { addDaysISO, daysBetween, formatTodayLabel, friendlyDate, fromISODate, isReentry, presetDate, toISODate } from '@/lib/day';
 import { type DayEnergy, type DayTool, dayTools, occupantTool, planEnergyFromDay, toolGate } from '@/lib/day-tools';
 import { dayWeight, heavyAt, weightedLoad } from '@/lib/estimate';
-import { dayCleared, dayClosed, stepsLanded, taskDone } from '@/lib/haptics';
+import { dayCleared, dayClosed, dragLifted, stepsLanded, taskDone } from '@/lib/haptics';
+import { dragSpan, dragTargetIndex, moveToIndex, settleOffset, shiftFor, type Slot } from '@/lib/drag-order';
 import { seedRoute, subscribeInbound, takeInbound } from '@/lib/inbound';
 import { aiLanguage, fmt, t } from '@/lib/locale';
 import * as Application from 'expo-application';
@@ -328,6 +331,17 @@ async function readOneTimeCards(today: Date): Promise<{ offer: boolean; end: boo
   const end = !isClosed && !otherCard && monthEndDue(monthMem);
   const offer = shouldShowOfferCard({ now, isClosed, premium: false, retired, firstSeenAt, cachedAnswer, otherCardThisVisit: otherCard || end });
   return { offer, end };
+}
+
+/**
+ * A row's slot read straight from the page at the moment a drag starts. Web only, where onLayout fires on a size
+ * change alone (so a row a drag moved still reports its old place) and not at all in a tab whose frames are
+ * throttled. offsetTop is relative to the list, the slot's positioned parent, and a transform never moves it.
+ */
+function measureSlotNode(node: unknown): Slot | undefined {
+  if (Platform.OS !== 'web' || !node) return undefined;
+  const el = node as { offsetTop?: number; offsetHeight?: number };
+  return typeof el.offsetTop === 'number' && typeof el.offsetHeight === 'number' ? { y: el.offsetTop, h: el.offsetHeight } : undefined;
 }
 
 export default function TodayScreen() {
@@ -1631,6 +1645,198 @@ export default function TodayScreen() {
     );
     track('task.reordered', { dir: delta === -1 ? 'up' : 'down' });
   }
+
+  // Drag to reorder by a row's grip (Melroy's call, 2026-10-25, decision log): the grip picks the task up, the rows
+  // it passes slide aside, and the drop settles into its slot before the order is written, through the same
+  // setSequence as the rail above, so a dragged order persists (on this device, like a nudged one) and survives a
+  // sync. The pinned task and the held one keep their place at the top (reorderTopIdx), as they do for the rail.
+  // Every move re-reads the rows as they are NOW, so a task folding away, the undo bar going, or an editor closing
+  // mid-drag can neither carry the row off the finger nor lose the drop. Geometry in lib/drag-order.
+  const [drag, setDrag] = useState<{ id: string; from: number; span: number } | null>(null);
+  const [dragTo, setDragTo] = useState(-1);
+  // The list is locked from the moment a drag takes (the finger is still then, so no scroll can race it) to the
+  // moment it is let go, not to the end of the settle, so a flick straight after a drop is never lost.
+  const [dragLocked, setDragLocked] = useState(false);
+  const [dragDy] = useState(() => new Animated.Value(0)); // the repo's compiler-safe Animated pattern
+  const dragSlots = useRef(new Map<string, Slot>()); // where the list laid each row out, by task id (native)
+  const dragNodes = useRef(new Map<string, unknown>()); // each slot's element: the web measures it at every move
+  const listRef = useRef<View>(null);
+  const listTopRef = useRef(0); // the list's y inside the scroll content (native: from its onLayout)
+  const dragScrollFrom = useRef(0);
+  type LiveDrag = { id: string; fingerY: number; listTop: number; slotY: number; from: number; to: number; span: number; settling: boolean };
+  const dragLive = useRef<LiveDrag | null>(null);
+  // The drop lands up to a beat after the release (the settle), so it reads this render's rows and tasks, never the
+  // ones from the moment the finger lifted.
+  const dropLatest = useRef<(d: LiveDrag) => void>(() => {});
+  useEffect(() => {
+    dropLatest.current = (d) => {
+      const ids = rows.map((v) => v.id);
+      const from = ids.indexOf(d.id);
+      const to = Math.min(d.to, ids.length - 1);
+      // Written against the list as it is now: if a row came or went in the settle, the task still lands where it
+      // was put. Gone itself (finished elsewhere), or only allowed where it already is: nothing to write.
+      if (from >= 0 && to !== from && to >= Math.min(reorderTopIdx, from)) {
+        const next = moveToIndex(ids, from, to);
+        commit(setSequence(tasks, [...next, ...tuckedRows.map((v) => v.id)], nowMs()));
+        AccessibilityInfo.announceForAccessibility?.(
+          t(to < from ? 'today.movedUpAnnounce' : 'today.movedDownAnnounce', { pos: String(to + 1), total: String(next.length) }),
+        );
+        track('task.dragged');
+      }
+      setDrag(null);
+      setDragTo(-1);
+    };
+  });
+
+  // The list's top on the page: the web reads it, native works it out from the list's place and the scroll. Only
+  // its CHANGE during a drag is used, so the constant offset of the scroller itself never matters.
+  function listPageTop(): number {
+    if (Platform.OS === 'web') {
+      const el = listRef.current as unknown as { getBoundingClientRect?: () => { top: number } } | null;
+      return el?.getBoundingClientRect?.().top ?? 0;
+    }
+    return listTopRef.current - listScrollY.current;
+  }
+  // The phone apps lock the list straight onto the native view at the pick-up, a frame later, instead of waiting for
+  // a render of all of Today: until it lands, Android's list could still take the touch and iOS's still pan. Both
+  // ways are imperative, because a value set this way outlives the prop. The web never locks (it holds the wheel).
+  function lockList(locked: boolean) {
+    setDragLocked(locked);
+    if (Platform.OS === 'web') return;
+    (scrollRef.current as unknown as { setNativeProps?: (p: object) => void } | null)?.setNativeProps?.({ scrollEnabled: !locked });
+  }
+  function slotsNow(ids: string[]): Slot[] | null {
+    const found = ids.map((x) => measureSlotNode(dragNodes.current.get(x)) ?? dragSlots.current.get(x));
+    return found.some((v) => !v) ? null : (found as Slot[]);
+  }
+
+  function dragStart(id: string, fingerY: number) {
+    if (dragLive.current) return;
+    const ids = rows.map((v) => v.id);
+    const from = ids.indexOf(id);
+    const slots = slotsNow(ids);
+    if (from < 0 || !slots) return; // not laid out yet: nothing to carry
+    dragDy.setValue(0);
+    const span = dragSpan(slots, from);
+    dragLive.current = { id, fingerY, listTop: listPageTop(), slotY: slots[from].y, from, to: from, span, settling: false };
+    setDrag({ id, from, span });
+    setDragTo(from);
+    lockList(true);
+    dragLifted(reduced);
+  }
+
+  function dragMove(id: string, fingerY: number) {
+    const d = dragLive.current;
+    if (!d || d.id !== id || d.settling) return;
+    const ids = rows.map((v) => v.id);
+    const from = ids.indexOf(id);
+    if (from < 0) {
+      // The task left Today mid-drag (finished on another device): let go, nothing to write.
+      dragLive.current = null;
+      setDrag(null);
+      setDragTo(-1);
+      lockList(false);
+      return;
+    }
+    const slots = slotsNow(ids);
+    if (!slots) return;
+    const min = Math.min(reorderTopIdx, from);
+    const last = slots.length - 1;
+    // Where the finger wants the row's top, in the list's own space: the travel since the pick-up, less anything that
+    // moved the list itself (a scroll, the undo bar above it going), then as an offset from where the row is now.
+    const travel = fingerY - d.fingerY - (listPageTop() - d.listTop);
+    const lo = slots[min].y - slots[from].y - 12;
+    const hi = slots[last].y + slots[last].h - (slots[from].y + slots[from].h) + 12;
+    const offset = Math.min(Math.max(d.slotY + travel - slots[from].y, lo), hi);
+    dragDy.setValue(offset);
+    const to = dragTargetIndex(slots, from, offset, min);
+    if (from !== d.from) {
+      d.from = from;
+      setDrag({ id, from, span: d.span });
+    }
+    if (to !== d.to) {
+      d.to = to;
+      setDragTo(to);
+    }
+  }
+
+  // Settle into the slot (or glide home), then write. A timer backs up the animation's own callback, because a
+  // throttled frame clock (a background tab) can leave it unfinished, and a row must never stay lifted. Once
+  // settling, the drag takes no more moves: a second grip waits (canStart) instead of stealing this one.
+  function dragDrop(d: LiveDrag) {
+    d.settling = true;
+    lockList(false);
+    let done = false;
+    const land = () => {
+      if (done) return;
+      done = true;
+      if (dragLive.current === d) dragLive.current = null;
+      dropLatest.current(d);
+    };
+    const slots = slotsNow(rows.map((v) => v.id));
+    const target = d.to === d.from || !slots ? 0 : settleOffset(slots, d.from, d.to);
+    if (reduced) {
+      dragDy.setValue(target);
+      land();
+      return;
+    }
+    Animated.timing(dragDy, { toValue: target, duration: 120, easing: Easing.out(Easing.quad), useNativeDriver: false }).start(land);
+    setTimeout(land, 320);
+  }
+
+  function dragEnd(id: string, fingerY: number) {
+    const d = dragLive.current;
+    if (!d || d.id !== id || d.settling) return;
+    dragMove(id, fingerY);
+    dragDrop(d);
+  }
+
+  // The system took the touch (a call, the app backgrounded, the window lost focus): nothing is written, and the
+  // row and its neighbours glide home together.
+  function dragCancel(id: string) {
+    const d = dragLive.current;
+    if (!d || d.id !== id || d.settling) return;
+    d.to = d.from;
+    setDragTo(d.from);
+    dragDrop(d);
+  }
+
+  // A phone browser only: a touch on a grip that moved before the drag took is a scroll, and the grip's own
+  // touch-action keeps the browser from doing it, so the list follows the finger here. No momentum, and no
+  // flick lost either: it is the same finger, scrolling.
+  function gripScroll(dy: number, first: boolean) {
+    if (first) {
+      // The live offset, not the throttled onScroll copy, which can trail a list that was coasting a moment ago.
+      const node = (scrollRef.current as unknown as { getScrollableNode?: () => { scrollTop?: number } } | null)?.getScrollableNode?.();
+      dragScrollFrom.current = typeof node?.scrollTop === 'number' ? node.scrollTop : listScrollY.current;
+    }
+    scrollRef.current?.scrollTo({ y: Math.max(0, dragScrollFrom.current - dy), animated: false });
+  }
+
+  // While a drag is held on the web the wheel is held too. The list stays scrollable underneath (no scrollEnabled
+  // flip), because hiding a desktop scrollbar would shift the whole centred column sideways under the pointer.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !dragLocked || typeof window === 'undefined') return;
+    const hold = (e: Event) => e.preventDefault();
+    window.addEventListener('wheel', hold, { passive: false });
+    return () => window.removeEventListener('wheel', hold);
+  }, [dragLocked]);
+
+  // No grip while a screen reader runs: TalkBack hands a two-finger scroll to the app as a one-finger touch, which a
+  // grip would take for a drag. The card's Move up / Move down are the way to move a task then.
+  const [screenReaderOn, setScreenReaderOn] = useState(false);
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    let active = true;
+    void AccessibilityInfo.isScreenReaderEnabled().then((on) => {
+      if (active) setScreenReaderOn(on);
+    });
+    const sub = AccessibilityInfo.addEventListener('screenReaderChanged', setScreenReaderOn);
+    return () => {
+      active = false;
+      sub.remove();
+    };
+  }, []);
 
   // The held card carries the single-task shaping actions. All act-and-dismiss (the row stays
   // put, so we close the card ourselves).
@@ -3124,10 +3330,11 @@ export default function TodayScreen() {
 
   // One row, as the list draws it. Shared by the open rows and the tucked ones, so a finished task in the
   // Done today line is the very same row (tick it again to bring it back).
-  function rowFor(task: Task, i: number, list: Task[]) {
+  function rowFor(task: Task, i: number, list: Task[], gripInset = false) {
     return (
     <TaskRow
       key={task.id}
+      gripInset={gripInset}
       title={task.title}
       done={isDoneOn(task, today)}
       onToggle={() => toggle(task.id)}
@@ -3269,6 +3476,13 @@ export default function TodayScreen() {
         automaticallyAdjustKeyboardInsets
         keyboardShouldPersistTaps="handled"
         onScroll={(e) => {
+          listScrollY.current = e.nativeEvent.contentOffset.y;
+        }}
+        // The final offsets, which the throttled onScroll can miss: a drag anchors the finger to the list with it.
+        onScrollEndDrag={(e) => {
+          listScrollY.current = e.nativeEvent.contentOffset.y;
+        }}
+        onMomentumScrollEnd={(e) => {
           listScrollY.current = e.nativeEvent.contentOffset.y;
         }}
         scrollEventThrottle={32}
@@ -3664,12 +3878,56 @@ export default function TodayScreen() {
           </View>
         )}
         <View
+          ref={listRef}
           style={styles.list}
           onLayout={(e) => {
+            listTopRef.current = e.nativeEvent.layout.y;
             listEndRef.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height;
           }}
         >
-          {rows.map((task, i) => rowFor(task, i, rows))}
+          {rows.map((task, i) => {
+            // The grip: on an open task that the rail could also move, never in select mode, never on the row whose
+            // card is open (the card has the rail), never while a screen reader runs, and only when there is
+            // somewhere to move it (a second movable place below the pinned and held block).
+            const canDrag =
+              !selectMode &&
+              !screenReaderOn &&
+              rows.length - reorderTopIdx > 1 &&
+              canReorder(task, today) &&
+              task.id !== hold?.taskId &&
+              i >= reorderTopIdx &&
+              confirmingId !== task.id;
+            return (
+              <DragSlot
+                key={task.id}
+                shift={drag && dragTo >= 0 ? shiftFor(i, drag.from, dragTo, drag.span) : 0}
+                lifted={drag?.id === task.id}
+                liftDy={dragDy}
+                animate={drag != null}
+                onLayoutSlot={(y, h) => dragSlots.current.set(task.id, { y, h })}
+                onNode={(n) => {
+                  if (n) dragNodes.current.set(task.id, n);
+                  else dragNodes.current.delete(task.id);
+                }}
+                grip={
+                  // The carried row keeps its grip until the drop, whatever changes around it: unmounting it under
+                  // the finger would leave the drag with no end on a phone.
+                  canDrag || drag?.id === task.id ? (
+                    <DragGrip
+                      canStart={() => dragLive.current == null}
+                      onStart={(y) => dragStart(task.id, y)}
+                      onMove={(y) => dragMove(task.id, y)}
+                      onEnd={(y) => dragEnd(task.id, y)}
+                      onCancel={() => dragCancel(task.id)}
+                      onScrollBy={Platform.OS === 'web' ? gripScroll : undefined}
+                    />
+                  ) : null
+                }
+              >
+                {rowFor(task, i, rows, canDrag)}
+              </DragSlot>
+            );
+          })}
         </View>
 
         {/* TUCK: today's finished tasks, folded into one quiet line at the foot of the list. Never a count to

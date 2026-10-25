@@ -22,7 +22,7 @@ export default function PrivacyScreen() {
         <BackLink fallback="/settings" />
 
         <Text style={styles.title}>Privacy</Text>
-        <Text style={styles.updated}>Last updated 19 October 2026.</Text>
+        <Text style={styles.updated}>Last updated 25 October 2026.</Text>
 
         <Text style={styles.lead}>
           DoubleDone is built to need almost nothing from you. It runs on your device, and the main things that ever
@@ -99,7 +99,7 @@ export default function PrivacyScreen() {
           or off), the Hold-me-to-it reminder contract (started, finished, or let go, and how far along it was, which we
           keep only as one of three rough stages), holding a task to open its card, which task tools get used (on the
           card, in the capture box, or when several tasks are selected, by the button’s name only, never the task),
-          which of the Menu’s two ways into Settings you used, whether you saved or cleared a “where you left off”
+          that a task was moved by dragging its grip, which of the Menu’s two ways into Settings you used, whether you saved or cleared a “where you left off”
           line (on the card or in Focus, never the words), “I also did that”, and, in the phone apps, that the app
           asked your app store to show its own rating card, and which store (the store decides whether the card
           appears, and the app is never told whether you rated). A review you choose to write is posted on the store,

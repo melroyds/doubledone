@@ -32,6 +32,9 @@ export const BEACON_EVENTS = new Set([
   'task.pinned',
   'task.renamed',
   'task.reordered',
+  // Drag to reorder (2026-10-25): a bare name per drop that moved a task, so the grip and the card's Move up /
+  // Move down rail (task.reordered) can be read side by side before either is judged.
+  'task.dragged',
   'nudge.set',
   'bulk.big',
   'card.more',

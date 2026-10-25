@@ -41,6 +41,11 @@ export function stepsLanded(reduced: boolean): void {
   fire(reduced, () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
 }
 
+/** A task picked up by its grip: the lightest tick, so the finger knows the drag took, and nothing on the drop. */
+export function dragLifted(reduced: boolean): void {
+  fire(reduced, () => Haptics.selectionAsync());
+}
+
 // --- Settle, the breathing room -------------------------------------------------------
 // The ONE deliberate exception to this file's reduced-motion silence: in the room, the
 // haptic IS the rhythm carrier, and under reduce-motion (blob still or opacity-only) it

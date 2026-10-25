@@ -88,9 +88,9 @@ describe('the beacon (the few events that leave the device)', () => {
     expect(beaconRequest('task.toggled', { done: true })).toBeNull();
   });
 
-  it('the allowlist is exactly these twenty-one (growing it is a deliberate act)', () => {
+  it('the allowlist is exactly these twenty-two (growing it is a deliberate act)', () => {
     // settle.* (2026-08), hold.* (2026-08-22), the held-card usage set (2026-08-22), the telemetry
-    // review's three (2026-10-04) and review.asked (2026-10-19): each addition pairs with the Worker
+    // review's three (2026-10-04), review.asked (2026-10-19) and task.dragged (2026-10-25): each addition pairs with the Worker
     // allowlist AND the privacy policy in the same commit.
     expect([...BEACON_EVENTS].sort()).toEqual([
       'breakdown.started',
@@ -110,6 +110,7 @@ describe('the beacon (the few events that leave the device)', () => {
       'settle.guide',
       'settle.opened',
       'slices.defined',
+      'task.dragged',
       'task.pinned',
       'task.renamed',
       'task.reordered',

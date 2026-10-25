@@ -50,12 +50,18 @@ Judge the keyword sets only from the second rerun. Same sitting: Play Console's 
 device pass of widget, share, purchases, reminders and Ours, and the mapping file, well before Google's February
 2027 deadline. Sooner if the SDK 57 upgrade lands first.
 
-**ON `premium`, 2026-10-25: "A month on us" phase 1 is BUILT, not deployed** (decision log, the same day). What
-remains, in order: a native read of the German, French, Spanish and Italian strings; Melroy's OK on the drafted
+**ON `premium`, 2026-10-25: "A month on us" phase 1 is BUILT, not deployed** (decision log, the same day). The
+strings were native-read and fixed before the commit (`be22a5c`). What remains, in order: Melroy's OK on the drafted
 privacy-policy line; the GitHub repo variable and EAS env `EXPO_PUBLIC_BOOKING_URL` (optional); the Worker deploy
 from `premium` (Melroy's, rollback target first, `git diff --stat main premium -- server` must be empty after the
 merge); then the merge to `main`, which is the web deploy. A phone pass of MON-01 to MON-09 waits for the next
 native build. Phase 2 (people already paying) is in the Backlog entry below.
+
+**LIVE ON THE WEB 2026-10-25: drag a task by its grip** (main `865d1f6`, Melroy's "Merge to main", which also took
+the privacy policy's new feature-usage line, both copies, dated 25 October; deploy-web and CI green, and the live
+bundle and /privacy checked). Still to do: the Worker deploy for the `task.dragged` count (Melroy's; until then the
+count is dropped, nothing breaks), and a phone pass of TOD-41 to TOD-44 with the next native build. `premium` merged
+`main` the same day, so `server/` carries the new name there too.
 
 **THE IMMEDIATE NEXT ACTION (2026-10-25): 1.9.1 carries the Later folds to the phones.** The web has had them since `e5d8913`, and the Worker's `add_task` nudge is live (`d2bdf430`, deployed by Melroy). `client/app.json` says 1.9.1 (the App Store needs a new version string once 1.9.0 is live; build numbers stay remote). Builds on Melroy's ask ("It's now build time for both apps", 2026-10-25): Android production AAB, then iOS production. **Those first builds are SUPERSEDED, never submit them** (Android versionCode 37, EAS `c710030d`, never uploaded; iOS EAS `3f425f57`, on TestFlight only): Melroy's iPhone pass of TOD-38 found a moved task unfolding its month and leaving it open, so a move into a fold now stays closed and says "Moved to {date}." (decision log 2026-10-25), and he chose a rebuild ("I'm okay with a rebuild honestly"). Rebuild both from the commit that carries it, still 1.9.1. Then device checks (TOD-38 to TOD-40 on a phone), the 1.9.1 What's New in every App Store language and the Play block (`docs/release-notes/1.9.1.md`), submit, and bump `version.json` per store once live. *(The 1.9.0 action follows.)*
 
@@ -220,6 +226,10 @@ the ladder is fixed and readable, never randomised.
 
 ## Backlog (deferred, with triggers)
 
+- **Auto-scroll while dragging a task by its grip (parked 2026-10-25).** The grip carries a row only within what is
+  on screen; a row dragged to the list's edge does not scroll the list along. Parked because Today is sized to be
+  doable and the card's Move up / Move down still moves a task any distance. Trigger: a report of a list too long to
+  drag across, or `task.dragged` counts showing people drag often enough that the edge matters.
 - **One campaign label per channel, passed through the website (parked 2026-10-25, Ruana item 10).** Today the
   website's badges carry one label, `website` (`client/src/lib/store-links.ts`), and which post sent a visitor is
   Cloudflare Web Analytics' referrer question. The precise version: a link like `doubledone.app/?ref=instagram`
