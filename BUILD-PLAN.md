@@ -42,6 +42,10 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**DATED: rerun the store search ranks on 2026-11-01, then around 2026-11-22** (`python scripts/store-ranks.py
+--append`, about four minutes). The baseline and its reading are in [`docs/store-search-ranks.md`](docs/store-search-ranks.md).
+Judge the keyword sets only from the second rerun. Same sitting: Play Console's acquisition report by search term.
+
 **THE IMMEDIATE NEXT ACTION (2026-10-25): 1.9.1 carries the Later folds to the phones.** The web has had them since `e5d8913`, and the Worker's `add_task` nudge is live (`d2bdf430`, deployed by Melroy). `client/app.json` says 1.9.1 (the App Store needs a new version string once 1.9.0 is live; build numbers stay remote). Builds on Melroy's ask ("It's now build time for both apps", 2026-10-25): Android production AAB, then iOS production. Then device checks (TOD-38 to TOD-40 on a phone), the 1.9.1 What's New in every App Store language and the Play block (`docs/release-notes/1.9.1.md`), submit, and bump `version.json` per store once live. *(The 1.9.0 action follows.)*
 
 **THE IMMEDIATE NEXT ACTION (2026-10-19): 1.9.0 is LIVE ON THE WEB and its Worker is deployed. Steps 10 and 11 are DONE; the store builds (12 onward) wait for Melroy's word.** Step 10: `store-1.9` fast-forwarded to `main` as `1ff8382`, deploy-web green, and doubledone.app verified (the Terms' "Not medical care", the privacy policy's rating-card line, `version.json` web 1.9.0 with ios and android still 1.8.0, the landing boot); `premium` merged to match (`0b4bb30`, `server/` identical). Step 11: Worker `eee8ea16` deployed by Melroy, rollback target `9b10290e`; smoke-tested read-only (below). *(The build record follows.)* 1.9.0 was BUILT on branch `store-1.9`. The Tier 2 store batch, to the contract in [`docs/design-source/store-1.9/plan.md`](docs/design-source/store-1.9/plan.md) (his calls at its end), in 21 commits from `809086b` to `e1585a2`, plus the release commit and the colour and copy review's nine fixes (`3d0c529` to `b30f28e`, all minor, decision log 2026-10-19):
