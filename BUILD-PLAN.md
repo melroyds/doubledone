@@ -56,9 +56,10 @@ EAS `ef69ead0` from `5b037ab`, on the internal track for Melroy's device pass. i
 `d067fd2` (same app code), uploaded to TestFlight by `eas submit` the same evening. The first two iOS attempts never
 queued (no quota spent): Apple answered 401 to EAS's stored App Store Connect key, so Melroy ran the build in his
 terminal and signed in to Apple, after which the submit ran headless. Release notes, every language, natively read and
-script-checked, plus the App Review paragraph that explains the month: `docs/release-notes/1.10.0.md`. Next: the
-device pass (TOD-41 to TOD-44, MON-02 to MON-07, MON-09, MON-10; MON-01 and MON-08 need a week and a month), then
-submit, then bump `version.json` per store once live.
+script-checked, plus the App Review paragraph that explains the month: `docs/release-notes/1.10.0.md`. Android device pass: the drag cases TOD-41 to TOD-44 all PASSED on Melroy's phone (2026-10-25: "The Drag tests all work"),
+with TOD-43 reworded from it (a shade pulled with the dragging finger still down leaves the drag running, which is
+right). Next: the feedback cases MON-02 to MON-07, MON-09, MON-10 (MON-01 and MON-08 need a week and a month), the
+iPhone pass, then submit, then bump `version.json` per store once live.
 
 **LIVE ON THE WEB 2026-10-25: "A month on us" phase 1** (decision log, the same day). Merged to main as `edb3c54` on
 Melroy's "Merge" (a fast-forward of `premium`), after its Worker went live (`84cded96`, rollback `6112b1c7`). Checked:
