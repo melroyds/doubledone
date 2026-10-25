@@ -46,6 +46,10 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 --append`, about four minutes). The baseline and its reading are in [`docs/store-search-ranks.md`](docs/store-search-ranks.md).
 Judge the keyword sets only from the second rerun. Same sitting: Play Console's acquisition report by search term.
 
+**DATED: 2026-12-01 at the latest, the R8 Android build** (Backlog, "R8 shrinking"): its own build, a closed-track
+device pass of widget, share, purchases, reminders and Ours, and the mapping file, well before Google's February
+2027 deadline. Sooner if the SDK 57 upgrade lands first.
+
 **THE IMMEDIATE NEXT ACTION (2026-10-25): 1.9.1 carries the Later folds to the phones.** The web has had them since `e5d8913`, and the Worker's `add_task` nudge is live (`d2bdf430`, deployed by Melroy). `client/app.json` says 1.9.1 (the App Store needs a new version string once 1.9.0 is live; build numbers stay remote). Builds on Melroy's ask ("It's now build time for both apps", 2026-10-25): Android production AAB, then iOS production. **Those first builds are SUPERSEDED, never submit them** (Android versionCode 37, EAS `c710030d`, never uploaded; iOS EAS `3f425f57`, on TestFlight only): Melroy's iPhone pass of TOD-38 found a moved task unfolding its month and leaving it open, so a move into a fold now stays closed and says "Moved to {date}." (decision log 2026-10-25), and he chose a rebuild ("I'm okay with a rebuild honestly"). Rebuild both from the commit that carries it, still 1.9.1. Then device checks (TOD-38 to TOD-40 on a phone), the 1.9.1 What's New in every App Store language and the Play block (`docs/release-notes/1.9.1.md`), submit, and bump `version.json` per store once live. *(The 1.9.0 action follows.)*
 
 **THE IMMEDIATE NEXT ACTION (2026-10-19): 1.9.0 is LIVE ON THE WEB and its Worker is deployed. Steps 10 and 11 are DONE; the store builds (12 onward) wait for Melroy's word.** Step 10: `store-1.9` fast-forwarded to `main` as `1ff8382`, deploy-web green, and doubledone.app verified (the Terms' "Not medical care", the privacy policy's rating-card line, `version.json` web 1.9.0 with ios and android still 1.8.0, the landing boot); `premium` merged to match (`0b4bb30`, `server/` identical). Step 11: Worker `eee8ea16` deployed by Melroy, rollback target `9b10290e`; smoke-tested read-only (below). *(The build record follows.)* 1.9.0 was BUILT on branch `store-1.9`. The Tier 2 store batch, to the contract in [`docs/design-source/store-1.9/plan.md`](docs/design-source/store-1.9/plan.md) (his calls at its end), in 21 commits from `809086b` to `e1585a2`, plus the release commit and the colour and copy review's nine fixes (`3d0c529` to `b30f28e`, all minor, decision log 2026-10-19):
@@ -425,7 +429,9 @@ The single home for consciously parked work. Nothing here is dropped; each item 
   itself is present. **Trigger:** the 1.5.1 iOS build lands on TestFlight.
 - **R8 shrinking, optimisation and obfuscation on the Android release build.** Play Console
   flagged it 2026-09-25 ("DEX code optimization: Low", 1% obfuscation, 54.2 MB uncompressed DEX)
-  with a Google deadline in February 2027. Expo ships release builds un-minified by default. The
+  with a Google deadline in February 2027. **Still open on 1.9.0 (versionCode 36), seen by Melroy 2026-10-25:**
+  "below our threshold", Obfuscation 2% against Google's 25% floor, "Fix by Feb 2027", the only flagged
+  category; the Memory usage and Bad behavior chips are labels on this one issue, not two more. Expo ships release builds un-minified by default. The
   switch is one line in `expo-build-properties` (`android.enableMinifyInReleaseBuilds`, plus
   `enableShrinkResourcesInReleaseBuilds`), and that is the danger: R8 strips code it cannot see
   being used, and on React Native the casualties are the reflective parts (the home-screen widget,
