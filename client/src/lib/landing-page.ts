@@ -32,14 +32,14 @@
 
 import { translate } from './i18n';
 import { PICTURE_SIZES } from './landing-pictures';
+import { APP_STORE_URL, PLAY_URL } from './store-links';
 
 export const LANDING_LOCALES = ['en', 'de', 'es', 'fr', 'it'] as const;
 export type LandingLocale = (typeof LANDING_LOCALES)[number];
 
 export const LANDING_ID = 'dd-landing';
 export const SITE = 'https://doubledone.app';
-export const APP_STORE_URL = 'https://apps.apple.com/app/doubledone/id6790136615';
-export const PLAY_URL = 'https://play.google.com/store/apps/details?id=app.doubledone';
+export { APP_STORE_URL, PLAY_URL };
 export const API_DOCS_URL = 'https://api.doubledone.app/api/v1/docs';
 /** The app's first-run flag (lib/storage.ts ONBOARDED_KEY). landingBoot repeats it as a literal; a test holds them equal. */
 export const ONBOARDED_STORAGE_KEY = 'doubledone.onboarded.v1';
@@ -168,7 +168,7 @@ export function renderPage(loc: LandingLocale): string {
     const href = store === 'appStore' ? APP_STORE_URL : PLAY_URL;
     // The name starts with the words printed on the badge in this language (WCAG 2.5.3, label in name).
     const alt = t(store === 'appStore' ? 'landing.appStoreBadgeA11y' : 'landing.playBadgeA11y');
-    return `<a class="ddl-badge" href="${href}"><img src="${badges[store]}" alt="${alt}" width="${Math.round(height * ratio)}" height="${height}"></a>`;
+    return `<a class="ddl-badge" href="${esc(href)}"><img src="${badges[store]}" alt="${alt}" width="${Math.round(height * ratio)}" height="${height}"></a>`;
   };
   // The visible word is inside the accessible name (WCAG 2.5.3): "Begin" -> "Begin, open DoubleDone".
   const begin = `<a class="ddl-btn" href="/today" data-dd-begin aria-label="${t('welcome.beginA11y')}">${t('common.begin')}</a>`;
@@ -177,7 +177,7 @@ export function renderPage(loc: LandingLocale): string {
   /** The one action, by the same rule in the hero and the closing; only the hero carries the trust line and the
    *  laptop's "Also on" row. */
   // Apple asks for one App Store badge per layout, so on an iPhone the closing repeats the action as a plain link.
-  const iosClosing = `<a class="ddl-browser" href="${APP_STORE_URL}">${t('welcome.appStoreBadgeA11y')}</a>`;
+  const iosClosing = `<a class="ddl-browser" href="${esc(APP_STORE_URL)}">${t('welcome.appStoreBadgeA11y')}</a>`;
   const action = (hero: boolean) => `<div class="ddl-act">
       <div class="act-ios">${hero ? badge('appStore', 56) : iosClosing}${browser}${hero ? trust : ''}</div>
       <div class="act-android">${badge('play', 56)}${browser}${hero ? trust : ''}</div>

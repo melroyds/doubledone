@@ -10671,3 +10671,155 @@ meaning ("Later in November: 6. Show them"). If Melroy wants the noun, it is one
 - **Remembering which folds were open.** It would quietly rebuild the wall the folds exist to remove.
 - **Counting fold opens in the feature-usage beacon.** It would need a new allowlisted name, a privacy-policy line
   and a Worker deploy for a question nobody has asked yet. Trigger: a real question about whether people open them.
+
+## 2026-10-25: a move into a closed Later fold says where it went, and the fold stays closed
+
+**Why.** Melroy's iPhone pass of TOD-38 (1.9.1, TestFlight): moving tasks into November and December left both
+months spread open. The review fix earlier the same day had opened the fold a move landed in, so the moved row did
+not vanish into a closed line without a word, and the fold then stayed open until the next return to Today. Moving
+six tasks unfolded the far future, which is the wall the folds exist to remove. The instinct (confirm where it went)
+was right and the tool (unfold) was wrong.
+
+**What was built:**
+- **The fold stays closed, and its count goes up in front of the user.** `bulkMoveTo` in `client/src/app/today.tsx`
+  no longer touches `laterOpen`.
+- **One calm line says where:** "Moved to Wednesday 4 November." (`today.movedIntoFoldAffirm`, the date from
+  `fmt.writtenOnSpoken`, so it is written out in full and carries the year when it is another year). It is the
+  existing affirmation note above the +, for 3.5 seconds, and it is spoken the way "Noted." is: `announceForAccessibility`
+  on the phones, the polite live region on the web.
+- **Said only when something visibly moved and it landed in a fold:** an open one-off, not removed, given a new day.
+  A repeat is never moved, and a finished task or a task already on that day changes nothing on screen, so none of
+  them is said; a move within the next seven days shows its row under its date, as before, and needs no words.
+- **The review's fixes (same day, a nine-agent workflow: four native reads and an adversarial code review):** the
+  line has One and Other forms, because French, Spanish and Italian agree the participle with how many moved
+  ("Déplacées", "Movidas", "Spostate"; English and German use one form for both); the spoken half waits
+  `SAY_AFTER_MODAL_MS` (500) for the Move-to picker's fade, because a screen reader taking focus back to Today can
+  drop a line said in that moment; and the comment on `laterFoldKey` and its test name no longer say a move opens a
+  fold. All four native reads kept their singular as drafted.
+- TOD-39 step 6 now expects the closed fold and the line. Melroy chose to rebuild 1.9.1 for it rather than ship the
+  open-on-move behaviour to the stores.
+
+**Decided against:**
+- **Keeping the open-on-move.** It piles up with every move, and the folds then hold nothing back.
+- **Opening the fold, then closing it by itself after a moment.** Things moving without being touched is exactly what
+  this audience hates.
+- **Flashing or highlighting the month line.** Motion as the message, and a highlight is invisible to a screen reader.
+- **Saying it for every move,** including a move within seven days. The row appears under its date there, and a line
+  for every move would make the confirmation noise.
+
+## 2026-10-25: the website's store badges carry a campaign label, so each store can say an install came from here
+
+**Why.** Ruana's item 10: nothing told us where an install came from. Cloudflare Web Analytics counts visits to
+doubledone.app and their referrers, and each store counts installs, but little joined the two. Apple's own "Web
+Referrer" source credits a download to a website only when the visitor came through Safari, and Play credits an
+untagged link to nothing, so "does the website sell the app" had no real answer.
+
+**What was built:**
+- **`client/src/lib/store-links.ts`,** one pure copy of the two store links, used by the static landing (built in
+  node by `inject-web-meta.mjs`) and the app's own welcome page (`client/src/app/index.tsx`), which until now each
+  held its own literals.
+- **Apple:** a campaign link (`pt` the account's provider token, `ct=website`, `mt=8`), read in App Store Connect
+  under Analytics, Metrics, Add Filter, Campaign. **Google Play:** `utm_source=doubledone.app`, `utm_medium=website`,
+  `utm_campaign=website`, URL-encoded inside one `referrer`, read in Play Console's acquisition report (tracked
+  channels, UTM). The landing escapes both into its HTML.
+- **The label names the channel, never the person.** No id, no cookie, nothing set or read back by us, and the stores
+  report it only in aggregate (Apple hides a campaign under five first-time downloads). So the privacy policy needs
+  no new line: we collect nothing new, and no new processor is involved.
+- **The update nudge stays untagged** (`STORE_URLS` in `lib/updates.ts`): it sends people who already have the app,
+  and counting them would read as acquisition. A test holds it untagged.
+
+**Decided against:**
+- **One label per page or post** (`doubledone.app/?ref=instagram` passed through to `ct=instagram`). It is the
+  precise version, but Apple shows nothing for a campaign under five first-time downloads, so at today's volumes it
+  buys precision the numbers cannot show yet, and the referrer half of the question is already Cloudflare's. Parked
+  in the Backlog with a trigger.
+- **Tagging the in-app links,** the update nudge (above) and any future "Rate DoubleDone" link. Both send existing
+  users.
+- **Reading the Play install referrer in the app** (`getInstallReferrerAsync`). `expo-application` already links
+  Google's referrer library on Android, unused, so the cost is not a new SDK but a new data flow out of the app, for
+  a number Play Console already shows.
+
+## 2026-10-25: feedback earns a free month of Premium, and a review never earns anything
+
+**Why.** Melroy asked about paying $20 a month for the best feedback plus a review. The review half breaks both
+stores' rules (Google Play's ratings policy forbids rewarding ratings or reviews, and Apple's developer code of
+conduct treats a rewarded review as manipulation, whatever the star count), it is a misleading-conduct risk under
+Australian consumer law unless disclosed, and it is bought social proof, which this app's own rule forbids.
+
+**Decided (Melroy: "I'm down"):** anyone who sends genuinely useful feedback gets a free month of Premium, through the
+parked 30-day comp grant (Backlog, `server/src/comp.ts` holds the owner allowlist today). Once a month two or three of
+them are offered a 20-minute call with a A$30 gift card, which is ordinary paid user research. The grant thanks the
+feedback in words and links that never mention a store review; reviews come only from the store's own rating card.
+Built next, after the positioning one-pager.
+
+**Decided against:**
+- **$20 for the best feedback plus a review.** Store policy, consumer law and the never-fake-social-proof rule.
+- **A monthly cash prize for the best feedback,** even with no review. Most people lose every month, which is a
+  rejection mechanic for an audience with rejection-sensitive dysphoria, and cash draws noise and a judging burden.
+- **Cash for every piece of feedback.** Payment admin and tax for small sums, and it pays for volume, not insight;
+  a free month costs almost nothing and is the best conversion path there is.
+
+## 2026-10-25: "A month on us": how the free month for feedback works, iPhone included
+
+**Why.** Melroy wanted the feedback month on every platform and was "not happy" with the first plan, which gave
+iPhone users the card with no reward: "I don't want Apple users to feel discriminated against." A four-agent research
+pass (Apple offer codes, RevenueCat, every alternative, then a sceptical critique) changed the answer.
+
+**Decided (Melroy: "Yes to both", on the cap and the phasing):**
+- **One rule on every platform, through the server.** A real note earns a free month of Premium on the signed-in
+  account, exactly like the card-free month the iPhone app has granted from one tap since 1.0. Apple's 3.2.2(x)
+  (guidelines of 16 Oct 2026) bans incentivising ratings, reviews and store actions, then says apps "may otherwise
+  incentivize users to take specific actions within apps". The 3.1.1 rejections found were all code boxes that unlock
+  features, so there is never a code box.
+- **Once per 180 days per account,** which also fits Apple's two renewal extensions a year for phase 2.
+- **Phase 2, people already paying:** the next payment moves 30 days later in the store they pay through (Apple's
+  renewal-date extension, reason code 1; Play's defer, whose own docs use a feedback survey as the example; a Stripe
+  shift, never a percentage coupon, which on an annual plan would give a free year).
+- **The check (Melroy: "Be my filter").** Claude reads the note once and stops only empty, mashed or spam notes.
+  Borderline passes, a timeout passes. A note that fails gets the same "Sent, thank you." as a note that passed, so
+  nobody is ever told their words did not count. With AI off nothing goes to Claude and a plain check stands in,
+  which keeps the promise that AI off sends nothing to an AI. Apple's 5.1.2(i) wants explicit permission before
+  personal data goes to a third-party AI, so the line naming Claude sits above Send every time, and the privacy policy
+  gains a line, with Melroy's OK.
+- **The store rating card is held off until the given month ends,** a stored date rather than a session (a phone app
+  can live for days), so the month can never read as payment for a rating.
+- **Nobody is shown a promise that is not kept.** Every offer surface shows only when the server says this account
+  can get a month now (signed in, not Premium from any source, none in 180 days; signed out counts as yes until
+  sign-in says otherwise). While a month is on offer, Send has a visible floor of about three words with a calm
+  helper, so the silent "Sent, thank you." is in practice reached only by spam. Every note reaches Melroy, and only
+  notes from someone who can get a month go to Claude. The offer is a thank-you: "real" and "earn" never appear
+  in its copy. Found by a two-reviewer check of the design brief the same day.
+- **The pre-decided escalation for App Review:** state it in the review notes; one reply if rejected; then an Apple
+  Free offer code with auto-renew off (an option Apple added on 29 Oct 2025), set up in advance. Never a second round.
+
+**Decided against:**
+- **iPhone without the reward.** Unequal, and unnecessary given the precedent.
+- **Apple offer codes as the main route.** It leaves the app, asks for Face ID, may ask for a payment method
+  (unconfirmed), allows one redemption per Apple ID per offer, and the current webhook would read a free code as a sale.
+  It stays the fallback.
+- **A new non-renewing product with a free code.** More friction than the code route, a new product through review,
+  and RevenueCat would make the entitlement permanent.
+- **Promotional, win-back or introductory offers.** All renew into a full-price charge.
+- **Earning it on the web for use in the app,** which sends iPhone users out of the app, and **sending it by email,**
+  which breaks the rule that email is only for sign-in.
+
+## 2026-10-25: the positioning one-pager, the rank script's Play column retired, and the Golden Path growth chapter
+
+**The positioning one-pager (Ruana Soul item 7)** is a private artifact, kept out of this public repo because it
+carries competitor prices. Its line: "Nothing is ever overdue. A list for today, never a timeline to fill." What it
+taught, worth keeping here: a three-lens fact-check and red team rejected the first headline ("Not a schedule to
+keep"), which failed the moment anyone opened the leading rival's list view, narrowed three of DoubleDone's own claims
+that went further than the code (it has timed reminders, so "no start times", not "no clock"; Today is weighed in
+words, not capped; only Routines and Rhythms cannot count a streak), and made the "their users are asking" section
+list the big requests DoubleDone does not answer beside the ones it does.
+
+**The rank script no longer reads Google Play.** A review before publishing the script found that Play's robots.txt
+disallows `/store/search`, and the script also sent a browser User-Agent. `scripts/store-ranks.py` now measures the
+App Store only (Apple's public Search API) with an honest User-Agent, Play is read in its Console's acquisition report
+by search term, and the 2026-10-25 baseline's Play column stays as recorded.
+
+**The Golden Path gained a going-to-market chapter** (`GROWTH.md` in the public golden-path repo, PLAYBOOK section 10),
+distilled from DoubleDone's landing, listing, search, screenshot, ratings, attribution, positioning and feedback
+lessons, at Melroy's ask. Three reviewers checked it before it went public. Decided against putting there: the
+agency's name or prices, competitor prices, any id or link, and dated admissions about DoubleDone's past listing or
+privacy-label mistakes, which are recorded here and need not be advertised.

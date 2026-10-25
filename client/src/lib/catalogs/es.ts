@@ -1107,6 +1107,8 @@ export const es: Catalog = {
     markBigOneA11y: 'Marcar que esta tarea es mucho',
     markSelectedDoneA11y: 'Marcar las seleccionadas como hechas',
     markedBigAffirm: 'Marcada: es mucho. El día ya sabe que pesa más.',
+    movedIntoFoldAffirmOne: 'Movida al {date}.',
+    movedIntoFoldAffirmOther: 'Movidas al {date}.',
     menu: 'Menú',
     menuA11yList: 'Menú: {rooms}',
     moreStepsA11y: 'Más pasos',
