@@ -50,11 +50,15 @@ Judge the keyword sets only from the second rerun. Same sitting: Play Console's 
 device pass of widget, share, purchases, reminders and Ours, and the mapping file, well before Google's February
 2027 deadline. Sooner if the SDK 57 upgrade lands first.
 
-**ON `premium`, 2026-10-25: "A month on us" phase 1 is BUILT, its Worker LIVE, the app side waiting on the merge** (decision log, the same day). The
-strings were native-read and fixed before the commit (`be22a5c`). The privacy section "A note to us" is approved and in both copies, and the GitHub repo variable `EXPO_PUBLIC_BOOKING_URL`
-is set (2026-10-25; EAS env still to set before the next store builds). The Worker is LIVE (`84cded96`, deployed by Melroy from premium `2f31b54`, rollback `6112b1c7`; the new route answers
-401 without a token). What remains: the merge to `main`, which is the web deploy. A phone pass of MON-01 to MON-09 waits for the next
-native build. Phase 2 (people already paying) is in the Backlog entry below.
+**LIVE ON THE WEB 2026-10-25: "A month on us" phase 1** (decision log, the same day). Merged to main as `edb3c54` on
+Melroy's "Merge" (a fast-forward of `premium`), after its Worker went live (`84cded96`, rollback `6112b1c7`). Checked:
+deploy-web and CI green; the live bundle carries the card, the note screen, `/gift/eligibility`, the end line and the
+booking link (the GitHub repo variable `EXPO_PUBLIC_BOOKING_URL`); /privacy has "A note to us", dated 25 October;
+`/note` renders its signed-out state. The privacy section was approved by Melroy, and the strings were native-read
+before `be22a5c`. Nobody sees the Today card for a week: it waits seven days from each device's first open of this
+build, and only on the open after a stored yes. The Settings line and the note screen are live at once. Still to do:
+the EAS env entry for `EXPO_PUBLIC_BOOKING_URL` before the next store builds, and a phone pass of MON-01 to MON-10
+with that build. Phase 2 (people already paying) is in the Backlog entry below.
 
 **LIVE ON THE WEB 2026-10-25: drag a task by its grip** (main `865d1f6`, Melroy's "Merge to main", which also took
 the privacy policy's new feature-usage line, both copies, dated 25 October; deploy-web and CI green, and the live
