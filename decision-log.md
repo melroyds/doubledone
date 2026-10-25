@@ -10738,3 +10738,23 @@ untagged link to nothing, so "does the website sell the app" had no real answer.
 - **Reading the Play install referrer in the app** (`getInstallReferrerAsync`). `expo-application` already links
   Google's referrer library on Android, unused, so the cost is not a new SDK but a new data flow out of the app, for
   a number Play Console already shows.
+
+## 2026-10-25: feedback earns a free month of Premium, and a review never earns anything
+
+**Why.** Melroy asked about paying $20 a month for the best feedback plus a review. The review half breaks both
+stores' rules (Google Play's ratings policy forbids rewarding ratings or reviews, and Apple's developer code of
+conduct treats a rewarded review as manipulation, whatever the star count), it is a misleading-conduct risk under
+Australian consumer law unless disclosed, and it is bought social proof, which this app's own rule forbids.
+
+**Decided (Melroy: "I'm down"):** anyone who sends genuinely useful feedback gets a free month of Premium, through the
+parked 30-day comp grant (Backlog, `server/src/comp.ts` holds the owner allowlist today). Once a month two or three of
+them are offered a 20-minute call with a A$30 gift card, which is ordinary paid user research. The grant thanks the
+feedback in words and links that never mention a store review; reviews come only from the store's own rating card.
+Built next, after the positioning one-pager.
+
+**Decided against:**
+- **$20 for the best feedback plus a review.** Store policy, consumer law and the never-fake-social-proof rule.
+- **A monthly cash prize for the best feedback,** even with no review. Most people lose every month, which is a
+  rejection mechanic for an audience with rejection-sensitive dysphoria, and cash draws noise and a judging burden.
+- **Cash for every piece of feedback.** Payment admin and tax for small sums, and it pays for volume, not insight;
+  a free month costs almost nothing and is the best conversion path there is.
