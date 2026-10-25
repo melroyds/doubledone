@@ -59,8 +59,9 @@ native build. Phase 2 (people already paying) is in the Backlog entry below.
 
 **LIVE ON THE WEB 2026-10-25: drag a task by its grip** (main `865d1f6`, Melroy's "Merge to main", which also took
 the privacy policy's new feature-usage line, both copies, dated 25 October; deploy-web and CI green, and the live
-bundle and /privacy checked). Still to do: the Worker deploy for the `task.dragged` count (Melroy's; until then the
-count is dropped, nothing breaks), and a phone pass of TOD-41 to TOD-44 with the next native build. `premium` merged
+bundle and /privacy checked). The Worker that counts `task.dragged` is live too (`6112b1c7`, deployed by Melroy the same
+evening from main; rollback target `d2bdf430`, bindings identical). Still to do: a phone pass of TOD-41 to TOD-44
+with the next native build. `premium` merged
 `main` the same day, so `server/` carries the new name there too.
 
 **THE IMMEDIATE NEXT ACTION (2026-10-25): 1.9.1 carries the Later folds to the phones.** The web has had them since `e5d8913`, and the Worker's `add_task` nudge is live (`d2bdf430`, deployed by Melroy). `client/app.json` says 1.9.1 (the App Store needs a new version string once 1.9.0 is live; build numbers stay remote). Builds on Melroy's ask ("It's now build time for both apps", 2026-10-25): Android production AAB, then iOS production. **Those first builds are SUPERSEDED, never submit them** (Android versionCode 37, EAS `c710030d`, never uploaded; iOS EAS `3f425f57`, on TestFlight only): Melroy's iPhone pass of TOD-38 found a moved task unfolding its month and leaving it open, so a move into a fold now stays closed and says "Moved to {date}." (decision log 2026-10-25), and he chose a rebuild ("I'm okay with a rebuild honestly"). Rebuild both from the commit that carries it, still 1.9.1. Then device checks (TOD-38 to TOD-40 on a phone), the 1.9.1 What's New in every App Store language and the Play block (`docs/release-notes/1.9.1.md`), submit, and bump `version.json` per store once live. *(The 1.9.0 action follows.)*
