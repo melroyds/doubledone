@@ -294,9 +294,10 @@ rewritten so they stay true: the status and consent lines name the note check, a
 leaving the device (for example "Your settings are saved to this device."). The privacy-policy line about Claude
 reading notes is Melroy's to approve, separately.
 
-**H. Pending Melroy's call: a way to offer a call.** The note arrives anonymous, so Melroy cannot reply. If he chooses
-it, C1 and C2 carry one optional line, "Want to talk for 20 minutes? Pick a time", linking to his own booking page
-outside the app, so the app collects nothing. Design it so it can be left out cleanly.
+**H. A way to offer a call (decided 2026-10-25).** The note arrives anonymous, so Melroy cannot reply. C1 and C2
+carry one optional line, "Want to talk for 20 minutes? Pick a time", linking to his own Google Calendar booking
+page outside the app (20 minutes, Google Meet, camera optional, a A$30 gift card as thanks, at most three a week),
+so the app collects nothing. Design it so it can be left out cleanly, because the link comes from build config.
 
 ## Copy rules
 
