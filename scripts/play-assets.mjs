@@ -16,7 +16,7 @@
 //
 // App Store (STORE=ios). Six captioned slides, numbered so file order is upload order:
 //   docs/appstore/captioned/6.9/<locale>/01-today.jpeg .. 06-ours.jpeg   1320x2868
-//   docs/appstore/captioned/6.5/<locale>/...                             1284x2778
+//   docs/appstore/captioned/6.5/<locale>/...                             1260x2736
 //   docs/appstore/captioned/6.3/<locale>/...                             1206x2622
 // One raw capture per shot and language (440x956 at scale 3, so 1320x2868) feeds all three sizes. The captions
 // live in docs/appstore/captions.json, and a gate checks them before any browser starts. It NEVER writes
@@ -262,7 +262,7 @@ const TABLET_LOCALES = process.env.TABLETS === 'all' ? null : new Set(['en']);
 // App Store Connect demanded on 2026-08-17), 6.3" Dynamic Island medium (the one Apple's page now calls required).
 const IOS_DEVICES = [
   { dir: '6.9', w: 1320, h: 2868 },
-  { dir: '6.5', w: 1284, h: 2778 },
+  { dir: '6.5', w: 1260, h: 2736 }, // 1284x2778 until 2026-10-26: the slot now takes the iPhone Air's 6.5" size
   { dir: '6.3', w: 1206, h: 2622 },
 ];
 

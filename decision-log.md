@@ -11014,3 +11014,13 @@ language too please. For both iOS and Android please." Until now both stores sho
 - **Flipping or retouching the keepsake art:** a crop is a framing choice, a doctored picture is not.
 - **A localised Play feature graphic, for now:** its subline is a sentence no language has yet, so it waits for a
   native read; the English one stays on every listing until Melroy wants it.
+
+## 2026-10-26: the App Store's 6.5-inch slides move to 1260x2736
+
+Melroy, uploading the 1.10.0 set: the 6.5-inch slot refused our 1284x2778 files. It now lists 1260x2736 (the iPhone
+Air's 6.5-inch screen), 1290x2796 and 1320x2868, and with nothing uploaded it shows "Using Existing Assets", which
+here meant the 6.3 set scaled UP. Melroy: "I'd rather not scale up. Scaling down is whatever."
+
+**Decided:** the generator renders `6.5` at 1260x2736, every language, from the same 1320x2868 capture (a scale
+down, so nothing softens). **Decided against:** uploading the 6.9 set into that slot as well (it would pass, but
+the 6.5 folder would then be a set nobody can use), and leaving the slot to scale the 6.3 set up.

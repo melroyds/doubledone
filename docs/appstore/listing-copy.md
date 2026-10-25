@@ -233,7 +233,7 @@ Optimization test settles that slot later, which needs no new version.
 | Folder | Size | Slot |
 |---|---|---|
 | `docs/appstore/captioned/6.9/<lang>/` | 1320x2868 | iPhone 6.9-inch (Dynamic Island, large). Upload this set first. |
-| `docs/appstore/captioned/6.5/<lang>/` | 1284x2778 | iPhone 6.5-inch, the slot App Store Connect demanded on 2026-08-17. |
+| `docs/appstore/captioned/6.5/<lang>/` | 1260x2736 | iPhone 6.5-inch. 1284x2778 until 2026-10-26, when the slot refused it: it now takes 1260x2736 (the iPhone Air), 1290x2796 or 1320x2868, and left empty it scales the 6.3 set up. |
 | `docs/appstore/captioned/6.3/<lang>/` | 1206x2622 | iPhone 6.3-inch (Dynamic Island, medium), the size Apple's page now names as required. |
 
 `<lang>` is `en`, `de`, `fr`, `es` or `it`.
