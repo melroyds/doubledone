@@ -58,8 +58,12 @@ queued (no quota spent): Apple answered 401 to EAS's stored App Store Connect ke
 terminal and signed in to Apple, after which the submit ran headless. Release notes, every language, natively read and
 script-checked, plus the App Review paragraph that explains the month: `docs/release-notes/1.10.0.md`. Android device pass: the drag cases TOD-41 to TOD-44 all PASSED on Melroy's phone (2026-10-25: "The Drag tests all work"),
 with TOD-43 reworded from it (a shade pulled with the dragging finger still down leaves the drag running, which is
-right). Next: the feedback cases MON-02 to MON-07, MON-09, MON-10 (MON-01 and MON-08 need a week and a month), the
-iPhone pass, then submit, then bump `version.json` per store once live.
+right). The feedback cases passed on Android too (2026-10-25): Settings' note screen, the
+sign-in trip, the screen's rules, the mash stopped by the check, a real note given its month with the call line,
+offline, the keyboard, and the Today card with Not now (seen by moving the phone's clock 8 days on, signed out).
+MON-08, the end line, was skipped on Melroy's call ("I feel it's excessive"): it is covered by month-end.test.ts
+and was checked in the browser during the build. The drag cases passed on the iPhone as well. Next: the iPhone
+feedback pass if wanted, then submit both, then bump `version.json` per store once live.
 
 **LIVE ON THE WEB 2026-10-25: "A month on us" phase 1** (decision log, the same day). Merged to main as `edb3c54` on
 Melroy's "Merge" (a fast-forward of `premium`), after its Worker went live (`84cded96`, rollback `6112b1c7`). Checked:
