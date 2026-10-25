@@ -10823,3 +10823,72 @@ distilled from DoubleDone's landing, listing, search, screenshot, ratings, attri
 lessons, at Melroy's ask. Three reviewers checked it before it went public. Decided against putting there: the
 agency's name or prices, competitor prices, any id or link, and dated admissions about DoubleDone's past listing or
 privacy-label mistakes, which are recorded here and need not be advertised.
+
+## 2026-10-25: "A month on us" phase 1, built on `premium` from the Claude Design handoff
+
+**What was built.** The server half (verified bearer, the D1 `gifts` table, `GET /gift/eligibility`, and a
+`/feedback` that emails first, then gives a month only when every rule holds) and the client half from Melroy's
+Claude Design zip (`design_handoff_month_on_us`): the gradient thank-you card on Today in What's New's slot, the
+"Write to us" screen at `/note` that both the card and Settings' Help row open, the C1 thank-you and the identical C2
+"Sent, thank you.", the error line that keeps the words, the `given` entitlement on the Premium screen and the
+Settings card, the once-only end line, the store rating card held while a given month runs, and the strings in all
+five catalogues (German, French, Spanish and Italian drafted here, pending a native read). Nothing is deployed:
+the Worker deploy and the merge to `main` are Melroy's.
+
+**Assumptions to challenge (each is a call made here, not in the brief):**
+- **The end line keeps the first-paint rule too.** A good read that finds the month over marks it due, and Today
+  shows the line at its NEXT first paint, so it is one open late but never lands above a day already on screen.
+- **The card is decided once per launch,** from what the device stored on an earlier open. On a fresh install of
+  this build the first open stores the answer, so the card can appear from the second open after the week has passed.
+- **A return after time away hides the card** for that visit, like the review ask: re-entry is a tender moment.
+- **Any successful send retires the card,** from Settings as well as from the card. Settings' receipt line shows
+  only for a note sent from Settings.
+- **The floor is the brief's:** two or more words with six letters between them, or one word of twelve letters or
+  more. The earlier entry's "about three words" is replaced (the brief showed the two could not both hold).
+- **The given month's body reuses each catalogue's paid body** ("Everything is unlocked: ..."), with the last sentence
+  turned into a thank-you, rather than the brief's "Every extra is yours: ...", so the trial, paid and given panels
+  read alike. German "Not now" is "Jetzt nicht" (the brief drafted "Nicht jetzt").
+- **The sign-in trip's button reads "Back"** where it used to read "Back to Today", since it returns to the note.
+- **The height budget is enforced by measurement plus caps, not a render test.** This repo's tests run pure logic
+  under node with no renderer, so `scripts/offer-card-height.mjs` measures the real card in Chrome (203 tallest,
+  French and German at Large text, against the 240 budget) and `offer-card-copy.test.ts` holds character caps
+  calibrated on it, so CI catches a string that grows.
+- **The booking link comes from build config:** the `EXPO_PUBLIC_BOOKING_URL` GitHub repo variable for the web and
+  EAS env for the stores. Unset, the call line is simply absent. Neither is set yet.
+
+**Privacy-policy line, DRAFT for Melroy's OK (not applied):** a new section after "The AI features":
+"A note to us. When you write to us from the app, your note is emailed to us with the kind of device it came from
+(web, iPhone or Android), and nothing else about you. If you are signed in and a month of Premium is on offer, we
+keep a record that a month was given (an internal number and two dates, nothing you wrote) so it is given once in
+180 days. With AI on, and only while a month is on offer, Claude reads the note once to check it is a real note,
+under the same terms as the AI features above. With AI off it never goes to an AI. After a note you can book a call
+on a Google Calendar booking page, which is Google's and works under Google's privacy policy."
+
+**Decided against:**
+- **Inserting the card when this visit's answer arrives,** or waiting on the network before Today paints. The first
+  is the late 160px jump the brief forbids; the second slows every open for everyone to serve one card.
+- **Keeping the inline Settings form.** It sat under the keyboard; one screen is one keyboard answer and one draft.
+- **A `KeyboardAvoidingView`,** which Android edge-to-edge ignores. The note scrolls Send clear of the keyboard itself.
+- **Web "Keep Premium from {date}"** in this phase. It needs a checkout that starts billing on a future date, which is
+  phase 2 with the payer shift.
+
+**The review the same day (three code reviews, each checked by a sceptic, and four native reads).** Fixed:
+- **Not now would have crashed on a phone.** The fade ran on the native driver and the fold on JS, on one view,
+  which React Native refuses; the web preview could never show it. Both now run on JS.
+- **A note could reach Claude while the screen said "It comes straight to us."** (a read still in flight, or one
+  that failed). The AI permission now rides only when the line naming Claude was on screen, and a sender the app
+  knows is Premium sends no bearer, so a month never lands on someone who pays (an anonymous Apple buyer mid-sign-in).
+- **Signed out counts as yes again,** as decided earlier that day: the card and the Settings line now show to a
+  signed-out free user, and the note says the month follows sign-in. The build had quietly reversed it.
+- **A failing card payment is never given a month** (past_due, unpaid): the month would have hidden the
+  fix-your-card path while Stripe's retries ran out. A trials read that fails answers unknown, never yes.
+- **The end line and the card both wait out a return after time away.** The paying member back from sign-in is told
+  they already have Premium (the provider is re-read). A Settings receipt left unread goes stale after five minutes.
+  The Premium card's end date is spoken. The gold-corner contrast check the brief asked for is built into
+  `scripts/offer-card-height.mjs` (furthest text 0.77 of the gradient, against the 0.88 stop).
+- **The translations:** German says Nachricht, not Notiz (a memo to yourself, and already the left-off line's word);
+  German and French no longer make the free scrapbook what "ends by itself"; French avoids "les notes" (ratings);
+  Spanish and Italian drop "oferta" and a few calques.
+Refuted and left: the once-per-launch read racing the session (it cannot, the reads share one queue), a declined
+note re-showing the offer (keeping it open lets someone hit by a hiccup write again), and the noteCheck row's
+length being joinable to a gift by time (the same operator already has the email).

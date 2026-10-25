@@ -5,7 +5,7 @@ import { en } from './catalogs/en';
 import { es } from './catalogs/es';
 import { fr } from './catalogs/fr';
 import { it as itCat } from './catalogs/it';
-import { manageRoute, premiumPrimaryAction, showsCancelReassurance, storeCopyKeys, trialSlot, welcomeFineKey } from './premium-ui';
+import { manageRoute, periodLabel, premiumPrimaryAction, showsCancelReassurance, storeCopyKeys, trialSlot, welcomeFineKey } from './premium-ui';
 
 // The full state -> control table for the entitled panel. Each row here is a cell that either
 // shipped wrong (trial, comp) or must never drift (the live Stripe path). See premium-ui.ts for
@@ -31,6 +31,13 @@ describe('premiumPrimaryAction (the Premium panel primary control)', () => {
     expect(premiumPrimaryAction('canceled', false)).toBe('manage');
     // Apple grace period: manage() itself routes to Apple's sheet by source
     expect(premiumPrimaryAction('past_due', true)).toBe('manage');
+  });
+
+  it('a month given for a note has no control anywhere: nothing to buy, manage or cancel, it ends by itself', () => {
+    expect(premiumPrimaryAction('given', false)).toBe('none'); // web (the "Keep Premium from" button is phase 2)
+    expect(premiumPrimaryAction('given', true)).toBe('none'); // iOS
+    expect(premiumPrimaryAction('given', true, true, false, 'stripe')).toBe('none'); // Android
+    expect(premiumPrimaryAction('given', true, false)).toBe('none'); // a build that sells nothing
   });
 
   it('an unknown or null status falls back to manage rather than hiding the control', () => {
@@ -98,7 +105,17 @@ describe('showsCancelReassurance (never "if you cancel" to someone with nothing 
   it('is never said to a trial, a comp, or a subscription already set to end', () => {
     expect(showsCancelReassurance('trial', false)).toBe(false);
     expect(showsCancelReassurance('comp', false)).toBe(false);
+    expect(showsCancelReassurance('given', false)).toBe(false);
+    expect(showsCancelReassurance('given', true)).toBe(false);
     expect(showsCancelReassurance('active', true)).toBe(false);
+  });
+});
+
+describe('periodLabel (absolute dates, never relative)', () => {
+  it('formats a period end as a date with its year, and nothing as null', () => {
+    expect(periodLabel(1_800_000_000)).toMatch(/2027/);
+    expect(periodLabel(null)).toBeNull();
+    expect(periodLabel(0)).toBeNull();
   });
 });
 

@@ -18,14 +18,21 @@ describe('parseFeedback', () => {
   });
 
   it('trims and accepts valid text', () => {
-    expect(parseFeedback({ text: '  hello  ' })).toEqual({ ok: true, text: 'hello', context: undefined });
+    expect(parseFeedback({ text: '  hello  ' })).toEqual({ ok: true, text: 'hello', context: undefined, aiAllowed: false });
   });
 
   it('keeps an optional context, capped at 200', () => {
-    expect(parseFeedback({ text: 'hi', context: '  web  ' })).toEqual({ ok: true, text: 'hi', context: 'web' });
+    expect(parseFeedback({ text: 'hi', context: '  web  ' })).toEqual({ ok: true, text: 'hi', context: 'web', aiAllowed: false });
     const long = parseFeedback({ text: 'hi', context: 'x'.repeat(500) });
     expect(long.ok).toBe(true);
     if (long.ok) expect(long.context).toBe('x'.repeat(200));
+  });
+
+  it('lets the note check use AI only when the sender says ai: true (an older client sends nothing)', () => {
+    const on = parseFeedback({ text: 'hi', ai: true });
+    const off = parseFeedback({ text: 'hi', ai: 'yes' });
+    expect(on.ok && on.aiAllowed).toBe(true);
+    expect(off.ok && off.aiAllowed).toBe(false);
   });
 });
 

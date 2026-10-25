@@ -10,7 +10,7 @@ export type PrimaryAction =
   | 'convert' // the trial's "Go Premium to keep it" (Stripe checkout; the server's guard allows a trial to convert)
   | 'manage' // "Manage subscription": the Stripe portal, Apple's sheet or the Play Store (manage() routes by source)
   | 'nothing' // premium with nothing to manage (comp/allowlisted: no Stripe customer, no portal exists): a calm line, no button
-  | 'none' // no control at all (mid-trial in a store build: the store refuses a second purchase while premium, and the trial never auto-charges)
+  | 'none' // no control at all (mid-trial in a store build: the store refuses a second purchase while premium, and the trial never auto-charges; a month given for a note, which ends by itself)
   | 'elsewhere'; // a plain line saying where it is managed, with no button or link (on Android, a Stripe or Apple subscription)
 
 /**
@@ -33,6 +33,9 @@ export function premiumPrimaryAction(
   source: 'stripe' | 'apple' | 'google' | null = null,
 ): PrimaryAction {
   if (status === 'comp') return 'nothing';
+  // A month given for a note has nothing to buy, manage or cancel: it ends by itself. The web's "Keep Premium
+  // from {date}" is phase 2 ("A month on us", 2026-10-25), so for now every platform shows no control.
+  if (status === 'given') return 'none';
   if (!sellsHere) return status === 'trial' ? 'none' : 'elsewhere';
   if (status === 'trial') return iapAvailable || !stripeHere ? 'none' : 'convert';
   if (!stripeHere && source !== 'google') return 'elsewhere';
@@ -46,7 +49,18 @@ export function premiumPrimaryAction(
  * wording review, 2026-09-27: the comped reviewer account would read it). They get the plain line instead.
  */
 export function showsCancelReassurance(status: string | null, cancelAtPeriodEnd: boolean): boolean {
-  return status !== 'trial' && status !== 'comp' && !cancelAtPeriodEnd;
+  return status !== 'trial' && status !== 'comp' && status !== 'given' && !cancelAtPeriodEnd;
+}
+
+/** An epoch-seconds period end as an absolute short date in the device's own format ("24 Nov 2026",
+ *  "Nov 24, 2026"), never relative, or null. One formatter for the Premium screen, Settings and the note. */
+export function periodLabel(epochSec: number | null): string | null {
+  if (!epochSec) return null;
+  try {
+    return new Date(epochSec * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch {
+    return null;
+  }
 }
 
 /** Where the card-free trial offer sits on the paywall, or whether it sits there at all. */
@@ -142,6 +156,7 @@ export function storeCopyKeys(playCopy: boolean) {
         trialNoCard: 'premium.trialNoCardPlain',
         trialUntil: 'premium.trialUntilPlain',
         trialAlreadyUsed: 'premium.trialAlreadyUsedPlain',
+        givenStatus: 'feedbackMonth.premiumGivenStatusPlay', // "the extras switch off on their own": no scrapbook-plan talk
       }
     : {
         ...shared,
@@ -162,6 +177,7 @@ export function storeCopyKeys(playCopy: boolean) {
         trialNoCard: 'premium.trialNoCard',
         trialUntil: 'premium.trialUntil',
         trialAlreadyUsed: 'premium.trialAlreadyUsed',
+        givenStatus: 'feedbackMonth.premiumGivenStatus',
       };
 }
 

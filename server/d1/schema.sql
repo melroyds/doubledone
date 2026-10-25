@@ -125,6 +125,18 @@ create table if not exists trials (
   expires_at integer not null           -- epoch seconds the trial ends (Premium until then)
 );
 
+-- "A month on us" (2026-10-25): a month of Premium given as thanks for a note to us. One row per gift, keyed by the
+-- verified Supabase auth uid and the second it was given, so the 180-day spacing can be read back. No note text, no
+-- email, no IP: who, when, until when, and why. Read like trials: Premium until expires_at, no cron. The Worker also
+-- creates it if missing (CREATE TABLE IF NOT EXISTS), so a deploy never depends on this file being applied first.
+create table if not exists gifts (
+  user_id text not null,                -- the verified Supabase auth uid (JWT sub)
+  granted_at integer not null,          -- epoch seconds the month was given
+  expires_at integer not null,          -- epoch seconds it ends (Premium until then)
+  reason text not null,                 -- 'feedback'
+  primary key (user_id, granted_at)
+);
+
 -- Scrapbook abuse backstop: a per-IP rolling-24h count of image generations, so a scripted caller cannot mint
 -- unlimited keepsakes off one IP and drain the shared Workers AI budget. NO user_id, no task content: just the
 -- client IP and a timestamp. Written ONLY by the /scrapbook route, which fails OPEN if this table is absent (so

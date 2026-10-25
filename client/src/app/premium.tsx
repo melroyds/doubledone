@@ -12,23 +12,13 @@ import { weeklyAllowance } from '@/lib/entitlement';
 import { buyCheck, needsBillingFix, purchaseGate } from '@/lib/iap';
 import { t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
-import { manageRoute, premiumPrimaryAction, showsCancelReassurance, storeCopyKeys, trialSlot } from '@/lib/premium-ui';
+import { manageRoute, periodLabel as formatPeriod, premiumPrimaryAction, showsCancelReassurance, storeCopyKeys, trialSlot } from '@/lib/premium-ui';
 import { buy, IAP_AVAILABLE, loadOffers, openStoreSubscriptions, restore, STORE_SOURCE, type StoreOffer } from '@/lib/purchases';
 import { loadTrialUsed, saveTrialUsed } from '@/lib/storage';
 import { PLAY_COPY, SELLS_HERE, STRIPE_HERE } from '@/lib/storefront';
 import { loadEntitlementChecked, startCheckout, startPortal, startTrial } from '@/lib/stripe';
 import { track } from '@/lib/telemetry';
 import { useThemedStyles } from '@/lib/theme-provider';
-
-// Format an epoch-seconds period end as a short date ("20 Jul 2026"), or null.
-function formatPeriod(epochSec: number | null): string | null {
-  if (!epochSec) return null;
-  try {
-    return new Date(epochSec * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-  } catch {
-    return null;
-  }
-}
 
 // The store's buy button shows only where this build sells at all. SELLS_HERE is true everywhere since Path A;
 // reading it here too is what makes `SELLS_HERE = false` in storefront.android.ts a one-line Path C rollback.
@@ -423,19 +413,30 @@ export default function PremiumScreen() {
                 `status` (which is the URL's ?status= param and only ever 'success'/'cancelled').
                 Reading the URL here is the bug that told trial users they were fully Premium and
                 offered them a Manage button that could only 404. */}
-            <Text style={styles.panelHead}>{effectiveEntitlement.status === 'trial' ? t('premium.headTrialActive') : t('premium.headPremiumActive')}</Text>
+            <Text style={styles.panelHead}>
+              {effectiveEntitlement.status === 'given'
+                ? t('feedbackMonth.premiumGivenHead')
+                : effectiveEntitlement.status === 'trial'
+                  ? t('premium.headTrialActive')
+                  : t('premium.headPremiumActive')}
+            </Text>
             <Text style={styles.body}>
               {/* Android's free month: no "more the longer you stay" and no thanks for keeping DoubleDone
                   independent, both of which lean on a subscription this app cannot sell. */}
               {!SELLS_HERE && effectiveEntitlement.status === 'trial'
                 ? t('premium.unlockedBodyTrialPlain')
+                : effectiveEntitlement.status === 'given'
+                ? t('feedbackMonth.premiumGivenBody', { allowance })
                 : allowance === 1
                 ? t('premium.unlockedBodyOneGrowing', { allowance })
                 : allowance < 4
                   ? t('premium.unlockedBodyGrowing', { allowance })
                   : t('premium.unlockedBodyFull', { allowance })}
             </Text>
-            {effectiveEntitlement.status === 'trial' && periodLabel ? (
+            {effectiveEntitlement.status === 'given' && periodLabel ? (
+              // A month given for a note: when it ends, and that it ends by itself. Android's line is Play-safe.
+              <Text style={styles.subStatus}>{t(COPY.givenStatus, { date: periodLabel })}</Text>
+            ) : effectiveEntitlement.status === 'trial' && periodLabel ? (
               <Text style={styles.subStatus}>{SELLS_HERE ? t(COPY.trialUntil, { periodLabel }) : t('premium.trialUntilPlain', { periodLabel })}</Text>
             ) : effectiveEntitlement.cancelAtPeriodEnd && periodLabel ? (
               <Text style={styles.subStatus}>{t('premium.premiumUntil', { periodLabel })}</Text>

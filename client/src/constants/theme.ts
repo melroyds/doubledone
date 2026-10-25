@@ -20,6 +20,9 @@ export const PREMIUM_GRADIENT = ['#8E5E72', '#9E6479', '#D6A77E'] as const; // m
 // cue sit (measured 2026-09-26; at the default even spacing the right half of a label fell to 3.4:1 and the
 // honey end to 2.2:1). Pass it wherever PREMIUM_GRADIENT is drawn.
 export const PREMIUM_GRADIENT_LOCATIONS = [0, 0.88, 1] as const;
+// Text on PREMIUM_GRADIENT, the same white on every palette. Named so the gradient's text never borrows
+// `onAccent`, which is dark ink on the dark palettes and on Honey ("A month on us", 2026-10-25).
+export const ON_PREMIUM = '#FFFFFF';
 
 // The launch-resolved palette (system-following), kept as the default and as the
 // ThemeProvider's fallback. Live switching (theme + text size) flows through the

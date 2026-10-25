@@ -34,6 +34,7 @@ jobs:
         env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_BOOKING_URL: ${{ vars.EXPO_PUBLIC_BOOKING_URL }} # optional: unset leaves the note's call line out
 
       - name: Inject SEO + social meta into the SPA index.html
         # output:'single' ignores +html.tsx; patch dist/index.html before shipping so a

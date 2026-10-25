@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,6 +30,10 @@ export default function SignInScreen() {
   const insets = useSafeAreaInsets();
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
+  // Where the success line says it is taking you. Only the note uses it so far ("A month on us", 2026-10-25):
+  // router.back() already returns to whichever screen pushed this one, so the param changes the words only.
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
+  const toNote = returnTo === '/note';
   const [phase, setPhase] = useState<Phase>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -204,8 +208,8 @@ export default function SignInScreen() {
       {phase === 'done' && (
         <View style={styles.form}>
           <Text style={styles.success}>{t('signIn.signedIn')}</Text>
-          <Text style={styles.sub}>{t('signIn.syncedAs', { email: email.trim() })}</Text>
-          <PrimaryButton label={t('common.backToToday')} onPress={goBack} accessibilityLabel={t('common.backToToday')} />
+          <Text style={styles.sub}>{t(toNote ? 'signIn.syncedAsNote' : 'signIn.syncedAs', { email: email.trim() })}</Text>
+          <PrimaryButton label={toNote ? t('common.back') : t('common.backToToday')} onPress={goBack} accessibilityLabel={toNote ? t('common.goBack') : t('common.backToToday')} />
         </View>
       )}
 

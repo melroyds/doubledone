@@ -3,10 +3,9 @@ import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { PrimaryButton } from '@/components/PrimaryButton';
 import { RoomBackRow, useRoomOrigin } from '@/components/RoomTop';
 import { Segmented } from '@/components/Segmented';
 import { border, fonts, layout, PREMIUM_GRADIENT, PREMIUM_GRADIENT_LOCATIONS, PRESSED_OPACITY, radius, spacing, THEME_PRESETS, type Theme } from '@/constants/theme';
@@ -17,13 +16,16 @@ import { toISODate } from '@/lib/day';
 import { buildExport } from '@/lib/export';
 import { spoken } from '@/lib/i18n';
 import { t } from '@/lib/locale';
+import { fetchMonthAnswer, type NoteOutcome, takeLastNoteOutcome } from '@/lib/note';
+import { answerSaysYes } from '@/lib/offer-card';
+import { periodLabel } from '@/lib/premium-ui';
 import { SELLS_HERE } from '@/lib/storefront';
 import { usePremium } from '@/lib/premium-provider';
 import { STORE_SOURCE } from '@/lib/purchases';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { clampHour, formatReminderHour, reminderReasonLine } from '@/lib/reminders-types';
 import { type Appearance, type FinishedTasks, type MotionPref, type TextSize, THEME_NAMES, type ThemePref } from '@/lib/settings';
-import { loadLastSyncOk, loadReminderHour, loadReminderOn, loadScrapbooks, loadTasks, saveReminderHour, saveReminderOn, wipeLocalData } from '@/lib/storage';
+import { loadGiftOffer, loadLastSyncOk, loadReminderHour, loadReminderOn, loadScrapbooks, loadTasks, saveGiftOffer, saveReminderHour, saveReminderOn, wipeLocalData } from '@/lib/storage';
 import { authHeader, supabase } from '@/lib/supabase';
 import { checkForUpdate, currentPlatform } from '@/lib/update-check';
 import { runningVersion, type UpdateStatus, updateUrl } from '@/lib/updates';
@@ -65,6 +67,16 @@ export default function SettingsScreen() {
   const [mcpDisconnecting, setMcpDisconnecting] = useState(false);
   const [mcpDisconnectNote, setMcpDisconnectNote] = useState<string | null>(null); // calm line after a disconnect
   const { premium, entitlement, devOverride, setDevOverride, devAllowed, refresh } = usePremium();
+  // A free month (given for a note, or the card-free one) says when it ends on the Premium card, in words a screen
+  // reader hears too: outside the Premium screen this card is the only place that date is said.
+  const monthEnd = premium ? periodLabel(entitlement.currentPeriodEnd) : null;
+  const freeMonthLine = !monthEnd
+    ? null
+    : entitlement.status === 'given'
+      ? t('feedbackMonth.premiumCardGiven', { date: monthEnd })
+      : entitlement.status === 'trial'
+        ? t('feedbackMonth.premiumCardFreeMonth', { date: monthEnd })
+        : null;
   const [exporting, setExporting] = useState(false);
   const [exportNote, setExportNote] = useState<string | null>(null);
   const [reminderOn, setReminderOn] = useState(false);
@@ -72,9 +84,10 @@ export default function SettingsScreen() {
   const [reminderHour, setReminderHour] = useState(9); // the hour the daily nudge fires (free for all, an access need)
   const reminderHourTimer = useRef<ReturnType<typeof setTimeout> | null>(null); // debounce the re-subscribe on +/-
   const [syncOk, setSyncOk] = useState<boolean | null>(null); // last sync result; false = saved local-only
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [feedbackText, setFeedbackText] = useState('');
-  const [feedbackState, setFeedbackState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  // "A month on us": whether Help's row says a month is on offer (the last real answer, then a fresh one), and the
+  // one-line receipt after a note sent from here, shown until Settings is left.
+  const [monthOnOffer, setMonthOnOffer] = useState(false);
+  const [noteReceipt, setNoteReceipt] = useState<NoteOutcome | null>(null);
   const [confirmingAi, setConfirmingAi] = useState(false); // showing the "turn AI on" informed-consent card
   const [aiNote, setAiNote] = useState<string | null>(null); // the calm line after turning AI off
   // (The Ours row is gone: it was phase 2's way in, and Ours now lives on Today's heading and on the
@@ -131,8 +144,20 @@ export default function SettingsScreen() {
       void checkForUpdate(runningVersion(Application.nativeApplicationVersion, Constants.expoConfig?.version)).then((status) => {
         if (active) setUpdate(status);
       });
+      setNoteReceipt(takeLastNoteOutcome());
+      void loadGiftOffer().then((cached) => {
+        if (active) setMonthOnOffer(answerSaysYes(cached, Date.now()));
+      });
+      // Signed out counts as yes (decision log 2026-10-25): the note says the month follows sign-in.
+      void fetchMonthAnswer().then((a) => {
+        if (!active || a === 'unknown') return;
+        const yes = a !== 'no';
+        setMonthOnOffer(yes);
+        void saveGiftOffer({ canGet: yes, at: Date.now() });
+      });
       return () => {
         active = false;
+        setNoteReceipt(null); // the receipt lasts until Settings is left
       };
     }, [refresh]),
   );
@@ -294,32 +319,6 @@ export default function SettingsScreen() {
       setMcpDisconnectNote(t('settings.mcpDisconnectError'));
     } finally {
       setMcpDisconnecting(false);
-    }
-  }
-
-  // Send the user's typed feedback in-app: POST it to the AI Worker, which emails it to
-  // the support inbox (no mail client, no leaving the app). Calm states, never a wall.
-  async function sendFeedback() {
-    const text = feedbackText.trim();
-    if (!text || feedbackState === 'sending') return;
-    setFeedbackState('sending');
-    try {
-      const base = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
-      const res = await fetch(`${base}/feedback`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text, context: Platform.OS }),
-      });
-      // Demand a real { ok: true }: a catch-all 200 from an undeployed route must not
-      // read as success.
-      const data = (await res.json().catch(() => null)) as { ok?: boolean } | null;
-      if (!res.ok || data?.ok !== true) throw new Error(String(res.status));
-      setFeedbackText('');
-      setFeedbackState('sent');
-      track('feedback.sent');
-    } catch {
-      setFeedbackState('error');
-      track('feedback.error');
     }
   }
 
@@ -712,7 +711,15 @@ export default function SettingsScreen() {
         <Pressable
           onPress={() => router.push('/premium')}
           accessibilityRole="button"
-          accessibilityLabel={premium ? t('settings.premiumCardActiveA11y') : SELLS_HERE ? t('settings.premiumCardSeePlansA11y') : t('premium.brandName')}
+          accessibilityLabel={
+            premium
+              ? freeMonthLine
+                ? `${t('premium.brandName')}. ${freeMonthLine}`
+                : t('settings.premiumCardActiveA11y')
+              : SELLS_HERE
+                ? t('settings.premiumCardSeePlansA11y')
+                : t('premium.brandName')
+          }
           style={({ pressed }) => [styles.premiumCardWrap, pressed && styles.pressed]}
         >
           <LinearGradient colors={PREMIUM_GRADIENT} locations={PREMIUM_GRADIENT_LOCATIONS} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premiumCard}>
@@ -720,7 +727,7 @@ export default function SettingsScreen() {
               <Text style={styles.premiumCardTitle}>{t('premium.brandName')}</Text>
               <Text style={styles.premiumCardSub}>
                 {premium
-                  ? t('settings.premiumCardActiveSub')
+                  ? (freeMonthLine ?? t('settings.premiumCardActiveSub'))
                   : settings.aiEnabled
                     ? t('settings.premiumCardSubAi')
                     : t('settings.premiumCardSubNoAi')}
@@ -734,50 +741,23 @@ export default function SettingsScreen() {
           {t('settings.bandHelp')}
         </Text>
         <View style={styles.card}>
-          {feedbackState === 'sent' ? (
-            <View style={styles.row}>
-              <Text style={styles.feedbackThanks}>{t('settings.feedbackThanks')}</Text>
-            </View>
-          ) : feedbackOpen ? (
-            // The feedback form opens in place, inside the Help card.
-            <View style={[styles.row, styles.feedbackForm]}>
-              <TextInput
-                style={styles.feedbackInput}
-                value={feedbackText}
-                onChangeText={(t) => {
-                  setFeedbackText(t);
-                  if (feedbackState === 'error') setFeedbackState('idle');
-                }}
-                placeholder={t('settings.feedbackPlaceholder')}
-                placeholderTextColor={theme.colors.inkSoft}
-                multiline
-                editable={feedbackState !== 'sending'}
-                accessibilityLabel={t('settings.feedbackInputA11y')}
-              />
-              {feedbackState === 'error' && <Text style={styles.feedbackError}>{t('settings.feedbackError')}</Text>}
-              <View style={styles.feedbackActions}>
-                <Pressable
-                  onPress={() => {
-                    setFeedbackOpen(false);
-                    setFeedbackText('');
-                    setFeedbackState('idle');
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('settings.feedbackCancelA11y')}
-                  hitSlop={8}
-                >
-                  <Text style={styles.feedbackCancel}>{t('common.cancel')}</Text>
-                </Pressable>
-                <PrimaryButton
-                  label={feedbackState === 'sending' ? t('settings.feedbackSending') : t('common.send')}
-                  onPress={sendFeedback}
-                  disabled={!feedbackText.trim() || feedbackState === 'sending'}
-                  accessibilityLabel={t('settings.sendFeedback')}
-                />
-              </View>
+          {noteReceipt ? (
+            <View style={styles.row} accessibilityLiveRegion="polite">
+              <Text style={styles.feedbackThanks}>
+                {noteReceipt.kind === 'given'
+                  ? t('feedbackMonth.helpGiven', { date: periodLabel(noteReceipt.until) ?? '' })
+                  : t('feedbackMonth.helpSent')}
+              </Text>
             </View>
           ) : (
-            <LinkRow label={t('settings.sendFeedback')} a11y={t('settings.sendFeedback')} onPress={() => setFeedbackOpen(true)} />
+            // The note has its own screen now ("A month on us", 2026-10-25): the inline form it replaces sat
+            // under the keyboard, and one screen means one keyboard answer and one saved draft.
+            <LinkRow
+              label={t('settings.sendFeedback')}
+              hint={monthOnOffer && !premium ? t('feedbackMonth.helpOfferLine') : undefined}
+              a11y={t('settings.sendFeedback')}
+              onPress={() => router.push({ pathname: '/note', params: { from: 'settings' } })}
+            />
           )}
           <View style={styles.divider} />
           <LinkRow
@@ -1043,23 +1023,7 @@ const makeStyles = (t: Theme) =>
     },
     mcpFoot: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.body, lineHeight: 18 * t.scale, marginTop: spacing.one },
     mcpDisconnect: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.three },
-    feedbackForm: { gap: spacing.three },
-    feedbackInput: {
-      minHeight: 96,
-      borderWidth: border.hair,
-      borderColor: t.colors.line,
-      borderRadius: radius.md,
-      padding: spacing.three,
-      fontSize: 16 * t.scale,
-      fontFamily: fonts.body,
-      color: t.colors.ink,
-      backgroundColor: t.colors.surface,
-      textAlignVertical: 'top',
-    },
-    feedbackError: { color: t.colors.accentText, fontSize: 13 * t.scale, fontFamily: fonts.body },
-    feedbackActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.five },
-    feedbackCancel: { color: t.colors.inkSoft, fontSize: 15 * t.scale, fontFamily: fonts.body },
-    feedbackThanks: { color: t.colors.doneText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    feedbackThanks: { color: t.colors.doneText, fontSize: 15 * t.scale, lineHeight: 21 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     // The update block: a fact and one control, never a badge. Sage, because nothing is wrong.
   updateBlock: { marginTop: spacing.four, gap: spacing.two },
   updateLine: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },

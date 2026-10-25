@@ -9,6 +9,7 @@
 import { isCompEmail } from './comp';
 import { decodeJwtEmail } from './mcp';
 import { bearer, type D1LikeDatabase, type EntitlementView, readEntitlement } from './stripe';
+import { giftState } from './gifts';
 import { activeTrial, startTrial } from './trials';
 import { defaultVerifySub, type SubVerifier } from './verify';
 
@@ -54,8 +55,12 @@ export async function requirePremium(
   if (view.premium) return { ok: true, userId };
   // Not premium via Stripe: an active card-free trial also unlocks the costed features. activeTrial fails
   // closed (any store error -> inactive -> 403), so a trials-table hiccup never serves paid compute for free.
-  const trial = await activeTrial(env.DB, userId, Math.floor(Date.now() / 1000));
-  return trial.active ? { ok: true, userId } : { ok: false, status: 403 };
+  const nowSec = Math.floor(Date.now() / 1000);
+  const trial = await activeTrial(env.DB, userId, nowSec);
+  if (trial.active) return { ok: true, userId };
+  // A month given as thanks for a note unlocks the same features. giftState fails closed (an error reads null).
+  const gift = await giftState(env.DB, userId, nowSec);
+  return gift?.active ? { ok: true, userId } : { ok: false, status: 403 };
 }
 
 /**

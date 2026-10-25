@@ -10,6 +10,7 @@ import { buildClarifyRequest, CLARIFY_MODEL, parseClarifyResponse } from './clar
 import { buildCombineRequest, COMBINE_MODEL, parseCombineResponse } from './combine';
 import { buildDecomposeRequest, DECOMPOSE_MODEL, type DecomposeContext, parseDecomposeResponse } from './decompose';
 import { buildFeedbackEmail, parseFeedback } from './feedback';
+import { handleGiftEligibility, JUDGE_MODEL, maybeGiveForNote } from './feedback-month';
 import { parseLanguage } from './lang';
 import { buildLookbackSummaryRequest, LOOKBACK_SUMMARY_MODEL, parseLookbackSummaryResponse } from './lookbackSummary';
 import { handleMcp } from './mcp';
@@ -255,7 +256,7 @@ const router = {
     // signature, the same check /trial/start has always made (2026-09-25 audit).
     const moneyRoute =
       ((pathname === '/checkout' || pathname === '/portal' || pathname === '/account/close-billing') && request.method === 'POST') ||
-      (pathname === '/entitlement' && request.method === 'GET');
+      ((pathname === '/entitlement' || pathname === '/gift/eligibility') && request.method === 'GET');
     if (moneyRoute && origin !== null && !isAllowedOrigin(origin)) {
       return Response.json({ error: 'forbidden origin' }, { status: 403, headers: cors });
     }
@@ -277,6 +278,10 @@ const router = {
     }
     if (pathname === '/trial/start' && request.method === 'POST') {
       return handleTrial(request, env, cors);
+    }
+    // "A month on us": can this account get a month for a note right now? Every offer surface waits on this.
+    if (pathname === '/gift/eligibility' && request.method === 'GET') {
+      return handleGiftEligibility(request, env, cors);
     }
     // Attach an anonymous Apple purchase to the signed-in account. No request body: the server uses
     // the verified `sub` from the caller's own token, so a caller can only ever reconcile themselves.
@@ -414,10 +419,25 @@ const router = {
           EmailMessage: new (from: string, to: string, raw: string) => unknown;
         };
         await env.SEND_EMAIL.send(new EmailMessage(from, env.FEEDBACK_TO, raw));
-        return Response.json({ ok: true }, { headers: cors });
       } catch {
         return Response.json({ error: 'could not send just now' }, { status: 502, headers: cors });
       }
+      // The note reached the inbox. Now, and only now, a month may follow it ("A month on us"). Every "no" comes
+      // back as {}, so the reply never says why, and the note check never sees the sender's identity.
+      const give = await maybeGiveForNote(request, env, parsed.text, parsed.aiAllowed, {
+        logCheck: (e) =>
+          ctx.waitUntil(
+            logAiCall(env, {
+              endpoint: 'noteCheck', model: JUDGE_MODEL, input: { chars: parsed.text.length }, output: e.ok ? { done: true } : null,
+              inputTokens: e.raw ? extractUsage(e.raw).input : null, outputTokens: e.raw ? extractUsage(e.raw).output : null,
+              latencyMs: e.latencyMs, ok: e.ok, ...(e.error ? { error: e.error } : {}),
+            }),
+          ),
+      });
+      if (give.check === 'stopped') ctx.waitUntil(logAppEvent(env, 'feedback.check.stopped'));
+      if (give.check === 'failed') ctx.waitUntil(logAppEvent(env, 'feedback.check.failed'));
+      if (give.givenUntil != null) ctx.waitUntil(logAppEvent(env, 'feedback.gift.given'));
+      return Response.json(give.givenUntil != null ? { ok: true, givenUntil: give.givenUntil } : { ok: true }, { headers: cors });
     }
 
     // Break it down, call 1: a dreaded task in, three qualifying questions out.

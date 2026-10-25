@@ -1,6 +1,6 @@
 import { ActivityIndicator, Pressable, type StyleProp, StyleSheet, Text, type ViewStyle } from 'react-native';
 
-import { PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
+import { fonts, ON_PREMIUM, PREMIUM_GRADIENT, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
 import { PRESS_NOW } from './press-now';
@@ -16,6 +16,11 @@ type Props = {
   disabled?: boolean;
   loading?: boolean;
   pill?: boolean;
+  /** 'inverse' is white with a mauve label, for a button sitting ON the Premium gradient, where the accent fill
+   *  (mauve on mauve) and a PremiumButton (gradient on gradient) would both disappear. */
+  tone?: 'accent' | 'inverse';
+  /** 'compact' is 12 x 20 with a 16/20 label and a 44 minimum height, for a card with a height budget. */
+  size?: 'default' | 'compact';
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
   /** RN-web renders this as data-testid. Used only by the screenshot harness, to hold onto the
@@ -36,6 +41,8 @@ export function PrimaryButton({
   disabled = false,
   loading = false,
   pill = false,
+  tone = 'accent',
+  size = 'default',
   accessibilityLabel,
   style,
   testID,
@@ -43,6 +50,7 @@ export function PrimaryButton({
   const t = useTheme();
   const styles = useThemedStyles(makeStyles);
   const isInert = disabled || loading;
+  const labelColor = tone === 'inverse' ? PREMIUM_GRADIENT[0] : t.colors.onAccent; // 5.52:1 on white
   return (
     <Pressable
       onPress={onPress}
@@ -55,6 +63,8 @@ export function PrimaryButton({
       accessibilityLabel={accessibilityLabel ?? label}
       style={({ pressed }) => [
         styles.btn,
+        tone === 'inverse' && styles.inverse,
+        size === 'compact' && styles.compact,
         pill && styles.pill,
         style,
         pressed && styles.pressed,
@@ -62,9 +72,9 @@ export function PrimaryButton({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={t.colors.onAccent} />
+        <ActivityIndicator color={labelColor} />
       ) : (
-        <Text style={[t.type.bodyStrong, { color: t.colors.onAccent }]}>{label}</Text>
+        <Text style={[t.type.bodyStrong, size === 'compact' && styles.compactLabel, { color: labelColor }]}>{label}</Text>
       )}
     </Pressable>
   );
@@ -80,6 +90,9 @@ const makeStyles = (t: Theme) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
+    inverse: { backgroundColor: ON_PREMIUM },
+    compact: { paddingVertical: spacing.three, paddingHorizontal: 20, minHeight: 44, alignSelf: 'flex-start' },
+    compactLabel: { fontSize: 16 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.bodyBold },
     pill: { borderRadius: radius.pill },
     pressed: { opacity: PRESSED_OPACITY },
     disabled: { opacity: 0.5 },

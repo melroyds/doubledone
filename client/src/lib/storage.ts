@@ -47,6 +47,12 @@ const OURS_MINE_KEY = 'doubledone.oursMine.v1'; // shared rows YOU changed from 
 const UPDATE_MENTIONED_KEY = 'doubledone.updateMentioned.v1'; // when the goodnight screen last mentioned a newer build
 const REVIEW_KEY = 'doubledone.review.v1'; // what this device remembers about asking the store for its rating card (lib/review)
 const REVIEWQUIET_KEY = 'doubledone.reviewquiet.v1'; // an ISO date: the review ask keeps quiet today (a tender day)
+// "A month on us" (2026-10-25): see lib/note.ts, lib/offer-card.ts and lib/month-end.ts.
+const NOTEDRAFT_KEY = 'doubledone.notedraft.v1'; // the unsent note to us, kept through Cancel and the sign-in trip
+const FIRSTSEEN_KEY = 'doubledone.firstseen.v1'; // epoch ms this device first opened Today on a build that has the offer card
+const OFFERCARD_KEY = 'doubledone.offercard.v1'; // 'retired' once Not now or any send from the card
+const GIFTOFFER_KEY = 'doubledone.giftoffer.v1'; // the last successful "can get a month" answer: { canGet, at }
+const MONTHEND_KEY = 'doubledone.monthend.v1'; // a free month's end, so its end line can fire once: { end, kind, shown, due }
 
 /**
  * Load Today's tasks. On a brand-new install (nothing ever stored) seed once so
@@ -845,7 +851,7 @@ export async function wipeLocalData(): Promise<void> {
     // OURS_KEY belongs here more than anything else on the list: it is the only key holding words
     // ANOTHER person wrote. A delete that left it behind would leave a household's list sitting on
     // the phone of someone whose account no longer exists.
-    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, DAYENERGY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY, SYNCOK_KEY, OURS_KEY, OURS_TUCKED_KEY, OURS_SEEN_KEY, OURS_MINE_KEY]);
+    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, DAYENERGY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY, SYNCOK_KEY, OURS_KEY, OURS_TUCKED_KEY, OURS_SEEN_KEY, OURS_MINE_KEY, NOTEDRAFT_KEY, GIFTOFFER_KEY, MONTHEND_KEY]);
   } catch {
     // best effort, like the per-key savers above
   }
@@ -873,5 +879,96 @@ export async function saveHold(contract: HoldContract | null): Promise<void> {
     else await AsyncStorage.setItem(HOLD_KEY, JSON.stringify(contract));
   } catch {
     track('store.save_failed', { what: 'hold' });
+  }
+}
+
+// ---- "A month on us" (2026-10-25). Every reader here falls back calmly: a lost value only delays a card or a line.
+
+export async function loadNoteDraft(): Promise<string> {
+  try {
+    return (await AsyncStorage.getItem(NOTEDRAFT_KEY)) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export async function saveNoteDraft(text: string): Promise<void> {
+  try {
+    if (text) await AsyncStorage.setItem(NOTEDRAFT_KEY, text);
+    else await AsyncStorage.removeItem(NOTEDRAFT_KEY);
+  } catch {
+    // best effort
+  }
+}
+
+/** When this device first opened Today on a build with the offer card, stamping it now if it never has. */
+export async function stampFirstSeen(now: number): Promise<number> {
+  try {
+    const raw = await AsyncStorage.getItem(FIRSTSEEN_KEY);
+    const n = raw == null ? NaN : Number(raw);
+    if (Number.isFinite(n)) return n;
+    await AsyncStorage.setItem(FIRSTSEEN_KEY, String(now));
+  } catch {
+    // best effort: an unreadable stamp reads as "just now", which only delays the card
+  }
+  return now;
+}
+
+export async function loadOfferCardRetired(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(OFFERCARD_KEY)) === 'retired';
+  } catch {
+    return true; // cannot tell: say nothing rather than risk a card that should be gone
+  }
+}
+
+export async function retireOfferCard(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(OFFERCARD_KEY, 'retired');
+  } catch {
+    // best effort
+  }
+}
+
+export type GiftOfferCache = { canGet: boolean; at: number };
+
+export async function loadGiftOffer(): Promise<GiftOfferCache | null> {
+  try {
+    const v = JSON.parse((await AsyncStorage.getItem(GIFTOFFER_KEY)) ?? 'null') as Partial<GiftOfferCache> | null;
+    return v && typeof v.canGet === 'boolean' && typeof v.at === 'number' ? { canGet: v.canGet, at: v.at } : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveGiftOffer(v: GiftOfferCache | null): Promise<void> {
+  try {
+    if (v) await AsyncStorage.setItem(GIFTOFFER_KEY, JSON.stringify(v));
+    else await AsyncStorage.removeItem(GIFTOFFER_KEY);
+  } catch {
+    // best effort
+  }
+}
+
+/** `due` is set by a successful read that found the month over; Today shows the line at its next first paint, then
+ *  `shown` stops it for good. Split in two so the line is never inserted above a day already on screen. */
+export type MonthEndMemory = { end: number; kind: 'given' | 'trial'; shown: boolean; due: boolean };
+
+export async function loadMonthEnd(): Promise<MonthEndMemory | null> {
+  try {
+    const v = JSON.parse((await AsyncStorage.getItem(MONTHEND_KEY)) ?? 'null') as Partial<MonthEndMemory> | null;
+    if (!v || typeof v.end !== 'number' || (v.kind !== 'given' && v.kind !== 'trial')) return null;
+    return { end: v.end, kind: v.kind, shown: v.shown === true, due: v.due === true };
+  } catch {
+    return null;
+  }
+}
+
+export async function saveMonthEnd(v: MonthEndMemory | null): Promise<void> {
+  try {
+    if (v) await AsyncStorage.setItem(MONTHEND_KEY, JSON.stringify(v));
+    else await AsyncStorage.removeItem(MONTHEND_KEY);
+  } catch {
+    // best effort
   }
 }

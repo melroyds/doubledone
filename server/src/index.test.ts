@@ -231,6 +231,21 @@ describe('feedback', () => {
     const res = await worker.fetch(req('POST', '/feedback', { origin: 'https://doubledone.app', body: { text: 'hi' } }), makeEnv(), ctx);
     expect(res.status).toBe(503);
   });
+
+  it('sends the note and answers a plain ok when nobody signed in (no month can follow)', async () => {
+    const sent: unknown[] = [];
+    const env = makeEnv({ SEND_EMAIL: { send: async (m: unknown) => void sent.push(m) }, FEEDBACK_TO: 'inbox@example.com' } as never);
+    const res = await worker.fetch(req('POST', '/feedback', { origin: 'https://doubledone.app', body: { text: 'Love the folds', ai: true } }), env, ctx);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(sent).toHaveLength(1);
+  });
+
+  it('the eligibility route answers 401 JSON without a token, never the catch-all', async () => {
+    const res = await worker.fetch(req('GET', '/gift/eligibility', { origin: 'https://doubledone.app' }), makeEnv(), ctx);
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'sign_in_required' });
+  });
 });
 
 describe('scrapbook', () => {

@@ -44,6 +44,9 @@ import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
 import { weekStartISO, weekTitles } from '@/lib/scrapbook';
 import { shouldShowWhatsNew, WHATS_NEW } from '@/lib/whats-new';
+import { givenMonthRunning, monthEndDue } from '@/lib/month-end';
+import { fetchMonthAnswer, onOfferRetired } from '@/lib/note';
+import { shouldShowOfferCard } from '@/lib/offer-card';
 import { celebrationTier, doneAffirmation, finishContext } from '@/lib/celebrate';
 import { combineTasks, eligibleForCombine } from '@/lib/combine';
 import { aiErrorLine } from '@/lib/connection';
@@ -75,7 +78,7 @@ import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } f
 import { spreadDueDates } from '@/lib/spread';
 import { decideRenewalNotice } from '@/lib/renewal';
 import { type HoldContract, holdRequiresSwap, holdStepAt } from '@/lib/hold';
-import { loadClosedDate, loadDayEnergy, loadEnergyUses, loadHold, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursMine, loadOursSeen, loadOursTasks, loadReminderHour, loadRenewalMemory, loadReviewMemory, loadReviewQuietDate, loadUpdateMentioned, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHold, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveRenewalMemory, saveReviewMemory, saveReviewQuietDate, saveUpdateMentioned, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
+import { loadClosedDate, loadDayEnergy, loadGiftOffer, loadMonthEnd, loadOfferCardRetired, retireOfferCard, saveGiftOffer, saveMonthEnd, stampFirstSeen, loadEnergyUses, loadHold, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursMine, loadOursSeen, loadOursTasks, loadReminderHour, loadRenewalMemory, loadReviewMemory, loadReviewQuietDate, loadUpdateMentioned, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHold, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveRenewalMemory, saveReviewMemory, saveReviewQuietDate, saveUpdateMentioned, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
 import { restedOffer } from '@/lib/offers';
 import { countClose, markAsked, REVIEW_DELAY_MS, shouldAskForReview, stillTheNightToAsk } from '@/lib/review';
 import { REVIEW_SUPPORTED, requestReviewCard, reviewCardAvailable } from '@/lib/store-review';
@@ -86,6 +89,7 @@ import { clearNudgeIfAny, writeTasks } from '@/lib/task-writes';
 import { mirrorTickToShared as mirrorSharedTick } from '@/lib/ours-tick';
 import { syncScrapbooks } from '@/lib/scrapbook-sync';
 import { DebugPanel } from '@/components/DebugPanel';
+import { OfferCard } from '@/components/OfferCard';
 import { debugLog } from '@/lib/debug-log';
 import { mergeTasks } from '@/lib/sync-merge';
 import { isAccountGone, localBelongsToAnother, syncOnce } from '@/lib/sync';
@@ -299,6 +303,33 @@ async function settleSharedCopies(
   }
 }
 
+/**
+ * The one-time cards for this visit ("A month on us"), read with the day's tasks so the answer is in before the
+ * first paint. The free month's end line goes first; both wait while any other one-time card has the moment (What's
+ * New, a hold hint never dismissed, a return after time away, and for the offer the end line). The last open is
+ * read here, issued before the focus effect re-stamps it, so it is the previous visit's. Premium is checked live in
+ * the render, and can only ever take a card away.
+ */
+async function readOneTimeCards(today: Date): Promise<{ offer: boolean; end: boolean }> {
+  const now = Date.now();
+  const [firstSeenAt, retired, cachedAnswer, monthMem, closed, hintSeen, wnSeen, onboarded, lastOpen] = await Promise.all([
+    stampFirstSeen(now),
+    loadOfferCardRetired(),
+    loadGiftOffer(),
+    loadMonthEnd(),
+    loadClosedDate(),
+    loadHoldHintSeen(),
+    loadWhatsNewSeen(),
+    loadOnboarded(),
+    loadLastOpen(),
+  ]);
+  const isClosed = closed === toISODate(today);
+  const otherCard = shouldShowWhatsNew(wnSeen, onboarded) || !hintSeen || isReentry(lastOpen, today, REENTRY_GAP_DAYS);
+  const end = !isClosed && !otherCard && monthEndDue(monthMem);
+  const offer = shouldShowOfferCard({ now, isClosed, premium: false, retired, firstSeenAt, cachedAnswer, otherCardThisVisit: otherCard || end });
+  return { offer, end };
+}
+
 export default function TodayScreen() {
   const insets = useSafeAreaInsets();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -488,6 +519,13 @@ export default function TodayScreen() {
   const [scrapbookOfferMade, setScrapbookOfferMade] = useState(true); // default true: never flash the ask
   const [scrapbookMade, setScrapbookMade] = useState(true);
   const [showWhatsNew, setShowWhatsNew] = useState(false); // default false: never flash the card
+  // "A month on us" (2026-10-25): the thank-you offer card and the free month's end line. Both are decided ONCE,
+  // with the first load of the day's tasks, from what this device already knew, so neither is ever inserted above
+  // a day already on screen (the first-paint rule). Default false: never flash either.
+  const [offerCard, setOfferCard] = useState(false);
+  const [endLine, setEndLine] = useState(false);
+  const oneTimeCardsRead = useRef(false);
+  const monthAnswerRefreshed = useRef(false);
   const [widgetHowShown, setWidgetHowShown] = useState(false); // the ask swaps to the instructions in place
   // Break it down, the two-call flow: qualify (questions) -> decompose (review).
   const [bdPhase, setBdPhase] = useState<'off' | 'questions' | 'review'>('off');
@@ -643,8 +681,11 @@ export default function TodayScreen() {
       todayFocused.current = true;
       setVisit((n) => n + 1);
       setToday((prev) => (toISODate(prev) === toISODate(new Date()) ? prev : new Date()));
-      void loadTasks().then((stored) => {
+      const firstFocus = !oneTimeCardsRead.current;
+      void Promise.all([loadTasks(), firstFocus ? readOneTimeCards(new Date()) : Promise.resolve(null)]).then(([stored, cards]) => {
         if (!active) return;
+        // Marked read only once applied: a first run cancelled before its reads land is retried by the next one.
+        if (cards) oneTimeCardsRead.current = true;
         // Clear nudges whose time has already passed so a fired (or moot) reminder does not
         // leave a stale bell on the row, and repair any big task left stuck behind its finished or
         // removed steps (healStuckParents: a step finished on another device, by an agent, or in Focus
@@ -652,6 +693,10 @@ export default function TodayScreen() {
         const swept = healStuckParents(sweepElapsedNudges(stored, nowMs()), nowMs(), new Set(undoRemovedRef.current ?? []));
         adoptTasks(swept);
         if (swept !== stored) void saveTasks(swept);
+        if (cards) {
+          setOfferCard(cards.offer);
+          setEndLine(cards.end);
+        }
         setLoaded(true);
       });
       void loadClosedDate().then((d) => {
@@ -788,6 +833,23 @@ export default function TodayScreen() {
   useEffect(() => {
     void loadHold().then(setHold);
   }, []);
+
+  // A note sent from the card (or anywhere) retires the card at once, while Today sits under the note, so the
+  // day is already settled when it is seen again.
+  useEffect(() => onOfferRetired(() => setOfferCard(false)), []);
+
+  // After the first paint, ask whether a month is on offer and store the answer for the NEXT open. It never
+  // changes this visit's card: a late answer inserting 160px above the day is exactly what the first-paint rule
+  // forbids. Signed out counts as yes (decision log 2026-10-25): the note then says the month follows sign-in. A
+  // failed read stores nothing.
+  useEffect(() => {
+    if (!loaded || monthAnswerRefreshed.current) return;
+    monthAnswerRefreshed.current = true;
+    void fetchMonthAnswer().then((a) => {
+      if (a === 'yes' || a === 'signedOut') void saveGiftOffer({ canGet: true, at: Date.now() });
+      else if (a === 'no') void saveGiftOffer({ canGet: false, at: Date.now() });
+    });
+  }, [loaded]);
 
   // Said once, and focus goes to the Done today line, because the row that had it has just gone. Native:
   // with a screen reader on, the line takes its focus and reads its own label (so no second announcement).
@@ -1972,6 +2034,7 @@ export default function TodayScreen() {
       heavy: dayIsHeavy,
       quietISO,
       otherOffer: tonightOffer,
+      givenMonth: givenMonthRunning(await loadMonthEnd(), Math.floor(nowMs() / 1000)),
       version,
       now: nowMs(),
     });
@@ -2119,6 +2182,21 @@ export default function TodayScreen() {
     void saveWidgetOfferMade();
     track('widget.offer_declined');
   }
+  // The offer card's Not now: retired for good on this device, and the affirmation says where it went.
+  function offerNotNow() {
+    setOfferCard(false);
+    void retireOfferCard();
+    track('feedback.offer_dismissed');
+    affirm(t('feedbackMonth.cardDismissedNote'));
+  }
+
+  function dismissEndLine() {
+    setEndLine(false);
+    void loadMonthEnd().then((m) => {
+      if (m) void saveMonthEnd({ ...m, shown: true, due: false });
+    });
+  }
+
   function dismissWhatsNew() {
     setShowWhatsNew(false);
     void saveWhatsNewSeen(WHATS_NEW.id);
@@ -3516,6 +3594,31 @@ export default function TodayScreen() {
         {/* What's New: content-keyed (never build-keyed), shown once per announcement id, a calm
             dismissible card in the hold-hint's shape. NEVER a modal: a launch popup would steal
             the open-to-capture moment. Fresh installs never see it (onboarding stamps the id). */}
+        {/* "A month on us": the thank-you card and the free month's end line, in What's New's slot under the
+            one-card rule. Both were decided at this visit's first paint, so neither ever arrives late. */}
+        {offerCard && !premium && !reentry && (
+          <OfferCard
+            onWrite={() => {
+              track('feedback.offer_opened');
+              router.push({ pathname: '/note', params: { from: 'today' } });
+            }}
+            onNotNow={offerNotNow}
+          />
+        )}
+        {endLine && !premium && (
+          <View style={styles.holdHint}>
+            <Text style={styles.holdHintText}>{t('feedbackMonth.endLine')}</Text>
+            <Pressable
+              onPress={dismissEndLine}
+              accessibilityRole="button"
+              accessibilityLabel={t('feedbackMonth.endGotItA11y')}
+              hitSlop={8}
+              style={({ pressed }) => [styles.endGotIt, pressed && styles.pressed]}
+            >
+              <Text style={styles.holdHintDismiss}>{t('feedbackMonth.endGotIt')}</Text>
+            </Pressable>
+          </View>
+        )}
         {showWhatsNew && (
           <View style={styles.holdHint}>
             <View style={styles.whatsNewBody}>
@@ -5037,6 +5140,7 @@ const makeStyles = (t: Theme) =>
     holdHintDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: t.colors.accent },
     holdHintText: { flex: 1, color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.ink, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },
     holdHintDismiss: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    endGotIt: { minHeight: 44, justifyContent: 'center' },
     reentry: {
       backgroundColor: t.colors.accentSoft,
       borderRadius: radius.lg,

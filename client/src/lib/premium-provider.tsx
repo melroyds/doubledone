@@ -1,10 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import { correctedNow } from './clock';
 import { FREE_ENTITLEMENT, type Entitlement } from './entitlement';
+import { stepMonthEnd } from './month-end';
 import { type DevPremium, gateEntitlement } from './premium-flag';
 import { localPremium } from './purchases';
-import { loadDevPremium, saveDevPremium } from './storage';
-import { loadEntitlement } from './stripe';
+import { loadDevPremium, loadMonthEnd, saveDevPremium, saveMonthEnd } from './storage';
+import { loadEntitlementChecked } from './stripe';
 
 // The dev premium override is honoured only in a local dev or preview build, never production, so
 // it is inert once `premium` merges to main. __DEV__ covers `npm run dev`; the env flag (set only
@@ -59,17 +61,23 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
   // platform: an Apple subscription shows on Android too), so Manage and the delete note name the
   // right store. On the web localPremium is a compile-time null, so this is exactly the old load there.
   // `loading` starts true and flips false after the first load; a refresh does not
-  // re-toggle it, so a re-fetch never blanks the UI.
+  // re-toggle it, so a re-fetch never blanks the UI. A failed read still DISPLAYS as free, as before.
   useEffect(() => {
     let active = true;
-    void Promise.all([loadEntitlement(), localPremium()]).then(([e, storeLocal]) => {
+    void Promise.all([loadEntitlementChecked(), localPremium(), loadMonthEnd()]).then(([read, storeLocal, monthMem]) => {
       if (!active) return;
+      const e = read.ok ? read.entitlement : FREE_ENTITLEMENT;
       // Merge the device's FIELDS, not just its yes. Spreading only `e` (the FREE entitlement here)
       // left `since` null, and weeklyAllowance(null) is 1 keepsake a week where a signed-in
       // subscriber gets 4: same money, a quarter of the product. `currentPeriodEnd` was null too,
       // so we never told an anonymous buyer when they would next be charged.
-      setEntitlement(!e.premium && storeLocal ? { ...e, ...storeLocal, premium: true, status: 'active' } : e);
+      const merged: Entitlement = !e.premium && storeLocal ? { ...e, ...storeLocal, premium: true, status: 'active' } : e;
+      setEntitlement(merged);
       setLoading(false);
+      // The end of a free month, given or card-free (lib/month-end). Only a SUCCESSFUL read moves it, and a
+      // purchase this device made counts as paying, so a store buyer is never told their month ended.
+      const step = stepMonthEnd(monthMem, read.ok ? { ...read, entitlement: merged } : read, Math.floor(correctedNow(Date.now()) / 1000));
+      if (JSON.stringify(step.next) !== JSON.stringify(monthMem)) void saveMonthEnd(step.next);
     });
     return () => {
       active = false;

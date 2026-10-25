@@ -15,7 +15,10 @@
 //   - nothing else is asked tonight (the rested screen's one-offer rule, lib/offers.ts);
 //   - not a heavy day, and the evening (17:00 to 01:59, so a night owl's 00:30 close still counts);
 //   - the caps: never twice on one app version, and 180 days apart, so at most two a year, under
-//     Apple's three. A last ask stamped in the future (the clock went backwards) means no.
+//     Apple's three. A last ask stamped in the future (the clock went backwards) means no;
+//   - no month of Premium given for a note is running. A rating asked while a thank-you is in hand would
+//     read as the price of it, and both stores forbid anything that looks like paying for a rating
+//     ("A month on us", 2026-10-25). The ask waits until the month ends.
 // Then, when the 1.2s timer fires, `stillTheNightToAsk` reads again what can change in that second: an offer
 // that reached the screen after the press, and an ask another Goodnight tap already made.
 // Pure, so every gate is a test (review.test.ts). The screen supplies the facts and the timer.
@@ -125,6 +128,8 @@ export type ReviewMoment = {
   quietISO: string | null;
   /** What the rested screen offers tonight. Anything but null means the evening is already taken. */
   otherOffer: RestedOffer;
+  /** A month given for a note is still running (lib/month-end givenMonthRunning). */
+  givenMonth: boolean;
   /** The running app version. */
   version: string;
   now: number;
@@ -148,6 +153,7 @@ export function shouldAskForReview(x: ReviewMoment): boolean {
   if (x.energy === 'low') return false;
   if (x.quietISO === x.todayISO) return false;
   if (x.otherOffer !== null) return false;
+  if (x.givenMonth) return false;
   if (x.heavy) return false;
   if (!inReviewWindow(x.hour)) return false;
   return capsAllow(m, x.version, x.now);

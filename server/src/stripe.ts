@@ -15,6 +15,7 @@ import { type D1LikeDatabase, type Entitlement, type EntitlementView, readEntitl
 import { decodeJwtEmail } from './mcp';
 import { buildOwnerEmail } from './monitor';
 import { cancelPlayRenewals } from './play-cancel';
+import { giftState } from './gifts';
 import { activeTrial } from './trials';
 import { defaultVerifySub, type SubVerifier } from './verify';
 
@@ -649,6 +650,13 @@ export async function handleEntitlement(
     const trial = await activeTrial(env.DB, sub, nowSec);
     if (trial.active) {
       view = { premium: true, status: 'trial', since: new Date(nowSec * 1000).toISOString(), currentPeriodEnd: trial.expiresAt, cancelAtPeriodEnd: true, customerId: null, source: 'stripe' };
+    } else {
+      // A month given as thanks for a note ("A month on us", 2026-10-25) reports like the trial, under its own
+      // status, so the app can thank rather than sell. A store error reads as no gift (fail closed).
+      const gift = await giftState(env.DB, sub, nowSec);
+      if (gift?.active) {
+        view = { premium: true, status: 'given', since: new Date(nowSec * 1000).toISOString(), currentPeriodEnd: gift.expiresAt, cancelAtPeriodEnd: true, customerId: null, source: 'stripe' };
+      }
     }
   }
   return new Response(JSON.stringify(view), { headers: { ...JSON_HEADERS, ...cors } });

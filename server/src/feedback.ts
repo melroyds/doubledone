@@ -5,18 +5,20 @@
 
 export const FEEDBACK_MAX = 4000; // generous for a note; caps abuse + email size
 
-export type FeedbackParse = { ok: true; text: string; context?: string } | { ok: false; error: string };
+export type FeedbackParse = { ok: true; text: string; context?: string; aiAllowed: boolean } | { ok: false; error: string };
 
 /** Validate + normalise the posted feedback. Pure, so it is unit-tested directly. */
 export function parseFeedback(raw: unknown): FeedbackParse {
   if (typeof raw !== 'object' || raw === null) return { ok: false, error: 'invalid body' };
-  const r = raw as { text?: unknown; context?: unknown };
+  const r = raw as { text?: unknown; context?: unknown; ai?: unknown };
   const text = typeof r.text === 'string' ? r.text.trim() : '';
   if (!text) return { ok: false, error: 'text is required' };
   if (text.length > FEEDBACK_MAX) return { ok: false, error: 'text is too long' };
   // Optional, non-PII context the client volunteers (e.g. "web" / "Android 14").
   const context = typeof r.context === 'string' && r.context.trim() ? r.context.trim().slice(0, 200) : undefined;
-  return { ok: true, text, context };
+  // `ai: true` is the sender's own AI setting. Only then may the note check send the note to Claude; an older client
+  // that sends nothing counts as AI off, so nothing it sends ever reaches an AI.
+  return { ok: true, text, context, aiAllowed: r.ai === true };
 }
 
 /** Base64 of a UTF-8 string, wrapped at 76 cols (RFC 2045), so any unicode in the

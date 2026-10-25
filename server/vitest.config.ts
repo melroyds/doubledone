@@ -11,6 +11,8 @@ export default defineConfig({
       // 'cloudflare:workers' at module scope, which node cannot resolve; alias it to a
       // tiny stub (src/test-stubs/) that nothing else ever imports.
       'cloudflare:workers': fileURLToPath(new URL('./src/test-stubs/cloudflare-workers.ts', import.meta.url)),
+      // 'cloudflare:email' likewise, for the route tests that send a feedback note (EmailMessage only).
+      'cloudflare:email': fileURLToPath(new URL('./src/test-stubs/cloudflare-email.ts', import.meta.url)),
     },
   },
   test: {

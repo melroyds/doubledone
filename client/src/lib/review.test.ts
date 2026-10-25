@@ -41,6 +41,7 @@ const goodNight: ReviewMoment = {
   heavy: false,
   quietISO: null,
   otherOffer: null,
+  givenMonth: false,
   version: '1.9.0',
   now: NOW,
 };
@@ -175,6 +176,10 @@ describe('shouldAskForReview: every gate, one test each', () => {
     for (const offer of ['reminder', 'widget', 'scrapbook', 'update'] as const) {
       expect(shouldAskForReview({ ...goodNight, otherOffer: offer })).toBe(false);
     }
+  });
+
+  it('never while a month given for a note is running: a rating must never read as the price of a thank-you', () => {
+    expect(shouldAskForReview({ ...goodNight, givenMonth: true })).toBe(false);
   });
 
   it('6. never twice on the same app version', () => {
