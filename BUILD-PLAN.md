@@ -65,9 +65,11 @@ MON-08, the end line, was skipped on Melroy's call ("I feel it's excessive"): it
 and was checked in the browser during the build. The drag cases passed on the iPhone as well. **Screenshots in
 every store language (2026-10-25, on Melroy's ask):** both stores, en, de, fr, es and it, each language's own app
 and cast, visually QA'd by a native reviewer per store and language (Play: phones per language, tablets English
-only; App Store: the 6.9 and 6.5 sets, 6.3 spare). Upload guide: `docs/release-notes/1.10.0.md`. Next: upload them
-(on iOS BEFORE Add for Review, since screenshots lock on submission), the iPhone feedback pass if wanted, then
-submit both, then bump `version.json` per store once live.
+only; App Store: the 6.5 and 6.3 sets, the console's two slots, with 6.9 the spare; 6.5 re-rendered at 1260x2736
+on 2026-10-26 when the slot refused 1284x2778). Upload guide: `docs/release-notes/1.10.0.md`. **iOS 1.10.0
+SUBMITTED for App Review on 2026-10-26 (Melroy), with the new screenshots in every localisation.** Next: the Play
+screenshots, uploaded when Melroy has the time (64 uploads, the Play half of the guide; a Play listing change
+reviews on its own and locks nothing), then bump `version.json` per store once each 1.10.0 is genuinely live.
 
 **LIVE ON THE WEB 2026-10-25: "A month on us" phase 1** (decision log, the same day). Merged to main as `edb3c54` on
 Melroy's "Merge" (a fast-forward of `premium`), after its Worker went live (`84cded96`, rollback `6112b1c7`). Checked:
