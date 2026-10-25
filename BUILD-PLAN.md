@@ -50,11 +50,10 @@ Judge the keyword sets only from the second rerun. Same sitting: Play Console's 
 device pass of widget, share, purchases, reminders and Ours, and the mapping file, well before Google's February
 2027 deadline. Sooner if the SDK 57 upgrade lands first.
 
-**ON `premium`, 2026-10-25: "A month on us" phase 1 is BUILT, not deployed** (decision log, the same day). The
+**ON `premium`, 2026-10-25: "A month on us" phase 1 is BUILT, its Worker LIVE, the app side waiting on the merge** (decision log, the same day). The
 strings were native-read and fixed before the commit (`be22a5c`). The privacy section "A note to us" is approved and in both copies, and the GitHub repo variable `EXPO_PUBLIC_BOOKING_URL`
-is set (2026-10-25; EAS env still to set before the next store builds). What remains, in order: the Worker deploy
-from `premium` (Melroy's, rollback target first, `git diff --stat main premium -- server` must be empty after the
-merge); then the merge to `main`, which is the web deploy. A phone pass of MON-01 to MON-09 waits for the next
+is set (2026-10-25; EAS env still to set before the next store builds). The Worker is LIVE (`84cded96`, deployed by Melroy from premium `2f31b54`, rollback `6112b1c7`; the new route answers
+401 without a token). What remains: the merge to `main`, which is the web deploy. A phone pass of MON-01 to MON-09 waits for the next
 native build. Phase 2 (people already paying) is in the Backlog entry below.
 
 **LIVE ON THE WEB 2026-10-25: drag a task by its grip** (main `865d1f6`, Melroy's "Merge to main", which also took
