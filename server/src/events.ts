@@ -41,6 +41,8 @@ export const APP_EVENTS = new Set([
   'task.pinned',
   'task.renamed',
   'task.reordered',
+  // Drag to reorder (2026-10-25): one per drop that moved a task, beside task.reordered (the card's rail).
+  'task.dragged',
   'nudge.set',
   'bulk.big',
   'card.more',

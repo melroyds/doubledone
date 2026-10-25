@@ -13,6 +13,8 @@ export function dayCleared(reduced: boolean): void {}
 export function scrapbookReady(reduced: boolean): void {}
 /** No-op on web. */
 export function stepsLanded(reduced: boolean): void {}
+/** No-op on web. */
+export function dragLifted(reduced: boolean): void {}
 /** The Settle room's haptic breath, the ONE web cue that is not a no-op: Android Chrome
  *  supports navigator.vibrate (iOS Safari ignores it, harmlessly), and the first device
  *  test was a phone browser where the silence read as a bug. A light pulse at the swell. */
