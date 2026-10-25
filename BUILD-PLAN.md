@@ -51,8 +51,8 @@ device pass of widget, share, purchases, reminders and Ours, and the mapping fil
 2027 deadline. Sooner if the SDK 57 upgrade lands first.
 
 **ON `premium`, 2026-10-25: "A month on us" phase 1 is BUILT, not deployed** (decision log, the same day). The
-strings were native-read and fixed before the commit (`be22a5c`). What remains, in order: Melroy's OK on the drafted
-privacy-policy line; the GitHub repo variable and EAS env `EXPO_PUBLIC_BOOKING_URL` (optional); the Worker deploy
+strings were native-read and fixed before the commit (`be22a5c`). The privacy section "A note to us" is approved and in both copies, and the GitHub repo variable `EXPO_PUBLIC_BOOKING_URL`
+is set (2026-10-25; EAS env still to set before the next store builds). What remains, in order: the Worker deploy
 from `premium` (Melroy's, rollback target first, `git diff --stat main premium -- server` must be empty after the
 merge); then the merge to `main`, which is the web deploy. A phone pass of MON-01 to MON-09 waits for the next
 native build. Phase 2 (people already paying) is in the Backlog entry below.

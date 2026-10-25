@@ -85,6 +85,16 @@ export default function PrivacyScreen() {
           </Text>
         </View>
 
+        <Section styles={styles} heading="A note to us">
+          When you write to us from the app, your note is emailed to us with the kind of device it came from (web,
+          iPhone or Android), and nothing else about you. If a month of Premium is given for your note, we keep a record
+          of it (an internal number and two dates, nothing you wrote), so a month is given at most once in 180 days.
+          With AI on, and only while a month is on offer, Claude reads the note once to check it is a real note.
+          Anthropic does not train on it and deletes it within 30 days, and we keep only the note&apos;s length and that a
+          check ran, never its words. With AI off, a note never goes to an AI. After a note you can book a call on a
+          Google Calendar booking page, which is Google&apos;s and works under Google&apos;s privacy policy.
+        </Section>
+
         <Section styles={styles} heading="Speaking instead of typing">
           On the web, the Speak button turns what you say into text using your browser&apos;s own speech recognition.
           DoubleDone never receives the audio. The words simply land in the box, and stay on your device unless you

@@ -10856,7 +10856,11 @@ the Worker deploy and the merge to `main` are Melroy's.
 - **The booking link comes from build config:** the `EXPO_PUBLIC_BOOKING_URL` GitHub repo variable for the web and
   EAS env for the stores. Unset, the call line is simply absent. Neither is set yet.
 
-**Privacy-policy line, DRAFT for Melroy's OK (not applied):** a new section after "The AI features":
+**Privacy-policy line, APPROVED by Melroy the same evening ("Okay with the privacy policy") and applied to both copies
+(`client/public/privacy.html`, `client/src/app/privacy.tsx`), with two corrections made before he read it: the gift
+record is kept when a month IS given, not whenever one is on offer, and the note check keeps only the note's length
+and that a check ran, not a copy as the AI features do. The first draft, kept for the trail:** a new section after
+"The AI features":
 "A note to us. When you write to us from the app, your note is emailed to us with the kind of device it came from
 (web, iPhone or Android), and nothing else about you. If you are signed in and a month of Premium is on offer, we
 keep a record that a month was given (an internal number and two dates, nothing you wrote) so it is given once in
