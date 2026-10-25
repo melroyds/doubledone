@@ -10758,3 +10758,47 @@ Built next, after the positioning one-pager.
   rejection mechanic for an audience with rejection-sensitive dysphoria, and cash draws noise and a judging burden.
 - **Cash for every piece of feedback.** Payment admin and tax for small sums, and it pays for volume, not insight;
   a free month costs almost nothing and is the best conversion path there is.
+
+## 2026-10-25: "A month on us": how the free month for feedback works, iPhone included
+
+**Why.** Melroy wanted the feedback month on every platform and was "not happy" with the first plan, which gave
+iPhone users the card with no reward: "I don't want Apple users to feel discriminated against." A four-agent research
+pass (Apple offer codes, RevenueCat, every alternative, then a sceptical critique) changed the answer.
+
+**Decided (Melroy: "Yes to both", on the cap and the phasing):**
+- **One rule on every platform, through the server.** A real note earns a free month of Premium on the signed-in
+  account, exactly like the card-free month the iPhone app has granted from one tap since 1.0. Apple's 3.2.2(x)
+  (guidelines of 16 Oct 2026) bans incentivising ratings, reviews and store actions, then says apps "may otherwise
+  incentivize users to take specific actions within apps". The 3.1.1 rejections found were all code boxes that unlock
+  features, so there is never a code box.
+- **Once per 180 days per account,** which also fits Apple's two renewal extensions a year for phase 2.
+- **Phase 2, people already paying:** the next payment moves 30 days later in the store they pay through (Apple's
+  renewal-date extension, reason code 1; Play's defer, whose own docs use a feedback survey as the example; a Stripe
+  shift, never a percentage coupon, which on an annual plan would give a free year).
+- **The check (Melroy: "Be my filter").** Claude reads the note once and stops only empty, mashed or spam notes.
+  Borderline passes, a timeout passes. A note that fails gets the same "Sent, thank you." as a note that passed, so
+  nobody is ever told their words did not count. With AI off nothing goes to Claude and a plain check stands in,
+  which keeps the promise that AI off sends nothing to an AI. Apple's 5.1.2(i) wants explicit permission before
+  personal data goes to a third-party AI, so the line naming Claude sits above Send every time, and the privacy policy
+  gains a line, with Melroy's OK.
+- **The store rating card is held off until the given month ends,** a stored date rather than a session (a phone app
+  can live for days), so the month can never read as payment for a rating.
+- **Nobody is shown a promise that is not kept.** Every offer surface shows only when the server says this account
+  can get a month now (signed in, not Premium from any source, none in 180 days; signed out counts as yes until
+  sign-in says otherwise). While a month is on offer, Send has a visible floor of about three words with a calm
+  helper, so the silent "Sent, thank you." is in practice reached only by spam. Every note reaches Melroy, and only
+  notes from someone who can get a month go to Claude. The offer is a thank-you: "real" and "earn" never appear
+  in its copy. Found by a two-reviewer check of the design brief the same day.
+- **The pre-decided escalation for App Review:** state it in the review notes; one reply if rejected; then an Apple
+  Free offer code with auto-renew off (an option Apple added on 29 Oct 2025), set up in advance. Never a second round.
+
+**Decided against:**
+- **iPhone without the reward.** Unequal, and unnecessary given the precedent.
+- **Apple offer codes as the main route.** It leaves the app, asks for Face ID, may ask for a payment method
+  (unconfirmed), allows one redemption per Apple ID per offer, and the current webhook would read a free code as a sale.
+  It stays the fallback.
+- **A new non-renewing product with a free code.** More friction than the code route, a new product through review,
+  and RevenueCat would make the entitlement permanent.
+- **Promotional, win-back or introductory offers.** All renew into a full-price charge.
+- **Earning it on the web for use in the app,** which sends iPhone users out of the app, and **sending it by email,**
+  which breaks the rule that email is only for sign-in.
