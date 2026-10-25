@@ -10671,3 +10671,38 @@ meaning ("Later in November: 6. Show them"). If Melroy wants the noun, it is one
 - **Remembering which folds were open.** It would quietly rebuild the wall the folds exist to remove.
 - **Counting fold opens in the feature-usage beacon.** It would need a new allowlisted name, a privacy-policy line
   and a Worker deploy for a question nobody has asked yet. Trigger: a real question about whether people open them.
+
+## 2026-10-25: a move into a closed Later fold says where it went, and the fold stays closed
+
+**Why.** Melroy's iPhone pass of TOD-38 (1.9.1, TestFlight): moving tasks into November and December left both
+months spread open. The review fix earlier the same day had opened the fold a move landed in, so the moved row did
+not vanish into a closed line without a word, and the fold then stayed open until the next return to Today. Moving
+six tasks unfolded the far future, which is the wall the folds exist to remove. The instinct (confirm where it went)
+was right and the tool (unfold) was wrong.
+
+**What was built:**
+- **The fold stays closed, and its count goes up in front of the user.** `bulkMoveTo` in `client/src/app/today.tsx`
+  no longer touches `laterOpen`.
+- **One calm line says where:** "Moved to Wednesday 4 November." (`today.movedIntoFoldAffirm`, the date from
+  `fmt.writtenOnSpoken`, so it is written out in full and carries the year when it is another year). It is the
+  existing affirmation note above the +, for 3.5 seconds, and it is spoken the way "Noted." is: `announceForAccessibility`
+  on the phones, the polite live region on the web.
+- **Said only when something visibly moved and it landed in a fold:** an open one-off, not removed, given a new day.
+  A repeat is never moved, and a finished task or a task already on that day changes nothing on screen, so none of
+  them is said; a move within the next seven days shows its row under its date, as before, and needs no words.
+- **The review's fixes (same day, a nine-agent workflow: four native reads and an adversarial code review):** the
+  line has One and Other forms, because French, Spanish and Italian agree the participle with how many moved
+  ("Déplacées", "Movidas", "Spostate"; English and German use one form for both); the spoken half waits
+  `SAY_AFTER_MODAL_MS` (500) for the Move-to picker's fade, because a screen reader taking focus back to Today can
+  drop a line said in that moment; and the comment on `laterFoldKey` and its test name no longer say a move opens a
+  fold. All four native reads kept their singular as drafted.
+- TOD-39 step 6 now expects the closed fold and the line. Melroy chose to rebuild 1.9.1 for it rather than ship the
+  open-on-move behaviour to the stores.
+
+**Decided against:**
+- **Keeping the open-on-move.** It piles up with every move, and the folds then hold nothing back.
+- **Opening the fold, then closing it by itself after a moment.** Things moving without being touched is exactly what
+  this audience hates.
+- **Flashing or highlighting the month line.** Motion as the message, and a highlight is invisible to a screen reader.
+- **Saying it for every move,** including a move within seven days. The row appears under its date there, and a line
+  for every move would make the confirmation noise.

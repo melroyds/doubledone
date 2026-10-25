@@ -103,6 +103,8 @@ import emptyArt from '../../assets/images/empty.jpg';
 // How long a just-ticked row stays in place before Tuck folds it away: long enough to SEE the tick (the
 // point of ticking), short enough that the list settles while you are still looking at it.
 const TUCK_SETTLE_MS = 1200;
+// How long a line spoken as a modal closes waits for the modal's fade, so the screen reader is not mid-move.
+const SAY_AFTER_MODAL_MS = 500;
 
 const REENTRY_GAP_DAYS = 4; // a calm "welcome back" shows on the first open after this many days away
 
@@ -1584,6 +1586,23 @@ export default function TodayScreen() {
     if (Platform.OS === 'web') setTuckSaid((prev) => ({ text: words, n: prev.n + 1 }));
     else AccessibilityInfo.announceForAccessibility(words);
   }
+  // The one calm line for a move into a closed Later fold, shown and spoken like "Noted.". The date is written out in
+  // full ("Wednesday 4 November", with the year when it is another year), so it reads as a sentence, and the count
+  // picks the form (French, Spanish and Italian agree the participle with how many moved).
+  function sayMovedInto(iso: string, count: number) {
+    const words = fmt.plural(
+      count,
+      { one: t('today.movedIntoFoldAffirmOne'), other: t('today.movedIntoFoldAffirmOther') },
+      { date: fmt.writtenOnSpoken(iso) },
+    );
+    affirm(words);
+    // The Move-to picker is still fading out, and a screen reader taking focus back to Today drops a line said in
+    // that moment, so the spoken half waits for it to go. The shown half needs no wait.
+    setTimeout(() => {
+      if (Platform.OS === 'web') setTuckSaid((prev) => ({ text: words, n: prev.n + 1 }));
+      else AccessibilityInfo.announceForAccessibility(words);
+    }, SAY_AFTER_MODAL_MS);
+  }
   // The held card's editor saves title AND line as one write. "Noted." plays only when new words were saved
   // and the editor closed by itself (`announce`); a clear, an unchanged line and a title-only rename are silent.
   function saveEditRow(id: string, title: string, line: string, announce: boolean) {
@@ -1741,15 +1760,15 @@ export default function TodayScreen() {
     if (!ids?.length) return;
     const now = nowMs();
     const set = new Set(ids);
+    // What a person will see move: an open one-off, not removed, given a new day. A repeat is never moved, and a
+    // finished task or one already on that day changes nothing on screen, so none of those is ever said.
+    const moving = tasks.filter((t) => set.has(t.id) && !isRecurring(t) && !t.done && !t.deletedAt && t.due !== iso).length;
     commit(tasks.map((t) => (set.has(t.id) && !isRecurring(t) ? clearNudgeIfAny({ ...deferTo(t, iso), updatedAt: now }) : t)));
     track('bulk.moved', { count: ids.length });
-    // A move past the seven days lands in a fold: open it for this visit, so the row reappears under its date as it
-    // always did, instead of vanishing into a closed line without a word (review, 2026-10-25).
-    const landing = laterFoldKey(iso, today);
-    if (landing) {
-      const day = toISODate(today);
-      setLaterOpen((prev) => ({ on: day, keys: prev.on === day ? [...new Set([...prev.keys, landing])] : [landing] }));
-    }
+    // A move past the seven days lands in a closed fold. Say where it went, never open the fold: a month that
+    // unfolds by itself and stays open is the very wall the folds remove (Melroy, 2026-10-25). The line's count
+    // goes up in front of the user, and the words carry the date.
+    if (moving > 0 && laterFoldKey(iso, today)) sayMovedInto(iso, moving);
     setMoveIds(null);
     dismissActions();
   }

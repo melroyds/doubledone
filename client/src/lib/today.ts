@@ -291,7 +291,8 @@ export type LaterFold<T> = { key: string; kind: 'month' | 'beyond'; tasks: T[] }
  * output (future, not done, soonest first) and keeps that order inside every group.
  */
 /** Which fold a 'YYYY-MM-DD' falls in, seen from `date`: null inside the seven days (or earlier), the 'YYYY-MM' of a
- *  month of this year, or 'beyond' for a later year. One rule, so a move into a fold opens the same fold it lands in. */
+ *  month of this year, or 'beyond' for a later year. One rule, so a Move to knows when it landed in a fold and says
+ *  where (the fold itself stays closed). */
 export function laterFoldKey(iso: string, date: Date, nearDays: number = LATER_NEAR_DAYS): string | null {
   if (iso <= addDaysISO(date, nearDays)) return null;
   return iso.slice(0, 4) === String(date.getFullYear()) ? iso.slice(0, 7) : 'beyond';

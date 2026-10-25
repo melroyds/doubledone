@@ -359,7 +359,7 @@ describe('groupLater (Later folds by month, Melroy 2026-10-24)', () => {
     ]);
   });
 
-  it('names the fold a date lands in, the rule a Move to uses to open it', () => {
+  it('names the fold a date lands in, the rule a Move to uses to know it landed in one', () => {
     expect(laterFoldKey('2026-11-01', sun)).toBeNull(); // the seventh day, still in full
     expect(laterFoldKey('2026-10-20', sun)).toBeNull(); // earlier than today: never a fold
     expect(laterFoldKey('2026-11-02', sun)).toBe('2026-11');

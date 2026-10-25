@@ -1111,6 +1111,8 @@ export const en = {
     markBigOneA11y: 'Mark this task as a lot',
     markSelectedDoneA11y: 'Mark selected done',
     markedBigAffirm: "Marked as a lot. The day knows it's heavier.",
+    movedIntoFoldAffirmOne: 'Moved to {date}.',
+    movedIntoFoldAffirmOther: 'Moved to {date}.',
     menu: 'Menu',
     menuA11yList: 'Menu: {rooms}',
     moreStepsA11y: 'More steps',
