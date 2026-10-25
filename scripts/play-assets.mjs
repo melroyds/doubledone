@@ -258,8 +258,9 @@ const PLAY_DEVICES = [
 // a tablet, so four more tablet sets would cost 64 uploads and about 48 MB of public repo for next to nothing.
 // TABLETS=all makes them anyway.
 const TABLET_LOCALES = process.env.TABLETS === 'all' ? null : new Set(['en']);
-// Apple's iPhone slots, all from the one 1320x2868 raw: 6.9" Dynamic Island large, 6.5" Face ID large (the slot
-// App Store Connect demanded on 2026-08-17), 6.3" Dynamic Island medium (the one Apple's page now calls required).
+// Apple's iPhone sizes, all from the one 1320x2868 raw. The console shows two slots (2026-10-26): 6.5-inch, which
+// also takes 6.7 and 6.9 sizes, and 6.3-inch. So `6.5` and `6.3` are the uploads, and `6.9` is the raw's own size,
+// a spare the 6.5 slot would also take.
 const IOS_DEVICES = [
   { dir: '6.9', w: 1320, h: 2868 },
   { dir: '6.5', w: 1260, h: 2736 }, // 1284x2778 until 2026-10-26: the slot now takes the iPhone Air's 6.5" size

@@ -11022,5 +11022,7 @@ Air's 6.5-inch screen), 1290x2796 and 1320x2868, and with nothing uploaded it sh
 here meant the 6.3 set scaled UP. Melroy: "I'd rather not scale up. Scaling down is whatever."
 
 **Decided:** the generator renders `6.5` at 1260x2736, every language, from the same 1320x2868 capture (a scale
-down, so nothing softens). **Decided against:** uploading the 6.9 set into that slot as well (it would pass, but
+down, so nothing softens). Also learned at this upload: the console shows only two iPhone slots, 6.5-inch and
+6.3-inch, and no 6.9 one, so the guides now map `6.5/` and `6.3/` to them and call `6.9/` the spare (they had it
+the other way round). **Decided against:** uploading the 6.9 set into that slot as well (it would pass, but
 the 6.5 folder would then be a set nobody can use), and leaving the slot to scale the 6.3 set up.

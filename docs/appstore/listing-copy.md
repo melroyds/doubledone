@@ -232,9 +232,9 @@ Optimization test settles that slot later, which needs no new version.
 
 | Folder | Size | Slot |
 |---|---|---|
-| `docs/appstore/captioned/6.9/<lang>/` | 1320x2868 | iPhone 6.9-inch (Dynamic Island, large). Upload this set first. |
+| `docs/appstore/captioned/6.9/<lang>/` | 1320x2868 | The capture's own size. A spare: the console shows no 6.9 slot (2026-10-26), though the 6.5 slot would take it. |
 | `docs/appstore/captioned/6.5/<lang>/` | 1260x2736 | iPhone 6.5-inch. 1284x2778 until 2026-10-26, when the slot refused it: it now takes 1260x2736 (the iPhone Air), 1290x2796 or 1320x2868, and left empty it scales the 6.3 set up. |
-| `docs/appstore/captioned/6.3/<lang>/` | 1206x2622 | iPhone 6.3-inch (Dynamic Island, medium), the size Apple's page now names as required. |
+| `docs/appstore/captioned/6.3/<lang>/` | 1206x2622 | iPhone 6.3-inch, the console's second slot. Upload it with the 6.5 set. |
 
 `<lang>` is `en`, `de`, `fr`, `es` or `it`.
 
